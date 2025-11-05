@@ -51,6 +51,14 @@ import {
   titilerEndpointAtom,
   maxResolutionAtom,
   themeAtom,
+  isGeneralOpenAtom,
+  isTerrainSourceOpenAtom,
+  isVizModesOpenAtom,
+  isHillshadeOpenAtom,
+  isTerrainRasterOpenAtom,
+  isHypsoOpenAtom,
+  isContoursOpenAtom,
+  isDownloadOpenAtom,
 } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
@@ -65,18 +73,17 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
   const [isColorsOpen, setIsColorsOpen] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isGeneralOpen, setIsGeneralOpen] = useState(true)
-  const [isTerrainSourceOpen, setIsTerrainSourceOpen] = useState(true)
-  const [isVizModesOpen, setIsVizModesOpen] = useState(true)
-  const [isHillshadeOpen, setIsHillshadeOpen] = useState(true)
-  const [isTerrainRasterOpen, setIsTerrainRasterOpen] = useState(true)
-  const [isHypsoOpen, setIsHypsoOpen] = useState(true)
-  const [isContoursOpen, setIsContoursOpen] = useState(true)
-  const [isDownloadOpen, setIsDownloadOpen] = useState(true) // New state for download collapsible
+  const [isGeneralOpen, setIsGeneralOpen] = useAtom(isGeneralOpenAtom)
+  const [isTerrainSourceOpen, setIsTerrainSourceOpen] = useAtom(isTerrainSourceOpenAtom)
+  const [isVizModesOpen, setIsVizModesOpen] = useAtom(isVizModesOpenAtom)
+  const [isHillshadeOpen, setIsHillshadeOpen] = useAtom(isHillshadeOpenAtom)
+  const [isTerrainRasterOpen, setIsTerrainRasterOpen] = useAtom(isTerrainRasterOpenAtom)
+  const [isHypsoOpen, setIsHypsoOpen] = useAtom(isHypsoOpenAtom)
+  const [isContoursOpen, setIsContoursOpen] = useAtom(isContoursOpenAtom)
+  const [isDownloadOpen, setIsDownloadOpen] = useAtom(isDownloadOpenAtom)
   const [showAdvancedRamps, setShowAdvancedRamps] = useState(false)
   const [batchEditMode, setBatchEditMode] = useState(false)
   const [batchApiKeys, setBatchApiKeys] = useState("")
-  // Removed theme state as it's now managed by Jotai atom
 
   const [mapboxKey, setMapboxKey] = useAtom(mapboxKeyAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
@@ -494,6 +501,29 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2 pt-1">
           <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm font-medium">Split Screen</Label>
+            <ToggleGroup
+              type="single"
+              value={state.splitScreen ? "on" : "off"}
+              onValueChange={(value) => value && setState({ splitScreen: value === "on" })}
+              className="border rounded-md w-[140px]"
+            >
+              <ToggleGroupItem
+                value="off"
+                className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+              >
+                Off
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="on"
+                className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+              >
+                On
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
             <Label className="text-sm font-medium">View Mode</Label>
             <ToggleGroup
               type="single"
@@ -518,29 +548,6 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                 className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
               >
                 3D
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-
-          <div className="flex items-center justify-between gap-2">
-            <Label className="text-sm font-medium">Split Screen</Label>
-            <ToggleGroup
-              type="single"
-              value={state.splitScreen ? "on" : "off"}
-              onValueChange={(value) => value && setState({ splitScreen: value === "on" })}
-              className="border rounded-md w-[140px]"
-            >
-              <ToggleGroupItem
-                value="off"
-                className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
-              >
-                Off
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="on"
-                className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
-              >
-                On
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
@@ -820,7 +827,6 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
             </Label>
           </div>
 
-          {/* Terrain Raster */}
           <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
             <Checkbox
               id="terrain-raster"
@@ -829,7 +835,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
               className="cursor-pointer"
             />
             <Label htmlFor="terrain-raster" className="text-sm cursor-pointer">
-              Terrain Raster
+              Raster Basemap
             </Label>
             <Slider
               value={[state.terrainOpacity]}
@@ -854,21 +860,6 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
               <ChevronDown className={`h-4 w-4 transition-transform ${isHillshadeOpen ? "rotate-180" : ""}`} />
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-2 pt-1">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">Opacity</Label>
-                  <span className="text-sm text-muted-foreground">{Math.round(state.hillshadeOpacity * 100)}%</span>
-                </div>
-                <Slider
-                  value={[state.hillshadeOpacity]}
-                  onValueChange={([value]) => setState({ hillshadeOpacity: value })}
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  className="cursor-pointer"
-                />
-              </div>
-
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Hillshade Method</Label>
                 <div className="flex gap-2">
@@ -1087,7 +1078,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
         <>
           <Collapsible open={isTerrainRasterOpen} onOpenChange={setIsTerrainRasterOpen}>
             <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-base font-medium cursor-pointer">
-              Terrain Raster Options
+              Raster Basemap Options
               <ChevronDown className={`h-4 w-4 transition-transform ${isTerrainRasterOpen ? "rotate-180" : ""}`} />
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-2 pt-1">
@@ -1125,20 +1116,6 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                     </Button>
                   </div>
                 </div>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">Opacity</Label>
-                  <span className="text-sm text-muted-foreground">{Math.round(state.terrainOpacity * 100)}%</span>
-                </div>
-                <Slider
-                  value={[state.terrainOpacity]}
-                  onValueChange={([value]) => setState({ terrainOpacity: value })}
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  className="cursor-pointer"
-                />
               </div>
             </CollapsibleContent>
           </Collapsible>
@@ -1204,7 +1181,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">Export DTM altitude GeoTIFF raw Float32 elevation values</p>
+                  <p className="text-xs">Export DTM as GeoTIFF (raw Float32 elevation values)</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -1217,7 +1194,9 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">Export composited view</p>
+                  <p className="text-xs">
+                    Export Screenshot (composited with hillshade, hypsometric tint, raster basemap, etc)
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

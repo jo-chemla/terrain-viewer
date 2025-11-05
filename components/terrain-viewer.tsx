@@ -52,7 +52,7 @@ export function TerrainViewer() {
     highlightColor: parseAsString.withDefault("#FFFFFF"),
     accentColor: parseAsString.withDefault("#808080"),
     hillshadeExag: parseAsFloat.withDefault(1.0),
-    hillshadeMethod: parseAsString.withDefault("standard"),
+    hillshadeMethod: parseAsString.withDefault("combined"),
     contourMinor: parseAsFloat.withDefault(50),
     contourMajor: parseAsFloat.withDefault(200),
     minElevation: parseAsFloat.withDefault(0),
@@ -78,18 +78,13 @@ export function TerrainViewer() {
 
     if (state.hillshadeMethod === "multidirectional") {
       paint["hillshade-method"] = "multidirectional"
-      if (supportsExaggeration) {
-        paint["hillshade-exaggeration"] = state.hillshadeExag
-      }
+      paint["hillshade-exaggeration"] = 0.5
     } else if (state.hillshadeMethod === "multidir-colors") {
       paint["hillshade-method"] = "multidirectional"
-      paint["hillshade-highlight-color"] = ["#ff8080", "#80ff80", "#80c0ff"]
-      paint["hillshade-shadow-color"] = ["#4040ff", "#8000ff", "#0040ff"]
-      paint["hillshade-illumination-direction"] = [300, 60, 180]
-      paint["hillshade-illumination-altitude"] = [45, 45, 30]
-      if (supportsExaggeration) {
-        paint["hillshade-exaggeration"] = state.hillshadeExag
-      }
+      paint["hillshade-highlight-color"] = ["#FF4000", "#FFFF00", "#40ff00", "#00FF80"]
+      paint["hillshade-shadow-color"] = ["#00bfff", "#0000ff", "#bf00ff", "#FF0080"]
+      paint["hillshade-illumination-direction"] = [270, 315, 0, 45]
+      paint["hillshade-illumination-altitude"] = [30, 30, 30, 30]
     } else {
       if (supportsIlluminationDirection) {
         paint["hillshade-illumination-direction"] = state.illuminationDir
@@ -197,7 +192,7 @@ export function TerrainViewer() {
               features,
             }
           },
-          placeholder: "Search",
+          placeholder: "Search and press Enter",
           language: "en",
         })
         mapARef.current.getMap().addControl(geocoder, "top-left")
@@ -290,7 +285,7 @@ export function TerrainViewer() {
     }
 
     if (mapsLoaded && !contoursInitialized) {
-      const timer = setTimeout(initContours, 2000)
+      const timer = setTimeout(initContours, 3000)
       return () => clearTimeout(timer)
     }
   }, [contoursInitialized, mapLibreReady, mapsLoaded, state.sourceA, state.contourMinor, state.contourMajor])
