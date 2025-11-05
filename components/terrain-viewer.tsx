@@ -8,6 +8,7 @@ import { TerrainControls } from "./terrain-controls"
 import { terrainSources } from "@/lib/terrain-sources"
 import { colorRamps } from "@/lib/color-ramps"
 import type { TerrainSource } from "@/lib/terrain-types"
+import { MaplibreGeocoder } from "@maplibre/maplibre-gl-geocoder"
 
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
@@ -157,7 +158,6 @@ export function TerrainViewer() {
       if (!mapARef.current || geocoderLoaded || !mapLibreReady || !mapsLoaded) return
 
       try {
-        const MaplibreGeocoder = (await import("@maplibre/maplibre-gl-geocoder")).default
         const geocoder = new MaplibreGeocoder({
           forwardGeocode: async (config: any) => {
             const features = []
@@ -369,6 +369,7 @@ export function TerrainViewer() {
           exaggeration: state.exaggeration,
         }}
         projection={state.viewMode === "globe" ? "globe" : "mercator"}
+        preserveDrawingBuffer={true}
         mapStyle={{
           version: 8,
           sources: {},

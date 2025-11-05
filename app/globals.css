@@ -123,6 +123,20 @@
   }
 }
 
+/* Fix tooltip dark/light theme styling */
+.dark [data-slot="tooltip-content"] {
+  background-color: oklch(0.985 0 0) !important;
+  color: oklch(0.145 0 0) !important;
+}
+
+.dark [data-slot="tooltip-content"] .bg-foreground {
+  background-color: oklch(0.985 0 0) !important;
+}
+
+.dark [data-slot="tooltip-content"] .fill-foreground {
+  fill: oklch(0.985 0 0) !important;
+}
+
 /* MapLibre controls dark theme with proper SVG icon styling */
 .dark .maplibregl-ctrl-group,
 .dark .maplibregl-ctrl-geocoder {

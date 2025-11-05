@@ -84,6 +84,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
   const [showAdvancedRamps, setShowAdvancedRamps] = useState(false)
   const [batchEditMode, setBatchEditMode] = useState(false)
   const [batchApiKeys, setBatchApiKeys] = useState("")
+  const [isExporting, setIsExporting] = useState(false) // ADDED: isExporting state for spinner
 
   const [mapboxKey, setMapboxKey] = useAtom(mapboxKeyAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
@@ -166,6 +167,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
   }
 
   const exportDTM = async () => {
+    setIsExporting(true) // ADDED: Set isExporting state for spinner
     try {
       const url = getTitilerDownloadUrl()
       const response = await fetch(url)
@@ -227,6 +229,8 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
       console.error("Failed to export DTM:", error)
       const url = getTitilerDownloadUrl()
       window.open(url, "_blank")
+    } finally {
+      setIsExporting(false) // ADDED: Set isExporting state for spinner
     }
   }
 
@@ -500,29 +504,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
           <ChevronDown className={`h-4 w-4 transition-transform ${isGeneralOpen ? "rotate-180" : ""}`} />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2 pt-1">
-          <div className="flex items-center justify-between gap-2">
-            <Label className="text-sm font-medium">Split Screen</Label>
-            <ToggleGroup
-              type="single"
-              value={state.splitScreen ? "on" : "off"}
-              onValueChange={(value) => value && setState({ splitScreen: value === "on" })}
-              className="border rounded-md w-[140px]"
-            >
-              <ToggleGroupItem
-                value="off"
-                className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
-              >
-                Off
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="on"
-                className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
-              >
-                On
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-
+          {/* MOVED: View Mode before Split Screen */}
           <div className="flex items-center justify-between gap-2">
             <Label className="text-sm font-medium">View Mode</Label>
             <ToggleGroup
@@ -548,6 +530,29 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                 className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
               >
                 3D
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm font-medium">Split Screen</Label>
+            <ToggleGroup
+              type="single"
+              value={state.splitScreen ? "on" : "off"}
+              onValueChange={(value) => value && setState({ splitScreen: value === "on" })}
+              className="border rounded-md w-[140px]"
+            >
+              <ToggleGroupItem
+                value="off"
+                className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+              >
+                Off
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="on"
+                className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+              >
+                On
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
@@ -759,6 +764,88 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
               ))}
             </RadioGroup>
           )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Separator />
+
+      {/* MOVED: Download section between Terrain Source and Visualization Modes */}
+      <Collapsible open={isDownloadOpen} onOpenChange={setIsDownloadOpen}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-base font-medium cursor-pointer">
+          Download
+          <ChevronDown className={`h-4 w-4 transition-transform ${isDownloadOpen ? "rotate-180" : ""}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-2 pt-1">
+          <div className="flex gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* ADDED: Make export button right-clickable to copy URL, add spinner */}
+                  <Button
+                    variant="outline"
+                    className="flex-[2] bg-transparent cursor-pointer"
+                    onClick={exportDTM}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      const url = getTitilerDownloadUrl()
+                      copyToClipboard(url)
+                    }}
+                    disabled={isExporting}
+                  >
+                    {isExporting ? (
+                      <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    Export DTM
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">Export DTM as GeoTIFF (raw Float32 elevation values)</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" className="flex-1 bg-transparent cursor-pointer" onClick={takeScreenshot}>
+                    <Camera className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">
+                    Export Screenshot (composited with hillshade, hypsometric tint, raster basemap, etc)
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="flex-1 bg-transparent cursor-pointer"
+                    onClick={() => {
+                      const url = getSourceUrl()
+                      copyToClipboard(url)
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">
+                    Copy TMS/XYZ tileset source URL, uses {terrainSources[state.sourceA].encoding} encoding
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Export terrain as GeoTIFF via Titiler, take screenshot, or copy source URL for QGIS
+          </p>
         </CollapsibleContent>
       </Collapsible>
 
@@ -1164,72 +1251,6 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
           <Separator />
         </>
       )}
-
-      <Collapsible open={isDownloadOpen} onOpenChange={setIsDownloadOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-base font-medium cursor-pointer">
-          Download
-          <ChevronDown className={`h-4 w-4 transition-transform ${isDownloadOpen ? "rotate-180" : ""}`} />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-2 pt-1">
-          <div className="flex gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" className="flex-[2] bg-transparent cursor-pointer" onClick={exportDTM}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Export DTM
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs">Export DTM as GeoTIFF (raw Float32 elevation values)</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" className="flex-1 bg-transparent cursor-pointer" onClick={takeScreenshot}>
-                    <Camera className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs">
-                    Export Screenshot (composited with hillshade, hypsometric tint, raster basemap, etc)
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="flex-1 bg-transparent cursor-pointer"
-                    onClick={() => {
-                      const url = getSourceUrl()
-                      copyToClipboard(url)
-                    }}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs">
-                    Copy TMS/XYZ tileset source URL, uses {terrainSources[state.sourceA].encoding} encoding
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Export terrain as GeoTIFF via Titiler, take screenshot, or copy source URL for QGIS
-          </p>
-        </CollapsibleContent>
-      </Collapsible>
-
-      <Separator />
 
       <div className="text-xs text-muted-foreground space-y-1">
         <p>Inspired by:</p>
