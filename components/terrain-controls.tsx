@@ -152,15 +152,65 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
   const takeScreenshot = async () => {
     if (!mapRef.current) return
     try {
+      const { domToPng } = await import("modern-screenshot")
       const canvas = mapRef.current.getMap().getCanvas()
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          console.error("Failed to create blob from canvas")
-          return
-        }
-        const { saveAs } = require("file-saver")
-        saveAs(blob, `terrain-screenshot-${Date.now()}.png`)
+      const parentElement = canvas.parentElement
+
+      if (!parentElement) {
+        console.error("Canvas parent element not found")
+        return
+      }
+
+      const filter = (node: HTMLElement) => {
+        const exclusionClasses = [
+          "mapboxgl-ctrl-group",
+          "maplibregl-ctrl-group",
+          "mapboxgl-ctrl-geocoder",
+          "maplibregl-ctrl-geocoder",
+          "mapboxgl-ctrl-logo",
+          "maplibregl-ctrl-logo",
+          "terradraw-group",
+        ]
+        return !exclusionClasses.some((classname) => node.classList?.contains(classname))
+      }
+
+      const width = parentElement.clientWidth
+      const height = parentElement.clientHeight
+      const dpr = window.devicePixelRatio
+
+      mapRef.current?.resize()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      const dataUrl = await domToPng(parentElement, {
+        filter: filter,
+        width: width,
+        height: height,
+        scale: dpr,
       })
+
+      const { saveAs } = await import("file-saver")
+      const response = await fetch(dataUrl)
+      const blob = await response.blob()
+      saveAs(blob, `terrain-screenshot-${Date.now()}.png`)
+
+      if (state.viewMode === "2d") {
+        const bounds = getMapBounds()
+        const pixelSizeX = (bounds.east - bounds.west) / width
+        const pixelSizeY = (bounds.north - bounds.south) / height
+
+        // PGW format: pixel size X, rotation, rotation, pixel size Y (negative), top-left X, top-left Y
+        const pgwContent = [
+          pixelSizeX.toFixed(10),
+          "0.0",
+          "0.0",
+          (-pixelSizeY).toFixed(10),
+          bounds.west.toFixed(10),
+          bounds.north.toFixed(10),
+        ].join("\n")
+
+        const pgwBlob = new Blob([pgwContent], { type: "text/plain" })
+        saveAs(pgwBlob, `terrain-screenshot-${Date.now()}.pgw`)
+      }
     } catch (error) {
       console.error("Failed to take screenshot:", error)
     }
@@ -266,6 +316,26 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-6">
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold">Appearance</h3>
+                  <div className="flex items-center justify-between">
+                    <Label>Theme</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setTheme(theme === "light" ? "dark" : "light")
+                      }}
+                      className="cursor-pointer"
+                    >
+                      {theme === "light" ? <Moon className="h-4 w-4 mr-2" /> : <Sun className="h-4 w-4 mr-2" />}
+                      {theme === "light" ? "Dark" : "Light"}
+                    </Button>
+                  </div>
+                </div>
+
+                <Separator />
+
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold">API Keys</h3>
@@ -465,26 +535,6 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                       <span>cpt2js Package</span>
                       <ExternalLink className="h-4 w-4 ml-auto shrink-0" />
                     </a>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold">Appearance</h3>
-                  <div className="flex items-center justify-between">
-                    <Label>Theme</Label>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setTheme(theme === "light" ? "dark" : "light")
-                      }}
-                      className="cursor-pointer"
-                    >
-                      {theme === "light" ? <Moon className="h-4 w-4 mr-2" /> : <Sun className="h-4 w-4 mr-2" />}
-                      {theme === "light" ? "Dark" : "Light"}
-                    </Button>
                   </div>
                 </div>
               </div>
@@ -815,7 +865,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                 </TooltipTrigger>
                 <TooltipContent>
                   <p className="text-xs">
-                    Export Screenshot (composited with hillshade, hypsometric tint, raster basemap, etc)
+                    Export Screenshot (composited with hillshade, hypsometric tint, raster basemap, etc) - warning, WIP
                   </p>
                 </TooltipContent>
               </Tooltip>

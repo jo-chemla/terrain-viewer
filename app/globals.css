@@ -123,7 +123,20 @@
   }
 }
 
-/* Fix tooltip dark/light theme styling */
+/* Fix tooltip dark/light theme styling - invert themes */
+[data-slot="tooltip-content"] {
+  background-color: oklch(0.145 0 0) !important;
+  color: oklch(0.985 0 0) !important;
+}
+
+[data-slot="tooltip-content"] .bg-foreground {
+  background-color: oklch(0.145 0 0) !important;
+}
+
+[data-slot="tooltip-content"] .fill-foreground {
+  fill: oklch(0.145 0 0) !important;
+}
+
 .dark [data-slot="tooltip-content"] {
   background-color: oklch(0.985 0 0) !important;
   color: oklch(0.145 0 0) !important;
@@ -186,4 +199,10 @@
 
 .maplibregl-ctrl-top-left .maplibregl-ctrl-geocoder {
   margin-bottom: 10px !important;
+}
+
+/* Fix button-group highlighted color in dark theme */
+.dark [data-state="on"] {
+  background-color: oklch(0.145 0 0) !important;
+  color: oklch(0.985 0 0) !important;
 }

@@ -1,24 +1,141 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useMemo } from "react"
+import { useCallback, useEffect, useRef, useState, useMemo, memo } from "react"
 import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat } from "nuqs"
 import Map, { Source, Layer, NavigationControl, GeolocateControl, type MapRef } from "react-map-gl/maplibre"
 import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css"
 import { TerrainControls } from "./terrain-controls"
+import { GeocoderControl } from "./geocoder-control"
 import { terrainSources } from "@/lib/terrain-sources"
 import { colorRamps } from "@/lib/color-ramps"
 import type { TerrainSource } from "@/lib/terrain-types"
-import { MaplibreGeocoder } from "@maplibre/maplibre-gl-geocoder"
+
+const TerrainSources = memo(({ source }: { source: TerrainSource }) => {
+  const sourceConfig = terrainSources[source].sourceConfig
+
+  return (
+    <>
+      <Source id="terrainSource" key={`terrain-${source}`} {...sourceConfig} />
+      <Source id="hillshadeSource" key={`hillshade-${source}`} {...sourceConfig} />
+    </>
+  )
+})
+TerrainSources.displayName = "TerrainSources"
+
+const RasterSource = memo(
+  ({ terrainSource, terrainRasterUrls }: { terrainSource: string; terrainRasterUrls: Record<string, string> }) => {
+    return (
+      <Source
+        id="terrain-raster-source"
+        key={`raster-${terrainSource}`}
+        type="raster"
+        tiles={[terrainRasterUrls[terrainSource] || terrainRasterUrls.google]}
+        tileSize={256}
+      />
+    )
+  },
+)
+RasterSource.displayName = "RasterSource"
+
+const RasterLayer = memo(({ showTerrain, terrainOpacity }: { showTerrain: boolean; terrainOpacity: number }) => {
+  return (
+    <Layer
+      id="terrain-raster"
+      type="raster"
+      source="terrain-raster-source"
+      paint={{
+        "raster-opacity": terrainOpacity,
+      }}
+      layout={{
+        visibility: showTerrain ? "visible" : "none",
+      }}
+    />
+  )
+})
+RasterLayer.displayName = "RasterLayer"
+
+const HillshadeLayer = memo(({ showHillshade, hillshadePaint }: { showHillshade: boolean; hillshadePaint: any }) => {
+  return (
+    <Layer
+      id="hillshade"
+      type="hillshade"
+      source="hillshadeSource"
+      paint={hillshadePaint}
+      layout={{
+        visibility: showHillshade ? "visible" : "none",
+      }}
+    />
+  )
+})
+HillshadeLayer.displayName = "HillshadeLayer"
+
+const ColorReliefLayer = memo(
+  ({ showColorRelief, colorReliefPaint }: { showColorRelief: boolean; colorReliefPaint: any }) => {
+    if (!showColorRelief) return null
+
+    return (
+      <Layer
+        id="color-relief"
+        type="color-relief"
+        source="hillshadeSource"
+        paint={colorReliefPaint}
+        layout={{
+          visibility: "visible",
+        }}
+      />
+    )
+  },
+)
+ColorReliefLayer.displayName = "ColorReliefLayer"
+
+const ContourLayers = memo(({ showContours }: { showContours: boolean }) => {
+  return (
+    <>
+      <Layer
+        id="contour-lines"
+        type="line"
+        source="contour-source"
+        source-layer="contours"
+        paint={{
+          "line-color": "rgba(0,0,0, 50%)",
+          "line-width": ["match", ["get", "level"], 1, 1, 0.5],
+        }}
+        layout={{
+          visibility: showContours ? "visible" : "none",
+        }}
+      />
+      <Layer
+        id="contour-labels"
+        type="symbol"
+        source="contour-source"
+        source-layer="contours"
+        filter={[">", ["get", "level"], 0]}
+        layout={{
+          "symbol-placement": "line",
+          "text-size": 10,
+          "text-field": ["concat", ["number-format", ["get", "ele"], {}], "m"],
+          "text-font": ["Noto Sans Bold"],
+          visibility: showContours ? "visible" : "none",
+        }}
+        paint={{
+          "text-halo-color": "white",
+          "text-halo-width": 1,
+        }}
+      />
+    </>
+  )
+})
+ContourLayers.displayName = "ContourLayers"
 
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
   const mapBRef = useRef<MapRef>(null)
   const isSyncing = useRef(false)
-  const [geocoderLoaded, setGeocoderLoaded] = useState(false)
   const [mapLibreReady, setMapLibreReady] = useState(false)
   const [contoursInitialized, setContoursInitialized] = useState(false)
   const demSourceRef = useRef<any>(null)
   const [mapsLoaded, setMapsLoaded] = useState(false)
+  const initAttemptsRef = useRef(0)
 
   const terrainRasterUrls: Record<string, string> = {
     osm: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -62,7 +179,7 @@ export function TerrainViewer() {
     googleKey: parseAsString.withDefault(""),
     maptilerKey: parseAsString.withDefault(""),
     titilerEndpoint: parseAsString.withDefault("https://titiler.xyz"),
-    maxResolution: parseAsFloat.withDefault(4096),
+    maxResolution: parseAsFloat.withDefault(1024),
   })
 
   const supportsIlluminationDirection = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
@@ -154,60 +271,6 @@ export function TerrainViewer() {
   }, [])
 
   useEffect(() => {
-    const loadGeocoder = async () => {
-      if (!mapARef.current || geocoderLoaded || !mapLibreReady || !mapsLoaded) return
-
-      try {
-        const geocoder = new MaplibreGeocoder({
-          forwardGeocode: async (config: any) => {
-            const features = []
-            try {
-              const request = `https://nominatim.openstreetmap.org/search?q=${config.query}&format=geojson&polygon_geojson=1&addressdetails=1`
-              const response = await fetch(request)
-              const geojson = await response.json()
-              for (const feature of geojson.features) {
-                const center = [
-                  feature.bbox[0] + (feature.bbox[2] - feature.bbox[0]) / 2,
-                  feature.bbox[1] + (feature.bbox[3] - feature.bbox[1]) / 2,
-                ]
-                const point = {
-                  type: "Feature",
-                  geometry: {
-                    type: "Point",
-                    coordinates: center,
-                  },
-                  place_name: feature.properties.display_name,
-                  properties: feature.properties,
-                  text: feature.properties.display_name,
-                  place_type: ["place"],
-                  center,
-                }
-                features.push(point)
-              }
-            } catch (e) {
-              console.error(`Failed to forwardGeocode with error: ${e}`)
-            }
-
-            return {
-              features,
-            }
-          },
-          placeholder: "Search and press Enter",
-          language: "en",
-        })
-        mapARef.current.getMap().addControl(geocoder, "top-left")
-        setGeocoderLoaded(true)
-      } catch (error) {
-        console.error("Failed to load geocoder:", error)
-      }
-    }
-
-    if (mapsLoaded) {
-      setTimeout(loadGeocoder, 1000)
-    }
-  }, [geocoderLoaded, mapLibreReady, mapsLoaded])
-
-  useEffect(() => {
     const initContours = async () => {
       if (!mapARef.current || contoursInitialized || !mapLibreReady || !mapsLoaded) {
         console.log("[v0] Contours init skipped:", {
@@ -215,14 +278,27 @@ export function TerrainViewer() {
           contoursInitialized,
           mapLibreReady,
           mapsLoaded,
+          attempts: initAttemptsRef.current,
         })
         return
       }
 
+      if (initAttemptsRef.current >= 5) {
+        console.error("[v0] Contours initialization failed after 5 attempts")
+        return
+      }
+
+      initAttemptsRef.current += 1
+
       try {
-        console.log("[v0] Initializing contours...")
+        console.log("[v0] Initializing contours (attempt", initAttemptsRef.current, ")...")
         const mlcontour = await import("maplibre-contour")
         const maplibregl = (window as any).maplibregl
+
+        if (!maplibregl) {
+          console.error("[v0] maplibregl not found on window")
+          return
+        }
 
         const source = terrainSources[state.sourceA as TerrainSource]
         if (!source?.sourceConfig?.tiles?.[0]) {
@@ -234,8 +310,17 @@ export function TerrainViewer() {
         if (!DemSource && (mlcontour as any).default) {
           DemSource = (mlcontour as any).default.DemSource || (mlcontour as any).default
         }
-        if (!DemSource) {
-          console.error("[v0] DemSource not found in maplibre-contour module", Object.keys(mlcontour))
+        if (!DemSource && typeof mlcontour === "function") {
+          DemSource = mlcontour as any
+        }
+        if (!DemSource && (mlcontour as any).DemSource) {
+          DemSource = (mlcontour as any).DemSource
+        }
+
+        if (!DemSource || typeof DemSource !== "function") {
+          console.error("[v0] DemSource not found or not a constructor. Available keys:", Object.keys(mlcontour))
+          console.error("[v0] mlcontour type:", typeof mlcontour)
+          console.error("[v0] mlcontour.default:", (mlcontour as any).default)
           return
         }
 
@@ -256,6 +341,12 @@ export function TerrainViewer() {
         demSourceRef.current.setupMaplibre(maplibregl)
 
         const map = mapARef.current.getMap()
+
+        if (map.getSource("contour-source")) {
+          console.log("[v0] Contour source already exists, removing...")
+          map.removeSource("contour-source")
+        }
+
         map.addSource("contour-source", {
           type: "vector",
           tiles: [
@@ -281,10 +372,13 @@ export function TerrainViewer() {
         setContoursInitialized(true)
       } catch (error) {
         console.error("[v0] Failed to initialize contours:", error)
+        setTimeout(() => {
+          setContoursInitialized(false)
+        }, 2000)
       }
     }
 
-    if (mapsLoaded && !contoursInitialized) {
+    if (mapsLoaded && !contoursInitialized && initAttemptsRef.current < 5) {
       const timer = setTimeout(initContours, 3000)
       return () => clearTimeout(timer)
     }
@@ -335,13 +429,7 @@ export function TerrainViewer() {
     }
   }
 
-  const getSourceConfig = useMemo(() => {
-    return (source: TerrainSource) => terrainSources[source].sourceConfig
-  }, [])
-
   const renderMap = (source: TerrainSource, mapId: string) => {
-    const sourceConfig = getSourceConfig(source)
-
     return (
       <Map
         ref={mapId === "map-a" ? mapARef : mapBRef}
@@ -357,6 +445,7 @@ export function TerrainViewer() {
         onMoveEnd={mapId === "map-a" ? onMoveEndA : undefined}
         onLoad={() => {
           if (mapId === "map-a") {
+            console.log("[v0] Map A loaded")
             setMapsLoaded(true)
           }
         }}
@@ -376,90 +465,17 @@ export function TerrainViewer() {
           layers: [],
         }}
       >
-        <Source id="terrainSource" key={`terrain-${source}`} {...sourceConfig} />
+        <TerrainSources source={source} />
+        <RasterSource terrainSource={state.terrainSource} terrainRasterUrls={terrainRasterUrls} />
+        <RasterLayer showTerrain={state.showTerrain} terrainOpacity={state.terrainOpacity} />
+        <HillshadeLayer showHillshade={state.showHillshade} hillshadePaint={hillshadePaint} />
+        <ColorReliefLayer showColorRelief={state.showColorRelief} colorReliefPaint={colorReliefPaint} />
 
-        <Source id="hillshadeSource" key={`hillshade-${source}`} {...sourceConfig} />
-
-        <Source
-          id="terrain-raster-source"
-          key={`raster-${state.terrainSource}`}
-          type="raster"
-          tiles={[terrainRasterUrls[state.terrainSource] || terrainRasterUrls.google]}
-          tileSize={256}
-        />
-
-        <Layer
-          id="terrain-raster"
-          type="raster"
-          source="terrain-raster-source"
-          paint={{
-            "raster-opacity": state.terrainOpacity,
-          }}
-          layout={{
-            visibility: state.showTerrain ? "visible" : "none",
-          }}
-        />
-
-        <Layer
-          id="hillshade"
-          type="hillshade"
-          source="hillshadeSource"
-          paint={hillshadePaint}
-          layout={{
-            visibility: state.showHillshade ? "visible" : "none",
-          }}
-        />
-
-        {state.showColorRelief && (
-          <Layer
-            id="color-relief"
-            type="color-relief"
-            source="hillshadeSource"
-            paint={colorReliefPaint}
-            layout={{
-              visibility: "visible",
-            }}
-          />
-        )}
-
-        {contoursInitialized && mapId === "map-a" && (
-          <>
-            <Layer
-              id="contour-lines"
-              type="line"
-              source="contour-source"
-              source-layer="contours"
-              paint={{
-                "line-color": "rgba(0,0,0, 50%)",
-                "line-width": ["match", ["get", "level"], 1, 1, 0.5],
-              }}
-              layout={{
-                visibility: state.showContours ? "visible" : "none",
-              }}
-            />
-            <Layer
-              id="contour-labels"
-              type="symbol"
-              source="contour-source"
-              source-layer="contours"
-              filter={[">", ["get", "level"], 0]}
-              layout={{
-                "symbol-placement": "line",
-                "text-size": 10,
-                "text-field": ["concat", ["number-format", ["get", "ele"], {}], "m"],
-                "text-font": ["Noto Sans Bold"],
-                visibility: state.showContours ? "visible" : "none",
-              }}
-              paint={{
-                "text-halo-color": "white",
-                "text-halo-width": 1,
-              }}
-            />
-          </>
-        )}
+        {contoursInitialized && mapId === "map-a" && <ContourLayers showContours={state.showContours} />}
 
         {mapId === "map-a" && (
           <>
+            <GeocoderControl position="top-left" placeholder="Search and press Enter" />
             <NavigationControl position="top-left" />
             <GeolocateControl position="top-left" />
           </>
