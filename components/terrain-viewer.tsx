@@ -10,6 +10,8 @@ import { terrainSources } from "@/lib/terrain-sources"
 import { colorRamps } from "@/lib/color-ramps"
 import type { TerrainSource } from "@/lib/terrain-types"
 
+import mlcontour from "maplibre-contour";
+
 const TerrainSources = memo(({ source }: { source: TerrainSource }) => {
   const sourceConfig = terrainSources[source].sourceConfig
 
@@ -89,6 +91,7 @@ const ColorReliefLayer = memo(
 ColorReliefLayer.displayName = "ColorReliefLayer"
 
 const ContourLayers = memo(({ showContours }: { showContours: boolean }) => {
+  console.log('ContourLayers memoized', showContours)
   return (
     <>
       <Layer
@@ -139,9 +142,11 @@ export function TerrainViewer() {
 
   const terrainRasterUrls: Record<string, string> = {
     osm: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    googlesat: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
     google: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
     esri: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     mapbox: `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token=pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw`,
+    bing: `https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1`,
   }
 
   const [state, setState] = useQueryStates({
@@ -272,7 +277,9 @@ export function TerrainViewer() {
 
   useEffect(() => {
     const initContours = async () => {
+      console.log('initContours')
       if (!mapARef.current || contoursInitialized || !mapLibreReady || !mapsLoaded) {
+        console.log('if passed')
         console.log("[v0] Contours init skipped:", {
           hasMap: !!mapARef.current,
           contoursInitialized,
@@ -282,6 +289,7 @@ export function TerrainViewer() {
         })
         return
       }
+      console.log('if not passed')
 
       if (initAttemptsRef.current >= 5) {
         console.error("[v0] Contours initialization failed after 5 attempts")
@@ -292,7 +300,6 @@ export function TerrainViewer() {
 
       try {
         console.log("[v0] Initializing contours (attempt", initAttemptsRef.current, ")...")
-        const mlcontour = await import("maplibre-contour")
         const maplibregl = (window as any).maplibregl
 
         if (!maplibregl) {
@@ -449,6 +456,14 @@ export function TerrainViewer() {
             setMapsLoaded(true)
           }
         }}
+        sky={{
+          // 'sky-color': '#fff',
+          'sky-horizon-blend': 0.2,
+          // 'horizon-color': '#fff',
+          'horizon-fog-blend': 0.9,
+          // 'fog-color': '#fff',
+          'fog-ground-blend': 0.5
+        }}
         maxPitch={state.viewMode === "2d" ? 0 : 85}
         pitchWithRotate={state.viewMode !== "2d"}
         dragRotate={state.viewMode !== "2d"}
@@ -458,7 +473,12 @@ export function TerrainViewer() {
           exaggeration: state.exaggeration,
         }}
         projection={state.viewMode === "globe" ? "globe" : "mercator"}
-        preserveDrawingBuffer={true}
+        // preserveDrawingBuffer={true}
+        canvasContextAttributes={{
+          // antialias: false,
+          preserveDrawingBuffer: true,
+        }}
+
         mapStyle={{
           version: 8,
           sources: {},
@@ -512,9 +532,9 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   return result
     ? {
-        r: Number.parseInt(result[1], 16),
-        g: Number.parseInt(result[2], 16),
-        b: Number.parseInt(result[3], 16),
-      }
+      r: Number.parseInt(result[1], 16),
+      g: Number.parseInt(result[2], 16),
+      b: Number.parseInt(result[3], 16),
+    }
     : { r: 0, g: 0, b: 0 }
 }

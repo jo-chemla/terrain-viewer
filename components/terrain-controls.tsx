@@ -62,6 +62,10 @@ import {
 } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
+import { domToPng, domToPixel } from "modern-screenshot"
+import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
+import { saveAs } from "file-saver"
+
 interface TerrainControlsProps {
   state: any
   setState: any
@@ -151,47 +155,24 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
 
   const takeScreenshot = async () => {
     if (!mapRef.current) return
+    let filename = `terrain-composited-${(new Date()).toISOString()}`
+    if (state.viewMode === "2d") {
+      filename += '-epsg4326'
+    }
+
     try {
-      const { domToPng } = await import("modern-screenshot")
       const canvas = mapRef.current.getMap().getCanvas()
-      const parentElement = canvas.parentElement
-
-      if (!parentElement) {
-        console.error("Canvas parent element not found")
-        return
-      }
-
-      const filter = (node: HTMLElement) => {
-        const exclusionClasses = [
-          "mapboxgl-ctrl-group",
-          "maplibregl-ctrl-group",
-          "mapboxgl-ctrl-geocoder",
-          "maplibregl-ctrl-geocoder",
-          "mapboxgl-ctrl-logo",
-          "maplibregl-ctrl-logo",
-          "terradraw-group",
-        ]
-        return !exclusionClasses.some((classname) => node.classList?.contains(classname))
-      }
-
-      const width = parentElement.clientWidth
-      const height = parentElement.clientHeight
+      const width = canvas.clientWidth
+      const height = canvas.clientHeight
       const dpr = window.devicePixelRatio
 
-      mapRef.current?.resize()
-      await new Promise((resolve) => setTimeout(resolve, 50))
-
-      const dataUrl = await domToPng(parentElement, {
-        filter: filter,
+      domToPng(canvas, {
         width: width,
         height: height,
         scale: dpr,
+      }).then((blob) => {
+        saveAs(blob, `${filename}.png`)
       })
-
-      const { saveAs } = await import("file-saver")
-      const response = await fetch(dataUrl)
-      const blob = await response.blob()
-      saveAs(blob, `terrain-screenshot-${Date.now()}.png`)
 
       if (state.viewMode === "2d") {
         const bounds = getMapBounds()
@@ -209,8 +190,42 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
         ].join("\n")
 
         const pgwBlob = new Blob([pgwContent], { type: "text/plain" })
-        saveAs(pgwBlob, `terrain-screenshot-${Date.now()}.pgw`)
+        saveAs(pgwBlob, `${filename}.pgw`)
       }
+
+      // Way too heavy geotiff without compression, so use png + pgw
+      // domToPixel(canvas, { width, height }).then(async (data) => {
+      //   const bounds = getMapBounds()
+      //   const pixelSizeX = (bounds.east - bounds.west) / width
+      //   const pixelSizeY = (bounds.north - bounds.south) / height
+
+      //   const metaData = {
+      //     // GTRasterTypeGeoKey: 1, // (2: RasterPixelIsPoint vs 1: RasterPixelIsArea)
+      //     // GTModelTypeGeoKey: 2, // GTModelTypeGeoKey represents CRS Type
+      //     // // 0 undefined/unknown, 1 2D Projected, 2 Geographic 2D, 3 Geocentric Cartesian 3D, 32767 user-defined
+      //     // // Then indicate ProjectedCRSGeoKey/ProjectedCSTypeGeoKey if 1, or GeodeticCRSGeoKey (prev. GeographicTypeGeoKey) if 2 or 3
+      //     // // GeodeticCRSGeoKey is a superset of geographic 2D CRS, geographic 3D CRS and geocentric (earth-centred 3D Cartesian) CRS.
+      //     // GeographicTypeGeoKey: 4326,
+      //     GTModelTypeGeoKey: 2,
+      //     GeographicTypeGeoKey: 4326,
+      //     GeogCitationGeoKey: 'WGS 84',
+      //     // CRS definition finished with above GeoKeys
+      //     height: height,
+      //     width: width,
+      //     ModelPixelScale: [pixelSizeX, pixelSizeY, 0],
+      //     ModelTiepoint: [0, 0, 0, bounds.west, bounds.north, 0],
+      //     // Titiler exports interleaved RGBA 8 bits per channel
+      //     SamplesPerPixel: 4,           // 4 channels RGBA from canvas
+      //     BitsPerSample: [8, 8, 8, 8],  // 8 bits per channel
+      //     PlanarConfiguration: 1,       // interleaved
+      //     PhotometricInterpretation: 2, // RGB
+      //   };
+      //   const arrayBuffer = await writeArrayBuffer(data, metaData);
+      //   const blob = new Blob([arrayBuffer], { type: "image/tiff" });
+      //   saveAs(blob, "composited_epsg4326.tif");
+      // })
+      // .catch((err) => console.error("Composited GeoTIFF export error:", err));
+
     } catch (error) {
       console.error("Failed to take screenshot:", error)
     }
@@ -227,7 +242,6 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
       }
 
       const arrayBuffer = await response.arrayBuffer()
-      const { fromArrayBuffer, writeArrayBuffer } = await import("geotiff")
       const tiff = await fromArrayBuffer(arrayBuffer)
       const image = await tiff.getImage()
       const rasters = await image.readRasters()
@@ -272,7 +286,6 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
       }
 
       const outputArrayBuffer = await writeArrayBuffer(elevationData, metadata)
-      const { saveAs } = await import("file-saver")
       const blob = new Blob([outputArrayBuffer], { type: "image/tiff" })
       saveAs(blob, `terrain-dtm-${Date.now()}.tif`)
     } catch (error) {
@@ -1227,11 +1240,12 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="osm">OpenStreetMap</SelectItem>
-                      <SelectItem value="google">Google Satellite</SelectItem>
-                      <SelectItem value="esri">ESRI World Imagery</SelectItem>
-                      <SelectItem value="bing">Bing Aerial</SelectItem>
+                      <SelectItem value="google">Google Hybrid</SelectItem>
                       <SelectItem value="mapbox">Mapbox Satellite</SelectItem>
+                      <SelectItem value="esri">ESRI World Imagery</SelectItem>
+                      <SelectItem value="googlesat">Google Satellite</SelectItem>
+                      <SelectItem value="bing">Bing Aerial</SelectItem>
+                      <SelectItem value="osm">OpenStreetMap</SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="flex border rounded-md shrink-0">
