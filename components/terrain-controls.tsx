@@ -38,7 +38,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogTrigger, DialogClose
 } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { terrainSources } from "@/lib/terrain-sources"
@@ -64,7 +64,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 
 import { domToPng, domToPixel } from "modern-screenshot"
 import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
-import { saveAs } from "file-saver"
+import saveAs from "file-saver"
 import type { TerrainSource, TerrainSourceConfig } from "../lib/terrain-types"
 
 interface TerrainControlsProps {
@@ -105,7 +105,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
       } else if (key == 'maptiler') {
         tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
       }
-      console.log('tileUrl', tileUrl)
+      // console.log('tileUrl', tileUrl)
       return tileUrl
     }
     , [mapboxKey, maptilerKey])
@@ -339,7 +339,13 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                 <Settings className="h-5 w-5" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto" showCloseButton={false}>
+              <DialogClose
+                className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100"
+                aria-label="Close"
+              >
+                ✕
+              </DialogClose>
               <DialogHeader>
                 <DialogTitle>Settings & Resources</DialogTitle>
                 <DialogDescription>
@@ -706,11 +712,17 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                               <Info className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="sm:max-w-lg">
+                          <DialogContent className="sm:max-w-lg" showCloseButton={false}>
                             <DialogHeader>
                               <DialogTitle>{config.name}</DialogTitle>
                               <DialogDescription>{config.description}</DialogDescription>
                             </DialogHeader>
+                            <DialogClose
+                              className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100"
+                              aria-label="Close"
+                            >
+                              ✕
+                            </DialogClose>
                             <div className="space-y-4 text-sm">
                               <div>
                                 <span className="font-semibold">Link:</span>
@@ -784,10 +796,16 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
                               <Info className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="sm:max-w-lg">
+                          <DialogContent className="sm:max-w-lg" showCloseButton={false}>
                             <DialogHeader>
                               <DialogTitle>{config.name}</DialogTitle>
                               <DialogDescription>{config.description}</DialogDescription>
+                              <DialogClose
+                                className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100"
+                                aria-label="Close"
+                              >
+                                ✕
+                              </DialogClose>
                             </DialogHeader>
                             <div className="space-y-4 text-sm">
                               <div>

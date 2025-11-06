@@ -55,10 +55,23 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
       encoding: "terrarium",
     },
   },
+  // mapzen: {
+  //   name: "Mapzen Terrarium (also on AWS, discontinued on mapzen)",
+  //   link: "https://www.mapzen.com/blog/terrain-tile-service/",
+  //   description: "AWS Terrain Tiles - Open Data Registry (Mapzen Terrarium encoding)",
+  //   encoding: "terrarium",
+  //   sourceConfig: {
+  //     type: "raster-dem",
+  //     tiles: ["https://tile.mapzen.com/mapzen/terrain/v1/terrarium/{z}/{x}/{y}.png?api_key={API_KEY}"],
+  //     tileSize: 256,
+  //     maxzoom: 15,
+  //     encoding: "terrarium",
+  //   },
+  // },
   google3dtiles: {
-    name: "Google 3D Tiles Terrain",
+    name: "Google 3D Tiles (via DeckGL only)",
     link: "https://mapsplatform.google.com/demos/3d-maps/",
-    description: "Google 3D Cities",
+    description: "Google 3D Cities not available, 3D-tiles tileset are not compatible with Maplibre GL JS without Deck.gl",
     encoding: "3dtiles",
     sourceConfig: {
       type: "3dtiles",

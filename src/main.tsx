@@ -6,8 +6,10 @@ import "./index.css"
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <NuqsAdapter>
-      <App />
-    </NuqsAdapter>
+    <React.Suspense>
+      <NuqsAdapter>
+        <App />
+      </NuqsAdapter>
+    </React.Suspense>
   </React.StrictMode>,
 )

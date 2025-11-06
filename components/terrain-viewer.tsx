@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useMemo, memo } from "react"
+import { useCallback, useEffect, useRef, useState, memo } from "react"
 import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat } from "nuqs"
 import Map, { Source, Layer, NavigationControl, GeolocateControl, type MapRef } from "react-map-gl/maplibre"
 import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css"
@@ -9,32 +9,80 @@ import { GeocoderControl } from "./geocoder-control"
 import { terrainSources } from "@/lib/terrain-sources"
 import { colorRamps } from "@/lib/color-ramps"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
-
-import mlcontour from "maplibre-contour";
+import mlcontour from "maplibre-contour"
 import { useAtom } from "jotai"
-import {
-  mapboxKeyAtom,
-  maptilerKeyAtom,
-} from "@/lib/settings-atoms"
+import { mapboxKeyAtom, maptilerKeyAtom } from "@/lib/settings-atoms"
 
+// Memoized Sources Component - loads once per source change
+const TerrainSources = memo(({
+  source,
+  mapboxKey,
+  maptilerKey
+}: {
+  source: TerrainSource
+  mapboxKey: string
+  maptilerKey: string
+}) => {
+  const getTilesUrl = (key: TerrainSource) => {
+    const sourceConfig: TerrainSourceConfig = terrainSources[key]
+    let tileUrl = sourceConfig.sourceConfig.tiles[0] || ""
+    if (key === 'mapbox') {
+      tileUrl = tileUrl.replace("{API_KEY}", mapboxKey || "")
+    } else if (key === 'maptiler') {
+      tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
+    }
+    return tileUrl
+  }
 
+  const sourceConfig = { ...terrainSources[source].sourceConfig }
+  sourceConfig.tiles = [getTilesUrl(source)]
 
-const RasterSource = memo(
-  ({ terrainSource, terrainRasterUrls }: { terrainSource: string; terrainRasterUrls: Record<string, string> }) => {
-    return (
-      <Source
-        id="terrain-raster-source"
-        key={`raster-${terrainSource}`}
-        type="raster"
-        tiles={[terrainRasterUrls[terrainSource] || terrainRasterUrls.google]}
-        tileSize={256}
-      />
-    )
-  },
-)
-RasterSource.displayName = "RasterSource"
+  return (
+    <>
+      <Source id="terrainSource" key={`terrain-${source}`} {...sourceConfig} />
+      <Source id="hillshadeSource" key={`hillshade-${source}`} {...sourceConfig} />
+    </>
+  )
+})
+TerrainSources.displayName = "TerrainSources"
 
-const RasterLayer = memo(({ showRasterBasemap, rasterBasemapOpacity }: { showRasterBasemap: boolean; rasterBasemapOpacity: number }) => {
+// Memoized Raster Source
+const RasterBasemapSource = memo(({
+  terrainSource,
+  mapboxKey
+}: {
+  terrainSource: string
+  mapboxKey: string
+}) => {
+  const terrainRasterUrls: Record<string, string> = {
+    osm: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    googlesat: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+    google: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+    esri: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    mapbox: `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token=${mapboxKey || "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw"}`,
+    bing: `https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1`,
+  }
+
+  return (
+    <Source
+      id="terrain-raster-source"
+      key={`raster-${terrainSource}`}
+      type="raster"
+      tiles={[terrainRasterUrls[terrainSource] || terrainRasterUrls.google]}
+      tileSize={256}
+    />
+  )
+})
+RasterBasemapSource.displayName = "RasterBasemapSource"
+
+// Memoized Raster Layer
+const RasterLayer = memo(({
+  showRasterBasemap,
+  rasterBasemapOpacity
+}: {
+  showRasterBasemap: boolean
+  rasterBasemapOpacity: number
+}) => {
   return (
     <Layer
       id="terrain-raster"
@@ -51,7 +99,14 @@ const RasterLayer = memo(({ showRasterBasemap, rasterBasemapOpacity }: { showRas
 })
 RasterLayer.displayName = "RasterLayer"
 
-const HillshadeLayer = memo(({ showHillshade, hillshadePaint }: { showHillshade: boolean; hillshadePaint: any }) => {
+// Memoized Hillshade Layer
+const HillshadeLayer = memo(({
+  showHillshade,
+  hillshadePaint
+}: {
+  showHillshade: boolean
+  hillshadePaint: any
+}) => {
   return (
     <Layer
       id="hillshade"
@@ -66,27 +121,32 @@ const HillshadeLayer = memo(({ showHillshade, hillshadePaint }: { showHillshade:
 })
 HillshadeLayer.displayName = "HillshadeLayer"
 
-const ColorReliefLayer = memo(
-  ({ showColorRelief, colorReliefPaint }: { showColorRelief: boolean; colorReliefPaint: any }) => {
-    if (!showColorRelief) return null
+// Memoized Color Relief Layer
+const ColorReliefLayer = memo(({
+  showColorRelief,
+  colorReliefPaint
+}: {
+  showColorRelief: boolean
+  colorReliefPaint: any
+}) => {
+  if (!showColorRelief) return null
 
-    return (
-      <Layer
-        id="color-relief"
-        type="color-relief"
-        source="hillshadeSource"
-        paint={colorReliefPaint}
-        layout={{
-          visibility: "visible",
-        }}
-      />
-    )
-  },
-)
+  return (
+    <Layer
+      id="color-relief"
+      type="color-relief"
+      source="hillshadeSource"
+      paint={colorReliefPaint}
+      layout={{
+        visibility: "visible",
+      }}
+    />
+  )
+})
 ColorReliefLayer.displayName = "ColorReliefLayer"
 
+// Memoized Contour Layers
 const ContourLayers = memo(({ showContours }: { showContours: boolean }) => {
-  console.log('ContourLayers memoized', showContours)
   return (
     <>
       <Layer
@@ -125,6 +185,17 @@ const ContourLayers = memo(({ showContours }: { showContours: boolean }) => {
 })
 ContourLayers.displayName = "ContourLayers"
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  return result
+    ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16),
+    }
+    : { r: 0, g: 0, b: 0 }
+}
+
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
   const mapBRef = useRef<MapRef>(null)
@@ -134,15 +205,10 @@ export function TerrainViewer() {
   const demSourceRef = useRef<any>(null)
   const [mapsLoaded, setMapsLoaded] = useState(false)
   const initAttemptsRef = useRef(0)
+  const viewStateUpdateTimer = useRef<NodeJS.Timeout | null>(null)
 
-  const terrainRasterUrls: Record<string, string> = {
-    osm: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    googlesat: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-    google: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-    esri: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    mapbox: `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token=pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw`,
-    bing: `https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1`,
-  }
+  const [mapboxKey] = useAtom(mapboxKeyAtom)
+  const [maptilerKey] = useAtom(maptilerKeyAtom)
 
   const [state, setState] = useQueryStates({
     viewMode: parseAsString.withDefault("3d"),
@@ -175,58 +241,18 @@ export function TerrainViewer() {
     contourMajor: parseAsFloat.withDefault(200),
     minElevation: parseAsFloat.withDefault(0),
     maxElevation: parseAsFloat.withDefault(4000),
-    // mapboxKey: parseAsString.withDefault(""),
-    // googleKey: parseAsString.withDefault(""),
-    // maptilerKey: parseAsString.withDefault(""),
-    titilerEndpoint: parseAsString.withDefault("https://titiler.xyz"),
-    maxResolution: parseAsFloat.withDefault(1024),
   })
 
-  const supportsIlluminationDirection = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
-  const supportsIlluminationAltitude = ["combined", "basic"].includes(state.hillshadeMethod)
-  const supportsShadowColor = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
-  const supportsHighlightColor = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
-  const supportsAccentColor = state.hillshadeMethod === "standard"
-  const supportsExaggeration = ["standard", "combined", "multidirectional", "multidir-colors", "aspect-multidir"].includes(
-    state.hillshadeMethod,
-  )
-
-  const [mapboxKey, setMapboxKey] = useAtom(mapboxKeyAtom)
-  const [maptilerKey, setMaptilerKey] = useAtom(maptilerKeyAtom)
-
-  const TerrainSources = // useMemo(
-    ({ source }: { source: TerrainSource }) => {
-
-      const getTilesUrl = useCallback(
-        function (key: TerrainSource) {
-          const source: TerrainSourceConfig = terrainSources[key]
-          let tileUrl = source.sourceConfig.tiles[0] || ""
-          if (key == 'mapbox') {
-            tileUrl = tileUrl.replace("{API_KEY}", mapboxKey || "")
-          } else if (key == 'maptiler') {
-            tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
-          }
-          console.log('tileUrl', tileUrl)
-          return tileUrl
-        }
-        , [mapboxKey, maptilerKey])
-
-      const sourceConfig = terrainSources[source].sourceConfig
-      sourceConfig.tiles[0] = getTilesUrl(source)
-
-      return (
-        <>
-          <Source id="terrainSource" key={`terrain-${source}`} {...sourceConfig} />
-          <Source id="hillshadeSource" key={`hillshade-${source}`} {...sourceConfig} />
-        </>
-      )
-    }
-  // , [mapboxKey, maptilerKey])
-  // TerrainSources.displayName = "TerrainSources"
-
-
-  const hillshadePaint = useMemo(() => {
+  // Compute hillshade paint with useMemo to prevent recalculation
+  const hillshadePaint = (() => {
     const paint: any = {}
+
+    const supportsIlluminationDirection = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
+    const supportsIlluminationAltitude = ["combined", "basic"].includes(state.hillshadeMethod)
+    const supportsShadowColor = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
+    const supportsHighlightColor = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
+    const supportsAccentColor = state.hillshadeMethod === "standard"
+    const supportsExaggeration = ["standard", "combined", "multidirectional", "multidir-colors", "aspect-multidir"].includes(state.hillshadeMethod)
 
     if (state.hillshadeMethod === "multidirectional") {
       paint["hillshade-method"] = "multidirectional"
@@ -249,13 +275,11 @@ export function TerrainViewer() {
       }
       if (supportsShadowColor) {
         const shadowRgb = hexToRgb(state.shadowColor)
-        paint["hillshade-shadow-color"] =
-          `rgba(${shadowRgb.r}, ${shadowRgb.g}, ${shadowRgb.b}, ${state.hillshadeOpacity})`
+        paint["hillshade-shadow-color"] = `rgba(${shadowRgb.r}, ${shadowRgb.g}, ${shadowRgb.b}, ${state.hillshadeOpacity})`
       }
       if (supportsHighlightColor) {
         const highlightRgb = hexToRgb(state.highlightColor)
-        paint["hillshade-highlight-color"] =
-          `rgba(${highlightRgb.r}, ${highlightRgb.g}, ${highlightRgb.b}, ${state.hillshadeOpacity})`
+        paint["hillshade-highlight-color"] = `rgba(${highlightRgb.r}, ${highlightRgb.g}, ${highlightRgb.b}, ${state.hillshadeOpacity})`
       }
       if (supportsIlluminationAltitude) {
         paint["hillshade-illumination-altitude"] = state.illuminationAlt
@@ -272,24 +296,9 @@ export function TerrainViewer() {
     }
 
     return paint
-  }, [
-    state.illuminationDir,
-    state.shadowColor,
-    state.highlightColor,
-    state.illuminationAlt,
-    state.hillshadeExag,
-    state.accentColor,
-    state.hillshadeMethod,
-    state.hillshadeOpacity,
-    supportsIlluminationDirection,
-    supportsIlluminationAltitude,
-    supportsShadowColor,
-    supportsHighlightColor,
-    supportsAccentColor,
-    supportsExaggeration,
-  ])
+  })()
 
-  const colorReliefPaint = useMemo(() => {
+  const colorReliefPaint = (() => {
     const ramp = colorRamps[state.colorRamp]
     if (!ramp) return {}
 
@@ -297,11 +306,13 @@ export function TerrainViewer() {
       "color-relief-opacity": state.colorReliefOpacity,
       "color-relief-color": ramp.colors,
     }
-  }, [state.colorRamp, state.colorReliefOpacity])
+  })()
 
+  // Check MapLibre availability
   useEffect(() => {
     const checkMapLibre = () => {
       if (typeof window !== "undefined" && (window as any).maplibregl) {
+        console.log("[TerrainViewer] MapLibre ready")
         setMapLibreReady(true)
       } else {
         setTimeout(checkMapLibre, 100)
@@ -310,69 +321,79 @@ export function TerrainViewer() {
     checkMapLibre()
   }, [])
 
+  // Initialize contours - FIXED with proper checks
   useEffect(() => {
     const initContours = async () => {
-      console.log('initContours')
-      if (!mapARef.current || contoursInitialized || !mapLibreReady || !mapsLoaded) {
-        console.log('if passed')
-        console.log("[v0] Contours init skipped:", {
-          hasMap: !!mapARef.current,
-          contoursInitialized,
+      // Wait for all dependencies
+      if (!mapARef.current || !mapLibreReady || !mapsLoaded) {
+        console.log("[Contours] Waiting for dependencies:", {
+          hasMapRef: !!mapARef.current,
           mapLibreReady,
-          mapsLoaded,
-          attempts: initAttemptsRef.current,
+          mapsLoaded
         })
         return
       }
-      console.log('if not passed')
 
+      // Check if already initialized
+      if (contoursInitialized) {
+        console.log("[Contours] Already initialized")
+        return
+      }
+
+      // Check attempt limit
       if (initAttemptsRef.current >= 5) {
-        console.error("[v0] Contours initialization failed after 5 attempts")
+        console.error("[Contours] Failed after 5 attempts")
         return
       }
 
       initAttemptsRef.current += 1
+      console.log("[Contours] Initializing (attempt", initAttemptsRef.current, ")...")
 
       try {
-        console.log("[v0] Initializing contours (attempt", initAttemptsRef.current, ")...")
-        const maplibregl = (window as any).maplibregl
+        const map = mapARef.current.getMap()
 
+        // Wait for map to be fully loaded and styled
+        if (!map.isStyleLoaded()) {
+          console.log("[Contours] Waiting for style to load...")
+          setTimeout(() => setContoursInitialized(false), 1000)
+          return
+        }
+
+        const maplibregl = (window as any).maplibregl
         if (!maplibregl) {
-          console.error("[v0] maplibregl not found on window")
+          console.error("[Contours] maplibregl not available")
           return
         }
 
         const source = terrainSources[state.sourceA as TerrainSource]
         if (!source?.sourceConfig?.tiles?.[0]) {
-          console.log("[v0] No source tiles found")
+          console.error("[Contours] No source tiles")
           return
         }
 
-        let DemSource = mlcontour.DemSource
-        if (!DemSource && (mlcontour as any).default) {
-          DemSource = (mlcontour as any).default.DemSource || (mlcontour as any).default
-        }
+        // Get DemSource constructor
+        let DemSource = mlcontour.DemSource || (mlcontour as any).default?.DemSource
         if (!DemSource && typeof mlcontour === "function") {
           DemSource = mlcontour as any
         }
-        if (!DemSource && (mlcontour as any).DemSource) {
-          DemSource = (mlcontour as any).DemSource
-        }
 
         if (!DemSource || typeof DemSource !== "function") {
-          console.error("[v0] DemSource not found or not a constructor. Available keys:", Object.keys(mlcontour))
-          console.error("[v0] mlcontour type:", typeof mlcontour)
-          console.error("[v0] mlcontour.default:", (mlcontour as any).default)
+          console.error("[Contours] DemSource not found")
           return
         }
 
-        console.log("[v0] Creating DemSource with:", {
-          url: source.sourceConfig.tiles[0],
-          encoding: source.encoding === "terrainrgb" ? "mapbox" : "terrarium",
-        })
+        // Get tile URL with API keys
+        let tileUrl = source.sourceConfig.tiles[0]
+        if (state.sourceA === 'mapbox') {
+          tileUrl = tileUrl.replace("{API_KEY}", mapboxKey || "")
+        } else if (state.sourceA === 'maptiler') {
+          tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
+        }
+
+        console.log("[Contours] Creating DemSource with URL:", tileUrl)
 
         demSourceRef.current = new DemSource({
-          url: source.sourceConfig.tiles[0],
+          url: tileUrl,
           encoding: source.encoding === "terrainrgb" ? "mapbox" : "terrarium",
           maxzoom: source.sourceConfig.maxzoom || 14,
           worker: true,
@@ -382,13 +403,15 @@ export function TerrainViewer() {
 
         demSourceRef.current.setupMaplibre(maplibregl)
 
-        const map = mapARef.current.getMap()
-
+        // Remove existing source if present
         if (map.getSource("contour-source")) {
-          console.log("[v0] Contour source already exists, removing...")
+          console.log("[Contours] Removing existing source")
+          if (map.getLayer("contour-lines")) map.removeLayer("contour-lines")
+          if (map.getLayer("contour-labels")) map.removeLayer("contour-labels")
           map.removeSource("contour-source")
         }
 
+        // Add contour source
         map.addSource("contour-source", {
           type: "vector",
           tiles: [
@@ -410,38 +433,27 @@ export function TerrainViewer() {
           maxzoom: 15,
         })
 
-        console.log("[v0] Contours initialized successfully")
+        console.log("[Contours] Initialized successfully")
         setContoursInitialized(true)
       } catch (error) {
-        console.error("[v0] Failed to initialize contours:", error)
+        console.error("[Contours] Initialization error:", error)
+        // Retry after delay
         setTimeout(() => {
-          setContoursInitialized(false)
+          if (initAttemptsRef.current < 5) {
+            setContoursInitialized(false)
+          }
         }, 2000)
       }
     }
 
+    // Trigger initialization with delay to ensure map is ready
     if (mapsLoaded && !contoursInitialized && initAttemptsRef.current < 5) {
-      const timer = setTimeout(initContours, 3000)
+      const timer = setTimeout(initContours, 1000)
       return () => clearTimeout(timer)
     }
-  }, [contoursInitialized, mapLibreReady, mapsLoaded, state.sourceA, state.contourMinor, state.contourMajor])
+  }, [contoursInitialized, mapLibreReady, mapsLoaded, state.sourceA, state.contourMinor, state.contourMajor, mapboxKey, maptilerKey])
 
-  const onMoveEndA = useCallback(
-    (evt: any) => {
-      if (!isSyncing.current) {
-        const newState = {
-          lat: Number.parseFloat(evt.viewState.latitude.toFixed(4)),
-          lng: Number.parseFloat(evt.viewState.longitude.toFixed(4)),
-          zoom: Number.parseFloat(evt.viewState.zoom.toFixed(2)),
-          pitch: Number.parseFloat(evt.viewState.pitch.toFixed(1)),
-          bearing: Number.parseFloat(evt.viewState.bearing.toFixed(1)),
-        }
-        // setState(newState, { shallow: true })
-      }
-    },
-    [setState],
-  )
-
+  // Sync maps in split screen
   const onMoveA = useCallback(
     (evt: any) => {
       if (!isSyncing.current && state.splitScreen && mapBRef.current) {
@@ -457,10 +469,35 @@ export function TerrainViewer() {
         }, 50)
       }
     },
-    [state.splitScreen],
+    [state.splitScreen]
   )
 
-  const getMapBounds = () => {
+  // Update URL with debounce to avoid excessive re-renders
+  const onMoveEndA = useCallback(
+    (evt: any) => {
+      if (!isSyncing.current) {
+        // Clear existing timer
+        if (viewStateUpdateTimer.current) {
+          clearTimeout(viewStateUpdateTimer.current)
+        }
+
+        // Debounce URL update
+        viewStateUpdateTimer.current = setTimeout(() => {
+          const newState = {
+            lat: parseFloat(evt.viewState.latitude.toFixed(4)),
+            lng: parseFloat(evt.viewState.longitude.toFixed(4)),
+            zoom: parseFloat(evt.viewState.zoom.toFixed(2)),
+            pitch: parseFloat(evt.viewState.pitch.toFixed(1)),
+            bearing: parseFloat(evt.viewState.bearing.toFixed(1)),
+          }
+          setState(newState, { shallow: true })
+        }, 500) // Update URL 500ms after movement stops
+      }
+    },
+    [setState]
+  )
+
+  const getMapBounds = useCallback(() => {
     if (!mapARef.current) return { west: -180, south: -90, east: 180, north: 90 }
     const bounds = mapARef.current.getMap().getBounds()
     return {
@@ -469,12 +506,27 @@ export function TerrainViewer() {
       east: bounds.getEast(),
       north: bounds.getNorth(),
     }
-  }
+  }, [])
 
-  const renderMap = (source: TerrainSource, mapId: string) => {
+  // Reset to north-up 2D view when switching to 2D mode frmo free rotation in 3D
+  useEffect(() => {
+    if (mapARef.current && state.viewMode === "2d") {
+      const map = mapARef.current.getMap();
+
+      map.easeTo({
+        bearing: 0,   // North up
+        pitch: 0,     // Flat
+        duration: 500 // Smooth transition
+      });
+    }
+  }, [state.viewMode]);
+
+  const renderMap = useCallback((source: TerrainSource, mapId: string) => {
+    const isPrimary = mapId === "map-a"
+
     return (
       <Map
-        ref={mapId === "map-a" ? mapARef : mapBRef}
+        ref={isPrimary ? mapARef : mapBRef}
         mapLib={(window as any).maplibregl}
         initialViewState={{
           latitude: state.lat,
@@ -483,61 +535,86 @@ export function TerrainViewer() {
           pitch: state.viewMode === "2d" ? 0 : state.pitch,
           bearing: state.viewMode === "2d" ? 0 : state.bearing,
         }}
-        onMove={mapId === "map-a" ? onMoveA : undefined}
-        onMoveEnd={mapId === "map-a" ? onMoveEndA : undefined}
+        onMove={isPrimary ? onMoveA : undefined}
+        onMoveEnd={isPrimary ? onMoveEndA : undefined}
         onLoad={() => {
-          if (mapId === "map-a") {
-            console.log("[v0] Map A loaded")
+          if (isPrimary) {
+            console.log("[TerrainViewer] Map A loaded")
             setMapsLoaded(true)
           }
+
+          [mapARef, mapBRef].forEach(
+            mapRef => mapRef?.current?.getMap().setTerrain({
+              source: "terrainSource",
+              exaggeration: state.exaggeration || 1,
+            })
+          )
         }}
         sky={{
-          // 'sky-color': '#fff',
           'sky-horizon-blend': 0.2,
-          // 'horizon-color': '#fff',
           'horizon-fog-blend': 0.9,
-          // 'fog-color': '#fff',
           'fog-ground-blend': 0.5
         }}
         maxPitch={state.viewMode === "2d" ? 0 : 85}
+        rollEnabled={state.viewMode !== "2d"}
         pitchWithRotate={state.viewMode !== "2d"}
         dragRotate={state.viewMode !== "2d"}
         touchZoomRotate={state.viewMode !== "2d"}
         terrain={{
           source: "terrainSource",
-          exaggeration: state.exaggeration,
+          exaggeration: state.exaggeration || 1,
         }}
         projection={state.viewMode === "globe" ? "globe" : "mercator"}
-        // preserveDrawingBuffer={true}
         canvasContextAttributes={{
-          // antialias: false,
           preserveDrawingBuffer: true,
         }}
-
-        mapStyle={{
-          version: 8,
-          sources: {},
-          layers: [],
-        }}
+      // mapStyle={{
+      //   version: 8,
+      //   sources: {},
+      //   layers: [],
+      // }}
       >
-        <TerrainSources source={source} />
-        <RasterSource terrainSource={state.terrainSource} terrainRasterUrls={terrainRasterUrls} />
+        <TerrainSources source={source} mapboxKey={mapboxKey} maptilerKey={maptilerKey} />
+        <RasterBasemapSource terrainSource={state.terrainSource} mapboxKey={mapboxKey} />
         <RasterLayer showRasterBasemap={state.showRasterBasemap} rasterBasemapOpacity={state.rasterBasemapOpacity} />
         <HillshadeLayer showHillshade={state.showHillshade} hillshadePaint={hillshadePaint} />
         <ColorReliefLayer showColorRelief={state.showColorRelief} colorReliefPaint={colorReliefPaint} />
 
-        {contoursInitialized && mapId === "map-a" && <ContourLayers showContours={state.showContours} />}
+        {contoursInitialized && isPrimary && <ContourLayers showContours={state.showContours} />}
 
-        {mapId === "map-a" && (
-          <>
-            <GeocoderControl position="top-left" placeholder="Search and press Enter" />
-            <NavigationControl position="top-left" />
-            <GeolocateControl position="top-left" />
-          </>
-        )}
-      </Map>
+        {
+          isPrimary && (
+            <>
+              <GeocoderControl position="top-left" placeholder="Search and press Enter" />
+              <NavigationControl position="top-left" />
+              <GeolocateControl position="top-left" />
+            </>
+          )
+        }
+      </Map >
     )
-  }
+  }, [
+    state.lat,
+    state.lng,
+    state.zoom,
+    state.pitch,
+    state.bearing,
+    state.viewMode,
+    state.exaggeration,
+    state.terrainSource,
+    state.showRasterBasemap,
+    state.rasterBasemapOpacity,
+    state.showHillshade,
+    state.showColorRelief,
+    state.showContours,
+    hillshadePaint,
+    colorReliefPaint,
+    mapboxKey,
+    maptilerKey,
+    contoursInitialized,
+    onMoveA,
+    onMoveEndA,
+  ])
 
   if (!mapLibreReady) {
     return (
@@ -556,20 +633,18 @@ export function TerrainViewer() {
         <div className={state.splitScreen ? "flex-1" : "w-full"}>
           {renderMap(state.sourceA as TerrainSource, "map-a")}
         </div>
-        {state.splitScreen && <div className="flex-1">{renderMap(state.sourceB as TerrainSource, "map-b")}</div>}
+        {state.splitScreen && (
+          <div className="flex-1">
+            {renderMap(state.sourceB as TerrainSource, "map-b")}
+          </div>
+        )}
       </div>
-      <TerrainControls state={state} setState={setState} getMapBounds={getMapBounds} mapRef={mapARef} />
+      <TerrainControls
+        state={state}
+        setState={setState}
+        getMapBounds={getMapBounds}
+        mapRef={mapARef}
+      />
     </div>
   )
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  return result
-    ? {
-      r: Number.parseInt(result[1], 16),
-      g: Number.parseInt(result[2], 16),
-      b: Number.parseInt(result[3], 16),
-    }
-    : { r: 0, g: 0, b: 0 }
 }
