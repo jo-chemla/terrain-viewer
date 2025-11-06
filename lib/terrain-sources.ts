@@ -70,8 +70,8 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
   // },
   google3dtiles: {
     name: "Google 3D Tiles (via DeckGL only)",
-    link: "https://mapsplatform.google.com/demos/3d-maps/",
-    description: "Google 3D Cities not available, 3D-tiles tileset are not compatible with Maplibre GL JS without Deck.gl",
+    link: "https://goo.gle/3d-area-explorer-admin#camera.orbitType=fixed-orbit&location.coordinates.lat={LAT}&location.coordinates.lng={LNG}",
+    description: "Google 3D Cities not available, 3D-tiles tileset are not compatible with Maplibre GL JS without Deck.gl. See https://mapsplatform.google.com/demos/3d-maps and https://developers.google.com/maps/architecture/3d-area-explorer",
     encoding: "3dtiles",
     sourceConfig: {
       type: "3dtiles",
