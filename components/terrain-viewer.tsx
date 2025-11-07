@@ -39,8 +39,12 @@ const TerrainSources = memo(
       const customSource = customSources.find((s) => s.id === key)
       if (customSource) {
         if (customSource.type === "cog") {
-          return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?algorithm=terrainrgb&return_mask=true&url=${encodeURIComponent(customSource.url)}`
+          return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`
+          // tested with a lot of different parameters, set to true or false: 
+          // &nodata=0&resampling=bilinear&algorithm=terrainrgb&return_mask=false
         }
+        // Test with amphipolis COG https://3d.iconem.com/greece/amphipolis/Amphipolis_general_dsm_10cm_cog_cropped_alpha.tif
+        // and terrain viewer url http://localhost:5173/?lat=46.6101&lng=20.7997&zoom=4.55&pitch=12.3&colorReliefOpacity=0.6&exaggeration=2.9&sourceA=custom-1762470109309&illuminationDir=252
         // TODO eventually see this https://github.com/developmentseed/titiler/discussions/1110#discussioncomment-12868145
         return customSource.url
       }
@@ -55,7 +59,11 @@ const TerrainSources = memo(
       }
       return tileUrl
     }
-
+    const encodingsMap: any = {
+      terrainrgb: 'mapbox',
+      cog: 'mapbox',
+      terrarium: 'terrarium',
+    }
     const customSource = customSources.find((s) => s.id === source)
     if (customSource) {
       const tileUrl = getTilesUrl(source)
@@ -64,7 +72,7 @@ const TerrainSources = memo(
         tiles: [tileUrl],
         tileSize: 256,
         maxzoom: 20,
-        encoding: ["terrainrgb", "cog"].includes(customSource.type) ? "mapbox" : "terrarium",
+        encoding: encodingsMap[customSource.type],
       }
 
       return (
