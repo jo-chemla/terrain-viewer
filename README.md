@@ -1,96 +1,46 @@
 # Terrain Visualization Modes
 
-A comprehensive terrain visualization tool built with Next.js, MapLibre GL, and React. Explore different terrain visualization modes including hillshade, hypsometric tinting, contour lines, and more.
+A comprehensive terrain visualization and downloading tool, built on top of MapLibre GL via react-map-gl. Explore different terrain visualization modes introduced in 2025 including hillshade, hypsometric tinting, contour lines, and more.
+
+![terrainn-viewer-screenshot](terrain-viewer.png)
 
 ## Features
 
-- **Multiple Terrain Sources**: Matterhorn, Mapbox, MapTiler, Mapzen, AWS Elevation Tiles
+- **Multiple Terrain Sources**: Mapterhorn, Mapbox, MapTiler, AWS Elevation Tiles (based on mapzen)
 - **Visualization Modes**:
-  - Hillshade with multiple algorithms (Standard, Combined, Igor, Basic, Multidirectional)
-  - Hypsometric Tint (color relief) with customizable color ramps
-  - Contour Lines with configurable intervals
-  - Terrain Raster overlay
+  - Hillshade with multiple algorithms (Standard, Combined, Igor, Basic, Multidirectional and colored, similar to aspect), see [Hillshade Methods PR #5768](https://github.com/maplibre/maplibre-gl-js/pull/5768)
+  - Hypsometric Tint (color encoded elevation) with customizable color ramps, see [Hypsometric Tint PR #5913](https://github.com/maplibre/maplibre-gl-js/pull/5913) and additional hypsos in [CPT City Color Ramps](http://seaviewsensing.com/pub/cpt-city/)
+  - Contour Lines with configurable intervals via [Contour Lines Discussion](https://github.com/maplibre/maplibre-style-spec/issues/583) which resulted in the [onthegomap/maplibre-contour](https://github.com/onthegomap/maplibre-contour) plugin
+  - Raster basemap on which the terrain viz modes are overlaid
+- **Bring Your Own Data**: Add terrain sources XYZ terrainrgb/terrarium or COG (wip, via titiler) 
 - **View Modes**: 2D, 3D, and Globe projections
 - **Split Screen**: Compare two terrain sources side-by-side
-- **Download**: Export terrain as GeoTIFF via Titiler
-- **Dark Mode**: Full dark theme support including MapLibre controls
+- **Download**: Export terrain as GeoTIFF via Titiler or screenshot canvas, and copy source URL for QGIS integration (terrarium/terrainrgb encoding)
+- **User configuration**: Settings persisted to localStorage via jotai like titiler instance and maximum resolution, theme style switcher, API keys, additional terrain sources, and info
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 18+ 
-- npm, yarn, or pnpm
-
 ### Installation
 
-\`\`\`bash
+```bash
 # Clone the repository
-git clone https://github.com/yourusername/terrain-visualization-modes.git
-cd terrain-visualization-modes
+git clone https://github.com/iconem/elevation-terrain-visualizer.git
+cd elevation-terrain-visualizer
 
-# Install dependencies
-npm install
+pnpm install
+pnpm run dev
+pnpm run build # bundles to dist dir
+```
 
-# Run development server
-npm run dev
-\`\`\`
-
-Open [http://localhost:3000](http://localhost:3000) to view the app.
-
-### Building for Production
-
-\`\`\`bash
-# Build static export
-npm run build
-
-# The output will be in the `out` directory
-\`\`\`
-
-### Deploying to GitHub Pages
-
-1. Push your code to GitHub
-2. Enable GitHub Pages in repository settings
-3. Set source to "GitHub Actions"
-4. The workflow will automatically deploy on push to main
-
-## Configuration
-
-### API Keys
-
-Configure API keys in the Settings modal:
-- **MapTiler API Key**: For MapTiler terrain tiles
-- **Mapbox Access Token**: For Mapbox terrain and satellite imagery
-- **Google Maps API Key**: For Google 3D tiles (coming soon)
-
-### Titiler Settings
-
-- **Titiler Endpoint**: Default is `https://titiler.xyz`
-- **Max Resolution**: Maximum resolution for GeoTIFF downloads (default 4096px)
-
-## Known Limitations
-
-### Color Relief (Hypsometric Tint)
-
-The true `color-relief` layer type from [MapLibre PR #5913](https://github.com/maplibre/maplibre-gl-js/pull/5913) is not yet available in MapLibre GL v5.11.0. The current implementation uses a hillshade layer as a workaround. Once PR #5913 is merged, the app will be updated to use the native color-relief layer type.
-
-### Contour Lines
-
-Contour lines are implemented using the [maplibre-contour](https://github.com/onthegomap/maplibre-contour) plugin. This feature requires additional setup and may have performance implications on lower-end devices.
-
-### Google 3D Tiles
-
-Google 3D Tiles support is planned but not yet implemented. The feature is currently disabled in the UI.
+Open [http://localhost:5173](http://localhost:5173) to view the app.
 
 ## Technologies
 
-- **Next.js 16**: React framework with static export
-- **MapLibre GL v5.11.0**: Open-source map rendering
-- **React Map GL**: React wrapper for MapLibre
-- **nuqs**: URL state management
-- **shadcn/ui**: UI components
-- **Tailwind CSS v4**: Styling
-- **maplibre-contour**: Contour line generation
+- MapLibre GL v5
+- React Map GL
+- nuqs for ur search query state persistence + jotai for atomWithStorage
+- shadcn/ui + Tailwind CSS v4 for components and UI
+- maplibre-contour
 
 ## Inspiration
 
@@ -98,18 +48,7 @@ This project was inspired by:
 - [Tangram Height Mapper](https://tangrams.github.io/heightmapper/)
 - [Impasto CAS Viewer](https://impasto.dev/)
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
 ## License
 
 MIT License - feel free to use this project for any purpose.
 
-## Resources
-
-- [MapLibre GL Documentation](https://maplibre.org/maplibre-gl-js/docs/)
-- [Hillshade Methods PR #5768](https://github.com/maplibre/maplibre-gl-js/pull/5768)
-- [Hypsometric Tint PR #5913](https://github.com/maplibre/maplibre-gl-js/pull/5913)
-- [Contour Lines Discussion](https://github.com/maplibre/maplibre-style-spec/issues/583)
-- [CPT City Color Ramps](http://seaviewsensing.com/pub/cpt-city/)
