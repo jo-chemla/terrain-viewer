@@ -2,7 +2,9 @@
 
 A comprehensive terrain visualization and downloading tool, built on top of MapLibre GL via react-map-gl. Explore different terrain visualization modes introduced in 2025 including hillshade, hypsometric tinting, contour lines, and more.
 
-![terrainn-viewer-screenshot](terrain-viewer.png)
+![terrainn-viewer-screenshot](terrain-viewer.jpg)
+
+![bring-your-own-data](byod.jpg)
 
 [demo screencast recording](https://www.dropbox.com/scl/fi/9m0gt1lonbo3sm1bqk3ha/elevation-terrain-viewer.mp4?rlkey=nqbo8w16q44f96sq126orr2k4&st=es40sopg&dl=0)
 
