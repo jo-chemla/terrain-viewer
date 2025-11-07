@@ -63,8 +63,7 @@ export default function GeocoderControl(props: GeocoderControlProps) {
     ({ mapLib }) => {
       const ctrl = new MaplibreGeocoder(geocoderApi, {
         ...props,
-        marker: false,
-        maplibregl: mapLib
+        maplibregl: mapLib,
       });
       ctrl.on('loading', props.onLoading);
       ctrl.on('results', props.onResults);
