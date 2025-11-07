@@ -123,6 +123,8 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
         tileUrl = tileUrl.replace("{API_KEY}", mapboxKey || "")
       } else if (key == "maptiler") {
         tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
+      } else if (key == "google3dtiles") {
+        tileUrl = tileUrl.replace("{API_KEY}", googleKey || "")
       }
       // console.log('tileUrl', tileUrl)
       return tileUrl
@@ -1597,6 +1599,45 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
               >
                 Impasto CAS Viewer
               </a>
+              <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+            </li>
+            <li className="flex items-center justify-between">
+              <>
+                {"Codetard threejs terrain demos : "}
+                <a
+                  href="https://x.com/codetaur/status/1968896182744207599"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline cursor-pointer"
+                > ui </a>
+                {", "}
+                <a
+                  href="https://x.com/codetaur/status/1967783305866252557"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline cursor-pointer"
+                >
+                  modes
+                </a>
+                {", "}
+                <a
+                  href="https://x.com/codetaur/status/1986614344957006075"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline cursor-pointer"
+                >
+                  globe
+                </a>
+                {", "}
+                <a
+                  href="https://github.com/ngwnos/threegs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline cursor-pointer"
+                >
+                  repo
+                </a>
+              </>
               <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
             </li>
           </ul>

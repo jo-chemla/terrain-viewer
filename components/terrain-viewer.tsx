@@ -12,7 +12,7 @@ import Map, {
 } from "react-map-gl/maplibre"
 import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css"
 import { TerrainControls } from "./terrain-controls"
-import { GeocoderControl } from "./geocoder-control"
+import GeocoderControl from "./geocoder-control"
 import { terrainSources } from "@/lib/terrain-sources"
 import { colorRamps } from "@/lib/color-ramps"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
@@ -710,7 +710,8 @@ export function TerrainViewer() {
 
           {isPrimary && (
             <>
-              <GeocoderControl position="top-left" placeholder="Search and press Enter" />
+              <GeocoderControl position="top-left" placeholder="Search and press Enter" marker={false} showResultsWhileTyping={true} zoom={14} flyTo={{ speed: 5 }} showResultMarkers={false} />
+              {/* flyToSpeed={10}  */}
               <NavigationControl position="top-left" />
               <GeolocateControl position="top-left" />
             </>

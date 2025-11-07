@@ -212,3 +212,36 @@
   background-color: oklch(0.145 0 0) !important;
   color: oklch(0.985 0 0) !important;
 }
+
+/* Remove duplicate input clear icon */
+.maplibregl-ctrl-geocoder input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Style cleanup */
+.maplibregl-ctrl-geocoder {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+  padding: 4px;
+  font-size: 0.875rem;
+  box-shadow: 0 1px 3px hsl(var(--foreground) / 0.2);
+}
+
+.maplibregl-ctrl-geocoder--input {
+  /* background: transparent !important; */
+  background-color: white !important;
+  color: hsl(var(--foreground)) !important;
+}
+.maplibregl-ctrl-geocoder--icon-close {
+  fill: #909090;
+}
+
+.dark .maplibregl-ctrl-geocoder {
+  background-color: hsl(var(--muted));
+  border-color: hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+

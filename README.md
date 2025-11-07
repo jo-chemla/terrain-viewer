@@ -51,6 +51,7 @@ Open [http://localhost:5173](http://localhost:5173) to view the app.
 This project was inspired by:
 - [Tangram Height Mapper](https://tangrams.github.io/heightmapper/)
 - [Impasto CAS Viewer](https://impasto.dev/)
+- Codetard threejs terrain demos [ui](https://x.com/codetaur/status/1968896182744207599), [modes](https://x.com/codetaur/status/1967783305866252557) and [TSL/webgpu globe](https://x.com/codetaur/status/1986614344957006075) + [threegs repo](https://github.com/ngwnos/threegs)
 
 ## License
 
