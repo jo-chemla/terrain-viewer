@@ -4,6 +4,8 @@ A comprehensive terrain visualization and downloading tool, built on top of MapL
 
 ![terrainn-viewer-screenshot](terrain-viewer.png)
 
+[demo screencast recording](https://www.dropbox.com/scl/fi/9m0gt1lonbo3sm1bqk3ha/elevation-terrain-viewer.mp4?rlkey=nqbo8w16q44f96sq126orr2k4&st=es40sopg&dl=0)
+
 ## Features
 
 - **Multiple Terrain Sources**: Mapterhorn, Mapbox, MapTiler, AWS Elevation Tiles (based on mapzen)
