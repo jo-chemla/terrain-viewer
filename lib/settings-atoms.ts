@@ -1,7 +1,7 @@
 import { atomWithStorage } from "jotai/utils"
 
 export const mapboxKeyAtom = atomWithStorage("mapboxKey", "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw")
-export const googleKeyAtom = atomWithStorage("googleKey", "")
+export const googleKeyAtom = atomWithStorage("googleKey", "AIzaSyAo6DIOnhYdywBidl4clsPZPkQkXfq6QhI")
 export const mapzenKeyAtom = atomWithStorage("mapzenKey", "mapzen-xxxxxxx")
 export const maptilerKeyAtom = atomWithStorage("maptilerKey", "FbPGGTCFE8IRiPECxIrp")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")

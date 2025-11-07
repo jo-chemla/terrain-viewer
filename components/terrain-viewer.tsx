@@ -19,6 +19,7 @@ import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import mlcontour from "maplibre-contour"
 import { useAtom } from "jotai"
 import { mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom } from "@/lib/settings-atoms"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 // Memoized Sources Component - loads once per source change
 const TerrainSources = memo(
@@ -289,7 +290,7 @@ export function TerrainViewer() {
     colorRamp: parseAsString.withDefault("hypsometric"),
     showRasterBasemap: parseAsBoolean.withDefault(false),
     rasterBasemapOpacity: parseAsFloat.withDefault(1.0),
-    terrainSource: parseAsString.withDefault("google"),
+    terrainSource: parseAsString.withDefault("esri"),
     exaggeration: parseAsFloat.withDefault(1),
     lat: parseAsFloat.withDefault(45.9763),
     lng: parseAsFloat.withDefault(7.6586),
@@ -710,7 +711,7 @@ export function TerrainViewer() {
 
           {isPrimary && (
             <>
-              <GeocoderControl position="top-left" placeholder="Search and press Enter" marker={false} showResultsWhileTyping={true} zoom={14} flyTo={{ speed: 5 }} showResultMarkers={false} />
+              <GeocoderControl position="top-left" placeholder="Search and press Enter" marker={false} showResultsWhileTyping={true} zoom={14} flyTo={{ speed: 5 }} showResultMarkers={false} limit={10} minLength={3} />
               {/* flyToSpeed={10}  */}
               <NavigationControl position="top-left" />
               <GeolocateControl position="top-left" />
@@ -763,7 +764,9 @@ export function TerrainViewer() {
           <div className="flex-1">{renderMap(state.sourceB as TerrainSource | string, "map-b")}</div>
         )}
       </div>
-      <TerrainControls state={state} setState={setState} getMapBounds={getMapBounds} mapRef={mapARef} />
+      <TooltipProvider>
+        <TerrainControls state={state} setState={setState} getMapBounds={getMapBounds} mapRef={mapARef} />
+      </TooltipProvider>
     </div>
   )
 }
