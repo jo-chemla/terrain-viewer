@@ -764,9 +764,7 @@ export function TerrainViewer() {
           <div className="flex-1">{renderMap(state.sourceB as TerrainSource | string, "map-b")}</div>
         )}
       </div>
-      <TooltipProvider>
-        <TerrainControls state={state} setState={setState} getMapBounds={getMapBounds} mapRef={mapARef} />
-      </TooltipProvider>
+      <TerrainControls state={state} setState={setState} getMapBounds={getMapBounds} mapRef={mapARef} />
     </div>
   )
 }

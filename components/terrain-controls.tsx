@@ -162,6 +162,146 @@ const useSourceConfig = () => {
 }
 
 // ============================================================================
+// FACTORIZED COMPONENTS
+// ============================================================================
+
+const SectionHeader: React.FC<{ title: string; isOpen: boolean }> = ({ title, isOpen }) => (
+  <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-base font-medium cursor-pointer">
+    {title}
+    <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+  </CollapsibleTrigger>
+)
+
+const SliderControl: React.FC<{
+  label: string
+  value: number
+  onChange: (value: number) => void
+  min: number
+  max: number
+  step: number
+  suffix?: string
+  decimals?: number
+  disabled?: boolean
+}> = ({ label, value, onChange, min, max, step, suffix = "", decimals = 0, disabled = false }) => (
+  <div className="space-y-1">
+    <div className="flex items-center justify-between">
+      <Label className="text-sm">{label}</Label>
+      <span className="text-sm text-muted-foreground">
+        {value.toFixed(decimals)}{suffix}
+      </span>
+    </div>
+    <Slider
+      value={[value]}
+      onValueChange={([v]) => onChange(v)}
+      min={min}
+      max={max}
+      step={step}
+      className="cursor-pointer"
+      disabled={disabled}
+    />
+  </div>
+)
+const CheckboxWithSlider: React.FC<{
+  id: string
+  label: string
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+  sliderValue: number
+  onSliderChange: (value: number) => void
+  hideSlider?: boolean
+}> = ({ id, label, checked, onCheckedChange, sliderValue, onSliderChange, hideSlider = false }) => (
+  <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+    <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" />
+    <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider ? "col-span-2" : ""}`}>
+      {label}
+    </Label>
+    {!hideSlider && (
+      <Slider
+        value={[sliderValue]}
+        onValueChange={([v]) => onSliderChange(v)}
+        min={0}
+        max={1}
+        step={0.1}
+        className="cursor-pointer"
+        disabled={!checked}
+      />
+    )}
+  </div>
+)
+
+const CycleButtonGroup: React.FC<{
+  value: string
+  options: { value: string; label: string | JSX.Element }[]
+  onChange: (value: string) => void
+  onCycle: (direction: number) => void
+}> = ({ value, options, onChange, onCycle }) => (
+  <div className="flex gap-2">
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="flex-1 cursor-pointer">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+    <div className="flex border rounded-md shrink-0">
+      <Button variant="ghost" size="icon" onClick={() => onCycle(-1)} className="rounded-r-none border-r cursor-pointer">
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <Button variant="ghost" size="icon" onClick={() => onCycle(1)} className="rounded-l-none cursor-pointer">
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  </div>
+)
+// <ConfigDetails sourceKey ={sourceKey } config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} />
+const ConfigDetails: React.FC<{
+  sourceKey: string
+  config: any,
+  getTilesUrl: any,
+  linkCallback: any
+}> = ({ sourceKey, config, getTilesUrl, linkCallback }) => {
+  return (
+
+    <>
+      <Label
+        className={`flex-1 text-sm ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}
+      >
+        {config.name}
+      </Label>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <SourceInfoDialog sourceKey={sourceKey} config={config} getTilesUrl={getTilesUrl} />
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>View source details</p>
+        </TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 cursor-pointer"
+            onClick={linkCallback(config.link)}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>See doc</p>
+        </TooltipContent>
+      </Tooltip>
+    </>
+  )
+}
+
+// ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
@@ -819,29 +959,7 @@ const TerrainSourceSection: React.FC<{
                       B
                     </ToggleGroupItem>
                   </ToggleGroup>
-                  <Label
-                    className={`flex-1 text-sm ${key !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}
-                  >
-                    {config.name}
-                  </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <SourceInfoDialog sourceKey={key} config={config} getTilesUrl={getTilesUrl} />
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>View source details</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 cursor-pointer"
-                    onClick={linkCallback(config.link)}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
+                  <ConfigDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} />
                 </div>
               ))}
             </>
@@ -855,30 +973,8 @@ const TerrainSourceSection: React.FC<{
                     className="cursor-pointer"
                     disabled={key === "google3dtiles"}
                   />
-                  <Label
-                    htmlFor={`source-${key}`}
-                    className={`flex-1 text-sm ${key !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}
-                  >
-                    {config.name}
-                  </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <SourceInfoDialog sourceKey={key} config={config} getTilesUrl={getTilesUrl} />
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>View source details</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 cursor-pointer"
-                    onClick={linkCallback(config.link)}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
+                  <ConfigDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} />
+
                 </div>
               ))}
             </RadioGroup>
@@ -1005,84 +1101,49 @@ const VisualizationModesSection: React.FC<{
         <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-2 pt-1">
+
+
         {/* Hillshade */}
-        <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
-          <Checkbox
-            id="hillshade"
-            checked={state.showHillshade}
-            onCheckedChange={(checked) => setState({ showHillshade: checked })}
-            className="cursor-pointer"
-          />
-          <Label htmlFor="hillshade" className="text-sm cursor-pointer">
-            Hillshade
-          </Label>
-          <Slider
-            value={[state.hillshadeOpacity]}
-            onValueChange={([value]) => setState({ hillshadeOpacity: value })}
-            min={0}
-            max={1}
-            step={0.1}
-            className="cursor-pointer"
-            disabled={!state.showHillshade}
-          />
-        </div>
+        <CheckboxWithSlider
+          id="hillshade"
+          checked={state.showHillshade}
+          onCheckedChange={(checked) => setState({ showHillshade: checked })}
+          label={'Hillshade'}
+          sliderValue={state.hillshadeOpacity}
+          onSliderChange={(value) => setState({ hillshadeOpacity: value })}
+        />
+        {/* hideSlider?: boolean */}
 
         {/* Contour Lines */}
-        <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
-          <Checkbox
-            id="contours"
-            checked={state.showContours}
-            onCheckedChange={(checked) => setState({ showContours: checked })}
-            className="cursor-pointer"
-          />
-          <Label htmlFor="contours" className="text-sm cursor-pointer col-span-2">
-            Contour Lines
-          </Label>
-        </div>
+        <CheckboxWithSlider
+          id="contours"
+          checked={state.showContours}
+          onCheckedChange={(checked) => setState({ showContours: checked })}
+          label={'Contour Lines'}
+          hideSlider={true}
+          sliderValue={0}
+          onSliderChange={() => null}
+        />
 
         {/* Hypsometric Tint */}
-        <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
-          <Checkbox
-            id="color-relief"
-            checked={state.showColorRelief}
-            onCheckedChange={(checked) => setState({ showColorRelief: checked })}
-            className="cursor-pointer"
-          />
-          <Label htmlFor="color-relief" className="text-sm cursor-pointer">
-            Elevation Hypso
-          </Label>
-          <Slider
-            value={[state.colorReliefOpacity]}
-            onValueChange={([value]) => setState({ colorReliefOpacity: value })}
-            min={0}
-            max={1}
-            step={0.1}
-            className="cursor-pointer"
-            disabled={!state.showColorRelief}
-          />
-        </div>
+        <CheckboxWithSlider
+          id="color-relief"
+          checked={state.showColorRelief}
+          onCheckedChange={(checked) => setState({ showColorRelief: checked })}
+          label={'Elevation Hypso'}
+          sliderValue={state.colorReliefOpacity}
+          onSliderChange={(value) => setState({ colorReliefOpacity: value })}
+        />
 
         {/* Raster Basemap */}
-        <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
-          <Checkbox
-            id="terrain-raster"
-            checked={state.showRasterBasemap}
-            onCheckedChange={(checked) => setState({ showRasterBasemap: checked })}
-            className="cursor-pointer"
-          />
-          <Label htmlFor="terrain-raster" className="text-sm cursor-pointer">
-            Raster Basemap
-          </Label>
-          <Slider
-            value={[state.rasterBasemapOpacity]}
-            onValueChange={([value]) => setState({ rasterBasemapOpacity: value })}
-            min={0}
-            max={1}
-            step={0.1}
-            className="cursor-pointer"
-            disabled={!state.showRasterBasemap}
-          />
-        </div>
+        <CheckboxWithSlider
+          id="terrain-raster"
+          checked={state.showRasterBasemap}
+          onCheckedChange={(checked) => setState({ showRasterBasemap: checked })}
+          label={'Raster Basemap'}
+          sliderValue={state.rasterBasemapOpacity}
+          onSliderChange={(value) => setState({ rasterBasemapOpacity: value })}
+        />
       </CollapsibleContent>
     </Collapsible>
   )
@@ -1142,107 +1203,70 @@ const HillshadeOptionsSection: React.FC<{
 
   if (!state.showHillshade) return null
 
+  const hillshadeMethodOptions = [
+    { value: "combined", label: "Combined" },
+    { value: "standard", label: "Standard" },
+    { value: "multidir-colors", label: "Aspect (Multidir Colors)" },
+    { value: "igor", label: "Igor" },
+    { value: "basic", label: "Basic" },
+    { value: "multidirectional", label: "Multidirectional" },
+    { value: "aspect-multidir", label: "Aspect classic (Multidir Colors)" },
+  ]
+
   return (
     <>
       <Separator />
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-base font-medium cursor-pointer">
-          Hillshade Options
-          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-        </CollapsibleTrigger>
+        <SectionHeader title="Hillshade Options" isOpen={isOpen} />
         <CollapsibleContent className="space-y-2 pt-1">
           <div className="space-y-2">
             <Label className="text-sm font-medium">Hillshade Method</Label>
-            <div className="flex gap-2">
-              <Select
-                value={state.hillshadeMethod}
-                onValueChange={(value) => setState({ hillshadeMethod: value })}
-              >
-                <SelectTrigger className="flex-1 cursor-pointer">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="combined">Combined</SelectItem>
-                  <SelectItem value="standard">Standard</SelectItem>
-                  <SelectItem value="multidir-colors">Aspect (Multidir Colors)</SelectItem>
-                  <SelectItem value="igor">Igor</SelectItem>
-                  <SelectItem value="basic">Basic</SelectItem>
-                  <SelectItem value="multidirectional">Multidirectional</SelectItem>
-                  <SelectItem value="aspect-multidir">Aspect classic (Multidir Colors)</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex border rounded-md shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => cycleHillshadeMethod(-1)}
-                  className="rounded-r-none border-r cursor-pointer"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => cycleHillshadeMethod(1)}
-                  className="rounded-l-none cursor-pointer"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+            <CycleButtonGroup
+              value={state.hillshadeMethod}
+              options={hillshadeMethodOptions}
+              onChange={(v) => setState({ hillshadeMethod: v })}
+              onCycle={cycleHillshadeMethod}
+            />
           </div>
 
           {supportsIlluminationDirection && (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm">Illumination Direction</Label>
-                <span className="text-sm text-muted-foreground">{state.illuminationDir}°</span>
-              </div>
-              <Slider
-                value={[state.illuminationDir]}
-                onValueChange={([value]) => setState({ illuminationDir: value })}
-                min={0}
-                max={360}
-                step={1}
-                className="cursor-pointer"
-              />
-            </div>
+            <SliderControl
+              label="Illumination Direction"
+              value={state.illuminationDir}
+              onChange={(v) => setState({ illuminationDir: v })}
+              min={0}
+              max={360}
+              step={1}
+              suffix="°"
+            />
           )}
 
           {supportsIlluminationAltitude && (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm">Illumination Altitude</Label>
-                <span className="text-sm text-muted-foreground">{state.illuminationAlt}°</span>
-              </div>
-              <Slider
-                value={[state.illuminationAlt]}
-                onValueChange={([value]) => setState({ illuminationAlt: value })}
-                min={0}
-                max={90}
-                step={1}
-                className="cursor-pointer"
-              />
-            </div>
+            <SliderControl
+              label="Illumination Altitude"
+              value={state.illuminationAlt}
+              onChange={(v) => setState({ illuminationAlt: v })}
+              min={0}
+              max={90}
+              step={1}
+              suffix="°"
+            />
           )}
 
           {supportsExaggeration && (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm">Hillshade Exaggeration</Label>
-                <span className="text-sm text-muted-foreground">{state.hillshadeExag.toFixed(1)}</span>
-              </div>
-              <Slider
-                value={[state.hillshadeExag]}
-                onValueChange={([value]) => setState({ hillshadeExag: value })}
-                min={0}
-                max={1}
-                step={0.1}
-                className="cursor-pointer"
-              />
-            </div>
+            <SliderControl
+              label="Hillshade Exaggeration"
+              value={state.hillshadeExag}
+              onChange={(v) => setState({ hillshadeExag: v })}
+              min={0}
+              max={1}
+              step={0.01}
+              suffix=""
+              decimals={2}
+            />
           )}
 
+          {/* Shodow and highlight colors */}
           {(supportsShadowColor || supportsHighlightColor || supportsAccentColor) && (
             <Collapsible open={isColorsOpen} onOpenChange={setIsColorsOpen}>
               <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
@@ -1293,6 +1317,8 @@ const HillshadeOptionsSection: React.FC<{
               </CollapsibleContent>
             </Collapsible>
           )}
+
+
         </CollapsibleContent>
       </Collapsible>
     </>
@@ -1411,6 +1437,16 @@ const RasterBasemapOptionsSection: React.FC<{
 
   if (!state.showRasterBasemap) return null
 
+
+  const terrainSourceOptions = [
+    { value: "google", label: "Google Hybrid" },
+    { value: "mapbox", label: "Mapbox Satellite" },
+    { value: "esri", label: "ESRI World Imagery" },
+    { value: "googlesat", label: "Google Satellite" },
+    { value: "bing", label: "Bing Aerial" },
+    { value: "osm", label: "OpenStreetMap" },
+  ]
+
   return (
     <>
       <Separator />
@@ -1422,39 +1458,12 @@ const RasterBasemapOptionsSection: React.FC<{
         <CollapsibleContent className="space-y-2 pt-1">
           <div className="space-y-2">
             <Label className="text-sm">Source</Label>
-            <div className="flex gap-2">
-              <Select value={state.terrainSource} onValueChange={(value) => setState({ terrainSource: value })}>
-                <SelectTrigger className="flex-1 cursor-pointer">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="google">Google Hybrid</SelectItem>
-                  <SelectItem value="mapbox">Mapbox Satellite</SelectItem>
-                  <SelectItem value="esri">ESRI World Imagery</SelectItem>
-                  <SelectItem value="googlesat">Google Satellite</SelectItem>
-                  <SelectItem value="bing">Bing Aerial</SelectItem>
-                  <SelectItem value="osm">OpenStreetMap</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex border rounded-md shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => cycleTerrainSource(-1)}
-                  className="rounded-r-none border-r cursor-pointer"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => cycleTerrainSource(1)}
-                  className="rounded-l-none cursor-pointer"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+            <CycleButtonGroup
+              value={state.terrainSource}
+              options={terrainSourceOptions}
+              onChange={(v) => setState({ terrainSource: v })}
+              onCycle={cycleTerrainSource}
+            />
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -1483,34 +1492,24 @@ const ContourOptionsSection: React.FC<{
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2 pt-1">
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">Minor Interval (m)</Label>
-              <span className="text-sm text-muted-foreground">{state.contourMinor}m</span>
-            </div>
-            <Slider
-              value={[state.contourMinor]}
-              onValueChange={([value]) => setState({ contourMinor: value })}
-              min={10}
-              max={100}
-              step={10}
-              className="cursor-pointer"
-            />
-          </div>
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">Major Interval (m)</Label>
-              <span className="text-sm text-muted-foreground">{state.contourMajor}m</span>
-            </div>
-            <Slider
-              value={[state.contourMajor]}
-              onValueChange={([value]) => setState({ contourMajor: value })}
-              min={50}
-              max={500}
-              step={50}
-              className="cursor-pointer"
-            />
-          </div>
+          <SliderControl
+            label="Minor Interval (m)"
+            value={state.contourMinor}
+            onChange={(v) => setState({ contourMinor: v })}
+            min={10}
+            max={100}
+            step={10}
+            suffix="m"
+          />
+          <SliderControl
+            label="Major Interval (m)"
+            value={state.contourMajor}
+            onChange={(v) => setState({ contourMajor: v })}
+            min={50}
+            max={500}
+            step={50}
+            suffix="m"
+          />
         </CollapsibleContent>
       </Collapsible>
     </>
@@ -1667,31 +1666,18 @@ const DownloadSection: React.FC<{
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-2 pt-1">
         <div className="flex gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                className="flex-[2] bg-transparent cursor-pointer"
-                onClick={exportDTM}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  const url = getTitilerDownloadUrl()
-                  copyToClipboard(url)
-                }}
-                disabled={isExporting}
-              >
-                {isExporting ? (
-                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                ) : (
-                  <Download className="h-4 w-4 mr-2" />
-                )}
+          <Tooltip >
+            <TooltipTrigger asChild >
+              <Button variant="outline" className="flex-[2] bg-transparent cursor-pointer" onClick={exportDTM} >
+                <Download className="h-4 w-4 mr-2" />
                 Export DTM
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p className="text-xs">Export DTM as GeoTIFF (raw Float32 elevation values)</p>
+              <p>Export DTM as GeoTIFF (raw Float32 elevation values)</p>
             </TooltipContent>
           </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" className="flex-1 bg-transparent cursor-pointer" onClick={takeScreenshot}>
@@ -1699,8 +1685,8 @@ const DownloadSection: React.FC<{
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p className="text-xs">
-                Export Screenshot (composited with hillshade, hypsometric tint, raster basemap, etc)
+              <p>
+                Export Screenshot (composited with hillshade, hypsometric tint, contours, raster basemap, etc)
               </p>
             </TooltipContent>
           </Tooltip>
@@ -1719,8 +1705,8 @@ const DownloadSection: React.FC<{
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p className="text-xs">
-                Copy TMS/XYZ tileset source URL, uses {getSourceConfig(state.sourceA)?.encoding || "unknown"} encoding
+              <p>
+                Copy TMS/XYZ tileset source URL for QGIS import, uses {getSourceConfig(state.sourceA)?.encoding || "unknown"} encoding
               </p>
             </TooltipContent>
           </Tooltip>
@@ -1839,63 +1825,63 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
   }
 
   return (
-    // <TooltipProvider>
-    <Card className="absolute right-4 top-4 bottom-4 w-96 overflow-y-auto p-4 gap-2 space-y-2 bg-background/95 backdrop-blur text-base">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Terrain Viewer</h2>
-        <div className="flex gap-1">
-          <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
-          <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(false)} className="cursor-pointer">
-            <PanelRightClose className="h-5 w-5" />
-          </Button>
+    <TooltipProvider>
+      <Card className="absolute right-4 top-4 bottom-4 w-96 overflow-y-auto p-4 gap-2 space-y-2 bg-background/95 backdrop-blur text-base">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Terrain Viewer</h2>
+          <div className="flex gap-1">
+            <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
+            <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(false)} className="cursor-pointer">
+              <PanelRightClose className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <Separator />
+        <Separator />
 
-      {/* General Settings */}
-      <GeneralSettings state={state} setState={setState} />
+        {/* General Settings */}
+        <GeneralSettings state={state} setState={setState} />
 
-      <Separator />
+        <Separator />
 
-      {/* Terrain Source */}
-      <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} />
+        {/* Terrain Source */}
+        <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} />
 
-      <Separator />
+        <Separator />
 
-      {/* Download */}
-      <DownloadSection
-        state={state}
-        getMapBounds={getMapBounds}
-        getSourceConfig={getSourceConfig}
-        mapRef={mapRef}
-      />
+        {/* Download */}
+        <DownloadSection
+          state={state}
+          getMapBounds={getMapBounds}
+          getSourceConfig={getSourceConfig}
+          mapRef={mapRef}
+        />
 
-      <Separator />
+        <Separator />
 
-      {/* Visualization Modes */}
-      <VisualizationModesSection state={state} setState={setState} />
+        {/* Visualization Modes */}
+        <VisualizationModesSection state={state} setState={setState} />
 
-      {/* <Separator /> */}
+        {/* <Separator /> */}
 
-      {/* Hillshade Options */}
-      <HillshadeOptionsSection state={state} setState={setState} />
+        {/* Hillshade Options */}
+        <HillshadeOptionsSection state={state} setState={setState} />
 
-      {/* Hypsometric Tint Options */}
-      <HypsometricTintOptionsSection state={state} setState={setState} />
+        {/* Hypsometric Tint Options */}
+        <HypsometricTintOptionsSection state={state} setState={setState} />
 
-      {/* Raster Basemap Options */}
-      <RasterBasemapOptionsSection state={state} setState={setState} />
+        {/* Raster Basemap Options */}
+        <RasterBasemapOptionsSection state={state} setState={setState} />
 
-      {/* Contour Options */}
-      <ContourOptionsSection state={state} setState={setState} />
+        {/* Contour Options */}
+        <ContourOptionsSection state={state} setState={setState} />
 
-      <Separator />
+        <Separator />
 
-      {/* Footer */}
-      <FooterSection />
-    </Card>
-    // </TooltipProvider>
+        {/* Footer */}
+        <FooterSection />
+      </Card>
+    </TooltipProvider>
   )
 }
