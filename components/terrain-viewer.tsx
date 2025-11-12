@@ -21,7 +21,7 @@ import { useAtom } from "jotai"
 import { mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom } from "@/lib/settings-atoms"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
-// Memoized Sources Component - loads once per source change
+// Sources Component - loads once per source change
 const TerrainSources = memo(
   ({
     source,
@@ -41,11 +41,8 @@ const TerrainSources = memo(
       if (customSource) {
         if (customSource.type === "cog") {
           return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`
-          // tested with a lot of different parameters, set to true or false: 
           // &nodata=0&resampling=bilinear&algorithm=terrainrgb&return_mask=false
         }
-        // Test with amphipolis COG https://3d.iconem.com/greece/amphipolis/Amphipolis_general_dsm_10cm_cog_cropped_alpha.tif
-        // and terrain viewer url http://localhost:5173/?lat=46.6101&lng=20.7997&zoom=4.55&pitch=12.3&colorReliefOpacity=0.6&exaggeration=2.9&sourceA=custom-1762470109309&illuminationDir=252
         // TODO eventually see this https://github.com/developmentseed/titiler/discussions/1110#discussioncomment-12868145
         return customSource.url
       }
@@ -97,7 +94,7 @@ const TerrainSources = memo(
 )
 TerrainSources.displayName = "TerrainSources"
 
-// Memoized Raster Source
+// Raster Source
 const RasterBasemapSource = memo(
   ({
     terrainSource,
@@ -128,7 +125,7 @@ const RasterBasemapSource = memo(
 )
 RasterBasemapSource.displayName = "RasterBasemapSource"
 
-// Memoized Raster Layer
+// Raster Layer
 const RasterLayer = memo(
   ({
     showRasterBasemap,
@@ -154,7 +151,7 @@ const RasterLayer = memo(
 )
 RasterLayer.displayName = "RasterLayer"
 
-// Memoized Hillshade Layer
+// Hillshade Layer
 const HillshadeLayer = memo(({
   showHillshade,
   hillshadePaint,
@@ -176,7 +173,7 @@ const HillshadeLayer = memo(({
 })
 HillshadeLayer.displayName = "HillshadeLayer"
 
-// Memoized Color Relief Layer
+// Color Relief Layer
 const ColorReliefLayer = memo(({
   showColorRelief,
   colorReliefPaint
@@ -201,7 +198,7 @@ const ColorReliefLayer = memo(({
 ColorReliefLayer.displayName = "ColorReliefLayer"
 
 
-// Memoized Contour Layers
+// Contour Layers
 const contourLinesLayerDef = (showContours: boolean): LayerSpecification => ({
   id: "contour-lines",
   type: "line",
@@ -396,7 +393,6 @@ export function TerrainViewer() {
     checkMapLibre()
   }, [])
 
-  // Initialize contours - FIXED with proper checks
   useEffect(() => {
     const initContours = async () => {
       // Wait for all dependencies
@@ -615,7 +611,7 @@ export function TerrainViewer() {
             bearing: Number.parseFloat(evt.viewState.bearing.toFixed(1)),
           }
           setState(newState, { shallow: true })
-        }, 500) // Update URL 500ms after movement stops
+        }, 500)
       }
     },
     [setState]
@@ -638,9 +634,9 @@ export function TerrainViewer() {
       const map = mapARef.current.getMap();
 
       map.easeTo({
-        bearing: 0,   // North up
-        pitch: 0,     // Flat
-        duration: 500 // Smooth transition
+        bearing: 0,
+        pitch: 0,
+        duration: 500
       });
     }
   }, [state.viewMode]);

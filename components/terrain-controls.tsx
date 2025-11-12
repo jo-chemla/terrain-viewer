@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { useAtom } from "jotai"
 import {
   Camera, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Info,
@@ -172,27 +172,6 @@ const CycleButtonGroup: React.FC<{
   </div>
 )
 
-const ConfigDetails: React.FC<{
-  sourceKey: string; config: any; getTilesUrl: any; linkCallback: any; getMapBounds: () => Bounds
-}> = ({ sourceKey, config, getTilesUrl, linkCallback, getMapBounds }) => (
-  <>
-    <Label className={`flex-1 text-sm ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
-      {config.name}
-    </Label>
-    <Tooltip>
-      <TooltipTrigger asChild><SourceInfoDialog sourceKey={sourceKey} config={config} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} /></TooltipTrigger>
-      <TooltipContent><p>View source details</p></TooltipContent>
-    </Tooltip>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={linkCallback(config.link)}>
-          <ExternalLink className="h-4 w-4" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent><p>Open documentation</p></TooltipContent>
-    </Tooltip>
-  </>
-)
 
 const getGradientColors = (colors: any[]): string => {
   const colorValues: string[] = []
@@ -481,8 +460,6 @@ const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTilesUrl: 
   const gdalCommand = `gdal_translate -outsize ${maxResolution} 0 -projwin ${bounds.west} ${bounds.north} ${bounds.east} ${bounds.south} -projwin_srs EPSG:4326 "${wmsXml}" output.tif`
     .replace(/\s*\n\s*/g, " ")
 
-  const handleCopyUrl = useCallback(() => copyToClipboard(tileUrl), [tileUrl])
-
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -556,8 +533,6 @@ const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTilesUrl: 
   )
 }
 
-
-// Remaining components continued...
 const GeneralSettings: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
   const [isOpen, setIsOpen] = useAtom(isGeneralOpenAtom)
   return (
@@ -595,6 +570,7 @@ const GeneralSettings: React.FC<{ state: any; setState: (updates: any) => void }
   )
 }
 
+
 const CustomSourceModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomTerrainSource | null
   onSave: (source: Omit<CustomTerrainSource, "id"> & { id?: string }) => void
@@ -604,7 +580,7 @@ const CustomSourceModal: React.FC<{
   const [type, setType] = useState<"cog" | "terrainrgb" | "terrarium">("cog")
   const [description, setDescription] = useState("")
 
-  useState(() => {
+  useEffect(() => {
     if (editingSource) {
       setName(editingSource.name)
       setUrl(editingSource.url)
@@ -616,7 +592,7 @@ const CustomSourceModal: React.FC<{
       setType("cog")
       setDescription("")
     }
-  })
+  }, [editingSource, isOpen])
 
   const handleSave = useCallback(() => {
     if (!name || !url) return
@@ -666,6 +642,68 @@ const CustomSourceModal: React.FC<{
   )
 }
 
+const ConfigDetails: React.FC<{
+  sourceKey: string; config: any; getTilesUrl: any; linkCallback: any; getMapBounds: () => Bounds
+}> = ({ sourceKey, config, getTilesUrl, linkCallback, getMapBounds }) => (
+  <>
+    <Label className={`flex-1 text-sm ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
+      {config.name}
+    </Label>
+    <Tooltip>
+      <TooltipTrigger>
+        <SourceInfoDialog sourceKey={sourceKey} config={config} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} /></TooltipTrigger>
+      <TooltipContent><p>View source details</p></TooltipContent>
+    </Tooltip>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={linkCallback(config.link)}>
+          <ExternalLink className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent><p>Open documentation</p></TooltipContent>
+    </Tooltip>
+  </>
+)
+
+const CustomSourceDetails: React.FC<{
+  source: any; handleFitToBounds: any; handleEditSource: any; handleDeleteCustomSource: any
+}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource }) => (
+  <>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Label className="flex-1 text-sm cursor-pointer truncate min-w-0">{source.name}</Label>
+      </TooltipTrigger>
+      <TooltipContent><p>{source.name}</p></TooltipContent>
+    </Tooltip>
+    {source.type === 'cog' && (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleFitToBounds(source)}>
+            <MapPin className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent><p>Fit to bounds</p></TooltipContent>
+      </Tooltip>
+    )}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={(e) => handleEditSource(source.id)}>
+          <Edit className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent><p>Edit</p></TooltipContent>
+    </Tooltip>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleDeleteCustomSource(source.id)}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent><p>Delete</p></TooltipContent>
+    </Tooltip>
+  </>
+)
+
 const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => void; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds; mapRef: React.RefObject<MapRef> }> = ({ state, setState, getTilesUrl, getMapBounds, mapRef }) => {
   const [isOpen, setIsOpen] = useAtom(isTerrainSourceOpenAtom)
   const [isByodOpen, setIsByodOpen] = useAtom(isByodOpenAtom)
@@ -673,6 +711,11 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false)
   const [editingSource, setEditingSource] = useState<CustomTerrainSource | null>(null)
+  const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
+  const [batchEditJson, setBatchEditJson] = useState("")
+  const [batchEditError, setBatchEditError] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [theme] = useAtom(themeAtom)
 
   const linkCallback = useCallback((link: string) => () => window.open(templateLink(link, state.lat, state.lng), "_blank"), [state.lat, state.lng])
 
@@ -697,10 +740,7 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
       const infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
       const response = await fetch(infoUrl)
       const data = await response.json()
-      console.log({ data })
       const [west, south, east, north] = data.bbox
-      console.log({ west, south, east, north })
-      console.log({ mapRef })
       if (data.bbox && mapRef.current) {
         mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
       }
@@ -708,6 +748,72 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
       console.error("Failed to fetch COG bounds:", error)
     }
   }, [titilerEndpoint, mapRef])
+
+  const handleOpenBatchEdit = useCallback(() => {
+    setBatchEditJson(JSON.stringify(customTerrainSources, null, 2))
+    setBatchEditError("")
+    setIsBatchEditModalOpen(true)
+  }, [customTerrainSources])
+
+  const handleSaveBatchEdit = useCallback(() => {
+    try {
+      const parsed = JSON.parse(batchEditJson)
+      if (!Array.isArray(parsed)) {
+        setBatchEditError("Input must be a valid JSON array")
+        return
+      }
+      // Validate structure
+      for (const source of parsed) {
+        if (!source.id || !source.name || !source.url || !source.type) {
+          setBatchEditError("Each source must have id, name, url, and type fields")
+          return
+        }
+      }
+      setCustomTerrainSources(parsed)
+      setIsBatchEditModalOpen(false)
+    } catch (error) {
+      setBatchEditError("Invalid JSON: " + (error as Error).message)
+    }
+  }, [batchEditJson, setCustomTerrainSources])
+
+  const handleLoadFile = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const content = event.target?.result as string
+      try {
+        JSON.parse(content)
+        setBatchEditJson(content)
+        setBatchEditError("")
+      } catch (error) {
+        setBatchEditError("Invalid JSON file: " + (error as Error).message)
+      }
+    }
+    reader.readAsText(file)
+
+    e.target.value = ""
+  }, [])
+
+  const handleExportSources = useCallback(() => {
+    const blob = new Blob([batchEditJson], { type: "application/json" })
+    saveAs(blob, `terrain-sources-${Date.now()}.json`)
+  }, [batchEditJson])
+
+  const handleEditSource = useCallback((sourceId: string) => {
+    const source = customTerrainSources.find(s => s.id === sourceId)
+    if (source) {
+      setEditingSource(source)
+      setIsAddSourceModalOpen(true)
+    } else {
+      console.error('Source not found!')
+    }
+  }, [customTerrainSources])
 
   return (
     <>
@@ -745,15 +851,32 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
         )}
 
         <Collapsible open={isByodOpen} onOpenChange={setIsByodOpen} className="mt-4">
-          <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-sm font-medium cursor-pointer pl-2.5">
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-m font-medium cursor-pointer pl-2.5">
             Bring Your Own Data
             <ChevronDown className={`h-4 w-4 transition-transform ${isByodOpen ? "rotate-180" : ""}`} />
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-2 pt-1">
-            <Button variant="outline" size="sm" className="w-full cursor-pointer bg-transparent" onClick={() => { setEditingSource(null); setIsAddSourceModalOpen(true) }}>
-              <Plus className="h-4 w-4 mr-2" />Add new terrain dataset
-            </Button>
 
+          <CollapsibleContent className="space-y-2 pt-1">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 cursor-pointer bg-transparent"
+                onClick={() => { setEditingSource(null); setIsAddSourceModalOpen(true) }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Dataset
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 cursor-pointer bg-transparent"
+                onClick={handleOpenBatchEdit}
+              >
+                <Edit className="h-3 w-3 mr-2" />
+                Batch Edit
+              </Button>
+            </div>
             {customTerrainSources.length > 0 && (
               <div className="space-y-2">
                 {state.splitScreen ? (
@@ -772,48 +895,17 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
                           <ToggleGroupItem value="a" className="px-3 cursor-pointer data-[state=on]:font-bold">A</ToggleGroupItem>
                           <ToggleGroupItem value="b" className="px-3 cursor-pointer data-[state=on]:font-bold">B</ToggleGroupItem>
                         </ToggleGroup>
-                        <Label className="flex-1 text-sm cursor-pointer truncate">{source.name}</Label>
-                        {source.type === 'cog' && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleFitToBounds(source)}>
-                                <MapPin className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Fit to bounds</p></TooltipContent>
-                          </Tooltip>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => { setEditingSource(source); setIsAddSourceModalOpen(true) }}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleDeleteCustomSource(source.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource }} />
                       </div>
                     ))}
                   </>
                 ) : (
                   <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })}>
                     {customTerrainSources.map((source) => (
-                      <div key={source.id} className="flex items-center gap-2">
-                        <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer" />
-                        <Label htmlFor={`source-${source.id}`} className="flex-1 text-sm cursor-pointer truncate">{source.name}</Label>
-                        {source.type === 'cog' && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleFitToBounds(source)}>
-                                <MapPin className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Fit to bounds</p></TooltipContent>
-                          </Tooltip>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => { setEditingSource(source); setIsAddSourceModalOpen(true) }}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleDeleteCustomSource(source.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <div key={source.id} className="flex items-center gap-2 min-w-0">
+                        <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
+                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource }} />
+
                       </div>
                     ))}
                   </RadioGroup>
@@ -824,6 +916,78 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
         </Collapsible>
       </Section>
       <CustomSourceModal isOpen={isAddSourceModalOpen} onOpenChange={setIsAddSourceModalOpen} editingSource={editingSource} onSave={handleSaveCustomSource} />
+      <Dialog open={isBatchEditModalOpen} onOpenChange={setIsBatchEditModalOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Batch Edit Terrain Sources</DialogTitle>
+            <DialogDescription>
+              Edit all custom terrain sources as JSON. Each source must have id, name, url, and type fields.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">
+            ✕
+          </DialogClose>
+          <div className="space-y-4 overflow-y-auto px-1">
+            <div className="space-y-2">
+              <textarea
+                className="w-full min-h-[400px] p-3 border rounded-md font-mono text-xs bg-background text-foreground resize-none outline-none focus:ring-2 focus:ring-ring"
+                value={batchEditJson}
+                onChange={(e) => {
+                  setBatchEditJson(e.target.value)
+                  setBatchEditError("")
+                }}
+                spellCheck={false}
+                placeholder='[{"id": "custom-1", "name": "My Terrain", "url": "https://...", "type": "cog"}]'
+              />
+              {batchEditError && (
+                <p className="text-sm text-red-500">{batchEditError}</p>
+              )}
+            </div>
+            <div className="flex justify-between gap-2 flex-wrap">
+              <div className="flex gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <Button
+                  variant="outline"
+                  onClick={handleLoadFile}
+                  className="cursor-pointer"
+                >
+                  <Download className="h-4 w-4 mr-2 rotate-180" />
+                  Load File
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleExportSources}
+                  className="cursor-pointer"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBatchEditModalOpen(false)}
+                  className="cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveBatchEdit}
+                  className="cursor-pointer"
+                >
+                  Validate & Save
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
