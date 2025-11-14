@@ -27,7 +27,7 @@ import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom, maxResolutionAtom, themeAtom,
   isGeneralOpenAtom, isTerrainSourceOpenAtom, isVizModesOpenAtom, isHillshadeOpenAtom, isTerrainRasterOpenAtom,
-  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom,
+  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom,
   type CustomTerrainSource,
 } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -194,6 +194,7 @@ const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) 
   const [maxResolution, setMaxResolution] = useAtom(maxResolutionAtom)
   const [batchEditMode, setBatchEditMode] = useState(false)
   const [batchApiKeys, setBatchApiKeys] = useState("")
+  const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
 
   const handleBatchToggle = useCallback(() => {
     if (!batchEditMode) {
@@ -259,18 +260,58 @@ const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) 
             )}
           </div>
           <Separator />
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold">Titiler Settings</h3>
-            <div className="space-y-2">
+
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">COG Streaming Settings</Label>
+              <ToggleGroup
+                type="single"
+                value={useCogProtocolVsTitiler ? "cogprotocol" : "titiler"}
+                onValueChange={(value) => value && setUseCogProtocolVsTitiler(value == "cogprotocol")}
+                className="border rounded-md"
+              // disabled
+              >
+                <ToggleGroupItem
+                  value="cogprotocol"
+                  className="px-3 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+                >
+                  MapLibre
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="titiler"
+                  className="px-3 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+                >
+                  Titiler
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+
+            <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded-md">
+              <p className="mb-1">
+                <span className="font-semibold">MapLibre COG Protocol from Geomatico:</span> Direct COG client consumption.
+                Faster and avoids overflooding Titiler, but may encounter CORS errors
+                (bypass via Allow-CORS browser plugin or enabling CORS on the COG server).
+              </p>
+              <p>
+                <span className="font-semibold">Titiler:</span> Middleware service that fetches remote COG
+                and streams TMS tiles via TMS endpoint (assembles COG tiles from downsampled, memory-contiguous fetches to the COG hierarchy).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <div className="flex-1 space-y-1">
               <Label htmlFor="titiler-endpoint">Titiler Endpoint</Label>
               <Input id="titiler-endpoint" type="text" placeholder="https://titiler.xyz" value={titilerEndpoint} onChange={(e) => setTitilerEndpoint(e.target.value)} className="cursor-text" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="max-resolution">Max Resolution (px)</Label>
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="max-resolution">Max Download Resolution (px)</Label>
               <Input id="max-resolution" type="number" placeholder="4096" value={maxResolution} onChange={(e) => setMaxResolution(Number.parseFloat(e.target.value))} className="cursor-text" />
-              <p className="text-xs text-muted-foreground">The max resolution limit for GeoTIFF DEM download via Titiler is usually 2k to 4k. If higher-resolution is needed, use the QGIS or GDAL workflow.</p>
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">The max resolution limit for GeoTIFF DEM download via Titiler is usually 2k to 4k. If higher-resolution is needed, use the QGIS or GDAL workflows described in the panel for each source details.</p>
+
           <Separator />
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Terrain Encoding Functions</h3>
@@ -290,7 +331,10 @@ const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) 
                 <span>Hypsometric Tint (PR #5913)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
               </a>
               <a href="https://github.com/maplibre/maplibre-style-spec/issues/583#issuecomment-2028639772" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                <span>Contour Lines (Issue #583)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                <span>Contour Lines and onthegomap/maplibre-contour plugin (Issue #583)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+              </a>
+              <a href="https://labs.geomatico.es/maplibre-cog-protocol-examples/#/en/pirineo" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                <span>Geomatico COG Protocol for Maplibre</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
               </a>
               <a href="https://github.com/maplibre/maplibre-gl-js/discussions/3378" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
                 <span>3D Tiles early Discussion (#3378)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
@@ -388,7 +432,7 @@ export const GdalTabs: React.FC<{
 
         </div>
 
-        {/* --- Tab content (flush) --- */}
+        {/* --- Tab content--- */}
         <div className="max-h-64 overflow-auto">
           <TabsContent value="url" className="p-3 pt-2 text-xs font-mono">
             <SyntaxHighlighter
@@ -458,7 +502,6 @@ const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTilesUrl: 
 
   // Make single-line, word-wrapped command
   const gdalCommand = `gdal_translate -outsize ${maxResolution} 0 -projwin ${bounds.west} ${bounds.north} ${bounds.east} ${bounds.south} -projwin_srs EPSG:4326 "${wmsXml}" output.tif`
-    .replace(/\s*\n\s*/g, " ")
 
   return (
     <Dialog>
@@ -642,11 +685,11 @@ const CustomSourceModal: React.FC<{
   )
 }
 
-const ConfigDetails: React.FC<{
+const SourceDetails: React.FC<{
   sourceKey: string; config: any; getTilesUrl: any; linkCallback: any; getMapBounds: () => Bounds
 }> = ({ sourceKey, config, getTilesUrl, linkCallback, getMapBounds }) => (
   <>
-    <Label className={`flex-1 text-sm ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
+    <Label htmlFor={`source-${sourceKey}`} className={`flex-1 text-sm ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
       {config.name}
     </Label>
     <Tooltip>
@@ -671,10 +714,13 @@ const CustomSourceDetails: React.FC<{
   <>
     <Tooltip>
       <TooltipTrigger asChild>
-        <Label className="flex-1 text-sm cursor-pointer truncate min-w-0">{source.name}</Label>
+        <Label htmlFor={`source-${source.id}`} className="flex-1 text-sm cursor-pointer truncate min-w-0">
+          {source.name}
+        </Label>
       </TooltipTrigger>
-      <TooltipContent><p>{source.name}</p></TooltipContent>
+      <TooltipContent> <p>{source.name}</p> </TooltipContent>
     </Tooltip>
+
     {source.type === 'cog' && (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -740,8 +786,10 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
       const infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
       const response = await fetch(infoUrl)
       const data = await response.json()
-      const [west, south, east, north] = data.bbox
-      if (data.bbox && mapRef.current) {
+      const bbox = data.bbox ?? data.properties.bounds
+      console.log({ data, bbox })
+      const [west, south, east, north] = bbox
+      if (bbox && mapRef.current) {
         mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
       }
     } catch (error) {
@@ -835,7 +883,7 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
                   <ToggleGroupItem value="a" className="px-3 cursor-pointer data-[state=on]:font-bold">A</ToggleGroupItem>
                   <ToggleGroupItem value="b" className="px-3 cursor-pointer data-[state=on]:font-bold">B</ToggleGroupItem>
                 </ToggleGroup>
-                <ConfigDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
+                <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
               </div>
             ))}
           </>
@@ -844,7 +892,7 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
             {Object.entries(terrainSources).map(([key, config]) => (
               <div key={key} className="flex items-center gap-2">
                 <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer" disabled={key === "google3dtiles"} />
-                <ConfigDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
+                <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
               </div>
             ))}
           </RadioGroup>
