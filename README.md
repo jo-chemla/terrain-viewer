@@ -19,7 +19,7 @@ A comprehensive terrain visualization and downloading tool, built on top of MapL
 - **Bring Your Own Data**: Add terrain sources XYZ terrainrgb/terrarium or COG (wip, via titiler) 
 - **View Modes**: 2D, 3D, and Globe projections
 - **Split Screen**: Compare two terrain sources side-by-side
-- **Download**: Export terrain as GeoTIFF via Titiler or screenshot canvas, and copy source URL for QGIS integration (terrarium/terrainrgb encoding)
+- **Download**: Export terrain as GeoTIFF via Titiler or screenshot canvas, and copy source URL for QGIS integration/gdal download (terrarium/terrainrgb encoding) + procedures
 - **User configuration**: Settings persisted to localStorage via jotai like titiler instance and maximum resolution, theme style switcher, API keys, additional terrain sources, and info
 
 ## Getting Started
@@ -40,11 +40,13 @@ Open [http://localhost:5173](http://localhost:5173) to view the app.
 
 ## Technologies
 
-- MapLibre GL v5
-- React Map GL
-- nuqs for ur search query state persistence + jotai for atomWithStorage
-- shadcn/ui + Tailwind CSS v4 for components and UI
-- maplibre-contour
+- [MapLibre GL v5](https://maplibre.org/maplibre-gl-js/docs/)
+- [React Map GL](https://visgl.github.io/react-map-gl/)
+- [nuqs](https://nuqs.dev/docs/basic-usage) for url search query state persistence
+- [jotai](https://jotai.org/docs/utilities/storage) for atomWithStorage
+- [shadcn/ui components](https://ui.shadcn.com/docs/components) + [Tailwind CSS](https://tailwindcss.com/docs/styling-with-utility-classes) v4 for components and UI
+- [onthegomap/maplibre-contour](https://github.com/onthegomap/maplibre-contour)
+- [geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol/)
 
 ## Inspiration
 
