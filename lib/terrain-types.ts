@@ -11,7 +11,8 @@ export interface TerrainSourceConfig {
   encoding: "terrarium" | "terrainrgb" | "3dtiles" | "custom" 
   sourceConfig: {
     type: "raster-dem"
-    tiles: string[]
+    tiles?: string[]
+    url?: string
     tileSize: number
     maxzoom: number
     encoding: "terrarium" | "mapbox"| "3dtiles" | "custom"

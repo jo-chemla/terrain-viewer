@@ -18,8 +18,13 @@ import { colorRamps } from "@/lib/color-ramps"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import mlcontour from "maplibre-contour"
 import { useAtom } from "jotai"
-import { mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom } from "@/lib/settings-atoms"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
+
+import maplibregl, { type RasterDEMSourceSpecification } from 'maplibre-gl';
+import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
+import { GeoGrid } from 'geogrid-maplibre-gl';
+import * as MaplibreGrid from 'maplibre-grid';
+
 
 // Sources Component - loads once per source change
 const TerrainSources = memo(
@@ -36,12 +41,23 @@ const TerrainSources = memo(
     customSources: any[]
     titilerEndpoint: string
   }) => {
+    const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
+
     const getTilesUrl = (key: TerrainSource | string) => {
       const customSource = customSources.find((s) => s.id === key)
       if (customSource) {
         if (customSource.type === "cog") {
-          return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`
-          // &nodata=0&resampling=bilinear&algorithm=terrainrgb&return_mask=false
+          if (useCogProtocolVsTitiler) {
+            // Use direct COG protocol instead of titiler tiles
+            return `cog://${customSource.url}#dem`
+            // return `cog://${customSource.url}`
+            // return `cog://${customSource.url.replace('https://', '')}#dem`
+            // return `cog://${customSource.url.replace('https://', '')}`
+          } else {
+
+            return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`
+            // &nodata=0&resampling=bilinear&algorithm=terrainrgb&return_mask=false
+          }
         }
         // TODO eventually see this https://github.com/developmentseed/titiler/discussions/1110#discussioncomment-12868145
         return customSource.url
@@ -65,13 +81,20 @@ const TerrainSources = memo(
     const customSource = customSources.find((s) => s.id === source)
     if (customSource) {
       const tileUrl = getTilesUrl(source)
-      const sourceConfig = {
+      const sourceConfig: RasterDEMSourceSpecification = {
         type: "raster-dem" as const,
-        tiles: [tileUrl],
+        // tiles: [tileUrl],
+        // url: tileUrl, // for geomatico cog-protocol https://labs.geomatico.es/maplibre-cog-protocol-examples/#/en/pirineo
         tileSize: 256,
         maxzoom: 20,
         encoding: encodingsMap[customSource.type],
       }
+      if ((customSource.type == 'cog') && useCogProtocolVsTitiler) {
+        sourceConfig.url = tileUrl
+      } else {
+        sourceConfig.tiles = [tileUrl]
+      }
+
 
       return (
         <>
@@ -506,6 +529,47 @@ export function TerrainViewer() {
 
         console.log("[Contours] Initialized successfully")
         setContoursInitialized(true)
+
+        // // WIP Try adding geogrid graticules
+
+        // setTimeout(() => {
+        //   const geogrid = new GeoGrid({
+        //     map,
+        //     // beforeLayerId: 'labels',
+        //     // gridStyle: {
+        //     //   color: 'rgba(255, 255, 255, 0.5)',
+        //     //   width: 2,
+        //     //   dasharray: [5, 10]
+        //     // },
+        //     // labelStyle: {
+        //     //   color: 'rgba(255, 255, 255, 0.5)',
+        //     //   fontSize: '18',
+        //     //   textShadow: '0 0 10px rgba(0, 0, 0)'
+        //     // },
+        //     zoomLevelRange: [0, 20],
+        //     gridDensity: (zoomLevel) => 10,
+        //     // formatLabels: (degreesFloat) => Math.floor(degreesFloat).toString()
+        //   });
+        //   console.log('geogrid initialized')
+        //   // // On some event
+        //   // geogrid.remove();
+        //   // // On another event
+        //   // geogrid.add();
+        //   // console.log(('geogrid re-added'))
+        //   // const grid = new MaplibreGrid.Grid({
+        //   //   gridWidth: 10,
+        //   //   gridHeight: 10,
+        //   //   units: 'degrees',
+        //   //   paint: {
+        //   //     'line-opacity': 1,
+        //   //     'line-color': 'red',
+        //   //     'line-width': 10
+        //   //   }
+        //   // });
+        //   // map.addControl(grid);
+        // }, 5000)
+
+
       } catch (error) {
         console.error("[Contours] Initialization error:", error)
         // Retry after delay
@@ -572,6 +636,14 @@ export function TerrainViewer() {
     map.addLayer(contourLabelsLayerDef(state.showContours))
 
   }, [state.contourMinor, state.contourMajor])
+
+
+  // Register the COG protocol on the same maplibregl instance used by the Map component.
+  useEffect(() => {
+    maplibregl.addProtocol('cog', cogProtocol)
+    console.log("[COG] maplibre-cog-protocol registered")
+  }, []);
+
 
   // Sync maps in split screen
   const onMoveA = useCallback(
@@ -648,7 +720,8 @@ export function TerrainViewer() {
       return (
         <Map
           ref={isPrimary ? mapARef : mapBRef}
-          mapLib={(window as any).maplibregl}
+          // mapLib={(window as any).maplibregl}
+          mapLib={maplibregl}
           initialViewState={{
             latitude: state.lat,
             longitude: state.lng,
