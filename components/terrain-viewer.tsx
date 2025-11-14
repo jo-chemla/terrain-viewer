@@ -50,13 +50,18 @@ const TerrainSources = memo(
           if (useCogProtocolVsTitiler) {
             // Use direct COG protocol instead of titiler tiles
             return `cog://${customSource.url}#dem`
-            // return `cog://${customSource.url}`
-            // return `cog://${customSource.url.replace('https://', '')}#dem`
-            // return `cog://${customSource.url.replace('https://', '')}`
           } else {
-
             return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`
             // &nodata=0&resampling=bilinear&algorithm=terrainrgb&return_mask=false
+          }
+        }
+        else if (customSource.type === "vrt") {
+          if (useCogProtocolVsTitiler) {
+            console.warn('Warning, VRT can only work with TiTiler COG streaming')
+            return customSource.url
+          } else {
+            return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(customSource.url)}`
+            // eg vrt:///vsicurl/https://data.cquest.org/ign/rgealti/repack/cog/RGEALTI_2-0_1M_COG_LAMB93-IGN69_FXX.vrt?a_srs=EPSG:2154
           }
         }
         // TODO eventually see this https://github.com/developmentseed/titiler/discussions/1110#discussioncomment-12868145

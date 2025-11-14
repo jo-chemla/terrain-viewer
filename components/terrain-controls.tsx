@@ -620,7 +620,7 @@ const CustomSourceModal: React.FC<{
 }> = ({ isOpen, onOpenChange, editingSource, onSave }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
-  const [type, setType] = useState<"cog" | "terrainrgb" | "terrarium">("cog")
+  const [type, setType] = useState<"cog" | "terrainrgb" | "terrarium" | "vrt">("cog")
   const [description, setDescription] = useState("")
 
   useEffect(() => {
@@ -668,6 +668,7 @@ const CustomSourceModal: React.FC<{
                 <SelectItem value="cog">COG (Cloud Optimized GeoTIFF)</SelectItem>
                 <SelectItem value="terrainrgb">TerrainRGB</SelectItem>
                 <SelectItem value="terrarium">Terrarium</SelectItem>
+                <SelectItem value="vrt">VRT</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -721,7 +722,7 @@ const CustomSourceDetails: React.FC<{
       <TooltipContent> <p>{source.name}</p> </TooltipContent>
     </Tooltip>
 
-    {source.type === 'cog' && (
+    {['cog', 'vrt'].includes(source.type) && (
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleFitToBounds(source)}>
@@ -781,9 +782,14 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
   }, [customTerrainSources, setCustomTerrainSources, state, setState])
 
   const handleFitToBounds = useCallback(async (source: CustomTerrainSource) => {
-    if (source.type !== 'cog') return
+    if (!['cog', 'vrt'].includes(source.type)) return
     try {
-      const infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
+      let infoUrl
+      if (source.type == 'cog') {
+        infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
+      } else if (source.type == 'vrt') {
+        infoUrl = `${titilerEndpoint}/cog/info.geojson?url=vrt:///vsicurl/${encodeURIComponent(source.url)}`
+      }
       const response = await fetch(infoUrl)
       const data = await response.json()
       const bbox = data.bbox ?? data.properties.bounds

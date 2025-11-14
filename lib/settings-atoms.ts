@@ -22,7 +22,7 @@ export interface CustomTerrainSource {
   id: string
   name: string
   url: string
-  type: "cog" | "terrainrgb" | "terrarium"
+  type: "cog" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson'
   description?: string
 }
 
