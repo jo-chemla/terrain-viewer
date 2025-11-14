@@ -2,7 +2,7 @@ import type { TerrainSource, TerrainSourceConfig } from "./terrain-types"
 
 export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
   mapterhorn: {
-    name: "Mapterhorn Terrarium",
+    name: "Mapterhorn - Terrarium",
     link: "https://mapterhorn.com/",
     description: "Mapterhorn terrain tiles with Terrarium encoding",
     encoding: "terrarium",
@@ -15,7 +15,7 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
     },
   },
   mapbox: {
-    name: "Mapbox TerrainRGB",
+    name: "Mapbox - TerrainRGB",
     link: "https://docs.mapbox.com/data/tilesets/reference/mapbox-terrain-dem-v1/",
     description: "Mapbox Terrain DEM v1 with TerrainRGB encoding",
     encoding: "terrainrgb",
@@ -30,7 +30,7 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
     },
   },
   maptiler: {
-    name: "MapTiler TerrainRGB",
+    name: "MapTiler - TerrainRGB",
     link: "https://www.maptiler.com/terrain/",
     description: "MapTiler terrain tiles with TerrainRGB encoding",
     encoding: "terrainrgb",
@@ -43,7 +43,7 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
     },
   },
   aws: {
-    name: "AWS Elevation Tiles (Mapzen Terrarium)",
+    name: "AWS Terrain - Terrarium Mapzen",
     link: "https://registry.opendata.aws/terrain-tiles/",
     description: "AWS Terrain Tiles - Open Data Registry (Mapzen Terrarium encoding)",
     encoding: "terrarium",
