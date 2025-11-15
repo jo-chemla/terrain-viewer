@@ -27,7 +27,7 @@ import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom, maxResolutionAtom, themeAtom,
   isGeneralOpenAtom, isTerrainSourceOpenAtom, isVizModesOpenAtom, isHillshadeOpenAtom, isTerrainRasterOpenAtom,
-  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom,
+  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom, showAdvancedRampsAtom,
   type CustomTerrainSource,
 } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -1165,11 +1165,16 @@ const HillshadeOptionsSection: React.FC<{ state: any; setState: (updates: any) =
 
 const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
   const [isOpen, setIsOpen] = useAtom(isHypsoOpenAtom)
-  const [showAdvancedRamps, setShowAdvancedRamps] = useState(false)
-  const colorRampKeys = useMemo(() => Object.keys(colorRamps), [])
+  // const [showAdvancedRamps, setShowAdvancedRamps] = useState(false)
+  const [showAdvancedRamps, setShowAdvancedRamps] = useAtom(showAdvancedRampsAtom)
+  const filteredColorRamps = showAdvancedRamps ?
+    colorRamps :
+    Object.fromEntries(Object.entries(colorRamps).filter(([k, v]) => ['hypsometric', 'wiki', 'transparent', 'rainbow', 'dem'].includes(k)));
+  const colorRampKeys = useMemo(() => Object.keys(filteredColorRamps), [showAdvancedRamps])
   const cycleColorRamp = useCallback((direction: number) => {
     const currentIndex = colorRampKeys.indexOf(state.colorRamp)
     const newIndex = (currentIndex + direction + colorRampKeys.length) % colorRampKeys.length
+    console.log({ direction, colorRampKeys_length: colorRampKeys.length, currentIndex, newIndex, colorRampKeys })
     setState({ colorRamp: colorRampKeys[newIndex] })
   }, [state.colorRamp, colorRampKeys, setState])
 
@@ -1183,7 +1188,7 @@ const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: 
           <Select value={state.colorRamp} onValueChange={(value) => setState({ colorRamp: value })}>
             <SelectTrigger className="flex-1 cursor-pointer"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {Object.entries(colorRamps).map(([key, ramp]) => (
+              {Object.entries(filteredColorRamps).map(([key, ramp]) => (
                 <SelectItem key={key} value={key}>
                   <div className="flex items-center gap-2">
                     <div className="w-12 h-4 rounded-sm" style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }} />
@@ -1200,8 +1205,8 @@ const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: 
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Checkbox id="advanced-ramps" checked={showAdvancedRamps} onCheckedChange={(checked) => setShowAdvancedRamps(!!checked)} className="cursor-pointer" disabled />
-        <Label htmlFor="advanced-ramps" className="text-sm cursor-pointer text-muted-foreground">Load advanced color ramps (cpt2js)</Label>
+        <Checkbox id="advanced-ramps" checked={showAdvancedRamps} onCheckedChange={(checked) => setShowAdvancedRamps(!!checked)} className="cursor-pointer" />
+        <Label htmlFor="advanced-ramps" className="text-sm cursor-pointer text-muted-foreground">Load advanced color ramps from cpt-city topobath</Label>
       </div>
     </Section>
   )

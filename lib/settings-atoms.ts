@@ -17,6 +17,7 @@ export const isHypsoOpenAtom = atomWithStorage("isHypsoOpen", true)
 export const isContoursOpenAtom = atomWithStorage("isContoursOpen", true)
 export const isDownloadOpenAtom = atomWithStorage("isDownloadOpen", true)
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", false)
+export const showAdvancedRampsAtom = atomWithStorage("showAdvancedRamps", false)
 
 export interface CustomTerrainSource {
   id: string
