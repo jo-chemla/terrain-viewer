@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback, useMemo, useRef, useEffect } from "react"
+import { useState, useCallback, useMemo, useRef, useEffect, forwardRef } from "react"
 import { useAtom } from "jotai"
 import {
   Camera, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Info,
@@ -40,6 +40,7 @@ import xml from "react-syntax-highlighter/dist/esm/languages/hljs/xml"
 import bash from "react-syntax-highlighter/dist/esm/languages/hljs/bash"
 import { vs } from "react-syntax-highlighter/dist/esm/styles/hljs"
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs"
+import { Eye, EyeOff } from 'lucide-react';
 
 SyntaxHighlighter.registerLanguage("xml", xml)
 SyntaxHighlighter.registerLanguage("bash", bash)
@@ -64,6 +65,36 @@ const useTheme = () => {
   const toggleTheme = useCallback(() => setTheme(theme === "light" ? "dark" : "light"), [theme, setTheme])
   return { theme, toggleTheme }
 }
+
+
+// Reusable PasswordInput component that manages its own visibility state
+const PasswordInput = forwardRef(({ className, ...props }, ref) => {
+  const [showPassword, setShowPassword] = useState(false);
+
+  return (
+    <div className="relative">
+      <Input
+        type={showPassword ? "text" : "password"}
+        className={`pr-10 ${className || ''}`}
+        ref={ref}
+        {...props}
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+        onClick={() => setShowPassword(!showPassword)}
+      >
+        {showPassword ? (
+          <EyeOff className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <Eye className="h-4 w-4 text-muted-foreground" />
+        )}
+      </Button>
+    </div>
+  );
+});
 
 const useSourceConfig = () => {
   const [mapboxKey] = useAtom(mapboxKeyAtom)
@@ -246,15 +277,32 @@ const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) 
               <>
                 <div className="space-y-2">
                   <Label htmlFor="maptiler-key">MapTiler API Key</Label>
-                  <Input id="maptiler-key" type="text" value={maptilerKey} onChange={(e) => setMaptilerKey(e.target.value)} className="cursor-text" />
+                  <PasswordInput
+                    id="maptiler-key"
+                    value={maptilerKey}
+                    onChange={(e) => setMaptilerKey(e.target.value)}
+                    className="cursor-text"
+                  />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="mapbox-key">Mapbox Access Token</Label>
-                  <Input id="mapbox-key" type="text" value={mapboxKey} onChange={(e) => setMapboxKey(e.target.value)} className="cursor-text" />
+                  <PasswordInput
+                    id="mapbox-key"
+                    value={mapboxKey}
+                    onChange={(e) => setMapboxKey(e.target.value)}
+                    className="cursor-text"
+                  />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="google-key">Google Maps API Key</Label>
-                  <Input id="google-key" type="text" value={googleKey} onChange={(e) => setGoogleKey(e.target.value)} className="cursor-text" />
+                  <PasswordInput
+                    id="google-key"
+                    value={googleKey}
+                    onChange={(e) => setGoogleKey(e.target.value)}
+                    className="cursor-text"
+                  />
                 </div>
               </>
             )}
@@ -324,11 +372,15 @@ const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) 
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">MapLibre GL Features</h3>
             <div className="space-y-2 text-sm">
+
+              <a href="https://github.com/maplibre/maplibre-style-spec/issues/1374" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                <span>New Normal-Derived Methods like slope, aspect etc (Design Proposal #1374)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+              </a>
               <a href="https://github.com/maplibre/maplibre-gl-js/pull/5768" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                <span>Hillshade Methods (PR #5768)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                <span>Additional Hillshade Methods (combined, igor, multidir, PR #5768)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
               </a>
               <a href="https://github.com/maplibre/maplibre-gl-js/pull/5913" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                <span>Hypsometric Tint (PR #5913)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                <span>Hypsometric Tint color-relief (PR #5913)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
               </a>
               <a href="https://github.com/maplibre/maplibre-style-spec/issues/583#issuecomment-2028639772" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
                 <span>Contour Lines and onthegomap/maplibre-contour plugin (Issue #583)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
@@ -358,7 +410,7 @@ const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) 
           </div>
         </div>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   )
 }
 
