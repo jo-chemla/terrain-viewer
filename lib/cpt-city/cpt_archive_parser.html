@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CPT City Archive Parser</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 40px;
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .info-links {
+      background: #e3f2fd;
+      border-left: 4px solid #2196F3;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .info-links a {
+      color: #1976D2;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .info-links a:hover {
+      text-decoration: underline;
+    }
+    
+    .upload-area {
+      border: 3px dashed #667eea;
+      border-radius: 12px;
+      padding: 30px;
+      text-align: center;
+      background: #f8f9ff;
+      margin-bottom: 20px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .upload-area:hover {
+      background: #eef0ff;
+      border-color: #764ba2;
+    }
+    
+    .upload-area.dragover {
+      background: #e0e7ff;
+      border-color: #4f46e5;
+    }
+    
+    input[type="file"] {
+      display: none;
+    }
+    
+    .upload-icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    
+    .stat-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    
+    .stat-label {
+      font-size: 11px;
+      opacity: 0.9;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+    
+    .control-group {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    label {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    
+    select, input[type="text"], input[type="number"] {
+      padding: 8px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: border-color 0.3s;
+    }
+    
+    select:focus, input[type="text"]:focus, input[type="number"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+    }
+    
+    .btn-secondary {
+      background: #4CAF50;
+      color: white;
+    }
+    
+    .btn-secondary:hover:not(:disabled) {
+      background: #45a049;
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .table-container {
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e0e0e0;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    
+    thead {
+      background: #f5f5f5;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    
+    th {
+      padding: 10px 8px;
+      text-align: left;
+      font-weight: 600;
+      color: #333;
+      border-bottom: 2px solid #e0e0e0;
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    th:hover {
+      background: #eeeeee;
+    }
+    
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    tr:hover {
+      background: #f9f9f9;
+    }
+    
+    .cpt-image {
+      width: 60px;
+      height: 20px;
+      object-fit: cover;
+      border-radius: 3px;
+      cursor: pointer;
+      border: 1px solid #ddd;
+    }
+    
+    .cpt-image:hover {
+      transform: scale(1.5);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 100;
+      position: relative;
+    }
+    
+    .license-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    
+    .license-cc, .license-gpl, .license-apache, .license-mit, .license-bsd {
+      background: #4CAF50;
+      color: white;
+    }
+    
+    .license-other {
+      background: #ff9800;
+      color: white;
+    }
+    
+    .license-unknown, .license-none {
+      background: #999;
+      color: white;
+    }
+    
+    .distribute-yes {
+      color: #4CAF50;
+      font-weight: 600;
+    }
+    
+    .distribute-no {
+      color: #f44336;
+      font-weight: 600;
+    }
+    
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px;
+      background: #f5f5f5;
+      border-top: 1px solid #e0e0e0;
+    }
+    
+    .pagination-info {
+      font-size: 13px;
+      color: #666;
+    }
+    
+    .pagination-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    
+    .pagination-controls button {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    
+    .page-input {
+      width: 60px;
+      text-align: center;
+    }
+    
+    .progress {
+      margin: 15px 0;
+      display: none;
+    }
+    
+    .progress-bar {
+      width: 100%;
+      height: 24px;
+      background: #e0e0e0;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      transition: width 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 11px;
+    }
+
+    .table-filters {
+      background: #f9f9f9;
+      padding: 10px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .table-filters input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    a {
+      color: #667eea;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .results {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 CPT City Archive Parser</h1>
+    <p class="subtitle">Parse and filter CPT color palettes from the CPT City archive</p>
+    
+    <div class="info-links">
+      <span>📦 <a href="http://seaviewsensing.com/pub/cpt-city/pkg/" target="_blank">Download CPT Archive</a></span>
+      <span>©️ <a href="http://seaviewsensing.com/pub/cpt-city/notes/copyright.html" target="_blank">Copyright Information</a></span>
+    </div>
+
+    <div class="upload-area" id="uploadArea">
+      <div class="upload-icon">📁</div>
+      <h3>Drop ZIP file here or click to browse</h3>
+      <p style="color: #666; margin-top: 8px; font-size: 13px;">cpt-city-cpt-2.27.zip</p>
+      <input type="file" id="fileInput" accept=".zip">
+    </div>
+    
+    <div class="progress" id="progress">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill">0%</div>
+      </div>
+    </div>
+    
+    <div class="stats" id="stats" style="display: none;">
+      <div class="stat-card">
+        <div class="stat-value" id="totalCpts">0</div>
+        <div class="stat-label">Total CPTs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalDirs">0</div>
+        <div class="stat-label">Directories</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="filteredCpts">0</div>
+        <div class="stat-label">Filtered</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="openLicenseCpts">0</div>
+        <div class="stat-label">Open License</div>
+      </div>
+    </div>
+    
+    <div class="controls" id="controls" style="display: none;">
+      <div class="control-group">
+        <label>License Filter</label>
+        <select id="licenseFilter">
+          <option value="all">All Licenses</option>
+          <option value="open">Open Licenses (CC/GPL/MIT/Apache/BSD)</option>
+          <option value="distribute-yes">Distribute: Yes</option>
+          <option value="open-distribute">Open + Distribute Yes</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>Search Name</label>
+        <input type="text" id="nameSearch" placeholder="Search CPT names...">
+      </div>
+      
+      <div class="control-group">
+        <label>Directory Filter</label>
+        <select id="dirFilter">
+          <option value="all">All Directories</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>Items Per Page</label>
+        <select id="itemsPerPage">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="button-group" id="actions" style="display: none;">
+      <button class="btn-secondary" onclick="downloadJSON()">Download Full JSON</button>
+      <button class="btn-secondary" onclick="downloadFiltered()">Download Filtered JSON</button>
+      <button class="btn-primary" onclick="copyToClipboard()">Copy Filtered to Clipboard</button>
+    </div>
+    
+    <div class="results" id="results" style="display: none;">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr id="tableHeader"></tr>
+            <tr id="tableFilters" class="table-filters"></tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div class="pagination">
+          <div class="pagination-info" id="paginationInfo"></div>
+          <div class="pagination-controls">
+            <button class="btn-primary" onclick="changePage(-1)">← Prev</button>
+            <input type="number" class="page-input" id="pageInput" min="1" value="1">
+            <button class="btn-primary" onclick="changePage(1)">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    let parsedData = null;
+    let filteredData = [];
+    let currentPage = 1;
+    let itemsPerPage = 50;
+    let sortColumn = null;
+    let sortDirection = 'asc';
+    let columnFilters = {};
+    
+    const columns = [
+      { id: 'image', label: 'Preview', sortable: false, filterable: false },
+      { id: 'name', label: 'Name', sortable: true, filterable: true },
+      { id: 'directory', label: 'Directory', sortable: true, filterable: true },
+      { id: 'license', label: 'License', sortable: true, filterable: true },
+      { id: 'distribute', label: 'Distribute', sortable: true, filterable: true },
+      { id: 'author', label: 'Author', sortable: true, filterable: true },
+      { id: 'copyingFile', label: 'COPYING.xml', sortable: false, filterable: false }
+    ];
+    
+    // File upload handling
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    
+    uploadArea.addEventListener('click', () => fileInput.click());
+    
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleFile(file);
+    });
+    
+    async function handleFile(file) {
+      document.getElementById('progress').style.display = 'block';
+      updateProgress(0, 'Loading ZIP...');
+      
+      try {
+        const zip = await JSZip.loadAsync(file);
+        updateProgress(20, 'Parsing structure...');
+        
+        parsedData = await parseZipStructure(zip);
+        
+        updateProgress(100, 'Complete!');
+        
+        document.getElementById('stats').style.display = 'grid';
+        document.getElementById('controls').style.display = 'grid';
+        document.getElementById('actions').style.display = 'flex';
+        
+        populateDirectoryFilter();
+        initializeTable();
+        applyFilters();
+        
+        setTimeout(() => {
+          document.getElementById('progress').style.display = 'none';
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Error parsing ZIP:', error);
+        alert('Error parsing ZIP file: ' + error.message);
+      }
+    }
+    
+    function updateProgress(percent, text) {
+      const fill = document.getElementById('progressFill');
+      fill.style.width = percent + '%';
+      fill.textContent = text || percent + '%';
+    }
+    
+    async function parseZipStructure(zip) {
+      const data = {
+        directories: {},
+        cpts: [],
+        stats: {
+          totalCpts: 0,
+          totalDirectories: 0,
+          openLicenseCpts: 0
+        }
+      };
+      
+      const files = Object.keys(zip.files);
+      const totalFiles = files.length;
+      let processedFiles = 0;
+      
+      // First pass: collect all COPYING.xml files
+      const copyingFiles = {};
+      for (const filename of files) {
+        if (filename.endsWith('COPYING.xml')) {
+          const content = await zip.files[filename].async('string');
+          const dirPath = filename.replace('/COPYING.xml', '');
+          copyingFiles[dirPath] = {
+            ...parseCopyingXML(content),
+            path: filename
+          };
+        }
+      }
+      
+      // Second pass: collect CPT files and match with licensing
+      for (const filename of files) {
+        processedFiles++;
+        if (processedFiles % 100 === 0) {
+          updateProgress(20 + (processedFiles / totalFiles) * 60, `Processing ${processedFiles}/${totalFiles}`);
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+        
+        if (filename.endsWith('.cpt') && !zip.files[filename].dir) {
+          const content = await zip.files[filename].async('string');
+          const parts = filename.split('/');
+          const name = parts[parts.length - 1].replace('.cpt', '');
+          const dirPath = parts.slice(0, -1).join('/');
+          
+          // Find the closest COPYING.xml
+          let license = null;
+          let copyingPath = null;
+          let currentPath = dirPath;
+          while (currentPath && !license) {
+            if (copyingFiles[currentPath]) {
+              license = copyingFiles[currentPath];
+              copyingPath = copyingFiles[currentPath].path;
+              break;
+            }
+            const pathParts = currentPath.split('/');
+            pathParts.pop();
+            currentPath = pathParts.join('/');
+          }
+          
+          if (!license) {
+            license = {
+              distribute: 'unknown',
+              licenseType: 'unknown',
+              author: 'unknown',
+              source: 'unknown',
+              path: null
+            };
+          }
+
+          const isOpenLicense = isOpenSourceLicense(license.licenseType);
+          if (isOpenLicense) {
+            data.stats.openLicenseCpts++;
+          }
+          
+          const cptObj = {
+            name: name,
+            path: filename,
+            directory: dirPath,
+            content: content,
+            license: license.licenseType,
+            distribute: license.distribute,
+            author: license.author,
+            source: license.source,
+            copyingFile: copyingPath,
+            isOpenLicense: isOpenLicense
+          };
+          
+          data.cpts.push(cptObj);
+          data.stats.totalCpts++;
+          
+          if (!data.directories[dirPath]) {
+            data.directories[dirPath] = [];
+            data.stats.totalDirectories++;
+          }
+          data.directories[dirPath].push(cptObj);
+        }
+      }
+      
+      return data;
+    }
+    
+    function parseCopyingXML(xmlString) {
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(xmlString, 'text/xml');
+      
+      const parserError = xml.querySelector('parsererror');
+      if (parserError) {
+        console.warn('XML parsing error:', parserError.textContent);
+        return null;
+      }
+      
+      const license = {};
+      
+      // Get distribute and license from qgis tag inside distribute tag
+      const qgis = xml.querySelector('distribute qgis');
+      if (qgis) {
+        license.distribute = qgis.getAttribute('distribute') || 'unknown';
+        license.licenseType = qgis.getAttribute('license') || 'unknown';
+      }
+      
+      // Get author
+      const authorNode = xml.querySelector('authors author');
+      if (authorNode) {
+        license.author = authorNode.textContent.trim();
+      }
+      
+      // Get source/URL
+      const srcNode = xml.querySelector('src url');
+      if (srcNode) {
+        license.source = srcNode.textContent.trim();
+      }
+      
+      return license;
+    }
+
+    function isOpenSourceLicense(licenseText) {
+      if (!licenseText || licenseText === 'unknown' || licenseText === 'none') {
+        return false;
+      }
+      
+      const lower = licenseText.toLowerCase();
+      return lower.includes('cc') || 
+             lower.includes('creative commons') || 
+             lower.includes('creative-commons') ||
+             lower.includes('gpl') ||
+             lower.includes('apache') ||
+             lower.includes('mit') ||
+             lower.includes('bsd') ||
+             lower.includes('public domain');
+    }
+
+    function formatLicense(license) {
+      if (!license || license === 'unknown' || license === 'none') {
+        return license;
+      }
+      
+      if (license.length <= 30) {
+        return license;
+      }
+
+      const lower = license.toLowerCase();
+      if (lower.includes('creative commons') || lower.includes('cc-')) {
+        const match = license.match(/cc[- ](by|sa|nc|nd|zero|0)([- ](by|sa|nc|nd|zero|0))*/i);
+        return match ? match[0].toUpperCase() : 'CC';
+      }
+      if (lower.includes('gpl')) return 'GPL';
+      if (lower.includes('apache')) return 'Apache';
+      if (lower.includes('mit')) return 'MIT';
+      if (lower.includes('bsd')) return 'BSD';
+      if (lower.includes('public domain')) return 'Public Domain';
+      
+      return license.substring(0, 27) + '...';
+    }
+
+    function getLicenseClass(license) {
+      if (!license || license === 'unknown') return 'license-unknown';
+      if (license === 'none') return 'license-none';
+      
+      const lower = license.toLowerCase();
+      if (lower.includes('cc') || lower.includes('creative commons')) return 'license-cc';
+      if (lower.includes('gpl')) return 'license-gpl';
+      if (lower.includes('apache')) return 'license-apache';
+      if (lower.includes('mit')) return 'license-mit';
+      if (lower.includes('bsd')) return 'license-bsd';
+      
+      return 'license-other';
+    }
+
+    function getImageUrl(cptPath) {
+      // Convert cpt-city/erj/bw/bwbrown_01.cpt to http://seaviewsensing.com/pub/cpt-city/erj/bw/tn/bwbrown_01.png
+      const parts = cptPath.split('/');
+      const filename = parts[parts.length - 1].replace('.cpt', '.png');
+      const dir = parts.slice(0, -1).join('/');
+      return `http://seaviewsensing.com/pub/${dir}/tn/${filename}`;
+    }
+
+    function getAuthorUrl(directory) {
+      // Extract base directory (first 2-3 levels)
+      const parts = directory.split('/').filter(p => p);
+      const baseDir = parts.slice(0, 2).join('/');
+      return `http://seaviewsensing.com/pub/${baseDir}`;
+    }
+
+    function getCopyingUrl(copyingPath) {
+      if (!copyingPath) return null;
+      return `http://seaviewsensing.com/pub/${copyingPath}`;
+    }
+    
+    function populateDirectoryFilter() {
+      const dirFilter = document.getElementById('dirFilter');
+      const dirs = Object.keys(parsedData.directories).sort();
+      
+      dirFilter.innerHTML = '<option value="all">All Directories</option>';
+      dirs.forEach(dir => {
+        const option = document.createElement('option');
+        option.value = dir;
+        option.textContent = dir + ` (${parsedData.directories[dir].length})`;
+        dirFilter.appendChild(option);
+      });
+    }
+
+    function initializeTable() {
+      const headerRow = document.getElementById('tableHeader');
+      const filterRow = document.getElementById('tableFilters');
+      
+      headerRow.innerHTML = '';
+      filterRow.innerHTML = '';
+      
+      columns.forEach(col => {
+        const th = document.createElement('th');
+        th.textContent = col.label;
+        if (col.sortable) {
+          th.style.cursor = 'pointer';
+          th.onclick = () => sortTable(col.id);
+        }
+        headerRow.appendChild(th);
+
+        const td = document.createElement('td');
+        if (col.filterable) {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = `Filter ${col.label}...`;
+          input.oninput = (e) => {
+            columnFilters[col.id] = e.target.value.toLowerCase();
+            currentPage = 1;
+            applyFilters();
+          };
+          td.appendChild(input);
+        }
+        filterRow.appendChild(td);
+      });
+    }
+
+    function sortTable(columnId) {
+      if (sortColumn === columnId) {
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortColumn = columnId;
+        sortDirection = 'asc';
+      }
+      applyFilters();
+    }
+    
+    function applyFilters() {
+      const licenseFilter = document.getElementById('licenseFilter').value;
+      const nameSearch = document.getElementById('nameSearch').value.toLowerCase();
+      const dirFilter = document.getElementById('dirFilter').value;
+      
+      filteredData = parsedData.cpts.filter(cpt => {
+        // License filter
+        if (licenseFilter === 'open') {
+          if (!cpt.isOpenLicense) return false;
+        } else if (licenseFilter === 'distribute-yes') {
+          if (cpt.distribute !== 'yes') return false;
+        } else if (licenseFilter === 'open-distribute') {
+          if (!cpt.isOpenLicense || cpt.distribute !== 'yes') return false;
+        }
+        
+        // Name search
+        if (nameSearch && !cpt.name.toLowerCase().includes(nameSearch)) {
+          return false;
+        }
+        
+        // Directory filter
+        if (dirFilter !== 'all' && cpt.directory !== dirFilter) {
+          return false;
+        }
+
+        // Column filters
+        for (const [col, value] of Object.entries(columnFilters)) {
+          if (value && !String(cpt[col]).toLowerCase().includes(value)) {
+            return false;
+          }
+        }
+        
+        return true;
+      });
+
+      // Sort
+      if (sortColumn) {
+        filteredData.sort((a, b) => {
+          let aVal = a[sortColumn];
+          let bVal = b[sortColumn];
+          
+          if (typeof aVal === 'string') {
+            aVal = aVal.toLowerCase();
+            bVal = bVal.toLowerCase();
+          }
+          
+          if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+          if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      updateStats();
+      displayTable();
+    }
+
+    function updateStats() {
+      document.getElementById('totalCpts').textContent = parsedData.stats.totalCpts;
+      document.getElementById('totalDirs').textContent = parsedData.stats.totalDirectories;
+      document.getElementById('filteredCpts').textContent = filteredData.length;
+      document.getElementById('openLicenseCpts').textContent = parsedData.stats.openLicenseCpts;
+    }
+
+    function displayTable() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+      
+      document.getElementById('results').style.display = 'block';
+
+      itemsPerPage = parseInt(document.getElementById('itemsPerPage').value);
+      const start = (currentPage - 1) * itemsPerPage;
+      const end = start + itemsPerPage;
+      const pageData = filteredData.slice(start, end);
+
+      pageData.forEach(cpt => {
+        const tr = document.createElement('tr');
+        
+        const imgUrl = getImageUrl(cpt.path);
+        const authorUrl = getAuthorUrl(cpt.directory);
+        const copyingUrl = getCopyingUrl(cpt.copyingFile);
+        const licenseShort = formatLicense(cpt.license);
+        const licenseClass = getLicenseClass(cpt.license);
+
+        tr.innerHTML = `
+          <td><img src="${imgUrl}" class="cpt-image" alt="${cpt.name}" title="Click to view larger" onclick="window.open('${imgUrl}', '_blank')"></td>
+          <td><strong>${cpt.name}</strong></td>
+          <td><small>${cpt.directory}</small></td>
+          <td><span class="license-badge ${licenseClass}" title="${cpt.license}">${licenseShort}</span></td>
+          <td><span class="${cpt.distribute === 'yes' ? 'distribute-yes' : 'distribute-no'}">${cpt.distribute}</span></td>
+          <td><a href="${authorUrl}" target="_blank">${cpt.author || 'unknown'}</a></td>
+          <td>${copyingUrl ? `<a href="${copyingUrl}" target="_blank">📄 View</a>` : '-'}</td>
+        `;
+        
+        tbody.appendChild(tr);
+      });
+
+      updatePagination();
+    }
+
+    function updatePagination() {
+      const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+      const start = (currentPage - 1) * itemsPerPage + 1;
+      const end = Math.min(start + itemsPerPage - 1, filteredData.length);
+      
+      document.getElementById('paginationInfo').textContent = 
+        `Showing ${start}-${end} of ${filteredData.length} items`;
+      
+      document.getElementById('pageInput').value = currentPage;
+      document.getElementById('pageInput').max = totalPages;
+    }
+
+    function changePage(delta) {
+      const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+      const newPage = currentPage + delta;
+      
+      if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        displayTable();
+      }
+    }
+
+    document.getElementById('pageInput').addEventListener('change', (e) => {
+      const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+      let page = parseInt(e.target.value);
+      
+      if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        displayTable();
+      } else {
+        e.target.value = currentPage;
+      }
+    });
+    
+    function downloadJSON() {
+      const dataStr = JSON.stringify(parsedData, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cpt-city-full.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    
+    function downloadFiltered() {
+      const dataStr = JSON.stringify(filteredData, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cpt-city-filtered.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    
+    async function copyToClipboard() {
+      const dataStr = JSON.stringify(filteredData, null, 2);
+      try {
+        await navigator.clipboard.writeText(dataStr);
+        alert('Copied to clipboard!');
+      } catch (err) {
+        console.error('Failed to copy:', err);
+        alert('Failed to copy to clipboard');
+      }
+    }
+    
+    // Add event listeners for filters
+    document.getElementById('licenseFilter').addEventListener('change', () => {
+      currentPage = 1;
+      applyFilters();
+    });
+    
+    document.getElementById('nameSearch').addEventListener('input', () => {
+      currentPage = 1;
+      applyFilters();
+    });
+    
+    document.getElementById('dirFilter').addEventListener('change', () => {
+      currentPage = 1;
+      applyFilters();
+    });
+
+    document.getElementById('itemsPerPage').addEventListener('change', () => {
+      currentPage = 1;
+      applyFilters();
+    });
+
+/*
+    // http://seaviewsensing.com/pub/cpt-city/views/
+    // http://seaviewsensing.com/pub/cpt-city/views/topo.xml
+    // http://seaviewsensing.com/pub/cpt-city/views/topobath.xml
+
+    topobath_xmlString = `<selection cadence="low">
+    <script id="argent-x-extension" data-extension-id="dlcobpjiigpikoobohmabehhmhfoodbb"/>
+    <script/>
+    <name short="topobath">Topography/bathymetry</name>
+    <synopsis>Mixed palettes for topography and bathymetry</synopsis>
+    <description>Mixed palettes for topography and bathymetry.</description>
+    <seealsoselects>
+    <select short="topo">Topography</select>
+    <select short="bath">Bathymetry</select>
+    </seealsoselects>
+    <gradients>
+    <gradient file="ibcao" dir="ibcao"/>
+    <gradient file="NZ_blue" dir="em"/>
+    <gradient file="wiki-2.0" dir="wkp/template"/>
+    <gradient file="wiki-scotland" dir="wkp/country"/>
+    <gradient file="wiki-france" dir="wkp/country"/>
+    <gradient file="GMT_globe" dir="gmt"/>
+    <gradient file="GMT_relief" dir="gmt"/>
+    <gradient file="GMT_sealand" dir="gmt"/>
+    <gradient file="GMT_topo" dir="gmt"/>
+    <gradient file="Caribbean" dir="vh"/>
+    <gradient file="etopo2" dir="grass"/>
+    <gradient file="srtm" dir="grass"/>
+    <gradient file="terrain" dir="grass"/>
+    <gradient file="ETOPO1" dir="ngdc"/>
+    <gradient file="ETOPO1-Reed" dir="ngdc"/>
+    <gradient file="wiki-plumbago" dir="wkp/plumbago"/>
+    <gradient file="topo_15lev" dir="ncl"/>
+    <gradient file="meyers" dir="wkp/encyclopedia"/>
+    <gradient file="nordisk-familjebok" dir="wkp/encyclopedia"/>
+    <gradient file="mby" dir="mby"/>
+    <gradient file="afrikakarte" dir="wkp/lilleskut"/>
+    <gradient file="colombia" dir="wkp/shadowxfox"/>
+    <gradient file="arctic" dir="arendal"/>
+    </gradients>
+    </selection>`
+
+    topo_xmlString = `<selection cadence="low">
+    <script id="argent-x-extension" data-extension-id="dlcobpjiigpikoobohmabehhmhfoodbb"/>
+    <script/>
+    <name short="topo">Topography</name>
+    <synopsis>Selected palettes for topography</synopsis>
+    <description>Selected palettes for topography.</description>
+    <seealsocollects>
+    <collect dir="esri/hypsometry">ESRI hypsometry</collect>
+    </seealsocollects>
+    <seealsoselects>
+    <select short="topobath">Topographic-bathymetric schemes</select>
+    </seealsoselects>
+    <gradients>
+    <gradient file="DEM_poster" dir="td"/>
+    <gradient file="DEM_print" dir="td"/>
+    <gradient file="DEM_screen" dir="td"/>
+    <gradient file="c3t1" dir="jjg/dem"/>
+    <gradient file="c3t3" dir="jjg/dem"/>
+    <gradient file="garish14" dir="jjg/dem"/>
+    <gradient file="natural" dir="fme/feet"/>
+    <gradient file="neutral" dir="fme/feet"/>
+    <gradient file="textbook" dir="fme/feet"/>
+    <gradient file="tv-a" dir="jm/tv"/>
+    <gradient file="o2-a" dir="jm/o2"/>
+    <gradient file="db-a" dir="jm/db"/>
+    <gradient file="ao-a" dir="jm/ao"/>
+    <gradient file="wt-a" dir="jm/wt"/>
+    <gradient file="ws-a" dir="jm/ws"/>
+    <gradient file="cd-a" dir="jm/cd"/>
+    <gradient file="sd-a" dir="jm/sd"/>
+    <gradient file="elevation" dir="grass"/>
+    <gradient file="njdem100" dir="njgs"/>
+    <gradient file="palm_springs_4" dir="esri/hypsometry/na"/>
+    <gradient file="pnw_1113" dir="esri/hypsometry/na"/>
+    <gradient file="utah_1" dir="esri/hypsometry/na"/>
+    <gradient file="europe_3" dir="esri/hypsometry/eu"/>
+    <gradient file="iceland" dir="esri/hypsometry/eu"/>
+    <gradient file="spain" dir="esri/hypsometry/eu"/>
+    <gradient file="os250k-feet" dir="os"/>
+    <gradient file="tpushuf" dir="tp"/>
+    <gradient file="wiki-schwarzwald-cont" dir="wkp/schwarzwald"/>
+    <gradient file="wiki-schwarzwald-d050" dir="wkp/schwarzwald"/>
+    <gradient file="wiki-knutux" dir="wkp/knutux"/>
+    <gradient file="nrwc" dir="wkp/tubs"/>
+    <gradient file="pakistan" dir="wkp/jarke"/>
+    <gradient file="usgs-gswa2" dir="usgs"/>
+    <gradient file="zambezi-focus" dir="arendal"/>
+    <gradient file="zambezi-proximity" dir="arendal"/>
+    </gradients>
+    </selection>`
+
+    function parseXml(xmlString) {
+      parser = new DOMParser();
+      xml = parser.parseFromString(xmlString, 'text/xml');
+
+      gradients = xml.querySelectorAll('gradient')
+      matches = Array.from(gradients).map(g => {
+          file = g.getAttribute('file')
+          dir = g.getAttribute('dir')
+          match = all.find(i => i.path === `cpt-city/${dir}/${file}.cpt`)
+          return match
+        }
+      ) 
+      return matches
+    }
+    // all = ... // paste json content of cpt-city-colorramps-20251117-7280.json
+    views = {
+      topo: parseXml(topo_xmlString),
+      topobath: parseXml(topobath_xmlString),
+    }
+    views
+    */
+  </script>
+</body>
+</html>
