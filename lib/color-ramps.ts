@@ -1,7 +1,91 @@
 import type { ColorReliefRamp } from "./terrain-types"
+import {cpt_city_views} from "./cpt-city/cpt-city-views"
+import type { Scale } from 'chroma-js';
 
-export const colorRamps: Record<ColorReliefRamp, { name: string; colors: any[] }> = {
+// import { parsePalette, colorRampCanvas } from 'cpt2js';
+import {parsePaletteWithStops} from './cpt-city/cpt2js-stops';
+
+function fixDomain(domain: number[]) {
+  const domainFixed = [...domain];
+  for (let i = 1; i < domain.length - 1; i++) {
+    if (domain[i] == domain[i - 1]) {
+      domainFixed[i] = domain[i - 1] + 0.01 * (domain[i + 1] - domain[i - 1]);
+    } 
+  }
+  return domainFixed;
+}
+
+function chromajsScaleToMaplibre(paletteScale: Scale, domain: number[]) {
+  const domainFixed = fixDomain(domain)
+  return [
+      "interpolate",
+      ["linear"],
+      ["elevation"],
+      ...domainFixed.flatMap((d: number, i: number) => [d, paletteScale.colors()[i]]) 
+      // instead of .map().flat()
+  ]
+}
+
+function extendCptCity(arr: any[]) {
+  return arr.map(
+    (cpt: any, idx: number) => {
+      const {palette, domain} = parsePaletteWithStops(cpt.content)
+      const domainFixed = fixDomain(domain)
+      const colors = chromajsScaleToMaplibre(palette, domain)
+      return {...cpt, colors, palette, domain, domainFixed} 
+    }
+  )
+}
+
+const cptColorRampsTopo = extendCptCity(cpt_city_views.topo)
+const cptColorRampsTopobath = extendCptCity(cpt_city_views.topobath)
+
+export const colorRampsTopo: Record<ColorReliefRamp, { name: string; colors: any[] }> = Object.fromEntries(
+  cptColorRampsTopo
+    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+    .map((cpt) => [cpt.name.toLowerCase(), {...cpt, name: cpt.name, colors: cpt.colors, }])
+);
+export const colorRampsTopobath: Record<ColorReliefRamp, { name: string; colors: any[] }> = Object.fromEntries(
+  cptColorRampsTopobath
+    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+    .map((cpt) => [cpt.name.toLowerCase(), {...cpt, name: cpt.name, colors: cpt.colors, }])
+);
+
+
+// Test
+// const cpt = cptColorRampsTopo[0].content
+// const {palette, domain} = parsePaletteWithStops(cpt);
+// const colors = chromajsScaleToMaplibre(palette, domain)
+// console.log({cpt, palette, domain, cptColorRampsTopo, colors})
+
+export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: any[] }> = {
   // Original ramps
+  dem: {
+    name: "DEM",
+    colors: [
+      "interpolate",
+      ["linear"],
+      ["elevation"],
+      400, "rgb(112, 209, 255)",
+      494.1176471, "rgb(113, 211, 247)",
+      588.2352941, "rgb(114, 212, 234)",
+      682.3529412, "rgb(117, 213, 222)",
+      776.4705882, "rgb(120, 214, 209)",
+      870.5882353, "rgb(124, 215, 196)",
+      964.7058824, "rgb(130, 215, 183)",
+      1058.823529, "rgb(138, 215, 169)",
+      1152.941176, "rgb(149, 214, 155)",
+      1247.058824, "rgb(163, 212, 143)",
+      1341.176471, "rgb(178, 209, 134)",
+      1435.294118, "rgb(193, 205, 127)",
+      1529.411765, "rgb(207, 202, 121)",
+      1623.529412, "rgb(220, 197, 118)",
+      1717.647059, "rgb(233, 193, 118)",
+      1811.764706, "rgb(244, 188, 120)",
+      1905.882353, "rgb(255, 183, 124)",
+      2000, "rgb(255, 178, 129)",
+    ],
+  },
   hypsometric: {
     name: "Hypsometric",
     colors: [
@@ -31,58 +115,6 @@ export const colorRamps: Record<ColorReliefRamp, { name: string; colors: any[] }
   "hypsometric-simple": {
     name: "Hypsometric Simple",
     colors: ["interpolate", ["linear"], ["elevation"], 0, "rgb(112, 209, 255)", 3724, "rgb(255, 178, 129)"],
-  },
-  wiki: {
-    name: "Wiki",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      400, "rgb(4, 0, 108)",
-      582.35, "rgb(5, 1, 154)",
-      764.71, "rgb(10, 21, 189)",
-      947.06, "rgb(16, 44, 218)",
-      1129.41, "rgb(24, 69, 240)",
-      1311.76, "rgb(20, 112, 193)",
-      1494.12, "rgb(39, 144, 116)",
-      1676.47, "rgb(57, 169, 29)",
-      1858.82, "rgb(111, 186, 5)",
-      2041.18, "rgb(160, 201, 4)",
-      2223.53, "rgb(205, 216, 2)",
-      2405.88, "rgb(244, 221, 4)",
-      2588.24, "rgb(251, 194, 14)",
-      2770.59, "rgb(252, 163, 21)",
-      2952.94, "rgb(253, 128, 20)",
-      3135.29, "rgb(254, 85, 14)",
-      3317.65, "rgb(243, 36, 13)",
-      3500, "rgb(215, 5, 13)",
-    ],
-  },
-  dem: {
-    name: "DEM",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      400, "rgb(112, 209, 255)",
-      494.1176471, "rgb(113, 211, 247)",
-      588.2352941, "rgb(114, 212, 234)",
-      682.3529412, "rgb(117, 213, 222)",
-      776.4705882, "rgb(120, 214, 209)",
-      870.5882353, "rgb(124, 215, 196)",
-      964.7058824, "rgb(130, 215, 183)",
-      1058.823529, "rgb(138, 215, 169)",
-      1152.941176, "rgb(149, 214, 155)",
-      1247.058824, "rgb(163, 212, 143)",
-      1341.176471, "rgb(178, 209, 134)",
-      1435.294118, "rgb(193, 205, 127)",
-      1529.411765, "rgb(207, 202, 121)",
-      1623.529412, "rgb(220, 197, 118)",
-      1717.647059, "rgb(233, 193, 118)",
-      1811.764706, "rgb(244, 188, 120)",
-      1905.882353, "rgb(255, 183, 124)",
-      2000, "rgb(255, 178, 129)",
-    ],
   },
   rainbow: {
     name: "Rainbow",
@@ -114,134 +146,34 @@ export const colorRamps: Record<ColorReliefRamp, { name: string; colors: any[] }
       2000, "#C0C4",
     ],
   },
-
-  // CPT-City Topobath Color Ramps (Complete Collection)
-  ibcao: {
-    name: "IBCAO",
+  wiki: {
+    name: "Wiki",
     colors: [
       "interpolate",
       ["linear"],
       ["elevation"],
-      -6000, "rgb(10, 0, 121)",
-      -5500, "rgb(26, 0, 137)",
-      -5000, "rgb(38, 0, 152)",
-      -4500, "rgb(50, 0, 167)",
-      -4000, "rgb(62, 1, 178)",
-      -3500, "rgb(72, 20, 168)",
-      -3000, "rgb(86, 49, 154)",
-      -2500, "rgb(103, 78, 146)",
-      -2000, "rgb(119, 107, 137)",
-      -1500, "rgb(138, 139, 125)",
-      -1000, "rgb(172, 183, 109)",
-      -500, "rgb(206, 223, 94)",
-      -200, "rgb(230, 245, 152)",
-      -0.1, "rgb(255, 255, 179)",
-      0.1, "rgb(164, 168, 79)",
-      200, "rgb(196, 190, 108)",
-      500, "rgb(226, 211, 134)",
-      1000, "rgb(239, 220, 139)",
-      1500, "rgb(248, 229, 136)",
-      2000, "rgb(255, 255, 255)",
+      400, "rgb(4, 0, 108)",
+      582.35, "rgb(5, 1, 154)",
+      764.71, "rgb(10, 21, 189)",
+      947.06, "rgb(16, 44, 218)",
+      1129.41, "rgb(24, 69, 240)",
+      1311.76, "rgb(20, 112, 193)",
+      1494.12, "rgb(39, 144, 116)",
+      1676.47, "rgb(57, 169, 29)",
+      1858.82, "rgb(111, 186, 5)",
+      2041.18, "rgb(160, 201, 4)",
+      2223.53, "rgb(205, 216, 2)",
+      2405.88, "rgb(244, 221, 4)",
+      2588.24, "rgb(251, 194, 14)",
+      2770.59, "rgb(252, 163, 21)",
+      2952.94, "rgb(253, 128, 20)",
+      3135.29, "rgb(254, 85, 14)",
+      3317.65, "rgb(243, 36, 13)",
+      3500, "rgb(215, 5, 13)",
     ],
   },
 
-  "nz-blue": {
-    name: "NZ Blue",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -8000, "rgb(0, 0, 127)",
-      -6000, "rgb(0, 25, 153)",
-      -4000, "rgb(0, 51, 178)",
-      -2000, "rgb(51, 102, 204)",
-      -200, "rgb(102, 153, 229)",
-      -0.1, "rgb(153, 204, 255)",
-      0.1, "rgb(51, 102, 51)",
-      200, "rgb(102, 153, 102)",
-      1000, "rgb(153, 204, 153)",
-      2000, "rgb(204, 229, 204)",
-      3000, "rgb(255, 255, 255)",
-    ],
-  },
-
-  "wiki-2.0": {
-    name: "Wiki 2.0",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -8000, "rgb(10, 0, 121)",
-      -6000, "rgb(26, 0, 137)",
-      -4000, "rgb(38, 0, 152)",
-      -2000, "rgb(40, 26, 44)",
-      -200, "rgb(83, 140, 136)",
-      -0.1, "rgb(133, 220, 164)",
-      0.1, "rgb(51, 102, 0)",
-      200, "rgb(123, 173, 30)",
-      1000, "rgb(178, 194, 49)",
-      2000, "rgb(230, 220, 110)",
-      3000, "rgb(252, 246, 126)",
-      4000, "rgb(252, 210, 126)",
-      5000, "rgb(245, 180, 126)",
-      6000, "rgb(239, 151, 126)",
-      7000, "rgb(233, 121, 126)",
-      8000, "rgb(227, 91, 126)",
-    ],
-  },
-
-  "wiki-scotland": {
-    name: "Wiki Scotland",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -4000, "rgb(10, 0, 121)",
-      -3000, "rgb(26, 0, 137)",
-      -2000, "rgb(38, 0, 152)",
-      -1000, "rgb(50, 0, 167)",
-      -500, "rgb(83, 140, 136)",
-      -200, "rgb(133, 220, 164)",
-      -0.1, "rgb(172, 245, 168)",
-      0.1, "rgb(51, 102, 0)",
-      100, "rgb(123, 173, 30)",
-      200, "rgb(178, 194, 49)",
-      400, "rgb(230, 220, 110)",
-      600, "rgb(252, 246, 126)",
-      800, "rgb(252, 210, 126)",
-      1000, "rgb(245, 180, 126)",
-      1200, "rgb(233, 121, 126)",
-      1400, "rgb(255, 255, 255)",
-    ],
-  },
-
-  "wiki-france": {
-    name: "Wiki France",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -5000, "rgb(10, 0, 121)",
-      -4000, "rgb(26, 0, 137)",
-      -3000, "rgb(38, 0, 152)",
-      -2000, "rgb(50, 0, 167)",
-      -1000, "rgb(83, 140, 136)",
-      -500, "rgb(133, 220, 164)",
-      -200, "rgb(172, 245, 168)",
-      -0.1, "rgb(204, 255, 204)",
-      0.1, "rgb(51, 102, 0)",
-      200, "rgb(123, 173, 30)",
-      500, "rgb(178, 194, 49)",
-      1000, "rgb(230, 220, 110)",
-      1500, "rgb(252, 246, 126)",
-      2000, "rgb(252, 210, 126)",
-      2500, "rgb(245, 180, 126)",
-      3000, "rgb(239, 151, 126)",
-      3500, "rgb(233, 121, 126)",
-      4000, "rgb(255, 255, 255)",
-    ],
-  },
-
+  // other ramps
   "gmt-globe": {
     name: "GMT Globe",
     colors: [
@@ -387,208 +319,6 @@ export const colorRamps: Record<ColorReliefRamp, { name: string; colors: any[] }
     ],
   },
 
-  caribbean: {
-    name: "Caribbean",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -7000, "rgb(0, 0, 102)",
-      -6000, "rgb(0, 25, 127)",
-      -5000, "rgb(0, 51, 153)",
-      -4000, "rgb(0, 76, 178)",
-      -3000, "rgb(25, 102, 204)",
-      -2000, "rgb(51, 127, 229)",
-      -1000, "rgb(102, 178, 255)",
-      -200, "rgb(153, 204, 255)",
-      -0.1, "rgb(204, 229, 255)",
-      0.1, "rgb(0, 102, 0)",
-      200, "rgb(51, 127, 0)",
-      500, "rgb(102, 153, 51)",
-      1000, "rgb(153, 178, 102)",
-      1500, "rgb(204, 204, 153)",
-      2000, "rgb(255, 229, 204)",
-      2500, "rgb(255, 204, 153)",
-      3000, "rgb(255, 178, 102)",
-    ],
-  },
-
-  etopo2: {
-    name: "Etopo2",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -11000, "rgb(0, 0, 127)",
-      -8000, "rgb(0, 25, 178)",
-      -6000, "rgb(0, 76, 204)",
-      -4000, "rgb(51, 153, 229)",
-      -2000, "rgb(102, 204, 255)",
-      -200, "rgb(153, 229, 255)",
-      -0.1, "rgb(204, 255, 255)",
-      0.1, "rgb(0, 102, 0)",
-      200, "rgb(102, 153, 51)",
-      1000, "rgb(153, 204, 102)",
-      2000, "rgb(204, 229, 153)",
-      3000, "rgb(255, 255, 204)",
-      4000, "rgb(255, 229, 153)",
-      5000, "rgb(255, 204, 102)",
-      6000, "rgb(255, 178, 51)",
-      7000, "rgb(255, 153, 0)",
-      8000, "rgb(204, 102, 0)",
-    ],
-  },
-
-  srtm: {
-    name: "SRTM",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -11000, "rgb(0, 0, 50)",
-      -8000, "rgb(0, 0, 100)",
-      -6000, "rgb(0, 25, 150)",
-      -4000, "rgb(0, 50, 175)",
-      -2000, "rgb(51, 102, 204)",
-      -200, "rgb(102, 153, 229)",
-      -0.1, "rgb(153, 204, 255)",
-      0.1, "rgb(0, 102, 0)",
-      200, "rgb(51, 153, 0)",
-      500, "rgb(102, 178, 51)",
-      1000, "rgb(153, 204, 102)",
-      1500, "rgb(204, 229, 153)",
-      2000, "rgb(229, 242, 204)",
-      2500, "rgb(255, 255, 229)",
-      3000, "rgb(255, 242, 178)",
-      4000, "rgb(255, 229, 127)",
-      5000, "rgb(255, 204, 76)",
-      6000, "rgb(255, 178, 25)",
-      7000, "rgb(229, 127, 0)",
-      8000, "rgb(204, 102, 0)",
-    ],
-  },
-
-  terrain: {
-    name: "Terrain",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -8000, "rgb(0, 0, 71)",
-      -7000, "rgb(0, 24, 113)",
-      -6000, "rgb(0, 50, 127)",
-      -5000, "rgb(4, 67, 141)",
-      -4000, "rgb(12, 88, 140)",
-      -3000, "rgb(25, 103, 140)",
-      -2000, "rgb(39, 117, 140)",
-      -1000, "rgb(54, 130, 140)",
-      -200, "rgb(68, 142, 140)",
-      -0.1, "rgb(83, 153, 140)",
-      0.1, "rgb(0, 102, 0)",
-      200, "rgb(60, 120, 20)",
-      500, "rgb(120, 140, 40)",
-      1000, "rgb(180, 160, 60)",
-      1500, "rgb(210, 180, 140)",
-      2000, "rgb(235, 205, 180)",
-      2500, "rgb(240, 220, 200)",
-      3000, "rgb(245, 235, 220)",
-      4000, "rgb(255, 250, 240)",
-      5000, "rgb(255, 255, 255)",
-    ],
-  },
-
-  etopo1: {
-    name: "ETOPO1",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -11000, "rgb(10, 0, 121)",
-      -10000, "rgb(26, 0, 137)",
-      -9000, "rgb(38, 0, 152)",
-      -8000, "rgb(50, 0, 167)",
-      -7000, "rgb(62, 1, 178)",
-      -6000, "rgb(72, 20, 168)",
-      -5000, "rgb(86, 49, 154)",
-      -4000, "rgb(103, 78, 146)",
-      -3000, "rgb(119, 107, 137)",
-      -2000, "rgb(138, 139, 125)",
-      -1000, "rgb(172, 183, 109)",
-      -200, "rgb(206, 223, 94)",
-      -0.1, "rgb(230, 245, 152)",
-      0.1, "rgb(51, 102, 0)",
-      200, "rgb(123, 173, 30)",
-      1000, "rgb(178, 194, 49)",
-      2000, "rgb(230, 220, 110)",
-      3000, "rgb(252, 246, 126)",
-      4000, "rgb(252, 210, 126)",
-      5000, "rgb(245, 180, 126)",
-      6000, "rgb(239, 151, 126)",
-      7000, "rgb(233, 121, 126)",
-      8000, "rgb(227, 91, 126)",
-      9000, "rgb(221, 61, 126)",
-    ],
-  },
-
-  "etopo1-reed": {
-    name: "ETOPO1 Reed",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -11000, "rgb(0, 0, 255)",
-      -10000, "rgb(0, 30, 255)",
-      -9000, "rgb(0, 60, 255)",
-      -8000, "rgb(0, 90, 255)",
-      -7000, "rgb(0, 120, 255)",
-      -6000, "rgb(0, 150, 255)",
-      -5000, "rgb(0, 180, 255)",
-      -4000, "rgb(43, 195, 255)",
-      -3000, "rgb(85, 210, 255)",
-      -2000, "rgb(128, 225, 255)",
-      -1000, "rgb(170, 240, 255)",
-      -200, "rgb(213, 255, 255)",
-      -0.1, "rgb(255, 255, 255)",
-      0.1, "rgb(0, 128, 0)",
-      200, "rgb(85, 160, 0)",
-      1000, "rgb(170, 192, 0)",
-      2000, "rgb(255, 224, 0)",
-      3000, "rgb(255, 192, 0)",
-      4000, "rgb(255, 160, 0)",
-      5000, "rgb(255, 128, 0)",
-      6000, "rgb(255, 96, 0)",
-      7000, "rgb(255, 64, 0)",
-      8000, "rgb(255, 32, 0)",
-      9000, "rgb(255, 0, 0)",
-    ],
-  },
-
-  "wiki-plumbago": {
-    name: "Wiki Plumbago",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -8000, "rgb(10, 0, 121)",
-      -6000, "rgb(26, 0, 137)",
-      -4000, "rgb(38, 0, 152)",
-      -2000, "rgb(50, 0, 167)",
-      -1000, "rgb(83, 140, 136)",
-      -200, "rgb(133, 220, 164)",
-      -0.1, "rgb(172, 245, 168)",
-      0.1, "rgb(91, 99, 76)",
-      200, "rgb(123, 138, 99)",
-      1000, "rgb(162, 180, 130)",
-      2000, "rgb(196, 214, 155)",
-      3000, "rgb(230, 247, 180)",
-      4000, "rgb(252, 246, 200)",
-      5000, "rgb(252, 210, 180)",
-      6000, "rgb(239, 151, 160)",
-      7000, "rgb(227, 91, 140)",
-      8000, "rgb(255, 255, 255)",
-    ],
-  },
-
   "topo-15lev": {
     name: "Topo 15lev",
     colors: [
@@ -615,158 +345,13 @@ export const colorRamps: Record<ColorReliefRamp, { name: string; colors: any[] }
     ],
   },
 
-  meyers: {
-    name: "Meyers",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -6000, "rgb(138, 163, 175)",
-      -4000, "rgb(145, 171, 181)",
-      -2000, "rgb(153, 179, 188)",
-      -1000, "rgb(163, 188, 196)",
-      -200, "rgb(173, 198, 206)",
-      -0.1, "rgb(184, 209, 217)",
-      0.1, "rgb(145, 163, 130)",
-      200, "rgb(157, 173, 142)",
-      500, "rgb(171, 184, 157)",
-      1000, "rgb(186, 196, 173)",
-      2000, "rgb(201, 209, 189)",
-      3000, "rgb(217, 222, 207)",
-      4000, "rgb(233, 235, 224)",
-      5000, "rgb(247, 245, 240)",
-      6000, "rgb(255, 255, 255)",
-    ],
-  },
-
-  "nordisk-familjebok": {
-    name: "Nordisk Familjebok",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -6000, "rgb(130, 155, 170)",
-      -4000, "rgb(140, 165, 180)",
-      -2000, "rgb(150, 175, 190)",
-      -1000, "rgb(160, 185, 200)",
-      -200, "rgb(170, 195, 210)",
-      -0.1, "rgb(180, 205, 220)",
-      0.1, "rgb(140, 160, 120)",
-      200, "rgb(155, 170, 135)",
-      500, "rgb(170, 180, 150)",
-      1000, "rgb(185, 190, 165)",
-      2000, "rgb(200, 200, 180)",
-      3000, "rgb(215, 210, 195)",
-      4000, "rgb(230, 220, 210)",
-      5000, "rgb(245, 235, 225)",
-      6000, "rgb(255, 250, 245)",
-    ],
-  },
-
-  mby: {
-    name: "MBY",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -8000, "rgb(0, 0, 80)",
-      -7000, "rgb(0, 5, 100)",
-      -6000, "rgb(0, 10, 120)",
-      -5000, "rgb(0, 25, 140)",
-      -4000, "rgb(0, 40, 160)",
-      -3000, "rgb(0, 60, 180)",
-      -2000, "rgb(26, 102, 204)",
-      -1000, "rgb(77, 153, 230)",
-      -200, "rgb(153, 204, 255)",
-      -10, "rgb(176, 226, 255)",
-      0, "rgb(0, 97, 71)",
-      50, "rgb(16, 123, 48)",
-      200, "rgb(232, 214, 125)",
-      500, "rgb(255, 250, 170)",
-      1000, "rgb(255, 219, 92)",
-      2000, "rgb(230, 145, 56)",
-      3000, "rgb(212, 120, 56)",
-      4000, "rgb(206, 206, 206)",
-      5000, "rgb(255, 255, 255)",
-    ],
-  },
-
-  afrikakarte: {
-    name: "Afrikakarte",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -6000, "rgb(120, 145, 160)",
-      -4000, "rgb(135, 160, 175)",
-      -2000, "rgb(150, 175, 190)",
-      -1000, "rgb(165, 190, 205)",
-      -200, "rgb(180, 205, 220)",
-      -0.1, "rgb(195, 220, 235)",
-      0.1, "rgb(130, 150, 110)",
-      200, "rgb(150, 165, 130)",
-      500, "rgb(170, 180, 145)",
-      1000, "rgb(190, 195, 160)",
-      1500, "rgb(210, 210, 175)",
-      2000, "rgb(225, 220, 190)",
-      3000, "rgb(240, 230, 205)",
-      4000, "rgb(250, 240, 220)",
-      5000, "rgb(255, 250, 240)",
-    ],
-  },
-
-  colombia: {
-    name: "Colombia",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -5000, "rgb(10, 0, 121)",
-      -4000, "rgb(26, 0, 137)",
-      -3000, "rgb(38, 0, 152)",
-      -2000, "rgb(50, 0, 167)",
-      -1000, "rgb(72, 20, 168)",
-      -500, "rgb(103, 78, 146)",
-      -200, "rgb(138, 139, 125)",
-      -0.1, "rgb(172, 183, 109)",
-      0.1, "rgb(51, 102, 0)",
-      200, "rgb(90, 140, 34)",
-      500, "rgb(123, 173, 30)",
-      1000, "rgb(160, 190, 80)",
-      2000, "rgb(220, 220, 110)",
-      3000, "rgb(250, 234, 126)",
-      4000, "rgb(252, 210, 126)",
-      5000, "rgb(245, 180, 126)",
-      6000, "rgb(233, 121, 126)",
-    ],
-  },
-
-  arctic: {
-    name: "Arctic",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      -5500, "rgb(10, 0, 121)",
-      -5000, "rgb(26, 0, 137)",
-      -4500, "rgb(38, 0, 152)",
-      -4000, "rgb(50, 0, 167)",
-      -3500, "rgb(62, 1, 178)",
-      -3000, "rgb(72, 20, 168)",
-      -2500, "rgb(86, 49, 154)",
-      -2000, "rgb(103, 78, 146)",
-      -1500, "rgb(119, 107, 137)",
-      -1000, "rgb(138, 139, 125)",
-      -500, "rgb(172, 183, 109)",
-      -200, "rgb(206, 223, 94)",
-      -0.1, "rgb(230, 245, 152)",
-      0.1, "rgb(164, 168, 79)",
-      200, "rgb(196, 190, 108)",
-      500, "rgb(226, 211, 134)",
-      1000, "rgb(239, 220, 139)",
-      1500, "rgb(248, 229, 136)",
-      2000, "rgb(254, 234, 124)",
-      2500, "rgb(255, 255, 179)",
-    ],
-  },
 }
+
+export const colorRampsFlat = Object.assign({}, colorRampsClassic, colorRampsTopo, colorRampsTopobath);
+
+
+export const colorRamps = {
+  classic: colorRampsClassic,
+  topo: colorRampsTopo,
+  topobath: colorRampsTopobath
+};
