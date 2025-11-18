@@ -14,7 +14,7 @@ import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css"
 import { TerrainControls } from "./terrain-controls"
 import GeocoderControl from "./geocoder-control"
 import { terrainSources } from "@/lib/terrain-sources"
-import { colorRamps } from "@/lib/color-ramps"
+import { colorRampsFlat } from "@/lib/color-ramps"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import mlcontour from "maplibre-contour"
 import { useAtom } from "jotai"
@@ -399,7 +399,7 @@ export function TerrainViewer() {
   })()
 
   const colorReliefPaint = (() => {
-    const ramp = colorRamps[state.colorRamp]
+    const ramp = colorRampsFlat[state.colorRamp]
     if (!ramp) return {}
 
     return {

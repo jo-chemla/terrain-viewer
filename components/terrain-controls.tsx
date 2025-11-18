@@ -22,12 +22,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { terrainSources } from "@/lib/terrain-sources"
-import { colorRamps } from "@/lib/color-ramps"
+import { colorRampsClassic, colorRampsTopo, colorRampsTopobath, colorRamps } from "@/lib/color-ramps"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom, maxResolutionAtom, themeAtom,
   isGeneralOpenAtom, isTerrainSourceOpenAtom, isVizModesOpenAtom, isHillshadeOpenAtom, isTerrainRasterOpenAtom,
-  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom, showAdvancedRampsAtom,
+  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom, showAdvancedRampsAtom, colorRampTypeAtom, selectedLicensesAtom, licenseFilterAtom,
   type CustomTerrainSource,
 } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -1165,16 +1165,47 @@ const HillshadeOptionsSection: React.FC<{ state: any; setState: (updates: any) =
 
 const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
   const [isOpen, setIsOpen] = useAtom(isHypsoOpenAtom)
-  // const [showAdvancedRamps, setShowAdvancedRamps] = useState(false)
-  const [showAdvancedRamps, setShowAdvancedRamps] = useAtom(showAdvancedRampsAtom)
-  const filteredColorRamps = showAdvancedRamps ?
-    colorRamps :
-    Object.fromEntries(Object.entries(colorRamps).filter(([k, v]) => ['hypsometric', 'wiki', 'transparent', 'rainbow', 'dem'].includes(k)));
-  const colorRampKeys = useMemo(() => Object.keys(filteredColorRamps), [showAdvancedRamps])
+  const [colorRampType, setColorRampType] = useAtom(colorRampTypeAtom)
+  const [licenseFilter, setLicenseFilter] = useAtom(licenseFilterAtom)
+
+  function filterColorRamps(colorRamps_, colorRampType_, licenseFilter_) {
+    const ramps = colorRamps_[colorRampType_] || {}
+    if (colorRampType_ == 'classic') { return ramps }
+    const rampsArray = Object.values(ramps)
+
+    if (licenseFilter_ === 'all') {
+      return ramps
+    }
+
+    const filteredEntries = rampsArray.filter((ramp: any) => {
+      if (licenseFilter_ === 'open-license-only') {
+        return ['gpl', 'gplv2', 'cc3', 'ccnc'].includes(ramp.license)
+      } else if (licenseFilter_ === 'distribute-ok') {
+        return ramp.distribute === 'yes'
+      } else if (licenseFilter_ === 'open-distribute') {
+        return ['gpl', 'gplv2', 'cc3', 'ccnc'].includes(ramp.license) || ramp.distribute === 'yes'
+      }
+      return true
+    })
+
+    return Object.fromEntries(
+      filteredEntries.map((ramp: any, index: number) => [
+        Object.keys(ramps).find(key => ramps[key] === ramp) || `ramp-${index}`,
+        ramp
+      ])
+    )
+  }
+
+  // Filter color ramps based on type and license
+  const filteredColorRamps = useMemo(() => {
+    return filterColorRamps(colorRamps, colorRampType, licenseFilter)
+  }, [colorRampType, licenseFilter])
+
+  const colorRampKeys = useMemo(() => Object.keys(filteredColorRamps), [filteredColorRamps])
+
   const cycleColorRamp = useCallback((direction: number) => {
     const currentIndex = colorRampKeys.indexOf(state.colorRamp)
     const newIndex = (currentIndex + direction + colorRampKeys.length) % colorRampKeys.length
-    console.log({ direction, colorRampKeys_length: colorRampKeys.length, currentIndex, newIndex, colorRampKeys })
     setState({ colorRamp: colorRampKeys[newIndex] })
   }, [state.colorRamp, colorRampKeys, setState])
 
@@ -1182,33 +1213,142 @@ const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: 
 
   return (
     <Section title="Hypsometric Tint Options" isOpen={isOpen} onOpenChange={setIsOpen}>
+      {/* Color Ramp Type Toggle */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium">Color Ramp</Label>
-        <div className="flex gap-2">
-          <Select value={state.colorRamp} onValueChange={(value) => setState({ colorRamp: value })}>
-            <SelectTrigger className="flex-1 cursor-pointer"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {Object.entries(filteredColorRamps).map(([key, ramp]) => (
-                <SelectItem key={key} value={key}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-12 h-4 rounded-sm" style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }} />
-                    <span>{ramp.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex border rounded-md shrink-0">
-            <Button variant="ghost" size="icon" onClick={() => cycleColorRamp(-1)} className="rounded-r-none border-r cursor-pointer"><ChevronLeft className="h-4 w-4" /></Button>
-            <Button variant="ghost" size="icon" onClick={() => cycleColorRamp(1)} className="rounded-l-none cursor-pointer"><ChevronRight className="h-4 w-4" /></Button>
+        <Label className="text-sm font-medium">Color Ramp Type</Label>
+        <ToggleGroup
+          type="single"
+          value={colorRampType}
+          onValueChange={(value) => {
+            value && setColorRampType(value)
+            if (true) {
+              const filteredNow = filterColorRamps(colorRamps, value, licenseFilter)
+              if (!filteredNow[state.colorRamp]) {
+                const first = Object.values(filteredNow)[0].name
+                setState({ colorRamp: first.toLowerCase() })
+              }
+            }
+          }}
+          className="grid grid-cols-3 w-full"
+        >
+          <ToggleGroupItem
+            value="classic"
+            aria-label="Classic color ramps"
+            className="w-full data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+          >
+            Classic
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="topo"
+            aria-label="Topo color ramps"
+            className="w-full data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+          >
+            Topo
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="topobath"
+            aria-label="Topobath color ramps"
+            className="w-full data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+          >
+            Topo+bath
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+      <div className="space-y-4">
+        {/* Color Ramp Selection */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Color Ramp</Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href="http://seaviewsensing.com/pub/cpt-city/index.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <span>cpt-city</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Load advanced color ramps from cpt-city topobath</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="flex gap-2">
+            <Select value={state.colorRamp} onValueChange={(value) => setState({ colorRamp: value })}>
+              <SelectTrigger className="flex-1 cursor-pointer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {
+                  Object.entries(filteredColorRamps)
+                    .map(([key, ramp]: [string, any]) => (
+                      <SelectItem key={key} value={key}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-12 h-4 rounded-sm"
+                            style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
+                          />
+                          <span>{ramp.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))
+                }
+              </SelectContent>
+            </Select>
+            <div className="flex border rounded-md shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => cycleColorRamp(-1)}
+                className="rounded-r-none border-r cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => cycleColorRamp(1)}
+                className="rounded-l-none cursor-pointer"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
+
+
+        {/* License Type Filter */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">License Type</Label>
+          <Select value={licenseFilter}
+            onValueChange={(value) => {
+              value && setLicenseFilter(value)
+              if (true) {
+                const filteredNow = filterColorRamps(colorRamps, colorRampType, value)
+                if (!filteredNow[state.colorRamp]) {
+                  const first = Object.values(filteredNow)[0].name
+                  setState({ colorRamp: first.toLowerCase() })
+                }
+              }
+            }}>
+            <SelectTrigger className="w-full cursor-pointer">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="open-license-only">Open License Only</SelectItem>
+              <SelectItem value="distribute-ok">Qgis Distribute Yes</SelectItem>
+              <SelectItem value="open-distribute">Open License + Distribute Yes</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        <Checkbox id="advanced-ramps" checked={showAdvancedRamps} onCheckedChange={(checked) => setShowAdvancedRamps(!!checked)} className="cursor-pointer" />
-        <Label htmlFor="advanced-ramps" className="text-sm cursor-pointer text-muted-foreground">Load advanced color ramps from cpt-city topobath</Label>
-      </div>
-    </Section>
+    </Section >
   )
 }
 
