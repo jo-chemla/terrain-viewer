@@ -19,6 +19,7 @@ import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import mlcontour from "maplibre-contour"
 import { useAtom } from "jotai"
 import { mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
+import { themeAtom } from "@/lib/settings-atoms"
 
 import maplibregl, { type RasterDEMSourceSpecification } from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
@@ -178,6 +179,22 @@ const RasterLayer = memo(
   },
 )
 RasterLayer.displayName = "RasterLayer"
+
+// Raster Layer
+const BackgroundLayer = memo(
+  ({ theme, }: { theme: "light" | "dark" }) => {
+    return (
+      <Layer
+        id="background"
+        type="background"
+        paint={{
+          'background-color': theme === "light" ? '#ffffff' : "#000000"
+        }}
+      />
+    )
+  },
+)
+BackgroundLayer.displayName = "BackgroundLayer"
 
 // Hillshade Layer
 const HillshadeLayer = memo(({
@@ -535,11 +552,12 @@ export function TerrainViewer() {
         console.log("[Contours] Initialized successfully")
         setContoursInitialized(true)
 
-        // // WIP Try adding geogrid graticules
+        // // // WIP Try adding geogrid graticules
 
         // setTimeout(() => {
+        //   const map2 = mapARef.current.getMap()
         //   const geogrid = new GeoGrid({
-        //     map,
+        //     map: map2,
         //     // beforeLayerId: 'labels',
         //     // gridStyle: {
         //     //   color: 'rgba(255, 255, 255, 0.5)',
@@ -718,6 +736,8 @@ export function TerrainViewer() {
     }
   }, [state.viewMode]);
 
+  const [theme, _] = useAtom(themeAtom)
+
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
       const isPrimary = mapId === "map-a"
@@ -769,6 +789,7 @@ export function TerrainViewer() {
             preserveDrawingBuffer: true,
           }}
         >
+          {/* Sources */}
           <TerrainSources
             source={source}
             mapboxKey={mapboxKey}
@@ -777,6 +798,9 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <RasterBasemapSource terrainSource={state.terrainSource} mapboxKey={mapboxKey} />
+
+          {/* Layers */}
+          <BackgroundLayer theme={theme} />
           <RasterLayer showRasterBasemap={state.showRasterBasemap} rasterBasemapOpacity={state.rasterBasemapOpacity} />
           <HillshadeLayer showHillshade={state.showHillshade} hillshadePaint={hillshadePaint} />
           <ColorReliefLayer showColorRelief={state.showColorRelief} colorReliefPaint={colorReliefPaint} />
