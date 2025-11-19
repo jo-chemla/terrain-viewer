@@ -1538,6 +1538,7 @@ const DownloadSection: React.FC<{
 
 const FooterSection: React.FC = () => (
   <div className="text-xs text-muted-foreground space-y-1">
+    <p>Made by <a href="https://github.com/jo-chemla/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">jo-chemla</a>, <a href="https://iconem.com" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">Iconem</a></p>
     <p>Inspired by:</p>
     <ul className="space-y-0.5">
       <li className="flex items-center justify-between">
