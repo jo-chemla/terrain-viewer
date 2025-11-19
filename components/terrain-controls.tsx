@@ -22,12 +22,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { terrainSources } from "@/lib/terrain-sources"
-import { colorRampsClassic, colorRampsTopo, colorRampsTopobath, colorRamps } from "@/lib/color-ramps"
+import { colorRamps } from "@/lib/color-ramps"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom, maxResolutionAtom, themeAtom,
   isGeneralOpenAtom, isTerrainSourceOpenAtom, isVizModesOpenAtom, isHillshadeOpenAtom, isTerrainRasterOpenAtom,
-  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom, showAdvancedRampsAtom, colorRampTypeAtom, selectedLicensesAtom, licenseFilterAtom,
+  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom, colorRampTypeAtom, licenseFilterAtom, isBackgroundOpenAtom,
   type CustomTerrainSource,
 } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -41,6 +41,7 @@ import bash from "react-syntax-highlighter/dist/esm/languages/hljs/bash"
 import { vs } from "react-syntax-highlighter/dist/esm/styles/hljs"
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs"
 import { Eye, EyeOff } from 'lucide-react';
+import { getCogMetadata } from '@geomatico/maplibre-cog-protocol';
 
 SyntaxHighlighter.registerLanguage("xml", xml)
 SyntaxHighlighter.registerLanguage("bash", bash)
@@ -815,6 +816,7 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
   const [batchEditError, setBatchEditError] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [theme] = useAtom(themeAtom)
+  const [useCogProtocolVsTitiler, _] = useAtom(useCogProtocolVsTitilerAtom)
 
   const linkCallback = useCallback((link: string) => () => window.open(templateLink(link, state.lat, state.lng), "_blank"), [state.lat, state.lng])
 
@@ -834,26 +836,39 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
   }, [customTerrainSources, setCustomTerrainSources, state, setState])
 
   const handleFitToBounds = useCallback(async (source: CustomTerrainSource) => {
+
     if (!['cog', 'vrt'].includes(source.type)) return
     try {
-      let infoUrl
-      if (source.type == 'cog') {
-        infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
-      } else if (source.type == 'vrt') {
-        infoUrl = `${titilerEndpoint}/cog/info.geojson?url=vrt:///vsicurl/${encodeURIComponent(source.url)}`
-      }
-      const response = await fetch(infoUrl)
-      const data = await response.json()
-      const bbox = data.bbox ?? data.properties.bounds
-      console.log({ data, bbox })
-      const [west, south, east, north] = bbox
-      if (bbox && mapRef.current) {
-        mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
+      if (useCogProtocolVsTitiler) {
+        getCogMetadata(source.url).then(metadata => {
+          console.log('COG metadata from geomatico/maplibre-cog-protocol', metadata)
+          const bbox = metadata.bbox
+          const [west, south, east, north] = bbox
+          if (bbox && mapRef.current) {
+            mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
+          }
+        })
+      } else {
+        // call titiler endpoint to get bounds
+        let infoUrl
+        if (source.type == 'cog') {
+          infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
+        } else if (source.type == 'vrt') {
+          infoUrl = `${titilerEndpoint}/cog/info.geojson?url=vrt:///vsicurl/${encodeURIComponent(source.url)}`
+        }
+        const response = await fetch(infoUrl)
+        const data = await response.json()
+        console.log('COG info/metadata from titiler', data)
+        const bbox = data.bbox ?? data.properties.bounds
+        const [west, south, east, north] = bbox
+        if (bbox && mapRef.current) {
+          mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
+        }
       }
     } catch (error) {
       console.error("Failed to fetch COG bounds:", error)
     }
-  }, [titilerEndpoint, mapRef])
+  }, [titilerEndpoint, mapRef, useCogProtocolVsTitiler])
 
   const handleOpenBatchEdit = useCallback(() => {
     setBatchEditJson(JSON.stringify(customTerrainSources, null, 2))
@@ -1106,6 +1121,7 @@ const VisualizationModesSection: React.FC<{ state: any; setState: (updates: any)
       <CheckboxWithSlider id="contours" checked={state.showContours} onCheckedChange={(checked) => setState({ showContours: checked })} label="Contour Lines" hideSlider={true} sliderValue={0} onSliderChange={() => null} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
       <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} />
+      <CheckboxWithSlider id="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} />
     </Section>
   )
 }
@@ -1390,6 +1406,127 @@ const ContourOptionsSection: React.FC<{ state: any; setState: (updates: any) => 
   )
 }
 
+const BackgroundOptionsSection: React.FC<{ state: any; setState: (updates: any) => void; theme?: 'light' | 'dark' }> = ({ state, setState, theme = 'light' }) => {
+  const [isOpen, setIsOpen] = useAtom(isBackgroundOpenAtom)
+
+  if (!state.showBackground) return null
+
+  const handleMatchThemeToggle = (checked: boolean) => {
+    if (checked) {
+      const themeColor = theme === 'light' ? '#ffffff' : '#000000'
+      setState({
+        matchThemeColors: checked,
+        skyColor: themeColor,
+        horizonColor: themeColor,
+        fogColor: themeColor
+      })
+    } else {
+      setState({ matchThemeColors: checked })
+    }
+  }
+
+  // useEffect(() => {
+  //   handleMatchThemeToggle(state.matchThemeColors)
+  // }, [theme, state.matchThemeColors])
+
+  return (
+    <Section title="Background Options" isOpen={isOpen} onOpenChange={setIsOpen}>
+      <div className="flex items-center justify-between py-0.5">
+        <Checkbox
+          id="match-theme"
+          checked={state.matchThemeColors}
+          onCheckedChange={handleMatchThemeToggle}
+        />
+        <Label htmlFor="match-theme" className="text-sm font-medium cursor-pointer flex-1 ml-2">
+          Match Theme Colors
+        </Label>
+      </div>
+
+      <div className="space-y-2 pt-1">
+
+        {state.matchThemeColors ? (
+
+          <SliderControl label="Fog Blend" value={state.fogGroundBlend * 100} onChange={(v) => setState({ fogGroundBlend: v / 100 })} min={0} max={100} step={1} suffix="%" />
+        ) :
+          (
+            <>
+              <div className="flex gap-3">
+                <Input
+                  type="color"
+                  value={state.fogColor}
+                  onChange={(e) => setState({ fogColor: e.target.value })}
+                  className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
+                />
+                <div className="grow">
+                  <SliderControl
+                    label="Fog Color Blend"
+                    value={state.fogGroundBlend * 100}
+                    onChange={(v) => setState({ fogGroundBlend: v / 100 })}
+                    min={0} max={100} step={1} suffix="%"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Input
+                  type="color"
+                  value={state.horizonColor}
+                  onChange={(e) => setState({ horizonColor: e.target.value })}
+                  className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
+                />
+                <div className="grow">
+                  <SliderControl
+                    label="Horizon Color Blend"
+                    value={state.horizonFogBlend * 100}
+                    onChange={(v) => setState({ horizonFogBlend: v / 100 })}
+                    min={0} max={100} step={1} suffix="%"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Input
+                  type="color"
+                  value={state.skyColor}
+                  onChange={(e) => setState({ skyColor: e.target.value })}
+                  className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
+                />
+                <div className="grow">
+                  <SliderControl
+                    label="Sky Color Blend"
+                    value={state.skyHorizonBlend * 100}
+                    onChange={(v) => setState({ skyHorizonBlend: v / 100 })}
+                    min={0} max={100} step={1} suffix="%"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+      </div>
+
+      <div className="flex items-center justify-between py-0.5">
+        <Checkbox
+          id="bg-layer-active"
+          checked={state.backgroundLayerActive}
+          onCheckedChange={(checked) => setState({ backgroundLayerActive: checked })}
+        />
+        <div className="flex items-center flex-1 ml-2 gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Label htmlFor="bg-layer-active" className="text-sm font-medium cursor-pointer">
+                Map Background Layer
+              </Label>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Toggle off if hillshade or other layers have display issues</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+    </Section >
+  )
+}
+
 const DownloadSection: React.FC<{
   state: any; getMapBounds: () => { west: number; south: number; east: number; north: number }
   getSourceConfig: (key: string) => SourceConfig | null; mapRef: React.RefObject<MapRef>
@@ -1609,6 +1746,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
         <HypsometricTintOptionsSection state={state} setState={setState} />
         <RasterBasemapOptionsSection state={state} setState={setState} />
         <ContourOptionsSection state={state} setState={setState} />
+        <BackgroundOptionsSection state={state} setState={setState} theme={theme} />
         <FooterSection />
       </Card>
     </TooltipProvider>

@@ -7,6 +7,7 @@ import Map, {
   Layer,
   NavigationControl,
   GeolocateControl,
+  SkySpecification,
   type MapRef,
   type LayerSpecification,
 } from "react-map-gl/maplibre"
@@ -143,7 +144,7 @@ const RasterBasemapSource = memo(
 
     return (
       <Source
-        id="terrain-raster-source"
+        id="raster-basemap-source"
         key={`raster-${terrainSource}`}
         type="raster"
         tiles={[terrainRasterUrls[terrainSource] || terrainRasterUrls.google]}
@@ -165,9 +166,9 @@ const RasterLayer = memo(
   }) => {
     return (
       <Layer
-        id="terrain-raster"
+        id="raster-basemap"
         type="raster"
-        source="terrain-raster-source"
+        source="raster-basemap-source"
         paint={{
           "raster-opacity": rasterBasemapOpacity,
         }}
@@ -182,14 +183,42 @@ RasterLayer.displayName = "RasterLayer"
 
 // Raster Layer
 const BackgroundLayer = memo(
-  ({ theme, }: { theme: "light" | "dark" }) => {
+  ({ theme, mapRef }: { theme: "light" | "dark"; mapRef: React.RefObject<MapRef> }) => {
+
+    // const [backgroundColor, setBackgroundColor] = useState(theme === "light" ? '#ffffff' : "#000000")
+    // useEffect(() => {
+    //   setBackgroundColor(theme === "light" ? '#ffffff' : "#000000")
+    // }, [theme])
+
+    // Helper to safely get beforeId
+    // Could use callback
+    const getBeforeId = () => {
+      for (const layerId of ['raster-basemap', 'color-relief', 'hillshade']) {
+        if (mapRef?.current?.getLayer(layerId)) {
+          return layerId
+        }
+      }
+      return undefined
+    }
+
+    let beforeId = undefined
+    for (const layerId of ['raster-basemap', 'color-relief', 'hillshade']) {
+      if (mapRef?.current?.getLayer(layerId)) {
+        beforeId = layerId
+      }
+    }
+
     return (
       <Layer
-        id="background"
+        id={"background"}
+        key={"background" + theme}
         type="background"
         paint={{
+          // 'background-color': backgroundColor
           'background-color': theme === "light" ? '#ffffff' : "#000000"
         }}
+        // beforeId={beforeId}
+        beforeId={getBeforeId()}
       />
     )
   },
@@ -331,6 +360,7 @@ export function TerrainViewer() {
     showContours: parseAsBoolean.withDefault(false),
     colorRamp: parseAsString.withDefault("hypsometric"),
     showRasterBasemap: parseAsBoolean.withDefault(false),
+    showBackground: parseAsBoolean.withDefault(false),
     rasterBasemapOpacity: parseAsFloat.withDefault(1.0),
     terrainSource: parseAsString.withDefault("esri"),
     exaggeration: parseAsFloat.withDefault(1),
@@ -350,6 +380,15 @@ export function TerrainViewer() {
     contourMajor: parseAsFloat.withDefault(200),
     minElevation: parseAsFloat.withDefault(0),
     maxElevation: parseAsFloat.withDefault(4000),
+    // sky state variables
+    skyColor: parseAsString.withDefault("#80ccff"),
+    skyHorizonBlend: parseAsFloat.withDefault(0.5),
+    horizonColor: parseAsString.withDefault("#ccddff"),
+    horizonFogBlend: parseAsFloat.withDefault(0.5),
+    fogColor: parseAsString.withDefault("#fcf0dd"),
+    fogGroundBlend: parseAsFloat.withDefault(0.2),
+    matchThemeColors: parseAsBoolean.withDefault(true),
+    backgroundLayerActive: parseAsBoolean.withDefault(true)
   })
 
   // Compute hillshade paint with useMemo to prevent recalculation
@@ -738,6 +777,31 @@ export function TerrainViewer() {
 
   const [theme, _] = useAtom(themeAtom)
 
+  const getSkyConfig = (state: any) => ({
+    'sky-color': state.skyColor,
+    'sky-horizon-blend': state.skyHorizonBlend,
+    'horizon-color': state.horizonColor,
+    'horizon-fog-blend': state.horizonFogBlend,
+    'fog-color': state.fogColor,
+    'fog-ground-blend': state.fogGroundBlend
+  })
+
+
+  const sky: SkySpecification = getSkyConfig(state)
+  // const sky: SkySpecification = {
+  //   // // 'sky-color': '#f0f',
+  //   // 'sky-horizon-blend': 0.2,
+  //   // 'horizon-fog-blend': 0.9,
+  //   // 'fog-ground-blend': 0.5
+  //   'sky-color': '#80ccff',
+  //   'sky-horizon-blend': 0.5,
+  //   'horizon-color': '#ccddff',
+  //   'horizon-fog-blend': 0.5,
+  //   'fog-color': '#fcf0dd',
+  //   'fog-ground-blend': 0.2
+  // }
+
+
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
       const isPrimary = mapId === "map-a"
@@ -769,11 +833,7 @@ export function TerrainViewer() {
               })
             )
           }}
-          sky={{
-            'sky-horizon-blend': 0.2,
-            'horizon-fog-blend': 0.9,
-            'fog-ground-blend': 0.5
-          }}
+          sky={sky}
           minPitch={0}
           maxPitch={state.viewMode === "2d" ? 0 : 85}
           rollEnabled={state.viewMode !== "2d"}
@@ -800,11 +860,10 @@ export function TerrainViewer() {
           <RasterBasemapSource terrainSource={state.terrainSource} mapboxKey={mapboxKey} />
 
           {/* Layers */}
-          <BackgroundLayer theme={theme} />
+          {state.backgroundLayerActive && <BackgroundLayer theme={theme} mapRef={mapARef} />}
           <RasterLayer showRasterBasemap={state.showRasterBasemap} rasterBasemapOpacity={state.rasterBasemapOpacity} />
           <HillshadeLayer showHillshade={state.showHillshade} hillshadePaint={hillshadePaint} />
           <ColorReliefLayer showColorRelief={state.showColorRelief} colorReliefPaint={colorReliefPaint} />
-
           {contoursInitialized && isPrimary && <ContourLayers showContours={state.showContours} />}
 
           {isPrimary && (
