@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client"
 import { NuqsAdapter } from "nuqs/adapters/react"
 import App from "./App"
 import "./index.css"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { TanStackDevtools } from '@tanstack/react-devtools'
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -41,6 +41,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         }}
       >
         <App />
+        
+      <TanStackDevtools />
       </NuqsAdapter>
     </React.Suspense>
   </React.StrictMode>,
