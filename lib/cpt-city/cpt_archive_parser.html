@@ -5,19 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CPT City Archive Parser</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
       padding: 20px;
     }
-    
     .container {
       max-width: 1600px;
       margin: 0 auto;
@@ -26,19 +20,8 @@
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       padding: 40px;
     }
-    
-    h1 {
-      color: #333;
-      margin-bottom: 10px;
-      font-size: 28px;
-    }
-    
-    .subtitle {
-      color: #666;
-      margin-bottom: 20px;
-      font-size: 14px;
-    }
-
+    h1 { color: #333; margin-bottom: 10px; font-size: 28px; }
+    .subtitle { color: #666; margin-bottom: 20px; font-size: 14px; }
     .info-links {
       background: #e3f2fd;
       border-left: 4px solid #2196F3;
@@ -49,18 +32,11 @@
       display: flex;
       gap: 20px;
       flex-wrap: wrap;
+      align-items: center;
     }
-
-    .info-links a {
-      color: #1976D2;
-      text-decoration: none;
-      font-weight: 600;
-    }
-
-    .info-links a:hover {
-      text-decoration: underline;
-    }
-    
+    .info-links a { color: #1976D2; text-decoration: none; font-weight: 600; }
+    .info-links a:hover { text-decoration: underline; }
+    .info-links .separator { color: #ccc; }
     .upload-area {
       border: 3px dashed #667eea;
       border-radius: 12px;
@@ -70,34 +46,19 @@
       margin-bottom: 20px;
       cursor: pointer;
       transition: all 0.3s;
+      user-select: none;
     }
-    
-    .upload-area:hover {
-      background: #eef0ff;
-      border-color: #764ba2;
-    }
-    
-    .upload-area.dragover {
-      background: #e0e7ff;
-      border-color: #4f46e5;
-    }
-    
-    input[type="file"] {
-      display: none;
-    }
-    
-    .upload-icon {
-      font-size: 36px;
-      margin-bottom: 8px;
-    }
-    
+    .upload-area:hover, .upload-area:active { background: #eef0ff; border-color: #764ba2; }
+    .upload-area.dragover { background: #e0e7ff; border-color: #4f46e5; }
+    .upload-area * { pointer-events: none; }
+    input[type="file"] { display: none; }
+    .upload-icon { font-size: 36px; margin-bottom: 8px; }
     .stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
       gap: 12px;
       margin-bottom: 20px;
     }
-    
     .stat-card {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
@@ -105,39 +66,16 @@
       border-radius: 8px;
       text-align: center;
     }
-    
-    .stat-value {
-      font-size: 24px;
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-    
-    .stat-label {
-      font-size: 11px;
-      opacity: 0.9;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    
+    .stat-value { font-size: 24px; font-weight: bold; margin-bottom: 4px; }
+    .stat-label { font-size: 11px; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; }
     .controls {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 12px;
       margin-bottom: 15px;
     }
-    
-    .control-group {
-      display: flex;
-      flex-direction: column;
-    }
-    
-    label {
-      font-weight: 600;
-      color: #333;
-      margin-bottom: 6px;
-      font-size: 12px;
-    }
-    
+    .control-group { display: flex; flex-direction: column; }
+    label { font-weight: 600; color: #333; margin-bottom: 6px; font-size: 12px; }
     select, input[type="text"], input[type="number"] {
       padding: 8px;
       border: 2px solid #e0e0e0;
@@ -145,19 +83,11 @@
       font-size: 13px;
       transition: border-color 0.3s;
     }
-    
     select:focus, input[type="text"]:focus, input[type="number"]:focus {
       outline: none;
       border-color: #667eea;
     }
-    
-    .button-group {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 15px;
-      flex-wrap: wrap;
-    }
-    
+    .button-group { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
     button {
       padding: 10px 20px;
       border: none;
@@ -167,51 +97,25 @@
       cursor: pointer;
       transition: all 0.3s;
     }
-    
     .btn-primary {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
     }
-    
     .btn-primary:hover:not(:disabled) {
       transform: translateY(-2px);
       box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
     }
-    
-    .btn-secondary {
-      background: #4CAF50;
-      color: white;
-    }
-    
-    .btn-secondary:hover:not(:disabled) {
-      background: #45a049;
-    }
-    
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    
+    .btn-secondary { background: #4CAF50; color: white; }
+    .btn-secondary:hover:not(:disabled) { background: #45a049; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
     .table-container {
       background: white;
       border-radius: 8px;
       overflow: hidden;
       border: 1px solid #e0e0e0;
     }
-    
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-    
-    thead {
-      background: #f5f5f5;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead { background: #f5f5f5; position: sticky; top: 0; z-index: 10; }
     th {
       padding: 10px 8px;
       text-align: left;
@@ -221,20 +125,9 @@
       cursor: pointer;
       user-select: none;
     }
-    
-    th:hover {
-      background: #eeeeee;
-    }
-    
-    td {
-      padding: 8px;
-      border-bottom: 1px solid #f0f0f0;
-    }
-    
-    tr:hover {
-      background: #f9f9f9;
-    }
-    
+    th:hover { background: #eeeeee; }
+    td { padding: 8px; border-bottom: 1px solid #f0f0f0; }
+    tr:hover { background: #f9f9f9; }
     .cpt-image {
       width: 60px;
       height: 20px;
@@ -243,14 +136,12 @@
       cursor: pointer;
       border: 1px solid #ddd;
     }
-    
     .cpt-image:hover {
       transform: scale(1.5);
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       z-index: 100;
       position: relative;
     }
-    
     .license-badge {
       display: inline-block;
       padding: 3px 8px;
@@ -260,32 +151,14 @@
       text-transform: uppercase;
       white-space: nowrap;
     }
-    
     .license-cc, .license-gpl, .license-apache, .license-mit, .license-bsd {
       background: #4CAF50;
       color: white;
     }
-    
-    .license-other {
-      background: #ff9800;
-      color: white;
-    }
-    
-    .license-unknown, .license-none {
-      background: #999;
-      color: white;
-    }
-    
-    .distribute-yes {
-      color: #4CAF50;
-      font-weight: 600;
-    }
-    
-    .distribute-no {
-      color: #f44336;
-      font-weight: 600;
-    }
-    
+    .license-other { background: #ff9800; color: white; }
+    .license-unknown, .license-none { background: #999; color: white; }
+    .distribute-yes { color: #4CAF50; font-weight: 600; }
+    .distribute-no { color: #f44336; font-weight: 600; }
     .pagination {
       display: flex;
       justify-content: space-between;
@@ -294,33 +167,11 @@
       background: #f5f5f5;
       border-top: 1px solid #e0e0e0;
     }
-    
-    .pagination-info {
-      font-size: 13px;
-      color: #666;
-    }
-    
-    .pagination-controls {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    
-    .pagination-controls button {
-      padding: 6px 12px;
-      font-size: 12px;
-    }
-    
-    .page-input {
-      width: 60px;
-      text-align: center;
-    }
-    
-    .progress {
-      margin: 15px 0;
-      display: none;
-    }
-    
+    .pagination-info { font-size: 13px; color: #666; }
+    .pagination-controls { display: flex; gap: 8px; align-items: center; }
+    .pagination-controls button { padding: 6px 12px; font-size: 12px; }
+    .page-input { width: 60px; text-align: center; }
+    .progress { margin: 15px 0; display: none; }
     .progress-bar {
       width: 100%;
       height: 24px;
@@ -328,7 +179,6 @@
       border-radius: 12px;
       overflow: hidden;
     }
-    
     .progress-fill {
       height: 100%;
       background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
@@ -340,13 +190,11 @@
       font-weight: 600;
       font-size: 11px;
     }
-
     .table-filters {
       background: #f9f9f9;
       padding: 10px;
       border-bottom: 1px solid #e0e0e0;
     }
-
     .table-filters input {
       width: 100%;
       padding: 6px 8px;
@@ -354,19 +202,9 @@
       border-radius: 4px;
       font-size: 12px;
     }
-
-    a {
-      color: #667eea;
-      text-decoration: none;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
-
-    .results {
-      margin-top: 20px;
-    }
+    a { color: #667eea; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .results { margin-top: 20px; }
   </style>
 </head>
 <body>
@@ -375,8 +213,13 @@
     <p class="subtitle">Parse and filter CPT color palettes from the CPT City archive</p>
     
     <div class="info-links">
-      <span>📦 <a href="http://seaviewsensing.com/pub/cpt-city/pkg/" target="_blank">Download CPT Archive</a></span>
-      <span>©️ <a href="http://seaviewsensing.com/pub/cpt-city/notes/copyright.html" target="_blank">Copyright Information</a></span>
+      <span>🏠 <a href="http://seaviewsensing.com/pub/cpt-city/" target="_blank">CPT City Home</a></span>
+      <span class="separator">|</span>
+      <span>👁️ <a href="http://seaviewsensing.com/pub/cpt-city/views/" target="_blank">Views Directory</a></span>
+      <span class="separator">|</span>
+      <span>📦 <a href="http://seaviewsensing.com/pub/cpt-city/pkg/" target="_blank">Download Archive</a></span>
+      <span class="separator">|</span>
+      <span>©️ <a href="http://seaviewsensing.com/pub/cpt-city/notes/copyright.html" target="_blank">Copyright Info</a></span>
     </div>
 
     <div class="upload-area" id="uploadArea">
@@ -413,6 +256,12 @@
     
     <div class="controls" id="controls" style="display: none;">
       <div class="control-group">
+        <label>View Filter</label>
+        <select id="viewFilter">
+          <option value="all">All CPTs</option>
+        </select>
+      </div>
+      <div class="control-group">
         <label>License Filter</label>
         <select id="licenseFilter">
           <option value="all">All Licenses</option>
@@ -421,26 +270,23 @@
           <option value="open-distribute">Open + Distribute Yes</option>
         </select>
       </div>
-      
       <div class="control-group">
         <label>Search Name</label>
         <input type="text" id="nameSearch" placeholder="Search CPT names...">
       </div>
-      
       <div class="control-group">
         <label>Directory Filter</label>
         <select id="dirFilter">
           <option value="all">All Directories</option>
         </select>
       </div>
-
       <div class="control-group">
         <label>Items Per Page</label>
         <select id="itemsPerPage">
           <option value="25">25</option>
-          <option value="50" selected>50</option>
+          <option value="50">50</option>
           <option value="100">100</option>
-          <option value="200">200</option>
+          <option value="200" selected>200</option>
         </select>
       </div>
     </div>
@@ -474,13 +320,18 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
+    // ============================================================================
+    // STATE MANAGEMENT
+    // ============================================================================
     let parsedData = null;
     let filteredData = [];
     let currentPage = 1;
-    let itemsPerPage = 50;
+    let itemsPerPage = 200;
     let sortColumn = null;
     let sortDirection = 'asc';
     let columnFilters = {};
+    let viewsData = {};
+    let currentView = 'all';
     
     const columns = [
       { id: 'image', label: 'Preview', sortable: false, filterable: false },
@@ -492,33 +343,48 @@
       { id: 'copyingFile', label: 'COPYING.xml', sortable: false, filterable: false }
     ];
     
-    // File upload handling
+    // ============================================================================
+    // FILE UPLOAD HANDLING
+    // ============================================================================
     const uploadArea = document.getElementById('uploadArea');
     const fileInput = document.getElementById('fileInput');
     
-    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      fileInput.click();
+    });
     
-    uploadArea.addEventListener('dragover', (e) => {
+    uploadArea.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      fileInput.click();
+    }, { passive: false });
+    
+    uploadArea.addEventListener('dragover', function(e) {
       e.preventDefault();
       uploadArea.classList.add('dragover');
     });
     
-    uploadArea.addEventListener('dragleave', () => {
+    uploadArea.addEventListener('dragleave', function() {
       uploadArea.classList.remove('dragover');
     });
     
-    uploadArea.addEventListener('drop', (e) => {
+    uploadArea.addEventListener('drop', function(e) {
       e.preventDefault();
       uploadArea.classList.remove('dragover');
       const file = e.dataTransfer.files[0];
       if (file) handleFile(file);
     });
     
-    fileInput.addEventListener('change', (e) => {
+    fileInput.addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (file) handleFile(file);
     });
     
+    // ============================================================================
+    // ZIP PARSING - MAIN ENTRY POINT
+    // ============================================================================
     async function handleFile(file) {
       document.getElementById('progress').style.display = 'block';
       updateProgress(0, 'Loading ZIP...');
@@ -537,9 +403,10 @@
         
         populateDirectoryFilter();
         initializeTable();
+        addEmbeddedViews();
         applyFilters();
         
-        setTimeout(() => {
+        setTimeout(function() {
           document.getElementById('progress').style.display = 'none';
         }, 1000);
         
@@ -555,6 +422,9 @@
       fill.textContent = text || percent + '%';
     }
     
+    // ============================================================================
+    // PARSE CPT PACKAGE ZIP
+    // ============================================================================
     async function parseZipStructure(zip) {
       const data = {
         directories: {},
@@ -583,12 +453,12 @@
         }
       }
       
-      // Second pass: collect CPT files and match with licensing
+      // Second pass: collect CPT files and associate with nearest COPYING.xml
       for (const filename of files) {
         processedFiles++;
         if (processedFiles % 100 === 0) {
-          updateProgress(20 + (processedFiles / totalFiles) * 60, `Processing ${processedFiles}/${totalFiles}`);
-          await new Promise(resolve => setTimeout(resolve, 0));
+          updateProgress(20 + (processedFiles / totalFiles) * 60, 'Processing ' + processedFiles + '/' + totalFiles);
+          await new Promise(function(resolve) { setTimeout(resolve, 0); });
         }
         
         if (filename.endsWith('.cpt') && !zip.files[filename].dir) {
@@ -597,7 +467,7 @@
           const name = parts[parts.length - 1].replace('.cpt', '');
           const dirPath = parts.slice(0, -1).join('/');
           
-          // Find the closest COPYING.xml
+          // Associate nearest COPYING.xml by traversing up directory tree
           let license = null;
           let copyingPath = null;
           let currentPath = dirPath;
@@ -654,32 +524,31 @@
       return data;
     }
     
+    // ============================================================================
+    // EXTRACT LICENSE ATTRIBUTES FROM COPYING.XML
+    // ============================================================================
     function parseCopyingXML(xmlString) {
       const parser = new DOMParser();
       const xml = parser.parseFromString(xmlString, 'text/xml');
       
       const parserError = xml.querySelector('parsererror');
       if (parserError) {
-        console.warn('XML parsing error:', parserError.textContent);
         return null;
       }
       
       const license = {};
       
-      // Get distribute and license from qgis tag inside distribute tag
       const qgis = xml.querySelector('distribute qgis');
       if (qgis) {
         license.distribute = qgis.getAttribute('distribute') || 'unknown';
         license.licenseType = qgis.getAttribute('license') || 'unknown';
       }
       
-      // Get author
       const authorNode = xml.querySelector('authors author');
       if (authorNode) {
         license.author = authorNode.textContent.trim();
       }
       
-      // Get source/URL
       const srcNode = xml.querySelector('src url');
       if (srcNode) {
         license.source = srcNode.textContent.trim();
@@ -741,24 +610,143 @@
       return 'license-other';
     }
 
+    // ============================================================================
+    // PARSE VIEW XML FILES
+    // ============================================================================
+    function parseViewXML(xmlString) {
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(xmlString, 'text/xml');
+      
+      const gradients = xml.querySelectorAll('gradient');
+      const result = [];
+      
+      for (let i = 0; i < gradients.length; i++) {
+        const g = gradients[i];
+        const file = g.getAttribute('file');
+        const dir = g.getAttribute('dir');
+        if (file && dir) {
+          result.push({ file: file, dir: dir });
+        }
+      }
+      
+      return result;
+    }
+
+    function addEmbeddedViews() {
+      const viewFilter = document.getElementById('viewFilter');
+      
+      const topobathXML = '<selection cadence="low">' +
+        '<name short="topobath">Topography/bathymetry</name>' +
+        '<gradients>' +
+        '<gradient file="ibcao" dir="ibcao"/>' +
+        '<gradient file="NZ_blue" dir="em"/>' +
+        '<gradient file="wiki-2.0" dir="wkp/template"/>' +
+        '<gradient file="wiki-scotland" dir="wkp/country"/>' +
+        '<gradient file="wiki-france" dir="wkp/country"/>' +
+        '<gradient file="GMT_globe" dir="gmt"/>' +
+        '<gradient file="GMT_relief" dir="gmt"/>' +
+        '<gradient file="GMT_sealand" dir="gmt"/>' +
+        '<gradient file="GMT_topo" dir="gmt"/>' +
+        '<gradient file="Caribbean" dir="vh"/>' +
+        '<gradient file="etopo2" dir="grass"/>' +
+        '<gradient file="srtm" dir="grass"/>' +
+        '<gradient file="terrain" dir="grass"/>' +
+        '<gradient file="ETOPO1" dir="ngdc"/>' +
+        '<gradient file="ETOPO1-Reed" dir="ngdc"/>' +
+        '<gradient file="wiki-plumbago" dir="wkp/plumbago"/>' +
+        '<gradient file="topo_15lev" dir="ncl"/>' +
+        '<gradient file="meyers" dir="wkp/encyclopedia"/>' +
+        '<gradient file="nordisk-familjebok" dir="wkp/encyclopedia"/>' +
+        '<gradient file="mby" dir="mby"/>' +
+        '<gradient file="afrikakarte" dir="wkp/lilleskut"/>' +
+        '<gradient file="colombia" dir="wkp/shadowxfox"/>' +
+        '<gradient file="arctic" dir="arendal"/>' +
+        '</gradients>' +
+        '</selection>';
+      
+      const topoXML = '<selection cadence="low">' +
+        '<name short="topo">Topography</name>' +
+        '<gradients>' +
+        '<gradient file="DEM_poster" dir="td"/>' +
+        '<gradient file="DEM_print" dir="td"/>' +
+        '<gradient file="DEM_screen" dir="td"/>' +
+        '<gradient file="c3t1" dir="jjg/dem"/>' +
+        '<gradient file="c3t3" dir="jjg/dem"/>' +
+        '<gradient file="garish14" dir="jjg/dem"/>' +
+        '<gradient file="natural" dir="fme/feet"/>' +
+        '<gradient file="neutral" dir="fme/feet"/>' +
+        '<gradient file="textbook" dir="fme/feet"/>' +
+        '<gradient file="tv-a" dir="jm/tv"/>' +
+        '<gradient file="o2-a" dir="jm/o2"/>' +
+        '<gradient file="db-a" dir="jm/db"/>' +
+        '<gradient file="ao-a" dir="jm/ao"/>' +
+        '<gradient file="wt-a" dir="jm/wt"/>' +
+        '<gradient file="ws-a" dir="jm/ws"/>' +
+        '<gradient file="cd-a" dir="jm/cd"/>' +
+        '<gradient file="sd-a" dir="jm/sd"/>' +
+        '<gradient file="elevation" dir="grass"/>' +
+        '<gradient file="njdem100" dir="njgs"/>' +
+        '<gradient file="palm_springs_4" dir="esri/hypsometry/na"/>' +
+        '<gradient file="pnw_1113" dir="esri/hypsometry/na"/>' +
+        '<gradient file="utah_1" dir="esri/hypsometry/na"/>' +
+        '<gradient file="europe_3" dir="esri/hypsometry/eu"/>' +
+        '<gradient file="iceland" dir="esri/hypsometry/eu"/>' +
+        '<gradient file="spain" dir="esri/hypsometry/eu"/>' +
+        '<gradient file="os250k-feet" dir="os"/>' +
+        '<gradient file="tpushuf" dir="tp"/>' +
+        '<gradient file="wiki-schwarzwald-cont" dir="wkp/schwarzwald"/>' +
+        '<gradient file="wiki-schwarzwald-d050" dir="wkp/schwarzwald"/>' +
+        '<gradient file="wiki-knutux" dir="wkp/knutux"/>' +
+        '<gradient file="nrwc" dir="wkp/tubs"/>' +
+        '<gradient file="pakistan" dir="wkp/jarke"/>' +
+        '<gradient file="usgs-gswa2" dir="usgs"/>' +
+        '<gradient file="zambezi-focus" dir="arendal"/>' +
+        '<gradient file="zambezi-proximity" dir="arendal"/>' +
+        '</gradients>' +
+        '</selection>';
+      
+      const topobathGradients = parseViewXML(topobathXML);
+      const topoGradients = parseViewXML(topoXML);
+      
+      viewsData.topobath = { name: "Topography/bathymetry", short: "topobath", gradients: topobathGradients };
+      viewsData.topo = { name: "Topography", short: "topo", gradients: topoGradients };
+      
+      viewFilter.innerHTML += '<option value="topobath">Topography/bathymetry (' + topobathGradients.length + ')</option>';
+      viewFilter.innerHTML += '<option value="topo">Topography (' + topoGradients.length + ')</option>';
+    }
+
+    function matchesView(cpt, viewShort) {
+      if (viewShort === 'all' || !viewsData[viewShort]) {
+        return true;
+      }
+      
+      const view = viewsData[viewShort];
+      return view.gradients.some(function(g) {
+        const expectedPath = 'cpt-city/' + g.dir + '/' + g.file + '.cpt';
+        return cpt.path === expectedPath || 
+               (cpt.name === g.file && cpt.directory.endsWith(g.dir));
+      });
+    }
+
+    // ============================================================================
+    // UI HELPER FUNCTIONS
+    // ============================================================================
     function getImageUrl(cptPath) {
-      // Convert cpt-city/erj/bw/bwbrown_01.cpt to http://seaviewsensing.com/pub/cpt-city/erj/bw/tn/bwbrown_01.png
       const parts = cptPath.split('/');
       const filename = parts[parts.length - 1].replace('.cpt', '.png');
       const dir = parts.slice(0, -1).join('/');
-      return `http://seaviewsensing.com/pub/${dir}/tn/${filename}`;
+      return 'http://seaviewsensing.com/pub/' + dir + '/tn/' + filename;
     }
 
     function getAuthorUrl(directory) {
-      // Extract base directory (first 2-3 levels)
-      const parts = directory.split('/').filter(p => p);
+      const parts = directory.split('/').filter(function(p) { return p; });
       const baseDir = parts.slice(0, 2).join('/');
-      return `http://seaviewsensing.com/pub/${baseDir}`;
+      return 'http://seaviewsensing.com/pub/' + baseDir;
     }
 
     function getCopyingUrl(copyingPath) {
       if (!copyingPath) return null;
-      return `http://seaviewsensing.com/pub/${copyingPath}`;
+      return 'http://seaviewsensing.com/pub/' + copyingPath;
     }
     
     function populateDirectoryFilter() {
@@ -766,14 +754,17 @@
       const dirs = Object.keys(parsedData.directories).sort();
       
       dirFilter.innerHTML = '<option value="all">All Directories</option>';
-      dirs.forEach(dir => {
+      dirs.forEach(function(dir) {
         const option = document.createElement('option');
         option.value = dir;
-        option.textContent = dir + ` (${parsedData.directories[dir].length})`;
+        option.textContent = dir + ' (' + parsedData.directories[dir].length + ')';
         dirFilter.appendChild(option);
       });
     }
 
+    // ============================================================================
+    // TABLE MANAGEMENT
+    // ============================================================================
     function initializeTable() {
       const headerRow = document.getElementById('tableHeader');
       const filterRow = document.getElementById('tableFilters');
@@ -781,12 +772,12 @@
       headerRow.innerHTML = '';
       filterRow.innerHTML = '';
       
-      columns.forEach(col => {
+      columns.forEach(function(col) {
         const th = document.createElement('th');
         th.textContent = col.label;
         if (col.sortable) {
           th.style.cursor = 'pointer';
-          th.onclick = () => sortTable(col.id);
+          th.onclick = function() { sortTable(col.id); };
         }
         headerRow.appendChild(th);
 
@@ -794,8 +785,8 @@
         if (col.filterable) {
           const input = document.createElement('input');
           input.type = 'text';
-          input.placeholder = `Filter ${col.label}...`;
-          input.oninput = (e) => {
+          input.placeholder = 'Filter ' + col.label + '...';
+          input.oninput = function(e) {
             columnFilters[col.id] = e.target.value.toLowerCase();
             currentPage = 1;
             applyFilters();
@@ -816,13 +807,22 @@
       applyFilters();
     }
     
+    // ============================================================================
+    // FILTERING AND DISPLAY
+    // ============================================================================
     function applyFilters() {
+      const viewFilter = document.getElementById('viewFilter').value;
       const licenseFilter = document.getElementById('licenseFilter').value;
       const nameSearch = document.getElementById('nameSearch').value.toLowerCase();
       const dirFilter = document.getElementById('dirFilter').value;
       
-      filteredData = parsedData.cpts.filter(cpt => {
-        // License filter
+      currentView = viewFilter;
+      
+      filteredData = parsedData.cpts.filter(function(cpt) {
+        if (!matchesView(cpt, viewFilter)) {
+          return false;
+        }
+
         if (licenseFilter === 'open') {
           if (!cpt.isOpenLicense) return false;
         } else if (licenseFilter === 'distribute-yes') {
@@ -831,18 +831,16 @@
           if (!cpt.isOpenLicense || cpt.distribute !== 'yes') return false;
         }
         
-        // Name search
         if (nameSearch && !cpt.name.toLowerCase().includes(nameSearch)) {
           return false;
         }
         
-        // Directory filter
         if (dirFilter !== 'all' && cpt.directory !== dirFilter) {
           return false;
         }
 
-        // Column filters
-        for (const [col, value] of Object.entries(columnFilters)) {
+        for (const col in columnFilters) {
+          const value = columnFilters[col];
           if (value && !String(cpt[col]).toLowerCase().includes(value)) {
             return false;
           }
@@ -851,9 +849,8 @@
         return true;
       });
 
-      // Sort
       if (sortColumn) {
-        filteredData.sort((a, b) => {
+        filteredData.sort(function(a, b) {
           let aVal = a[sortColumn];
           let bVal = b[sortColumn];
           
@@ -890,7 +887,7 @@
       const end = start + itemsPerPage;
       const pageData = filteredData.slice(start, end);
 
-      pageData.forEach(cpt => {
+      pageData.forEach(function(cpt) {
         const tr = document.createElement('tr');
         
         const imgUrl = getImageUrl(cpt.path);
@@ -899,15 +896,13 @@
         const licenseShort = formatLicense(cpt.license);
         const licenseClass = getLicenseClass(cpt.license);
 
-        tr.innerHTML = `
-          <td><img src="${imgUrl}" class="cpt-image" alt="${cpt.name}" title="Click to view larger" onclick="window.open('${imgUrl}', '_blank')"></td>
-          <td><strong>${cpt.name}</strong></td>
-          <td><small>${cpt.directory}</small></td>
-          <td><span class="license-badge ${licenseClass}" title="${cpt.license}">${licenseShort}</span></td>
-          <td><span class="${cpt.distribute === 'yes' ? 'distribute-yes' : 'distribute-no'}">${cpt.distribute}</span></td>
-          <td><a href="${authorUrl}" target="_blank">${cpt.author || 'unknown'}</a></td>
-          <td>${copyingUrl ? `<a href="${copyingUrl}" target="_blank">📄 View</a>` : '-'}</td>
-        `;
+        tr.innerHTML = '<td><img src="' + imgUrl + '" class="cpt-image" alt="' + cpt.name + '" title="Click to view larger" onclick="window.open(\'' + imgUrl + '\', \'_blank\')"></td>' +
+          '<td><strong>' + cpt.name + '</strong></td>' +
+          '<td><small>' + cpt.directory + '</small></td>' +
+          '<td><span class="license-badge ' + licenseClass + '" title="' + cpt.license + '">' + licenseShort + '</span></td>' +
+          '<td><span class="' + (cpt.distribute === 'yes' ? 'distribute-yes' : 'distribute-no') + '">' + cpt.distribute + '</span></td>' +
+          '<td><a href="' + authorUrl + '" target="_blank">' + (cpt.author || 'unknown') + '</a></td>' +
+          '<td>' + (copyingUrl ? '<a href="' + copyingUrl + '" target="_blank">📄 View</a>' : '-') + '</td>';
         
         tbody.appendChild(tr);
       });
@@ -921,7 +916,7 @@
       const end = Math.min(start + itemsPerPage - 1, filteredData.length);
       
       document.getElementById('paginationInfo').textContent = 
-        `Showing ${start}-${end} of ${filteredData.length} items`;
+        'Showing ' + start + '-' + end + ' of ' + filteredData.length + ' items';
       
       document.getElementById('pageInput').value = currentPage;
       document.getElementById('pageInput').max = totalPages;
@@ -937,7 +932,60 @@
       }
     }
 
-    document.getElementById('pageInput').addEventListener('change', (e) => {
+    // ============================================================================
+    // EXPORT FUNCTIONS
+    // ============================================================================
+    function downloadJSON() {
+      try {
+        const dataStr = JSON.stringify(parsedData, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cpt-city-full.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Export error:', error);
+        alert('Failed to export JSON: ' + error.message);
+      }
+    }
+    
+    function downloadFiltered() {
+      try {
+        const dataStr = JSON.stringify(filteredData, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cpt-city-filtered.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Export error:', error);
+        alert('Failed to export filtered JSON: ' + error.message);
+      }
+    }
+    
+    async function copyToClipboard() {
+      try {
+        const dataStr = JSON.stringify(filteredData, null, 2);
+        await navigator.clipboard.writeText(dataStr);
+        alert('Copied to clipboard!');
+      } catch (err) {
+        console.error('Failed to copy:', err);
+        alert('Failed to copy to clipboard');
+      }
+    }
+    
+    // ============================================================================
+    // EVENT LISTENERS
+    // ============================================================================
+    document.getElementById('pageInput').addEventListener('change', function(e) {
       const totalPages = Math.ceil(filteredData.length / itemsPerPage);
       let page = parseInt(e.target.value);
       
@@ -949,174 +997,30 @@
       }
     });
     
-    function downloadJSON() {
-      const dataStr = JSON.stringify(parsedData, null, 2);
-      const blob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'cpt-city-full.json';
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-    
-    function downloadFiltered() {
-      const dataStr = JSON.stringify(filteredData, null, 2);
-      const blob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'cpt-city-filtered.json';
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-    
-    async function copyToClipboard() {
-      const dataStr = JSON.stringify(filteredData, null, 2);
-      try {
-        await navigator.clipboard.writeText(dataStr);
-        alert('Copied to clipboard!');
-      } catch (err) {
-        console.error('Failed to copy:', err);
-        alert('Failed to copy to clipboard');
-      }
-    }
-    
-    // Add event listeners for filters
-    document.getElementById('licenseFilter').addEventListener('change', () => {
-      currentPage = 1;
-      applyFilters();
-    });
-    
-    document.getElementById('nameSearch').addEventListener('input', () => {
-      currentPage = 1;
-      applyFilters();
-    });
-    
-    document.getElementById('dirFilter').addEventListener('change', () => {
+    document.getElementById('viewFilter').addEventListener('change', function() {
       currentPage = 1;
       applyFilters();
     });
 
-    document.getElementById('itemsPerPage').addEventListener('change', () => {
+    document.getElementById('licenseFilter').addEventListener('change', function() {
+      currentPage = 1;
+      applyFilters();
+    });
+    
+    document.getElementById('nameSearch').addEventListener('input', function() {
+      currentPage = 1;
+      applyFilters();
+    });
+    
+    document.getElementById('dirFilter').addEventListener('change', function() {
       currentPage = 1;
       applyFilters();
     });
 
-/*
-    // http://seaviewsensing.com/pub/cpt-city/views/
-    // http://seaviewsensing.com/pub/cpt-city/views/topo.xml
-    // http://seaviewsensing.com/pub/cpt-city/views/topobath.xml
-
-    topobath_xmlString = `<selection cadence="low">
-    <script id="argent-x-extension" data-extension-id="dlcobpjiigpikoobohmabehhmhfoodbb"/>
-    <script/>
-    <name short="topobath">Topography/bathymetry</name>
-    <synopsis>Mixed palettes for topography and bathymetry</synopsis>
-    <description>Mixed palettes for topography and bathymetry.</description>
-    <seealsoselects>
-    <select short="topo">Topography</select>
-    <select short="bath">Bathymetry</select>
-    </seealsoselects>
-    <gradients>
-    <gradient file="ibcao" dir="ibcao"/>
-    <gradient file="NZ_blue" dir="em"/>
-    <gradient file="wiki-2.0" dir="wkp/template"/>
-    <gradient file="wiki-scotland" dir="wkp/country"/>
-    <gradient file="wiki-france" dir="wkp/country"/>
-    <gradient file="GMT_globe" dir="gmt"/>
-    <gradient file="GMT_relief" dir="gmt"/>
-    <gradient file="GMT_sealand" dir="gmt"/>
-    <gradient file="GMT_topo" dir="gmt"/>
-    <gradient file="Caribbean" dir="vh"/>
-    <gradient file="etopo2" dir="grass"/>
-    <gradient file="srtm" dir="grass"/>
-    <gradient file="terrain" dir="grass"/>
-    <gradient file="ETOPO1" dir="ngdc"/>
-    <gradient file="ETOPO1-Reed" dir="ngdc"/>
-    <gradient file="wiki-plumbago" dir="wkp/plumbago"/>
-    <gradient file="topo_15lev" dir="ncl"/>
-    <gradient file="meyers" dir="wkp/encyclopedia"/>
-    <gradient file="nordisk-familjebok" dir="wkp/encyclopedia"/>
-    <gradient file="mby" dir="mby"/>
-    <gradient file="afrikakarte" dir="wkp/lilleskut"/>
-    <gradient file="colombia" dir="wkp/shadowxfox"/>
-    <gradient file="arctic" dir="arendal"/>
-    </gradients>
-    </selection>`
-
-    topo_xmlString = `<selection cadence="low">
-    <script id="argent-x-extension" data-extension-id="dlcobpjiigpikoobohmabehhmhfoodbb"/>
-    <script/>
-    <name short="topo">Topography</name>
-    <synopsis>Selected palettes for topography</synopsis>
-    <description>Selected palettes for topography.</description>
-    <seealsocollects>
-    <collect dir="esri/hypsometry">ESRI hypsometry</collect>
-    </seealsocollects>
-    <seealsoselects>
-    <select short="topobath">Topographic-bathymetric schemes</select>
-    </seealsoselects>
-    <gradients>
-    <gradient file="DEM_poster" dir="td"/>
-    <gradient file="DEM_print" dir="td"/>
-    <gradient file="DEM_screen" dir="td"/>
-    <gradient file="c3t1" dir="jjg/dem"/>
-    <gradient file="c3t3" dir="jjg/dem"/>
-    <gradient file="garish14" dir="jjg/dem"/>
-    <gradient file="natural" dir="fme/feet"/>
-    <gradient file="neutral" dir="fme/feet"/>
-    <gradient file="textbook" dir="fme/feet"/>
-    <gradient file="tv-a" dir="jm/tv"/>
-    <gradient file="o2-a" dir="jm/o2"/>
-    <gradient file="db-a" dir="jm/db"/>
-    <gradient file="ao-a" dir="jm/ao"/>
-    <gradient file="wt-a" dir="jm/wt"/>
-    <gradient file="ws-a" dir="jm/ws"/>
-    <gradient file="cd-a" dir="jm/cd"/>
-    <gradient file="sd-a" dir="jm/sd"/>
-    <gradient file="elevation" dir="grass"/>
-    <gradient file="njdem100" dir="njgs"/>
-    <gradient file="palm_springs_4" dir="esri/hypsometry/na"/>
-    <gradient file="pnw_1113" dir="esri/hypsometry/na"/>
-    <gradient file="utah_1" dir="esri/hypsometry/na"/>
-    <gradient file="europe_3" dir="esri/hypsometry/eu"/>
-    <gradient file="iceland" dir="esri/hypsometry/eu"/>
-    <gradient file="spain" dir="esri/hypsometry/eu"/>
-    <gradient file="os250k-feet" dir="os"/>
-    <gradient file="tpushuf" dir="tp"/>
-    <gradient file="wiki-schwarzwald-cont" dir="wkp/schwarzwald"/>
-    <gradient file="wiki-schwarzwald-d050" dir="wkp/schwarzwald"/>
-    <gradient file="wiki-knutux" dir="wkp/knutux"/>
-    <gradient file="nrwc" dir="wkp/tubs"/>
-    <gradient file="pakistan" dir="wkp/jarke"/>
-    <gradient file="usgs-gswa2" dir="usgs"/>
-    <gradient file="zambezi-focus" dir="arendal"/>
-    <gradient file="zambezi-proximity" dir="arendal"/>
-    </gradients>
-    </selection>`
-
-    function parseXml(xmlString) {
-      parser = new DOMParser();
-      xml = parser.parseFromString(xmlString, 'text/xml');
-
-      gradients = xml.querySelectorAll('gradient')
-      matches = Array.from(gradients).map(g => {
-          file = g.getAttribute('file')
-          dir = g.getAttribute('dir')
-          match = all.find(i => i.path === `cpt-city/${dir}/${file}.cpt`)
-          return match
-        }
-      ) 
-      return matches
-    }
-    // all = ... // paste json content of cpt-city-colorramps-20251117-7280.json
-    views = {
-      topo: parseXml(topo_xmlString),
-      topobath: parseXml(topobath_xmlString),
-    }
-    views
-    */
+    document.getElementById('itemsPerPage').addEventListener('change', function() {
+      currentPage = 1;
+      applyFilters();
+    });
   </script>
 </body>
 </html>
