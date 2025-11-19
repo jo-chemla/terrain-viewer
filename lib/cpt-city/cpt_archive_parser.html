@@ -635,75 +635,75 @@
     function addEmbeddedViews() {
       const viewFilter = document.getElementById('viewFilter');
       
-      const topobathXML = '<selection cadence="low">' +
-        '<name short="topobath">Topography/bathymetry</name>' +
-        '<gradients>' +
-        '<gradient file="ibcao" dir="ibcao"/>' +
-        '<gradient file="NZ_blue" dir="em"/>' +
-        '<gradient file="wiki-2.0" dir="wkp/template"/>' +
-        '<gradient file="wiki-scotland" dir="wkp/country"/>' +
-        '<gradient file="wiki-france" dir="wkp/country"/>' +
-        '<gradient file="GMT_globe" dir="gmt"/>' +
-        '<gradient file="GMT_relief" dir="gmt"/>' +
-        '<gradient file="GMT_sealand" dir="gmt"/>' +
-        '<gradient file="GMT_topo" dir="gmt"/>' +
-        '<gradient file="Caribbean" dir="vh"/>' +
-        '<gradient file="etopo2" dir="grass"/>' +
-        '<gradient file="srtm" dir="grass"/>' +
-        '<gradient file="terrain" dir="grass"/>' +
-        '<gradient file="ETOPO1" dir="ngdc"/>' +
-        '<gradient file="ETOPO1-Reed" dir="ngdc"/>' +
-        '<gradient file="wiki-plumbago" dir="wkp/plumbago"/>' +
-        '<gradient file="topo_15lev" dir="ncl"/>' +
-        '<gradient file="meyers" dir="wkp/encyclopedia"/>' +
-        '<gradient file="nordisk-familjebok" dir="wkp/encyclopedia"/>' +
-        '<gradient file="mby" dir="mby"/>' +
-        '<gradient file="afrikakarte" dir="wkp/lilleskut"/>' +
-        '<gradient file="colombia" dir="wkp/shadowxfox"/>' +
-        '<gradient file="arctic" dir="arendal"/>' +
-        '</gradients>' +
-        '</selection>';
+      const topobathXML = `<selection cadence="low">
+        <name short="topobath">Topography/bathymetry</name>
+        <gradients>
+        <gradient file="ibcao" dir="ibcao"/>
+        <gradient file="NZ_blue" dir="em"/>
+        <gradient file="wiki-2.0" dir="wkp/template"/>
+        <gradient file="wiki-scotland" dir="wkp/country"/>
+        <gradient file="wiki-france" dir="wkp/country"/>
+        <gradient file="GMT_globe" dir="gmt"/>
+        <gradient file="GMT_relief" dir="gmt"/>
+        <gradient file="GMT_sealand" dir="gmt"/>
+        <gradient file="GMT_topo" dir="gmt"/>
+        <gradient file="Caribbean" dir="vh"/>
+        <gradient file="etopo2" dir="grass"/>
+        <gradient file="srtm" dir="grass"/>
+        <gradient file="terrain" dir="grass"/>
+        <gradient file="ETOPO1" dir="ngdc"/>
+        <gradient file="ETOPO1-Reed" dir="ngdc"/>
+        <gradient file="wiki-plumbago" dir="wkp/plumbago"/>
+        <gradient file="topo_15lev" dir="ncl"/>
+        <gradient file="meyers" dir="wkp/encyclopedia"/>
+        <gradient file="nordisk-familjebok" dir="wkp/encyclopedia"/>
+        <gradient file="mby" dir="mby"/>
+        <gradient file="afrikakarte" dir="wkp/lilleskut"/>
+        <gradient file="colombia" dir="wkp/shadowxfox"/>
+        <gradient file="arctic" dir="arendal"/>
+        </gradients>
+        </selection>`;
       
-      const topoXML = '<selection cadence="low">' +
-        '<name short="topo">Topography</name>' +
-        '<gradients>' +
-        '<gradient file="DEM_poster" dir="td"/>' +
-        '<gradient file="DEM_print" dir="td"/>' +
-        '<gradient file="DEM_screen" dir="td"/>' +
-        '<gradient file="c3t1" dir="jjg/dem"/>' +
-        '<gradient file="c3t3" dir="jjg/dem"/>' +
-        '<gradient file="garish14" dir="jjg/dem"/>' +
-        '<gradient file="natural" dir="fme/feet"/>' +
-        '<gradient file="neutral" dir="fme/feet"/>' +
-        '<gradient file="textbook" dir="fme/feet"/>' +
-        '<gradient file="tv-a" dir="jm/tv"/>' +
-        '<gradient file="o2-a" dir="jm/o2"/>' +
-        '<gradient file="db-a" dir="jm/db"/>' +
-        '<gradient file="ao-a" dir="jm/ao"/>' +
-        '<gradient file="wt-a" dir="jm/wt"/>' +
-        '<gradient file="ws-a" dir="jm/ws"/>' +
-        '<gradient file="cd-a" dir="jm/cd"/>' +
-        '<gradient file="sd-a" dir="jm/sd"/>' +
-        '<gradient file="elevation" dir="grass"/>' +
-        '<gradient file="njdem100" dir="njgs"/>' +
-        '<gradient file="palm_springs_4" dir="esri/hypsometry/na"/>' +
-        '<gradient file="pnw_1113" dir="esri/hypsometry/na"/>' +
-        '<gradient file="utah_1" dir="esri/hypsometry/na"/>' +
-        '<gradient file="europe_3" dir="esri/hypsometry/eu"/>' +
-        '<gradient file="iceland" dir="esri/hypsometry/eu"/>' +
-        '<gradient file="spain" dir="esri/hypsometry/eu"/>' +
-        '<gradient file="os250k-feet" dir="os"/>' +
-        '<gradient file="tpushuf" dir="tp"/>' +
-        '<gradient file="wiki-schwarzwald-cont" dir="wkp/schwarzwald"/>' +
-        '<gradient file="wiki-schwarzwald-d050" dir="wkp/schwarzwald"/>' +
-        '<gradient file="wiki-knutux" dir="wkp/knutux"/>' +
-        '<gradient file="nrwc" dir="wkp/tubs"/>' +
-        '<gradient file="pakistan" dir="wkp/jarke"/>' +
-        '<gradient file="usgs-gswa2" dir="usgs"/>' +
-        '<gradient file="zambezi-focus" dir="arendal"/>' +
-        '<gradient file="zambezi-proximity" dir="arendal"/>' +
-        '</gradients>' +
-        '</selection>';
+      const topoXML = `<selection cadence="low">
+        <name short="topo">Topography</name>
+        <gradients>
+        <gradient file="DEM_poster" dir="td"/>
+        <gradient file="DEM_print" dir="td"/>
+        <gradient file="DEM_screen" dir="td"/>
+        <gradient file="c3t1" dir="jjg/dem"/>
+        <gradient file="c3t3" dir="jjg/dem"/>
+        <gradient file="garish14" dir="jjg/dem"/>
+        <gradient file="natural" dir="fme/feet"/>
+        <gradient file="neutral" dir="fme/feet"/>
+        <gradient file="textbook" dir="fme/feet"/>
+        <gradient file="tv-a" dir="jm/tv"/>
+        <gradient file="o2-a" dir="jm/o2"/>
+        <gradient file="db-a" dir="jm/db"/>
+        <gradient file="ao-a" dir="jm/ao"/>
+        <gradient file="wt-a" dir="jm/wt"/>
+        <gradient file="ws-a" dir="jm/ws"/>
+        <gradient file="cd-a" dir="jm/cd"/>
+        <gradient file="sd-a" dir="jm/sd"/>
+        <gradient file="elevation" dir="grass"/>
+        <gradient file="njdem100" dir="njgs"/>
+        <gradient file="palm_springs_4" dir="esri/hypsometry/na"/>
+        <gradient file="pnw_1113" dir="esri/hypsometry/na"/>
+        <gradient file="utah_1" dir="esri/hypsometry/na"/>
+        <gradient file="europe_3" dir="esri/hypsometry/eu"/>
+        <gradient file="iceland" dir="esri/hypsometry/eu"/>
+        <gradient file="spain" dir="esri/hypsometry/eu"/>
+        <gradient file="os250k-feet" dir="os"/>
+        <gradient file="tpushuf" dir="tp"/>
+        <gradient file="wiki-schwarzwald-cont" dir="wkp/schwarzwald"/>
+        <gradient file="wiki-schwarzwald-d050" dir="wkp/schwarzwald"/>
+        <gradient file="wiki-knutux" dir="wkp/knutux"/>
+        <gradient file="nrwc" dir="wkp/tubs"/>
+        <gradient file="pakistan" dir="wkp/jarke"/>
+        <gradient file="usgs-gswa2" dir="usgs"/>
+        <gradient file="zambezi-focus" dir="arendal"/>
+        <gradient file="zambezi-proximity" dir="arendal"/>
+        </gradients>
+        </selection>`;
       
       const topobathGradients = parseViewXML(topobathXML);
       const topoGradients = parseViewXML(topoXML);
