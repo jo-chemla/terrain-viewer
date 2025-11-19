@@ -1,4 +1,5 @@
 import { atomWithStorage } from "jotai/utils"
+import { atom } from "jotai"
 
 export const mapboxKeyAtom = atomWithStorage("mapboxKey", "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw")
 export const googleKeyAtom = atomWithStorage("googleKey", "AIzaSyAo6DIOnhYdywBidl4clsPZPkQkXfq6QhI")
@@ -20,6 +21,28 @@ export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTiti
 export const isBackgroundOpenAtom  = atomWithStorage("isBackgroundOpen", true)
 export const colorRampTypeAtom = atomWithStorage('colorRampType', 'classic')
 export const licenseFilterAtom = atomWithStorage('licenseFilter', 'all' )
+
+type SkyConfig = {
+  skyColor: string
+  skyHorizonBlend: number
+  horizonColor: string
+  horizonFogBlend: number
+  fogColor: string
+  fogGroundBlend: number
+  matchThemeColors: boolean
+  backgroundLayerActive: boolean
+}
+
+export const skyConfigAtom = atom<SkyConfig>({
+  skyColor: '#80ccff',
+  skyHorizonBlend: 0.5,
+  horizonColor: '#ccddff',
+  horizonFogBlend: 0.5,
+  fogColor: '#fcf0dd',
+  fogGroundBlend: 0.2,
+  matchThemeColors: false,
+  backgroundLayerActive: true,
+})
 
 export interface CustomTerrainSource {
   id: string

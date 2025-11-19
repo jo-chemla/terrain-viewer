@@ -27,7 +27,7 @@ import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom, maxResolutionAtom, themeAtom,
   isGeneralOpenAtom, isTerrainSourceOpenAtom, isVizModesOpenAtom, isHillshadeOpenAtom, isTerrainRasterOpenAtom,
-  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom, colorRampTypeAtom, licenseFilterAtom, isBackgroundOpenAtom,
+  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom, colorRampTypeAtom, licenseFilterAtom, isBackgroundOpenAtom, skyConfigAtom,
   type CustomTerrainSource,
 } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -558,12 +558,17 @@ const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTilesUrl: 
 
   return (
     <Dialog>
+
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer">
-          <Info className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="cursor-pointer">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span><Info className="h-4 w-4" /></span>
+            </TooltipTrigger>
+            <TooltipContent>View source details</TooltipContent>
+          </Tooltip>
         </Button>
       </DialogTrigger>
-
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{config.name}</DialogTitle>
@@ -746,11 +751,7 @@ const SourceDetails: React.FC<{
     <Label htmlFor={`source-${sourceKey}`} className={`flex-1 text-sm ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
       {config.name}
     </Label>
-    <Tooltip>
-      <TooltipTrigger>
-        <SourceInfoDialog sourceKey={sourceKey} config={config} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} /></TooltipTrigger>
-      <TooltipContent><p>View source details</p></TooltipContent>
-    </Tooltip>
+    <SourceInfoDialog sourceKey={sourceKey} config={config} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} />
     <Tooltip>
       <TooltipTrigger asChild>
         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={linkCallback(config.link)}>
@@ -1409,19 +1410,31 @@ const ContourOptionsSection: React.FC<{ state: any; setState: (updates: any) => 
 const BackgroundOptionsSection: React.FC<{ state: any; setState: (updates: any) => void; theme?: 'light' | 'dark' }> = ({ state, setState, theme = 'light' }) => {
   const [isOpen, setIsOpen] = useAtom(isBackgroundOpenAtom)
 
+  const [skyConfig, setSkyConfig] = useAtom(skyConfigAtom)
+
   if (!state.showBackground) return null
 
   const handleMatchThemeToggle = (checked: boolean) => {
-    if (checked) {
+    if (checked === true) {
       const themeColor = theme === 'light' ? '#ffffff' : '#000000'
-      setState({
-        matchThemeColors: checked,
+      // setState({
+      //   matchThemeColors: checked,
+      //   skyColor: themeColor,
+      //   horizonColor: themeColor,
+      //   fogColor: themeColor
+      // })
+      setSkyConfig({
+        ...skyConfig,
+        matchThemeColors: true,
         skyColor: themeColor,
         horizonColor: themeColor,
         fogColor: themeColor
       })
     } else {
-      setState({ matchThemeColors: checked })
+      setSkyConfig({
+        ...skyConfig,
+        matchThemeColors: false
+      })
     }
   }
 
@@ -1434,7 +1447,7 @@ const BackgroundOptionsSection: React.FC<{ state: any; setState: (updates: any) 
       <div className="flex items-center justify-between py-0.5">
         <Checkbox
           id="match-theme"
-          checked={state.matchThemeColors}
+          checked={skyConfig.matchThemeColors}
           onCheckedChange={handleMatchThemeToggle}
         />
         <Label htmlFor="match-theme" className="text-sm font-medium cursor-pointer flex-1 ml-2">
@@ -1444,24 +1457,28 @@ const BackgroundOptionsSection: React.FC<{ state: any; setState: (updates: any) 
 
       <div className="space-y-2 pt-1">
 
-        {state.matchThemeColors ? (
+        {skyConfig.matchThemeColors ? (
 
-          <SliderControl label="Fog Blend" value={state.fogGroundBlend * 100} onChange={(v) => setState({ fogGroundBlend: v / 100 })} min={0} max={100} step={1} suffix="%" />
+          <SliderControl label="Fog Blend" value={skyConfig.fogGroundBlend * 100} onChange={(v) =>
+            setSkyConfig({ ...skyConfig, fogGroundBlend: v / 100 })}
+            min={0} max={100} step={1} suffix="%" />
         ) :
           (
             <>
               <div className="flex gap-3">
                 <Input
                   type="color"
-                  value={state.fogColor}
-                  onChange={(e) => setState({ fogColor: e.target.value })}
+                  value={skyConfig.fogColor}
+                  onChange={(e) =>
+                    setSkyConfig({ ...skyConfig, fogColor: e.target.value })}
                   className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
                 />
                 <div className="grow">
                   <SliderControl
                     label="Fog Color Blend"
-                    value={state.fogGroundBlend * 100}
-                    onChange={(v) => setState({ fogGroundBlend: v / 100 })}
+                    value={skyConfig.fogGroundBlend * 100}
+                    onChange={(v) =>
+                      setSkyConfig({ ...skyConfig, fogGroundBlend: v / 100 })}
                     min={0} max={100} step={1} suffix="%"
                   />
                 </div>
@@ -1470,15 +1487,17 @@ const BackgroundOptionsSection: React.FC<{ state: any; setState: (updates: any) 
               <div className="flex gap-3">
                 <Input
                   type="color"
-                  value={state.horizonColor}
-                  onChange={(e) => setState({ horizonColor: e.target.value })}
+                  value={skyConfig.horizonColor}
+                  onChange={(e) =>
+                    setSkyConfig({ ...skyConfig, horizonColor: e.target.value })}
                   className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
                 />
                 <div className="grow">
                   <SliderControl
                     label="Horizon Color Blend"
-                    value={state.horizonFogBlend * 100}
-                    onChange={(v) => setState({ horizonFogBlend: v / 100 })}
+                    value={skyConfig.horizonFogBlend * 100}
+                    onChange={(v) =>
+                      setSkyConfig({ ...skyConfig, horizonFogBlend: v / 100 })}
                     min={0} max={100} step={1} suffix="%"
                   />
                 </div>
@@ -1487,15 +1506,17 @@ const BackgroundOptionsSection: React.FC<{ state: any; setState: (updates: any) 
               <div className="flex gap-3">
                 <Input
                   type="color"
-                  value={state.skyColor}
-                  onChange={(e) => setState({ skyColor: e.target.value })}
+                  value={skyConfig.skyColor}
+                  onChange={(e) =>
+                    setSkyConfig({ ...skyConfig, skyColor: e.target.value })}
                   className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
                 />
                 <div className="grow">
                   <SliderControl
                     label="Sky Color Blend"
-                    value={state.skyHorizonBlend * 100}
-                    onChange={(v) => setState({ skyHorizonBlend: v / 100 })}
+                    value={skyConfig.skyHorizonBlend * 100}
+                    onChange={(v) =>
+                      setSkyConfig({ ...skyConfig, skyHorizonBlend: v / 100 })}
                     min={0} max={100} step={1} suffix="%"
                   />
                 </div>
@@ -1507,8 +1528,9 @@ const BackgroundOptionsSection: React.FC<{ state: any; setState: (updates: any) 
       <div className="flex items-center justify-between py-0.5">
         <Checkbox
           id="bg-layer-active"
-          checked={state.backgroundLayerActive}
-          onCheckedChange={(checked) => setState({ backgroundLayerActive: checked })}
+          checked={skyConfig.backgroundLayerActive}
+          onCheckedChange={(checked) =>
+            setSkyConfig({ ...skyConfig, backgroundLayerActive: checked === true })}
         />
         <div className="flex items-center flex-1 ml-2 gap-1">
           <Tooltip>

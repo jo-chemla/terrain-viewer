@@ -19,7 +19,9 @@ import { colorRampsFlat } from "@/lib/color-ramps"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import mlcontour from "maplibre-contour"
 import { useAtom } from "jotai"
-import { mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
+import {
+  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, useCogProtocolVsTitilerAtom, skyConfigAtom
+} from "@/lib/settings-atoms"
 import { themeAtom } from "@/lib/settings-atoms"
 
 import maplibregl, { type RasterDEMSourceSpecification } from 'maplibre-gl';
@@ -380,16 +382,10 @@ export function TerrainViewer() {
     contourMajor: parseAsFloat.withDefault(200),
     minElevation: parseAsFloat.withDefault(0),
     maxElevation: parseAsFloat.withDefault(4000),
-    // sky state variables
-    skyColor: parseAsString.withDefault("#80ccff"),
-    skyHorizonBlend: parseAsFloat.withDefault(0.5),
-    horizonColor: parseAsString.withDefault("#ccddff"),
-    horizonFogBlend: parseAsFloat.withDefault(0.5),
-    fogColor: parseAsString.withDefault("#fcf0dd"),
-    fogGroundBlend: parseAsFloat.withDefault(0.2),
-    matchThemeColors: parseAsBoolean.withDefault(true),
-    backgroundLayerActive: parseAsBoolean.withDefault(true)
   })
+
+  // This could be renamed ephemeralState, stores backgroundLayerActive, sky etc
+  const [skyConfig, setSkyConfig] = useAtom(skyConfigAtom)
 
   // Compute hillshade paint with useMemo to prevent recalculation
   const hillshadePaint = (() => {
@@ -777,30 +773,16 @@ export function TerrainViewer() {
 
   const [theme, _] = useAtom(themeAtom)
 
-  const getSkyConfig = (state: any) => ({
-    'sky-color': state.skyColor,
-    'sky-horizon-blend': state.skyHorizonBlend,
-    'horizon-color': state.horizonColor,
-    'horizon-fog-blend': state.horizonFogBlend,
-    'fog-color': state.fogColor,
-    'fog-ground-blend': state.fogGroundBlend
+  const getSkyConfig = () => ({
+    'sky-color': skyConfig.skyColor,
+    'sky-horizon-blend': skyConfig.skyHorizonBlend,
+    'horizon-color': skyConfig.horizonColor,
+    'horizon-fog-blend': skyConfig.horizonFogBlend,
+    'fog-color': skyConfig.fogColor,
+    'fog-ground-blend': skyConfig.fogGroundBlend
   })
 
-
-  const sky: SkySpecification = getSkyConfig(state)
-  // const sky: SkySpecification = {
-  //   // // 'sky-color': '#f0f',
-  //   // 'sky-horizon-blend': 0.2,
-  //   // 'horizon-fog-blend': 0.9,
-  //   // 'fog-ground-blend': 0.5
-  //   'sky-color': '#80ccff',
-  //   'sky-horizon-blend': 0.5,
-  //   'horizon-color': '#ccddff',
-  //   'horizon-fog-blend': 0.5,
-  //   'fog-color': '#fcf0dd',
-  //   'fog-ground-blend': 0.2
-  // }
-
+  const sky: SkySpecification = getSkyConfig()
 
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
@@ -833,7 +815,7 @@ export function TerrainViewer() {
               })
             )
           }}
-          sky={sky}
+          sky={getSkyConfig()}
           minPitch={0}
           maxPitch={state.viewMode === "2d" ? 0 : 85}
           rollEnabled={state.viewMode !== "2d"}
@@ -860,7 +842,7 @@ export function TerrainViewer() {
           <RasterBasemapSource terrainSource={state.terrainSource} mapboxKey={mapboxKey} />
 
           {/* Layers */}
-          {state.backgroundLayerActive && <BackgroundLayer theme={theme} mapRef={mapARef} />}
+          {skyConfig.backgroundLayerActive && <BackgroundLayer theme={theme} mapRef={mapARef} />}
           <RasterLayer showRasterBasemap={state.showRasterBasemap} rasterBasemapOpacity={state.rasterBasemapOpacity} />
           <HillshadeLayer showHillshade={state.showHillshade} hillshadePaint={hillshadePaint} />
           <ColorReliefLayer showColorRelief={state.showColorRelief} colorReliefPaint={colorReliefPaint} />
