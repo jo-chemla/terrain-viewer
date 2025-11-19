@@ -54,10 +54,17 @@ const geocoderApi: MaplibreGeocoderApi = {
     };
   }
 };
+export default function GeocoderControl({
+  marker = true,
+  position,
+  onLoading = () => { },
+  onResults = () => { },
+  onResult = () => { },
+  onError = () => { },
+  ...props
+}: GeocoderControlProps) {
 
-/* eslint-disable complexity,max-statements */
-export default function GeocoderControl(props: GeocoderControlProps) {
-  const [marker, setMarker] = useState(null);
+  const [markerEl, setMarkerEl] = useState<React.ReactNode>(null);
 
   const geocoder = useControl<MaplibreGeocoder>(
     ({ mapLib }) => {
@@ -65,31 +72,38 @@ export default function GeocoderControl(props: GeocoderControlProps) {
         ...props,
         maplibregl: mapLib,
       });
-      ctrl.on('loading', props.onLoading);
-      ctrl.on('results', props.onResults);
-      ctrl.on('result', evt => {
-        props.onResult(evt);
+
+      ctrl.on("loading", onLoading);
+      ctrl.on("results", onResults);
+      ctrl.on("result", evt => {
+        onResult(evt);
 
         const { result } = evt;
         const location =
           result &&
-          (result.center || (result.geometry?.type === 'Point' && result.geometry.coordinates));
-        if (location && props.marker) {
-          const markerProps = typeof props.marker === 'object' ? props.marker : {};
-          setMarker(<Marker {...markerProps} longitude={location[0]} latitude={location[1]} />);
+          (result.center ||
+            (result.geometry?.type === "Point" && result.geometry.coordinates));
+
+        if (location && marker) {
+          const markerProps =
+            typeof marker === "object" ? marker : {};
+          setMarkerEl(
+            <Marker {...markerProps} longitude={location[0]} latitude={location[1]} />
+          );
         } else {
-          setMarker(null);
+          setMarkerEl(null);
         }
       });
-      ctrl.on('error', props.onError);
+
+      ctrl.on("error", onError);
       return ctrl;
     },
     {
-      position: props.position
+      position
     }
   );
 
-  // @ts-ignore (TS2339) private member
+  // @ts-ignore accessing private member
   if (geocoder._map) {
     if (geocoder.getProximity() !== props.proximity && props.proximity !== undefined) {
       geocoder.setProximity(props.proximity);
@@ -124,31 +138,7 @@ export default function GeocoderControl(props: GeocoderControlProps) {
     if (geocoder.getFilter() !== props.filter && props.filter !== undefined) {
       geocoder.setFilter(props.filter);
     }
-    // if (geocoder.getOrigin() !== props.origin && props.origin !== undefined) {
-    //   geocoder.setOrigin(props.origin);
-    // }
-    // if (geocoder.getAutocomplete() !== props.autocomplete && props.autocomplete !== undefined) {
-    //   geocoder.setAutocomplete(props.autocomplete);
-    // }
-    // if (geocoder.getFuzzyMatch() !== props.fuzzyMatch && props.fuzzyMatch !== undefined) {
-    //   geocoder.setFuzzyMatch(props.fuzzyMatch);
-    // }
-    // if (geocoder.getRouting() !== props.routing && props.routing !== undefined) {
-    //   geocoder.setRouting(props.routing);
-    // }
-    // if (geocoder.getWorldview() !== props.worldview && props.worldview !== undefined) {
-    //   geocoder.setWorldview(props.worldview);
-    // }
   }
-  return marker;
+
+  return markerEl;
 }
-
-const noop = () => { };
-
-GeocoderControl.defaultProps = {
-  marker: true,
-  onLoading: noop,
-  onResults: noop,
-  onResult: noop,
-  onError: noop
-};
