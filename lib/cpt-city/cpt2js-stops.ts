@@ -3,8 +3,9 @@ import chroma from 'chroma-js'
 import type { InterpolationMode, Scale, Palette, PaletteColor, PaletteEntry, PaletteArray, ParseOptions } from 'chroma-js';
 const DEFAULT_MODE: InterpolationMode = 'rgb';
 
-function parseValue(value: string | number, bounds: [number, number]): number | null | undefined {
-  if (typeof value === 'string') {
+function parseValue(value_: string | number, bounds: [number, number]): number | null | undefined {
+  if (typeof value_ === 'string') {
+    const value = value_.trim();
     if (value[value.length - 1] === '%') {
       const percentage = parseFloat(value) / 100;
       if (percentage < 0 || percentage > 1) {
@@ -28,8 +29,8 @@ function parseValue(value: string | number, bounds: [number, number]): number | 
     } else {
       return parseFloat(value);
     }
-  } else if (typeof value === 'number') {
-    return value;
+  } else if (typeof value_ === 'number') {
+    return value_;
   } else {
     throw new Error('Invalid state');
   }
@@ -84,7 +85,8 @@ function isLineComment(line: string): boolean {
 }
 
 function isGmt4Text(lines: string[]): boolean {
-  return lines.some(line => {
+  return lines.some(line_ => {
+    const line = line_.trim();
     if (!isLineComment(line)) {
       if (line.split(LINE_SEPARATOR_REGEX).length >= 8) {
         return true;
@@ -95,7 +97,8 @@ function isGmt4Text(lines: string[]): boolean {
 }
 
 function isGmt5Text(lines: string[]): boolean {
-  return lines.some(line => {
+  return lines.some(line_ => {
+    const line = line_.trim();
     if (!isLineComment(line)) {
       if (line.match(/\d+\-\d+\-\d+/) || line.match(/\d+\/\d+\/\d+/)) {
         return true;
@@ -129,7 +132,8 @@ function parsePaletteTextInternal(paletteText: string): { paletteArray: PaletteA
 
   const paletteLines = lines.filter(x => !!x && !x.startsWith('#'))
   const paletteArray: PaletteArray = [];
-  for (let paletteLine of paletteLines) {
+  for (let paletteLine_ of paletteLines) {
+    const paletteLine = paletteLine_.trim();
     const fields = paletteLine.split(LINE_SEPARATOR_REGEX);
     if (isGmt4) {
       if (fields.length === 8 || fields.length === 9) {
