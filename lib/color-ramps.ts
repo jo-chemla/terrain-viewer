@@ -5,6 +5,33 @@ import type { Scale } from 'chroma-js';
 // import { parsePalette, colorRampCanvas } from 'cpt2js';
 import {parsePaletteWithStops} from './cpt-city/cpt2js-stops';
 
+export function extractStops(colors: any[]): number[] {
+  const stops = []
+  // Extract stops at indices 3 += 2
+  for (let i = 3; i < colors.length; i += 2) {
+    stops.push(colors[i])
+  }
+  return stops
+}
+// Utility: Remap stops to custom min/max
+export function remapColorRampStops(colors: any[], customMin: Number | undefined, customMax: Number | undefined) {
+  const newColors = [...colors]
+  const stops = extractStops(colors)
+  const rampMin = Math.min(...stops)
+  const rampMax = Math.max(...stops)
+  if (rampMax === rampMin) return newColors
+  const remap = (value: Number): Number => {
+    const t = (value - rampMin) / (rampMax - rampMin)
+    return customMin + t * (customMax - customMin)
+  }
+  // Apply remap to stops in-place
+  let si = 0
+  for (let i = 3; i < newColors.length; i += 2) {
+    newColors[i] = remap(stops[si++])
+  }
+  return newColors
+}
+
 function fixDomain(domain: number[]) {
   const domainFixed = [...domain];
   for (let i = 1; i < domain.length - 1; i++) {
@@ -37,20 +64,13 @@ function extendCptCity(arr: any[]) {
   )
 }
 
-const cptColorRampsTopo = extendCptCity(cpt_city_views.topo)
-const cptColorRampsTopobath = extendCptCity(cpt_city_views.topobath)
-
-export const colorRampsTopo: Record<ColorReliefRamp, { name: string; colors: any[] }> = Object.fromEntries(
-  cptColorRampsTopo
-    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
-    .map((cpt) => [cpt.name.toLowerCase(), {...cpt, name: cpt.name, colors: cpt.colors, }])
-);
-export const colorRampsTopobath: Record<ColorReliefRamp, { name: string; colors: any[] }> = Object.fromEntries(
-  cptColorRampsTopobath
-    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
-    .map((cpt) => [cpt.name.toLowerCase(), {...cpt, name: cpt.name, colors: cpt.colors, }])
-);
-
+function cptToObject(cptArray: any[]): Record<ColorReliefRamp, { name: string; colors: any[] }> {
+  return Object.fromEntries(
+    cptArray
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+      .map((cpt) => [cpt.name.toLowerCase(), {...cpt, name: cpt.name, colors: cpt.colors, }])
+  )
+}
 
 // Test
 // const cpt = cptColorRampsTopo[0].content
@@ -347,11 +367,41 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
 
 }
 
-export const colorRampsFlat = Object.assign({}, colorRampsClassic, colorRampsTopo, colorRampsTopobath);
+// const cptColorRampsTopo = extendCptCity(cpt_city_views.topo)
+// const cptColorRampsTopobath = extendCptCity(cpt_city_views.topobath)
+// const cptColorRampsTemp = extendCptCity(cpt_city_views.temp)
+// const cptColorRampsTopcpt = extendCptCity(cpt_city_views.topcpt)
+// const cptColorRampsTopsvg = extendCptCity(cpt_city_views.topsvg)
+// const cptColorRampsTopqgs = extendCptCity(cpt_city_views.topqgs)
 
+// export const colorRampsTopo = cptToObject(cptColorRampsTopo)
+// export const colorRampsTopobath = cptToObject(cptColorRampsTopobath)
+// export const colorRampsTemp = cptToObject(cptColorRampsTemp)
+// export const colorRampsTopcpt = cptToObject(cptColorRampsTopcpt)
+// export const colorRampsTopsvg = cptToObject(cptColorRampsTopsvg)
+// export const colorRampsTopqgs = cptToObject(cptColorRampsTopqgs)
 
-export const colorRamps = {
-  classic: colorRampsClassic,
-  topo: colorRampsTopo,
-  topobath: colorRampsTopobath
-};
+// export const colorRamps = {
+//   classic: colorRampsClassic,
+//   topo: colorRampsTopo,
+//   topobath: colorRampsTopobath,
+//   temp: colorRampsTemp,
+//   topCpt: colorRampsTopcpt,
+//   topSvg: colorRampsTopsvg,
+//   topQgs: colorRampsTopqgs
+// };
+
+const colorRamps = Object.fromEntries(
+  Object.entries(cpt_city_views).map(
+    ([key, value]) => {
+      const extended = extendCptCity(value)
+      const obj = cptToObject(extended)
+      return [key, obj]
+    }
+  )
+)
+colorRamps['classic'] = colorRampsClassic;
+
+export {colorRamps}
+
+export const colorRampsFlat = Object.assign({}, ...Object.values(colorRamps));

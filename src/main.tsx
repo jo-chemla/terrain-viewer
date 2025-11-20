@@ -41,8 +41,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         }}
       >
         <App />
-        
-      <TanStackDevtools />
+        <TanStackDevtools />
       </NuqsAdapter>
     </React.Suspense>
   </React.StrictMode>,
