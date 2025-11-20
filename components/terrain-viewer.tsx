@@ -15,7 +15,7 @@ import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css"
 import { TerrainControls } from "./terrain-controls"
 import GeocoderControl from "./geocoder-control"
 import { terrainSources } from "@/lib/terrain-sources"
-import { colorRampsFlat } from "@/lib/color-ramps"
+import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import mlcontour from "maplibre-contour"
 import { useAtom } from "jotai"
@@ -249,7 +249,7 @@ const HillshadeLayer = memo(({
 })
 HillshadeLayer.displayName = "HillshadeLayer"
 
-// Color Relief Layer
+// Color Relief Layer Hypsometric Tint
 const ColorReliefLayer = memo(({
   showColorRelief,
   colorReliefPaint
@@ -382,6 +382,9 @@ export function TerrainViewer() {
     contourMajor: parseAsFloat.withDefault(200),
     minElevation: parseAsFloat.withDefault(0),
     maxElevation: parseAsFloat.withDefault(4000),
+    customHypsoMinMax: parseAsBoolean.withDefault(false),
+    customMin: parseAsFloat.withDefault(0),
+    customMax: parseAsFloat.withDefault(8100),
   })
 
   // This could be renamed ephemeralState, stores backgroundLayerActive, sky etc
@@ -454,9 +457,20 @@ export function TerrainViewer() {
     const ramp = colorRampsFlat[state.colorRamp]
     if (!ramp) return {}
 
+    let colors
+    if (state.customHypsoMinMax) {
+      colors = remapColorRampStops(
+        ramp.colors,
+        state.customMin,
+        state.customMax
+      )
+    } else {
+      colors = ramp.colors
+    }
+
     return {
       "color-relief-opacity": state.colorReliefOpacity,
-      "color-relief-color": ramp.colors,
+      "color-relief-color": colors,
     }
   })()
 

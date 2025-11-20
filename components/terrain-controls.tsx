@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { terrainSources } from "@/lib/terrain-sources"
-import { colorRamps } from "@/lib/color-ramps"
+import { colorRamps, extractStops, colorRampsFlat } from "@/lib/color-ramps"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom, maxResolutionAtom, themeAtom,
@@ -1213,6 +1213,13 @@ const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: 
     )
   }
 
+  function resetCustomMinMax() {
+    const stops = extractStops(colorRampsFlat[state.colorRamp].colors)
+    const rampMin = Math.min(...stops)
+    const rampMax = Math.max(...stops)
+    setState({ customMin: rampMin, customMax: rampMax })
+  }
+
   // Filter color ramps based on type and license
   const filteredColorRamps = useMemo(() => {
     return filterColorRamps(colorRamps, colorRampType, licenseFilter)
@@ -1246,7 +1253,7 @@ const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: 
               }
             }
           }}
-          className="grid grid-cols-3 w-full"
+          className="grid grid-cols-5 w-full"
         >
           <ToggleGroupItem
             value="classic"
@@ -1268,6 +1275,20 @@ const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: 
             className="w-full data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
           >
             Topo+bath
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="temp"
+            aria-label="Temperature color ramps"
+            className="w-full data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+          >
+            Temp
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="topqgs"
+            aria-label="Temperature color ramps"
+            className="w-full data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+          >
+            Top Qgs
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
@@ -1364,8 +1385,60 @@ const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: 
             </SelectContent>
           </Select>
         </div>
+
+        {/* Custom Min/Max */}
+        <div className="w-full gap-1 flex items-center">
+          <div className="flex-[2] flex items-center">
+            <div className="flex items-center justify-between py-0.5 w-full">
+              <Checkbox
+                id="bg-layer-active"
+                checked={state.customHypsoMinMax}
+                onCheckedChange={(checked) =>
+                  setState({ customHypsoMinMax: checked === true })}
+              />
+              <div className="flex items-center flex-1 ml-2 gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label htmlFor="bg-layer-active" className="text-sm font-medium cursor-pointer">
+                      Edit Min/Max
+                    </Label>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Edit Color-Ramp min/max </p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer" onClick={resetCustomMinMax}>
+                      <RotateCcw className="h-3 w-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Reset to colorramp default min/max</p></TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 flex items-center">
+            <Input
+              type="number"
+              step="any"
+              placeholder="Min (optional)"
+              className="h-8 py-1 text-sm"
+              value={state.customMin ?? ""}
+              onChange={(e) => setState({ customMin: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
+            />
+          </div>
+          <div className="flex-1 flex items-center">
+            <Input
+              type="number"
+              step="any"
+              placeholder="Max (optional)"
+              className="h-8 py-1 text-sm"
+              value={state.customMax ?? ""}
+              onChange={(e) => setState({ customMax: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
+            />
+          </div>
+        </div>
       </div>
-    </Section >
+    </Section>
   )
 }
 
