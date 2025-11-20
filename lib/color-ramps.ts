@@ -72,11 +72,6 @@ function cptToObject(cptArray: any[]): Record<ColorReliefRamp, { name: string; c
   )
 }
 
-// Test
-// const cpt = cptColorRampsTopo[0].content
-// const {palette, domain} = parsePaletteWithStops(cpt);
-// const colors = chromajsScaleToMaplibre(palette, domain)
-// console.log({cpt, palette, domain, cptColorRampsTopo, colors})
 
 export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: any[] }> = {
   // Original ramps
@@ -367,30 +362,6 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
 
 }
 
-// const cptColorRampsTopo = extendCptCity(cpt_city_views.topo)
-// const cptColorRampsTopobath = extendCptCity(cpt_city_views.topobath)
-// const cptColorRampsTemp = extendCptCity(cpt_city_views.temp)
-// const cptColorRampsTopcpt = extendCptCity(cpt_city_views.topcpt)
-// const cptColorRampsTopsvg = extendCptCity(cpt_city_views.topsvg)
-// const cptColorRampsTopqgs = extendCptCity(cpt_city_views.topqgs)
-
-// export const colorRampsTopo = cptToObject(cptColorRampsTopo)
-// export const colorRampsTopobath = cptToObject(cptColorRampsTopobath)
-// export const colorRampsTemp = cptToObject(cptColorRampsTemp)
-// export const colorRampsTopcpt = cptToObject(cptColorRampsTopcpt)
-// export const colorRampsTopsvg = cptToObject(cptColorRampsTopsvg)
-// export const colorRampsTopqgs = cptToObject(cptColorRampsTopqgs)
-
-// export const colorRamps = {
-//   classic: colorRampsClassic,
-//   topo: colorRampsTopo,
-//   topobath: colorRampsTopobath,
-//   temp: colorRampsTemp,
-//   topCpt: colorRampsTopcpt,
-//   topSvg: colorRampsTopsvg,
-//   topQgs: colorRampsTopqgs
-// };
-
 const colorRamps = Object.fromEntries(
   Object.entries(cpt_city_views).map(
     ([key, value]) => {
@@ -405,3 +376,9 @@ colorRamps['classic'] = colorRampsClassic;
 export {colorRamps}
 
 export const colorRampsFlat = Object.assign({}, ...Object.values(colorRamps));
+
+// Test
+// const cpt = colorRampsFlat['arctic'].content
+// const {palette, domain} = parsePaletteWithStops(cpt);
+// const colors = chromajsScaleToMaplibre(palette, domain)
+// console.log({cpt, palette, domain, colors})

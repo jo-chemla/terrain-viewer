@@ -467,7 +467,6 @@ export function TerrainViewer() {
     } else {
       colors = ramp.colors
     }
-
     return {
       "color-relief-opacity": state.colorReliefOpacity,
       "color-relief-color": colors,
