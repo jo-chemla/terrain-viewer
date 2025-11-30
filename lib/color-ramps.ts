@@ -3,7 +3,7 @@ import {cpt_city_views} from "./cpt-city/cpt-city-views"
 import type { Scale } from 'chroma-js';
 
 // import { parsePalette, colorRampCanvas } from 'cpt2js';
-import {parsePaletteWithStops} from './cpt-city/cpt2js-stops';
+import {parsePalette} from './cpt-city/cpt2js-stops';
 
 export function extractStops(colors: any[]): number[] {
   const stops = []
@@ -44,11 +44,12 @@ function fixDomain(domain: number[]) {
 
 function chromajsScaleToMaplibre(paletteScale: Scale, domain: number[]) {
   const domainFixed = fixDomain(domain)
+  const colors = paletteScale.colors()
   return [
       "interpolate",
       ["linear"],
       ["elevation"],
-      ...domainFixed.flatMap((d: number, i: number) => [d, paletteScale.colors()[i]]) 
+      ...domainFixed.flatMap((d: number, i: number) => [d, colors[i]]) 
       // instead of .map().flat()
   ]
 }
@@ -56,7 +57,8 @@ function chromajsScaleToMaplibre(paletteScale: Scale, domain: number[]) {
 function extendCptCity(arr: any[]) {
   return arr.map(
     (cpt: any, idx: number) => {
-      const {palette, domain} = parsePaletteWithStops(cpt.content)
+      const palette = parsePalette(cpt.content)
+      const domain = palette.domain()
       const domainFixed = fixDomain(domain)
       const colors = chromajsScaleToMaplibre(palette, domain)
       return {...cpt, colors, palette, domain, domainFixed} 
