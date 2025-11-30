@@ -1,3 +1,6 @@
+// -----------------
+// PARSE.TS
+// -----------------
 
 import chroma from 'chroma-js'
 import type { InterpolationMode, Scale, Palette, PaletteColor, PaletteEntry, PaletteArray, ParseOptions } from 'chroma-js';
@@ -73,6 +76,51 @@ function parseColor(color: PaletteColor, mode: InterpolationMode): object | stri
   }
 }
 
+function parsePaletteArray(paletteArray: PaletteArray, { bounds = [0, 1], mode = DEFAULT_MODE }: ParseOptions & { mode?: InterpolationMode } = {}): Scale {
+  const colors: (object | string)[] = [];
+  const domain: number[] = [];
+  let nodata;
+  for (let [value, color] of paletteArray) {
+    const parsedValue = parseValue(value, bounds);
+    const parsedColor = parseColor(color, mode);
+
+    if (parsedValue != null) {
+      colors.push(parsedColor);
+      domain.push(parsedValue);
+    } else if (parsedValue === null) {
+      nodata = parsedColor;
+    } else {
+      // ignore
+    }
+  }
+
+  let palette = chroma.scale(colors as any).domain(domain).mode(mode);
+  if (typeof nodata !== 'undefined') {
+    palette = (palette as any).nodata(nodata);
+  }
+  return palette;
+}
+
+function parsePaletteText(paletteText: string, { bounds = [0, 1] }: ParseOptions = {}): Scale {
+  const { paletteArray, mode } = parsePaletteTextInternal(paletteText);
+  return parsePaletteArray(paletteArray, { bounds, mode });
+}
+
+export function parsePalette(palette: Palette, { bounds = [0, 1] }: ParseOptions = {}): Scale {
+  if (typeof palette === 'string') {
+    return parsePaletteText(palette, { bounds });
+  } else if (Array.isArray(palette)) {
+    return parsePaletteArray(palette, { bounds });
+  } else {
+    throw new Error('Invalid format');
+  }
+}
+
+
+// -----------------
+// PARSE-TEXT.TS
+// -----------------
+
 export type PaletteColor = string | number | [string, string, string] | [number, number, number] | [string, string, string, string] | [number, number, number, number];
 export type PaletteEntry = [string | number, PaletteColor];
 export type PaletteArray = PaletteEntry[];
@@ -122,7 +170,7 @@ function splitColor(color: string): PaletteColor {
   return colorArray.length === 1 ? colorArray[0] : colorArray as PaletteColor;
 }
 
-function parsePaletteTextInternal(paletteText: string): { paletteArray: PaletteArray, mode?: InterpolationMode } {
+export function parsePaletteTextInternal(paletteText: string): { paletteArray: PaletteArray, mode?: InterpolationMode } {
   const lines = paletteText.split('\n')
     .map(line => line.trim());
   const isGmt4 = isGmt4Text(lines);
@@ -166,54 +214,3 @@ function parsePaletteTextInternal(paletteText: string): { paletteArray: PaletteA
 
   return { paletteArray, mode };
 }
-
-
-
-function parsePaletteArray(paletteArray: PaletteArray, { bounds = [0, 1], mode = DEFAULT_MODE }: ParseOptions & { mode?: InterpolationMode } = {}): Scale {
-  const colors: (object | string)[] = [];
-  const domain: number[] = [];
-  let nodata;
-  for (let [value, color] of paletteArray) {
-    const parsedValue = parseValue(value, bounds);
-    const parsedColor = parseColor(color, mode);
-
-    if (parsedValue != null) {
-      colors.push(parsedColor);
-      domain.push(parsedValue);
-    } else if (parsedValue === null) {
-      nodata = parsedColor;
-    } else {
-      // ignore
-    }
-  }
-
-  let palette = chroma.scale(colors as any).domain(domain).mode(mode);
-  if (typeof nodata !== 'undefined') {
-    palette = (palette as any).nodata(nodata);
-  }
-  return palette;
-}
-
-function parsePaletteText(paletteText: string, { bounds = [0, 1] }: ParseOptions = {}): Scale {
-  const { paletteArray, mode } = parsePaletteTextInternal(paletteText);
-  return parsePaletteArray(paletteArray, { bounds, mode });
-}
-
-export function parsePalette(palette: Palette, { bounds = [0, 1] }: ParseOptions = {}): Scale {
-  if (typeof palette === 'string') {
-    return parsePaletteText(palette, { bounds });
-  } else if (Array.isArray(palette)) {
-    return parsePaletteArray(palette, { bounds });
-  } else {
-    throw new Error('Invalid format');
-  }
-}
-// export function parsePaletteWithStops(palette: Palette, { bounds = [0, 1] }: ParseOptions = {}): palette: Scale, domain: number[]} {
-//   if (typeof palette === 'string') {
-//     return parsePaletteText(palette, { bounds });
-//   } else if (Array.isArray(palette)) {
-//     return parsePaletteArray(palette, { bounds });
-//   } else {
-//     throw new Error('Invalid format');
-//   }
-// }

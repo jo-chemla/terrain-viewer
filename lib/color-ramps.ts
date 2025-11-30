@@ -42,15 +42,15 @@ function fixDomain(domain: number[]) {
   return domainFixed;
 }
 
-function chromajsScaleToMaplibre(paletteScale: Scale, domain: number[]) {
-  const domainFixed = fixDomain(domain)
+function chromajsScaleToMaplibre(paletteScale: Scale) {
   const colors = paletteScale.colors()
+  const domain = paletteScale.domain()
+  const domainFixed = fixDomain(domain)
   return [
       "interpolate",
       ["linear"],
       ["elevation"],
       ...domainFixed.flatMap((d: number, i: number) => [d, colors[i]]) 
-      // instead of .map().flat()
   ]
 }
 
@@ -60,7 +60,7 @@ function extendCptCity(arr: any[]) {
       const palette = parsePalette(cpt.content)
       const domain = palette.domain()
       const domainFixed = fixDomain(domain)
-      const colors = chromajsScaleToMaplibre(palette, domain)
+      const colors = chromajsScaleToMaplibre(palette)
       return {...cpt, colors, palette, domain, domainFixed} 
     }
   )
