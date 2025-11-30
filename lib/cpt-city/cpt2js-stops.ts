@@ -85,8 +85,7 @@ function isLineComment(line: string): boolean {
 }
 
 function isGmt4Text(lines: string[]): boolean {
-  return lines.some(line_ => {
-    const line = line_.trim();
+  return lines.some(line => {
     if (!isLineComment(line)) {
       if (line.split(LINE_SEPARATOR_REGEX).length >= 8) {
         return true;
@@ -97,8 +96,7 @@ function isGmt4Text(lines: string[]): boolean {
 }
 
 function isGmt5Text(lines: string[]): boolean {
-  return lines.some(line_ => {
-    const line = line_.trim();
+  return lines.some(line => {
     if (!isLineComment(line)) {
       if (line.match(/\d+\-\d+\-\d+/) || line.match(/\d+\/\d+\/\d+/)) {
         return true;
@@ -125,15 +123,15 @@ function splitColor(color: string): PaletteColor {
 }
 
 function parsePaletteTextInternal(paletteText: string): { paletteArray: PaletteArray, mode?: InterpolationMode } {
-  const lines = paletteText.trim().split('\n');
+  const lines = paletteText.split('\n')
+    .map(line => line.trim());
   const isGmt4 = isGmt4Text(lines);
   const isGmt5 = isGmt5Text(lines);
   const mode = getMode(lines);
 
   const paletteLines = lines.filter(x => !!x && !x.startsWith('#'))
   const paletteArray: PaletteArray = [];
-  for (let paletteLine_ of paletteLines) {
-    const paletteLine = paletteLine_.trim();
+  for (let paletteLine of paletteLines) {
     const fields = paletteLine.split(LINE_SEPARATOR_REGEX);
     if (isGmt4) {
       if (fields.length === 8 || fields.length === 9) {
@@ -171,7 +169,7 @@ function parsePaletteTextInternal(paletteText: string): { paletteArray: PaletteA
 
 
 
-function parsePaletteArray(paletteArray: PaletteArray, { bounds = [0, 1], mode = DEFAULT_MODE }: ParseOptions & { mode?: InterpolationMode } = {}): {palette: Scale, domain: number[]} {
+function parsePaletteArray(paletteArray: PaletteArray, { bounds = [0, 1], mode = DEFAULT_MODE }: ParseOptions & { mode?: InterpolationMode } = {}): Scale {
   const colors: (object | string)[] = [];
   const domain: number[] = [];
   let nodata;
@@ -193,24 +191,15 @@ function parsePaletteArray(paletteArray: PaletteArray, { bounds = [0, 1], mode =
   if (typeof nodata !== 'undefined') {
     palette = (palette as any).nodata(nodata);
   }
-  return {palette, domain};
+  return palette;
 }
 
-function parsePaletteText(paletteText: string, { bounds = [0, 1] }: ParseOptions = {}): {palette: Scale, domain: number[]} {
+function parsePaletteText(paletteText: string, { bounds = [0, 1] }: ParseOptions = {}): Scale {
   const { paletteArray, mode } = parsePaletteTextInternal(paletteText);
   return parsePaletteArray(paletteArray, { bounds, mode });
 }
 
 export function parsePalette(palette: Palette, { bounds = [0, 1] }: ParseOptions = {}): Scale {
-  if (typeof palette === 'string') {
-    return parsePaletteText(palette, { bounds }).palette;
-  } else if (Array.isArray(palette)) {
-    return parsePaletteArray(palette, { bounds }).palette;
-  } else {
-    throw new Error('Invalid format');
-  }
-}
-export function parsePaletteWithStops(palette: Palette, { bounds = [0, 1] }: ParseOptions = {}): {palette: Scale, domain: number[]} {
   if (typeof palette === 'string') {
     return parsePaletteText(palette, { bounds });
   } else if (Array.isArray(palette)) {
@@ -219,3 +208,12 @@ export function parsePaletteWithStops(palette: Palette, { bounds = [0, 1] }: Par
     throw new Error('Invalid format');
   }
 }
+// export function parsePaletteWithStops(palette: Palette, { bounds = [0, 1] }: ParseOptions = {}): palette: Scale, domain: number[]} {
+//   if (typeof palette === 'string') {
+//     return parsePaletteText(palette, { bounds });
+//   } else if (Array.isArray(palette)) {
+//     return parsePaletteArray(palette, { bounds });
+//   } else {
+//     throw new Error('Invalid format');
+//   }
+// }
