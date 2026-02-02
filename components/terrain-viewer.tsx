@@ -20,7 +20,7 @@ import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import mlcontour from "maplibre-contour"
 import { useAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, useCogProtocolVsTitilerAtom, skyConfigAtom
+  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, useCogProtocolVsTitilerAtom, skyConfigAtom, customBasemapSourcesAtom,
 } from "@/lib/settings-atoms"
 import { themeAtom } from "@/lib/settings-atoms"
 
@@ -36,40 +36,40 @@ const TerrainSources = memo(
     source,
     mapboxKey,
     maptilerKey,
-    customSources,
+    customTerrainSources,
     titilerEndpoint,
   }: {
-    source: TerrainSource | string
-    mapboxKey: string
+    source: TerrainSource | string,
+    mapboxKey: string,
     maptilerKey: string,
-    customSources: any[]
+    customTerrainSources: any[],
     titilerEndpoint: string
   }) => {
     const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
 
     const getTilesUrl = (key: TerrainSource | string) => {
-      const customSource = customSources.find((s) => s.id === key)
-      if (customSource) {
-        if (customSource.type === "cog") {
+      const customTerrainSource = customTerrainSources.find((s) => s.id === key)
+      if (customTerrainSource) {
+        if (customTerrainSource.type === "cog") {
           if (useCogProtocolVsTitiler) {
             // Use direct COG protocol instead of titiler tiles
-            return `cog://${customSource.url}#dem`
+            return `cog://${customTerrainSource.url}#dem`
           } else {
-            return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`
+            return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customTerrainSource.url)}`
             // &nodata=0&resampling=bilinear&algorithm=terrainrgb&return_mask=false
           }
         }
-        else if (customSource.type === "vrt") {
+        else if (customTerrainSource.type === "vrt") {
           if (useCogProtocolVsTitiler) {
             console.warn('Warning, VRT can only work with TiTiler COG streaming')
-            return customSource.url
+            return customTerrainSource.url
           } else {
-            return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(customSource.url)}`
+            return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(customTerrainSource.url)}`
             // eg vrt:///vsicurl/https://data.cquest.org/ign/rgealti/repack/cog/RGEALTI_2-0_1M_COG_LAMB93-IGN69_FXX.vrt?a_srs=EPSG:2154
           }
         }
         // TODO eventually see this https://github.com/developmentseed/titiler/discussions/1110#discussioncomment-12868145
-        return customSource.url
+        return customTerrainSource.url
       }
 
       const sourceConfig: TerrainSourceConfig = terrainSources[key as TerrainSource]
@@ -87,8 +87,8 @@ const TerrainSources = memo(
       cog: 'mapbox',
       terrarium: 'terrarium',
     }
-    const customSource = customSources.find((s) => s.id === source)
-    if (customSource) {
+    const customTerrainSource = customTerrainSources.find((s) => s.id === source)
+    if (customTerrainSource) {
       const tileUrl = getTilesUrl(source)
       const sourceConfig: RasterDEMSourceSpecification = {
         type: "raster-dem" as const,
@@ -96,9 +96,9 @@ const TerrainSources = memo(
         // url: tileUrl, // for geomatico cog-protocol https://labs.geomatico.es/maplibre-cog-protocol-examples/#/en/pirineo
         tileSize: 256,
         maxzoom: 20,
-        encoding: encodingsMap[customSource.type],
+        encoding: encodingsMap[customTerrainSource.type],
       }
-      if ((customSource.type == 'cog') && useCogProtocolVsTitiler) {
+      if ((customTerrainSource.type == 'cog') && useCogProtocolVsTitiler) {
         sourceConfig.url = tileUrl
       } else {
         sourceConfig.tiles = [tileUrl]
@@ -130,10 +130,14 @@ TerrainSources.displayName = "TerrainSources"
 const RasterBasemapSource = memo(
   ({
     terrainSource,
-    mapboxKey
+    mapboxKey,
+    customBasemapSources,
+    titilerEndpoint,
   }: {
     terrainSource: string
     mapboxKey: string
+    customBasemapSources: any[],
+    titilerEndpoint: string,
   }) => {
     const terrainRasterUrls: Record<string, string> = {
       osm: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -142,6 +146,24 @@ const RasterBasemapSource = memo(
       esri: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       mapbox: `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token=${mapboxKey || "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw"}`,
       bing: `https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1`,
+    }
+
+    // Check if it's a custom basemap
+    const customBasemap = customBasemapSources.find((s) => s.id === terrainSource)
+    if (customBasemap) {
+      let tileUrl = customBasemap.url
+      if (customBasemap.type === "cog") {
+        tileUrl = `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?url=${encodeURIComponent(customBasemap.url)}`
+      }
+      return (
+        <Source
+          id="terrain-raster-source"
+          key={`raster-${terrainSource}`}
+          type="raster"
+          tiles={[tileUrl]}
+          tileSize={256}
+        />
+      )
     }
 
     return (
@@ -348,6 +370,7 @@ export function TerrainViewer() {
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
 
   const [state, setState] = useQueryStates({
@@ -849,10 +872,16 @@ export function TerrainViewer() {
             source={source}
             mapboxKey={mapboxKey}
             maptilerKey={maptilerKey}
-            customSources={customTerrainSources}
+            customTerrainSources={customTerrainSources}
             titilerEndpoint={titilerEndpoint}
           />
-          <RasterBasemapSource terrainSource={state.terrainSource} mapboxKey={mapboxKey} />
+          {/* <RasterBasemapSource terrainSource={state.terrainSource} mapboxKey={mapboxKey} /> */}
+          <RasterBasemapSource
+            terrainSource={state.terrainSource}
+            mapboxKey={mapboxKey}
+            customBasemapSources={customBasemapSources}
+            titilerEndpoint={titilerEndpoint}
+          />
 
           {/* Layers */}
           {skyConfig.backgroundLayerActive && <BackgroundLayer theme={theme} mapRef={mapARef} />}
@@ -891,6 +920,8 @@ export function TerrainViewer() {
     mapboxKey,
     maptilerKey,
     contoursInitialized,
+    customBasemapSources,
+    titilerEndpoint,
     onMoveA,
     onMoveEndA,
   ])

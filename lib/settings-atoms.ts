@@ -54,3 +54,13 @@ export interface CustomTerrainSource {
 
 export const customTerrainSourcesAtom = atomWithStorage<CustomTerrainSource[]>("customTerrainSources", [])
 export const isByodOpenAtom = atomWithStorage("isByodOpen", true)
+export interface CustomBasemapSource {
+  id: string
+  name: string
+  url: string
+  type: "cog" | "tms" | "wms" | "wmts"
+  description?: string
+}
+
+export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [])
+export const isBasemapByodOpenAtom = atomWithStorage("isBasemapByodOpen", true)
