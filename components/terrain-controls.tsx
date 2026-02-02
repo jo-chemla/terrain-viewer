@@ -701,6 +701,10 @@ const CustomSourceModal: React.FC<{
     onOpenChange(false)
   }, [name, url, type, description, editingSource, onSave, onOpenChange])
 
+  const url_placeholder = type === "cog" ?
+    "https://example.com/terrain-dtm.cog.tiff" :
+    "https://example.com/tms/{z}/{x}/{y}.png"
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
@@ -716,7 +720,7 @@ const CustomSourceModal: React.FC<{
           </div>
           <div className="space-y-2">
             <Label htmlFor="source-url">URL *</Label>
-            <Input id="source-url" type="text" placeholder="https://example.com/terrain/{z}/{x}/{y}.png" value={url} onChange={(e) => setUrl(e.target.value)} className="cursor-text" />
+            <Input id="source-url" type="text" placeholder={url_placeholder} value={url} onChange={(e) => setUrl(e.target.value)} className="cursor-text" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="source-type">Type *</Label>
@@ -724,8 +728,8 @@ const CustomSourceModal: React.FC<{
               <SelectTrigger id="source-type" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="cog">COG (Cloud Optimized GeoTIFF)</SelectItem>
-                <SelectItem value="terrainrgb">TerrainRGB</SelectItem>
-                <SelectItem value="terrarium">Terrarium</SelectItem>
+                <SelectItem value="terrainrgb">TMS (TerrainRGB)</SelectItem>
+                <SelectItem value="terrarium">TMS (Terrarium)</SelectItem>
                 <SelectItem value="vrt">VRT</SelectItem>
               </SelectContent>
             </Select>
