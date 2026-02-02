@@ -27,8 +27,9 @@ import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom, maxResolutionAtom, themeAtom,
   isGeneralOpenAtom, isTerrainSourceOpenAtom, isVizModesOpenAtom, isHillshadeOpenAtom, isTerrainRasterOpenAtom,
-  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom, colorRampTypeAtom, licenseFilterAtom, isBackgroundOpenAtom, skyConfigAtom,
+  isHypsoOpenAtom, isContoursOpenAtom, isDownloadOpenAtom, customTerrainSourcesAtom, isByodOpenAtom, useCogProtocolVsTitilerAtom, colorRampTypeAtom, licenseFilterAtom, isBackgroundOpenAtom, skyConfigAtom, customBasemapSourcesAtom, isBasemapByodOpenAtom,
   type CustomTerrainSource,
+  type CustomBasemapSource,
 } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { domToPng } from "modern-screenshot"
@@ -103,6 +104,7 @@ const useSourceConfig = () => {
   const [googleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
 
   const getTilesUrl = useCallback((key: TerrainSource): string => {
     const source = terrainSources[key]
@@ -120,6 +122,28 @@ const useSourceConfig = () => {
     return source.url
   }, [titilerEndpoint])
 
+
+  const getCustomBasemapUrl = useCallback((source: CustomBasemapSource): string => {
+    if (source.type === "cog") {
+      return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?url=${encodeURIComponent(source.url)}`
+    }
+    return source.url
+  }, [titilerEndpoint])
+
+  const getBasemapSourceConfig = useCallback((sourceKey: string): SourceConfig | null => {
+    const customSource = customBasemapSources.find((s) => s.id === sourceKey)
+    if (customSource) {
+      const tileUrl = getCustomBasemapUrl(customSource)
+      return {
+        encoding: customSource.type === "cog" ? "cog" : "tms",
+        tileUrl,
+        tileSize: 256
+      }
+    }
+    return null
+  }, [getCustomBasemapUrl])
+
+
   const getSourceConfig = useCallback((sourceKey: string): SourceConfig | null => {
     if (terrainSources[sourceKey]) {
       const source = terrainSources[sourceKey]
@@ -134,7 +158,7 @@ const useSourceConfig = () => {
     return null
   }, [customTerrainSources, getTilesUrl, getCustomSourceUrl])
 
-  return { getTilesUrl, getSourceConfig, getCustomSourceUrl }
+  return { getTilesUrl, getSourceConfig, getCustomSourceUrl, getCustomBasemapUrl, getBasemapSourceConfig }
 }
 
 const Section: React.FC<{
@@ -672,7 +696,7 @@ const GeneralSettings: React.FC<{ state: any; setState: (updates: any) => void }
 }
 
 
-const CustomSourceModal: React.FC<{
+const CustomTerrainSourceModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomTerrainSource | null
   onSave: (source: Omit<CustomTerrainSource, "id"> & { id?: string }) => void
 }> = ({ isOpen, onOpenChange, editingSource, onSave }) => {
@@ -747,6 +771,129 @@ const CustomSourceModal: React.FC<{
     </Dialog>
   )
 }
+
+
+const CustomBasemapModal: React.FC<{
+  isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomBasemapSource | null
+  onSave: (source: Omit<CustomBasemapSource, "id"> & { id?: string }) => void
+}> = ({ isOpen, onOpenChange, editingSource, onSave }) => {
+  const [name, setName] = useState("")
+  const [url, setUrl] = useState("")
+  const [type, setType] = useState<"cog" | "tms" | "wms" | "wmts">("tms")
+  const [description, setDescription] = useState("")
+
+  useEffect(() => {
+    if (editingSource) {
+      setName(editingSource.name)
+      setUrl(editingSource.url)
+      setType(editingSource.type)
+      setDescription(editingSource.description || "")
+    } else {
+      setName("")
+      setUrl("")
+      setType("tms")
+      setDescription("")
+    }
+  }, [editingSource, isOpen])
+
+  const handleSave = useCallback(() => {
+    if (!name || !url) return
+    onSave({ id: editingSource?.id, name, url, type, description })
+    onOpenChange(false)
+  }, [name, url, type, description, editingSource, onSave, onOpenChange])
+
+  const url_placeholder = type === "cog" ?
+    "https://example.com/basemap.cog.tiff" :
+    type === "tms" ?
+      "https://example.com/tms/{z}/{x}/{y}.png" :
+      type === "wms" ?
+        "https://example.com/wms?service=WMS&request=GetMap..." :
+        "https://example.com/wmts?service=WMTS&request=GetTile..."
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg" showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>
+            {editingSource ? "Edit Basemap" : "Add New Basemap"}
+          </DialogTitle>
+          <DialogDescription>
+            Add your own basemap from a raster tile or vector style endpoint.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">
+          ✕
+        </DialogClose>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="basemap-name">Name *</Label>
+            <Input
+              id="basemap-name"
+              type="text"
+              placeholder="My Custom Basemap"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="cursor-text"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="basemap-url">URL *</Label>
+            <Input
+              id="basemap-url"
+              type="text"
+              placeholder={url_placeholder}
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="cursor-text"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="basemap-type">Type *</Label>
+            <Select value={type} onValueChange={(value: any) => setType(value)}>
+              <SelectTrigger id="basemap-type" className="cursor-pointer w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="raster">Raster (XYZ / TMS)</SelectItem>
+                <SelectItem value="vector">Vector (Style JSON)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="basemap-description">
+              Description (optional)
+            </Label>
+            <Input
+              id="basemap-description"
+              type="text"
+              placeholder="Custom basemap from..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="cursor-text"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={!name || !url}
+              className="cursor-pointer"
+            >
+              {editingSource ? "Save Changes" : "Add Basemap"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 
 const SourceDetails: React.FC<{
   sourceKey: string; config: any; getTilesUrl: any; linkCallback: any; getMapBounds: () => Bounds
@@ -987,7 +1134,7 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-1 cursor-pointer bg-transparent"
+                className="flex-2 cursor-pointer bg-transparent"
                 onClick={() => { setEditingSource(null); setIsAddSourceModalOpen(true) }}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -1041,7 +1188,7 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
           </CollapsibleContent>
         </Collapsible>
       </Section>
-      <CustomSourceModal isOpen={isAddSourceModalOpen} onOpenChange={setIsAddSourceModalOpen} editingSource={editingSource} onSave={handleSaveCustomSource} />
+      <CustomTerrainSourceModal isOpen={isAddSourceModalOpen} onOpenChange={setIsAddSourceModalOpen} editingSource={editingSource} onSave={handleSaveCustomSource} />
       <Dialog open={isBatchEditModalOpen} onOpenChange={setIsBatchEditModalOpen}>
         <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden" showCloseButton={false}>
           <DialogHeader>
@@ -1117,6 +1264,286 @@ const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => v
     </>
   )
 }
+
+const BasemapBatchEditModal: React.FC<{
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  sources: CustomBasemapSource[]
+  onSave: (sources: CustomBasemapSource[]) => void
+}> = ({ isOpen, onOpenChange, sources, onSave }) => {
+  const [json, setJson] = useState("")
+  const [error, setError] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      setJson(JSON.stringify(sources, null, 2))
+      setError("")
+    }
+  }, [isOpen, sources])
+
+  const handleSave = useCallback(() => {
+    try {
+      const parsed = JSON.parse(json)
+      if (!Array.isArray(parsed)) {
+        setError("Input must be a valid JSON array")
+        return
+      }
+      for (const source of parsed) {
+        if (!source.id || !source.name || !source.url || !source.type) {
+          setError("Each source must have id, name, url, and type fields")
+          return
+        }
+      }
+      onSave(parsed)
+      onOpenChange(false)
+    } catch (e) {
+      setError("Invalid JSON: " + (e as Error).message)
+    }
+  }, [json, onSave, onOpenChange])
+
+  const handleLoadFile = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const content = ev.target?.result as string
+      try {
+        JSON.parse(content)
+        setJson(content)
+        setError("")
+      } catch (err) {
+        setError("Invalid JSON file: " + (err as Error).message)
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ""
+  }, [])
+
+  const handleExport = useCallback(() => {
+    const blob = new Blob([json], { type: "application/json" })
+    saveAs(blob, `basemap-sources-${Date.now()}.json`)
+  }, [json])
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden" showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Batch Edit Basemaps</DialogTitle>
+          <DialogDescription>
+            Edit all custom basemaps as JSON. Each source must have id, name, url, and type fields.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">
+          ✕
+        </DialogClose>
+        <div className="space-y-4 overflow-y-auto px-1">
+          <div className="space-y-2">
+            <textarea
+              className="w-full min-h-[400px] p-3 border rounded-md font-mono text-xs bg-background text-foreground resize-none outline-none focus:ring-2 focus:ring-ring"
+              value={json}
+              onChange={(e) => {
+                setJson(e.target.value)
+                setError("")
+              }}
+              spellCheck={false}
+            />
+            {error && <p className="text-sm text-red-500">{error}</p>}
+          </div>
+          <div className="flex justify-between gap-2 flex-wrap">
+            <div className="flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <Button variant="outline" onClick={handleLoadFile} className="cursor-pointer">
+                <Download className="h-4 w-4 mr-2 rotate-180" />
+                Load File
+              </Button>
+              <Button variant="outline" onClick={handleExport} className="cursor-pointer">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)} className="cursor-pointer">
+                Cancel
+              </Button>
+              <Button onClick={handleSave} className="cursor-pointer">
+                Validate & Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const BasemapByodSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
+  const [isBasemapByodOpen, setIsBasemapByodOpen] = useAtom(isBasemapByodOpenAtom)
+  const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
+  const [titilerEndpoint] = useAtom(titilerEndpointAtom)
+  const [isAddBasemapModalOpen, setIsAddBasemapModalOpen] = useState(false)
+  const [editingBasemap, setEditingBasemap] = useState<CustomBasemapSource | null>(null)
+  const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
+  const [batchEditJson, setBatchEditJson] = useState("")
+  const [batchEditError, setBatchEditError] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
+
+  const handleSaveCustomBasemap = useCallback((source: Omit<CustomBasemapSource, "id"> & { id?: string }) => {
+    if (source.id) {
+      setCustomBasemapSources(customBasemapSources.map((s) => s.id === source.id ? { ...s, ...source } as CustomBasemapSource : s))
+    } else {
+      const newSource: CustomBasemapSource = { ...source, id: `custom-basemap-${Date.now()}` } as CustomBasemapSource
+      setCustomBasemapSources([...customBasemapSources, newSource])
+    }
+  }, [customBasemapSources, setCustomBasemapSources])
+
+  const handleDeleteCustomBasemap = useCallback((id: string) => {
+    setCustomBasemapSources(customBasemapSources.filter((s) => s.id !== id))
+    if (state.terrainSource === id) setState({ terrainSource: "osm" })
+  }, [customBasemapSources, setCustomBasemapSources, state, setState])
+
+  const handleFitToBounds = useCallback(async (source: CustomBasemapSource) => {
+    if (!['cog'].includes(source.type)) return
+    try {
+      if (useCogProtocolVsTitiler) {
+        getCogMetadata(source.url).then(metadata => {
+          console.log('COG metadata from geomatico/maplibre-cog-protocol', metadata)
+          const bbox = metadata.bbox
+          const [west, south, east, north] = bbox
+          if (bbox && mapRef.current) {
+            mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
+          }
+        })
+      } else {
+        const infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
+        const response = await fetch(infoUrl)
+        const data = await response.json()
+        console.log('COG info/metadata from titiler', data)
+        const bbox = data.bbox ?? data.properties.bounds
+        const [west, south, east, north] = bbox
+        if (bbox && mapRef.current) {
+          mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch COG bounds:", error)
+    }
+  }, [titilerEndpoint, mapRef, useCogProtocolVsTitiler])
+
+  const handleOpenBatchEdit = useCallback(() => {
+    setBatchEditJson(JSON.stringify(customBasemapSources, null, 2))
+    setBatchEditError("")
+    setIsBatchEditModalOpen(true)
+  }, [customBasemapSources])
+
+  const handleSaveBatchEdit = useCallback(() => {
+    try {
+      const parsed = JSON.parse(batchEditJson)
+      if (!Array.isArray(parsed)) {
+        setBatchEditError("Input must be a valid JSON array")
+        return
+      }
+      for (const source of parsed) {
+        if (!source.id || !source.name || !source.url || !source.type) {
+          setBatchEditError("Each source must have id, name, url, and type fields")
+          return
+        }
+      }
+      setCustomBasemapSources(parsed)
+      setIsBatchEditModalOpen(false)
+    } catch (error) {
+      setBatchEditError("Invalid JSON: " + (error as Error).message)
+    }
+  }, [batchEditJson, setCustomBasemapSources])
+
+  const handleLoadFile = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const content = event.target?.result as string
+      try {
+        JSON.parse(content)
+        setBatchEditJson(content)
+        setBatchEditError("")
+      } catch (error) {
+        setBatchEditError("Invalid JSON file: " + (error as Error).message)
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ""
+  }, [])
+
+  const handleExportBasemaps = useCallback(() => {
+    const blob = new Blob([batchEditJson], { type: "application/json" })
+    saveAs(blob, `basemap-sources-${Date.now()}.json`)
+  }, [batchEditJson])
+
+  const handleEditBasemap = useCallback((sourceId: string) => {
+    const source = customBasemapSources.find(s => s.id === sourceId)
+    if (source) {
+      setEditingBasemap(source)
+      setIsAddBasemapModalOpen(true)
+    }
+  }, [customBasemapSources])
+
+  return (
+    <>
+      <Collapsible open={isBasemapByodOpen} onOpenChange={setIsBasemapByodOpen} className="mt-2">
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-m font-medium cursor-pointer pl-2.5">
+          Bring Your Own Data
+          <ChevronDown className={`h-4 w-4 transition-transform ${isBasemapByodOpen ? "rotate-180" : ""}`} />
+        </CollapsibleTrigger>
+
+        <CollapsibleContent className="space-y-2 pt-1">
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="flex-3 cursor-pointer bg-transparent" onClick={() => { setEditingBasemap(null); setIsAddBasemapModalOpen(true) }}>
+              <Plus className="h-4 w-4 mr-2" />Add Basemap
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1 cursor-pointer bg-transparent" onClick={handleOpenBatchEdit}>
+              <Edit className="h-3 w-3 mr-2" />Batch Edit
+            </Button>
+          </div>
+          {customBasemapSources.length > 0 && (
+            <RadioGroup value={state.terrainSource} onValueChange={(value) => setState({ terrainSource: value })}>
+              {customBasemapSources.map((source) => (
+                <div key={source.id} className="flex items-center gap-2 min-w-0">
+                  <RadioGroupItem value={source.id} id={`basemap-${source.id}`} className="cursor-pointer shrink-0" />
+                  <CustomSourceDetails source={source} handleFitToBounds={handleFitToBounds} handleEditSource={handleEditBasemap} handleDeleteCustomSource={handleDeleteCustomBasemap} />
+                </div>
+              ))}
+            </RadioGroup>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+      <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} />
+      {/* Batch Edit Dialog - similar structure to terrain batch edit */}
+      <BasemapBatchEditModal
+        isOpen={isBatchEditModalOpen}
+        onOpenChange={setIsBatchEditModalOpen}
+        sources={customBasemapSources}
+        onSave={(sources) => { setCustomBasemapSources(sources); setIsBatchEditModalOpen(false) }}
+      />
+    </>
+  )
+}
+
 
 const VisualizationModesSection: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
   const [isOpen, setIsOpen] = useAtom(isVizModesOpenAtom)
@@ -1446,8 +1873,10 @@ const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: 
   )
 }
 
-const RasterBasemapOptionsSection: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
+const RasterBasemapOptionsSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
   const [isOpen, setIsOpen] = useAtom(isTerrainRasterOpenAtom)
+  const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
+
   const terrainSourceKeys = useMemo(() => ["osm", "google", "esri", "mapbox"], [])
   const cycleTerrainSource = useCallback((direction: number) => {
     const currentIndex = terrainSourceKeys.indexOf(state.terrainSource)
@@ -1461,6 +1890,7 @@ const RasterBasemapOptionsSection: React.FC<{ state: any; setState: (updates: an
     { value: "google", label: "Google Hybrid" }, { value: "mapbox", label: "Mapbox Satellite" },
     { value: "esri", label: "ESRI World Imagery" }, { value: "googlesat", label: "Google Satellite" },
     { value: "bing", label: "Bing Aerial" }, { value: "osm", label: "OpenStreetMap" },
+    ...customBasemapSources.map(s => ({ value: s.id, label: s.name }))
   ]
 
   return (
@@ -1469,6 +1899,7 @@ const RasterBasemapOptionsSection: React.FC<{ state: any; setState: (updates: an
         <Label className="text-sm">Source</Label>
         <CycleButtonGroup value={state.terrainSource} options={terrainSourceOptions} onChange={(v) => setState({ terrainSource: v })} onCycle={cycleTerrainSource} />
       </div>
+      <BasemapByodSection state={state} setState={setState} mapRef={mapRef} />
     </Section>
   )
 }
@@ -1843,7 +2274,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
         <VisualizationModesSection state={state} setState={setState} />
         <HillshadeOptionsSection state={state} setState={setState} />
         <HypsometricTintOptionsSection state={state} setState={setState} />
-        <RasterBasemapOptionsSection state={state} setState={setState} />
+        <RasterBasemapOptionsSection state={state} setState={setState} mapRef={mapRef} />
         <ContourOptionsSection state={state} setState={setState} />
         <BackgroundOptionsSection state={state} setState={setState} theme={theme} />
         <FooterSection />
