@@ -158,19 +158,23 @@ const RasterBasemapSource = memo(
       if (customBasemap.type === "cog") {
         if (useCogProtocolVsTitiler) {
           // Use direct COG protocol instead of titiler tiles
-          return `cog://${customBasemap.url}`
+          tileUrl = `cog://${(customBasemap.url)}`
         } else {
           tileUrl = `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?url=${encodeURIComponent(customBasemap.url)}`
         }
       }
+      const sourceProps = (customBasemap.type === "cog" && useCogProtocolVsTitiler)
+        ? { url: tileUrl }
+        : { tiles: [tileUrl] }
+
       console.log('tileUrl', tileUrl)
       return (
         <Source
           id="raster-basemap-source"
           key={`raster-${basemapSource}`}
           type="raster"
-          tiles={[tileUrl]}
           tileSize={256}
+          {...sourceProps}
         />
       )
     }

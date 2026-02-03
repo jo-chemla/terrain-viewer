@@ -1524,9 +1524,18 @@ const BasemapByodSection: React.FC<{ state: any; setState: (updates: any) => voi
           {customBasemapSources.length > 0 && (
             <RadioGroup value={state.basemapSource} onValueChange={(value) => setState({ basemapSource: value })}>
               {customBasemapSources.map((source) => (
-                <div key={source.id} className="flex items-center gap-2 min-w-0">
+                <div
+                  key={source.id}
+                  className="flex items-center gap-2 min-w-0"
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('button')) return;
+                    setState({ basemapSource: source.id });
+                  }}
+                >
                   <RadioGroupItem value={source.id} id={`basemap-${source.id}`} className="cursor-pointer shrink-0" />
-                  <CustomSourceDetails source={source} handleFitToBounds={handleFitToBounds} handleEditSource={handleEditBasemap} handleDeleteCustomSource={handleDeleteCustomBasemap} />
+                  <Label htmlFor={`basemap-${source.id}`} className="cursor-pointer flex-1 min-w-0">
+                    <CustomSourceDetails source={source} handleFitToBounds={handleFitToBounds} handleEditSource={handleEditBasemap} handleDeleteCustomSource={handleDeleteCustomBasemap} />
+                  </Label>
                 </div>
               ))}
             </RadioGroup>
@@ -1878,7 +1887,19 @@ const RasterBasemapSection: React.FC<{ state: any; setState: (updates: any) => v
   const [isOpen, setIsOpen] = useAtom(isTerrainRasterOpenAtom)
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
 
-  const sourceKeys = useMemo(() => ["osm", "google", "esri", "mapbox"], [])
+  // Move these BEFORE the early return
+  const basemapSourceOptions = useMemo(() => [
+    { value: "google", label: "Google Hybrid" },
+    { value: "mapbox", label: "Mapbox Satellite" },
+    { value: "esri", label: "ESRI World Imagery" },
+    { value: "googlesat", label: "Google Satellite" },
+    { value: "bing", label: "Bing Aerial" },
+    { value: "osm", label: "OpenStreetMap" },
+    ...customBasemapSources.map(s => ({ value: s.id, label: s.name }))
+  ], [customBasemapSources])
+
+  const sourceKeys = useMemo(() => basemapSourceOptions.map(b => b.value), [basemapSourceOptions])
+
   const cycleBasemapSource = useCallback((direction: number) => {
     const currentIndex = sourceKeys.indexOf(state.basemapSource)
     const newIndex = (currentIndex + direction + sourceKeys.length) % sourceKeys.length
@@ -1887,18 +1908,16 @@ const RasterBasemapSection: React.FC<{ state: any; setState: (updates: any) => v
 
   if (!state.showRasterBasemap) return null
 
-  const basemapSourceOptions = [
-    { value: "google", label: "Google Hybrid" }, { value: "mapbox", label: "Mapbox Satellite" },
-    { value: "esri", label: "ESRI World Imagery" }, { value: "googlesat", label: "Google Satellite" },
-    { value: "bing", label: "Bing Aerial" }, { value: "osm", label: "OpenStreetMap" },
-    ...customBasemapSources.map(s => ({ value: s.id, label: s.name }))
-  ]
-
   return (
     <Section title="Raster Basemap Options" isOpen={isOpen} onOpenChange={setIsOpen}>
       <div className="space-y-2">
         <Label className="text-sm">Source</Label>
-        <CycleButtonGroup value={state.basemapSource} options={basemapSourceOptions} onChange={(v) => setState({ basemapSource: v })} onCycle={cycleBasemapSource} />
+        <CycleButtonGroup
+          value={state.basemapSource}
+          options={basemapSourceOptions}
+          onChange={(v) => setState({ basemapSource: v })}
+          onCycle={cycleBasemapSource}
+        />
       </div>
       <BasemapByodSection state={state} setState={setState} mapRef={mapRef} />
     </Section>
