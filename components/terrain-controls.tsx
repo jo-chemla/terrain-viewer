@@ -804,11 +804,11 @@ const CustomBasemapModal: React.FC<{
 
   const url_placeholder = type === "cog" ?
     "https://example.com/basemap.cog.tiff" :
-    type === "tms" ?
+    (type === "tms") ?
       "https://example.com/tms/{z}/{x}/{y}.png" :
       type === "wms" ?
-        "https://example.com/wms?service=WMS&request=GetMap..." :
-        "https://example.com/wmts?service=WMTS&request=GetTile..."
+        "http://tiles.example.com/wms?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&width=256&height=256&layers=example" :
+        "Not supported type"
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -855,7 +855,8 @@ const CustomBasemapModal: React.FC<{
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="raster">Raster (XYZ / TMS)</SelectItem>
-                <SelectItem value="vector">Vector (Style JSON)</SelectItem>
+                <SelectItem value="cog">COG (Cloud Optimized Geotiff)</SelectItem>
+                <SelectItem value="wms">Raster (WMS / WMTS)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1410,7 +1411,7 @@ const BasemapByodSection: React.FC<{ state: any; setState: (updates: any) => voi
 
   const handleDeleteCustomBasemap = useCallback((id: string) => {
     setCustomBasemapSources(customBasemapSources.filter((s) => s.id !== id))
-    if (state.terrainSource === id) setState({ terrainSource: "osm" })
+    if (state.basemapSource === id) setState({ basemapSource: "osm" })
   }, [customBasemapSources, setCustomBasemapSources, state, setState])
 
   const handleFitToBounds = useCallback(async (source: CustomBasemapSource) => {
@@ -1521,7 +1522,7 @@ const BasemapByodSection: React.FC<{ state: any; setState: (updates: any) => voi
             </Button>
           </div>
           {customBasemapSources.length > 0 && (
-            <RadioGroup value={state.terrainSource} onValueChange={(value) => setState({ terrainSource: value })}>
+            <RadioGroup value={state.basemapSource} onValueChange={(value) => setState({ basemapSource: value })}>
               {customBasemapSources.map((source) => (
                 <div key={source.id} className="flex items-center gap-2 min-w-0">
                   <RadioGroupItem value={source.id} id={`basemap-${source.id}`} className="cursor-pointer shrink-0" />
@@ -1873,20 +1874,20 @@ const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: 
   )
 }
 
-const RasterBasemapOptionsSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
+const RasterBasemapSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
   const [isOpen, setIsOpen] = useAtom(isTerrainRasterOpenAtom)
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
 
-  const terrainSourceKeys = useMemo(() => ["osm", "google", "esri", "mapbox"], [])
-  const cycleTerrainSource = useCallback((direction: number) => {
-    const currentIndex = terrainSourceKeys.indexOf(state.terrainSource)
-    const newIndex = (currentIndex + direction + terrainSourceKeys.length) % terrainSourceKeys.length
-    setState({ terrainSource: terrainSourceKeys[newIndex] })
-  }, [state.terrainSource, terrainSourceKeys, setState])
+  const sourceKeys = useMemo(() => ["osm", "google", "esri", "mapbox"], [])
+  const cycleBasemapSource = useCallback((direction: number) => {
+    const currentIndex = sourceKeys.indexOf(state.basemapSource)
+    const newIndex = (currentIndex + direction + sourceKeys.length) % sourceKeys.length
+    setState({ basemapSource: sourceKeys[newIndex] })
+  }, [state.basemapSource, sourceKeys, setState])
 
   if (!state.showRasterBasemap) return null
 
-  const terrainSourceOptions = [
+  const basemapSourceOptions = [
     { value: "google", label: "Google Hybrid" }, { value: "mapbox", label: "Mapbox Satellite" },
     { value: "esri", label: "ESRI World Imagery" }, { value: "googlesat", label: "Google Satellite" },
     { value: "bing", label: "Bing Aerial" }, { value: "osm", label: "OpenStreetMap" },
@@ -1897,7 +1898,7 @@ const RasterBasemapOptionsSection: React.FC<{ state: any; setState: (updates: an
     <Section title="Raster Basemap Options" isOpen={isOpen} onOpenChange={setIsOpen}>
       <div className="space-y-2">
         <Label className="text-sm">Source</Label>
-        <CycleButtonGroup value={state.terrainSource} options={terrainSourceOptions} onChange={(v) => setState({ terrainSource: v })} onCycle={cycleTerrainSource} />
+        <CycleButtonGroup value={state.basemapSource} options={basemapSourceOptions} onChange={(v) => setState({ basemapSource: v })} onCycle={cycleBasemapSource} />
       </div>
       <BasemapByodSection state={state} setState={setState} mapRef={mapRef} />
     </Section>
@@ -2274,7 +2275,7 @@ export function TerrainControls({ state, setState, getMapBounds, mapRef }: Terra
         <VisualizationModesSection state={state} setState={setState} />
         <HillshadeOptionsSection state={state} setState={setState} />
         <HypsometricTintOptionsSection state={state} setState={setState} />
-        <RasterBasemapOptionsSection state={state} setState={setState} mapRef={mapRef} />
+        <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} />
         <ContourOptionsSection state={state} setState={setState} />
         <BackgroundOptionsSection state={state} setState={setState} theme={theme} />
         <FooterSection />

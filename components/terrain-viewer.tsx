@@ -129,12 +129,12 @@ TerrainSources.displayName = "TerrainSources"
 // Raster Source
 const RasterBasemapSource = memo(
   ({
-    terrainSource,
+    basemapSource,
     mapboxKey,
     customBasemapSources,
     titilerEndpoint,
   }: {
-    terrainSource: string
+    basemapSource: string
     mapboxKey: string
     customBasemapSources: any[],
     titilerEndpoint: string,
@@ -148,17 +148,26 @@ const RasterBasemapSource = memo(
       bing: `https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1`,
     }
 
+    const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
+
     // Check if it's a custom basemap
-    const customBasemap = customBasemapSources.find((s) => s.id === terrainSource)
+    const customBasemap = customBasemapSources.find((s) => s.id === basemapSource)
+    console.log('memoizing RasterBasemapSource for', basemapSource, customBasemapSources, customBasemap)
     if (customBasemap) {
       let tileUrl = customBasemap.url
       if (customBasemap.type === "cog") {
-        tileUrl = `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?url=${encodeURIComponent(customBasemap.url)}`
+        if (useCogProtocolVsTitiler) {
+          // Use direct COG protocol instead of titiler tiles
+          return `cog://${customBasemap.url}`
+        } else {
+          tileUrl = `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?url=${encodeURIComponent(customBasemap.url)}`
+        }
       }
+      console.log('tileUrl', tileUrl)
       return (
         <Source
-          id="terrain-raster-source"
-          key={`raster-${terrainSource}`}
+          id="raster-basemap-source"
+          key={`raster-${basemapSource}`}
           type="raster"
           tiles={[tileUrl]}
           tileSize={256}
@@ -169,9 +178,9 @@ const RasterBasemapSource = memo(
     return (
       <Source
         id="raster-basemap-source"
-        key={`raster-${terrainSource}`}
+        key={`raster-${basemapSource}`}
         type="raster"
-        tiles={[terrainRasterUrls[terrainSource] || terrainRasterUrls.google]}
+        tiles={[terrainRasterUrls[basemapSource] || terrainRasterUrls.google]}
         tileSize={256}
       />
     )
@@ -387,7 +396,7 @@ export function TerrainViewer() {
     showRasterBasemap: parseAsBoolean.withDefault(false),
     showBackground: parseAsBoolean.withDefault(false),
     rasterBasemapOpacity: parseAsFloat.withDefault(1.0),
-    terrainSource: parseAsString.withDefault("esri"),
+    basemapSource: parseAsString.withDefault("esri"),
     exaggeration: parseAsFloat.withDefault(1),
     lat: parseAsFloat.withDefault(45.9763),
     lng: parseAsFloat.withDefault(7.6586),
@@ -877,7 +886,7 @@ export function TerrainViewer() {
           />
           {/* <RasterBasemapSource terrainSource={state.terrainSource} mapboxKey={mapboxKey} /> */}
           <RasterBasemapSource
-            terrainSource={state.terrainSource}
+            basemapSource={state.basemapSource}
             mapboxKey={mapboxKey}
             customBasemapSources={customBasemapSources}
             titilerEndpoint={titilerEndpoint}
@@ -909,7 +918,7 @@ export function TerrainViewer() {
     state.bearing,
     state.viewMode,
     state.exaggeration,
-    state.terrainSource,
+    state.basemapSource,
     state.showRasterBasemap,
     state.rasterBasemapOpacity,
     state.showHillshade,
