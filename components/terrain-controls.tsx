@@ -854,7 +854,7 @@ const CustomBasemapModal: React.FC<{
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="raster">Raster (XYZ / TMS)</SelectItem>
+                <SelectItem value="tms">Raster (XYZ / TMS)</SelectItem>
                 <SelectItem value="cog">COG (Cloud Optimized Geotiff)</SelectItem>
                 <SelectItem value="wms">Raster (WMS / WMTS)</SelectItem>
               </SelectContent>
