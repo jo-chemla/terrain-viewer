@@ -163,6 +163,8 @@
 } */
 
 /* MapLibre controls dark theme with proper SVG icon styling */
+
+/* MapLibre controls dark theme with proper SVG icon styling */
 .dark .maplibregl-ctrl-group,
 .dark .maplibregl-ctrl-geocoder {
   background-color: oklch(0.145 0 0) !important;
@@ -198,6 +200,7 @@
   width: 240px !important;
   max-width: 240px !important;
   font-size: 14px !important;
+  font-family: var(--default-font-family);
 }
 
 .maplibregl-ctrl-geocoder input {
@@ -210,7 +213,7 @@
 }
 
 .maplibregl-ctrl-top-left .maplibregl-ctrl-geocoder {
-  margin-bottom: 10px !important;
+  margin-bottom: 0px !important;
 }
 
 /* Fix button-group highlighted color in dark theme */
@@ -228,10 +231,11 @@
 /* Style cleanup */
 .maplibregl-ctrl-geocoder {
   border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
+  border-radius: 0.25rem !important;
+  /* border-radius: var(--radius) !important; */
   background-color: hsl(var(--card));
   color: hsl(var(--foreground));
-  padding: 4px;
+  padding: 0px;
   font-size: 0.875rem;
   box-shadow: 0 1px 3px hsl(var(--foreground) / 0.2);
 }
@@ -240,7 +244,10 @@
   /* background: transparent !important; */
   background-color: white !important;
   color: hsl(var(--foreground)) !important;
+  border-radius: 0.25rem !important;
+  /* border-radius: calc(var(--radius) - 2px) !important; */
 }
+
 .maplibregl-ctrl-geocoder--icon-close {
   fill: #909090;
 }
@@ -251,3 +258,14 @@
   color: hsl(var(--foreground));
 }
 
+/* Map control groups */
+.maplibregl-ctrl-group {
+  border-radius: var(--radius) !important;
+  border-radius: 0.25rem !important;
+}
+
+/* Suggestions dropdown */
+.maplibregl-ctrl-geocoder .suggestions {
+  border-radius: var(--radius) !important;
+  border-radius: 0.25rem !important;
+}
