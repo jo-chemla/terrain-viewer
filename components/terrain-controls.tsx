@@ -730,7 +730,7 @@ const CustomTerrainSourceModal: React.FC<{
   const url_placeholder = type === "cog" ?
     "https://example.com/terrain-dtm.cog.tiff" :
     "https://example.com/tms/{z}/{x}/{y}.png"
-
+    
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
@@ -812,6 +812,10 @@ const CustomBasemapModal: React.FC<{
         "http://tiles.example.com/wms?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&width=256&height=256&layers=example" :
         "Not supported type"
 
+  let helper_text = false
+  if (type === "tms") helper_text = ' - hint: /{z}/{x}/{y}.png'
+  else if (type === "wms") helper_text = ' - hint: request=GetMap&bbox={bbox-epsg-3857}'
+    
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
@@ -839,7 +843,7 @@ const CustomBasemapModal: React.FC<{
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="basemap-url">URL *</Label>
+            <Label htmlFor="basemap-url">URL * {helper_text && `(helper: ${helper_text})`}</Label>
             <Input
               id="basemap-url"
               type="text"
