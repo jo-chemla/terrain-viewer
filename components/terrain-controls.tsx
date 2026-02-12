@@ -814,7 +814,7 @@ const CustomBasemapModal: React.FC<{
 
   let helper_text = false
   if (type === "tms") helper_text = '/{z}/{x}/{y}.png'
-  else if (type === "wms") helper_text = 'request=GetMap&bbox={bbox-epsg-3857}'
+  else if (type === "wms") helper_text = 'bbox={bbox-epsg-3857}'
   const normalizeBboxParam = (input) => {
     try {
       const parsedUrl = new URL(input);
