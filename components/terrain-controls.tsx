@@ -813,8 +813,8 @@ const CustomBasemapModal: React.FC<{
         "Not supported type"
 
   let helper_text = false
-  if (type === "tms") helper_text = ' - hint: /{z}/{x}/{y}.png'
-  else if (type === "wms") helper_text = ' - hint: request=GetMap&bbox={bbox-epsg-3857}'
+  if (type === "tms") helper_text = '/{z}/{x}/{y}.png'
+  else if (type === "wms") helper_text = 'request=GetMap&bbox={bbox-epsg-3857}'
   const normalizeBboxParam = (input) => {
     try {
       const parsedUrl = new URL(input);
@@ -854,7 +854,7 @@ const CustomBasemapModal: React.FC<{
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="basemap-url">URL * {helper_text && `(helper: ${helper_text})`}</Label>
+            <Label htmlFor="basemap-url">URL * {helper_text && `(hint: ${helper_text})`}</Label>
             <Input
               id="basemap-url"
               type="text"
