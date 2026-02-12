@@ -815,7 +815,18 @@ const CustomBasemapModal: React.FC<{
   let helper_text = false
   if (type === "tms") helper_text = ' - hint: /{z}/{x}/{y}.png'
   else if (type === "wms") helper_text = ' - hint: request=GetMap&bbox={bbox-epsg-3857}'
-    
+  const normalizeBboxParam = (input) => {
+    try {
+      const parsedUrl = new URL(input);
+      if (parsedUrl.searchParams.has("bbox")) {
+        parsedUrl.searchParams.set("bbox", "{bbox-epsg-3857}");
+      }
+      return parsedUrl.toString();
+    } catch {
+      return input;
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
@@ -850,6 +861,10 @@ const CustomBasemapModal: React.FC<{
               placeholder={url_placeholder}
               value={url}
               onChange={(e) => setUrl(e.target.value)}
+              onBlur={(e) => {
+                const normalized = normalizeBboxParam(e.target.value);
+                setUrl(normalized);
+              }}
               className="cursor-text"
             />
           </div>
