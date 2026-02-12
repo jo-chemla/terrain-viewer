@@ -2182,9 +2182,10 @@ const DownloadSection: React.FC<{
       const blob = new Blob([outputArrayBuffer], { type: "image/tiff" })
       saveAs(blob, `terrain-dtm-${Date.now()}.tif`)
     } catch (error) {
-      console.error("Failed to export DTM:", error)
+      console.error("Failed to export DTM, trying opening in new tab:", error)
       const url = getTitilerDownloadUrl()
       window.open(url, "_blank")
+      window.alert("Failed to export DTM, trying opening in new tab, eventually Make sure you have the Allow CORS plugin activated!");
     } finally {
       setIsExporting(false)
     }
