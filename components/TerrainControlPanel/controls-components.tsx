@@ -80,7 +80,9 @@ export const CheckboxWithSlider: React.FC<{
     <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" />
     <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider ? "col-span-2" : ""}`}>{label}</Label>
     {!hideSlider && (
-      <Slider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.01} className="cursor-pointer" disabled={!checked} />
+      <div className="w-full">
+        <Slider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.01} className="cursor-pointer w-full" disabled={!checked} />
+      </div>
     )}
   </div>
 )
