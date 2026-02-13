@@ -1,5 +1,5 @@
 import type React from "react"
-import { useMemo, useCallback } from "react"
+import { useMemo, useCallback, useRef } from "react"
 import { useAtom } from "jotai"
 import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
@@ -9,17 +9,38 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
-import { 
-  isHypsoOpenAtom, colorRampTypeAtom, licenseFilterAtom 
+import {
+  isHypsoOpenAtom, colorRampTypeAtom, licenseFilterAtom
 } from "@/lib/settings-atoms"
 import { colorRamps, extractStops, colorRampsFlat } from "@/lib/color-ramps"
 import { Section } from "./controls-components"
 import { getGradientColors } from "./controls-utility"
+import { useEffect } from "react"
 
 export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
   const [isOpen, setIsOpen] = useAtom(isHypsoOpenAtom)
   const [colorRampType, setColorRampType] = useAtom(colorRampTypeAtom)
   const [licenseFilter, setLicenseFilter] = useAtom(licenseFilterAtom)
+  const isUserActionRef = useRef(false)
+
+  // Initialize/sync colorRampType based on current colorRamp (for URL sharing)
+  useEffect(() => {
+    // Skip if this was a user-initiated change
+    if (isUserActionRef.current) {
+      isUserActionRef.current = false
+      return
+    }
+
+    // Find which category contains the current ramp
+    for (const [category, ramps] of Object.entries(colorRamps)) {
+      if (ramps[state.colorRamp]) {
+        setColorRampType(category)
+        return
+      }
+    }
+    // Fallback if ramp not found
+    setColorRampType('classic')
+  }, [state.colorRamp, setColorRampType])
 
   function filterColorRamps(colorRamps_: any, colorRampType_: string, licenseFilter_: string) {
     const ramps = colorRamps_[colorRampType_] || {}
@@ -79,12 +100,16 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
           value={colorRampType}
           onValueChange={(value) => {
             if (value) {
+              isUserActionRef.current = true
               setColorRampType(value)
               const filteredNow = filterColorRamps(colorRamps, value, licenseFilter)
-              if (!filteredNow[state.colorRamp]) {
-                const first = Object.values(filteredNow)[0].name
+              // Always switch to first ramp in the new category
+              // if (!filteredNow[state.colorRamp]) {
+              const first = Object.values(filteredNow)[0].name
+              if (first) {
                 setState({ colorRamp: first.toLowerCase() })
               }
+              // }
             }
           }}
           className="grid grid-cols-5 w-full"

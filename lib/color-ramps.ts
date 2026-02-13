@@ -77,7 +77,7 @@ function cptToObject(cptArray: any[]): Record<ColorReliefRamp, { name: string; c
 
 export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: any[] }> = {
   // Original ramps
-  bw: {
+  "black-and-white": {
     name: "Black-and-White",
     colors: [
       "interpolate",
@@ -87,8 +87,8 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       8000, "rgb(255, 255, 255)",
     ],
   },
-  wb: {
-    name: "Black-and-White Reversed",
+  "white-and-black": {
+    name: "White-and-Black",
     colors: [
       "interpolate",
       ["linear"],
