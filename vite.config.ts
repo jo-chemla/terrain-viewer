@@ -17,4 +17,10 @@ export default defineConfig({
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'], // Add this
   },
   base: "./",
+  publicDir: 'public', 
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    copyPublicDir: true, 
+  }
 })

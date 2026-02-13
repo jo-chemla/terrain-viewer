@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Float32 WMS DEM - Generic Protocol</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.css' />
+    <script src='https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/geotiff@2.0.7/dist-browser/geotiff.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.js'></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+            z-index: 1000;
+            min-width: 220px;
+        }
+        #controls label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        #controls input[type="range"] {
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        #controls input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        #controls .value {
+            float: right;
+            color: #666;
+        }
+        #controls .checkbox-row {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+<div id="controls">
+    <h3> IGN France - LidarHD MNT </h3> <h4>WMS raw elevation Float32 as Maplibre raster-dem </h4>
+    <div class="checkbox-row">
+        <label>
+            <input type="checkbox" id="terrain-toggle">
+            Enable 3D Terrain
+        </label>
+    </div>
+    <div>
+        <label>Illumination Direction <span class="value" id="direction-val">315°</span></label>
+        <input type="range" id="direction" min="0" max="360" step="15" value="315">
+    </div>
+</div>
+<div id="map"></div>
+<script>
+    // Cache for fetched EPSG definitions
+    const epsgCache = new Map();
+    
+    // CRS that use axis order Y,X (lat,lon) instead of X,Y (lon,lat)
+    const axisOrderYX = new Set(['4326', '4269', '4267']); // Common geographic CRS
+    
+    /**
+     * Fetch EPSG definition from epsg.io and register with proj4
+     */
+    async function registerEPSG(epsgCode) {
+        if (epsgCache.has(epsgCode)) {
+            return epsgCache.get(epsgCode);
+        }
+        
+        try {
+            const response = await fetch(`https://epsg.io/${epsgCode}.proj4`);
+            const proj4def = await response.text();
+            proj4.defs(`EPSG:${epsgCode}`, proj4def.trim());
+            epsgCache.set(epsgCode, proj4def);
+            console.log(`Registered EPSG:${epsgCode}:`, proj4def);
+            return proj4def;
+        } catch (error) {
+            console.error(`Failed to fetch EPSG:${epsgCode}:`, error);
+            throw error;
+        }
+    }
+    
+    // Pre-register common projections
+    proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs +type=crs");
+    
+    /**
+     * Generic Float32 DEM protocol handler
+     * URL format: float32dem://EPSG:NNNN/actual-wms-url
+     * or: float32dem://actual-wms-url (defaults to EPSG:3857)
+     */
+    maplibregl.addProtocol('float32dem', async (params, abortController) => {
+        let url = params.url.replace('float32dem://', '');
+        
+        // Extract EPSG code from URL if present
+        const epsgMatch = url.match(/^EPSG:(\d+)\/(.*)/);
+        let sourceCRS = 'EPSG:3857'; // Default
+        let epsgCode = '3857';
+        
+        if (epsgMatch) {
+            epsgCode = epsgMatch[1];
+            sourceCRS = `EPSG:${epsgCode}`;
+            url = epsgMatch[2];
+        }
+        
+        url = 'https://' + url;
+        
+        // Ensure EPSG is registered
+        if (!proj4.defs(sourceCRS)) {
+            await registerEPSG(epsgCode);
+        }
+        
+        // Parse the bbox from the URL (always EPSG:3857 from MapLibre)
+        const bboxMatch = url.match(/BBOX=([^&]+)/);
+        if (!bboxMatch) {
+            throw new Error('No BBOX in URL');
+        }
+        
+        const bbox3857 = bboxMatch[1].split(',').map(Number);
+        let bboxParam = bboxMatch[1];
+        
+        // Convert bbox if needed
+        if (sourceCRS !== 'EPSG:3857') {
+            const bottomLeft = proj4('EPSG:3857', sourceCRS, [bbox3857[0], bbox3857[1]]);
+            const topRight = proj4('EPSG:3857', sourceCRS, [bbox3857[2], bbox3857[3]]);
+            
+            // Check if this CRS uses Y,X axis order (lat,lon instead of lon,lat)
+            if (axisOrderYX.has(epsgCode)) {
+                // Swap to Y,X order for WMS
+                bboxParam = [
+                    bottomLeft[1], bottomLeft[0],
+                    topRight[1], topRight[0]
+                ].join(',');
+            } else {
+                bboxParam = [
+                    bottomLeft[0], bottomLeft[1],
+                    topRight[0], topRight[1]
+                ].join(',');
+            }
+        }
+        
+        // Replace CRS and BBOX in URL
+        const finalUrl = url
+            .replace(/CRS=EPSG:\d+/i, `CRS=${sourceCRS}`)
+            .replace(`BBOX=${bboxMatch[1]}`, `BBOX=${bboxParam}`);
+        
+        console.log(`Requesting ${sourceCRS} tile:`, finalUrl);
+        
+        const response = await fetch(finalUrl, { signal: abortController.signal });
+        const arrayBuffer = await response.arrayBuffer();
+        
+        const tiff = await GeoTIFF.fromArrayBuffer(arrayBuffer);
+        const image = await tiff.getImage();
+        const rasters = await image.readRasters();
+        const width = image.getWidth();
+        const height = image.getHeight();
+        
+        const elevationData = rasters[0];
+        
+        // Encode to Mapbox Terrain RGB
+        const rgbaData = new Uint8ClampedArray(width * height * 4);
+        
+        for (let i = 0; i < elevationData.length; i++) {
+            let elevation = elevationData[i];
+            if (!isFinite(elevation)) elevation = 0;
+            
+            const encodedValue = Math.round((elevation + 10000) / 0.1);
+            
+            rgbaData[i * 4 + 0] = Math.floor(encodedValue / 65536) & 0xFF;
+            rgbaData[i * 4 + 1] = Math.floor(encodedValue / 256) & 0xFF;
+            rgbaData[i * 4 + 2] = encodedValue & 0xFF;
+            rgbaData[i * 4 + 3] = 255;
+        }
+        
+        const canvas = new OffscreenCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+        const imageData = new ImageData(rgbaData, width, height);
+        ctx.putImageData(imageData, 0, 0);
+        
+        const blob = await canvas.convertToBlob({ type: 'image/png' });
+        return { data: new Uint8Array(await blob.arrayBuffer()) };
+    });
+    
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            version: 8,
+            sources: {
+                'lidar-hd-dem': {
+                    type: 'raster-dem',
+                    encoding: 'mapbox',
+                    tiles: [
+                        // Using Lambert 93 - just embed EPSG:2154 in the URL
+                        // 'float32dem://EPSG:2154/data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514'
+                        // 'float32dem://EPSG:3857/data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514'
+                        'float32dem://EPSG:4326/data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514'
+                    ],
+                    tileSize: 512
+                },
+                sat: {
+                    type: 'raster',
+                    tiles: ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'],
+                    tileSize: 256
+                }
+            },
+            layers: [
+                {
+                    id: 'sat-layer',
+                    type: 'raster',
+                    source: 'sat',
+                    paint: { 'raster-opacity': 0.01 }
+                },
+                {
+                    id: 'background',
+                    type: 'background',
+                    paint: { 'background-color': '#ffffff' },
+                },
+                {
+                    id: 'hillshade',
+                    type: 'hillshade',
+                    source: 'lidar-hd-dem',
+                    paint: {
+                        'hillshade-exaggeration': 0.5,
+                        'hillshade-illumination-direction': 315,
+                        'hillshade-shadow-color': '#000000'
+                    },
+                }, 
+            ]
+        },
+        center: [2.3522, 48.8566],
+        zoom: 16,
+        pitch: 0,
+        bearing: 0
+    });
+
+    // map.on('load', () => {
+    //     map.setTerrain({ source: 'lidar-hd-dem', exaggeration: 1.0 });
+    // });
+    
+    // Terrain toggle
+    document.getElementById('terrain-toggle').addEventListener('change', (e) => {
+        if (e.target.checked) {
+            map.setTerrain({ source: 'lidar-hd-dem', exaggeration: 1.0 });
+        } else {
+            map.setTerrain(null);
+        }
+    });
+    
+    // Illumination direction control
+    document.getElementById('direction').addEventListener('input', (e) => {
+        const value = parseInt(e.target.value);
+        map.setPaintProperty('hillshade', 'hillshade-illumination-direction', value);
+        document.getElementById('direction-val').textContent = value + '°';
+    });
+    
+    console.log('Protocol registered: float32dem://EPSG:NNNN/url or float32dem://url');
+</script>
+</body>
+</html>
