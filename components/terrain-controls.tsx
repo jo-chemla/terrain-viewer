@@ -117,7 +117,7 @@ const useSourceConfig = () => {
 
   const getCustomSourceUrl = useCallback((source: CustomTerrainSource): string => {
     if (source.type === "cog") {
-      return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?url=${encodeURIComponent(source.url)}&algorithm=terrarium`
+      return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(source.url)}&algorithm=terrarium`
     }
     return source.url
   }, [titilerEndpoint])
@@ -125,7 +125,7 @@ const useSourceConfig = () => {
 
   const getCustomBasemapUrl = useCallback((source: CustomBasemapSource): string => {
     if (source.type === "cog") {
-      return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?url=${encodeURIComponent(source.url)}`
+      return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(source.url)}`
     }
     return source.url
   }, [titilerEndpoint])
