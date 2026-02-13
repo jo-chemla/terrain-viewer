@@ -55,7 +55,7 @@ const TerrainSources = memo(
             // Use direct COG protocol instead of titiler tiles
             return `cog://${customTerrainSource.url}#dem`
           } else {
-            return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customTerrainSource.url)}`
+            return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customTerrainSource.url)}`
             // &nodata=0&resampling=bilinear&algorithm=terrainrgb&return_mask=false
           }
         }
@@ -64,7 +64,7 @@ const TerrainSources = memo(
             console.warn('Warning, VRT can only work with TiTiler COG streaming')
             return customTerrainSource.url
           } else {
-            return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(customTerrainSource.url)}`
+            return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(customTerrainSource.url)}`
             // eg vrt:///vsicurl/https://data.cquest.org/ign/rgealti/repack/cog/RGEALTI_2-0_1M_COG_LAMB93-IGN69_FXX.vrt?a_srs=EPSG:2154
           }
         }
@@ -160,7 +160,7 @@ const RasterBasemapSource = memo(
           // Use direct COG protocol instead of titiler tiles
           tileUrl = `cog://${(customBasemap.url)}`
         } else {
-          tileUrl = `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?url=${encodeURIComponent(customBasemap.url)}`
+          tileUrl = `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(customBasemap.url)}`
         }
       }
       const sourceProps = (customBasemap.type === "cog" && useCogProtocolVsTitiler)
