@@ -12,7 +12,7 @@ import Map, {
   type LayerSpecification,
 } from "react-map-gl/maplibre"
 import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css"
-import { TerrainControls } from "./terrain-controls"
+import { TerrainControlPanel } from "./TerrainControlPanel/TerrainControlPanel"
 import GeocoderControl from "./geocoder-control"
 import { terrainSources } from "@/lib/terrain-sources"
 import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
@@ -821,6 +821,7 @@ export function TerrainViewer() {
   }, [state.viewMode]);
 
   const [theme, _] = useAtom(themeAtom)
+  const themeColor = theme === 'light' ? '#ffffff' : '#000000'
 
   const getSkyConfig = () => ({
     'sky-color': skyConfig.skyColor,
@@ -829,6 +830,12 @@ export function TerrainViewer() {
     'horizon-fog-blend': skyConfig.horizonFogBlend,
     'fog-color': skyConfig.fogColor,
     'fog-ground-blend': skyConfig.fogGroundBlend
+  })
+  const getNoSkyConfig = () => ({
+    'sky-color': themeColor,
+    'sky-horizon-blend': 0,
+    'horizon-fog-blend': 1,
+    'fog-ground-blend': 1
   })
 
   const sky: SkySpecification = getSkyConfig()
@@ -864,7 +871,8 @@ export function TerrainViewer() {
               })
             )
           }}
-          sky={getSkyConfig()}
+          sky={state.showBackground ? getSkyConfig() : getNoSkyConfig()}
+          // sky={undefined}
           minPitch={0}
           maxPitch={state.viewMode === "2d" ? 0 : 85}
           rollEnabled={state.viewMode !== "2d"}
@@ -928,6 +936,7 @@ export function TerrainViewer() {
     state.showHillshade,
     state.showColorRelief,
     state.showContours,
+    state.showBackground,
     hillshadePaint,
     colorReliefPaint,
     mapboxKey,
@@ -960,7 +969,7 @@ export function TerrainViewer() {
           <div className="flex-1">{renderMap(state.sourceB as TerrainSource | string, "map-b")}</div>
         )}
       </div>
-      <TerrainControls state={state} setState={setState} getMapBounds={getMapBounds} mapRef={mapARef} />
+      <TerrainControlPanel state={state} setState={setState} getMapBounds={getMapBounds} mapRef={mapARef} />
     </div>
   )
 }
