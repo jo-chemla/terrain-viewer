@@ -1,0 +1,76 @@
+{
+    "SAMPLE_TERRAIN_SOURCES": [
+        {
+            "id": "custom-1762932753467",
+            "name": "ESP - TerrainRGB Nuevo servicio XYZ del Modelo Digital de Elevaciones de España:",
+            "url": "https://xyz-mdt.idee.es/1.0.0/raster-dem/{z}/{x}/{y}.png",
+            "type": "terrainrgb",
+            "description": "See https://blog-idee.blogspot.com/2024/03/nuevo-servicio-xyz-del-modelo-digital.html"
+        },
+        {
+            "id": "custom-1762932753466",
+            "name": "ESP - Andalucía - COG 286GB - MDE del PNOA-LIDAR de Andalucía, 2020-21 (1x1m)",
+            "url": "https://portalrediam.cica.es/repositorio/01_CARACTERIZACION_TERRITORIO/07_BASES_REF_ELEV/01_ELEVACIONES/01_PROYECTOS_REGIONALES/2020_AND_PNOA_LIDAR_V226_el/InfGeografica/InfRaster/MDT/ETRS89_h30_Horto/Cuadrantes_1m/MDT_Andalucia_2020_COG.tif",
+            "type": "cog",
+            "description": "See https://www.juntadeandalucia.es/medioambiente/portal/acceso-rediam/geoportal/raster-formato-cog/bases-referencia-y-elevaciones/modelos-digitales-elevaciones"
+        },
+        {
+            "id": "custom-1763032004272",
+            "name": "GRE - Amphipolis COG clamped",
+            "url": "https://3d.iconem.com/greece/amphipolis/Amphipolis_general_dsm_10cm_cog_cropped_alpha-remapped_plus80_clamped_cog.tif",
+            "type": "cog",
+            "description": ""
+        },
+        {
+            "id": "custom-1770976659423",
+            "name": "FRA - IGN Lidar HD - WMS:url tiff 32 bits ",
+            "url": "WMS:https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.WGS84G&FORMAT=image%2Fgeotiff&BBoxOrder=yxYX",
+            "type": "cog",
+            "description": "FRA - IGN Lidar HD - WMS:url tiff 32 bits "
+        },
+        {
+            "id": "custom-1763115512226",
+            "name": "FRA - IGN RGE-ALTI Cquest repack - vrt:///vsicurl/https://",
+            "url": "vrt:///vsicurl/https://data.cquest.org/ign/rgealti/repack/cog/RGEALTI_2-0_1M_COG_LAMB93-IGN69_FXX.vrt?a_srs=EPSG:2154",
+            "type": "cog",
+            "description": "FRA - IGN RGE-ALTI Cquest repack - vrt:///vsicurl/https://"
+        },
+        {
+            "id": "custom-1763118373252",
+            "name": "VRT Titiler CQUEST repack RGEALTI_2",
+            "url": "https://data.cquest.org/ign/rgealti/repack/cog/RGEALTI_2-0_1M_COG_LAMB93-IGN69_FXX.vrt?a_srs=EPSG:2154",
+            "type": "vrt",
+            "description": ""
+        },
+        {
+            "id": "custom-1771008413764",
+            "name": "FRA - IGN LidarHD WMS via Titiler",
+            "url": "WMS:https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.WGS84G&FORMAT=image%2Fgeotiff&BBoxOrder=yxYX",
+            "type": "cog",
+            "description": ""
+        }
+    ],
+    "SAMPLE_BASEMAPS_SOURCES": [
+        {
+            "id": "custom-basemap-1770049293519",
+            "name": "ESRI World_Imagery",
+            "url": "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "description": ""
+        },
+        {
+            "id": "custom-basemap-1770049293518",
+            "name": "Sentinel COG",
+            "url": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/36/Q/WD/2020/7/S2A_36QWD_20200701_0_L2A/TCI.tif",
+            "type": "cog",
+            "description": ""
+        },
+        {
+            "id": "custom-basemap-1770130217503",
+            "name": "GRE - Amphipolis RGB Iconem",
+            "url": "https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif",
+            "type": "cog",
+            "description": ""
+        }
+    ]
+}
