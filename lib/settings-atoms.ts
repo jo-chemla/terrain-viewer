@@ -20,7 +20,7 @@ export const isDownloadOpenAtom = atomWithStorage("isDownloadOpen", true)
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)
 export const isBackgroundOpenAtom  = atomWithStorage("isBackgroundOpen", true)
 export const colorRampTypeAtom = atomWithStorage('colorRampType', 'classic')
-export const licenseFilterAtom = atomWithStorage('licenseFilter', 'all' )
+export const licenseFilterAtom = atomWithStorage('licenseFilter', 'open-distribute' )
 
 type SkyConfig = {
   skyColor: string
