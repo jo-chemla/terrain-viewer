@@ -33,6 +33,18 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
     }
   }, [state.colorRamp])
 
+  // Reset slider bounds when color ramp changes
+  useEffect(() => {
+    const stops = extractStops(colorRampsFlat[state.colorRamp].colors)
+    const newMin = Math.floor(Math.min(...stops))
+    const newMax = Math.ceil(Math.max(...stops))
+
+    setState({
+      sliderMin: newMin,
+      sliderMax: newMax
+    })
+  }, [state.colorRamp, setState])
+
   // Initialize/sync colorRampType based on current colorRamp (for URL sharing)
   useEffect(() => {
     // Skip if this was a user-initiated change
@@ -81,7 +93,12 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
   }
 
   const resetCustomMinMax = useCallback(() => {
-    setState({ customMin: rampBounds.min, customMax: rampBounds.max })
+    setState({
+      customMin: rampBounds.min,
+      customMax: rampBounds.max,
+      sliderMin: Math.floor(rampBounds.min),
+      sliderMax: Math.ceil(rampBounds.max)
+    })
   }, [rampBounds, setState])
 
   const filteredColorRamps = useMemo(() => {
@@ -93,7 +110,11 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
   const cycleColorRamp = useCallback((direction: number) => {
     const currentIndex = colorRampKeys.indexOf(state.colorRamp)
     const newIndex = (currentIndex + direction + colorRampKeys.length) % colorRampKeys.length
-    setState({ colorRamp: colorRampKeys[newIndex] })
+    setState({
+      colorRamp: colorRampKeys[newIndex],
+      sliderMin: undefined,
+      sliderMax: undefined
+    })
   }, [state.colorRamp, colorRampKeys, setState])
 
   // Get current slider values, defaulting to ramp bounds if not set
@@ -101,6 +122,12 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
     state.customMin ?? rampBounds.min,
     state.customMax ?? rampBounds.max
   ], [state.customMin, state.customMax, rampBounds])
+
+  // Get slider bounds, defaulting to ramp bounds if not set
+  const sliderBounds = useMemo(() => ({
+    min: state.sliderMin ?? Math.floor(rampBounds.min),
+    max: state.sliderMax ?? Math.ceil(rampBounds.max)
+  }), [state.sliderMin, state.sliderMax, rampBounds])
 
   const handleSliderChange = useCallback((values: number[]) => {
     // Ensure min doesn't exceed max
@@ -128,7 +155,11 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
               // if (!filteredNow[state.colorRamp]) {
               const first = Object.values(filteredNow)[0].name
               if (first) {
-                setState({ colorRamp: first.toLowerCase() })
+                setState({
+                  colorRamp: first.toLowerCase(),
+                  sliderMin: undefined,
+                  sliderMax: undefined
+                })
               }
               // }
             }
@@ -166,7 +197,11 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
             </TooltipProvider>
           </div>
           <div className="flex gap-2">
-            <Select value={state.colorRamp} onValueChange={(value) => setState({ colorRamp: value })}>
+            <Select value={state.colorRamp} onValueChange={(value) => setState({
+              colorRamp: value,
+              sliderMin: undefined,
+              sliderMax: undefined
+            })}>
               <SelectTrigger className="flex-1 cursor-pointer">
                 <SelectValue />
               </SelectTrigger>
@@ -203,7 +238,11 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
               const filteredNow = filterColorRamps(colorRamps, colorRampType, value)
               if (!filteredNow[state.colorRamp]) {
                 const first = Object.values(filteredNow)[0].name
-                setState({ colorRamp: first.toLowerCase() })
+                setState({
+                  colorRamp: first.toLowerCase(),
+                  sliderMin: undefined,
+                  sliderMax: undefined
+                })
               }
             }
           }}>
@@ -256,16 +295,40 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
 
           <div className="px-2">
             <Slider
-              min={Math.floor(rampBounds.min)}
-              max={Math.ceil(rampBounds.max)}
+              min={sliderBounds.min}
+              max={sliderBounds.max}
               step={1}
               value={sliderValues}
               onValueChange={handleSliderChange}
               className="w-full"
             />
-            <div className="flex justify-between text-xs text-muted-foreground mt-1">
-              <span>{Math.floor(rampBounds.min)}</span>
-              <span>{Math.ceil(rampBounds.max)}</span>
+            <div className="flex items-center justify-between gap-2 mt-1">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Min"
+                className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-left w-16"
+                value={state.sliderMin ?? ""}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === "" || value === "-" || !isNaN(Number(value))) {
+                    setState({ sliderMin: value === "" ? undefined : parseFloat(value) })
+                  }
+                }}
+              />
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Max"
+                className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-right w-16"
+                value={state.sliderMax ?? ""}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === "" || value === "-" || !isNaN(Number(value))) {
+                    setState({ sliderMax: value === "" ? undefined : parseFloat(value) })
+                  }
+                }}
+              />
             </div>
           </div>
         </div>

@@ -106,6 +106,8 @@ export function TerrainViewer() {
     customHypsoMinMax: parseAsBoolean.withDefault(false),
     customMin: parseAsFloat.withDefault(0),
     customMax: parseAsFloat.withDefault(8100),
+    sliderMin: parseAsFloat.withDefault(0),
+    sliderMax: parseAsFloat.withDefault(8100),
   })
 
   // This could be renamed ephemeralState, stores backgroundLayerActive, sky etc
