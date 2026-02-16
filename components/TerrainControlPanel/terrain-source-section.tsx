@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Plus, Edit, Download, RotateCcw } from "lucide-react"
+import { ChevronDown, Plus, Edit, TestTube, RotateCcw } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
@@ -21,6 +21,11 @@ import { type Bounds, templateLink } from "./controls-utility"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { TooltipButton } from "./tooltip-button"
+
+import customSources from "@/lib/custom-sources.json"
+const SAMPLE_TERRAIN_SOURCES = customSources['SAMPLE_TERRAIN_SOURCES']
 
 export const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => void; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds; mapRef: React.RefObject<MapRef> }> = ({ state, setState, getTilesUrl, getMapBounds, mapRef }) => {
   const [isOpen, setIsOpen] = useAtom(isTerrainSourceOpenAtom)
@@ -98,6 +103,10 @@ export const TerrainSourceSection: React.FC<{ state: any; setState: (updates: an
     }
   }, [batchEditJson, setCustomTerrainSources])
 
+  const handleLoadSample = useCallback(() => {
+    setCustomTerrainSources(SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[])
+  }, [setCustomTerrainSources])
+
   return (
     <>
       <Section title="Terrain Source" isOpen={isOpen} onOpenChange={setIsOpen}>
@@ -140,14 +149,29 @@ export const TerrainSourceSection: React.FC<{ state: any; setState: (updates: an
           </CollapsibleTrigger>
 
           <CollapsibleContent className="space-y-2 pt-1">
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-2 cursor-pointer bg-transparent" onClick={() => { setEditingSource(null); setIsAddSourceModalOpen(true) }}>
-                <Plus className="h-4 w-4 mr-2" />Add Dataset
-              </Button>
-              <Button variant="outline" size="sm" className="flex-1 cursor-pointer bg-transparent" onClick={handleOpenBatchEdit}>
-                <Edit className="h-3 w-3 mr-2" />Batch Edit
-              </Button>
-            </div>
+            <TooltipProvider>
+
+              <div className="flex gap-2">
+                <TooltipButton
+                  icon={Plus}
+                  label="Add Dataset"
+                  tooltip="Add a new custom terrain source"
+                  onClick={() => { setEditingSource(null); setIsAddSourceModalOpen(true) }}
+                />
+                <TooltipButton
+                  icon={Edit}
+                  label="Batch"
+                  tooltip="Batch edit all sources as JSON"
+                  onClick={() => setIsBatchEditModalOpen(true)}
+                />
+                <TooltipButton
+                  icon={TestTube}
+                  label="Sample"
+                  tooltip="Load sample terrain sources"
+                  onClick={handleLoadSample}
+                />
+              </div>
+            </TooltipProvider>
             {customTerrainSources.length > 0 && (
               <div className="space-y-2">
                 <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })}>

@@ -1,13 +1,14 @@
 import type React from "react"
 import { useState, useCallback, useRef } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Plus, Edit } from "lucide-react"
+import { ChevronDown, Plus, Edit, TestTube } from "lucide-react"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { 
-  isBasemapByodOpenAtom, customBasemapSourcesAtom, 
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { TooltipButton } from "./tooltip-button"
+import {
+  isBasemapByodOpenAtom, customBasemapSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
   type CustomBasemapSource
 } from "@/lib/settings-atoms"
@@ -16,6 +17,9 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { CustomBasemapModal } from "./custom-basemap-modal"
 import { BasemapBatchEditModal } from "./basemap-batch-edit-modal"
 import { CustomSourceDetails } from "./custom-source-details"
+
+import customSources from "@/lib/custom-sources.json"
+const SAMPLE_BASEMAP_SOURCES = customSources['SAMPLE_BASEMAPS_SOURCES']
 
 export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
   const [isBasemapByodOpen, setIsBasemapByodOpen] = useAtom(isBasemapByodOpenAtom)
@@ -74,6 +78,10 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     }
   }, [customBasemapSources])
 
+  const handleLoadSample = useCallback(() => {
+    setCustomBasemapSources(SAMPLE_BASEMAP_SOURCES as CustomBasemapSource[])
+  }, [setCustomBasemapSources])
+
   return (
     <>
       <Collapsible open={isBasemapByodOpen} onOpenChange={setIsBasemapByodOpen} className="mt-2">
@@ -83,14 +91,28 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         </CollapsibleTrigger>
 
         <CollapsibleContent className="space-y-2 pt-1">
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="flex-3 cursor-pointer bg-transparent" onClick={() => { setEditingBasemap(null); setIsAddBasemapModalOpen(true) }}>
-              <Plus className="h-4 w-4 mr-2" />Add Basemap
-            </Button>
-            <Button variant="outline" size="sm" className="flex-1 cursor-pointer bg-transparent" onClick={() => setIsBatchEditModalOpen(true)}>
-              <Edit className="h-3 w-3 mr-2" />Batch Edit
-            </Button>
-          </div>
+          <TooltipProvider>
+            <div className="flex gap-2">
+              <TooltipButton
+                icon={Plus}
+                label="Add Basemap"
+                tooltip="Add a new custom basemap source"
+                onClick={() => { setEditingBasemap(null); setIsAddBasemapModalOpen(true) }}
+              />
+              <TooltipButton
+                icon={Edit}
+                label="Batch"
+                tooltip="Batch edit all sources as JSON"
+                onClick={() => setIsBatchEditModalOpen(true)}
+              />
+              <TooltipButton
+                icon={TestTube}
+                label="Sample"
+                tooltip="Load sample basemap sources"
+                onClick={handleLoadSample}
+              />
+            </div>
+          </TooltipProvider>
           {customBasemapSources.length > 0 && (
             <RadioGroup value={state.basemapSource} onValueChange={(value) => setState({ basemapSource: value })}>
               {customBasemapSources.map((source) => (
