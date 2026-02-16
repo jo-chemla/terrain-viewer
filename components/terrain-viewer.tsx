@@ -8,6 +8,7 @@ import Map, {
   NavigationControl,
   GeolocateControl,
   SkySpecification,
+  ScaleControl,
   type MapRef,
   type LayerSpecification,
 } from "react-map-gl/maplibre"
@@ -601,6 +602,7 @@ export function TerrainViewer() {
               {/* flyToSpeed={10}  */}
               <NavigationControl position="top-left" />
               <GeolocateControl position="top-left" />
+              <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
             </>
           )
           }
