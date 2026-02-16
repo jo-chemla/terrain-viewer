@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
+import { Slider } from "@/components/ui/slider"
 import {
   isHypsoOpenAtom, colorRampTypeAtom, licenseFilterAtom
 } from "@/lib/settings-atoms"
@@ -22,6 +23,15 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
   const [colorRampType, setColorRampType] = useAtom(colorRampTypeAtom)
   const [licenseFilter, setLicenseFilter] = useAtom(licenseFilterAtom)
   const isUserActionRef = useRef(false)
+
+  // Calculate the bounds for the current color ramp
+  const rampBounds = useMemo(() => {
+    const stops = extractStops(colorRampsFlat[state.colorRamp].colors)
+    return {
+      min: Math.min(...stops),
+      max: Math.max(...stops)
+    }
+  }, [state.colorRamp])
 
   // Initialize/sync colorRampType based on current colorRamp (for URL sharing)
   useEffect(() => {
@@ -71,11 +81,8 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
   }
 
   const resetCustomMinMax = useCallback(() => {
-    const stops = extractStops(colorRampsFlat[state.colorRamp].colors)
-    const rampMin = Math.min(...stops)
-    const rampMax = Math.max(...stops)
-    setState({ customMin: rampMin, customMax: rampMax })
-  }, [state.colorRamp, setState])
+    setState({ customMin: rampBounds.min, customMax: rampBounds.max })
+  }, [rampBounds, setState])
 
   const filteredColorRamps = useMemo(() => {
     return filterColorRamps(colorRamps, colorRampType, licenseFilter)
@@ -88,6 +95,20 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
     const newIndex = (currentIndex + direction + colorRampKeys.length) % colorRampKeys.length
     setState({ colorRamp: colorRampKeys[newIndex] })
   }, [state.colorRamp, colorRampKeys, setState])
+
+  // Get current slider values, defaulting to ramp bounds if not set
+  const sliderValues = useMemo(() => [
+    state.customMin ?? rampBounds.min,
+    state.customMax ?? rampBounds.max
+  ], [state.customMin, state.customMax, rampBounds])
+
+  const handleSliderChange = useCallback((values: number[]) => {
+    // Ensure min doesn't exceed max
+    const [newMin, newMax] = values
+    const clampedMin = Math.min(newMin, newMax)
+    const clampedMax = Math.max(newMin, newMax)
+    setState({ customMin: clampedMin, customMax: clampedMax, customHypsoMinMax: true })
+  }, [setState])
 
   if (!state.showColorRelief) return null
 
@@ -198,37 +219,54 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
           </Select>
         </div>
 
-        <div className="w-full gap-1 flex items-center">
-          <div className="flex-[2] flex items-center">
-            <div className="flex items-center justify-between py-0.5 w-full">
-              <Checkbox id="hypso-min-max" checked={state.customHypsoMinMax} onCheckedChange={(checked) => setState({ customHypsoMinMax: checked === true })} />
-              <div className="flex items-center flex-1 ml-2 gap-1">
-                <Label htmlFor="hypso-min-max" className="text-sm font-medium cursor-pointer">Edit Min/Max</Label>
-                <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer" onClick={resetCustomMinMax}>
-                  <RotateCcw className="h-3 w-3" />
-                </Button>
+        <div className="space-y-2">
+          <div className="w-full gap-1 flex items-center">
+            <div className="flex-[2] flex items-center">
+              <div className="flex items-center justify-between py-0.5 w-full">
+                <Checkbox id="hypso-min-max" checked={state.customHypsoMinMax} onCheckedChange={(checked) => setState({ customHypsoMinMax: checked === true })} />
+                <div className="flex items-center flex-1 ml-2 gap-1">
+                  <Label htmlFor="hypso-min-max" className="text-sm font-medium cursor-pointer">Edit Min/Max</Label>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer" onClick={resetCustomMinMax}>
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             </div>
+            <div className="flex-1 flex items-center">
+              <Input
+                type="number"
+                step="any"
+                placeholder="Min"
+                className="h-8 py-1 text-sm"
+                value={state.customMin ?? ""}
+                onChange={(e) => setState({ customMin: e.target.value === "" ? undefined : parseFloat(e.target.value), customHypsoMinMax: true })}
+              />
+            </div>
+            <div className="flex-1 flex items-center">
+              <Input
+                type="number"
+                step="any"
+                placeholder="Max"
+                className="h-8 py-1 text-sm"
+                value={state.customMax ?? ""}
+                onChange={(e) => setState({ customMax: e.target.value === "" ? undefined : parseFloat(e.target.value), customHypsoMinMax: true })}
+              />
+            </div>
           </div>
-          <div className="flex-1 flex items-center">
-            <Input
-              type="number"
-              step="any"
-              placeholder="Min"
-              className="h-8 py-1 text-sm"
-              value={state.customMin ?? ""}
-              onChange={(e) => setState({ customMin: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
+
+          <div className="px-2">
+            <Slider
+              min={Math.floor(rampBounds.min)}
+              max={Math.ceil(rampBounds.max)}
+              step={1}
+              value={sliderValues}
+              onValueChange={handleSliderChange}
+              className="w-full"
             />
-          </div>
-          <div className="flex-1 flex items-center">
-            <Input
-              type="number"
-              step="any"
-              placeholder="Max"
-              className="h-8 py-1 text-sm"
-              value={state.customMax ?? ""}
-              onChange={(e) => setState({ customMax: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
-            />
+            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+              <span>{Math.floor(rampBounds.min)}</span>
+              <span>{Math.ceil(rampBounds.max)}</span>
+            </div>
           </div>
         </div>
       </div>
