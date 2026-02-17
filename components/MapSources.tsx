@@ -99,6 +99,40 @@ export const TerrainSources = memo(
 )
 TerrainSources.displayName = "TerrainSources"
 
+// Raster basemap definitions with tile URL, tileSize, and maxzoom
+const rasterBasemaps: Record<string, { url: string; tileSize: number; maxzoom: number }> = {
+    osm: {
+        url: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        tileSize: 256,
+        maxzoom: 19,
+    },
+    googlesat: {
+        url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        tileSize: 256,
+        maxzoom: 20,
+    },
+    google: {
+        url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+        tileSize: 256,
+        maxzoom: 20,
+    },
+    esri: {
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        tileSize: 256,
+        maxzoom: 19,
+    },
+    mapbox: {
+        url: "https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token={API_KEY}",
+        tileSize: 256,
+        maxzoom: 22,
+    },
+    bing: {
+        url: "https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1",
+        tileSize: 256,
+        maxzoom: 19,
+    },
+}
+
 // Raster Source
 export const RasterBasemapSource = memo(
     ({
@@ -112,15 +146,6 @@ export const RasterBasemapSource = memo(
         customBasemapSources: any[],
         titilerEndpoint: string,
     }) => {
-        const terrainRasterUrls: Record<string, string> = {
-            osm: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            googlesat: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-            google: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-            esri: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-            mapbox: `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token=${mapboxKey || "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw"}`,
-            bing: `https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1`,
-        }
-
         const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
 
         // Check if it's a custom basemap
@@ -143,19 +168,26 @@ export const RasterBasemapSource = memo(
                     id="raster-basemap-source"
                     key={`raster-${basemapSource}`}
                     type="raster"
-                    tileSize={512}
+                    tileSize={256}
+                    maxzoom={19}
                     {...sourceProps}
                 />
             )
         }
+
+        const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
+        const tileUrl = basemapSource === "mapbox"
+            ? basemap.url.replace("{API_KEY}", mapboxKey || "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw")
+            : basemap.url
 
         return (
             <Source
                 id="raster-basemap-source"
                 key={`raster-${basemapSource}`}
                 type="raster"
-                tiles={[terrainRasterUrls[basemapSource] || terrainRasterUrls.google]}
-                tileSize={512}
+                tiles={[tileUrl]}
+                tileSize={basemap.tileSize}
+                maxzoom={basemap.maxzoom}
             />
         )
     },
