@@ -1,12 +1,13 @@
 import type React from "react"
-import { useAtom } from "jotai"
-import { isVizModesOpenAtom } from "@/lib/settings-atoms"
 import { Section, CheckboxWithSlider } from "./controls-components"
 
-export const VisualizationModesSection: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
-  const [isOpen, setIsOpen] = useAtom(isVizModesOpenAtom)
+export const VisualizationModesSection: React.FC<{
+  state: any; setState: (updates: any) => void
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}> = ({ state, setState, isOpen, onOpenChange }) => {
   return (
-    <Section title="Visualization Modes" isOpen={isOpen} onOpenChange={setIsOpen}>
+    <Section title="Visualization Modes" isOpen={isOpen} onOpenChange={onOpenChange}>
       <CheckboxWithSlider id="hillshade" checked={state.showHillshade} onCheckedChange={(checked) => setState({ showHillshade: checked })} label="Hillshade" sliderValue={state.hillshadeOpacity} onSliderChange={(value) => setState({ hillshadeOpacity: value })} />
       <CheckboxWithSlider id="contours" checked={state.showContours} onCheckedChange={(checked) => setState({ showContours: checked })} label="Contour Lines" hideSlider={true} sliderValue={0} onSliderChange={() => null} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
