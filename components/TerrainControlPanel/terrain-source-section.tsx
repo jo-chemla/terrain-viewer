@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
-  isTerrainSourceOpenAtom, isByodOpenAtom, customTerrainSourcesAtom,
+  isByodOpenAtom, customTerrainSourcesAtom,
   titilerEndpointAtom, themeAtom, useCogProtocolVsTitilerAtom,
   type CustomTerrainSource
 } from "@/lib/settings-atoms"
@@ -27,8 +27,11 @@ import { TooltipButton } from "./tooltip-button"
 import customSources from "@/lib/custom-sources.json"
 const SAMPLE_TERRAIN_SOURCES = customSources['SAMPLE_TERRAIN_SOURCES']
 
-export const TerrainSourceSection: React.FC<{ state: any; setState: (updates: any) => void; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds; mapRef: React.RefObject<MapRef> }> = ({ state, setState, getTilesUrl, getMapBounds, mapRef }) => {
-  const [isOpen, setIsOpen] = useAtom(isTerrainSourceOpenAtom)
+export const TerrainSourceSection: React.FC<{
+  state: any; setState: (updates: any) => void; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds; mapRef: React.RefObject<MapRef>;
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}> = ({ state, setState, getTilesUrl, getMapBounds, mapRef, isOpen, onOpenChange }) => {
   const [isByodOpen, setIsByodOpen] = useAtom(isByodOpenAtom)
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
@@ -109,7 +112,7 @@ export const TerrainSourceSection: React.FC<{ state: any; setState: (updates: an
 
   return (
     <>
-      <Section title="Terrain Source" isOpen={isOpen} onOpenChange={setIsOpen}>
+      <Section title="Terrain Source" isOpen={isOpen} onOpenChange={onOpenChange}>
         {state.splitScreen ? (
           <>
             {Object.entries(terrainSources).map(([key, config]) => (
