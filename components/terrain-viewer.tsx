@@ -1,35 +1,27 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, memo } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat } from "nuqs"
 import Map, {
-  Source,
-  Layer,
   NavigationControl,
   GeolocateControl,
-  SkySpecification,
-  ScaleControl,
   type MapRef,
-  type LayerSpecification,
+  type SkySpecification,
+  ScaleControl,
 } from "react-map-gl/maplibre"
-import "@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css"
 import { TerrainControlPanel } from "./TerrainControlPanel/TerrainControlPanel"
 import GeocoderControl from "./geocoder-control"
 import { terrainSources } from "@/lib/terrain-sources"
 import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
-import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
+import type { TerrainSource } from "@/lib/terrain-types"
 import mlcontour from "maplibre-contour"
 import { useAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, useCogProtocolVsTitilerAtom, skyConfigAtom, customBasemapSourcesAtom,
+  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, themeAtom
 } from "@/lib/settings-atoms"
-import { themeAtom } from "@/lib/settings-atoms"
 
-import maplibregl, { type RasterDEMSourceSpecification } from 'maplibre-gl';
+import maplibregl from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
-import { GeoGrid } from 'geogrid-maplibre-gl';
-import * as MaplibreGrid from 'maplibre-grid';
-
 
 import { TerrainSources, RasterBasemapSource } from "./MapSources"
 import {
@@ -110,8 +102,7 @@ export function TerrainViewer() {
     sliderMax: parseAsFloat.withDefault(8100),
   })
 
-  // This could be renamed ephemeralState, stores backgroundLayerActive, sky etc
-  const [skyConfig, setSkyConfig] = useAtom(skyConfigAtom)
+  const [skyConfig] = useAtom(skyConfigAtom)
 
   // Compute hillshade paint with useMemo to prevent recalculation
   const hillshadePaint = (() => {
@@ -122,13 +113,7 @@ export function TerrainViewer() {
     const supportsShadowColor = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
     const supportsHighlightColor = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
     const supportsAccentColor = state.hillshadeMethod === "standard"
-    const supportsExaggeration = [
-      "standard",
-      "combined",
-      "multidirectional",
-      "multidir-colors",
-      "aspect-multidir",
-    ].includes(state.hillshadeMethod)
+    const supportsExaggeration = ["standard", "combined", "multidirectional", "multidir-colors", "aspect-multidir"].includes(state.hillshadeMethod)
 
     if (state.hillshadeMethod === "multidirectional") {
       paint["hillshade-method"] = "multidirectional"
@@ -146,31 +131,19 @@ export function TerrainViewer() {
       paint["hillshade-illumination-direction"] = [0, 270]
       paint["hillshade-illumination-altitude"] = [30, 30]
     } else {
-      if (supportsIlluminationDirection) {
-        paint["hillshade-illumination-direction"] = state.illuminationDir
-      }
+      if (supportsIlluminationDirection) paint["hillshade-illumination-direction"] = state.illuminationDir
       if (supportsShadowColor) {
         const shadowRgb = hexToRgb(state.shadowColor)
-        paint["hillshade-shadow-color"] =
-          `rgba(${shadowRgb.r}, ${shadowRgb.g}, ${shadowRgb.b}, ${state.hillshadeOpacity})`
+        paint["hillshade-shadow-color"] = `rgba(${shadowRgb.r}, ${shadowRgb.g}, ${shadowRgb.b}, ${state.hillshadeOpacity})`
       }
       if (supportsHighlightColor) {
         const highlightRgb = hexToRgb(state.highlightColor)
-        paint["hillshade-highlight-color"] =
-          `rgba(${highlightRgb.r}, ${highlightRgb.g}, ${highlightRgb.b}, ${state.hillshadeOpacity})`
+        paint["hillshade-highlight-color"] = `rgba(${highlightRgb.r}, ${highlightRgb.g}, ${highlightRgb.b}, ${state.hillshadeOpacity})`
       }
-      if (supportsIlluminationAltitude) {
-        paint["hillshade-illumination-altitude"] = state.illuminationAlt
-      }
-      if (supportsExaggeration) {
-        paint["hillshade-exaggeration"] = state.hillshadeExag
-      }
-      if (supportsAccentColor) {
-        paint["hillshade-accent-color"] = state.accentColor
-      }
-      if (state.hillshadeMethod !== "standard") {
-        paint["hillshade-method"] = state.hillshadeMethod
-      }
+      if (supportsIlluminationAltitude) paint["hillshade-illumination-altitude"] = state.illuminationAlt
+      if (supportsExaggeration) paint["hillshade-exaggeration"] = state.hillshadeExag
+      if (supportsAccentColor) paint["hillshade-accent-color"] = state.accentColor
+      if (state.hillshadeMethod !== "standard") paint["hillshade-method"] = state.hillshadeMethod
     }
 
     return paint
@@ -182,11 +155,7 @@ export function TerrainViewer() {
 
     let colors
     if (state.customHypsoMinMax) {
-      colors = remapColorRampStops(
-        ramp.colors,
-        state.customMin,
-        state.customMax
-      )
+      colors = remapColorRampStops(ramp.colors, state.customMin, state.customMax)
     } else {
       colors = ramp.colors
     }
@@ -198,76 +167,26 @@ export function TerrainViewer() {
 
   // Check MapLibre availability
   useEffect(() => {
-    const checkMapLibre = () => {
-      if (typeof window !== "undefined" && (window as any).maplibregl) {
-        console.log("[TerrainViewer] MapLibre ready")
-        setMapLibreReady(true)
-      } else {
-        setTimeout(checkMapLibre, 100)
-      }
-    }
-    checkMapLibre()
+    setMapLibreReady(true)
   }, [])
 
   useEffect(() => {
     const initContours = async () => {
-      // Wait for all dependencies
-      if (!mapARef.current || !mapLibreReady || !mapsLoaded) {
-        console.log("[Contours] Waiting for dependencies:", {
-          hasMapRef: !!mapARef.current,
-          mapLibreReady,
-          mapsLoaded
-        })
-        return
-      }
-
-      // Check if already initialized
-      if (contoursInitialized) {
-        console.log("[Contours] Already initialized")
-        return
-      }
-
-      // Check attempt limit
-      if (initAttemptsRef.current >= 5) {
-        console.error("[Contours] Failed after 5 attempts")
-        return
-      }
+      if (!mapARef.current || !mapsLoaded || contoursInitialized) return
+      if (initAttemptsRef.current >= 5) return
 
       initAttemptsRef.current += 1
-      console.log("[Contours] Initializing (attempt", initAttemptsRef.current, ")...")
-
       try {
         const map = mapARef.current.getMap()
-
-        // Wait for map to be fully loaded and styled
         if (!map.isStyleLoaded()) {
-          console.log("[Contours] Waiting for style to load...")
           setTimeout(() => setContoursInitialized(false), 1000)
           return
         }
 
-        const maplibregl = (window as any).maplibregl
-        if (!maplibregl) {
-          console.error("[Contours] maplibregl not available")
-          return
-        }
+        const source = (terrainSources as any)[state.sourceA as TerrainSource]
+        if (!source?.sourceConfig?.tiles?.[0]) return
 
-        const source = terrainSources[state.sourceA as TerrainSource]
-        if (!source?.sourceConfig?.tiles?.[0]) {
-          console.error("[Contours] No source tiles")
-          return
-        }
-
-        // Get DemSource constructor
-        let DemSource = mlcontour.DemSource || (mlcontour as any).default?.DemSource
-        if (!DemSource && typeof mlcontour === "function") {
-          DemSource = mlcontour as any
-        }
-
-        if (!DemSource || typeof DemSource !== "function") {
-          console.error("[Contours] DemSource not found")
-          return
-        }
+        let DemSource = (mlcontour as any).DemSource || (mlcontour as any).default?.DemSource || mlcontour
 
         // Get tile URL with API keys
         let tileUrl = source.sourceConfig.tiles[0]
@@ -368,9 +287,7 @@ export function TerrainViewer() {
         console.error("[Contours] Initialization error:", error)
         // Retry after delay
         setTimeout(() => {
-          if (initAttemptsRef.current < 5) {
-            setContoursInitialized(false)
-          }
+          if (initAttemptsRef.current < 5) setContoursInitialized(false)
         }, 2000)
       }
     }
@@ -382,7 +299,6 @@ export function TerrainViewer() {
     }
   }, [
     contoursInitialized,
-    mapLibreReady,
     mapsLoaded,
     state.sourceA,
     state.contourMinor,
@@ -394,18 +310,12 @@ export function TerrainViewer() {
 
   useEffect(() => {
     const map = mapARef.current?.getMap();
-    if (!map) return;
+    if (!map || !demSourceRef.current) return;
 
-    // More dirty, remove layer, then source, then re-add, but will update state properly
-    if (map.getLayer("contour-labels")) {
-      map.removeLayer("contour-labels")
-    }
-    if (map.getLayer("contour-lines")) {
-      map.removeLayer("contour-lines")
-    }
-    if (map.getSource("contour-source")) {
-      map.removeSource("contour-source")
-    }
+    if (map.getLayer("contour-labels")) map.removeLayer("contour-labels")
+    if (map.getLayer("contour-lines")) map.removeLayer("contour-lines")
+    if (map.getSource("contour-source")) map.removeSource("contour-source")
+
     map.addSource("contour-source", {
       type: "vector",
       tiles: [
@@ -439,47 +349,36 @@ export function TerrainViewer() {
   }, []);
 
 
-  // Sync maps in split screen
-  const onMoveA = useCallback(
-    (evt: any) => {
-      if (!isSyncing.current && state.splitScreen && mapBRef.current) {
-        isSyncing.current = true
-        mapBRef.current.getMap().jumpTo({
-          center: [evt.viewState.longitude, evt.viewState.latitude],
-          zoom: evt.viewState.zoom,
-          bearing: evt.viewState.bearing,
-          pitch: evt.viewState.pitch,
-        })
-        setTimeout(() => {
-          isSyncing.current = false
-        }, 50)
-      }
-    },
-    [state.splitScreen]
-  )
+  const onMoveA = useCallback((evt: any) => {
+    if (!isSyncing.current && state.splitScreen && mapBRef.current) {
+      isSyncing.current = true
+      mapBRef.current.getMap().jumpTo({
+        center: [evt.viewState.longitude, evt.viewState.latitude],
+        zoom: evt.viewState.zoom,
+        bearing: evt.viewState.bearing,
+        pitch: evt.viewState.pitch,
+      })
+      setTimeout(() => { isSyncing.current = false }, 50)
+    }
+  }, [state.splitScreen])
 
-  // Update URL with debounce to avoid excessive re-renders
-  const onMoveEndA = useCallback(
-    (evt: any) => {
-      if (!isSyncing.current) {
-        // Clear existing timer
-        if (viewStateUpdateTimer.current) {
-          clearTimeout(viewStateUpdateTimer.current)
+  const onMoveEndA = useCallback((evt: any) => {
+    if (!isSyncing.current) {
+      if (viewStateUpdateTimer.current) clearTimeout(viewStateUpdateTimer.current)
+      // Debounce URL update
+      viewStateUpdateTimer.current = setTimeout(() => {
+        const newState = {
+          lat: Number.parseFloat(evt.viewState.latitude.toFixed(4)),
+          lng: Number.parseFloat(evt.viewState.longitude.toFixed(4)),
+          zoom: Number.parseFloat(evt.viewState.zoom.toFixed(2)),
+          pitch: Number.parseFloat(evt.viewState.pitch.toFixed(1)),
+          bearing: Number.parseFloat(evt.viewState.bearing.toFixed(1)),
         }
+        setState(newState, { shallow: true })
 
-        // Debounce URL update
-        viewStateUpdateTimer.current = setTimeout(() => {
-          const newState = {
-            lat: Number.parseFloat(evt.viewState.latitude.toFixed(4)),
-            lng: Number.parseFloat(evt.viewState.longitude.toFixed(4)),
-            zoom: Number.parseFloat(evt.viewState.zoom.toFixed(2)),
-            pitch: Number.parseFloat(evt.viewState.pitch.toFixed(1)),
-            bearing: Number.parseFloat(evt.viewState.bearing.toFixed(1)),
-          }
-          setState(newState, { shallow: true })
-        }, 500)
-      }
-    },
+      }, 500)
+    }
+  },
     [setState]
   )
 
@@ -498,16 +397,11 @@ export function TerrainViewer() {
   useEffect(() => {
     if (mapARef.current && state.viewMode === "2d") {
       const map = mapARef.current.getMap();
-
-      map.easeTo({
-        bearing: 0,
-        pitch: 0,
-        duration: 500
-      });
+      map.easeTo({ bearing: 0, pitch: 0, duration: 500 });
     }
   }, [state.viewMode]);
 
-  const [theme, _] = useAtom(themeAtom)
+  const [theme] = useAtom(themeAtom)
   const themeColor = theme === 'light' ? '#ffffff' : '#000000'
 
   const getSkyConfig = () => ({
@@ -518,14 +412,13 @@ export function TerrainViewer() {
     'fog-color': skyConfig.fogColor,
     'fog-ground-blend': skyConfig.fogGroundBlend
   })
+
   const getNoSkyConfig = () => ({
     'sky-color': themeColor,
     'sky-horizon-blend': 0,
     'horizon-fog-blend': 1,
     'fog-ground-blend': 1
   })
-
-  const sky: SkySpecification = getSkyConfig()
 
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
@@ -534,7 +427,6 @@ export function TerrainViewer() {
       return (
         <Map
           ref={isPrimary ? mapARef : mapBRef}
-          // mapLib={(window as any).maplibregl}
           mapLib={maplibregl}
           initialViewState={{
             latitude: state.lat,
@@ -546,20 +438,25 @@ export function TerrainViewer() {
           onMove={isPrimary ? onMoveA : undefined}
           onMoveEnd={isPrimary ? onMoveEndA : undefined}
           onLoad={() => {
-            if (isPrimary) {
-              console.log("[TerrainViewer] Map A loaded")
-              setMapsLoaded(true)
-            }
+            if (isPrimary) setMapsLoaded(true)
+            const map = isPrimary ? mapARef.current : mapBRef.current;
+            map?.getMap().setTerrain({
+              source: "terrainSource",
+              exaggeration: state.exaggeration || 1,
+            })
+            // if (isPrimary) {
+            //   console.log("[TerrainViewer] Map A loaded")
+            //   setMapsLoaded(true)
+            // }
 
-            [mapARef, mapBRef].forEach((mapRef) =>
-              mapRef?.current?.getMap().setTerrain({
-                source: "terrainSource",
-                exaggeration: state.exaggeration || 1,
-              })
-            )
+            // [mapARef, mapBRef].forEach((mapRef) =>
+            //   mapRef?.current?.getMap().setTerrain({
+            //     source: "terrainSource",
+            //     exaggeration: state.exaggeration || 1,
+            //   })
+            // )
           }}
           sky={state.showBackground ? getSkyConfig() : getNoSkyConfig()}
-          // sky={undefined}
           minPitch={0}
           maxPitch={state.viewMode === "2d" ? 0 : 85}
           rollEnabled={state.viewMode !== "2d"}
@@ -571,9 +468,7 @@ export function TerrainViewer() {
             exaggeration: state.exaggeration || 1,
           }}
           projection={state.viewMode === "globe" ? "globe" : "mercator"}
-          canvasContextAttributes={{
-            preserveDrawingBuffer: true,
-          }}
+          canvasContextAttributes={{ preserveDrawingBuffer: true }}
         >
           {/* Sources */}
           <TerrainSources
@@ -583,7 +478,6 @@ export function TerrainViewer() {
             customTerrainSources={customTerrainSources}
             titilerEndpoint={titilerEndpoint}
           />
-          {/* <RasterBasemapSource terrainSource={state.terrainSource} mapboxKey={mapboxKey} /> */}
           <RasterBasemapSource
             basemapSource={state.basemapSource}
             mapboxKey={mapboxKey}
@@ -592,7 +486,7 @@ export function TerrainViewer() {
           />
 
           {/* Layers */}
-          {skyConfig.backgroundLayerActive && <BackgroundLayer theme={theme} mapRef={mapARef} />}
+          {skyConfig.backgroundLayerActive && <BackgroundLayer theme={theme as any} mapRef={mapARef as any} />}
           <RasterLayer showRasterBasemap={state.showRasterBasemap} rasterBasemapOpacity={state.rasterBasemapOpacity} />
           <HillshadeLayer showHillshade={state.showHillshade} hillshadePaint={hillshadePaint} />
           <ColorReliefLayer showColorRelief={state.showColorRelief} colorReliefPaint={colorReliefPaint} />
@@ -601,63 +495,34 @@ export function TerrainViewer() {
           {isPrimary && (
             <>
               <GeocoderControl position="top-left" placeholder="Search and press Enter" marker={false} showResultsWhileTyping={true} zoom={14} flyTo={{ speed: 5 }} showResultMarkers={false} limit={10} minLength={3} />
-              {/* flyToSpeed={10}  */}
               <NavigationControl position="top-left" />
               <GeolocateControl position="top-left" />
               <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
             </>
-          )
-          }
+          )}
         </Map >
       )
     }, [
-    state.lat,
-    state.lng,
-    state.zoom,
-    state.pitch,
-    state.bearing,
-    state.viewMode,
-    state.exaggeration,
-    state.basemapSource,
-    state.showRasterBasemap,
-    state.rasterBasemapOpacity,
-    state.showHillshade,
-    state.showColorRelief,
-    state.showContours,
-    state.showBackground,
-    hillshadePaint,
-    colorReliefPaint,
-    mapboxKey,
-    maptilerKey,
-    contoursInitialized,
-    customBasemapSources,
-    titilerEndpoint,
-    onMoveA,
-    onMoveEndA,
+    state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
+    state.basemapSource, state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
+    state.showColorRelief, state.showContours, state.showBackground, hillshadePaint, colorReliefPaint,
+    mapboxKey, maptilerKey, contoursInitialized, customBasemapSources, titilerEndpoint, onMoveA, onMoveEndA,
+    theme, skyConfig.backgroundLayerActive
   ])
 
-  if (!mapLibreReady) {
-    return (
-      <div className="relative h-screen w-full flex items-center justify-center bg-background">
-        <div className="text-center space-y-2">
-          <div className="text-lg font-medium">Loading MapLibre GL...</div>
-          <div className="text-sm text-muted-foreground">Please wait</div>
-        </div>
-      </div>
-    )
-  }
+  if (!mapLibreReady) return null
 
   return (
     <div className="relative h-screen w-full">
       <div className="absolute inset-0 flex">
         <div className={state.splitScreen ? "flex-1" : "w-full"}>
-          {renderMap(state.sourceA as TerrainSource | string, "map-a")}
+          {renderMap(state.sourceA, "map-a")}
         </div>
         {state.splitScreen && (
-          <div className="flex-1">{renderMap(state.sourceB as TerrainSource | string, "map-b")}</div>
+          <div className="flex-1">{renderMap(state.sourceB, "map-b")}</div>
         )}
       </div>
-      <TerrainControlPanel state={state} setState={setState} getMapBounds={getMapBounds} mapRef={mapARef} />
+      <TerrainControlPanel state={state} setState={setState} getMapBounds={getMapBounds} mapRef={mapARef as any} mapsLoaded={mapsLoaded} />
     </div>
   )
 }

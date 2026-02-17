@@ -23,6 +23,7 @@ import { BackgroundOptionsSection } from "./background-options-section"
 import { FooterSection } from "./footer-section"
 import { TooltipIconButton } from "./tooltip-button"
 
+import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
 
 // --- Persisted state ---
 export const isSidebarOpenAtom = atomWithStorage("isSidebarOpen", true)
@@ -63,17 +64,21 @@ interface TerrainControlPanelProps {
   setState: (updates: any) => void
   getMapBounds: () => Bounds
   mapRef: React.RefObject<MapRef>
+  mapsLoaded: boolean
 }
 
 export function TerrainControlPanel({
   state,
   setState,
   getMapBounds,
+  mapRef,
+  mapsLoaded,
 }: TerrainControlPanelProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
   const [theme] = useAtom(themeAtom)
+  const { draw } = useTerraDraw(mapRef, mapsLoaded)
 
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
 
@@ -137,6 +142,7 @@ export function TerrainControlPanel({
         <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} />
         <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} />
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
+        <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
         <FooterSection />
       </Card>
     </TooltipProvider>
