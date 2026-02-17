@@ -1,18 +1,19 @@
 import type React from "react"
 import { useMemo, useCallback, useState } from "react"
-import { useAtom } from "jotai"
 import { ChevronDown } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { isHillshadeOpenAtom } from "@/lib/settings-atoms"
 import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
 
-export const HillshadeOptionsSection: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
-  const [isOpen, setIsOpen] = useAtom(isHillshadeOpenAtom)
+export const HillshadeOptionsSection: React.FC<{
+  state: any; setState: (updates: any) => void;
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}> = ({ state, setState, isOpen, onOpenChange }) => {
   const [isColorsOpen, setIsColorsOpen] = useState(false)
   const hillshadeMethodKeys = useMemo(() => ["standard", "combined", "igor", "basic", "multidirectional", "multidir-colors"], [])
-  
+
   const cycleHillshadeMethod = useCallback((direction: number) => {
     const currentIndex = hillshadeMethodKeys.indexOf(state.hillshadeMethod)
     const newIndex = (currentIndex + direction + hillshadeMethodKeys.length) % hillshadeMethodKeys.length
@@ -36,7 +37,7 @@ export const HillshadeOptionsSection: React.FC<{ state: any; setState: (updates:
   ]
 
   return (
-    <Section title="Hillshade Options" isOpen={isOpen} onOpenChange={setIsOpen}>
+    <Section title="Hillshade Options" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
         <Label className="text-sm font-medium">Hillshade Method</Label>
         <CycleButtonGroup value={state.hillshadeMethod} options={hillshadeMethodOptions} onChange={(v) => setState({ hillshadeMethod: v })} onCycle={cycleHillshadeMethod} />

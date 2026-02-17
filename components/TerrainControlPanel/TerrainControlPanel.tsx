@@ -1,10 +1,11 @@
 import type React from "react"
 import { useState, useMemo } from "react"
 import { useAtom } from "jotai"
-import { PanelRightOpen, PanelRightClose } from "lucide-react"
+import { atomWithStorage } from "jotai/utils"
+import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { themeAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
@@ -20,6 +21,42 @@ import { RasterBasemapSection } from "./raster-basemap-section"
 import { ContourOptionsSection } from "./contour-options-section"
 import { BackgroundOptionsSection } from "./background-options-section"
 import { FooterSection } from "./footer-section"
+import { TooltipIconButton } from "./tooltip-button"
+
+
+// --- Persisted state ---
+export const isSidebarOpenAtom = atomWithStorage("isSidebarOpen", true)
+
+const SECTION_KEYS = [
+  "general",
+  "terrainSource",
+  "download",
+  "visualizationModes",
+  "hillshade",
+  "hypsometricTint",
+  "rasterBasemap",
+  "contour",
+  "background",
+  "drawing",
+] as const
+
+type SectionKey = (typeof SECTION_KEYS)[number]
+type SectionOpenState = Record<SectionKey, boolean>
+
+const DEFAULT_OPEN_STATE: SectionOpenState = {
+  general: true,
+  terrainSource: true,
+  download: true,
+  visualizationModes: true,
+  hillshade: true,
+  hypsometricTint: true,
+  rasterBasemap: true,
+  contour: true,
+  background: true,
+  drawing: true,
+}
+
+export const sectionOpenAtom = atomWithStorage<SectionOpenState>("sectionOpen", DEFAULT_OPEN_STATE)
 
 interface TerrainControlPanelProps {
   state: any
@@ -28,11 +65,27 @@ interface TerrainControlPanelProps {
   mapRef: React.RefObject<MapRef>
 }
 
-export function TerrainControlPanel({ state, setState, getMapBounds, mapRef }: TerrainControlPanelProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+export function TerrainControlPanel({
+  state,
+  setState,
+  getMapBounds,
+}: TerrainControlPanelProps) {
+  const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
   const [theme] = useAtom(themeAtom)
+
+  const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
+
+  const allFolded = SECTION_KEYS.every((k) => !sectionOpen[k])
+
+  const handleFoldExpandAll = () => {
+    const next = allFolded
+    setSectionOpen(Object.fromEntries(SECTION_KEYS.map((k) => [k, next])) as SectionOpenState)
+  }
+
+  const toggle = (key: SectionKey) => (open: boolean) =>
+    setSectionOpen((prev) => ({ ...prev, [key]: open }))
 
   useMemo(() => {
     document.documentElement.classList.toggle("dark", theme === "dark")
@@ -40,9 +93,18 @@ export function TerrainControlPanel({ state, setState, getMapBounds, mapRef }: T
 
   if (!isSidebarOpen) {
     return (
-      <Button variant="secondary" size="icon" className="absolute right-4 top-4 cursor-pointer" onClick={() => setIsSidebarOpen(true)}>
-        <PanelRightOpen className="h-5 w-5" />
-      </Button>
+      <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="secondary" size="icon" className="absolute right-4 top-4 cursor-pointer" onClick={() => setIsSidebarOpen(true)}>
+              <PanelRightOpen className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Open sidebar</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
@@ -51,23 +113,30 @@ export function TerrainControlPanel({ state, setState, getMapBounds, mapRef }: T
       <Card className="absolute right-4 top-4 bottom-4 w-96 overflow-y-auto p-4 gap-2 space-y-2 bg-background/95 backdrop-blur text-base">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Terrain Viewer</h2>
-          <div className="flex gap-1">
+          <div className="flex gap-1 items-center">
+            <TooltipIconButton
+              icon={allFolded ? ChevronsUpDown : ChevronsDownUp}
+              tooltip={allFolded ? "Expand all sections" : "Fold all sections"}
+              onClick={handleFoldExpandAll}
+            />
             <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
-            <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(false)} className="cursor-pointer">
-              <PanelRightClose className="h-5 w-5" />
-            </Button>
+            <TooltipIconButton
+              icon={PanelRightClose}
+              tooltip="Close sidebar"
+              onClick={() => setIsSidebarOpen(false)}
+            />
           </div>
         </div>
 
-        <GeneralSettings state={state} setState={setState} />
-        <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} />
-        <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} />
-        <VisualizationModesSection state={state} setState={setState} />
-        <HillshadeOptionsSection state={state} setState={setState} />
-        <HypsometricTintOptionsSection state={state} setState={setState} />
-        <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} />
-        <ContourOptionsSection state={state} setState={setState} />
-        <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} />
+        <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
+        <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
+        <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} />
+        <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
+        <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
+        <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} />
+        <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} />
+        <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} />
+        <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
         <FooterSection />
       </Card>
     </TooltipProvider>

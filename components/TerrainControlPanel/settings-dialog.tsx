@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { 
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom, 
-  maxResolutionAtom, useCogProtocolVsTitilerAtom 
+import {
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
+  maxResolutionAtom, useCogProtocolVsTitilerAtom
 } from "@/lib/settings-atoms"
 import { useTheme } from "./controls-utility"
 import { PasswordInput } from "./controls-components"
+import { TooltipIconButton } from "./tooltip-button"
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void }> = ({ isOpen, onOpenChange }) => {
   const { theme, toggleTheme } = useTheme()
@@ -44,7 +45,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild><Button variant="ghost" size="icon" className="cursor-pointer"><Settings className="h-5 w-5" /></Button></DialogTrigger>
+      <DialogTrigger asChild>
+        <TooltipIconButton
+          icon={Settings}
+          tooltip="Settings"
+        />
+      </DialogTrigger>
+
       <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto" showCloseButton={false}>
         <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
         <DialogHeader>

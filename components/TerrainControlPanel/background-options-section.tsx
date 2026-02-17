@@ -4,11 +4,14 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { isBackgroundOpenAtom, skyConfigAtom } from "@/lib/settings-atoms"
+import { skyConfigAtom } from "@/lib/settings-atoms"
 import { Section, SliderControl } from "./controls-components"
 
-export const BackgroundOptionsSection: React.FC<{ state: any; setState: (updates: any) => void; theme?: 'light' | 'dark' }> = ({ state, setState, theme = 'light' }) => {
-  const [isOpen, setIsOpen] = useAtom(isBackgroundOpenAtom)
+export const BackgroundOptionsSection: React.FC<{
+  state: any; setState: (updates: any) => void; theme?: 'light' | 'dark';
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}> = ({ state, setState, theme = 'light', isOpen, onOpenChange }) => {
   const [skyConfig, setSkyConfig] = useAtom(skyConfigAtom)
 
   if (!state.showBackground) return null
@@ -32,7 +35,7 @@ export const BackgroundOptionsSection: React.FC<{ state: any; setState: (updates
   }
 
   return (
-    <Section title="Background Options" isOpen={isOpen} onOpenChange={setIsOpen}>
+    <Section title="Background Options" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="flex items-center justify-between py-0.5">
         <Checkbox
           id="match-theme"

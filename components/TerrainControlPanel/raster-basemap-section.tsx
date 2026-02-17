@@ -2,13 +2,16 @@ import type React from "react"
 import { useMemo, useCallback } from "react"
 import { useAtom } from "jotai"
 import { Label } from "@/components/ui/label"
-import { isTerrainRasterOpenAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
+import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, CycleButtonGroup } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
 
-export const RasterBasemapSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
-  const [isOpen, setIsOpen] = useAtom(isTerrainRasterOpenAtom)
+export const RasterBasemapSection: React.FC<{
+  state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef>;
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}> = ({ state, setState, mapRef, isOpen, onOpenChange }) => {
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
 
   const basemapSourceOptions = useMemo(() => [
@@ -32,7 +35,7 @@ export const RasterBasemapSection: React.FC<{ state: any; setState: (updates: an
   if (!state.showRasterBasemap) return null
 
   return (
-    <Section title="Raster Basemap Options" isOpen={isOpen} onOpenChange={setIsOpen}>
+    <Section title="Raster Basemap Options" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
         <Label className="text-sm">Source</Label>
         <CycleButtonGroup

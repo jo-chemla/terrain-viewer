@@ -1,17 +1,18 @@
 import type React from "react"
-import { useAtom } from "jotai"
 import { Globe, RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { isGeneralOpenAtom } from "@/lib/settings-atoms"
 import { Section } from "./controls-components"
 
-export const GeneralSettings: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
-  const [isOpen, setIsOpen] = useAtom(isGeneralOpenAtom)
+export const GeneralSettings: React.FC<{
+  state: any; setState: (updates: any) => void;
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}> = ({ state, setState, isOpen, onOpenChange }) => {
   return (
-    <Section title="General Settings" isOpen={isOpen} onOpenChange={setIsOpen} withSeparator={true}>
+    <Section title="General Settings" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-medium">View Mode</Label>
         <ToggleGroup type="single" value={state.viewMode} onValueChange={(value) => value && setState({ viewMode: value })} className="border rounded-md w-[140px]">

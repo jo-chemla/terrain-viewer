@@ -37,3 +37,40 @@ export const TooltipButton: React.FC<TooltipButtonProps> = ({
         </Tooltip>
     )
 }
+
+
+interface TooltipIconButtonProps {
+    icon: LucideIcon
+    tooltip: string
+    onClick?: () => void
+    className?: string
+    variant?: React.ComponentProps<typeof Button>["variant"]
+    size?: React.ComponentProps<typeof Button>["size"]
+}
+
+export const TooltipIconButton: React.FC<TooltipIconButtonProps> = ({
+    icon: Icon,
+    tooltip,
+    onClick,
+    className = "",
+    variant = "ghost",
+    size = "icon",
+}) => {
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button
+                    variant={variant}
+                    size={size}
+                    onClick={onClick}
+                    className={`cursor-pointer ${className}`}
+                >
+                    <Icon className="h-4 w-4" />
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+                <p>{tooltip}</p>
+            </TooltipContent>
+        </Tooltip>
+    )
+}

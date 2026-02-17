@@ -16,8 +16,9 @@ import { type SourceConfig, copyToClipboard } from "./controls-utility"
 export const DownloadSection: React.FC<{
   state: any; getMapBounds: () => { west: number; south: number; east: number; north: number }
   getSourceConfig: (key: string) => SourceConfig | null; mapRef: React.RefObject<MapRef>
-}> = ({ state, getMapBounds, getSourceConfig, mapRef }) => {
-  const [isOpen, setIsOpen] = useAtom(isDownloadOpenAtom)
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange }) => {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [maxResolution] = useAtom(maxResolutionAtom)
   const [isExporting, setIsExporting] = useState(false)
@@ -125,7 +126,7 @@ export const DownloadSection: React.FC<{
   }, [getTitilerDownloadUrl, getSourceConfig, state.sourceA, getMapBounds])
 
   return (
-    <Section title="Download" isOpen={isOpen} onOpenChange={setIsOpen}>
+    <Section title="Download" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="flex gap-2">
         <Tooltip>
           <TooltipTrigger asChild>

@@ -11,15 +11,18 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Slider } from "@/components/ui/slider"
 import {
-  isHypsoOpenAtom, colorRampTypeAtom, licenseFilterAtom
+  colorRampTypeAtom, licenseFilterAtom
 } from "@/lib/settings-atoms"
 import { colorRamps, extractStops, colorRampsFlat } from "@/lib/color-ramps"
 import { Section } from "./controls-components"
 import { getGradientColors } from "./controls-utility"
 import { useEffect } from "react"
 
-export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
-  const [isOpen, setIsOpen] = useAtom(isHypsoOpenAtom)
+export const HypsometricTintOptionsSection: React.FC<{
+  state: any; setState: (updates: any) => void;
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}> = ({ state, setState, isOpen, onOpenChange }) => {
   const [colorRampType, setColorRampType] = useAtom(colorRampTypeAtom)
   const [licenseFilter, setLicenseFilter] = useAtom(licenseFilterAtom)
   const isUserActionRef = useRef(false)
@@ -140,7 +143,7 @@ export const HypsometricTintOptionsSection: React.FC<{ state: any; setState: (up
   if (!state.showColorRelief) return null
 
   return (
-    <Section title="Hypsometric Tint Options" isOpen={isOpen} onOpenChange={setIsOpen}>
+    <Section title="Hypsometric Tint Options" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
         <Label className="text-sm font-medium">Color Ramp Type</Label>
         <ToggleGroup
