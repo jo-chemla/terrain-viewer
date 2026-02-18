@@ -24,10 +24,12 @@ import { cogProtocol } from '@geomatico/maplibre-cog-protocol'
 
 import { TerrainSources, RasterBasemapSource } from "./MapSources"
 import {
+  LayerOrderSlots, 
   RasterLayer,
   BackgroundLayer,
   HillshadeLayer,
   ColorReliefLayer,
+  LAYER_SLOTS,
 } from "./MapLayers"
 import { ContoursLayer } from "./ContoursLayer"
 import { GraticuleLayer } from "./GraticuleLayer"
@@ -311,6 +313,8 @@ export function TerrainViewer() {
           />
 
           {/* Layers */}
+          <LayerOrderSlots />
+
           {skyConfig.backgroundLayerActive && (
             <BackgroundLayer theme={theme as any} mapRef={mapARef as any} />
           )}
@@ -354,6 +358,7 @@ export function TerrainViewer() {
               labelColor={graticuleLabelColor}
               labelTextShadow={graticuleLabelTextShadow}
               gridDensity={state.graticuleDensity || undefined}
+              beforeLayerId={LAYER_SLOTS.CONTOURS}  
             />
           )}
 

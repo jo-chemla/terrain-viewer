@@ -8,6 +8,7 @@ import mlcontour from "maplibre-contour"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource } from "@/lib/terrain-types"
 import type { CustomTerrainSource } from "@/lib/settings-atoms"
+import {LAYER_SLOTS} from "./MapLayers"
 
 // ─── Layer definitions (moved here from MapLayers.tsx) ───────────────────────
 
@@ -308,10 +309,12 @@ export function ContoursLayer({
   return (
     <>
       <Layer
+        beforeId={LAYER_SLOTS.CONTOURS}
         {...contourLinesLayerDef(showContours, theme)}
         key={"contour-lines-" + theme}
       />
       <Layer
+        beforeId={LAYER_SLOTS.CONTOURS}
         {...contourLabelsLayerDef(showContours && showContourLabels, theme)}
         key={"contour-labels-" + theme}
       />

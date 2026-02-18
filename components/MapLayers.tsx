@@ -1,6 +1,26 @@
 import { memo } from "react"
 import { Layer, type MapRef } from "react-map-gl/maplibre"
 
+export const LAYER_SLOTS = {
+  BACKGROUND: "slot-background",
+  BASEMAP: "slot-basemap", 
+  COLOR_RELIEF: "slot-color-relief",
+  HILLSHADE: "slot-hillshade",
+  CONTOURS: "slot-contours",
+} as const
+
+// Rendered once, always present, zero visual impact
+export const LayerOrderSlots = () => (
+  <>
+    <Layer id={LAYER_SLOTS.BACKGROUND} type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.BASEMAP}     type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.COLOR_RELIEF}type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.HILLSHADE}   type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
+  </>
+)
+
+
 // Raster Layer
 export const RasterLayer = memo(
   ({
@@ -12,6 +32,7 @@ export const RasterLayer = memo(
   }) => {
     return (
       <Layer
+        beforeId={LAYER_SLOTS.BASEMAP}   // ← always exists, order is stable
         id="raster-basemap"
         type="raster"
         source="raster-basemap-source"
@@ -41,13 +62,14 @@ export const BackgroundLayer = memo(
 
     return (
       <Layer
+        beforeId={LAYER_SLOTS.BACKGROUND}
         id={"background"}
         key={"background" + theme}
         type="background"
         paint={{
           "background-color": theme === "light" ? "#ffffff" : "#000000",
         }}
-        beforeId={getBeforeId()}
+        // beforeId={getBeforeId()}
       />
     )
   },
@@ -65,6 +87,7 @@ export const HillshadeLayer = memo(
   }) => {
     return (
       <Layer
+        beforeId={LAYER_SLOTS.HILLSHADE}   // ← always exists, order is stable
         id="hillshade"
         type="hillshade"
         source="hillshadeSource"
@@ -91,6 +114,7 @@ export const ColorReliefLayer = memo(
 
     return (
       <Layer
+        beforeId={LAYER_SLOTS.COLOR_RELIEF}
         id="color-relief"
         type="color-relief"
         source="hillshadeSource"
