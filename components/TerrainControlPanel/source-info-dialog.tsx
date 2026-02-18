@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { maxResolutionAtom } from "@/lib/settings-atoms"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
-import { type Bounds } from "./controls-utility"
+import { type Bounds } from "@/lib/controls-utils"
 import { GdalTabs } from "./gdal-tabs"
 
 export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds }> = ({ sourceKey, config, getTilesUrl, getMapBounds }) => {

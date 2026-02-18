@@ -15,7 +15,7 @@ import {
 } from "@/lib/settings-atoms"
 import { colorRamps, extractStops, colorRampsFlat } from "@/lib/color-ramps"
 import { Section } from "./controls-components"
-import { getGradientColors } from "./controls-utility"
+import { getGradientColors } from "@/lib/controls-utils"
 import { useEffect } from "react"
 
 export const HypsometricTintOptionsSection: React.FC<{

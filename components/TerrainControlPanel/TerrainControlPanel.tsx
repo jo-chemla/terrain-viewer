@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { themeAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
-import { useSourceConfig, type Bounds } from "./controls-utility"
+import { useSourceConfig, type Bounds } from "@/lib/controls-utils"
 import { SettingsDialog } from "./settings-dialog"
 import { GeneralSettings } from "./general-settings"
 import { TerrainSourceSection } from "./terrain-source-section"

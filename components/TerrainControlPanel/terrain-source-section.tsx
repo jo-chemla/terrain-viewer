@@ -17,7 +17,7 @@ import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import type { MapRef } from "react-map-gl/maplibre"
 import saveAs from "file-saver"
 import { Section } from "./controls-components"
-import { type Bounds, templateLink } from "./controls-utility"
+import { type Bounds, templateLink } from "@/lib/controls-utils"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"

@@ -96,3 +96,68 @@ export const getGradientColors = (colors: any[]): string => {
 export const templateLink = (link: string, lat: string, lng: string): string => link.replace("{LAT}", lat).replace("{LNG}", lng)
 
 export const copyToClipboard = (text: string) => navigator.clipboard.writeText(text)
+
+import { domToBlob } from "modern-screenshot"
+import type { MapRef } from "react-map-gl/maplibre"
+
+export type ImageFormat = "png" | "jpeg"
+
+/**
+ * Captures the map canvas as an image Blob
+ * @param format - 'png' (lossless, default) or 'jpeg' (lossy, faster, smaller)
+ */
+export async function captureMapScreenshot(
+  mapRef: React.RefObject<MapRef>,
+  format: ImageFormat = "png"
+): Promise<Blob | null> {
+  if (!mapRef.current) return null
+
+  try {
+    const canvas = mapRef.current.getMap().getCanvas()
+    const { clientWidth: width, clientHeight: height } = canvas
+    const dpr = window.devicePixelRatio
+
+    // domToBlob accepts type option for both PNG and JPEG
+    const blob = await domToBlob(canvas, {
+      width,
+      height,
+      scale: dpr,
+      type: format === "jpeg" ? "image/jpeg" : "image/png",
+      quality: format === "jpeg" ? 0.95 : undefined, // Quality only for JPEG
+    })
+
+    return blob
+  } catch (error) {
+    console.error("Failed to capture map screenshot:", error)
+    return null
+  }
+}
+
+/**
+ * Copies a Blob to the system clipboard
+ */
+export async function copyBlobToClipboard(blob: Blob): Promise<void> {
+  await navigator.clipboard.write([
+    new ClipboardItem({ [blob.type]: blob }),
+  ])
+}
+
+/**
+ * Captures the map canvas and copies it to clipboard
+ * Uses PNG for clipboard (better compatibility, supports transparency)
+ */
+export async function captureAndCopyMapToClipboard(
+  mapRef: React.RefObject<MapRef>
+): Promise<boolean> {
+  try {
+    // Use PNG for clipboard (better compatibility, supports transparency)
+    const blob = await captureMapScreenshot(mapRef, "png")
+    if (!blob) return false
+
+    await copyBlobToClipboard(blob)
+    return true
+  } catch (error) {
+    console.error("Failed to copy map screenshot to clipboard:", error)
+    return false
+  }
+}

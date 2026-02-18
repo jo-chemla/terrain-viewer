@@ -8,7 +8,7 @@ import { Light as SyntaxHighlighter } from "react-syntax-highlighter"
 import xml from "react-syntax-highlighter/dist/esm/languages/hljs/xml"
 import bash from "react-syntax-highlighter/dist/esm/languages/hljs/bash"
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs"
-import { copyToClipboard } from "./controls-utility"
+import { copyToClipboard } from "@/lib/controls-utils"
 
 SyntaxHighlighter.registerLanguage("xml", xml)
 SyntaxHighlighter.registerLanguage("bash", bash)
