@@ -269,3 +269,16 @@
   border-radius: var(--radius) !important;
   border-radius: 0.25rem !important;
 }
+
+
+/* GEOGRID */
+.geogrid.geogrid-overrides {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    width: 100%;
+    pointer-events: none;
+}
