@@ -116,14 +116,24 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
           {customBasemapSources.length > 0 && (
             <RadioGroup value={state.basemapSource} onValueChange={(value) => setState({ basemapSource: value })}>
               {customBasemapSources.map((source) => (
-                <div
-                  key={source.id}
-                  className="flex items-center gap-2 min-w-0"
-                >
-                  <RadioGroupItem value={source.id} id={`basemap-${source.id}`} className="cursor-pointer shrink-0" />
-                  <Label htmlFor={`basemap-${source.id}`} className="cursor-pointer flex-1 min-w-0">
-                    <CustomSourceDetails source={source} handleFitToBounds={handleFitToBounds} handleEditSource={handleEditBasemap} handleDeleteCustomSource={handleDeleteCustomBasemap} />
+                <div key={source.id} className="flex items-center gap-2 min-w-0">
+                  <RadioGroupItem
+                    value={source.id}
+                    id={`basemap-${source.id}`}
+                    className="cursor-pointer shrink-0"
+                  />
+                  <Label
+                    htmlFor={`basemap-${source.id}`}
+                    className="cursor-pointer flex-1 min-w-0"
+                  >
+                    {source.name}
                   </Label>
+                  <CustomSourceDetails
+                    source={source}
+                    handleFitToBounds={handleFitToBounds}
+                    handleEditSource={handleEditBasemap}
+                    handleDeleteCustomSource={handleDeleteCustomBasemap}
+                  />
                 </div>
               ))}
             </RadioGroup>
