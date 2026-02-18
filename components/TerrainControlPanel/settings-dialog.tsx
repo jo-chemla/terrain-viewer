@@ -12,7 +12,7 @@ import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
   maxResolutionAtom, useCogProtocolVsTitilerAtom
 } from "@/lib/settings-atoms"
-import { useTheme } from "./controls-utility"
+import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
 import { TooltipIconButton } from "./controls-components"
 

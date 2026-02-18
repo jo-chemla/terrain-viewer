@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { type Bounds } from "./controls-utility"
+import { type Bounds } from "@/lib/controls-utils"
 import { SourceInfoDialog } from "./source-info-dialog"
 
 export const SourceDetails: React.FC<{
