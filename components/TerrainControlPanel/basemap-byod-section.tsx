@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { TooltipButton } from "./tooltip-button"
+import { TooltipButton } from "./controls-components"
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,

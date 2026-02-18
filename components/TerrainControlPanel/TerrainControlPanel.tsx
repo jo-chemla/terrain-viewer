@@ -21,7 +21,7 @@ import { RasterBasemapSection } from "./raster-basemap-section"
 import { ContourOptionsSection } from "./contour-options-section"
 import { BackgroundOptionsSection } from "./background-options-section"
 import { FooterSection } from "./footer-section"
-import { TooltipIconButton } from "./tooltip-button"
+import { TooltipIconButton } from "./controls-components"
 
 import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
 

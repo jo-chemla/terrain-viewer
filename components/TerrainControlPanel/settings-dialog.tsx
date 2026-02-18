@@ -14,7 +14,7 @@ import {
 } from "@/lib/settings-atoms"
 import { useTheme } from "./controls-utility"
 import { PasswordInput } from "./controls-components"
-import { TooltipIconButton } from "./tooltip-button"
+import { TooltipIconButton } from "./controls-components"
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void }> = ({ isOpen, onOpenChange }) => {
   const { theme, toggleTheme } = useTheme()

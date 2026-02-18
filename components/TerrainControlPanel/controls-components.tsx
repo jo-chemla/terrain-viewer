@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import type { LucideIcon } from "lucide-react"
 
 export const PasswordInput = forwardRef<HTMLInputElement, any>(({ className, ...props }, ref) => {
   const [showPassword, setShowPassword] = useState(false);
@@ -106,3 +108,77 @@ export const CycleButtonGroup: React.FC<{
     </div>
   </div>
 )
+
+interface TooltipButtonProps {
+  icon: LucideIcon
+  label: string
+  tooltip: string
+  onClick: () => void
+  className?: string
+}
+
+export const TooltipButton: React.FC<TooltipButtonProps> = ({
+  icon: Icon,
+  label,
+  tooltip,
+  onClick,
+  className = "flex-1"
+}) => {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={`cursor-pointer bg-transparent ${className}`}
+          onClick={onClick}
+        >
+          <Icon className="h-3 w-3 mr-2" />
+          {label}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{tooltip}</p>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+
+interface TooltipIconButtonProps {
+  icon: LucideIcon
+  tooltip: string
+  onClick?: () => void
+  className?: string
+  variant?: React.ComponentProps<typeof Button>["variant"]
+  size?: React.ComponentProps<typeof Button>["size"]
+}
+
+export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButtonProps>(({
+  icon: Icon,
+  tooltip,
+  onClick,
+  className = "",
+  variant = "ghost",
+  size = "icon",
+}, ref) => {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          ref={ref}  // ← forward to the actual button
+          variant={variant}
+          size={size}
+          onClick={onClick}
+          className={`cursor-pointer ${className}`}
+        >
+          <Icon className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{tooltip}</p>
+      </TooltipContent>
+    </Tooltip>
+  )
+})
+TooltipIconButton.displayName = "TooltipIconButton"

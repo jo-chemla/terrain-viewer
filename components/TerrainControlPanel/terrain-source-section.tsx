@@ -22,7 +22,7 @@ import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { TooltipButton } from "./tooltip-button"
+import { TooltipButton } from "./controls-components"
 
 import customSources from "@/lib/custom-sources.json"
 const SAMPLE_TERRAIN_SOURCES = customSources['SAMPLE_TERRAIN_SOURCES']
