@@ -43,8 +43,8 @@ export const HypsometricTintOptionsSection: React.FC<{
     const newMax = Math.ceil(Math.max(...stops))
 
     setState({
-      sliderMin: newMin,
-      sliderMax: newMax
+      hypsoSliderMinBound: newMin,
+      hypsoSliderMaxBound: newMax
     })
   }, [state.colorRamp, setState])
 
@@ -95,12 +95,12 @@ export const HypsometricTintOptionsSection: React.FC<{
     )
   }
 
-  const resetCustomMinMax = useCallback(() => {
+  const resetminElevationMax = useCallback(() => {
     setState({
-      customMin: rampBounds.min,
-      customMax: rampBounds.max,
-      sliderMin: Math.floor(rampBounds.min),
-      sliderMax: Math.ceil(rampBounds.max)
+      minElevation: rampBounds.min,
+      maxElevation: rampBounds.max,
+      hypsoSliderMinBound: Math.floor(rampBounds.min),
+      hypsoSliderMaxBound: Math.ceil(rampBounds.max)
     })
   }, [rampBounds, setState])
 
@@ -115,29 +115,29 @@ export const HypsometricTintOptionsSection: React.FC<{
     const newIndex = (currentIndex + direction + colorRampKeys.length) % colorRampKeys.length
     setState({
       colorRamp: colorRampKeys[newIndex],
-      sliderMin: undefined,
-      sliderMax: undefined
+      hypsoSliderMinBound: undefined,
+      hypsoSliderMaxBound: undefined
     })
   }, [state.colorRamp, colorRampKeys, setState])
 
   // Get current slider values, defaulting to ramp bounds if not set
   const sliderValues = useMemo(() => [
-    state.customMin ?? rampBounds.min,
-    state.customMax ?? rampBounds.max
-  ], [state.customMin, state.customMax, rampBounds])
+    state.minElevation ?? rampBounds.min,
+    state.maxElevation ?? rampBounds.max
+  ], [state.minElevation, state.maxElevation, rampBounds])
 
   // Get slider bounds, defaulting to ramp bounds if not set
   const sliderBounds = useMemo(() => ({
-    min: state.sliderMin ?? Math.floor(rampBounds.min),
-    max: state.sliderMax ?? Math.ceil(rampBounds.max)
-  }), [state.sliderMin, state.sliderMax, rampBounds])
+    min: state.hypsoSliderMinBound ?? Math.floor(rampBounds.min),
+    max: state.hypsoSliderMaxBound ?? Math.ceil(rampBounds.max)
+  }), [state.hypsoSliderMinBound, state.hypsoSliderMaxBound, rampBounds])
 
   const handleSliderChange = useCallback((values: number[]) => {
     // Ensure min doesn't exceed max
     const [newMin, newMax] = values
     const clampedMin = Math.min(newMin, newMax)
     const clampedMax = Math.max(newMin, newMax)
-    setState({ customMin: clampedMin, customMax: clampedMax, customHypsoMinMax: true })
+    setState({ minElevation: clampedMin, maxElevation: clampedMax, customHypsoMinMax: true })
   }, [setState])
 
   if (!state.showColorRelief) return null
@@ -160,8 +160,8 @@ export const HypsometricTintOptionsSection: React.FC<{
               if (first) {
                 setState({
                   colorRamp: first.toLowerCase(),
-                  sliderMin: undefined,
-                  sliderMax: undefined
+                  hypsoSliderMinBound: undefined,
+                  hypsoSliderMaxBound: undefined
                 })
               }
               // }
@@ -202,8 +202,8 @@ export const HypsometricTintOptionsSection: React.FC<{
           <div className="flex gap-2">
             <Select value={state.colorRamp} onValueChange={(value) => setState({
               colorRamp: value,
-              sliderMin: undefined,
-              sliderMax: undefined
+              hypsoSliderMinBound: undefined,
+              hypsoSliderMaxBound: undefined
             })}>
               <SelectTrigger className="flex-1 cursor-pointer">
                 <SelectValue />
@@ -243,8 +243,8 @@ export const HypsometricTintOptionsSection: React.FC<{
                 const first = Object.values(filteredNow)[0].name
                 setState({
                   colorRamp: first.toLowerCase(),
-                  sliderMin: undefined,
-                  sliderMax: undefined
+                  hypsoSliderMinBound: undefined,
+                  hypsoSliderMaxBound: undefined
                 })
               }
             }
@@ -268,7 +268,7 @@ export const HypsometricTintOptionsSection: React.FC<{
                 <Checkbox id="hypso-min-max" checked={state.customHypsoMinMax} onCheckedChange={(checked) => setState({ customHypsoMinMax: checked === true })} />
                 <div className="flex items-center flex-1 ml-2 gap-1">
                   <Label htmlFor="hypso-min-max" className="text-sm font-medium cursor-pointer">Edit Min/Max</Label>
-                  <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer" onClick={resetCustomMinMax}>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer" onClick={resetminElevationMax}>
                     <RotateCcw className="h-3 w-3" />
                   </Button>
                 </div>
@@ -280,8 +280,8 @@ export const HypsometricTintOptionsSection: React.FC<{
                 step="any"
                 placeholder="Min"
                 className="h-8 py-1 text-sm"
-                value={state.customMin ?? ""}
-                onChange={(e) => setState({ customMin: e.target.value === "" ? undefined : parseFloat(e.target.value), customHypsoMinMax: true })}
+                value={state.minElevation ?? ""}
+                onChange={(e) => setState({ minElevation: e.target.value === "" ? undefined : parseFloat(e.target.value), customHypsoMinMax: true })}
               />
             </div>
             <div className="flex-1 flex items-center">
@@ -290,8 +290,8 @@ export const HypsometricTintOptionsSection: React.FC<{
                 step="any"
                 placeholder="Max"
                 className="h-8 py-1 text-sm"
-                value={state.customMax ?? ""}
-                onChange={(e) => setState({ customMax: e.target.value === "" ? undefined : parseFloat(e.target.value), customHypsoMinMax: true })}
+                value={state.maxElevation ?? ""}
+                onChange={(e) => setState({ maxElevation: e.target.value === "" ? undefined : parseFloat(e.target.value), customHypsoMinMax: true })}
               />
             </div>
           </div>
@@ -311,11 +311,11 @@ export const HypsometricTintOptionsSection: React.FC<{
                 inputMode="numeric"
                 placeholder="Min"
                 className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-left w-16"
-                value={state.sliderMin ?? ""}
+                value={state.hypsoSliderMinBound ?? ""}
                 onChange={(e) => {
                   const value = e.target.value
                   if (value === "" || value === "-" || !isNaN(Number(value))) {
-                    setState({ sliderMin: value === "" ? undefined : parseFloat(value) })
+                    setState({ hypsoSliderMinBound: value === "" ? undefined : parseFloat(value) })
                   }
                 }}
               />
@@ -324,11 +324,11 @@ export const HypsometricTintOptionsSection: React.FC<{
                 inputMode="numeric"
                 placeholder="Max"
                 className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-right w-16"
-                value={state.sliderMax ?? ""}
+                value={state.hypsoSliderMaxBound ?? ""}
                 onChange={(e) => {
                   const value = e.target.value
                   if (value === "" || value === "-" || !isNaN(Number(value))) {
-                    setState({ sliderMax: value === "" ? undefined : parseFloat(value) })
+                    setState({ hypsoSliderMaxBound: value === "" ? undefined : parseFloat(value) })
                   }
                 }}
               />

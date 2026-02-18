@@ -34,6 +34,7 @@ import {
   contourLabelsLayerDef
 } from "./MapLayers"
 
+import { GraticuleLayer } from "./GraticuleLayer"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -72,8 +73,11 @@ export function TerrainViewer() {
     hillshadeOpacity: parseAsFloat.withDefault(1.0),
     showColorRelief: parseAsBoolean.withDefault(false),
     colorReliefOpacity: parseAsFloat.withDefault(0.35),
-    showContours: parseAsBoolean.withDefault(false),
-    colorRamp: parseAsString.withDefault("hypsometric"),
+    showContoursAndGraticules: parseAsBoolean.withDefault(false),
+    showContours: parseAsBoolean.withDefault(true),
+    showContourLabels: parseAsBoolean.withDefault(true),
+    showGraticules: parseAsBoolean.withDefault(false),
+    colorRamp: parseAsString.withDefault("mby"),
     showRasterBasemap: parseAsBoolean.withDefault(false),
     showBackground: parseAsBoolean.withDefault(false),
     rasterBasemapOpacity: parseAsFloat.withDefault(1.0),
@@ -93,13 +97,15 @@ export function TerrainViewer() {
     hillshadeMethod: parseAsString.withDefault("combined"),
     contourMinor: parseAsFloat.withDefault(50),
     contourMajor: parseAsFloat.withDefault(200),
-    minElevation: parseAsFloat.withDefault(0),
-    maxElevation: parseAsFloat.withDefault(4000),
     customHypsoMinMax: parseAsBoolean.withDefault(false),
-    customMin: parseAsFloat.withDefault(0),
-    customMax: parseAsFloat.withDefault(8100),
-    sliderMin: parseAsFloat.withDefault(0),
-    sliderMax: parseAsFloat.withDefault(8100),
+    minElevation: parseAsFloat.withDefault(0),
+    maxElevation: parseAsFloat.withDefault(8100),
+    hypsoSliderMinBound: parseAsFloat.withDefault(0),
+    hypsoSliderMaxBound: parseAsFloat.withDefault(8100),
+    graticuleColor: parseAsString.withDefault("#cccccc"),
+    graticuleWidth: parseAsFloat.withDefault(1.0),
+    showGraticuleLabels: parseAsBoolean.withDefault(false),
+    graticuleDensity: parseAsFloat.withDefault(0),
   })
 
   const [skyConfig] = useAtom(skyConfigAtom)
@@ -155,7 +161,7 @@ export function TerrainViewer() {
 
     let colors
     if (state.customHypsoMinMax) {
-      colors = remapColorRampStops(ramp.colors, state.customMin, state.customMax)
+      colors = remapColorRampStops(ramp.colors, state.minElevation, state.maxElevation)
     } else {
       colors = ramp.colors
     }
@@ -171,6 +177,11 @@ export function TerrainViewer() {
   }, [])
 
   useEffect(() => {
+    setContoursInitialized(false)
+    initAttemptsRef.current = 0
+  }, [state.sourceA])
+
+  useEffect(() => {
     const initContours = async () => {
       if (!mapARef.current || !mapsLoaded || contoursInitialized) return
       if (initAttemptsRef.current >= 5) return
@@ -183,25 +194,35 @@ export function TerrainViewer() {
           return
         }
 
-        const source = (terrainSources as any)[state.sourceA as TerrainSource]
-        if (!source?.sourceConfig?.tiles?.[0]) return
+        const customSource = customTerrainSources.find(s => s.id === state.sourceA)
+        let tileUrl = ""
+        let encoding = "mapbox"
+        let maxzoom = 14
+
+        if (customSource) {
+          if (customSource.type === 'cog') {
+            tileUrl = `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`
+            encoding = "mapbox"
+          } else {
+            tileUrl = customSource.url
+            encoding = customSource.type === "terrarium" ? "terrarium" : "mapbox"
+          }
+        } else {
+          const source = (terrainSources as any)[state.sourceA as TerrainSource]
+          if (!source?.sourceConfig?.tiles?.[0]) return
+          tileUrl = source.sourceConfig.tiles[0]
+          if (state.sourceA === 'mapbox') tileUrl = tileUrl.replace("{API_KEY}", mapboxKey || "")
+          else if (state.sourceA === 'maptiler') tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
+          encoding = source.encoding === "terrainrgb" ? "mapbox" : "terrarium"
+          maxzoom = source.sourceConfig.maxzoom || 14
+        }
 
         let DemSource = (mlcontour as any).DemSource || (mlcontour as any).default?.DemSource || mlcontour
 
-        // Get tile URL with API keys
-        let tileUrl = source.sourceConfig.tiles[0]
-        if (state.sourceA === 'mapbox') {
-          tileUrl = tileUrl.replace("{API_KEY}", mapboxKey || "")
-        } else if (state.sourceA === 'maptiler') {
-          tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
-        }
-
-        console.log("[Contours] Creating DemSource with URL:", tileUrl)
-
         demSourceRef.current = new DemSource({
           url: tileUrl,
-          encoding: source.encoding === "terrainrgb" ? "mapbox" : "terrarium",
-          maxzoom: source.sourceConfig.maxzoom || 14,
+          encoding: encoding,
+          maxzoom: maxzoom,
           worker: true,
           cacheSize: 100,
           timeoutMs: 10000,
@@ -241,48 +262,6 @@ export function TerrainViewer() {
 
         console.log("[Contours] Initialized successfully")
         setContoursInitialized(true)
-
-        // // // WIP Try adding geogrid graticules
-
-        // setTimeout(() => {
-        //   const map2 = mapARef.current.getMap()
-        //   const geogrid = new GeoGrid({
-        //     map: map2,
-        //     // beforeLayerId: 'labels',
-        //     // gridStyle: {
-        //     //   color: 'rgba(255, 255, 255, 0.5)',
-        //     //   width: 2,
-        //     //   dasharray: [5, 10]
-        //     // },
-        //     // labelStyle: {
-        //     //   color: 'rgba(255, 255, 255, 0.5)',
-        //     //   fontSize: '18',
-        //     //   textShadow: '0 0 10px rgba(0, 0, 0)'
-        //     // },
-        //     zoomLevelRange: [0, 20],
-        //     gridDensity: (zoomLevel) => 10,
-        //     // formatLabels: (degreesFloat) => Math.floor(degreesFloat).toString()
-        //   });
-        //   console.log('geogrid initialized')
-        //   // // On some event
-        //   // geogrid.remove();
-        //   // // On another event
-        //   // geogrid.add();
-        //   // console.log(('geogrid re-added'))
-        //   // const grid = new MaplibreGrid.Grid({
-        //   //   gridWidth: 10,
-        //   //   gridHeight: 10,
-        //   //   units: 'degrees',
-        //   //   paint: {
-        //   //     'line-opacity': 1,
-        //   //     'line-color': 'red',
-        //   //     'line-width': 10
-        //   //   }
-        //   // });
-        //   // map.addControl(grid);
-        // }, 5000)
-
-
       } catch (error) {
         console.error("[Contours] Initialization error:", error)
         // Retry after delay
@@ -297,15 +276,7 @@ export function TerrainViewer() {
       const timer = setTimeout(initContours, 1000)
       return () => clearTimeout(timer)
     }
-  }, [
-    contoursInitialized,
-    mapsLoaded,
-    state.sourceA,
-    state.contourMinor,
-    state.contourMajor,
-    mapboxKey,
-    maptilerKey,
-  ])
+  }, [contoursInitialized, mapsLoaded, state.sourceA, state.contourMinor, state.contourMajor, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint])
 
 
   useEffect(() => {
@@ -345,7 +316,7 @@ export function TerrainViewer() {
   // Register the COG protocol on the same maplibregl instance used by the Map component.
   useEffect(() => {
     maplibregl.addProtocol('cog', cogProtocol)
-    console.log("[COG] maplibre-cog-protocol registered")
+    // maplibregl.addProtocol('grid', GridProtocol);
   }, []);
 
 
@@ -375,12 +346,9 @@ export function TerrainViewer() {
           bearing: Number.parseFloat(evt.viewState.bearing.toFixed(1)),
         }
         setState(newState, { shallow: true })
-
       }, 500)
     }
-  },
-    [setState]
-  )
+  }, [setState])
 
   const getMapBounds = useCallback(() => {
     if (!mapARef.current) return { west: -180, south: -90, east: 180, north: 90 }
@@ -402,7 +370,8 @@ export function TerrainViewer() {
   }, [state.viewMode]);
 
   const [theme] = useAtom(themeAtom)
-  const themeColor = theme === 'light' ? '#ffffff' : '#000000'
+  const themeColor = theme === 'light' ? '#fff' : '#000'
+  const themeAntiColor = theme === 'light' ? '#000' : '#fff'
 
   const getSkyConfig = () => ({
     'sky-color': skyConfig.skyColor,
@@ -419,6 +388,24 @@ export function TerrainViewer() {
     'horizon-fog-blend': 1,
     'fog-ground-blend': 1
   })
+
+  const graticuleLabelColor = themeAntiColor
+  const graticuleLabelTextShadow = [
+    // '-1px -1px 0 #fff',
+    '-1px -1px 0',
+    '1px -1px 0',
+    '-1px 1px 0',
+    '1px 1px 0',
+    '-2px 0 0',
+    '2px 0 0',
+    '0 -2px 0',
+    '0 2px 0'
+  ].map((shadow) =>
+    shadow + themeColor
+  ).join(', ')
+  useEffect(() => {
+    if (themeColor) setState({ graticuleColor: themeColor })
+  }, [themeColor])
 
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
@@ -444,17 +431,6 @@ export function TerrainViewer() {
               source: "terrainSource",
               exaggeration: state.exaggeration || 1,
             })
-            // if (isPrimary) {
-            //   console.log("[TerrainViewer] Map A loaded")
-            //   setMapsLoaded(true)
-            // }
-
-            // [mapARef, mapBRef].forEach((mapRef) =>
-            //   mapRef?.current?.getMap().setTerrain({
-            //     source: "terrainSource",
-            //     exaggeration: state.exaggeration || 1,
-            //   })
-            // )
           }}
           sky={state.showBackground ? getSkyConfig() : getNoSkyConfig()}
           minPitch={0}
@@ -469,6 +445,7 @@ export function TerrainViewer() {
           }}
           projection={state.viewMode === "globe" ? "globe" : "mercator"}
           canvasContextAttributes={{ preserveDrawingBuffer: true }}
+          pixelRatio={window.devicePixelRatio * 1.5}  // supersample (default is 1×)
         >
           {/* Sources */}
           <TerrainSources
@@ -488,9 +465,19 @@ export function TerrainViewer() {
           {/* Layers */}
           {skyConfig.backgroundLayerActive && <BackgroundLayer theme={theme as any} mapRef={mapARef as any} />}
           <RasterLayer showRasterBasemap={state.showRasterBasemap} rasterBasemapOpacity={state.rasterBasemapOpacity} />
-          <HillshadeLayer showHillshade={state.showHillshade} hillshadePaint={hillshadePaint} />
           <ColorReliefLayer showColorRelief={state.showColorRelief} colorReliefPaint={colorReliefPaint} />
-          {contoursInitialized && isPrimary && <ContourLayers showContours={state.showContours} />}
+          <HillshadeLayer showHillshade={state.showHillshade} hillshadePaint={hillshadePaint} />
+          {contoursInitialized && isPrimary && <ContourLayers showContours={state.showContoursAndGraticules && state.showContours} showContourLabels={state.showContourLabels} theme={theme} />}
+          {isPrimary && state.showGraticules && <GraticuleLayer
+            showGraticules={state.showContoursAndGraticules && state.showGraticules}
+            graticuleColor={state.graticuleColor}
+            graticuleWidth={state.graticuleWidth}
+            showLabels={state.showGraticuleLabels}
+            labelColor={graticuleLabelColor}
+            labelTextShadow={graticuleLabelTextShadow}
+            gridDensity={state.graticuleDensity || undefined}
+          />}
+
 
           {isPrimary && (
             <>
@@ -505,7 +492,8 @@ export function TerrainViewer() {
     }, [
     state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
     state.basemapSource, state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
-    state.showColorRelief, state.showContours, state.showBackground, hillshadePaint, colorReliefPaint,
+    state.showColorRelief, state.showContours, state.showBackground, state.showGraticules,
+    state.graticuleColor, state.graticuleWidth, hillshadePaint, colorReliefPaint,
     mapboxKey, maptilerKey, contoursInitialized, customBasemapSources, titilerEndpoint, onMoveA, onMoveEndA,
     theme, skyConfig.backgroundLayerActive
   ])
