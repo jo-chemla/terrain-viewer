@@ -173,11 +173,33 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </div>
           <Separator />
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Resources</h3>
-            <div className="space-y-2 text-sm">
-              <a href="https://github.com/maplibre/maplibre-gl-js" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                <span>MapLibre GL JS</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-              </a>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Resources: MapLibre GL Features</h3>
+              <div className="space-y-2 text-sm">
+
+                <a href="https://github.com/maplibre/maplibre-style-spec/issues/1374" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>New Normal-Derived Methods like slope, aspect etc (Design Proposal #1374)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://github.com/maplibre/maplibre-gl-js/pull/5768" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>Additional Hillshade Methods (combined, igor, multidir, PR #5768)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://github.com/maplibre/maplibre-gl-js/pull/5913" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>Hypsometric Tint color-relief (PR #5913)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://github.com/maplibre/maplibre-style-spec/issues/583#issuecomment-2028639772" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>Contour Lines and onthegomap/maplibre-contour plugin (Issue #583)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://labs.geomatico.es/maplibre-cog-protocol-examples/#/en/pirineo" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>Geomatico COG Protocol for Maplibre</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://github.com/maplibre/maplibre-gl-js/discussions/3378" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>3D Tiles early Discussion (#3378)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://www.npmjs.com/package/cpt2js" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>Color-ramps (Topo, topobath etc) distributed from cpt2js Package</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+              </div>
             </div>
           </div>
         </div>
