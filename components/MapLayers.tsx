@@ -1,9 +1,8 @@
 import { memo } from "react"
-import { Layer, type MapRef, type LayerSpecification } from "react-map-gl/maplibre"
+import { Layer, Source, type MapRef, type LayerSpecification } from "react-map-gl/maplibre"
 
 // Raster Layer
-// export const RasterLayer = memo(
-export const RasterLayer =
+export const RasterLayer = memo(
     ({
         showRasterBasemap,
         rasterBasemapOpacity
@@ -24,13 +23,12 @@ export const RasterLayer =
                 }}
             />
         )
-    }
-
+    },
+)
 RasterLayer.displayName = "RasterLayer"
 
 // Background Layer
-// export const BackgroundLayer = memo(
-export const BackgroundLayer =
+export const BackgroundLayer = memo(
     ({ theme, mapRef }: { theme: "light" | "dark"; mapRef: React.RefObject<MapRef> }) => {
         const getBeforeId = () => {
             for (const layerId of ['raster-basemap', 'color-relief', 'hillshade']) {
@@ -52,12 +50,12 @@ export const BackgroundLayer =
                 beforeId={getBeforeId()}
             />
         )
-    }
+    },
+)
 BackgroundLayer.displayName = "BackgroundLayer"
 
 // Hillshade Layer
-// export const HillshadeLayer = memo(({
-export const HillshadeLayer = ({
+export const HillshadeLayer = memo(({
     showHillshade,
     hillshadePaint,
 }: {
@@ -75,12 +73,11 @@ export const HillshadeLayer = ({
             }}
         />
     )
-}
+})
 HillshadeLayer.displayName = "HillshadeLayer"
 
 // Color Relief Layer Hypsometric Tint
-// export const ColorReliefLayer = memo(({
-export const ColorReliefLayer = ({
+export const ColorReliefLayer = memo(({
     showColorRelief,
     colorReliefPaint
 }: {
@@ -100,17 +97,18 @@ export const ColorReliefLayer = ({
             }}
         />
     )
-}
+})
 ColorReliefLayer.displayName = "ColorReliefLayer"
 
 // Contour Layers
-export const contourLinesLayerDef = (showContours: boolean): LayerSpecification => ({
+export const contourLinesLayerDef = (showContours: boolean, theme: string): LayerSpecification => ({
     id: "contour-lines",
     type: "line",
     source: "contour-source",
     "source-layer": "contours",
     paint: {
-        "line-color": "rgba(0,0,0, 50%)",
+        // "line-color": "rgba(0,0,0, 50%)",
+        'line-color': theme === "light" ? "rgba(0,0,0, 50%)" : "rgba(255,255,255, 50%)",
         "line-width": ["match", ["get", "level"], 1, 1, 0.5],
     },
     layout: {
@@ -118,15 +116,16 @@ export const contourLinesLayerDef = (showContours: boolean): LayerSpecification 
     }
 })
 
-export const contourLabelsLayerDef = (showContours: boolean): LayerSpecification => ({
+export const contourLabelsLayerDef = (showContours: boolean, theme: string): LayerSpecification => ({
     id: "contour-labels",
     type: "symbol",
     source: "contour-source",
     "source-layer": "contours",
     filter: [">", ["get", "level"], 0],
     paint: {
-        "text-halo-color": "white",
+        "text-halo-color": theme === "light" ? "#ffffff" : "#000000",
         "text-halo-width": 1,
+        "text-color": theme === "light" ? "#000000" : "#ffffff",
     },
     layout: {
         "symbol-placement": "line",
@@ -137,13 +136,13 @@ export const contourLabelsLayerDef = (showContours: boolean): LayerSpecification
     }
 })
 
-// export const ContourLayers = memo(({ showContours }: { showContours: boolean }) => {
-export const ContourLayers = ({ showContours }: { showContours: boolean }) => {
+export const ContourLayers = memo(({ showContours, showContourLabels, theme }: { showContours: boolean; showContourLabels: boolean; theme: string }) => {
     return (
         <>
-            <Layer {...contourLinesLayerDef(showContours)} />
-            <Layer {...contourLabelsLayerDef(showContours)} />
+            <Layer {...contourLinesLayerDef(showContours, theme)} key={"contour-lines-" + theme} />
+            <Layer {...contourLabelsLayerDef(showContours && showContourLabels, theme)} key={"contour-labels-" + theme} />
         </>
     )
-}
+})
 ContourLayers.displayName = "ContourLayers"
+
