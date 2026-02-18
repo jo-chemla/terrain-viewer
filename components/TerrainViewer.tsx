@@ -14,14 +14,13 @@ import GeocoderControl from "./geocoder-control"
 import { terrainSources } from "@/lib/terrain-sources"
 import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
 import type { TerrainSource } from "@/lib/terrain-types"
-import mlcontour from "maplibre-contour"
 import { useAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, themeAtom
 } from "@/lib/settings-atoms"
 
-import maplibregl from 'maplibre-gl';
-import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
+import maplibregl from 'maplibre-gl'
+import { cogProtocol } from '@geomatico/maplibre-cog-protocol'
 
 import { TerrainSources, RasterBasemapSource } from "./MapSources"
 import {
@@ -29,21 +28,18 @@ import {
   BackgroundLayer,
   HillshadeLayer,
   ColorReliefLayer,
-  ContourLayers,
-  contourLinesLayerDef,
-  contourLabelsLayerDef
 } from "./MapLayers"
-
+import { ContoursLayer } from "./ContoursLayer"
 import { GraticuleLayer } from "./GraticuleLayer"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   return result
     ? {
-      r: Number.parseInt(result[1], 16),
-      g: Number.parseInt(result[2], 16),
-      b: Number.parseInt(result[3], 16),
-    }
+        r: Number.parseInt(result[1], 16),
+        g: Number.parseInt(result[2], 16),
+        b: Number.parseInt(result[3], 16),
+      }
     : { r: 0, g: 0, b: 0 }
 }
 
@@ -52,10 +48,7 @@ export function TerrainViewer() {
   const mapBRef = useRef<MapRef>(null)
   const isSyncing = useRef(false)
   const [mapLibreReady, setMapLibreReady] = useState(false)
-  const [contoursInitialized, setContoursInitialized] = useState(false)
-  const demSourceRef = useRef<any>(null)
   const [mapsLoaded, setMapsLoaded] = useState(false)
-  const initAttemptsRef = useRef(0)
   const viewStateUpdateTimer = useRef<NodeJS.Timeout | null>(null)
 
   const [mapboxKey] = useAtom(mapboxKeyAtom)
@@ -176,149 +169,10 @@ export function TerrainViewer() {
     setMapLibreReady(true)
   }, [])
 
-  useEffect(() => {
-    setContoursInitialized(false)
-    initAttemptsRef.current = 0
-  }, [state.sourceA])
-
-  useEffect(() => {
-    const initContours = async () => {
-      if (!mapARef.current || !mapsLoaded || contoursInitialized) return
-      if (initAttemptsRef.current >= 5) return
-
-      initAttemptsRef.current += 1
-      try {
-        const map = mapARef.current.getMap()
-        if (!map.isStyleLoaded()) {
-          setTimeout(() => setContoursInitialized(false), 1000)
-          return
-        }
-
-        const customSource = customTerrainSources.find(s => s.id === state.sourceA)
-        let tileUrl = ""
-        let encoding = "mapbox"
-        let maxzoom = 14
-
-        if (customSource) {
-          if (customSource.type === 'cog') {
-            tileUrl = `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`
-            encoding = "mapbox"
-          } else {
-            tileUrl = customSource.url
-            encoding = customSource.type === "terrarium" ? "terrarium" : "mapbox"
-          }
-        } else {
-          const source = (terrainSources as any)[state.sourceA as TerrainSource]
-          if (!source?.sourceConfig?.tiles?.[0]) return
-          tileUrl = source.sourceConfig.tiles[0]
-          if (state.sourceA === 'mapbox') tileUrl = tileUrl.replace("{API_KEY}", mapboxKey || "")
-          else if (state.sourceA === 'maptiler') tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
-          encoding = source.encoding === "terrainrgb" ? "mapbox" : "terrarium"
-          maxzoom = source.sourceConfig.maxzoom || 14
-        }
-
-        let DemSource = (mlcontour as any).DemSource || (mlcontour as any).default?.DemSource || mlcontour
-
-        demSourceRef.current = new DemSource({
-          url: tileUrl,
-          encoding: encoding,
-          maxzoom: maxzoom,
-          worker: true,
-          cacheSize: 100,
-          timeoutMs: 10000,
-        })
-
-        demSourceRef.current.setupMaplibre(maplibregl)
-
-        // Remove existing source if present
-        if (map.getSource("contour-source")) {
-          console.log("[Contours] Removing existing source")
-          if (map.getLayer("contour-lines")) map.removeLayer("contour-lines")
-          if (map.getLayer("contour-labels")) map.removeLayer("contour-labels")
-          map.removeSource("contour-source")
-        }
-
-        // Add contour source
-        map.addSource("contour-source", {
-          type: "vector",
-          tiles: [
-            demSourceRef.current.contourProtocolUrl({
-              multiplier: 1,
-              thresholds: {
-                11: [state.contourMajor, state.contourMajor * 5],
-                12: [state.contourMinor, state.contourMajor],
-                14: [state.contourMinor / 2, state.contourMajor],
-                15: [state.contourMinor / 5, state.contourMinor],
-              },
-              contourLayer: "contours",
-              elevationKey: "ele",
-              levelKey: "level",
-              extent: 4096,
-              buffer: 1,
-            }),
-          ],
-          maxzoom: 15,
-        })
-
-        console.log("[Contours] Initialized successfully")
-        setContoursInitialized(true)
-      } catch (error) {
-        console.error("[Contours] Initialization error:", error)
-        // Retry after delay
-        setTimeout(() => {
-          if (initAttemptsRef.current < 5) setContoursInitialized(false)
-        }, 2000)
-      }
-    }
-
-    // Trigger initialization with delay to ensure map is ready
-    if (mapsLoaded && !contoursInitialized && initAttemptsRef.current < 5) {
-      const timer = setTimeout(initContours, 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [contoursInitialized, mapsLoaded, state.sourceA, state.contourMinor, state.contourMajor, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint])
-
-
-  useEffect(() => {
-    const map = mapARef.current?.getMap();
-    if (!map || !demSourceRef.current) return;
-
-    if (map.getLayer("contour-labels")) map.removeLayer("contour-labels")
-    if (map.getLayer("contour-lines")) map.removeLayer("contour-lines")
-    if (map.getSource("contour-source")) map.removeSource("contour-source")
-
-    map.addSource("contour-source", {
-      type: "vector",
-      tiles: [
-        demSourceRef.current.contourProtocolUrl({
-          multiplier: 1,
-          thresholds: {
-            11: [state.contourMajor, state.contourMajor * 5],
-            12: [state.contourMinor, state.contourMajor],
-            14: [state.contourMinor / 2, state.contourMajor],
-            15: [state.contourMinor / 5, state.contourMinor],
-          },
-          contourLayer: "contours",
-          elevationKey: "ele",
-          levelKey: "level",
-          extent: 4096,
-          buffer: 1,
-        }),
-      ],
-      maxzoom: 15,
-    });
-    map.addLayer(contourLinesLayerDef(state.showContours))
-    map.addLayer(contourLabelsLayerDef(state.showContours))
-
-  }, [state.contourMinor, state.contourMajor])
-
-
-  // Register the COG protocol on the same maplibregl instance used by the Map component.
+  // Register the COG protocol
   useEffect(() => {
     maplibregl.addProtocol('cog', cogProtocol)
-    // maplibregl.addProtocol('grid', GridProtocol);
-  }, []);
-
+  }, [])
 
   const onMoveA = useCallback((evt: any) => {
     if (!isSyncing.current && state.splitScreen && mapBRef.current) {
@@ -361,13 +215,13 @@ export function TerrainViewer() {
     }
   }, [])
 
-  // Reset to north-up 2D view when switching to 2D mode frmo free rotation in 3D
+  // Reset to north-up 2D view when switching to 2D mode
   useEffect(() => {
     if (mapARef.current && state.viewMode === "2d") {
-      const map = mapARef.current.getMap();
-      map.easeTo({ bearing: 0, pitch: 0, duration: 500 });
+      const map = mapARef.current.getMap()
+      map.easeTo({ bearing: 0, pitch: 0, duration: 500 })
     }
-  }, [state.viewMode]);
+  }, [state.viewMode])
 
   const [theme] = useAtom(themeAtom)
   const themeColor = theme === 'light' ? '#fff' : '#000'
@@ -379,30 +233,24 @@ export function TerrainViewer() {
     'horizon-color': skyConfig.horizonColor,
     'horizon-fog-blend': skyConfig.horizonFogBlend,
     'fog-color': skyConfig.fogColor,
-    'fog-ground-blend': skyConfig.fogGroundBlend
+    'fog-ground-blend': skyConfig.fogGroundBlend,
   })
 
   const getNoSkyConfig = () => ({
     'sky-color': themeColor,
     'sky-horizon-blend': 0,
     'horizon-fog-blend': 1,
-    'fog-ground-blend': 1
+    'fog-ground-blend': 1,
   })
 
   const graticuleLabelColor = themeAntiColor
   const graticuleLabelTextShadow = [
-    // '-1px -1px 0 #fff',
-    '-1px -1px 0',
-    '1px -1px 0',
-    '-1px 1px 0',
-    '1px 1px 0',
-    '-2px 0 0',
-    '2px 0 0',
-    '0 -2px 0',
-    '0 2px 0'
-  ].map((shadow) =>
-    shadow + themeColor
-  ).join(', ')
+    '-1px -1px 0', '1px -1px 0',
+    '-1px 1px 0', '1px 1px 0',
+    '-2px 0 0', '2px 0 0',
+    '0 -2px 0', '0 2px 0',
+  ].map((shadow) => shadow + themeColor).join(', ')
+
   useEffect(() => {
     if (themeColor) setState({ graticuleColor: themeColor })
   }, [themeColor])
@@ -426,7 +274,7 @@ export function TerrainViewer() {
           onMoveEnd={isPrimary ? onMoveEndA : undefined}
           onLoad={() => {
             if (isPrimary) setMapsLoaded(true)
-            const map = isPrimary ? mapARef.current : mapBRef.current;
+            const map = isPrimary ? mapARef.current : mapBRef.current
             map?.getMap().setTerrain({
               source: "terrainSource",
               exaggeration: state.exaggeration || 1,
@@ -463,40 +311,85 @@ export function TerrainViewer() {
           />
 
           {/* Layers */}
-          {skyConfig.backgroundLayerActive && <BackgroundLayer theme={theme as any} mapRef={mapARef as any} />}
-          <RasterLayer showRasterBasemap={state.showRasterBasemap} rasterBasemapOpacity={state.rasterBasemapOpacity} />
-          <ColorReliefLayer showColorRelief={state.showColorRelief} colorReliefPaint={colorReliefPaint} />
-          <HillshadeLayer showHillshade={state.showHillshade} hillshadePaint={hillshadePaint} />
-          {contoursInitialized && isPrimary && <ContourLayers showContours={state.showContoursAndGraticules && state.showContours} showContourLabels={state.showContourLabels} theme={theme} />}
-          {isPrimary && state.showGraticules && <GraticuleLayer
-            showGraticules={state.showContoursAndGraticules && state.showGraticules}
-            graticuleColor={state.graticuleColor}
-            graticuleWidth={state.graticuleWidth}
-            showLabels={state.showGraticuleLabels}
-            labelColor={graticuleLabelColor}
-            labelTextShadow={graticuleLabelTextShadow}
-            gridDensity={state.graticuleDensity || undefined}
-          />}
+          {skyConfig.backgroundLayerActive && (
+            <BackgroundLayer theme={theme as any} mapRef={mapARef as any} />
+          )}
+          <RasterLayer
+            showRasterBasemap={state.showRasterBasemap}
+            rasterBasemapOpacity={state.rasterBasemapOpacity}
+          />
+          <ColorReliefLayer
+            showColorRelief={state.showColorRelief}
+            colorReliefPaint={colorReliefPaint}
+          />
+          <HillshadeLayer
+            showHillshade={state.showHillshade}
+            hillshadePaint={hillshadePaint}
+          />
 
+          {/* Contours — self-contained, primary map only */}
+          {isPrimary && (
+            <ContoursLayer
+              showContours={state.showContoursAndGraticules && state.showContours}
+              showContourLabels={state.showContourLabels}
+              sourceId={state.sourceA}
+              contourMinor={state.contourMinor}
+              contourMajor={state.contourMajor}
+              mapboxKey={mapboxKey}
+              maptilerKey={maptilerKey}
+              customTerrainSources={customTerrainSources}
+              titilerEndpoint={titilerEndpoint}
+              mapsLoaded={mapsLoaded}
+              theme={theme}
+            />
+          )}
+
+          {/* Graticules — primary map only */}
+          {isPrimary && state.showGraticules && (
+            <GraticuleLayer
+              showGraticules={state.showContoursAndGraticules && state.showGraticules}
+              graticuleColor={state.graticuleColor}
+              graticuleWidth={state.graticuleWidth}
+              showLabels={state.showGraticuleLabels}
+              labelColor={graticuleLabelColor}
+              labelTextShadow={graticuleLabelTextShadow}
+              gridDensity={state.graticuleDensity || undefined}
+            />
+          )}
 
           {isPrimary && (
             <>
-              <GeocoderControl position="top-left" placeholder="Search and press Enter" marker={false} showResultsWhileTyping={true} zoom={14} flyTo={{ speed: 5 }} showResultMarkers={false} limit={10} minLength={3} />
+              <GeocoderControl
+                position="top-left"
+                placeholder="Search and press Enter"
+                marker={false}
+                showResultsWhileTyping={true}
+                zoom={14}
+                flyTo={{ speed: 5 }}
+                showResultMarkers={false}
+                limit={10}
+                minLength={3}
+              />
               <NavigationControl position="top-left" />
               <GeolocateControl position="top-left" />
               <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
             </>
           )}
-        </Map >
+        </Map>
       )
-    }, [
-    state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
-    state.basemapSource, state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
-    state.showColorRelief, state.showContours, state.showBackground, state.showGraticules,
-    state.graticuleColor, state.graticuleWidth, hillshadePaint, colorReliefPaint,
-    mapboxKey, maptilerKey, contoursInitialized, customBasemapSources, titilerEndpoint, onMoveA, onMoveEndA,
-    theme, skyConfig.backgroundLayerActive
-  ])
+    },
+    [
+      state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
+      state.basemapSource, state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
+      state.showColorRelief, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
+      state.showBackground, state.showGraticules, state.graticuleColor, state.graticuleWidth,
+      state.sourceA, state.contourMinor, state.contourMajor,
+      hillshadePaint, colorReliefPaint,
+      mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
+      mapsLoaded, onMoveA, onMoveEndA,
+      theme, skyConfig.backgroundLayerActive,
+    ],
+  )
 
   if (!mapLibreReady) return null
 
@@ -510,7 +403,13 @@ export function TerrainViewer() {
           <div className="flex-1">{renderMap(state.sourceB, "map-b")}</div>
         )}
       </div>
-      <TerrainControlPanel state={state} setState={setState} getMapBounds={getMapBounds} mapRef={mapARef as any} mapsLoaded={mapsLoaded} />
+      <TerrainControlPanel
+        state={state}
+        setState={setState}
+        getMapBounds={getMapBounds}
+        mapRef={mapARef as any}
+        mapsLoaded={mapsLoaded}
+      />
     </div>
   )
 }
