@@ -443,7 +443,138 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
                 } catch (err) { console.error('Zoom error:', err) }
             }
         }
-        if (ext === 'kml') {
+
+        // @loaders.gl has deep ESM/CJS issues that make it fundamentally broken in Vite's dev server regardless of config. Cut your losses and drop it — use sql.js directly instead, which is what GeoPackageLoader uses under the hood anyway.
+        // if (ext === 'gpkg') {
+        //     const { load } = await import('@loaders.gl/core')
+        //     const { GeoPackageLoader } = await import('@loaders.gl/geopackage')
+
+        //     load(file, GeoPackageLoader, { gis: { format: 'geojson' } })
+        //         .then((tables: Record<string, any[]>) => {
+        //             const features = Object.values(tables).flat()
+        //             handleGeojson({ type: 'FeatureCollection', features })
+        //         })
+        //         .catch((err) => console.error('GeoPackage import error:', err))
+        // --
+        // OR 
+        // --
+        // const { load } = await import('@loaders.gl/core')
+        // const { GeoPackageLoader } = await import('@loaders.gl/geopackage')
+
+        // const tables = await load(file, GeoPackageLoader, { gis: { format: 'geojson' } })
+        // const features = Object.values(tables).flat()
+        // handleGeojson({ type: 'FeatureCollection', features })
+
+        if (ext === 'gpkg') {
+
+            const initSqlJs = await loadSqlJs()
+            const arrayBuffer = await file.arrayBuffer()
+            console.log('[gpkg] file size:', arrayBuffer.byteLength)
+
+            function getGpkgHeaderSize(geomBytes: Uint8Array): number {
+                // Byte 3 is flags: bits 1-3 encode envelope type
+                const flags = geomBytes[3]
+                const envelopeType = (flags >> 1) & 0x07
+                // Envelope sizes in bytes: 0=none, 1=bbox(32), 2=bbox+Z(48), 3=bbox+M(48), 4=bbox+ZM(64)
+                const envelopeBytes = [0, 32, 48, 48, 64][envelopeType] ?? 0
+                return 8 + envelopeBytes
+            }
+
+            const SQL = await initSqlJs({
+                locateFile: (f: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}`
+            })
+            const db = new SQL.Database(new Uint8Array(arrayBuffer))
+
+            // Log all tables in the DB for debugging
+            const allTables = db.exec(`SELECT name FROM sqlite_master WHERE type='table'`)
+            console.log('[gpkg] all tables:', allTables[0]?.values.map((r: any) => r[0]))
+
+            const tables = db.exec(`SELECT table_name, data_type FROM gpkg_contents`)
+            console.log('[gpkg] gpkg_contents:', tables[0]?.values)
+
+            const featureTables = db.exec(`SELECT table_name FROM gpkg_contents WHERE data_type='features'`)
+            const tableNames: string[] = featureTables[0]?.values.map((r: any) => r[0]) ?? []
+            console.log('[gpkg] feature tables:', tableNames)
+
+            const allFeatures: any[] = []
+            for (const table of tableNames) {
+                // Get the SRS for this table
+                const srsQuery = db.exec(
+                    `SELECT gc.srs_id FROM gpkg_geometry_columns gc WHERE gc.table_name='${table}'`
+                )
+                const srsId: number = srsQuery[0]?.values[0]?.[0] as number ?? 4326
+                console.log('[gpkg] SRS for', table, ':', srsId)
+
+                const proj4String = await getProj4String(srsId)
+                if (srsId !== 4326 && !proj4String) {
+                    console.warn('[gpkg] cannot reproject table', table, '— skipping')
+                    continue
+                }
+
+
+                const rows = db.exec(`SELECT * FROM "${table}" LIMIT 3`)
+                if (!rows[0]) { console.warn('[gpkg] no rows in table:', table); continue }
+
+                const cols = rows[0].columns
+                console.log('[gpkg] columns in', table, ':', cols)
+
+                // Log the actual gpkg_geometry_columns to find the real geom column name
+                const geomColQuery = db.exec(
+                    `SELECT column_name FROM gpkg_geometry_columns WHERE table_name='${table}'`
+                )
+                const geomColName: string = geomColQuery[0]?.values[0]?.[0] as string
+                    ?? cols.find((c: string) => !['id', 'fid'].includes(c.toLowerCase()) && !c.toLowerCase().includes('_id'))
+                    ?? cols[1]
+                console.log('[gpkg] geometry column for', table, ':', geomColName)
+
+                // Now fetch all rows
+                const allRows = db.exec(`SELECT * FROM "${table}"`)
+                if (!allRows[0]) continue
+
+                for (const row of allRows[0].values) {
+                    const props: Record<string, any> = {}
+                    allRows[0].columns.forEach((c: string, i: number) => { if (c !== geomColName) props[c] = row[i] })
+                    const geomBytes: Uint8Array = row[allRows[0].columns.indexOf(geomColName)] as Uint8Array
+                    const headerSize = getGpkgHeaderSize(geomBytes)
+                    if (!geomBytes) { console.warn('[gpkg] null geom in row, props:', props); continue }
+
+                    try {
+                        // GeoPackage WKB header: 2 magic bytes + 1 version + 1 flags + 4 srs_id = 8 bytes minimum
+                        // But if envelope is present, header is longer — read flags to get actual offset
+                        const flags = geomBytes[3]
+                        const envelopeType = (flags >> 1) & 0x07
+                        const envelopeSizes = [0, 32, 48, 48, 64] // bytes for envelope types 0-4
+                        const headerSize = 8 + (envelopeSizes[envelopeType] ?? 0)
+                        console.log('[gpkg] geomBytes length:', geomBytes.length, 'flags:', flags, 'envelopeType:', envelopeType, 'headerSize:', headerSize)
+
+                        const wkb = geomBytes.slice(headerSize)
+                        const geojsonGeom = wkbToGeoJSON(wkb)
+                        console.log('[gpkg] parsed geom type:', geojsonGeom?.type)
+                        allFeatures.push({ type: 'Feature', geometry: geojsonGeom, properties: props })
+                    } catch (err) {
+                        console.error('[gpkg] wkb parse error:', err, 'bytes (hex):', Array.from(geomBytes.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' '))
+                    }
+
+                    try {
+                        const wkb = geomBytes.slice(headerSize)
+                        let geojsonGeom = wkbToGeoJSON(wkb)
+
+                        // Reproject if needed
+                        if (proj4String) {
+                            geojsonGeom = reprojectGeometry(geojsonGeom, proj4String)
+                        }
+
+                        allFeatures.push({ type: 'Feature', geometry: geojsonGeom, properties: props })
+                    } catch (err) {
+                        console.error('[gpkg] error:', err)
+                    }
+                }
+            }
+
+            console.log('[gpkg] total features parsed:', allFeatures.length)
+            db.close()
+            handleGeojson({ type: 'FeatureCollection', features: allFeatures })
+        } else if (ext === 'kml') {
             reader.onload = (e) => {
                 try {
                     const xml = new DOMParser().parseFromString(e.target?.result as string, 'text/xml')
