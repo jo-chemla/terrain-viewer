@@ -61,12 +61,12 @@ export const Section: React.FC<{
 
 export const SliderControl: React.FC<{
   label: string; value: number; onChange: (value: number) => void; min: number; max: number; step: number
-  suffix?: string; decimals?: number; disabled?: boolean
-}> = ({ label, value, onChange, min, max, step, suffix = "", decimals = 0, disabled = false }) => (
+  suffix?: string; decimals?: number; disabled?: boolean; hideValue?: boolean
+}> = ({ label, value, onChange, min, max, step, suffix = "", decimals = 0, disabled = false, hideValue = false }) => (
   <div className="space-y-1">
     <div className="flex items-center justify-between">
       <Label className="text-sm">{label}</Label>
-      <span className="text-sm text-muted-foreground">{value.toFixed(decimals)}{suffix}</span>
+      {!hideValue && <span className="text-sm text-muted-foreground">{value.toFixed(decimals)}{suffix}</span>}
     </div>
     <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} />
   </div>
@@ -74,15 +74,13 @@ export const SliderControl: React.FC<{
 
 export const CheckboxWithSlider: React.FC<{
   id: string; label: string; checked: boolean; onCheckedChange: (checked: boolean) => void
-  sliderValue: number; onSliderChange: (value: number) => void; hideSlider?: boolean
-}> = ({ id, label, checked, onCheckedChange, sliderValue, onSliderChange, hideSlider = false }) => (
+  sliderValue?: number; onSliderChange?: (value: number) => void; hideSlider?: boolean; disabled?: boolean
+}> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false }) => (
   <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
-    <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" />
+    <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />
     <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider ? "col-span-2" : ""}`}>{label}</Label>
     {!hideSlider && (
-      <div className="w-full">
-        <Slider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.01} className="cursor-pointer w-full" disabled={!checked} />
-      </div>
+      <Slider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
     )}
   </div>
 )
@@ -93,16 +91,16 @@ export const CycleButtonGroup: React.FC<{
 }> = ({ value, options, onChange, onCycle }) => (
   <div className="flex gap-2">
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="flex-1 cursor-pointer"><SelectValue /></SelectTrigger>
+      <SelectTrigger className="flex-1 h-8 cursor-pointer"><SelectValue /></SelectTrigger>
       <SelectContent>
         {options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
       </SelectContent>
     </Select>
-    <div className="flex border rounded-md shrink-0">
-      <Button variant="ghost" size="icon" onClick={() => onCycle(-1)} className="rounded-r-none border-r cursor-pointer">
+    <div className="flex border rounded-md shrink-0 h-8">
+      <Button variant="ghost" size="icon" onClick={() => onCycle(-1)} className="rounded-r-none border-r cursor-pointer h-7 w-7">
         <ChevronLeft className="h-4 w-4" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={() => onCycle(1)} className="rounded-l-none cursor-pointer">
+      <Button variant="ghost" size="icon" onClick={() => onCycle(1)} className="rounded-l-none cursor-pointer h-7 w-7">
         <ChevronRight className="h-4 w-4" />
       </Button>
     </div>
