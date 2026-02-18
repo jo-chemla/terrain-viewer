@@ -57,20 +57,19 @@ export const BackgroundOptionsSection: React.FC<{
             <div className="flex gap-3">
               <Input
                 type="color"
-                value={skyConfig.fogColor}
-                onChange={(e) => setSkyConfig({ ...skyConfig, fogColor: e.target.value })}
+                value={skyConfig.skyColor}
+                onChange={(e) => setSkyConfig({ ...skyConfig, skyColor: e.target.value })}
                 className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
               />
               <div className="grow">
                 <SliderControl
-                  label="Fog Color Blend"
-                  value={skyConfig.fogGroundBlend * 100}
-                  onChange={(v) => setSkyConfig({ ...skyConfig, fogGroundBlend: v / 100 })}
+                  label="Sky Color Blend"
+                  value={skyConfig.skyHorizonBlend * 100}
+                  onChange={(v) => setSkyConfig({ ...skyConfig, skyHorizonBlend: v / 100 })}
                   min={0} max={100} step={1} suffix="%"
                 />
               </div>
             </div>
-
             <div className="flex gap-3">
               <Input
                 type="color"
@@ -87,23 +86,23 @@ export const BackgroundOptionsSection: React.FC<{
                 />
               </div>
             </div>
-
             <div className="flex gap-3">
               <Input
                 type="color"
-                value={skyConfig.skyColor}
-                onChange={(e) => setSkyConfig({ ...skyConfig, skyColor: e.target.value })}
+                value={skyConfig.fogColor}
+                onChange={(e) => setSkyConfig({ ...skyConfig, fogColor: e.target.value })}
                 className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
               />
               <div className="grow">
                 <SliderControl
-                  label="Sky Color Blend"
-                  value={skyConfig.skyHorizonBlend * 100}
-                  onChange={(v) => setSkyConfig({ ...skyConfig, skyHorizonBlend: v / 100 })}
+                  label="Fog Color Blend"
+                  value={skyConfig.fogGroundBlend * 100}
+                  onChange={(v) => setSkyConfig({ ...skyConfig, fogGroundBlend: v / 100 })}
                   min={0} max={100} step={1} suffix="%"
                 />
               </div>
             </div>
+
           </>
         )}
       </div>
