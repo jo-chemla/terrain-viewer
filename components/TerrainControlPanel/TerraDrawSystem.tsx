@@ -1,16 +1,50 @@
-import { useEffect, useRef, useState, type RefObject, memo } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { atom, useAtom } from 'jotai'
 import type { MapRef } from 'react-map-gl/maplibre'
-import { TerraDraw, TerraDrawPointMode, TerraDrawLineStringMode, TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawCircleMode, TerraDrawSelectMode } from 'terra-draw'
+import {
+    TerraDraw, TerraDrawPointMode, TerraDrawLineStringMode,
+    TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawCircleMode, TerraDrawSelectMode
+} from 'terra-draw'
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
 import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Slider } from '@/components/ui/slider'
 import bbox from '@turf/bbox'
-import { v4 as uuidv4 } from 'uuid';
-import { Section, SliderControl } from "./controls-components"
+import { v4 as uuidv4 } from 'uuid'
+import { Section } from './controls-components'
+import { truncate as turf_truncate } from '@turf/truncate'
+import { CameraButtons } from "./CameraUtilities"
+import * as toGeoJSON from '@tmcw/togeojson'
+// import { load } from '@loaders.gl/core'
+// import { GeoPackageLoader } from '@loaders.gl/geopackage'
+// import sqlInit from 'sql.js/dist/sql-wasm-browser.js'
+// const initSqlJs = sqlInit.default ?? sqlInit
+// import { Geometry } from 'wkx'
+// const wkbToGeoJSON = (buf: Uint8Array) =>
+//     Geometry.parse(Buffer.from(buf)).toGeoJSON() as any
+import { Geometry } from 'wkx'
+import { Buffer } from 'buffer'
+import proj4 from 'proj4'
 
-// --- ATOM ---
+const wkbToGeoJSON = (buf: Uint8Array) =>
+    Geometry.parse(Buffer.from(buf)).toGeoJSON() as any
+
+function loadSqlJs(): Promise<any> {
+    return new Promise((resolve, reject) => {
+        if ((window as any).initSqlJs) return resolve((window as any).initSqlJs)
+        const script = document.createElement('script')
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.min.js'
+        script.onload = () => resolve((window as any).initSqlJs)
+        script.onerror = () => reject(new Error('Failed to load sql.js'))
+        document.head.appendChild(script)
+    })
+}
+
+
+// --- TYPES & ATOM ---
+
 export interface GeoJSONFeature {
     type: 'Feature'
     geometry: any
@@ -20,27 +54,118 @@ export interface GeoJSONFeature {
 
 export const drawingFeaturesAtom = atom<GeoJSONFeature[]>([])
 
+// --- HELPERS ---
+
+function to2DCoords(coords: any): any {
+    if (typeof coords[0] === 'number') return coords.slice(0, 2)
+    return coords.map(to2DCoords)
+}
+
+function geometryTypeToMode(geometryType: string): string | null {
+    switch (geometryType) {
+        case 'Point': return 'point'
+        case 'LineString': return 'linestring'
+        case 'Polygon':
+        case 'MultiPolygon': return 'polygon'
+        default:
+            console.warn('Unsupported geometry type:', geometryType)
+            return null
+    }
+}
+
+function parseFeatures(rawFeatures: any[]): GeoJSONFeature[] {
+    const flattened = flattenFeatures(rawFeatures)  // <-- add this
+    const output = flattened
+        .filter((f) => f?.geometry)
+        .flatMap((f) => {
+            const mode = geometryTypeToMode(f.geometry.type)
+            if (!mode) { console.log(mode, 'Unsupported geometry type:', f.geometry.type); return [] }
+            return [{
+                type: 'Feature',
+                id: uuidv4(),
+                geometry: { ...f.geometry, coordinates: to2DCoords(f.geometry.coordinates) },
+                properties: { ...(f.properties || {}), mode },
+            }]
+        })
+
+    console.log('parseFeatures', rawFeatures, rawFeatures
+        .filter((f) => f?.geometry), output)
+
+    return output
+}
+
+// --- LAYER VISIBILITY HELPERS ---
+
+function getTerraDrawLayers(map: maplibregl.Map): string[] {
+    return (map.getStyle()?.layers ?? [])
+        .map((l) => l.id)
+        .filter((id) => id.startsWith('td-'))
+}
+
+function setTerraDrawVisibility(map: maplibregl.Map, visible: boolean) {
+    getTerraDrawLayers(map).forEach((id) => {
+        try {
+            map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none')
+        } catch { }
+    })
+}
+
+function setTerraDrawOpacity(map: maplibregl.Map, opacity: number) {
+    getTerraDrawLayers(map).forEach((id) => {
+        try {
+            const layer = map.getLayer(id)
+            if (!layer) return
+            const type = layer.type
+            // Each layer type uses a different paint property for opacity
+            if (type === 'fill') map.setPaintProperty(id, 'fill-opacity', opacity)
+            else if (type === 'line') map.setPaintProperty(id, 'line-opacity', opacity)
+            else if (type === 'circle') {
+                map.setPaintProperty(id, 'circle-opacity', opacity)
+                map.setPaintProperty(id, 'circle-stroke-opacity', opacity)
+            } else if (type === 'symbol') map.setPaintProperty(id, 'icon-opacity', opacity)
+        } catch { }
+    })
+}
+async function getProj4String(srsId: number): Promise<string | null> {
+    if (srsId === 4326) return null // already WGS84
+    try {
+        const res = await fetch(`https://epsg.io/${srsId}.proj4`)
+        if (!res.ok) throw new Error(`No proj4 string for EPSG:${srsId}`)
+        return await res.text()
+    } catch (err) {
+        console.error('[gpkg] failed to fetch proj4 string:', err)
+        return null
+    }
+}
+
+function reprojectCoords(coords: any, fromProj: string): any {
+    if (typeof coords[0] === 'number') {
+        const [x, y] = proj4(fromProj, 'WGS84', [coords[0], coords[1]])
+        return [x, y]
+    }
+    return coords.map((c: any) => reprojectCoords(c, fromProj))
+}
+
+function reprojectGeometry(geometry: any, fromProj: string): any {
+    return { ...geometry, coordinates: reprojectCoords(geometry.coordinates, fromProj) }
+}
+
 // --- HOOK ---
+
 export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
     const [draw, setDraw] = useState<TerraDraw | null>(null)
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
-
-    console.log('--- useTerraDraw: current features count ---', features.length)
     const featuresRef = useRef(features)
     const drawRef = useRef<TerraDraw | null>(null)
 
-    useEffect(() => {
-        featuresRef.current = features
-    }, [features])
+    useEffect(() => { featuresRef.current = features }, [features])
 
     useEffect(() => {
         const map = mapRef.current?.getMap()
         if (!map || !mapsLoaded) return
 
         const createDraw = () => {
-            console.log('--- TerraDraw: createDraw triggered ---')
             if (drawRef.current) {
-                console.log('--- TerraDraw: Stopping previous instance ---')
                 try { drawRef.current.stop() } catch (e) { console.error('Error stopping draw:', e) }
                 drawRef.current = null
                 setDraw(null)
@@ -48,12 +173,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
 
             setTimeout(() => {
                 try {
-                    console.log('--- TerraDraw: Initializing new instance ---')
-                    const adapter = new TerraDrawMapLibreGLAdapter({
-                        map,
-                        renderBelowLayerId: undefined
-                    })
-
+                    const adapter = new TerraDrawMapLibreGLAdapter({ map, renderBelowLayerId: undefined })
                     const newDraw = new TerraDraw({
                         adapter,
                         modes: [
@@ -64,8 +184,8 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
                                     polygon: { feature: { draggable: true, coordinates: { draggable: true, deletable: true, addable: true } } },
                                     rectangle: { feature: { draggable: true, coordinates: { draggable: true } } },
                                     circle: { feature: { draggable: true, coordinates: { draggable: true } } },
-                                    arbitrary: { feature: {} }
-                                }
+                                    arbitrary: { feature: {} },
+                                },
                             }),
                             new TerraDrawPointMode(),
                             new TerraDrawLineStringMode(),
@@ -75,72 +195,44 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
                         ],
                     })
 
-                    newDraw.on('change', (ids, type) => {
-                        const snapshot = newDraw.getSnapshot()
-                        console.log(`--- TerraDraw: change event [${type}] ---`, {
-                            featureCount: snapshot?.length || 0,
-                            ids
-                        })
-                        setFeatures(snapshot || [])
-                    })
+                    // newDraw.on('change', () => setFeatures(newDraw.getSnapshot() || []))
+                    newDraw.start()
+                    newDraw.setMode('select')
 
-                    if (!newDraw.enabled) {
-                        newDraw.start()
-                        console.log('--- TerraDraw: Started ---')
-                    }
-
-                    const currentFeatures = featuresRef.current
-                    if (currentFeatures && currentFeatures.length > 0) {
-                        console.log('--- TerraDraw: Restoring features ---', currentFeatures.length)
+                    if (featuresRef.current.length > 0) {
                         setTimeout(() => {
-                            try {
-                                newDraw.addFeatures(currentFeatures)
-                            } catch (e) {
-                                console.error('--- TerraDraw: Error adding features during init ---', e)
+                            try { newDraw.addFeatures(featuresRef.current) } catch (e) {
+                                console.error('Error restoring features:', e)
                             }
                         }, 100)
                     }
 
-                    newDraw.setMode('select')
                     drawRef.current = newDraw
                     setDraw(newDraw)
                 } catch (err) {
-                    console.error('--- TerraDraw: Error creating instance ---', err)
+                    console.error('Error creating TerraDraw instance:', err)
                 }
             }, 500)
         }
 
+        // Keep td-* layers on top after style changes
         const handleStyleData = () => {
             if (!map || !drawRef.current) return
-
             try {
-                const style = map.getStyle()
-                if (!style || !style.layers) return
-
-                const layers = style.layers
-                const tdLayers = layers.filter(l => l.id.startsWith('td-'))
+                const layers = map.getStyle()?.layers ?? []
+                const tdLayers = layers.filter((l) => l.id.startsWith('td-'))
                 if (tdLayers.length === 0) return
-
-                const lastLayer = layers[layers.length - 1]
-                if (!lastLayer.id.startsWith('td-')) {
-                    tdLayers.forEach(l => {
-                        try {
-                            map.moveLayer(l.id)
-                        } catch (e) { }
-                    })
+                if (!layers[layers.length - 1].id.startsWith('td-')) {
+                    tdLayers.forEach((l) => { try { map.moveLayer(l.id) } catch { } })
                 }
-            } catch (e) { }
+            } catch { }
         }
 
         map.on('style.load', createDraw)
         map.on('styledata', handleStyleData)
         map.on('sourcedata', handleStyleData)
         map.on('render', handleStyleData)
-        map.on('data', (e) => {
-            if (e.type === 'style' || e.type === 'source') {
-                handleStyleData()
-            }
-        })
+        map.on('data', (e) => { if (e.type === 'style' || e.type === 'source') handleStyleData() })
 
         if (map.isStyleLoaded()) createDraw()
 
@@ -160,24 +252,15 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
 }
 
 // --- CONTROLS COMPONENT ---
+
 export function TerraDrawControls({ draw }: { draw: TerraDraw | null }) {
     const [activeMode, setActiveMode] = useState<string>('select')
 
     useEffect(() => {
         if (!draw) return
-        const update = () => {
-            try {
-                const mode = draw.getMode()
-                console.log('--- TerraDrawControls: mode changed ---', mode)
-                if (mode && ['select', 'point', 'linestring', 'polygon', 'rectangle', 'circle'].includes(mode)) {
-                    setActiveMode(mode)
-                }
-            } catch { }
-        }
+        const update = () => { try { const m = draw.getMode(); if (m) setActiveMode(m) } catch { } }
         draw.on('change', update)
-        return () => {
-            try { draw.off('change', update) } catch { }
-        }
+        return () => { try { draw.off('change', update) } catch { } }
     }, [draw])
 
     if (!draw) return <div className="text-sm text-muted-foreground py-2">Initializing drawing tools...</div>
@@ -195,36 +278,76 @@ export function TerraDrawControls({ draw }: { draw: TerraDraw | null }) {
         <div className="space-y-2">
             <Label className="text-sm font-medium">Drawing Mode</Label>
             <div className="grid grid-cols-3 gap-2">
-                {modes.map((mode) => {
-                    const Icon = mode.icon
-                    const active = activeMode === mode.id
-                    return (
-                        <Button
-                            key={mode.id}
-                            variant={active ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => {
-                                draw.setMode(mode.id)
-                                setActiveMode(mode.id)
-                            }}
-                            className="cursor-pointer"
-                        >
-                            <Icon className="h-4 w-4 mr-1" />
-                            {mode.label}
-                        </Button>
-                    )
-                })}
+                {modes.map(({ id, label, icon: Icon }) => (
+                    <Button
+                        key={id}
+                        variant={activeMode === id ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { draw.setMode(id); setActiveMode(id) }}
+                        className="cursor-pointer"
+                    >
+                        <Icon className="h-4 w-4 mr-1" />
+                        {label}
+                    </Button>
+                ))}
             </div>
         </div>
     )
 }
 
 // --- ACTIONS COMPONENT ---
-export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null, mapRef: RefObject<MapRef> }) {
+function flattenGeometry(geometry: any): any[] {
+    if (!geometry) return []
+    switch (geometry.type) {
+        case 'Point':
+        case 'LineString':
+        case 'Polygon':
+            return [geometry]
+        case 'MultiPoint':
+            return geometry.coordinates.map((c: any) => ({ type: 'Point', coordinates: c }))
+        case 'MultiLineString':
+            return geometry.coordinates.map((c: any) => ({ type: 'LineString', coordinates: c }))
+        case 'MultiPolygon':
+            return geometry.coordinates.map((c: any) => ({ type: 'Polygon', coordinates: c }))
+        case 'GeometryCollection':
+            return geometry.geometries.flatMap(flattenGeometry)
+        default:
+            console.warn('Skipping unsupported geometry type:', geometry.type)
+            return []
+    }
+}
+
+function flattenFeatures(features: any[]): any[] {
+    return features.flatMap((f) => {
+        if (!f?.geometry) return []
+        return flattenGeometry(f.geometry).map((geom) => ({
+            ...f,
+            geometry: geom,
+            properties: f.properties ?? {},
+        }))
+    })
+}
+
+export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [visible, setVisible] = useState(true)
+    const [opacity, setOpacity] = useState(1)
 
-    console.log('--- TerraDrawActions: current features count ---', features.length)
+    const getMap = () => mapRef.current?.getMap()
+
+    const handleVisibilityChange = (checked: boolean) => {
+        setVisible(checked)
+        const map = getMap()
+        if (map) setTerraDrawVisibility(map, checked)
+    }
+
+    const handleOpacityChange = (value: number[]) => {
+        const newOpacity = value[0]
+        setOpacity(newOpacity)
+        const map = getMap()
+        if (map) setTerraDrawOpacity(map, newOpacity)
+    }
 
     const exportGeoJSON = () => {
         const geojson = { type: 'FeatureCollection', features }
@@ -237,121 +360,125 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null, map
         URL.revokeObjectURL(url)
     }
 
-    const importGeoJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
-        console.log('--- TerraDraw: importGeoJSON triggered ---')
+    const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
         if (!file) return
+        const ext = file.name.split('.').pop()?.toLowerCase()
 
         const reader = new FileReader()
-        reader.onload = (e) => {
-            try {
-                const geojson = JSON.parse(e.target?.result as string)
-                console.log('--- TerraDraw: Parsed GeoJSON ---', geojson.type)
+        // reader.onload = (e) => {
+        //     try {
+        //         const geojson = JSON.parse(e.target?.result as string)
+        //         const truncated = turf_truncate(geojson, { precision: 6, coordinates: 2 });
+        //         const raw = truncated.type === 'FeatureCollection' ? truncated.features : [truncated]
+        //         const newFeatures = parseFeatures(raw)
+        //         if (newFeatures.length === 0) return
 
-                const rawFeatures = geojson.type === 'FeatureCollection' ? geojson.features : [geojson]
-                console.log('--- TerraDraw: rawFeatures count ---', rawFeatures.length)
+        //         if (draw) {
+        //             try {
+        //                 draw.clear()
+        //                 const result = draw.addFeatures(newFeatures)
+        //                 setFeatures(newFeatures)
+        //             } catch (err) {
+        //                 console.error('Error adding features:', err)
+        //                 setFeatures(newFeatures)
+        //             }
+        //         } else {
+        //             setFeatures(newFeatures)
+        //         }
+        //         // Reset visibility & opacity on import
+        //         setVisible(true)
+        //         setOpacity(1)
 
-                const newFeatures = rawFeatures
-                    .filter((f: any) => f && f.geometry)
-                    .map((f: any) => {
-                        const geometryType = f.geometry.type
-                        let mode = 'select'
+        //         const map = getMap()
+        //         if (map) {
+        //             setTerraDrawVisibility(map, true)
+        //             setTerraDrawOpacity(map, 1)
+        //             try {
+        //                 const bounds = bbox(geojson)
+        //                 if (bounds.length === 4 && !bounds.some(isNaN)) {
+        //                     map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 40, duration: 800 })
+        //                 }
+        //             } catch (err) { console.error('Zoom error:', err) }
+        //         }
+        //     } catch (err) {
+        //         console.error('Import error:', err)
+        //     }
+        // }
 
-                        if (geometryType === 'Point') mode = 'point'
-                        else if (geometryType === 'LineString') mode = 'linestring'
-                        else if (geometryType === 'Polygon') mode = 'polygon'
 
-                        const feature = {
-                            type: 'Feature',
-                            id: String(f.id || Math.random().toString(36).substring(2, 11)),
-                            geometry: f.geometry,
-                            properties: {
-                                ...f.properties,
-                                mode
-                            }
-                        }
-                        console.log(`Mapping feature: geom=${geometryType} -> mode=${mode}`)
-                        return feature
-                    })
 
-                console.log('--- TerraDraw: mapped newFeatures count ---', newFeatures.length)
-                if (newFeatures.length > 0) {
-                    console.log('--- TerraDraw: first feature sample ---', JSON.stringify(newFeatures[0]).substring(0, 200))
+        const handleGeojson = (geojson: any) => {
+            const truncated = turf_truncate(geojson, { precision: 6, coordinates: 2 })
+            const raw = truncated.type === 'FeatureCollection' ? truncated.features : [truncated]
+            const newFeatures = parseFeatures(raw)
+            if (newFeatures.length === 0) return
+
+            if (draw) {
+                try {
+                    draw.clear()
+                    draw.addFeatures(newFeatures)
+                    setFeatures(newFeatures)
+                } catch (err) {
+                    console.error('Error adding features:', err)
+                    setFeatures(newFeatures)
                 }
+            } else {
+                setFeatures(newFeatures)
+            }
 
-                if (draw) {
-                    try {
-                        console.log('--- TerraDraw: Calling addFeatures ---', newFeatures)
+            // Reset visibility & opacity on import
+            setVisible(true)
+            setOpacity(1)
 
-                        const updatedFeatures = newFeatures.map((feature: any) => {
-                            let mode = "static";
-
-                            switch (feature.geometry.type) {
-                                case "Point":
-                                    mode = "point";
-                                    break;
-                                case "Polygon":
-                                case "MultiPolygon":
-                                    mode = "polygon";
-                                    break;
-                                default:
-                                    console.warn("Unsupported geometry type:", feature.geometry.type);
-                            }
-
-                            return {
-                                ...feature,
-                                id: uuidv4(),
-                                properties: {
-                                    ...(feature.properties || {}),
-                                    mode,
-                                },
-                            };
-                        });
-
-                        draw.clear()
-                        draw.addFeatures(updatedFeatures)
-
-                        const snapshot = draw.getSnapshot()
-                        console.log('--- TerraDraw: Snapshot after addFeatures ---', snapshot?.length || 0)
-                        setFeatures(snapshot || [])
-                    } catch (err) {
-                        console.error('--- TerraDraw: Error in addFeatures ---', err)
-                        setFeatures(prev => [...prev, ...newFeatures])
+            const map = getMap()
+            if (map) {
+                setTerraDrawVisibility(map, true)
+                setTerraDrawOpacity(map, 1)
+                try {
+                    const bounds = bbox(geojson)
+                    if (bounds.length === 4 && !bounds.some(isNaN)) {
+                        map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 40, duration: 800 })
                     }
-                } else {
-                    console.log('--- TerraDraw: No draw instance, updating atom only ---')
-                    setFeatures(prev => [...prev, ...newFeatures])
-                }
-
-                const map = mapRef.current?.getMap()
-                if (map && newFeatures.length > 0) {
-                    try {
-                        const bounds = bbox(geojson)
-                        if (bounds && bounds.length === 4 && !bounds.some(isNaN)) {
-                            map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 40, duration: 800 })
-                        }
-                    } catch (err) { console.error('--- TerraDraw: Zoom error ---', err) }
-                }
-            } catch (error) {
-                console.error('--- TerraDraw: Import error ---', error)
+                } catch (err) { console.error('Zoom error:', err) }
             }
         }
-        reader.readAsText(file)
+        if (ext === 'kml') {
+            reader.onload = (e) => {
+                try {
+                    const xml = new DOMParser().parseFromString(e.target?.result as string, 'text/xml')
+                    const geojson = toGeoJSON.kml(xml)
+                    handleGeojson(geojson)
+                } catch (err) { console.error('KML import error:', err) }
+            }
+            reader.readAsText(file)
+        } else {
+            // Default: GeoJSON / JSON
+            reader.onload = (e) => {
+                try {
+                    const geojson = JSON.parse(e.target?.result as string)
+                    handleGeojson(geojson)
+                } catch (err) { console.error('Import error:', err) }
+            }
+            reader.readAsText(file)
+        }
+
+        // reader.readAsText(file)
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
     const clearDrawings = () => {
         if (confirm('Clear all drawings?')) {
-            if (draw) draw.clear()
+            draw?.clear()
             setFeatures([])
         }
     }
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-3">
             <Label className="text-sm font-medium">Features: {features.length}</Label>
             <div className="grid grid-cols-3 gap-2">
-                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer">
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer" title="Import GeoJSON, KML, or GeoPackage">
                     <Upload className="h-4 w-4 mr-1" /> Import
                 </Button>
                 <Button variant="outline" size="sm" onClick={exportGeoJSON} disabled={features.length === 0} className="cursor-pointer">
@@ -361,16 +488,42 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null, map
                     <Trash2 className="h-4 w-4 mr-1" /> Clear
                 </Button>
             </div>
-            <input ref={fileInputRef} type="file" accept=".geojson,.json" onChange={importGeoJSON} className="hidden" />
+
+            {/* Visibility & Opacity */}
+            <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                    <Checkbox
+                        id="td-visible"
+                        checked={visible}
+                        onCheckedChange={(checked) => handleVisibilityChange(checked === true)}
+                    />
+                    <Label htmlFor="td-visible" className="text-sm cursor-pointer">Show drawings</Label>
+                </div>
+                {visible && (
+                    <div className="flex items-center gap-3">
+                        <Label className="text-sm text-muted-foreground w-16 shrink-0">Opacity</Label>
+                        <Slider
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            value={[opacity]}
+                            onValueChange={handleOpacityChange}
+                            className="flex-1"
+                        />
+                        <span className="text-xs text-muted-foreground w-8 text-right">
+                            {Math.round(opacity * 100)}%
+                        </span>
+                    </div>
+                )}
+            </div>
+            <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml,.gpkg" onChange={importFile} className="hidden" />
+            {/* <input ref={fileInputRef} type="file" accept=".geojson,.json" onChange={importGeoJSON} className="hidden" /> */}
         </div>
     )
 }
 
 // --- SECTION COMPONENT ---
-// Matches the BackgroundOptionsSection pattern:
-//   - owns its <Section> wrapper
-//   - accepts isOpen + onOpenChange from the parent
-//   - receives draw + mapRef as props (no closed-over variables)
+
 interface TerraDrawSectionProps {
     draw: TerraDraw | null
     mapRef: RefObject<MapRef>
@@ -383,6 +536,7 @@ export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange }: TerraDr
         <Section title="Drawing Tools" isOpen={isOpen} onOpenChange={onOpenChange}>
             <TerraDrawActions draw={draw} mapRef={mapRef} />
             <TerraDrawControls draw={draw} />
+            <CameraButtons mapRef={mapRef} />
         </Section>
     )
 }
