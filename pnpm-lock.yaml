@@ -122,6 +122,9 @@ importers:
       geotiff:
         specifier: latest
         version: 3.0.3
+      install:
+        specifier: ^0.13.0
+        version: 0.13.0
       jiti:
         specifier: latest
         version: 2.6.1
@@ -170,6 +173,9 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      react-icons:
+        specifier: ^5.5.0
+        version: 5.5.0(react@18.3.1)
       react-map-gl:
         specifier: latest
         version: 8.1.0(mapbox-gl@3.18.1)(maplibre-gl@5.18.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -2904,6 +2910,10 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
+  install@0.13.0:
+    resolution: {integrity: sha512-zDml/jzr2PKU9I8J/xyZBQn8rPCAY//UOYNmR01XwNwyfhEWObo2SWfSl1+0tm1u6PhxLwDnfsT/6jB7OUxqFA==}
+    engines: {node: '>= 0.10'}
+
   internmap@2.0.3:
     resolution: {integrity: sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==}
     engines: {node: '>=12'}
@@ -3554,6 +3564,11 @@ packages:
     resolution: {integrity: sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==}
     peerDependencies:
       react: ^18.3.1
+
+  react-icons@5.5.0:
+    resolution: {integrity: sha512-MEFcXdkP3dLo8uumGI5xN3lDFNsRtrjbOEKDLD7yv76v4wpnEq2Lt2qeHaQOr34I/wPN3s3+N08WkQ+CW37Xiw==}
+    peerDependencies:
+      react: '*'
 
   react-map-gl@8.1.0:
     resolution: {integrity: sha512-vDx/QXR3Tb+8/ap/z6gdMjJQ8ZEyaZf6+uMSPz7jhWF5VZeIsKsGfPvwHVPPwGF43Ryn+YR4bd09uEFNR5OPdg==}
@@ -7652,6 +7667,8 @@ snapshots:
 
   inherits@2.0.4: {}
 
+  install@0.13.0: {}
+
   internmap@2.0.3: {}
 
   is-alphabetical@2.0.1: {}
@@ -8304,6 +8321,10 @@ snapshots:
       loose-envify: 1.4.0
       react: 18.3.1
       scheduler: 0.23.2
+
+  react-icons@5.5.0(react@18.3.1):
+    dependencies:
+      react: 18.3.1
 
   react-map-gl@8.1.0(mapbox-gl@3.18.1)(maplibre-gl@5.18.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:

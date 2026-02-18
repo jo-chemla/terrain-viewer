@@ -12,10 +12,13 @@ import saveAs from "file-saver"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
 import { type SourceConfig, copyToClipboard } from "./controls-utility"
+import { ShareButton } from "./ShareSection"
 
 export const DownloadSection: React.FC<{
-  state: any; getMapBounds: () => { west: number; south: number; east: number; north: number }
-  getSourceConfig: (key: string) => SourceConfig | null; mapRef: React.RefObject<MapRef>
+  state: any
+  getMapBounds: () => { west: number; south: number; east: number; north: number }
+  getSourceConfig: (key: string) => SourceConfig | null
+  mapRef: React.RefObject<MapRef>
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange }) => {
@@ -28,9 +31,7 @@ export const DownloadSection: React.FC<{
     if (!sourceConfig) return ""
     const wmsXml = buildGdalWmsXml(sourceConfig.tileUrl, sourceConfig.tileSize)
     const bounds = getMapBounds()
-    const width = maxResolution
-    const height = maxResolution
-    return `${titilerEndpoint}/cog/bbox/${bounds.west},${bounds.south},${bounds.east},${bounds.north}/${width}x${height}.tif?url=${encodeURIComponent(wmsXml)}`
+    return `${titilerEndpoint}/cog/bbox/${bounds.west},${bounds.south},${bounds.east},${bounds.north}/${maxResolution}x${maxResolution}.tif?url=${encodeURIComponent(wmsXml)}`
   }, [state.sourceA, getSourceConfig, getMapBounds, maxResolution, titilerEndpoint])
 
   const getSourceUrl = useCallback(() => {
@@ -45,19 +46,26 @@ export const DownloadSection: React.FC<{
 
     try {
       const canvas = mapRef.current.getMap().getCanvas()
-      const width = canvas.clientWidth
-      const height = canvas.clientHeight
+      const { clientWidth: width, clientHeight: height } = canvas
       const dpr = window.devicePixelRatio
 
-      domToPng(canvas, { width, height, scale: dpr }).then((blob: any) => saveAs(blob, `${filename}.png`))
+      domToPng(canvas, { width, height, scale: dpr }).then((blob: any) =>
+        saveAs(blob, `${filename}.png`)
+      )
 
       if (state.viewMode === "2d") {
         const bounds = getMapBounds()
         const pixelSizeX = (bounds.east - bounds.west) / width
         const pixelSizeY = (bounds.north - bounds.south) / height
-        const pgwContent = [pixelSizeX.toFixed(10), "0.0", "0.0", (-pixelSizeY).toFixed(10), bounds.west.toFixed(10), bounds.north.toFixed(10)].join("\n")
-        const pgwBlob = new Blob([pgwContent], { type: "text/plain" })
-        saveAs(pgwBlob, `${filename}.pgw`)
+        const pgwContent = [
+          pixelSizeX.toFixed(10),
+          "0.0",
+          "0.0",
+          (-pixelSizeY).toFixed(10),
+          bounds.west.toFixed(10),
+          bounds.north.toFixed(10),
+        ].join("\n")
+        saveAs(new Blob([pgwContent], { type: "text/plain" }), `${filename}.pgw`)
       }
     } catch (error) {
       console.error("Failed to take screenshot:", error)
@@ -107,7 +115,8 @@ export const DownloadSection: React.FC<{
 
       const metadata = {
         GTModelTypeGeoKey: 2, GeographicTypeGeoKey: 4326, GeogCitationGeoKey: "WGS 84",
-        height, width, ModelPixelScale: [pixelSizeX, pixelSizeY, 0],
+        height, width,
+        ModelPixelScale: [pixelSizeX, pixelSizeY, 0],
         ModelTiepoint: [0, 0, 0, bounds.west, bounds.north, 0],
         SamplesPerPixel: 1, BitsPerSample: [32], SampleFormat: [3],
         PlanarConfiguration: 1, PhotometricInterpretation: 1,
@@ -128,30 +137,28 @@ export const DownloadSection: React.FC<{
   return (
     <Section title="Download" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="flex gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="outline" className="flex-[2] bg-transparent cursor-pointer" onClick={exportDTM} disabled={isExporting}>
-              <Download className="h-4 w-4 mr-2" />{isExporting ? "Exporting..." : "Export DTM"}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent><p>Export DTM as GeoTIFF</p></TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="outline" className="flex-1 bg-transparent cursor-pointer" onClick={takeScreenshot}>
-              <Camera className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent><p>Export Screenshot</p></TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="outline" className="flex-1 bg-transparent cursor-pointer" onClick={() => copyToClipboard(getSourceUrl())}>
-              <Copy className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent><p>Copy source URL</p></TooltipContent>
-        </Tooltip>
+        <TooltipButton
+          icon={Download}
+          label={isExporting ? "Exporting…" : "Export DTM"}
+          tooltip="Export DTM as GeoTIFF"
+          onClick={exportDTM}
+          className="flex-[2]"
+        />
+        <TooltipIconButton
+          icon={Camera}
+          tooltip="Download Snapshot to Disk"
+          onClick={takeScreenshot}
+          variant="outline"
+          className="flex-1 bg-transparent"
+        />
+        <TooltipIconButton
+          icon={Copy}
+          tooltip="Copy source URL"
+          onClick={() => copyToClipboard(getSourceUrl())}
+          variant="outline"
+          className="flex-1 bg-transparent"
+        />
+        <ShareButton mapRef={mapRef} />
       </div>
     </Section>
   )
