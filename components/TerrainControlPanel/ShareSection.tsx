@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
-import { Share2, Check, ImageIcon, Loader2 } from "lucide-react"
+import { Share2, Check, ImageIcon, Loader2, Link  } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Dialog,
@@ -97,6 +97,43 @@ const PLATFORMS: SharePlatform[] = [
       `https://reddit.com/submit?type=IMAGE&title=${encodeURIComponent(text)}&url=${encodeURIComponent(pageUrl)}`,
   },
 ]
+
+const CopyUrlButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(pageUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard denied
+    }
+  }, [pageUrl])
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="
+        flex items-center justify-center gap-2 w-full rounded-md px-3 py-2
+        border border-border bg-background hover:bg-muted/40
+        text-xs font-medium transition-colors duration-150 cursor-pointer
+      "
+    >
+      {copied ? (
+        <>
+          <Check className="h-3.5 w-3.5 text-green-400 shrink-0" />
+          <span className="text-green-400">URL copied!</span>
+        </>
+      ) : (
+        <>
+          <Link className="h-3.5 w-3.5 shrink-0" />
+          Copy URL to clipboard
+        </>
+      )}
+    </button>
+  )
+}
 
 // ── ShareModal ────────────────────────────────────────────────────────────────
 
@@ -241,21 +278,6 @@ const ShareModal: React.FC<{
           </DialogDescription>
         </DialogHeader>
 
-        {/* Native mobile share */}
-        {canNativeShare && (
-          <button
-            onClick={handleNativeShare}
-            className="
-              flex items-center justify-center gap-2 w-full rounded-md px-3 py-2
-              border border-border bg-background hover:bg-muted/40
-              text-xs font-medium transition-colors duration-150 cursor-pointer
-            "
-          >
-            <Share2 className="h-3.5 w-3.5 shrink-0" />
-            Share via apps (WhatsApp, Slack, etc.)
-          </button>
-        )}
-
 
         {/* ── 3x3 platform grid ── */}
         <div className="grid grid-cols-3 gap-1.5">
@@ -288,6 +310,23 @@ const ShareModal: React.FC<{
           })}
         </div>
 
+<div className="flex flex-col gap-1">
+
+        {/* Native mobile share */}
+        {canNativeShare && (
+          <button
+            onClick={handleNativeShare}
+            className="
+              flex items-center justify-center gap-2 w-full rounded-md px-3 py-2
+              border border-border bg-background hover:bg-muted/40
+              text-xs font-medium transition-colors duration-150 cursor-pointer
+            "
+          >
+            <Share2 className="h-3.5 w-3.5 shrink-0" />
+            Native Share (for apps like WhatsApp, Slack...)
+          </button>
+        )}
+        <p className="text-xs text-muted-foreground mt-2">Or Copy Snapshot and URL yourself</p>
         {/* ── Copy image button (primary action) ── */}
         <button
           onClick={copyImage}
@@ -321,6 +360,9 @@ const ShareModal: React.FC<{
             </>
           )}
         </button>
+        <CopyUrlButton pageUrl={pageUrl} />
+
+        </div>
 
         {/* text preview */}
         <div className="rounded-md bg-muted/40 border border-border px-3 py-2 text-xs text-foreground/80 leading-relaxed">
@@ -332,7 +374,6 @@ const ShareModal: React.FC<{
 }
 
 // ── ShareButton (drop-in for DownloadSection) ─────────────────────────────────
-
 export const ShareButton: React.FC<{
   mapRef?: React.RefObject<any>
 }> = ({ mapRef }) => {
@@ -340,21 +381,13 @@ export const ShareButton: React.FC<{
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <TooltipIconButton
-            icon={Share2}
-            tooltip="Share to Socials"
-            onClick={() => setOpen(true)}
-            variant="outline"
-            className="flex-1 bg-transparent"
-          />
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Share to social media</p>
-        </TooltipContent>
-      </Tooltip>
-
+      <TooltipIconButton
+        icon={Share2}
+        tooltip="Share to social media"
+        onClick={() => setOpen(true)}
+        variant="outline"
+        className="flex-1 bg-transparent"
+      />
       <ShareModal open={open} onOpenChange={setOpen} mapRef={mapRef} />
     </>
   )
