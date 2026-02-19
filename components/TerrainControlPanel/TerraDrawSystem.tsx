@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import bbox from '@turf/bbox'
 import { v4 as uuidv4 } from 'uuid'
-import { Section } from './controls-components'
+import { Section, CheckboxWithSlider } from './controls-components'
 import { truncate as turf_truncate } from '@turf/truncate'
 import { CameraButtons } from "./CameraUtilities"
 import * as toGeoJSON from '@tmcw/togeojson'
@@ -342,8 +342,8 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
         if (map) setTerraDrawVisibility(map, checked)
     }
 
-    const handleOpacityChange = (value: number[]) => {
-        const newOpacity = value[0]
+    const handleOpacityChange = (value: number) => {
+        const newOpacity = value
         setOpacity(newOpacity)
         const map = getMap()
         if (map) setTerraDrawOpacity(map, newOpacity)
@@ -366,48 +366,6 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
         const ext = file.name.split('.').pop()?.toLowerCase()
 
         const reader = new FileReader()
-        // reader.onload = (e) => {
-        //     try {
-        //         const geojson = JSON.parse(e.target?.result as string)
-        //         const truncated = turf_truncate(geojson, { precision: 6, coordinates: 2 });
-        //         const raw = truncated.type === 'FeatureCollection' ? truncated.features : [truncated]
-        //         const newFeatures = parseFeatures(raw)
-        //         if (newFeatures.length === 0) return
-
-        //         if (draw) {
-        //             try {
-        //                 draw.clear()
-        //                 const result = draw.addFeatures(newFeatures)
-        //                 setFeatures(newFeatures)
-        //             } catch (err) {
-        //                 console.error('Error adding features:', err)
-        //                 setFeatures(newFeatures)
-        //             }
-        //         } else {
-        //             setFeatures(newFeatures)
-        //         }
-        //         // Reset visibility & opacity on import
-        //         setVisible(true)
-        //         setOpacity(1)
-
-        //         const map = getMap()
-        //         if (map) {
-        //             setTerraDrawVisibility(map, true)
-        //             setTerraDrawOpacity(map, 1)
-        //             try {
-        //                 const bounds = bbox(geojson)
-        //                 if (bounds.length === 4 && !bounds.some(isNaN)) {
-        //                     map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 40, duration: 800 })
-        //                 }
-        //             } catch (err) { console.error('Zoom error:', err) }
-        //         }
-        //     } catch (err) {
-        //         console.error('Import error:', err)
-        //     }
-        // }
-
-
-
         const handleGeojson = (geojson: any) => {
             const truncated = turf_truncate(geojson, { precision: 6, coordinates: 2 })
             const raw = truncated.type === 'FeatureCollection' ? truncated.features : [truncated]
@@ -607,7 +565,16 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
 
     return (
         <div className="space-y-3">
-            <Label className="text-sm font-medium">Features: {features.length}</Label>
+            <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Drawing Tools</Label> 
+                <Label className="text-sm font-medium">Features: {features.length}</Label>
+            </div>
+
+            {/* Visibility & Opacity */}
+            <div className="space-y-2">
+                <CheckboxWithSlider id="td-visible" checked={visible} onCheckedChange={(checked) => handleVisibilityChange(checked === true)} label="Show drawings" sliderValue={opacity} onSliderChange={handleOpacityChange}  />
+            </div>
+            
             <div className="grid grid-cols-3 gap-2">
                 <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer" title="Import GeoJSON, KML, or GeoPackage">
                     <Upload className="h-4 w-4 mr-1" /> Import
@@ -618,34 +585,6 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
                 <Button variant="outline" size="sm" onClick={clearDrawings} disabled={features.length === 0} className="cursor-pointer">
                     <Trash2 className="h-4 w-4 mr-1" /> Clear
                 </Button>
-            </div>
-
-            {/* Visibility & Opacity */}
-            <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                    <Checkbox
-                        id="td-visible"
-                        checked={visible}
-                        onCheckedChange={(checked) => handleVisibilityChange(checked === true)}
-                    />
-                    <Label htmlFor="td-visible" className="text-sm cursor-pointer">Show drawings</Label>
-                </div>
-                {visible && (
-                    <div className="flex items-center gap-3">
-                        <Label className="text-sm text-muted-foreground w-16 shrink-0">Opacity</Label>
-                        <Slider
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            value={[opacity]}
-                            onValueChange={handleOpacityChange}
-                            className="flex-1"
-                        />
-                        <span className="text-xs text-muted-foreground w-8 text-right">
-                            {Math.round(opacity * 100)}%
-                        </span>
-                    </div>
-                )}
             </div>
             <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml,.gpkg" onChange={importFile} className="hidden" />
             {/* <input ref={fileInputRef} type="file" accept=".geojson,.json" onChange={importGeoJSON} className="hidden" /> */}
@@ -666,9 +605,10 @@ interface TerraDrawSectionProps {
 
 export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange, state, setState }: TerraDrawSectionProps) {
     return (
-        <Section title="Drawing Tools" isOpen={isOpen} onOpenChange={onOpenChange}>
+        <Section title="Tools / WIP" isOpen={isOpen} onOpenChange={onOpenChange}>
             <TerraDrawActions draw={draw} mapRef={mapRef} />
             <TerraDrawControls draw={draw} />
+            <Label className="text-sm font-medium mt-4">Animation Tools</Label>
             <CameraButtons
                 mapRef={mapRef}
                 appState={state}

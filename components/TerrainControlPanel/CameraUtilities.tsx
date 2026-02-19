@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { MapRef } from "react-map-gl/maplibre"
+import { Play, Pause, CirclePause, CircleStop, Check } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -349,8 +350,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
         >
           {pose1
             ? <span className="flex items-center gap-1.5">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Pose 1 ✓
+                {"Pose 1"} <Check className="h-4 w-4" />
               </span>
             : "Set Pose 1"}
         </Button>
@@ -363,7 +363,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
           onClick={playing ? stopPlay : () => startPlay(progress >= 1 ? 0 : progress)}
           title={!canPlay ? "Capture both poses first" : undefined}
         >
-          {playing ? "■ Stop" : "▶ Play"}
+          {playing ? (<><Pause className="h-4 w-4 mr-1" /> {"Stop"}</>) : (<><Play className="h-4 w-4 mr-1" /> {"Play"}</>)}
         </Button>
 
         {/* Set Pose 2 */}
@@ -374,8 +374,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
         >
           {pose2
             ? <span className="flex items-center gap-1.5">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Pose 2 ✓
+                {"Pose 2"} <Check className="h-4 w-4" />
               </span>
             : "Set Pose 2"}
         </Button>
@@ -413,7 +412,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
           value={[Math.round(progress * 100)]}
           onValueChange={handleScrub}
           disabled={!canPlay}
-          className="flex-1"
+          className="flex-1 cursor-pointer"
         />
 
         {/* Total duration label */}
@@ -455,7 +454,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
             <Switch
               checked={speedMode}
               onCheckedChange={setSpeedMode}
-              className="scale-[1] origin-left"
+              className="scale-[1] origin-left cursor-pointer"
             />
             <span className="text-xs text-muted-foreground">spd</span>
           </div>
@@ -465,7 +464,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
         <div className="flex flex-col gap-1 h-8">
           <Label className="text-xs text-muted-foreground">Loop</Label>
           <Select value={loopMode} onValueChange={v => setLoopMode(v as LoopMode)} >
-            <SelectTrigger className="h-8 text-xs w-full">
+            <SelectTrigger className="h-8 text-xs w-full cursor-pointer">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

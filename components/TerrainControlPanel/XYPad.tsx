@@ -16,7 +16,7 @@ export function SphericalXYPad({
   width,
   height,
   margin = 12,
-  pillRadius = 12,
+  pillRadius = 8,
   value = { azimuthDeg: 0, elevationDeg: 45 },
   onChange,
   showCardinalDirections = true,
