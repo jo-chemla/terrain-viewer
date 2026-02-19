@@ -160,7 +160,7 @@ export const DownloadSection: React.FC<{
   }, [getTitilerDownloadUrl, getSourceConfig, state.sourceA, getMapBounds, isExporting])
 
   return (
-    <Section title="Download" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="flex gap-2">
         <TooltipButton
           icon={isExporting ? Loader2 : Download}

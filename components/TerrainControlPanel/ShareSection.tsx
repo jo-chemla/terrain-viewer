@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback, useRef, useMemo } from "react"
+import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { Share2, Check, ImageIcon, Loader2 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -135,6 +135,42 @@ const ShareModal: React.FC<{
     return blob
   }, [mapRef])
 
+  
+//   const canNativeShare =
+//     typeof navigator !== "undefined" && typeof navigator.share === "function"
+
+  const [canNativeShare, setCanNativeShare] = useState(false)
+
+  useEffect(() => {
+    setCanNativeShare(!!navigator?.share)
+  }, [])
+
+  const handleNativeShare = useCallback(async () => {
+    try {
+      // reuse exact same screenshot logic as social intents
+      const blob = await getOrCreateBlob()
+
+      if (blob && navigator.canShare?.({ files: [new File([blob], "terrain-view.png", { type: blob.type })] })) {
+        const file = new File([blob], "terrain-view.png", { type: blob.type })
+        await navigator.share({
+          title: SHARE_TITLE,
+          text: SHARE_TEXT,
+          url: pageUrl,
+          files: [file],
+        })
+      } else {
+        await navigator.share({
+          title: SHARE_TITLE,
+          text: SHARE_TEXT,
+          url: pageUrl,
+        })
+      }
+    } catch {
+      // user cancelled — ignore
+    }
+  }, [getOrCreateBlob, pageUrl])
+
+
   const handleOpenChange = useCallback(
     (v: boolean) => {
       if (!v) {
@@ -205,7 +241,23 @@ const ShareModal: React.FC<{
           </DialogDescription>
         </DialogHeader>
 
-        {/* ── 3×3 platform grid ── */}
+        {/* Native mobile share */}
+        {canNativeShare && (
+          <button
+            onClick={handleNativeShare}
+            className="
+              flex items-center justify-center gap-2 w-full rounded-md px-3 py-2
+              border border-border bg-background hover:bg-muted/40
+              text-xs font-medium transition-colors duration-150 cursor-pointer
+            "
+          >
+            <Share2 className="h-3.5 w-3.5 shrink-0" />
+            Share via apps (WhatsApp, Slack, etc.)
+          </button>
+        )}
+
+
+        {/* ── 3x3 platform grid ── */}
         <div className="grid grid-cols-3 gap-1.5">
           {PLATFORMS.map((platform) => {
             const Icon = platform.icon
