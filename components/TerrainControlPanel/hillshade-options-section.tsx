@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
+import {SphericalXYPad} from './XYPad'
 
 export const HillshadeOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void;
@@ -12,6 +13,7 @@ export const HillshadeOptionsSection: React.FC<{
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, isOpen, onOpenChange }) => {
   const [isColorsOpen, setIsColorsOpen] = useState(false)
+  const [isXypadOpen, setIsXypadOpen] = useState(false)
   const hillshadeMethodKeys = useMemo(() => ["standard", "combined", "igor", "basic", "multidirectional", "multidir-colors"], [])
 
   const cycleHillshadeMethod = useCallback((direction: number) => {
@@ -42,9 +44,33 @@ export const HillshadeOptionsSection: React.FC<{
         <Label className="text-sm font-medium">Hillshade Method</Label>
         <CycleButtonGroup value={state.hillshadeMethod} options={hillshadeMethodOptions} onChange={(v) => setState({ hillshadeMethod: v })} onCycle={cycleHillshadeMethod} />
       </div>
+      {/* XY Pad for both illumination azimuth and elevation */}
+      {(supportsIlluminationDirection && supportsIlluminationAltitude) && (
+        <Collapsible open={isXypadOpen} onOpenChange={setIsXypadOpen}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+             Illumination Azimuth and Elevation<ChevronDown className={`h-4 w-4 transition-transform ${isXypadOpen ? "rotate-180" : ""}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="flex justify-center pt-1">
+            <SphericalXYPad
+              width={200}
+              height={200}
+              azimuthRange={[-180, 180]}
+              elevationRange={[1, 90]}
+              value={{ azimuthDeg: state.illuminationDir, elevationDeg: state.illuminationAlt }}
+              onChange={({ azimuthDeg, elevationDeg }) => {
+                setState({ illuminationDir: azimuthDeg, illuminationAlt: elevationDeg })
+              }}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+      
+      {/*Individual 1D Sliders for illumination */}
       {supportsIlluminationDirection && <SliderControl label="Illumination Direction" value={state.illuminationDir} onChange={(v) => setState({ illuminationDir: v })} min={0} max={360} step={1} suffix="°" />}
       {supportsIlluminationAltitude && <SliderControl label="Illumination Altitude" value={state.illuminationAlt} onChange={(v) => setState({ illuminationAlt: v })} min={0} max={90} step={1} suffix="°" />}
       {supportsExaggeration && <SliderControl label="Hillshade Exaggeration" value={state.hillshadeExag} onChange={(v) => setState({ hillshadeExag: v })} min={0} max={1} step={0.01} decimals={2} />}
+
+      {/* hillshade colors */}
       {(supportsShadowColor || supportsHighlightColor || supportsAccentColor) && (
         <Collapsible open={isColorsOpen} onOpenChange={setIsColorsOpen}>
           <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
@@ -59,6 +85,7 @@ export const HillshadeOptionsSection: React.FC<{
           </CollapsibleContent>
         </Collapsible>
       )}
+
     </Section>
   )
 }
