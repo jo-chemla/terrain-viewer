@@ -163,7 +163,7 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
   size = "icon",
 }, ref) => {
   return (
-    <Tooltip>
+    <Tooltip delayDuration={0} skipDelayDuration={300}>
       <TooltipTrigger asChild>
         <Button
           ref={ref}  // ← forward to the actual button

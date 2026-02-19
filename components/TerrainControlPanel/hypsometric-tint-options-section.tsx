@@ -1,7 +1,7 @@
 import type React from "react"
 import { useMemo, useCallback, useRef } from "react"
 import { useAtom } from "jotai"
-import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw } from "lucide-react"
+import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw, Mountain, MountainSnow } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -14,15 +14,17 @@ import {
   colorRampTypeAtom, licenseFilterAtom
 } from "@/lib/settings-atoms"
 import { colorRamps, extractStops, colorRampsFlat } from "@/lib/color-ramps"
-import { Section } from "./controls-components"
+import { Section, TooltipIconButton } from "./controls-components"
 import { getGradientColors } from "@/lib/controls-utils"
 import { useEffect } from "react"
+import type { MapRef } from "react-map-gl/maplibre"
 
 export const HypsometricTintOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void;
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, setState, isOpen, onOpenChange }) => {
+  mapRef: React.RefObject<MapRef>
+}> = ({ state, setState, isOpen, onOpenChange, mapRef }) => {
   const [colorRampType, setColorRampType] = useAtom(colorRampTypeAtom)
   const [licenseFilter, setLicenseFilter] = useAtom(licenseFilterAtom)
   const isUserActionRef = useRef(false)
@@ -141,6 +143,68 @@ export const HypsometricTintOptionsSection: React.FC<{
   }, [setState])
 
   if (!state.showColorRelief) return null
+
+  // SET ELEVATION
+  const getLoadedTilesElevationRange = useCallback(() => {
+    if (!mapRef.current) return null;
+    
+    const mapInstance = mapRef.current.getMap();
+    const terrain = (mapInstance as any).painter?.renderToTexture?.terrain;
+    
+    if (!terrain) return null;
+    
+    const style = (mapInstance as any).style;
+    const tileManager = style?.tileManagers?.[terrain.options.source];
+    
+    if (!tileManager) return null;
+    
+    // Get current zoom level
+    const currentZoom = Math.floor(mapInstance.getZoom());
+    
+    // Use _inViewTiles to get only viewport tiles
+    const inViewTiles = tileManager._inViewTiles;
+    const tileIds = inViewTiles.getAllIds(); // This gets only in-view tiles
+    
+    let min = Infinity;
+    let max = -Infinity;
+    let count = 0;
+    
+    for (const tileId of tileIds) {
+      const tile = inViewTiles.getTileById(tileId);
+      
+      // Filter: only tiles at current zoom or one level below
+      if (tile?.dem && 
+          tile.tileID.overscaledZ >= currentZoom - 1 && 
+          tile.tileID.overscaledZ <= currentZoom) {
+        min = Math.min(min, tile.dem.min * terrain.exaggeration);
+        max = Math.max(max, tile.dem.max * terrain.exaggeration);
+        count++;
+      }
+    }
+    
+    return count > 0 ? { min, max, tilesCount: count } : null;
+  }, [mapRef]);
+
+  const setElevFromLoadedTiles = useCallback( 
+    () => {
+      const elevationRange = getLoadedTilesElevationRange()
+      console.log({elevationRange})
+      // alert(elevationRange ? `Loaded tiles elevation range: ${elevationRange.min.toFixed(2)} to ${elevationRange.max.toFixed(2)} (based on ${elevationRange.tilesCount} tiles)` : "No terrain tiles loaded or elevation data unavailable.")
+      const minElevation = elevationRange?.min || state.minElevation
+      const maxElevation = elevationRange?.max || state.maxElevation
+      const factor = 0.2
+      const hypsoSliderMinBound = Math.floor(minElevation - (maxElevation - minElevation) * factor)
+      const hypsoSliderMaxBound = Math.ceil(maxElevation + (maxElevation - minElevation) * factor) 
+      setState({
+        customHypsoMinMax: true,
+        minElevation,
+        maxElevation,
+        hypsoSliderMinBound,
+        hypsoSliderMaxBound,
+      })
+    } , 
+    [mapRef]
+  )
 
   return (
     <Section title="Hypsometric Tint Options" isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -267,10 +331,34 @@ export const HypsometricTintOptionsSection: React.FC<{
               <div className="flex items-center justify-between py-0.5 w-full">
                 <Checkbox id="hypso-min-max" checked={state.customHypsoMinMax} onCheckedChange={(checked) => setState({ customHypsoMinMax: checked === true })} />
                 <div className="flex items-center flex-1 ml-2 gap-1">
-                  <Label htmlFor="hypso-min-max" className="text-sm font-medium cursor-pointer">Edit Min/Max</Label>
-                  <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer" onClick={resetminElevationMax}>
-                    <RotateCcw className="h-3 w-3" />
-                  </Button>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label htmlFor="hypso-min-max" className="text-sm font-medium cursor-pointer">Min/Max</Label>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Set custom bounds/elevation range for hypsometric tinting</p>
+                      </TooltipContent>
+                    </Tooltip>
+
+                    <TooltipIconButton
+                      icon={RotateCcw}
+                      tooltip="Reset Elevation Bounds to Color-ramp default min/max"
+                      onClick={resetminElevationMax}
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 cursor-pointer"
+                    />
+                    <TooltipIconButton
+                      icon={MountainSnow}
+                      tooltip="Auto set elevation range from terrain tiles loaded in viewport"
+                      onClick={setElevFromLoadedTiles}
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 cursor-pointer"
+                    />
+                  </TooltipProvider>
                 </div>
               </div>
             </div>
@@ -334,6 +422,7 @@ export const HypsometricTintOptionsSection: React.FC<{
               />
             </div>
           </div>
+
         </div>
       </div>
     </Section>
