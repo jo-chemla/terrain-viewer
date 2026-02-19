@@ -18,6 +18,7 @@ import { useAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, themeAtom
 } from "@/lib/settings-atoms"
+import { MinimapControl } from "./MinimapControl";
 
 import maplibregl from 'maplibre-gl'
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol'
@@ -377,7 +378,63 @@ export function TerrainViewer() {
               />
               <NavigationControl position="top-left" />
               <GeolocateControl position="top-left" />
+
+              {/* Minimap */}
+              {/* {mapsLoaded && mapARef.current && (<MinimapControl
+                parentMap={mapARef.current.getMap()}
+                position="bottom-left"
+                mode="static"
+                width={260}
+                height={180}
+                initialMinimized={false}
+                // initBounds={[[-10, 35], [30, 65]]}
+                showFrustum={false}
+                interactive={true}
+                interactions={{
+                  dragPan: true,
+                  scrollZoom: true,
+                }}
+                footprintFillPaint={{
+                  "fill-color": "#3b82f6",
+                  "fill-opacity": 0.15,
+                }}
+                footprintLinePaint={{
+                  "line-color": "#2563eb",
+                  "line-width": 2.5,
+                }}
+                frustumFillPaint={{
+                  "fill-color": "#f59e0b",
+                  "fill-opacity": 0.2,
+                }}
+                frustumLinePaint={{
+                  "line-color": "#ea580c",
+                  "line-width": 2,
+                  "line-dasharray": [3, 2],
+                }}
+                style={{
+                  version: 8,
+                  sources: {
+                    basemap: {
+                      type: "raster",
+                      tiles: [
+                        "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                      ],
+                      tileSize: 256,
+                    },
+                  },
+                  layers: [
+                    {
+                      id: "basemap",
+                      type: "raster",
+                      source: "basemap",
+                    },
+                  ],
+                }}
+              />)}  */}
+
+              
               <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
+
             </>
           )}
         </Map>
