@@ -660,14 +660,20 @@ interface TerraDrawSectionProps {
     mapRef: RefObject<MapRef>
     isOpen: boolean
     onOpenChange: (open: boolean) => void
+    state: Record<string, unknown>
+    setState: (state: Record<string, unknown>) => void
 }
 
-export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange }: TerraDrawSectionProps) {
+export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange, state, setState }: TerraDrawSectionProps) {
     return (
         <Section title="Drawing Tools" isOpen={isOpen} onOpenChange={onOpenChange}>
             <TerraDrawActions draw={draw} mapRef={mapRef} />
             <TerraDrawControls draw={draw} />
-            <CameraButtons mapRef={mapRef} />
+            <CameraButtons
+                mapRef={mapRef}
+                appState={state}
+                onAppStateChange={setState}
+            />
         </Section>
     )
 }
