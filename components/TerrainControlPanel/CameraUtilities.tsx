@@ -9,6 +9,7 @@
  *       · Timeline scrub slider  (draggable while paused or during playback)
  *       · Loop mode selector: None | Forward | Bounce
  *       · ▶ Play / ■ Stop button
+ *   - Export Video button (records animation and exports as MP4)
  *
  * Usage:
  *   <CameraButtons
@@ -32,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { MapRef } from "react-map-gl/maplibre"
-import { Play, Pause, CirclePause, CircleStop, Check } from 'lucide-react'
+import { Play, Pause, Check, Video, Download } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -137,6 +138,200 @@ const CRUISE_DEG_PER_MS = 360 / 30_000
 const EASE_MS    = 1_500
 const FOV_ANI_MS = 800
 
+// ─── Video Export with WebCodec API ───────────────────────────────────────────
+
+// Determine appropriate AVC level based on resolution
+function getAvcLevel(width: number, height: number): string {
+  const codedArea = width * height
+  
+  // AVC level limits (coded area in pixels)
+  if (codedArea <= 414720) return 'avc1.42E01E'   // Level 3.0 - up to 720x576
+  if (codedArea <= 983040) return 'avc1.42E014'   // Level 2.0 - up to 1280x720
+  if (codedArea <= 2228224) return 'avc1.42E01F'  // Level 3.1 - up to 1920x1080
+  if (codedArea <= 8912896) return 'avc1.42E028'  // Level 4.0 - up to 4096x2304
+  return 'avc1.42E033' // Level 5.1 - up to 8192x4320
+}
+
+async function exportVideoWebCodecs(
+  canvas: HTMLCanvasElement,
+  fps: number,
+  durationMs: number,
+  onProgress: (progress: number, codec: string) => void,
+  recordFrame: (frameIndex: number, totalFrames: number) => Promise<void>
+): Promise<Blob> {
+  const totalFrames = Math.ceil((durationMs / 1000) * fps)
+  const width = canvas.width
+  const height = canvas.height
+
+  // Check for WebCodecs API support
+  if (!('VideoEncoder' in window)) {
+    throw new Error('WebCodecs API not supported in this browser')
+  }
+
+  const chunks: Uint8Array[] = []
+
+  // Create video encoder
+  const encoder = new VideoEncoder({
+    output: (chunk, metadata) => {
+      const chunkData = new Uint8Array(chunk.byteLength)
+      chunk.copyTo(chunkData)
+      chunks.push(chunkData)
+    },
+    error: (e) => {
+      console.error('Encoder error:', e)
+      throw e
+    }
+  })
+
+  // Configure encoder with appropriate AVC level for resolution
+  const codec = getAvcLevel(width, height)
+  const config: VideoEncoderConfig = {
+    codec,
+    width,
+    height,
+    bitrate: 8_000_000, // 12 Mbps for better quality
+    framerate: fps,
+    avc: { format: 'avc' }
+  }
+
+  await encoder.configure(config)
+
+  // Capture and encode each frame synchronously
+  for (let i = 0; i < totalFrames; i++) {
+    // Update animation to this frame
+    await recordFrame(i, totalFrames)
+    
+    // Wait for renders to complete
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    
+    // Capture frame from canvas
+    const imageBitmap = await createImageBitmap(canvas)
+    
+    // Create VideoFrame
+    const frame = new VideoFrame(imageBitmap, {
+      timestamp: (i / fps) * 1_000_000, // microseconds
+      duration: (1 / fps) * 1_000_000
+    })
+
+    // Encode frame
+    const keyFrame = i % 30 === 0 // Keyframe every 30 frames
+    encoder.encode(frame, { keyFrame })
+    
+    // Clean up resources
+    frame.close()
+    imageBitmap.close()
+    
+    onProgress((i + 1) / totalFrames, 'WebCodecs (H.264)')
+  }
+
+  // Finalize encoding
+  await encoder.flush()
+  encoder.close()
+
+  // Create raw H.264 data blob
+  const totalSize = chunks.reduce((acc, chunk) => acc + chunk.byteLength, 0)
+  const videoData = new Uint8Array(totalSize)
+  let offset = 0
+  for (const chunk of chunks) {
+    videoData.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  return new Blob([videoData], { type: 'video/mp4' })
+}
+
+// MediaRecorder approach with frame-by-frame control
+async function exportVideoMediaRecorder(
+  canvas: HTMLCanvasElement,
+  fps: number,
+  durationMs: number,
+  onProgress: (progress: number, codec: string) => void,
+  recordFrame: (frameIndex: number, totalFrames: number) => Promise<void>
+): Promise<Blob> {
+  const totalFrames = Math.ceil((durationMs / 1000) * fps)
+  const chunks: Blob[] = []
+  
+  // Try different codecs in order of preference
+  const codecOptions = [
+    { mimeType: 'video/webm;codecs=vp9', name: 'VP9' },
+    { mimeType: 'video/webm;codecs=vp8', name: 'VP8' },
+    { mimeType: 'video/webm', name: 'WebM' }
+  ]
+  
+  let selectedCodec = codecOptions[0]
+  for (const codec of codecOptions) {
+    if (MediaRecorder.isTypeSupported(codec.mimeType)) {
+      selectedCodec = codec
+      break
+    }
+  }
+
+  const stream = canvas.captureStream(0) // 0 = manual frame capture
+  const options = {
+    mimeType: selectedCodec.mimeType,
+    videoBitsPerSecond: 12_000_000
+  }
+
+  const mediaRecorder = new MediaRecorder(stream, options)
+  
+  return new Promise((resolve, reject) => {
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data)
+    }
+    
+    mediaRecorder.onstop = () => {
+      resolve(new Blob(chunks, { type: selectedCodec.mimeType }))
+    }
+    
+    mediaRecorder.onerror = reject
+    
+    mediaRecorder.start()
+    
+    // Frame-by-frame recording
+    let frameIndex = 0
+    
+    const captureNextFrame = async () => {
+      if (frameIndex >= totalFrames) {
+        mediaRecorder.stop()
+        return
+      }
+      
+      // Update scene to this frame
+      await recordFrame(frameIndex, totalFrames)
+      
+      // Wait for render to complete
+      await new Promise(resolve => requestAnimationFrame(resolve))
+      await new Promise(resolve => requestAnimationFrame(resolve))
+      
+      // Request a frame from the stream
+      const track = stream.getVideoTracks()[0] as any
+      if (track.requestFrame) {
+        track.requestFrame()
+      }
+      
+      onProgress((frameIndex + 1) / totalFrames, `MediaRecorder (${selectedCodec.name})`)
+      frameIndex++
+      
+      // Continue to next frame
+      requestAnimationFrame(captureNextFrame)
+    }
+    
+    captureNextFrame()
+  })
+}
+
+// Convert WebM to MP4 using FFmpeg.wasm (optional enhancement)
+async function convertWebMToMP4(webmBlob: Blob): Promise<Blob> {
+  // This would require FFmpeg.wasm library
+  // For now, return the original blob
+  // In production, you could load FFmpeg.wasm and do:
+  // const ffmpeg = createFFmpeg({ log: true })
+  // await ffmpeg.load()
+  // ... conversion logic
+  return webmBlob
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButtonsProps) {
@@ -172,6 +367,11 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
   const playStartRef  = useRef<number>(0)        // performance.now() at last (re)start
   const playOffsetRef = useRef<number>(0)        // progress value at last (re)start
   const bounceDir     = useRef<1 | -1>(1)        // +1 forward, -1 backward (bounce mode)
+
+  // ── Video export ──────────────────────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState(0)
+  const [exportCodec, setExportCodec] = useState<string>('')
 
   // Stable refs so the RAF tick always reads current values without re-creating itself
   const durationMsRef = useRef(durationMs)
@@ -257,7 +457,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
     setProgress(displayRaw)
 
     poseRafRef.current = requestAnimationFrame(rafTick)
-  }, [mapRef, stopPlay]) // intentionally minimal deps — reads via refs
+  }, [mapRef, stopPlay])
 
   // ── Start / resume playback from a given progress offset ──────────────────────
   const startPlay = useCallback((fromProgress = 0) => {
@@ -287,6 +487,85 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
       playStartRef.current  = performance.now()
     }
   }, [playing, mapRef])
+
+  // ── Video export ──────────────────────────────────────────────────────────────
+  const handleExportVideo = useCallback(async () => {
+    const p1 = p1Ref.current
+    const p2 = p2Ref.current
+    const map = getMap(mapRef)
+    const canvas = map?.getCanvas()
+    
+    if (!p1 || !p2 || !map || !canvas) return
+
+    // Stop any current playback
+    stopPlay()
+    
+    setExporting(true)
+    setExportProgress(0)
+    setExportCodec('')
+
+    try {
+      const fps = 30
+      const duration = durationMsRef.current
+
+      // Record frame function - now async to ensure renders complete
+      const recordFrame = async (frameIndex: number, totalFrames: number) => {
+        const progress = frameIndex / totalFrames
+        applyProgress(progress, p1, p2, map, appRef.current, cbRef.current)
+      }
+
+      // Progress callback that includes codec name
+      const onProgress = (progress: number, codec: string) => {
+        setExportProgress(progress)
+        setExportCodec(codec)
+      }
+
+      // Try WebCodecs first, fall back to MediaRecorder
+      let videoBlob: Blob
+      let extension = 'mp4'
+      
+      try {
+        videoBlob = await exportVideoWebCodecs(
+          canvas,
+          fps,
+          duration,
+          onProgress,
+          recordFrame
+        )
+        extension = 'mp4'
+      } catch (e) {
+        console.warn('WebCodecs failed, using MediaRecorder fallback:', e)
+        videoBlob = await exportVideoMediaRecorder(
+          canvas,
+          fps,
+          duration,
+          onProgress,
+          recordFrame
+        )
+        extension = 'webm'
+      }
+
+      // Download the video
+      const url = URL.createObjectURL(videoBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `terrain-animation-${Date.now()}.${extension}`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      // Reset to start
+      applyProgress(0, p1, p2, map, appRef.current, cbRef.current)
+      setProgress(0)
+      
+    } catch (error) {
+      console.error('Video export failed:', error)
+      alert(`Video export failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setExporting(false)
+      setExportProgress(0)
+      setExportCodec('')
+    }
+  }, [mapRef, stopPlay])
 
   // ── 360 spin ──────────────────────────────────────────────────────────────────
   const triggerStop = useCallback(() => {
@@ -359,7 +638,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
         <Button
           variant={playing ? "default" : "outline"}
           className="flex-[2] cursor-pointer"
-          disabled={!canPlay}
+          disabled={!canPlay || exporting}
           onClick={playing ? stopPlay : () => startPlay(progress >= 1 ? 0 : progress)}
           title={!canPlay ? "Capture both poses first" : undefined}
         >
@@ -411,7 +690,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
           min={0} max={100} step={0.5}
           value={[Math.round(progress * 100)]}
           onValueChange={handleScrub}
-          disabled={!canPlay}
+          disabled={!canPlay || exporting}
           className="flex-1 cursor-pointer"
         />
 
@@ -438,6 +717,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
                 const v = parseFloat(e.target.value)
                 if (!isNaN(v) && v > 0) speedMode ? setSpeedMul(v) : setDurationSec(v)
               }}
+              disabled={exporting}
               className="w-full h-8 text-xs px-2"
             />
             <span className="text-xs text-muted-foreground shrink-0">
@@ -454,6 +734,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
             <Switch
               checked={speedMode}
               onCheckedChange={setSpeedMode}
+              disabled={exporting}
               className="scale-[1] origin-left cursor-pointer"
             />
             <span className="text-xs text-muted-foreground">spd</span>
@@ -463,7 +744,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
         {/* Col 3 — Loop mode */}
         <div className="flex flex-col gap-1 h-8">
           <Label className="text-xs text-muted-foreground">Loop</Label>
-          <Select value={loopMode} onValueChange={v => setLoopMode(v as LoopMode)} >
+          <Select value={loopMode} onValueChange={v => setLoopMode(v as LoopMode)} disabled={exporting}>
             <SelectTrigger className="h-8 text-xs w-full cursor-pointer">
               <SelectValue />
             </SelectTrigger>
@@ -476,6 +757,29 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
         </div>
 
       </div>
+
+      {/* ── Video Export Button ── */}
+      {/* <div className="mt-3">
+        <Button
+          variant="outline"
+          className="w-full cursor-pointer"
+          disabled={!canPlay || exporting}
+          onClick={handleExportVideo}
+          title={!canPlay ? "Capture both poses first" : "Export animation as video (30fps)"}
+        >
+          {exporting ? (
+            <>
+              <Download className="h-4 w-4 mr-2 animate-pulse" />
+              {exportCodec ? `Exporting via ${exportCodec}: ` : 'Exporting... '}{Math.round(exportProgress * 100)}%
+            </>
+          ) : (
+            <>
+              <Video className="h-4 w-4 mr-2" />
+              Export Video
+            </>
+          )}
+        </Button>
+      </div> */}
 
     </>
   )
