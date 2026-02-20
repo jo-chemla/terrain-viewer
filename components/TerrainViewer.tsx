@@ -10,7 +10,7 @@ import Map, {
   ScaleControl,
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel } from "./TerrainControlPanel/TerrainControlPanel"
-import GeocoderControl from "./geocoder-control"
+import GeocoderControl from "./MapControls/GeocoderControl"
 import { terrainSources } from "@/lib/terrain-sources"
 import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
 import type { TerrainSource } from "@/lib/terrain-types"
@@ -18,12 +18,12 @@ import { useAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, themeAtom
 } from "@/lib/settings-atoms"
-import { MinimapControl } from "./MinimapControl";
+import { MinimapControl } from "./MapControls/MinimapControl";
 
 import maplibregl from 'maplibre-gl'
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol'
 
-import { TerrainSources, RasterBasemapSource } from "./MapSources"
+import { TerrainSources, RasterBasemapSource } from "./LayersAndSources/MapSources"
 import {
   LayerOrderSlots, 
   RasterLayer,
@@ -31,9 +31,9 @@ import {
   HillshadeLayer,
   ColorReliefLayer,
   LAYER_SLOTS,
-} from "./MapLayers"
-import { ContoursLayer } from "./ContoursLayer"
-import { GraticuleLayer } from "./GraticuleLayer"
+} from "./LayersAndSources/MapLayers"
+import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
+import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
