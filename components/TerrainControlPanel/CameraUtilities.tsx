@@ -35,6 +35,82 @@ import {
 import type { MapRef } from "react-map-gl/maplibre"
 import { Play, Pause, Check, Video, Download } from 'lucide-react'
 
+import {useNuqsAnimationSafeSetter} from "@/lib/useNuqsAnimationSafeSetter"
+
+// ─── Video Export with MediaBunny ─────────────────────────────────────────────
+
+import {
+  CanvasSource,
+  Mp4OutputFormat,
+  Output,
+  QUALITY_HIGH,
+  StreamTarget,
+} from 'mediabunny'
+
+async function exportVideoMediaBunny(
+  canvas: HTMLCanvasElement,
+  fps: number,
+  durationMs: number,
+  onProgress: (progress: number, codec: string) => void,
+  recordFrame: (frameIndex: number, totalFrames: number) => Promise<void>
+): Promise<Blob> {
+  const totalFrames = Math.ceil((durationMs / 1000) * fps)
+  const chunks: Uint8Array[] = []
+
+  // Create output with MP4 format
+  const output = new Output({
+    format: new Mp4OutputFormat({ 
+      fastStart: 'fragmented' // Creates streamable MP4
+    }),
+    target: new StreamTarget(new WritableStream({
+      write(chunk) {
+        chunks.push(chunk.data)
+      },
+    })),
+  })
+
+  // Add video track with canvas source
+  const videoSource = new CanvasSource(canvas, {
+    codec: 'avc', // H.264
+    bitrate: QUALITY_HIGH, // Or use a number like 12_000_000
+    keyFrameInterval: 1.0, // Keyframe every 1 second
+    latencyMode: 'quality', // Prioritize quality over speed
+  })
+
+  output.addVideoTrack(videoSource, { frameRate: fps })
+
+  await output.start()
+
+  try {
+    // Render and add each frame with precise timing
+    for (let i = 0; i < totalFrames; i++) {
+      // Update scene to this frame
+      await recordFrame(i, totalFrames)
+      
+      // Wait for render to complete (less waiting needed with MediaBunny)
+      await new Promise(resolve => requestAnimationFrame(resolve))
+      await new Promise(resolve => requestAnimationFrame(resolve))
+      
+      // Add frame at exact timestamp
+      const timestamp = i / fps
+      const duration = 1 / fps
+      await videoSource.add(timestamp, duration)
+      
+      onProgress((i + 1) / totalFrames, 'MediaBunny (H.264)')
+    }
+
+    // Finalize the video
+    await output.finalize()
+
+    // Create blob from chunks
+    const mimeType = await output.getMimeType()
+    return new Blob(chunks, { type: mimeType })
+  } catch (error) {
+    await output.cancel()
+    throw error
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CameraPose {
@@ -57,8 +133,9 @@ type LoopMode = "none" | "forward" | "bounce"
 
 interface CameraButtonsProps {
   mapRef: React.RefObject<MapRef>
-  appState?: Record<string, unknown>
-  onAppStateChange?: (state: Record<string, unknown>) => void
+  state?: Record<string, unknown>
+  setState?: (state: Record<string, unknown>, shallow?: boolean) => void
+  setIsSidebarOpen?: (open: boolean) => void
 }
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
@@ -111,15 +188,24 @@ function applyProgress(
   p2: AppSnapshot,
   map: ReturnType<typeof getMap>,
   appState: Record<string, unknown> | undefined,
-  onAppStateChange: ((s: Record<string, unknown>) => void) | undefined
+  onAppStateChange: ((s: Record<string, unknown>, shallow?: boolean) => void) | undefined,
+  shallow?: boolean
 ) {
   if (!map) return
   const t = smootherstep(clamp(raw, 0, 1))
-  map.jumpTo({
+  // map.jumpTo({
+  //   center:  [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
+  //   zoom:    lerp(p1.pose.zoom,  p2.pose.zoom,  t),
+  //   pitch:   lerp(p1.pose.pitch, p2.pose.pitch, t),
+  //   bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
+  // })
+  map.easeTo({
     center:  [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
     zoom:    lerp(p1.pose.zoom,  p2.pose.zoom,  t),
     pitch:   lerp(p1.pose.pitch, p2.pose.pitch, t),
     bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
+    duration: 0,
+    animate: false,
   })
   ;(map as any).setRoll?.(lerp(p1.pose.roll, p2.pose.roll, t))
   map.setVerticalFieldOfView(lerp(p1.pose.vfov, p2.pose.vfov, t))
@@ -128,7 +214,7 @@ function applyProgress(
   if (appState && onAppStateChange &&
       Object.keys(p1.numericState).length > 0 &&
       Object.keys(p2.numericState).length > 0) {
-    onAppStateChange(applyNumbers(appState, lerpNumericMaps(p1.numericState, p2.numericState, t)))
+    onAppStateChange(applyNumbers(appState, lerpNumericMaps(p1.numericState, p2.numericState, t)), shallow)
   }
 }
 
@@ -167,12 +253,14 @@ async function exportVideoWebCodecs(
   if (!('VideoEncoder' in window)) {
     throw new Error('WebCodecs API not supported in this browser')
   }
+  console.log('yooooo', {width, height, canvas})
 
   const chunks: Uint8Array[] = []
 
   // Create video encoder
   const encoder = new VideoEncoder({
     output: (chunk, metadata) => {
+      console.log(chunk, metadata)
       const chunkData = new Uint8Array(chunk.byteLength)
       chunk.copyTo(chunkData)
       chunks.push(chunkData)
@@ -334,7 +422,19 @@ async function convertWebMToMP4(webmBlob: Blob): Promise<Blob> {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButtonsProps) {
+export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen }: CameraButtonsProps) {
+
+
+  // const appState = state
+  // const onAppStateChange = setState
+
+  const noop = () => {}
+
+  const [localState, setLocalState] = useState(state ?? {})
+  const setStateSafe = useNuqsAnimationSafeSetter(setState ?? noop, setLocalState)
+
+  const onAppStateChange = setStateSafe
+  const appState = localState
 
   // ── 360 spin ─────────────────────────────────────────────────────────────────
   const spinRafRef  = useRef<number | null>(null)
@@ -437,7 +537,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
 
     if (raw >= 1) {
       if (mode === "none") {
-        applyProgress(1, p1, p2, map, appRef.current, cbRef.current)
+        applyProgress(1, p1, p2, map, appRef.current, cbRef.current, true)
         setProgress(1)
         setPlaying(false)
         poseRafRef.current = null
@@ -453,7 +553,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
     }
 
     const displayRaw = bounceDir.current === 1 ? raw : 1 - raw
-    applyProgress(displayRaw, p1, p2, map, appRef.current, cbRef.current)
+    applyProgress(displayRaw, p1, p2, map, appRef.current, cbRef.current, true)
     setProgress(displayRaw)
 
     poseRafRef.current = requestAnimationFrame(rafTick)
@@ -479,7 +579,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
     if (!p1 || !p2 || !map) return
 
     setProgress(raw)
-    applyProgress(raw, p1, p2, map, appRef.current, cbRef.current)
+    applyProgress(raw, p1, p2, map, appRef.current, cbRef.current, false)
 
     if (playing) {
       // Seek: reset start so animation continues from here
@@ -488,42 +588,139 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
     }
   }, [playing, mapRef])
 
+
+
+
+
   // ── Video export ──────────────────────────────────────────────────────────────
-  const handleExportVideo = useCallback(async () => {
-    const p1 = p1Ref.current
-    const p2 = p2Ref.current
-    const map = getMap(mapRef)
-    const canvas = map?.getCanvas()
-    
-    if (!p1 || !p2 || !map || !canvas) return
+const handleExportVideo = useCallback(async () => {
+  const p1 = p1Ref.current
+  const p2 = p2Ref.current
+  const map = getMap(mapRef)
+  const canvas = map?.getCanvas()
+  
+  if (!p1 || !p2 || !map || !canvas) return
 
-    // Stop any current playback
-    stopPlay()
-    
-    setExporting(true)
-    setExportProgress(0)
-    setExportCodec('')
+  // Stop any current playback
+  stopPlay()
 
+  setExporting(true)
+  setExportProgress(0)
+  setExportCodec('')
+  
+  // Store original values
+  const originalWidth = canvas.width
+  const originalHeight = canvas.height
+  const originalStyleWidth = canvas.style.width
+  const originalStyleHeight = canvas.style.height
+  const originalPixelRatio = map.getPixelRatio()
+
+  try {
+    const fps = 30
+    const duration = durationMsRef.current
+    
+    // Calculate target dimensions maintaining aspect ratio
+    const currentAspectRatio = originalWidth / originalHeight
+    
+    // Target 720p but maintain aspect ratio
+    // let targetWidth = 1280
+    // let targetHeight = 720
+
+    let targetWidth = originalWidth
+    let targetHeight = originalHeight
+     
+    const targetAspectRatio = targetWidth / targetHeight
+    
+    if (Math.abs(currentAspectRatio - targetAspectRatio) > 0.01) {
+      // Adjust to match current aspect ratio
+      if (currentAspectRatio > targetAspectRatio) {
+        // Wider than 16:9, adjust height
+        targetHeight = Math.round(targetWidth / currentAspectRatio)
+      } else {
+        // Taller than 16:9, adjust width
+        targetWidth = Math.round(targetHeight * currentAspectRatio)
+      }
+    }
+    
+    // Ensure even dimensions (required for H.264)
+    targetWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth + 1
+    targetHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight + 1
+    
+    console.log('Target dimensions:', {
+      original: `${originalWidth}x${originalHeight}`,
+      target: `${targetWidth}x${targetHeight}`,
+      originalAspect: currentAspectRatio.toFixed(3),
+      targetAspect: (targetWidth / targetHeight).toFixed(3)
+    })
+    
+    // Set pixel ratio to 1 BEFORE resize
+    map.setPixelRatio(1)
+    
+    // Set canvas CSS size (logical pixels)
+    canvas.style.width = `${targetWidth}px`
+    canvas.style.height = `${targetHeight}px`
+    
+    // Trigger map resize - CRITICAL: this updates the map's internal state
+    map.resize()
+    
+    // Force canvas dimensions after resize (in case map.resize changed them)
+    canvas.width = targetWidth
+    canvas.height = targetHeight
+    
+    // Trigger another resize to ensure map's transform is updated with new dimensions
+    map.resize()
+    
+    // Wait for resize to complete
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    
+    // Verify and force if needed
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      console.warn('Forcing canvas dimensions:', { 
+        actual: `${canvas.width}x${canvas.height}`,
+        expected: `${targetWidth}x${targetHeight}`
+      })
+      canvas.width = targetWidth
+      canvas.height = targetHeight
+      map.triggerRepaint()
+      await new Promise(resolve => requestAnimationFrame(resolve))
+    }
+
+    console.log('Final canvas dimensions:', {
+      width: canvas.width,
+      height: canvas.height,
+      styleWidth: canvas.style.width,
+      styleHeight: canvas.style.height,
+      pixelRatio: map.getPixelRatio()
+    })
+
+    // Record frame function
+    const recordFrame = async (frameIndex: number, totalFrames: number) => {
+      const progress = frameIndex / totalFrames
+      applyProgress(progress, p1, p2, map, appRef.current, cbRef.current, true)
+    }
+
+    // Progress callback
+    const onProgress = (progress: number, codec: string) => {
+      setExportProgress(progress)
+      setExportCodec(codec)
+    }
+
+    // Try MediaBunny first, fall back to WebCodecs, then MediaRecorder
+    let videoBlob: Blob
+    let extension = 'mp4'
+    
     try {
-      const fps = 30
-      const duration = durationMsRef.current
-
-      // Record frame function - now async to ensure renders complete
-      const recordFrame = async (frameIndex: number, totalFrames: number) => {
-        const progress = frameIndex / totalFrames
-        applyProgress(progress, p1, p2, map, appRef.current, cbRef.current)
-      }
-
-      // Progress callback that includes codec name
-      const onProgress = (progress: number, codec: string) => {
-        setExportProgress(progress)
-        setExportCodec(codec)
-      }
-
-      // Try WebCodecs first, fall back to MediaRecorder
-      let videoBlob: Blob
-      let extension = 'mp4'
-      
+      videoBlob = await exportVideoMediaBunny(
+        canvas,
+        fps,
+        duration,
+        onProgress,
+        recordFrame
+      )
+      extension = 'mp4'
+    } catch (e) {
+      console.warn('MediaBunny failed, trying WebCodecs:', e)
       try {
         videoBlob = await exportVideoWebCodecs(
           canvas,
@@ -533,8 +730,8 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
           recordFrame
         )
         extension = 'mp4'
-      } catch (e) {
-        console.warn('WebCodecs failed, using MediaRecorder fallback:', e)
+      } catch (e2) {
+        console.warn('WebCodecs failed, using MediaRecorder fallback:', e2)
         videoBlob = await exportVideoMediaRecorder(
           canvas,
           fps,
@@ -544,28 +741,43 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
         )
         extension = 'webm'
       }
-
-      // Download the video
-      const url = URL.createObjectURL(videoBlob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `terrain-animation-${Date.now()}.${extension}`
-      a.click()
-      URL.revokeObjectURL(url)
-
-      // Reset to start
-      applyProgress(0, p1, p2, map, appRef.current, cbRef.current)
-      setProgress(0)
-      
-    } catch (error) {
-      console.error('Video export failed:', error)
-      alert(`Video export failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
-      setExporting(false)
-      setExportProgress(0)
-      setExportCodec('')
     }
-  }, [mapRef, stopPlay])
+
+    // Download the video
+    const url = URL.createObjectURL(videoBlob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `terrain-animation-${Date.now()}.${extension}`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+  } catch (error) {
+    console.error('Video export failed:', error)
+    alert(`Video export failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  } finally {
+    // Restore original canvas size
+    canvas.width = originalWidth
+    canvas.height = originalHeight
+    canvas.style.width = originalStyleWidth
+    canvas.style.height = originalStyleHeight
+    
+    // Restore original pixel ratio
+    map.setPixelRatio(originalPixelRatio)
+    
+    // Trigger resize to restore map's internal state
+    map.resize()
+    
+    // Reset to start after resize
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    applyProgress(0, p1, p2, map, appRef.current, cbRef.current, false)
+    setProgress(0)
+    
+    setExporting(false)
+    setExportProgress(0)
+    setExportCodec('')
+  }
+}, [mapRef, stopPlay, setIsSidebarOpen])
+
 
   // ── 360 spin ──────────────────────────────────────────────────────────────────
   const triggerStop = useCallback(() => {
@@ -759,7 +971,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
       </div>
 
       {/* ── Video Export Button ── */}
-      {/* <div className="mt-3">
+      <div className="mt-3">
         <Button
           variant="outline"
           className="w-full cursor-pointer"
@@ -779,7 +991,7 @@ export function CameraButtons({ mapRef, appState, onAppStateChange }: CameraButt
             </>
           )}
         </Button>
-      </div> */}
+      </div>
 
     </>
   )

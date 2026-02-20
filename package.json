@@ -64,6 +64,7 @@
     "maplibre-gl": "latest",
     "maplibre-grid": "^1.0.0",
     "maplibregl-minimap": "^1.0.3",
+    "mediabunny": "^1.34.4",
     "modern-screenshot": "latest",
     "next": "16.0.1",
     "nuqs": "latest",
