@@ -282,3 +282,14 @@
     width: 100%;
     pointer-events: none;
 }
+
+/* Keep theme background for custom UI buttons inside map controls */
+.maplibregl-ctrl .minimap-ui button {
+  background-color: var(--background) !important;
+}
+
+.maplibregl-ctrl .minimap-ui button:not(:disabled):hover,
+.maplibregl-ctrl .minimap-ui button:not(:disabled):active,
+.maplibregl-ctrl .minimap-ui button:focus {
+  background-color: var(--background) !important;
+}
