@@ -1,29 +1,11 @@
 /**
  * CameraButtons.tsx
- *
- * Controls for TerrainControlPanel:
- *   - FOV buttons + 360° spin
- *   - Set Pose 1 / Set Pose 2  (camera + optional full app-state snapshot)
- *   - Playback controls:
- *       · Duration (s) input  OR  Speed (×) input — toggled by a switch
- *       · Timeline scrub slider  (draggable while paused or during playback)
- *       · Loop mode selector: None | Forward | Bounce
- *       · ▶ Play / ■ Stop button
- *   - Export Video button (records animation and exports as MP4)
- *
- * Usage:
- *   <CameraButtons
- *     mapRef={mapRef}
- *     appState={appState}           // optional nested object — all numbers are lerped
- *     onAppStateChange={setter}
- *   />
  */
 
 import { useRef, useState, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "../ui/label"
 import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import {
   Select,
@@ -34,102 +16,63 @@ import {
 } from "@/components/ui/select"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Play, Pause, Check, Video, Download } from 'lucide-react'
-
-import {useNuqsAnimationSafeSetter} from "@/lib/useNuqsAnimationSafeSetter"
-
-// ─── Video Export with MediaBunny ─────────────────────────────────────────────
-
-import {
-  CanvasSource,
-  Mp4OutputFormat,
-  Output,
-  QUALITY_HIGH,
-  StreamTarget,
-} from 'mediabunny'
-
-async function exportVideoMediaBunny(
-  canvas: HTMLCanvasElement,
-  fps: number,
-  durationMs: number,
-  onProgress: (progress: number, codec: string) => void,
-  recordFrame: (frameIndex: number, totalFrames: number) => Promise<void>
-): Promise<Blob> {
-  const totalFrames = Math.ceil((durationMs / 1000) * fps)
-  const chunks: Uint8Array[] = []
-
-  // Create output with MP4 format
-  const output = new Output({
-    format: new Mp4OutputFormat({ 
-      fastStart: 'fragmented' // Creates streamable MP4
-    }),
-    target: new StreamTarget(new WritableStream({
-      write(chunk) {
-        chunks.push(chunk.data)
-      },
-    })),
-  })
-
-  // Add video track with canvas source
-  const videoSource = new CanvasSource(canvas, {
-    codec: 'avc', // H.264
-    bitrate: QUALITY_HIGH, // Or use a number like 12_000_000
-    keyFrameInterval: 1.0, // Keyframe every 1 second
-    latencyMode: 'quality', // Prioritize quality over speed
-  })
-
-  output.addVideoTrack(videoSource, { frameRate: fps })
-
-  await output.start()
-
-  try {
-    // Render and add each frame with precise timing
-    for (let i = 0; i < totalFrames; i++) {
-      // Update scene to this frame
-      await recordFrame(i, totalFrames)
-      
-      // Wait for render to complete (less waiting needed with MediaBunny)
-      await new Promise(resolve => requestAnimationFrame(resolve))
-      await new Promise(resolve => requestAnimationFrame(resolve))
-      
-      // Add frame at exact timestamp
-      const timestamp = i / fps
-      const duration = 1 / fps
-      await videoSource.add(timestamp, duration)
-      
-      onProgress((i + 1) / totalFrames, 'MediaBunny (H.264)')
-    }
-
-    // Finalize the video
-    await output.finalize()
-
-    // Create blob from chunks
-    const mimeType = await output.getMimeType()
-    return new Blob(chunks, { type: mimeType })
-  } catch (error) {
-    await output.cancel()
-    throw error
-  }
-}
+import { useNuqsAnimationSafeSetter } from "@/lib/useNuqsAnimationSafeSetter"
+import { CanvasSource, Mp4OutputFormat, Output, QUALITY_HIGH, StreamTarget } from 'mediabunny'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CameraPose {
-  lat: number
-  lng: number
-  zoom: number
-  pitch: number
-  bearing: number
-  roll: number
-  vfov: number
+  lat: number; lng: number; zoom: number
+  pitch: number; bearing: number; roll: number; vfov: number; 
+  refWidth: number // canvas width at capture time
 }
 
 interface AppSnapshot {
   pose: CameraPose
-  /** flat dot-path → number map extracted from the caller's appState */
   numericState: Record<string, number>
 }
 
 type LoopMode = "none" | "forward" | "bounce"
+type RenderQuality = "quick" | "normal" | "hq"
+
+interface ExportResolution {
+  label: string
+  width: number
+  height: number
+}
+
+const EXPORT_RESOLUTIONS: ExportResolution[] = [
+  { label: "Quick 360p 16:9",  width: 640,  height: 360  },
+  { label: "720p 16:9",        width: 1280, height: 720  },
+  { label: "1080p FHD 16:9",   width: 1920, height: 1080 },
+  { label: "4K UHD 16:9",      width: 3840, height: 2160 },
+  { label: "Native",           width: 0,    height: 0    },
+  { label: "1080×1080 1:1",    width: 1080, height: 1080 },
+  { label: "2048×2048 1:1",    width: 2048, height: 2048 },
+]
+
+const RENDER_QUALITY_OPTIONS: {
+  value: RenderQuality
+  label: string
+  extraFrames: number
+}[] = [
+  { value: "quick",  label: "Quick (0 extra frames)",  extraFrames: 0  },
+  { value: "normal", label: "Normal (2 extra frames)", extraFrames: 2  },
+  { value: "hq",     label: "HQ (10 extra frames)",    extraFrames: 10 },
+]
+
+// Platform file-size limits shown as presets for the max-size input
+const PLATFORM_SIZE_PRESETS: { label: string; bytes: number }[] = [
+  { label: "Clipboard safe (~5 MB)",   bytes: 5   * 1024 * 1024           },
+  { label: "Mastodon (40 MB typical)", bytes: 40  * 1024 * 1024           },
+  { label: "Bluesky (50 MB)",          bytes: 50  * 1024 * 1024           },
+  { label: "Twitter / X (512 MB)",     bytes: 512 * 1024 * 1024           },
+  { label: "Threads (1 GB)",           bytes: 1   * 1024 * 1024 * 1024    },
+  { label: "Instagram (4 GB)",         bytes: 4   * 1024 * 1024 * 1024    },
+  { label: "LinkedIn (5 GB)",          bytes: 5   * 1024 * 1024 * 1024    },
+  { label: "TikTok (287 MB)",          bytes: 287 * 1024 * 1024           },
+  { label: "No limit",                 bytes: 0                           },
+]
 
 interface CameraButtonsProps {
   mapRef: React.RefObject<MapRef>
@@ -146,8 +89,7 @@ const smoothstep   = (t: number) => t * t * (3 - 2 * t)
 const smootherstep = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
 const lerp         = (a: number, b: number, t: number) => a + (b - a) * t
 const lerpAngle    = (a: number, b: number, t: number) => {
-  const diff = ((b - a + 540) % 360) - 180
-  return a + diff * t
+  const d = ((b - a + 540) % 360) - 180; return a + d * t
 }
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
@@ -181,11 +123,15 @@ function lerpNumericMaps(a: Record<string, number>, b: Record<string, number>, t
   return out
 }
 
-/** Apply a raw [0..1] progress to the map + optional appState. */
+/**
+ * Apply a raw [0..1] progress value to the map + optional appState.
+ *
+ * Uses jumpTo instead of easeTo — jumpTo is synchronous and bypasses the
+ * animation pipeline, so it correctly re-asserts pose after a canvas resize.
+ */
 function applyProgress(
   raw: number,
-  p1: AppSnapshot,
-  p2: AppSnapshot,
+  p1: AppSnapshot, p2: AppSnapshot,
   map: ReturnType<typeof getMap>,
   appState: Record<string, unknown> | undefined,
   onAppStateChange: ((s: Record<string, unknown>, shallow?: boolean) => void) | undefined,
@@ -193,20 +139,27 @@ function applyProgress(
 ) {
   if (!map) return
   const t = smootherstep(clamp(raw, 0, 1))
-  // map.jumpTo({
+
+  const canvasWidth = map.getCanvas().clientWidth
+  const baseZoom = lerp(p1.pose.zoom, p2.pose.zoom, t)
+  const refWidth = lerp(p1.pose.refWidth, p2.pose.refWidth, t)
+
+  map.jumpTo({ 
+    center:  [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
+    // zoom:    lerp(p1.pose.zoom,  p2.pose.zoom,  t),
+    zoom: correctedZoom(baseZoom, canvasWidth, refWidth),
+    pitch:   lerp(p1.pose.pitch, p2.pose.pitch, t),
+    bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
+  })
+  // ease-to does not follow terrain, which jumpto does
+  // map.easeTo({
   //   center:  [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
   //   zoom:    lerp(p1.pose.zoom,  p2.pose.zoom,  t),
   //   pitch:   lerp(p1.pose.pitch, p2.pose.pitch, t),
   //   bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
+  //   duration: 0,
+  //   animate: false,    
   // })
-  map.easeTo({
-    center:  [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
-    zoom:    lerp(p1.pose.zoom,  p2.pose.zoom,  t),
-    pitch:   lerp(p1.pose.pitch, p2.pose.pitch, t),
-    bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
-    duration: 0,
-    animate: false,
-  })
   ;(map as any).setRoll?.(lerp(p1.pose.roll, p2.pose.roll, t))
   map.setVerticalFieldOfView(lerp(p1.pose.vfov, p2.pose.vfov, t))
   map.triggerRepaint()
@@ -218,225 +171,279 @@ function applyProgress(
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Canvas resize helpers ────────────────────────────────────────────────────
 
-const CRUISE_DEG_PER_MS = 360 / 30_000
-const EASE_MS    = 1_500
-const FOV_ANI_MS = 800
+interface CanvasSnapshot {
+  width: number; height: number
+  styleWidth: string; styleHeight: string
+  pixelRatio: number
+}
 
-// ─── Video Export with WebCodec API ───────────────────────────────────────────
+function snapshotCanvas(canvas: HTMLCanvasElement, map: any): CanvasSnapshot {
+  return {
+    width: canvas.width, 
+    height: canvas.height,
+    styleWidth:  canvas.style.width,
+    styleHeight: canvas.style.height,
+    pixelRatio:  map.getPixelRatio(),
+  }
+}
 
-// Determine appropriate AVC level based on resolution
+async function resizeCanvasForExport(
+  map: any,
+  targetW: number,
+  targetH: number,
+  refPose: AppSnapshot
+) {
+  const container = map.getContainer()
+
+  const prev = {
+    width: container.style.width,
+    height: container.style.height,
+    position: container.style.position,
+    zIndex: container.style.zIndex,
+    pixelRatio: map.getPixelRatio(),
+  }
+
+  // isolate layout for export
+  container.style.position = "absolute"
+  container.style.left = "0"
+  container.style.top  = "0"
+  container.style.zIndex = "0" // don't break pointer events
+
+  container.style.width  = `${targetW}px`
+  container.style.height = `${targetH}px`
+
+  map.setPixelRatio(1)
+  map.resize()
+  map._update()
+
+  await new Promise(r => requestAnimationFrame(r))
+  await new Promise(r => requestAnimationFrame(r))
+
+  applyProgress(0, refPose, refPose, map, undefined, undefined)
+  map.triggerRepaint()
+  await new Promise(r => requestAnimationFrame(r))
+
+  return prev
+}
+
+async function restoreCanvas(map: any, prev: any) {
+  const container = map.getContainer()
+  container.style.width    = prev.width
+  container.style.height   = prev.height
+  container.style.position = prev.position
+  container.style.zIndex   = prev.zIndex
+
+  map.setPixelRatio(prev.pixelRatio)
+  map.resize()
+  map._update()
+
+  await new Promise(r => requestAnimationFrame(r))
+}
+
+function reviveMapInteractions(map: any) {
+  map.resize()
+  map._update()
+  map.getCanvas().dispatchEvent(new MouseEvent("mousemove", { bubbles: true }))
+}
+
+async function exportVideoMediaBunny(
+  canvas: HTMLCanvasElement,
+  fps: number,
+  durationMs: number,
+  extraFramesPerStep: number,
+  targetSizeBytes: number | undefined,
+  onProgress: (progress: number, codec: string) => void,
+  recordFrame: (frameIndex: number, totalFrames: number) => Promise<void>
+): Promise<Blob> {
+  const totalFrames = Math.ceil((durationMs / 1000) * fps)
+  const chunks: Uint8Array[] = []
+
+  const bitrateOverride = targetSizeBytes && targetSizeBytes > 0
+    ? Math.floor((targetSizeBytes * 8) / (durationMs / 1000) * 0.85)
+    : undefined
+
+  const output = new Output({
+    format: new Mp4OutputFormat({ fastStart: 'fragmented' }),
+    target: new StreamTarget(new WritableStream({
+      write(chunk) { chunks.push(chunk.data) }
+    })),
+  })
+
+  const videoSource = new CanvasSource(canvas, {
+    codec: 'avc',
+    bitrate: bitrateOverride ?? QUALITY_HIGH,
+    keyFrameInterval: 1.0,
+    latencyMode: 'quality',
+  })
+
+  output.addVideoTrack(videoSource, { frameRate: fps })
+  await output.start()
+
+  try {
+    for (let i = 0; i < totalFrames; i++) {
+      await recordFrame(i, totalFrames)
+      for (let f = 0; f < 2 + extraFramesPerStep; f++) {
+        await new Promise(r => requestAnimationFrame(r))
+      }
+      await videoSource.add(i / fps, 1 / fps)
+      onProgress((i + 1) / totalFrames, 'Exporting via MediaBunny (H.264)')
+    }
+    await output.finalize()
+    const mimeType = await output.getMimeType()
+    return new Blob(chunks, { type: mimeType })
+  } catch (err) {
+    await output.cancel()
+    throw err
+  }
+}
+
+// ─── Video export: WebCodecs ──────────────────────────────────────────────────
+
 function getAvcLevel(width: number, height: number): string {
-  const codedArea = width * height
-  
-  // AVC level limits (coded area in pixels)
-  if (codedArea <= 414720) return 'avc1.42E01E'   // Level 3.0 - up to 720x576
-  if (codedArea <= 983040) return 'avc1.42E014'   // Level 2.0 - up to 1280x720
-  if (codedArea <= 2228224) return 'avc1.42E01F'  // Level 3.1 - up to 1920x1080
-  if (codedArea <= 8912896) return 'avc1.42E028'  // Level 4.0 - up to 4096x2304
-  return 'avc1.42E033' // Level 5.1 - up to 8192x4320
+  const area = width * height
+  if (area <= 414720)  return 'avc1.42E01E'
+  if (area <= 983040)  return 'avc1.42E014'
+  if (area <= 2228224) return 'avc1.42E01F'
+  if (area <= 8912896) return 'avc1.42E028'
+  return 'avc1.42E033'
 }
 
 async function exportVideoWebCodecs(
   canvas: HTMLCanvasElement,
   fps: number,
   durationMs: number,
+  extraFramesPerStep: number,
   onProgress: (progress: number, codec: string) => void,
   recordFrame: (frameIndex: number, totalFrames: number) => Promise<void>
 ): Promise<Blob> {
   const totalFrames = Math.ceil((durationMs / 1000) * fps)
-  const width = canvas.width
-  const height = canvas.height
+  const { width, height } = canvas
 
-  // Check for WebCodecs API support
-  if (!('VideoEncoder' in window)) {
-    throw new Error('WebCodecs API not supported in this browser')
-  }
-  console.log('yooooo', {width, height, canvas})
+  if (!('VideoEncoder' in window)) throw new Error('WebCodecs API not supported')
 
   const chunks: Uint8Array[] = []
-
-  // Create video encoder
   const encoder = new VideoEncoder({
-    output: (chunk, metadata) => {
-      console.log(chunk, metadata)
-      const chunkData = new Uint8Array(chunk.byteLength)
-      chunk.copyTo(chunkData)
-      chunks.push(chunkData)
+    output: (chunk) => {
+      const data = new Uint8Array(chunk.byteLength)
+      chunk.copyTo(data)
+      chunks.push(data)
     },
-    error: (e) => {
-      console.error('Encoder error:', e)
-      throw e
-    }
+    error: (e) => { throw e },
   })
 
-  // Configure encoder with appropriate AVC level for resolution
-  const codec = getAvcLevel(width, height)
-  const config: VideoEncoderConfig = {
-    codec,
-    width,
-    height,
-    bitrate: 8_000_000, // 12 Mbps for better quality
+  await encoder.configure({
+    codec: getAvcLevel(width, height),
+    width, height,
+    bitrate: 8_000_000,
     framerate: fps,
-    avc: { format: 'avc' }
-  }
+    avc: { format: 'avc' },
+  })
 
-  await encoder.configure(config)
-
-  // Capture and encode each frame synchronously
   for (let i = 0; i < totalFrames; i++) {
-    // Update animation to this frame
     await recordFrame(i, totalFrames)
-    
-    // Wait for renders to complete
-    await new Promise(resolve => requestAnimationFrame(resolve))
-    await new Promise(resolve => requestAnimationFrame(resolve))
-    
-    // Capture frame from canvas
-    const imageBitmap = await createImageBitmap(canvas)
-    
-    // Create VideoFrame
-    const frame = new VideoFrame(imageBitmap, {
-      timestamp: (i / fps) * 1_000_000, // microseconds
-      duration: (1 / fps) * 1_000_000
+    for (let f = 0; f < 2 + extraFramesPerStep; f++) {
+      await new Promise(r => requestAnimationFrame(r))
+    }
+    const bitmap = await createImageBitmap(canvas)
+    const frame  = new VideoFrame(bitmap, {
+      timestamp: (i / fps) * 1_000_000,
+      duration:  (1 / fps) * 1_000_000,
     })
-
-    // Encode frame
-    const keyFrame = i % 30 === 0 // Keyframe every 30 frames
-    encoder.encode(frame, { keyFrame })
-    
-    // Clean up resources
+    encoder.encode(frame, { keyFrame: i % 30 === 0 })
     frame.close()
-    imageBitmap.close()
-    
-    onProgress((i + 1) / totalFrames, 'WebCodecs (H.264)')
+    bitmap.close()
+    onProgress((i + 1) / totalFrames, 'Exporting via WebCodecs (H.264)')
   }
 
-  // Finalize encoding
   await encoder.flush()
   encoder.close()
 
-  // Create raw H.264 data blob
-  const totalSize = chunks.reduce((acc, chunk) => acc + chunk.byteLength, 0)
-  const videoData = new Uint8Array(totalSize)
-  let offset = 0
-  for (const chunk of chunks) {
-    videoData.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-
-  return new Blob([videoData], { type: 'video/mp4' })
+  const total = chunks.reduce((s, c) => s + c.byteLength, 0)
+  const data  = new Uint8Array(total)
+  let offset  = 0
+  for (const c of chunks) { data.set(c, offset); offset += c.byteLength }
+  return new Blob([data], { type: 'video/mp4' })
 }
 
-// MediaRecorder approach with frame-by-frame control
+// ─── Video export: MediaRecorder ──────────────────────────────────────────────
+
 async function exportVideoMediaRecorder(
   canvas: HTMLCanvasElement,
   fps: number,
   durationMs: number,
+  extraFramesPerStep: number,
   onProgress: (progress: number, codec: string) => void,
   recordFrame: (frameIndex: number, totalFrames: number) => Promise<void>
 ): Promise<Blob> {
   const totalFrames = Math.ceil((durationMs / 1000) * fps)
   const chunks: Blob[] = []
-  
-  // Try different codecs in order of preference
+
   const codecOptions = [
-    { mimeType: 'video/webm;codecs=vp9', name: 'VP9' },
-    { mimeType: 'video/webm;codecs=vp8', name: 'VP8' },
-    { mimeType: 'video/webm', name: 'WebM' }
+    { mimeType: 'video/webm;codecs=vp9', name: 'MediaRecorder (VP9)' },
+    { mimeType: 'video/webm;codecs=vp8', name: 'MediaRecorder (VP8)' },
+    { mimeType: 'video/webm',            name: 'MediaRecorder (WebM)' },
   ]
-  
-  let selectedCodec = codecOptions[0]
-  for (const codec of codecOptions) {
-    if (MediaRecorder.isTypeSupported(codec.mimeType)) {
-      selectedCodec = codec
-      break
-    }
-  }
+  const selected = codecOptions.find(c => MediaRecorder.isTypeSupported(c.mimeType)) ?? codecOptions[2]
 
-  const stream = canvas.captureStream(0) // 0 = manual frame capture
-  const options = {
-    mimeType: selectedCodec.mimeType,
-    videoBitsPerSecond: 12_000_000
-  }
+  const stream   = canvas.captureStream(0)
+  const recorder = new MediaRecorder(stream, {
+    mimeType: selected.mimeType,
+    videoBitsPerSecond: 12_000_000,
+  })
 
-  const mediaRecorder = new MediaRecorder(stream, options)
-  
   return new Promise((resolve, reject) => {
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data)
-    }
-    
-    mediaRecorder.onstop = () => {
-      resolve(new Blob(chunks, { type: selectedCodec.mimeType }))
-    }
-    
-    mediaRecorder.onerror = reject
-    
-    mediaRecorder.start()
-    
-    // Frame-by-frame recording
-    let frameIndex = 0
-    
-    const captureNextFrame = async () => {
-      if (frameIndex >= totalFrames) {
-        mediaRecorder.stop()
-        return
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+    recorder.onstop  = () => resolve(new Blob(chunks, { type: selected.mimeType }))
+    recorder.onerror = reject
+    recorder.start()
+
+    let i = 0
+    const next = async () => {
+      if (i >= totalFrames) { recorder.stop(); return }
+      await recordFrame(i, totalFrames)
+      for (let f = 0; f < 2 + extraFramesPerStep; f++) {
+        await new Promise(r => requestAnimationFrame(r))
       }
-      
-      // Update scene to this frame
-      await recordFrame(frameIndex, totalFrames)
-      
-      // Wait for render to complete
-      await new Promise(resolve => requestAnimationFrame(resolve))
-      await new Promise(resolve => requestAnimationFrame(resolve))
-      
-      // Request a frame from the stream
       const track = stream.getVideoTracks()[0] as any
-      if (track.requestFrame) {
-        track.requestFrame()
-      }
-      
-      onProgress((frameIndex + 1) / totalFrames, `MediaRecorder (${selectedCodec.name})`)
-      frameIndex++
-      
-      // Continue to next frame
-      requestAnimationFrame(captureNextFrame)
+      track.requestFrame?.()
+      onProgress((i + 1) / totalFrames, `Exporting via ${selected.name}`)
+      i++
+      requestAnimationFrame(next)
     }
-    
-    captureNextFrame()
+    next()
   })
 }
 
-// Convert WebM to MP4 using FFmpeg.wasm (optional enhancement)
-async function convertWebMToMP4(webmBlob: Blob): Promise<Blob> {
-  // This would require FFmpeg.wasm library
-  // For now, return the original blob
-  // In production, you could load FFmpeg.wasm and do:
-  // const ffmpeg = createFFmpeg({ log: true })
-  // await ffmpeg.load()
-  // ... conversion logic
-  return webmBlob
-}
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const CRUISE_DEG_PER_MS = 360 / 30_000
+const EASE_MS    = 1_500
+const FOV_ANI_MS = 800
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+function correctedZoom(baseZoom: number, canvasWidth: number, referenceWidth: number) {
+  if (!referenceWidth || referenceWidth <= 0) return baseZoom
+  return baseZoom + Math.log2(canvasWidth / referenceWidth)
+}
+
 export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen }: CameraButtonsProps) {
-
-
-  // const appState = state
-  // const onAppStateChange = setState
-
   const noop = () => {}
-
   const [localState, setLocalState] = useState(state ?? {})
   const setStateSafe = useNuqsAnimationSafeSetter(setState ?? noop, setLocalState)
 
-  const onAppStateChange = setStateSafe
-  const appState = localState
+  // Smoother view animation camera transition, but cannot animate ther params
+  // const onAppStateChange = setStateSafe
+  // const appState = localState
+  
+  // Less smooth but can animate other props like iz modes opacities etc
+  const onAppStateChange = setState
+  const appState = state
 
-  // ── 360 spin ─────────────────────────────────────────────────────────────────
+
+  // ── Spin ──────────────────────────────────────────────────────────────────────
   const spinRafRef  = useRef<number | null>(null)
   const stoppingRef = useRef<number | null>(null)
   const spinLastRef = useRef<number | null>(null)
@@ -450,40 +457,44 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen }: Cam
   const [pose1, setPose1] = useState<AppSnapshot | null>(null)
   const [pose2, setPose2] = useState<AppSnapshot | null>(null)
 
-  // ── Playback settings ─────────────────────────────────────────────────────────
-  const [speedMode,   setSpeedMode]   = useState(false)
+  // ── Playback ──────────────────────────────────────────────────────────────────
   const [durationSec, setDurationSec] = useState(3)
-  const [speedMul,    setSpeedMul]    = useState(1)
   const [loopMode,    setLoopMode]    = useState<LoopMode>("bounce")
+  const durationMs = durationSec * 1_000
 
-  /** Effective duration in ms */
-  const durationMs = speedMode ? (3_000 / speedMul) : (durationSec * 1_000)
-
-  // ── Playback runtime ──────────────────────────────────────────────────────────
   const [playing,  setPlaying]  = useState(false)
-  const [progress, setProgress] = useState(0)   // 0..1 display value
+  const [progress, setProgress] = useState(0)
 
   const poseRafRef    = useRef<number | null>(null)
-  const playStartRef  = useRef<number>(0)        // performance.now() at last (re)start
-  const playOffsetRef = useRef<number>(0)        // progress value at last (re)start
-  const bounceDir     = useRef<1 | -1>(1)        // +1 forward, -1 backward (bounce mode)
+  const playStartRef  = useRef<number>(0)
+  const playOffsetRef = useRef<number>(0)
+  const bounceDir     = useRef<1 | -1>(1)
 
-  // ── Video export ──────────────────────────────────────────────────────────────
-  const [exporting, setExporting] = useState(false)
+  // ── Export ────────────────────────────────────────────────────────────────────
+  const [exporting,      setExporting]      = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
-  const [exportCodec, setExportCodec] = useState<string>('')
+  const [exportCodec,    setExportCodec]    = useState("")
+  const [resolutionKey,  setResolutionKey]  = useState("1080p FHD 16:9")
+  const [renderQuality,  setRenderQuality]  = useState<RenderQuality>("normal")
+  const [fps, setFps]                       = useState(60)
+  const [targetSizeMB,   setTargetSizeMB]   = useState<string>("")
 
-  // Stable refs so the RAF tick always reads current values without re-creating itself
-  const durationMsRef = useRef(durationMs)
-  useEffect(() => { durationMsRef.current = durationMs }, [durationMs])
+  const targetSizeBytes = targetSizeMB !== "" && parseFloat(targetSizeMB) > 0
+    ? Math.round(parseFloat(targetSizeMB) * 1024 * 1024)
+    : undefined
+
+  const selectedResolution = EXPORT_RESOLUTIONS.find(r => r.label === resolutionKey) ?? EXPORT_RESOLUTIONS[2]
+  const selectedQuality    = RENDER_QUALITY_OPTIONS.find(q => q.value === renderQuality) ?? RENDER_QUALITY_OPTIONS[1]
+
+  // Stable refs
+  const durationMsRef = useRef(durationMs); useEffect(() => { durationMsRef.current = durationMs }, [durationMs])
   const loopRef  = useRef(loopMode);   useEffect(() => { loopRef.current  = loopMode  }, [loopMode])
   const p1Ref    = useRef(pose1);      useEffect(() => { p1Ref.current    = pose1     }, [pose1])
   const p2Ref    = useRef(pose2);      useEffect(() => { p2Ref.current    = pose2     }, [pose2])
   const appRef   = useRef(appState);   useEffect(() => { appRef.current   = appState  }, [appState])
-  const cbRef    = useRef(onAppStateChange);
-  useEffect(() => { cbRef.current = onAppStateChange }, [onAppStateChange])
+  const cbRef    = useRef(onAppStateChange); useEffect(() => { cbRef.current = onAppStateChange }, [onAppStateChange])
 
-  // ── FOV helper ───────────────────────────────────────────────────────────────
+  // ── FOV ───────────────────────────────────────────────────────────────────────
   const setVFov = useCallback((targetDeg: number) => {
     const map = getMap(mapRef)
     if (!map) return
@@ -505,279 +516,172 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen }: Cam
     const map = getMap(mapRef)
     if (!map) return null
     const c = map.getCenter()
+    const canvas = map.getCanvas()
     return {
       pose: {
-        lat: c.lat, lng: c.lng,
-        zoom:    map.getZoom(),
-        pitch:   map.getPitch(),
-        bearing: map.getBearing(),
-        roll:    (map as any).getRoll?.() ?? 0,
-        vfov:    map.getVerticalFieldOfView(),
+        lat: c.lat, lng: c.lng, zoom: map.getZoom(),
+        pitch: map.getPitch(), bearing: map.getBearing(),
+        roll: (map as any).getRoll?.() ?? 0,
+        vfov: map.getVerticalFieldOfView(),
+        refWidth: canvas.clientWidth // <-- key line
       },
       numericState: appState ? extractNumbers(appState) : {},
     }
   }, [mapRef, appState])
 
-  // ── Stop playback ─────────────────────────────────────────────────────────────
+
+  // ── Playback ──────────────────────────────────────────────────────────────────
   const stopPlay = useCallback(() => {
     if (poseRafRef.current) { cancelAnimationFrame(poseRafRef.current); poseRafRef.current = null }
-    setPlaying(false)
-  }, [])
-
-  // ── RAF tick ──────────────────────────────────────────────────────────────────
-  const rafTick = useCallback((now: number) => {
-    const p1  = p1Ref.current
-    const p2  = p2Ref.current
     const map = getMap(mapRef)
-    if (!p1 || !p2 || !map) { stopPlay(); return }
+    map?.setCenterClampedToGround(false)
+    setPlaying(false)
+  }, [mapRef])
 
+  const rafTick = useCallback((now: number) => {
+    const p1 = p1Ref.current; const p2 = p2Ref.current; 
+    const map = getMap(mapRef)
+    
+    map?.setCenterClampedToGround(false)
+
+    if (!p1 || !p2 || !map) { stopPlay(); return }
     const elapsed = now - playStartRef.current
     let raw = clamp(playOffsetRef.current + elapsed / durationMsRef.current, 0, 1)
     const mode = loopRef.current
-
     if (raw >= 1) {
       if (mode === "none") {
         applyProgress(1, p1, p2, map, appRef.current, cbRef.current, true)
-        setProgress(1)
-        setPlaying(false)
-        poseRafRef.current = null
-        return
+        setProgress(1); setPlaying(false); poseRafRef.current = null; return
       }
-      if (mode === "forward") {
-        playStartRef.current = now; playOffsetRef.current = 0; raw = 0
-      }
-      if (mode === "bounce") {
-        bounceDir.current = bounceDir.current === 1 ? -1 : 1
-        playStartRef.current = now; playOffsetRef.current = 0; raw = 0
-      }
+      if (mode === "forward") { playStartRef.current = now; playOffsetRef.current = 0; raw = 0 }
+      if (mode === "bounce")  { bounceDir.current = bounceDir.current === 1 ? -1 : 1; playStartRef.current = now; playOffsetRef.current = 0; raw = 0 }
     }
-
     const displayRaw = bounceDir.current === 1 ? raw : 1 - raw
     applyProgress(displayRaw, p1, p2, map, appRef.current, cbRef.current, true)
     setProgress(displayRaw)
-
     poseRafRef.current = requestAnimationFrame(rafTick)
   }, [mapRef, stopPlay])
 
-  // ── Start / resume playback from a given progress offset ──────────────────────
   const startPlay = useCallback((fromProgress = 0) => {
     if (!p1Ref.current || !p2Ref.current) return
-    stopPlay()
-    bounceDir.current     = 1
+    stopPlay(); bounceDir.current = 1
     playOffsetRef.current = clamp(fromProgress, 0, 1)
     playStartRef.current  = performance.now()
     setPlaying(true)
     poseRafRef.current = requestAnimationFrame(rafTick)
   }, [stopPlay, rafTick])
 
-  // ── Scrub slider ──────────────────────────────────────────────────────────────
   const handleScrub = useCallback((vals: number[]) => {
     const raw = vals[0] / 100
-    const p1  = p1Ref.current
-    const p2  = p2Ref.current
-    const map = getMap(mapRef)
+    const p1 = p1Ref.current; const p2 = p2Ref.current; const map = getMap(mapRef)
     if (!p1 || !p2 || !map) return
-
     setProgress(raw)
     applyProgress(raw, p1, p2, map, appRef.current, cbRef.current, false)
-
-    if (playing) {
-      // Seek: reset start so animation continues from here
-      playOffsetRef.current = raw
-      playStartRef.current  = performance.now()
-    }
+    if (playing) { playOffsetRef.current = raw; playStartRef.current = performance.now() }
   }, [playing, mapRef])
 
-
-
-
-
   // ── Video export ──────────────────────────────────────────────────────────────
-const handleExportVideo = useCallback(async () => {
-  const p1 = p1Ref.current
-  const p2 = p2Ref.current
-  const map = getMap(mapRef)
-  const canvas = map?.getCanvas()
-  
-  if (!p1 || !p2 || !map || !canvas) return
+  const handleExportVideo = useCallback(async () => {
+    const p1 = p1Ref.current; const p2 = p2Ref.current
+    const map = getMap(mapRef); const canvas = map?.getCanvas()
+    if (!p1 || !p2 || !map || !canvas) return
 
-  // Stop any current playback
-  stopPlay()
+    stopPlay()
+    setExporting(true)
+    setExportProgress(0)
+    setExportCodec('')
 
-  setExporting(true)
-  setExportProgress(0)
-  setExportCodec('')
-  
-  // Store original values
-  const originalWidth = canvas.width
-  const originalHeight = canvas.height
-  const originalStyleWidth = canvas.style.width
-  const originalStyleHeight = canvas.style.height
-  const originalPixelRatio = map.getPixelRatio()
+    // const snap = snapshotCanvas(canvas, map)
+    // const fps  = 60
 
-  try {
-    const fps = 30
-    const duration = durationMsRef.current
-    
-    // Calculate target dimensions maintaining aspect ratio
-    const currentAspectRatio = originalWidth / originalHeight
-    
-    // Target 720p but maintain aspect ratio
-    // let targetWidth = 1280
-    // let targetHeight = 720
-
-    let targetWidth = originalWidth
-    let targetHeight = originalHeight
-     
-    const targetAspectRatio = targetWidth / targetHeight
-    
-    if (Math.abs(currentAspectRatio - targetAspectRatio) > 0.01) {
-      // Adjust to match current aspect ratio
-      if (currentAspectRatio > targetAspectRatio) {
-        // Wider than 16:9, adjust height
-        targetHeight = Math.round(targetWidth / currentAspectRatio)
-      } else {
-        // Taller than 16:9, adjust width
-        targetWidth = Math.round(targetHeight * currentAspectRatio)
-      }
-    }
-    
-    // Ensure even dimensions (required for H.264)
-    targetWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth + 1
-    targetHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight + 1
-    
-    console.log('Target dimensions:', {
-      original: `${originalWidth}x${originalHeight}`,
-      target: `${targetWidth}x${targetHeight}`,
-      originalAspect: currentAspectRatio.toFixed(3),
-      targetAspect: (targetWidth / targetHeight).toFixed(3)
-    })
-    
-    // Set pixel ratio to 1 BEFORE resize
-    // map.setPixelRatio(1)
-    
-    // Set canvas CSS size (logical pixels)
-    canvas.style.width = `${targetWidth}px`
-    canvas.style.height = `${targetHeight}px`
-    
-    // Trigger map resize - CRITICAL: this updates the map's internal state
-    map.resize()
-    
-    // Force canvas dimensions after resize (in case map.resize changed them)
-    canvas.width = targetWidth
-    canvas.height = targetHeight
-    
-    // Trigger another resize to ensure map's transform is updated with new dimensions
-    map.resize()
-    
-    // Wait for resize to complete
-    await new Promise(resolve => requestAnimationFrame(resolve))
-    await new Promise(resolve => requestAnimationFrame(resolve))
-    
-    // Verify and force if needed
-    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-      console.warn('Forcing canvas dimensions:', { 
-        actual: `${canvas.width}x${canvas.height}`,
-        expected: `${targetWidth}x${targetHeight}`
-      })
-      canvas.width = targetWidth
-      canvas.height = targetHeight
-      map.triggerRepaint()
-      await new Promise(resolve => requestAnimationFrame(resolve))
+    let targetW = selectedResolution.width
+    let targetH = selectedResolution.height
+    if (targetW === 0) {
+      targetW = canvas.width  % 2 === 0 ? canvas.width  : canvas.width  + 1
+      targetH = canvas.height % 2 === 0 ? canvas.height : canvas.height + 1
     }
 
-    console.log('Final canvas dimensions:', {
-      width: canvas.width,
-      height: canvas.height,
-      styleWidth: canvas.style.width,
-      styleHeight: canvas.style.height,
-      pixelRatio: map.getPixelRatio()
-    })
-
-    // Record frame function
-    const recordFrame = async (frameIndex: number, totalFrames: number) => {
-      const progress = frameIndex / totalFrames
-      applyProgress(progress, p1, p2, map, appRef.current, cbRef.current, true)
-    }
-
-    // Progress callback
-    const onProgress = (progress: number, codec: string) => {
-      setExportProgress(progress)
+    const onProgress = (p: number, codec: string) => {
+      setExportProgress(p)
       setExportCodec(codec)
     }
 
-    // Try MediaBunny first, fall back to WebCodecs, then MediaRecorder
-    let videoBlob: Blob
-    let extension = 'mp4'
-    
-    try {
-      videoBlob = await exportVideoMediaBunny(
-        canvas,
-        fps,
-        duration,
-        onProgress,
-        recordFrame
-      )
-      extension = 'mp4'
-    } catch (e) {
-      console.warn('MediaBunny failed, trying WebCodecs:', e)
-      try {
-        videoBlob = await exportVideoWebCodecs(
-          canvas,
-          fps,
-          duration,
-          onProgress,
-          recordFrame
-        )
-        extension = 'mp4'
-      } catch (e2) {
-        console.warn('WebCodecs failed, using MediaRecorder fallback:', e2)
-        videoBlob = await exportVideoMediaRecorder(
-          canvas,
-          fps,
-          duration,
-          onProgress,
-          recordFrame
-        )
-        extension = 'webm'
-      }
+    // Re-asserts camera pose every frame via jumpTo so resize doesn't shift anything
+    const recordFrame = async (frameIndex: number, totalFrames: number) => {
+      applyProgress(frameIndex / totalFrames, p1, p2, map, appRef.current, cbRef.current, true)
     }
+    let prev
+    try {
+      // Resize then re-assert pose at p1 before recording starts
+      // await resizeCanvasForExport(canvas, map, targetW, targetH, p1)
+      prev = await resizeCanvasForExport(map, targetW, targetH, p1)
 
-    // Download the video
-    const url = URL.createObjectURL(videoBlob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `terrain-animation-${Date.now()}.${extension}`
-    a.click()
-    URL.revokeObjectURL(url)
-    
-  } catch (error) {
-    console.error('Video export failed:', error)
-    alert(`Video export failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-  } finally {
-    // Restore original canvas size
-    canvas.width = originalWidth
-    canvas.height = originalHeight
-    canvas.style.width = originalStyleWidth
-    canvas.style.height = originalStyleHeight
-    
-    // Restore original pixel ratio
-    map.setPixelRatio(originalPixelRatio)
-    
-    // Trigger resize to restore map's internal state
-    map.resize()
-    
-    // Reset to start after resize
-    await new Promise(resolve => requestAnimationFrame(resolve))
-    applyProgress(0, p1, p2, map, appRef.current, cbRef.current, false)
-    setProgress(0)
-    
-    setExporting(false)
-    setExportProgress(0)
-    setExportCodec('')
-  }
-}, [mapRef, stopPlay, setIsSidebarOpen])
+      let videoBlob: Blob
+      let extension = 'mp4'
 
+      try {
+        videoBlob = await exportVideoMediaBunny(
+          canvas, fps, durationMsRef.current,
+          selectedQuality.extraFrames,
+          targetSizeBytes,
+          onProgress, recordFrame
+        )
+      } catch (e1) {
+        console.warn('MediaBunny failed, trying WebCodecs:', e1)
+        try {
+          videoBlob = await exportVideoWebCodecs(
+            canvas, fps, durationMsRef.current,
+            selectedQuality.extraFrames,
+            onProgress, recordFrame
+          )
+        } catch (e2) {
+          console.warn('WebCodecs failed, falling back to MediaRecorder:', e2)
+          videoBlob = await exportVideoMediaRecorder(
+            canvas, fps, durationMsRef.current,
+            selectedQuality.extraFrames,
+            onProgress, recordFrame
+          )
+          extension = 'webm'
+        }
+      }
+
+      // Clipboard for small files (browser support is limited for video/mp4)
+      // const CLIPBOARD_LIMIT = 5 * 1024 * 1024
+      let savedViaClipboard = false
+      // if (videoBlob.size <= CLIPBOARD_LIMIT) {
+      //   try {
+      //     await navigator.clipboard.write([
+      //       new ClipboardItem({ [videoBlob.type]: videoBlob })
+      //     ])
+      //     savedViaClipboard = true
+      //     setExportCodec(prev => `${prev} — copied!`)
+      //   } catch {
+      //     // clipboard not supported for this mime type — fall through to download
+      //   }
+      // }
+
+      if (!savedViaClipboard) {
+        const url = URL.createObjectURL(videoBlob)
+        const a   = document.createElement('a')
+        a.href     = url
+        a.download = `terrain-${Date.now()}.${extension}`
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+
+    } catch (error) {
+      console.error('Video export failed:', error)
+      alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      // await restoreCanvas(canvas, map, snap)
+await restoreCanvas(map, prev)
+reviveMapInteractions(map)
+      applyProgress(0, p1, p2, map, appRef.current, cbRef.current, false)
+      setProgress(0)
+      setExporting(false)
+      map?.setCenterClampedToGround(false)
+    }
+  }, [mapRef, stopPlay, selectedResolution, selectedQuality, targetSizeBytes, fps])
 
   // ── 360 spin ──────────────────────────────────────────────────────────────────
   const triggerStop = useCallback(() => {
@@ -790,9 +694,8 @@ const handleExportVideo = useCallback(async () => {
     spinLastRef.current = null; spinElapsed.current = 0; stoppingRef.current = null
     setSpinning(true)
     const spinTick = (now: number) => {
-      const delta   = spinLastRef.current !== null ? now - spinLastRef.current : 0
-      spinLastRef.current = now
-      spinElapsed.current += delta
+      const delta = spinLastRef.current !== null ? now - spinLastRef.current : 0
+      spinLastRef.current = now; spinElapsed.current += delta
       const speedIn = smoothstep(Math.min(spinElapsed.current / EASE_MS, 1))
       let mul: number
       if (stoppingRef.current) {
@@ -814,7 +717,7 @@ const handleExportVideo = useCallback(async () => {
   return (
     <>
       {/* ── FOV / Spin ── */}
-      <Label className="text-sm font-medium">WIP Tests: Animation & ~Ortho</Label>
+      <Label className="text-sm font-medium">Animation & FOV</Label>
       <div className="flex gap-2">
         <Button variant="outline" className="flex-[2] bg-transparent cursor-pointer" onClick={() => setVFov(40)}>
           VFOV 40°
@@ -827,77 +730,48 @@ const handleExportVideo = useCallback(async () => {
         </Button>
       </div>
 
-      {/* ── Pose capture ── */}
-      <Label className="text-sm font-medium mt-3">
-        Camera Poses{appState ? " + App State" : ""}
-      </Label>
-
+      {/* ── Poses ── */}
+      <Label className="text-sm font-medium mt-3">Camera Poses</Label>
       <div className="flex gap-2">
-        {/* Set Pose 1 */}
         <Button
           variant={pose1 ? "secondary" : "outline"}
           className="flex-[3] bg-transparent cursor-pointer"
           onClick={() => { const s = captureSnapshot(); if (s) setPose1(s) }}
         >
-          {pose1
-            ? <span className="flex items-center gap-1.5">
-                {"Pose 1"} <Check className="h-4 w-4" />
-              </span>
-            : "Set Pose 1"}
+          {pose1 ? <span className="flex items-center gap-1.5">Pose 1 <Check className="h-4 w-4" /></span> : "Set Pose 1"}
         </Button>
-
-        {/* Play / Stop */}
         <Button
           variant={playing ? "default" : "outline"}
           className="flex-[2] cursor-pointer"
           disabled={!canPlay || exporting}
           onClick={playing ? stopPlay : () => startPlay(progress >= 1 ? 0 : progress)}
-          title={!canPlay ? "Capture both poses first" : undefined}
         >
-          {playing ? (<><Pause className="h-4 w-4 mr-1" /> {"Stop"}</>) : (<><Play className="h-4 w-4 mr-1" /> {"Play"}</>)}
+          {playing
+            ? <><Pause className="h-4 w-4 mr-1" />Stop</>
+            : <><Play  className="h-4 w-4 mr-1" />Play</>}
         </Button>
-
-        {/* Set Pose 2 */}
         <Button
           variant={pose2 ? "secondary" : "outline"}
           className="flex-[3] bg-transparent cursor-pointer"
           onClick={() => { const s = captureSnapshot(); if (s) setPose2(s) }}
         >
-          {pose2
-            ? <span className="flex items-center gap-1.5">
-                {"Pose 2"} <Check className="h-4 w-4" />
-              </span>
-            : "Set Pose 2"}
+          {pose2 ? <span className="flex items-center gap-1.5">Pose 2 <Check className="h-4 w-4" /></span> : "Set Pose 2"}
         </Button>
       </div>
 
-      {/* ── Pose debug summary ── */}
+      {/* Pose debug */}
       {(pose1 || pose2) && (
-        <div className="text-xs text-muted-foreground mt-1.5 grid grid-cols-2 gap-x-2">
-          {pose1 && (
-            <span title={JSON.stringify(pose1.pose, null, 2)}>
-              z{pose1.pose.zoom.toFixed(1)}/x{pose1.pose.lng.toFixed(2)}°/y{pose1.pose.lat.toFixed(2)}° 
-              {Object.keys(pose1.numericState).length > 0
-                ? ` +${Object.keys(pose1.numericState).length} vals` : ""}
-            </span>
-          )}
-          {pose2 && (
-            <span title={JSON.stringify(pose2.pose, null, 2)} className="text-right">
-              z{pose2.pose.zoom.toFixed(1)}/x{pose2.pose.lng.toFixed(2)}°/y{pose2.pose.lat.toFixed(2)}° 
-              {Object.keys(pose2.numericState).length > 0
-                ? ` +${Object.keys(pose2.numericState).length} vals` : ""}
-            </span>
-          )}
+        <div className="text-xs text-muted-foreground mt-1 grid grid-cols-2 gap-x-2">
+          {pose1 && <span title={JSON.stringify(pose1.pose, null, 2)}>z{pose1.pose.zoom.toFixed(1)} {pose1.pose.lng.toFixed(2)}°/{pose1.pose.lat.toFixed(2)}°</span>}
+          {pose2 && <span title={JSON.stringify(pose2.pose, null, 2)} className="text-right">z{pose2.pose.zoom.toFixed(1)} {pose2.pose.lng.toFixed(2)}°/{pose2.pose.lat.toFixed(2)}°</span>}
         </div>
       )}
 
-      {/* ── Timeline slider ── */}
+      {/* ── Timeline ── */}
       <div className="mt-2 flex items-center gap-2">
-        {/* Current time label */}
         <span className="text-xs tabular-nums text-muted-foreground w-10 shrink-0">
-          {canPlay ? `${((progress) * (durationMs / 1_000)).toFixed(1)}s` : "0.0s"}
+          {canPlay ? `${(progress * durationMs / 1000).toFixed(1)}s` : "0.0s"}
         </span>
-
         <Slider
           min={0} max={100} step={0.5}
           value={[Math.round(progress * 100)]}
@@ -905,61 +779,30 @@ const handleExportVideo = useCallback(async () => {
           disabled={!canPlay || exporting}
           className="flex-1 cursor-pointer"
         />
-
-        {/* Total duration label */}
         <span className="text-xs tabular-nums text-muted-foreground w-10 shrink-0 text-right">
-          {canPlay ? `${(durationMs / 1_000).toFixed(1)}s` : "--"}
+          {canPlay ? `${(durationMs / 1000).toFixed(1)}s` : "--"}
         </span>
       </div>
 
-      {/* ── Playback controls: 3-column grid ── */}
-      <div className="mt-1.5 grid grid-cols-3 gap-2">
-
-        {/* Col 1 — Duration OR Speed (single input, toggled by col 2) */}
+      {/* ── Duration + Loop ── */}
+      <div className="mt-1.5 grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-muted-foreground">
-            {speedMode ? "Speed" : "Duration"}
-          </Label>
+          <Label className="text-xs text-muted-foreground">Duration (s)</Label>
           <div className="flex items-center gap-1">
             <Input
-              type="number"
-              min={0.1} max={speedMode ? 20 : 300} step={speedMode ? 0.1 : 0.5}
-              value={speedMode ? speedMul : durationSec}
-              onChange={e => {
-                const v = parseFloat(e.target.value)
-                if (!isNaN(v) && v > 0) speedMode ? setSpeedMul(v) : setDurationSec(v)
-              }}
+              type="number" min={0.5} max={300} step={0.5}
+              value={durationSec}
+              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) setDurationSec(v) }}
               disabled={exporting}
               className="w-full h-8 text-xs px-2"
             />
-            <span className="text-xs text-muted-foreground shrink-0">
-              {speedMode ? "×" : "s"}
-            </span>
+            <span className="text-xs text-muted-foreground shrink-0">s</span>
           </div>
         </div>
-
-        {/* Col 2 — dur / spd switch */}
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-muted-foreground">Mode</Label>
-          <div className="flex items-center justify-center gap-1.5 h-8">
-            <span className="text-xs text-muted-foreground">dur</span>
-            <Switch
-              checked={speedMode}
-              onCheckedChange={setSpeedMode}
-              disabled={exporting}
-              className="scale-[1] origin-left cursor-pointer"
-            />
-            <span className="text-xs text-muted-foreground">spd</span>
-          </div>
-        </div>
-
-        {/* Col 3 — Loop mode */}
-        <div className="flex flex-col gap-1 h-8">
           <Label className="text-xs text-muted-foreground">Loop</Label>
           <Select value={loopMode} onValueChange={v => setLoopMode(v as LoopMode)} disabled={exporting}>
-            <SelectTrigger className="h-8 text-xs w-full cursor-pointer">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="h-8 text-xs w-full cursor-pointer"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">None</SelectItem>
               <SelectItem value="forward">Forward ↻</SelectItem>
@@ -967,32 +810,115 @@ const handleExportVideo = useCallback(async () => {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      {/* ── Export ── */}
+      <Label className="text-sm font-medium mt-3">Export Video</Label>
+
+      {/* Resolution + Quality on one row */}
+      {/* Resolution + Quality on one row */}
+      <div className="flex gap-2 items-start">
+        
+        {/* Resolution (importance 2) */}
+        <div className="flex flex-col gap-1 flex-[2] min-w-0">
+          <Label className="text-xs text-muted-foreground leading-none pb-[2px]">Resolution</Label>
+          <Select value={resolutionKey} onValueChange={setResolutionKey} disabled={exporting}>
+            <SelectTrigger className="h-8 text-xs w-full cursor-pointer leading-none">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {EXPORT_RESOLUTIONS.map(r => (
+                <SelectItem key={r.label} value={r.label}>{r.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* FPS (importance 1 — smaller) */}
+        <div className="flex flex-col gap-1 flex-[1] max-w-[90px]">
+          <Label className="text-xs text-muted-foreground leading-none pb-[2px]">FPS</Label>
+          <Input
+            type="number"
+            min={1} max={120} step={1}
+            placeholder="fps"
+            value={fps}
+            onChange={e => setFps(parseInt(e.target.value, 10))}
+            disabled={exporting}
+            className="h-9 w-full text-xs px-2 leading-none"
+          />
+        </div>
+
+        {/* Quality (importance 2) */}
+        <div className="flex flex-col gap-1 flex-[2] min-w-0">
+          <Label className="text-xs text-muted-foreground leading-none pb-[2px]">Render quality</Label>
+          <Select value={renderQuality} onValueChange={v => setRenderQuality(v as RenderQuality)} disabled={exporting}>
+            <SelectTrigger className="h-8 text-xs w-full cursor-pointer leading-none"> 
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RENDER_QUALITY_OPTIONS.map(q => (
+                <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
       </div>
 
-      {/* ── Video Export Button ── */}
-      <div className="mt-3">
-        <Button
-          variant="outline"
-          className="w-full cursor-pointer"
-          disabled={!canPlay || exporting}
-          onClick={handleExportVideo}
-          title={!canPlay ? "Capture both poses first" : "Export animation as video (30fps)"}
-        >
-          {exporting ? (
-            <>
-              <Download className="h-4 w-4 mr-2 animate-pulse" />
-              {exportCodec ? `Exporting via ${exportCodec}: ` : 'Exporting... '}{Math.round(exportProgress * 100)}%
-            </>
-          ) : (
-            <>
-              <Video className="h-4 w-4 mr-2" />
-              Export Video
-            </>
-          )}
-        </Button>
-      </div>
+      {/* Max file size — MB input + platform preset picker */}
+      {/* <div className="mt-1.5 flex flex-col gap-1">
+        <Label className="text-xs text-muted-foreground">Max file size (MB)</Label>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            min={0} step={1}
+            placeholder="no limit"
+            value={targetSizeMB}
+            onChange={e => setTargetSizeMB(e.target.value)}
+            disabled={exporting}
+            className="h-8 text-xs px-2 w-24 shrink-0"
+          />
+          <Select
+            value=""
+            onValueChange={v => {
+              const bytes = parseInt(v, 10)
+              setTargetSizeMB(bytes > 0 ? String(Math.round(bytes / 1024 / 1024)) : "")
+            }}
+            disabled={exporting}
+          >
+            <SelectTrigger className="h-8 text-xs flex-1 cursor-pointer">
+              <SelectValue placeholder="Platform presets…" />
+            </SelectTrigger>
+            <SelectContent>
+              {PLATFORM_SIZE_PRESETS.map(p => (
+                <SelectItem key={p.label} value={String(p.bytes)}>{p.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div> */}
 
+      {/* Export button */}
+      <Button
+        variant="outline"
+        className="w-full cursor-pointer mt-2"
+        disabled={!canPlay || exporting}
+        onClick={handleExportVideo}
+        title={!canPlay ? "Capture both poses first" : undefined}
+      >
+        {exporting ? (
+          <>
+            <Download className="h-4 w-4 mr-2 animate-pulse" />
+            {exportCodec || "Exporting…"}
+            {exportCodec && ` ${Math.round(exportProgress * 100)}%`}
+          </>
+        ) : (
+          <>
+            <Video className="h-4 w-4 mr-2" />
+            Export Video
+          </>
+        )}
+      </Button>
     </>
   )
 }
