@@ -278,10 +278,20 @@ export function TerrainViewer() {
           onLoad={() => {
             if (isPrimary) setMapsLoaded(true)
             const map = isPrimary ? mapARef.current : mapBRef.current
-            map?.getMap().setTerrain({
-              source: "terrainSource",
-              exaggeration: state.exaggeration || 1,
-            })
+            const mapInstance = map?.getMap()
+            if (!mapInstance) return
+
+            const applyTerrain = () => {
+              if (mapInstance.getSource("terrainSource")) {
+                mapInstance.setTerrain({
+                  source: "terrainSource",
+                  exaggeration: state.exaggeration || 1,
+                })
+                mapInstance.off('sourcedata', applyTerrain)
+              }
+            }
+            mapInstance.on('sourcedata', applyTerrain)
+            applyTerrain()
           }}
           sky={state.showBackground ? getSkyConfig() : getNoSkyConfig()}
           minPitch={0}
