@@ -18,6 +18,8 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { Play, Pause, Check, Video, Download } from 'lucide-react'
 import { useNuqsAnimationSafeSetter } from "@/lib/useNuqsAnimationSafeSetter"
 import { CanvasSource, Mp4OutputFormat, Output, QUALITY_HIGH, StreamTarget } from 'mediabunny'
+import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -434,13 +436,18 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen }: Cam
   const [localState, setLocalState] = useState(state ?? {})
   const setStateSafe = useNuqsAnimationSafeSetter(setState ?? noop, setLocalState)
 
+
   // Smoother view animation camera transition, but cannot animate ther params
   // const onAppStateChange = setStateSafe
   // const appState = localState
   
   // Less smooth but can animate other props like iz modes opacities etc
-  const onAppStateChange = setState
-  const appState = state
+  // const onAppStateChange = setState
+  // const appState = state
+
+  const [smoothCamera, setSmoothCamera] = useState(true)
+  const onAppStateChange = smoothCamera ? setStateSafe : setState
+  const appState = smoothCamera ? localState : state
 
 
   // ── Spin ──────────────────────────────────────────────────────────────────────
@@ -731,7 +738,30 @@ reviveMapInteractions(map)
       </div>
 
       {/* ── Poses ── */}
-      <Label className="text-sm font-medium mt-3">Camera Poses</Label>
+      <div className="flex items-center justify-between mt-3">
+        <Label className="text-sm font-medium">Animation via Keyframe</Label>
+        <div className="flex items-center gap-2 cursor-pointer">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                  <Label className="text-xs text-muted-foreground">Smooth</Label>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs max-w-xs">
+                Smooth: animates only camera poses. <br />
+                Complete: animates other numeric state values like opacities, illumination angles, etc.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Switch 
+            checked={smoothCamera} 
+            onCheckedChange={setSmoothCamera} 
+            className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent disabled:cursor-not-allowed disabled:opacity-50"
+          />
+          <Label className="text-xs text-muted-foreground">Complete</Label>
+        </div>
+      </div> 
+
+
       <div className="flex gap-2">
         <Button
           variant={pose1 ? "secondary" : "outline"}
