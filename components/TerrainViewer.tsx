@@ -46,6 +46,17 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
     : { r: 0, g: 0, b: 0 }
 }
 
+import { createParser } from 'nuqs'
+
+const parseAsFloatPrecise = createParser({
+  parse: (value) => {
+    const num = parseFloat(value)
+    return isNaN(num) ? null : parseFloat(num.toFixed(6)) // 4 decimals
+  },
+  serialize: (value) => value.toFixed(4)
+})
+
+
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
   const mapBRef = useRef<MapRef>(null)
@@ -82,7 +93,10 @@ export function TerrainViewer() {
     lat: parseAsFloat.withDefault(45.9763),
     lng: parseAsFloat.withDefault(7.6586),
     zoom: parseAsFloat.withDefault(12.5),
-    pitch: parseAsFloat.withDefault(60),
+    // -- try getting out of pitch 0 loop in 3d
+    // pitch: parseAsFloat.withDefault(60.001),
+    pitch: parseAsFloatPrecise.withDefault(60),
+    // --
     bearing: parseAsFloat.withDefault(0),
     illuminationDir: parseAsFloat.withDefault(315),
     illuminationAlt: parseAsFloat.withDefault(45),
