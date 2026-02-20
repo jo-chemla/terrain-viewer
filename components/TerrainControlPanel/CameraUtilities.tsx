@@ -654,7 +654,7 @@ const handleExportVideo = useCallback(async () => {
     })
     
     // Set pixel ratio to 1 BEFORE resize
-    map.setPixelRatio(1)
+    // map.setPixelRatio(1)
     
     // Set canvas CSS size (logical pixels)
     canvas.style.width = `${targetWidth}px`
