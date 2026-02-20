@@ -390,20 +390,25 @@ export function TerrainViewer() {
               <GeolocateControl position="top-left" />
 
               {/* Minimap */}
-              {/* {mapsLoaded && mapARef.current && (<MinimapControl
+              {mapsLoaded && mapARef.current && (<MinimapControl
                 parentMap={mapARef.current.getMap()}
                 position="bottom-left"
-                mode="static"
-                width={260}
-                height={180}
-                initialMinimized={false}
-                // initBounds={[[-10, 35], [30, 65]]}
-                showFrustum={false}
+                mode="dynamic"
+                initBounds={[[-150, -30], [150, 50]]}
+                // mode="dynamic"
+                zoomLevelOffset={-4}
+                // mode="static" interactive = true only works in static mode 
                 interactive={true}
                 interactions={{
                   dragPan: true,
                   scrollZoom: true,
+                  boxZoom: true,
                 }}
+                width={260}
+                height={180}
+                showFrustum={false}
+                // showFootprint={true}
+                initialMinimized={true}
                 footprintFillPaint={{
                   "fill-color": "#3b82f6",
                   "fill-opacity": 0.15,
@@ -440,7 +445,7 @@ export function TerrainViewer() {
                     },
                   ],
                 }}
-              />)}  */}
+              />)} 
 
               
               <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
