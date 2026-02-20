@@ -142,8 +142,6 @@ export const HypsometricTintOptionsSection: React.FC<{
     setState({ minElevation: clampedMin, maxElevation: clampedMax, customHypsoMinMax: true })
   }, [setState])
 
-  if (!state.showColorRelief) return null
-
   // SET ELEVATION
   const getLoadedTilesElevationRange = useCallback(() => {
     if (!mapRef.current) return null;
@@ -203,8 +201,11 @@ export const HypsometricTintOptionsSection: React.FC<{
         hypsoSliderMaxBound,
       })
     } , 
-    [mapRef]
+    [mapRef, state.minElevation, state.maxElevation]
   )
+
+  // All hooks (useRef, useEffect, useCallback, useMemo, useAtom etc) must be above that early return statement
+  if (!state.showColorRelief) return null
 
   return (
     <Section title="Hypsometric Tint Options" isOpen={isOpen} onOpenChange={onOpenChange}>
