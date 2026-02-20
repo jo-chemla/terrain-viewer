@@ -445,7 +445,7 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen }: Cam
   // const onAppStateChange = setState
   // const appState = state
 
-  const [smoothCamera, setSmoothCamera] = useState(true)
+  const [smoothCamera, setSmoothCamera] = useState(false)
   const onAppStateChange = smoothCamera ? setStateSafe : setState
   const appState = smoothCamera ? localState : state
 
