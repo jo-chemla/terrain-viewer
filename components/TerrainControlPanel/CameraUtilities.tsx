@@ -754,7 +754,14 @@ reviveMapInteractions(map)
           </TooltipProvider>
           <Switch 
             checked={smoothCamera} 
-            onCheckedChange={setSmoothCamera} 
+            onCheckedChange={(val) => {
+              setSmoothCamera(val)
+              // try resetting to re-assert pose with the new mode — this can cause a jump if the two modes are out of sync, but at least it won't leave you in a broken state
+              setPose1(null)
+              setPose2(null)
+              setProgress(0)
+              stopPlay()
+            }} 
             className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent disabled:cursor-not-allowed disabled:opacity-50"
           />
           <Label className="text-xs text-muted-foreground">Complete</Label>
