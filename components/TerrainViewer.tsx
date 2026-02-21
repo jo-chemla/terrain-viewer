@@ -272,6 +272,42 @@ export function TerrainViewer() {
     if (themeColor) setState({ graticuleColor: themeColor })
   }, [themeColor])
 
+  // Handle terrain source changes and sync terrain with view mode changes
+  const applyTerrain = useCallback((map: maplibregl.Map) => {
+    const apply = () => {
+      if (map.getSource('terrainSource')) {
+        map.setTerrain({
+          source: 'terrainSource',
+          exaggeration: state.exaggeration || 1,
+        })
+        map.off('sourcedata', apply)
+      }
+    }
+    if (map.getSource('terrainSource')) {
+      map.setTerrain({ source: 'terrainSource', exaggeration: state.exaggeration || 1 })
+    } else {
+      map.on('sourcedata', apply)
+    }
+  }, [state.exaggeration])
+
+  // Sync terrain when exaggeration or source changes
+  useEffect(() => {
+    const map = mapARef.current?.getMap()
+    if (!map || !mapsLoaded) return
+    applyTerrain(map)
+  }, [state.exaggeration, state.sourceA, mapsLoaded, applyTerrain])
+
+  // Also sync on viewMode changes (2d removes terrain, 3d/globe restores it)
+  useEffect(() => {
+    const map = mapARef.current?.getMap()
+    if (!map || !mapsLoaded) return
+    if (state.viewMode === '2d') {
+      map.setTerrain(null)
+    } else {
+      applyTerrain(map)
+    }
+  }, [state.viewMode, mapsLoaded, applyTerrain])
+
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
       const isPrimary = mapId === "map-a"
@@ -291,21 +327,20 @@ export function TerrainViewer() {
           onMoveEnd={isPrimary ? onMoveEndA : undefined}
           onLoad={() => {
             if (isPrimary) setMapsLoaded(true)
-            const map = isPrimary ? mapARef.current : mapBRef.current
-            const mapInstance = map?.getMap()
-            if (!mapInstance) return
-
-            const applyTerrain = () => {
-              if (mapInstance.getSource("terrainSource")) {
-                mapInstance.setTerrain({
-                  source: "terrainSource",
-                  exaggeration: state.exaggeration || 1,
-                })
-                mapInstance.off('sourcedata', applyTerrain)
-              }
-            }
-            mapInstance.on('sourcedata', applyTerrain)
-            applyTerrain()
+            // const map = isPrimary ? mapARef.current : mapBRef.current
+            // const mapInstance = map?.getMap()
+            // if (!mapInstance) return
+            // const applyTerrain = () => {
+            //   if (mapInstance.getSource("terrainSource")) {
+            //     mapInstance.setTerrain({
+            //       source: "terrainSource",
+            //       exaggeration: state.exaggeration || 1,
+            //     })
+            //     mapInstance.off('sourcedata', applyTerrain)
+            //   }
+            // }
+            // mapInstance.on('sourcedata', applyTerrain)
+            // applyTerrain()
           }}
           sky={state.showBackground ? getSkyConfig() : getNoSkyConfig()}
           minPitch={0}
@@ -314,10 +349,10 @@ export function TerrainViewer() {
           pitchWithRotate={state.viewMode !== "2d"}
           dragRotate={state.viewMode !== "2d"}
           touchZoomRotate={state.viewMode !== "2d"}
-          terrain={{
-            source: "terrainSource",
-            exaggeration: state.exaggeration || 1,
-          }}
+          // terrain={{
+          //   source: "terrainSource",
+          //   exaggeration: state.exaggeration || 1,
+          // }}
           projection={state.viewMode === "globe" ? "globe" : "mercator"}
           canvasContextAttributes={{ preserveDrawingBuffer: true }}
           pixelRatio={window.devicePixelRatio * 1.5}  // supersample (default is 1×)
