@@ -152,6 +152,116 @@ function reprojectGeometry(geometry: any, fromProj: string): any {
 
 // --- HOOK ---
 
+// export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
+//     const [draw, setDraw] = useState<TerraDraw | null>(null)
+//     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
+//     const featuresRef = useRef(features)
+//     const drawRef = useRef<TerraDraw | null>(null)
+
+//     useEffect(() => { featuresRef.current = features }, [features])
+
+//     useEffect(() => {
+//         const map = mapRef.current?.getMap()
+//         if (!map || !mapsLoaded) return
+
+//         const createDraw = () => {
+//             if (drawRef.current) {
+//                 try { drawRef.current.stop() } catch (e) { console.error('Error stopping draw:', e) }
+//                 drawRef.current = null
+//                 setDraw(null)
+//             }
+
+//             setTimeout(() => {
+//                 try {
+//                     const adapter = new TerraDrawMapLibreGLAdapter({ map, renderBelowLayerId: undefined })
+//                     const newDraw = new TerraDraw({
+//                         adapter,
+//                         modes: [
+//                             new TerraDrawSelectMode({
+//                                 flags: {
+//                                     point: { feature: { draggable: true, coordinates: { draggable: true } } },
+//                                     linestring: { feature: { draggable: true, coordinates: { draggable: true, deletable: true, addable: true } } },
+//                                     polygon: { feature: { draggable: true, coordinates: { draggable: true, deletable: true, addable: true } } },
+//                                     rectangle: { feature: { draggable: true, coordinates: { draggable: true } } },
+//                                     circle: { feature: { draggable: true, coordinates: { draggable: true } } },
+//                                     arbitrary: { feature: {} },
+//                                 },
+//                             }),
+//                             new TerraDrawPointMode(),
+//                             new TerraDrawLineStringMode(),
+//                             new TerraDrawPolygonMode(),
+//                             new TerraDrawRectangleMode(),
+//                             new TerraDrawCircleMode(),
+//                         ],
+//                     })
+
+//                     // newDraw.on('change', () => setFeatures(newDraw.getSnapshot() || []))
+//                     newDraw.start()
+//                     newDraw.setMode('select')
+
+//                     if (featuresRef.current.length > 0) {
+//                         setTimeout(() => {
+//                             try { newDraw.addFeatures(featuresRef.current) } catch (e) {
+//                                 console.error('Error restoring features:', e)
+//                             }
+//                         }, 100)
+//                     }
+
+//                     drawRef.current = newDraw
+//                     setDraw(newDraw)
+//                 } catch (err) {
+//                     console.error('Error creating TerraDraw instance:', err)
+//                 }
+//             }, 500)
+//         }
+
+//         // Keep td-* layers on top after style changes
+//         const handleStyleData = () => {
+//             if (!map || !drawRef.current) return
+//             try {
+//                 const layers = map.getStyle()?.layers ?? []
+//                 const tdLayers = layers.filter((l) => l.id.startsWith('td-'))
+//                 if (tdLayers.length === 0) return
+//                 if (!layers[layers.length - 1].id.startsWith('td-')) {
+//                     tdLayers.forEach((l) => { try { map.moveLayer(l.id) } catch { } })
+//                 }
+//             } catch { }
+//         }
+
+//         // map.on('style.load', createDraw)
+//         map.on('styledata', handleStyleData)
+//         map.on('sourcedata', handleStyleData)
+//         map.on('render', handleStyleData)
+        
+//         // map.on('data', (e) => { if (e.type === 'style' || e.type === 'source') handleStyleData() })
+
+//         // // if (map.isStyleLoaded()) createDraw()
+//         // map.once('style.load', () => {
+//         //     requestAnimationFrame(() => createDraw());
+//         // });
+
+//         // KEY FIX: handle both cases
+//         if (map.isStyleLoaded()) {
+//             requestAnimationFrame(() => createDraw())
+//         } else {
+//             map.once('style.load', () => requestAnimationFrame(() => createDraw()))
+//         }
+
+
+//         return () => {
+//             // map.off('style.load', createDraw)
+//             map.off('styledata', handleStyleData)
+//             map.off('sourcedata', handleStyleData)
+//             map.off('render', handleStyleData)
+//             if (drawRef.current) {
+//                 try { drawRef.current.stop() } catch { }
+//                 drawRef.current = null
+//             }
+//         }
+//     }, [mapRef, setFeatures, mapsLoaded])
+
+//     return { draw, features, setFeatures }
+// }
 export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
     const [draw, setDraw] = useState<TerraDraw | null>(null)
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
@@ -161,19 +271,30 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
     useEffect(() => { featuresRef.current = features }, [features])
 
     useEffect(() => {
+        console.log('[TerraDraw] effect fired — mapsLoaded:', mapsLoaded, 'mapRef.current:', !!mapRef.current)
+        
         const map = mapRef.current?.getMap()
-        if (!map || !mapsLoaded) return
+        console.log('[TerraDraw] map instance:', !!map, 'isStyleLoaded:', map?.isStyleLoaded())
+        
+        if (!map || !mapsLoaded) {
+            console.log('[TerraDraw] bailing out — map:', !!map, 'mapsLoaded:', mapsLoaded)
+            return
+        }
 
         const createDraw = () => {
+            console.log('[TerraDraw] createDraw called — stopping existing:', !!drawRef.current)
             if (drawRef.current) {
                 try { drawRef.current.stop() } catch (e) { console.error('Error stopping draw:', e) }
                 drawRef.current = null
                 setDraw(null)
             }
 
+            console.log('[TerraDraw] scheduling setTimeout...')
             setTimeout(() => {
+                console.log('[TerraDraw] inside setTimeout — map still valid:', !!mapRef.current?.getMap())
                 try {
                     const adapter = new TerraDrawMapLibreGLAdapter({ map, renderBelowLayerId: undefined })
+                    console.log('[TerraDraw] adapter created')
                     const newDraw = new TerraDraw({
                         adapter,
                         modes: [
@@ -194,9 +315,9 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
                             new TerraDrawCircleMode(),
                         ],
                     })
-
-                    // newDraw.on('change', () => setFeatures(newDraw.getSnapshot() || []))
+                    console.log('[TerraDraw] TerraDraw instance created, calling start()...')
                     newDraw.start()
+                    console.log('[TerraDraw] started, setting mode to select')
                     newDraw.setMode('select')
 
                     if (featuresRef.current.length > 0) {
@@ -209,13 +330,13 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
 
                     drawRef.current = newDraw
                     setDraw(newDraw)
+                    console.log('[TerraDraw] ✅ draw instance set successfully')
                 } catch (err) {
-                    console.error('Error creating TerraDraw instance:', err)
+                    console.error('[TerraDraw] ❌ Error creating TerraDraw instance:', err)
                 }
             }, 500)
         }
 
-        // Keep td-* layers on top after style changes
         const handleStyleData = () => {
             if (!map || !drawRef.current) return
             try {
@@ -228,24 +349,67 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
             } catch { }
         }
 
-        map.on('style.load', createDraw)
         map.on('styledata', handleStyleData)
         map.on('sourcedata', handleStyleData)
         map.on('render', handleStyleData)
-        map.on('data', (e) => { if (e.type === 'style' || e.type === 'source') handleStyleData() })
 
-        if (map.isStyleLoaded()) createDraw()
+        // if (map.isStyleLoaded()) {
+        //     console.log('[TerraDraw] style already loaded — calling createDraw via rAF')
+        //     requestAnimationFrame(() => createDraw())
+        // } else {
+        //     console.log('[TerraDraw] style NOT loaded — waiting for style.load event')
+        //     map.once('style.load', () => {
+        //         console.log('[TerraDraw] style.load fired — calling createDraw via rAF')
+        //         requestAnimationFrame(() => createDraw())
+        //     })
+        // }
+        const tryInit = () => {
+            if (map.isStyleLoaded()) {
+                console.log('[TerraDraw] ✅ style ready — creating draw')
+                requestAnimationFrame(() => createDraw())
+                return true
+            }
+            return false
+        }
+
+        if (!tryInit()) {
+            console.log('[TerraDraw] style not ready — polling via styledata')
+            const onStyleData = () => {
+                if (tryInit()) {
+                    map.off('styledata', onStyleData)
+                }
+            }
+            map.on('styledata', onStyleData)
+            // store for cleanup
+            ;(map as any).__tdInitCleanup = () => map.off('styledata', onStyleData)
+        }
+
+
+
+        // return () => {
+        //     console.log('[TerraDraw] cleanup — stopping draw')
+        //     map.off('styledata', handleStyleData)
+        //     map.off('sourcedata', handleStyleData)
+        //     map.off('render', handleStyleData)
+        //     if (drawRef.current) {
+        //         try { drawRef.current.stop() } catch { }
+        //         drawRef.current = null
+        //     }
+        // }
 
         return () => {
-            map.off('style.load', createDraw)
+            console.log('[TerraDraw] cleanup — stopping draw')
             map.off('styledata', handleStyleData)
             map.off('sourcedata', handleStyleData)
             map.off('render', handleStyleData)
+            ;(map as any).__tdInitCleanup?.()
+            delete (map as any).__tdInitCleanup
             if (drawRef.current) {
                 try { drawRef.current.stop() } catch { }
                 drawRef.current = null
             }
         }
+
     }, [mapRef, setFeatures, mapsLoaded])
 
     return { draw, features, setFeatures }
