@@ -13,31 +13,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { LucideIcon } from "lucide-react"
 import { atom, useAtom } from "jotai"
 import { cn } from "@/lib/utils"
+import { activeSliderAtom, transparentUiAtom } from "@/lib/settings-atoms"
 
-// ─── Mobile detection (orientation-based) ────────────────────────────────────
-
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === "undefined") return false
-    return window.matchMedia("(orientation: portrait)").matches
-  })
-  useEffect(() => {
-    const mq = window.matchMedia("(orientation: portrait)")
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    mq.addEventListener("change", handler)
-    return () => mq.removeEventListener("change", handler)
-  }, [])
-  // return isMobile
-  return true
-}
 
 // ─── Active-slider atom (global, no prop drilling) ────────────────────────────
 
-export const activeSliderAtom = atom<string | null>(null)
-
 // ─── Section context (module-level, not inside component) ────────────────────
 
-const SectionIdContext = createContext<string>("")
+export const SectionIdContext = createContext<string>("")
 
 // ─── MobileSlider ─────────────────────────────────────────────────────────────
 
@@ -45,27 +28,28 @@ export const MobileSlider = forwardRef<
   React.ElementRef<typeof Slider>,
   React.ComponentPropsWithoutRef<typeof Slider> & { sliderId?: string }
 >(({ sliderId, className, onPointerDown, onPointerUp, onPointerCancel, ...props }, ref) => {
-  const isMobile = useIsMobile()
+  const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
+  
   const [, setActiveSlider] = useAtom(activeSliderAtom)
   const id = sliderId ?? (props as any)["aria-label"] ?? "slider"
 
   const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
-    if (isMobile) setActiveSlider(id)
+    if (transparentUi) setActiveSlider(id)
     onPointerDown?.(e)
   }
   const handlePointerUp = (e: React.PointerEvent<HTMLSpanElement>) => {
-    if (isMobile) setActiveSlider(null)
+    if (transparentUi) setActiveSlider(null)
     onPointerUp?.(e)
   }
   const handlePointerCancel = (e: React.PointerEvent<HTMLSpanElement>) => {
-    if (isMobile) setActiveSlider(null)
+    if (transparentUi) setActiveSlider(null)
     onPointerCancel?.(e)
   }
 
   return (
     <Slider
       ref={ref}
-      className={cn(className, isMobile ? "relative z-[60]" : "")}
+      className={cn(className, transparentUi ? "relative z-[60]" : "")}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
@@ -139,8 +123,8 @@ export const Section: React.FC<{
           </CollapsibleContent>
         </SectionIdContext.Provider>
       </Collapsible>
-      {withSeparator && (
-        <Separator className={cn("transition-opacity duration-150", dim && "opacity-20")} />
+       {withSeparator && (
+         <Separator className={cn("transition-opacity duration-150", activeSlider !== null && "opacity-20")} />
       )}
     </>
   )

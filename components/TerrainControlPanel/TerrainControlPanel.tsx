@@ -6,7 +6,7 @@ import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown } from 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { themeAtom } from "@/lib/settings-atoms"
+import { themeAtom, transparentUiAtom, activeSliderAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
 import { useSourceConfig, type Bounds } from "@/lib/controls-utils"
@@ -24,7 +24,8 @@ import { FooterSection } from "./footer-section"
 import { TooltipIconButton } from "./controls-components"
 
 import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
-import { useIsMobile, activeSliderAtom } from "./controls-components"
+import {AnimationSection} from "./CameraUtilities"
+import { useIsMobile } from '@/hooks/use-mobile'
 import type { AnimState } from "./CameraUtilities"
 import { cn } from "@/lib/utils"
 
@@ -42,6 +43,7 @@ const SECTION_KEYS = [
   "contour",
   "background",
   "drawing",
+  "animation"
 ] as const
 
 type SectionKey = (typeof SECTION_KEYS)[number]
@@ -58,6 +60,7 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   contour: false,
   background: false,
   drawing: false,
+  animation: false,
 }
 
 export const sectionOpenAtom = atomWithStorage<SectionOpenState>("sectionOpen", DEFAULT_OPEN_STATE)
@@ -69,7 +72,8 @@ interface TerrainControlPanelProps {
   mapRef: React.RefObject<MapRef>
   mapsLoaded: boolean
   animState: AnimState
-  setAnimState: (s: AnimState) => void
+  // setAnimState: (s: AnimState) => void
+  setAnimState?: React.Dispatch<React.SetStateAction<AnimState>>
 }
 
 export function TerrainControlPanel({
@@ -88,6 +92,7 @@ export function TerrainControlPanel({
   const { draw } = useTerraDraw(mapRef, mapsLoaded)
   const isMobile = useIsMobile()
   const [activeSlider] = useAtom(activeSliderAtom)
+  const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
 
 
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
@@ -147,7 +152,7 @@ export function TerrainControlPanel({
   "absolute z-50 overflow-y-auto p-4 gap-2 space-y-2 backdrop-blur-[2px] text-base",
          "right-0 top-0 bottom-0 w-80 rounded-none",
          "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
-        isMobile && activeSlider
+        transparentUi && activeSlider
           ? "bg-background/20"
           : "bg-background/95",
         "transition-[background-color] duration-150"
@@ -181,7 +186,8 @@ export function TerrainControlPanel({
         <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
         <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} />
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
-        <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} state={state} setState={setState} setIsSidebarOpen={setIsSidebarOpen}        animState={animState} setAnimState={setAnimState} />
+        <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} state={state} setState={setState} setIsSidebarOpen={setIsSidebarOpen} animState={animState} setAnimState={setAnimState} />
+        <AnimationSection mapRef={mapRef} isOpen={sectionOpen.animation} onOpenChange={toggle("animation")} state={state} setState={setState} setIsSidebarOpen={setIsSidebarOpen} animState={animState} setAnimState={setAnimState} />
         <FooterSection />
       </Card>
     </TooltipProvider>

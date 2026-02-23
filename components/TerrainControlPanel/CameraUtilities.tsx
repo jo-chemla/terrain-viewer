@@ -2,7 +2,7 @@
  * CameraButtons.tsx
  */
 
-import { useRef, useState, useCallback, useEffect } from "react"
+import { useRef, useState, useCallback, useEffect, type RefObject } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "../ui/label"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,7 @@ import { useNuqsAnimationSafeSetter } from "@/lib/useNuqsAnimationSafeSetter"
 import { CanvasSource, Mp4OutputFormat, Output, QUALITY_HIGH, StreamTarget } from 'mediabunny'
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Section } from './controls-components'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,7 +84,8 @@ interface CameraButtonsProps {
   setIsSidebarOpen?: (open: boolean) => void
   // Lifted animation state (optional — when provided, state survives sidebar close)
   animState?: AnimState
-  setAnimState?: (s: AnimState) => void
+  // setAnimState?: (s: AnimState) => void
+  setAnimState?: React.Dispatch<React.SetStateAction<AnimState>>
 }
 // Exported so TerrainViewer can hold it
 export interface AnimState {
@@ -480,6 +482,13 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animS
     else setLocalAnimState(next)
   }, [animState, localAnimState, setAnimState])
 
+  // const setAnim = useCallback((patch: Partial<AnimState>) => {
+  //   const updater = (prev: AnimState) => ({ ...prev, ...patch })
+  //   if (setAnimState) setAnimState(updater)
+  //   else setLocalAnimState(updater)
+  // }, [setAnimState])
+
+
   const smoothCamera  = anim.smoothCamera
   const setSmoothCamera = (v: boolean) => setAnim({ smoothCamera: v })
 
@@ -808,10 +817,10 @@ reviveMapInteractions(map)
             onCheckedChange={(val) => {
               setSmoothCamera(val)
               // try resetting to re-assert pose with the new mode — this can cause a jump if the two modes are out of sync, but at least it won't leave you in a broken state
-              setPose1(null)
-              setPose2(null)
-              setProgress(0)
-              stopPlay()
+              // setPose1(null)
+              // setPose2(null)
+              // setProgress(0)
+              // stopPlay()
             }} 
             className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent disabled:cursor-not-allowed disabled:opacity-50"
           />
@@ -1009,4 +1018,35 @@ reviveMapInteractions(map)
       </Button>
     </>
   )
+}
+
+interface AnimationSectionProps {
+    mapRef: RefObject<MapRef>
+    isOpen: boolean
+    onOpenChange: (open: boolean) => void
+    state: Record<string, unknown>
+    setState: (state: Record<string, unknown>) => void
+    setIsSidebarOpen: (open: boolean) => void
+    animState: AnimState
+    // setAnimState: (s: AnimState) => void
+    setAnimState?: React.Dispatch<React.SetStateAction<AnimState>>
+
+}
+
+export function AnimationSection({ mapRef, isOpen, onOpenChange, state, setState, setIsSidebarOpen, animState, setAnimState }: AnimationSectionProps) {
+    return (
+        <Section title="Tools: Animation" isOpen={isOpen} onOpenChange={onOpenChange}>
+
+            <CameraButtons
+                mapRef={mapRef}
+                // appState={state}
+                // onAppStateChange={setState}
+                state={state}
+                setState={setState}
+                setIsSidebarOpen={setIsSidebarOpen}
+                animState={animState}
+                setAnimState={setAnimState}
+            />
+        </Section>
+    )
 }

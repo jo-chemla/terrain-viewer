@@ -55,3 +55,7 @@ export interface CustomBasemapSource {
 
 export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [])
 export const isBasemapByodOpenAtom = atomWithStorage("isBasemapByodOpen", true)
+export const isHillshadeXYPadOpenAtom = atomWithStorage("isHillshadeXYPadOpen", true)
+
+export const transparentUiAtom = atomWithStorage("isTransparentUi", true)
+export const activeSliderAtom = atom<string | null>(null)

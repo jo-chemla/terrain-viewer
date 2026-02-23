@@ -765,31 +765,13 @@ interface TerraDrawSectionProps {
     mapRef: RefObject<MapRef>
     isOpen: boolean
     onOpenChange: (open: boolean) => void
-    state: Record<string, unknown>
-    setState: (state: Record<string, unknown>) => void
-    setIsSidebarOpen: (open: boolean) => void
-    animState: AnimState
-    setAnimState: (s: AnimState) => void
-
 }
 
-export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange, state, setState, setIsSidebarOpen, animState, setAnimState }: TerraDrawSectionProps) {
+export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange }: TerraDrawSectionProps) {
     return (
-        <Section title="Tools / WIP" isOpen={isOpen} onOpenChange={onOpenChange}>
+        <Section title="Tools: Drawing" isOpen={isOpen} onOpenChange={onOpenChange}>
             <TerraDrawActions draw={draw} mapRef={mapRef} />
             <TerraDrawControls draw={draw} />
-            <Label className="text-sm font-medium mt-4">Animation Tools</Label>
-            <CameraButtons
-                mapRef={mapRef}
-                // appState={state}
-                // onAppStateChange={setState}
-                state={state}
-                setState={setState}
-                setIsSidebarOpen={setIsSidebarOpen}
-                animState={animState}
-                setAnimState={setAnimState}
-
-            />
         </Section>
     )
 }
