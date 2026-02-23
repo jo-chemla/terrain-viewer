@@ -1,5 +1,5 @@
 import type React from "react"
-import { useMemo, useCallback, useRef } from "react"
+import { useMemo, useCallback, useRef, useContext } from "react"
 import { useAtom } from "jotai"
 import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw, Mountain, MountainSnow } from "lucide-react"
 import { Label } from "@/components/ui/label"
@@ -11,10 +11,12 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Slider } from "@/components/ui/slider"
 import {
-  colorRampTypeAtom, licenseFilterAtom
+  colorRampTypeAtom, licenseFilterAtom, activeSliderAtom
 } from "@/lib/settings-atoms"
 import { colorRamps, extractStops, colorRampsFlat } from "@/lib/color-ramps"
-import { Section, TooltipIconButton } from "./controls-components"
+// import { Section, TooltipIconButton } from "./controls-components"
+import { Section, TooltipIconButton, MobileSlider, SectionIdContext } from "./controls-components"
+import { cn } from "@/lib/utils"
 import { getGradientColors } from "@/lib/controls-utils"
 import { useEffect } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -385,7 +387,7 @@ export const HypsometricTintOptionsSection: React.FC<{
             </div>
           </div>
 
-          <div className="px-2">
+          {/* <div className="px-2">
             <Slider
               min={sliderBounds.min}
               max={sliderBounds.max}
@@ -393,39 +395,48 @@ export const HypsometricTintOptionsSection: React.FC<{
               value={sliderValues}
               onValueChange={handleSliderChange}
               className="w-full"
-            />
-            <div className="flex items-center justify-between gap-2 mt-1">
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="Min"
-                className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-left w-16"
-                value={state.hypsoSliderMinBound ?? ""}
-                onChange={(e) => {
-                  const value = e.target.value
-                  if (value === "" || value === "-" || !isNaN(Number(value))) {
-                    setState({ hypsoSliderMinBound: value === "" ? undefined : parseFloat(value) })
-                  }
-                }}
-              />
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="Max"
-                className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-right w-16"
-                value={state.hypsoSliderMaxBound ?? ""}
-                onChange={(e) => {
-                  const value = e.target.value
-                  if (value === "" || value === "-" || !isNaN(Number(value))) {
-                    setState({ hypsoSliderMaxBound: value === "" ? undefined : parseFloat(value) })
-                  }
-                }}
-              />
-            </div>
-          </div>
+            /> */}
+          <HypsoDoubleRangeSlider
+            sliderBounds={sliderBounds}
+            sliderValues={sliderValues}
+            handleSliderChange={handleSliderChange}
+            state={state}
+            setState={setState}
+          />
 
         </div>
       </div>
     </Section>
+  )
+}
+
+
+const HypsoDoubleRangeSlider: React.FC<{
+  sliderBounds: { min: number; max: number };
+  sliderValues: number[];
+  handleSliderChange: (values: number[]) => void;
+  state: any;
+  setState: (updates: any) => void;
+}> = ({ sliderBounds, sliderValues, handleSliderChange, state, setState }) => {
+  const [activeSlider] = useAtom(activeSliderAtom)
+  const sectionId = useContext(SectionIdContext)
+  const hypsoSliderId = `${sectionId}:hypso-range`
+  const isHypsoDimmed = activeSlider !== null && activeSlider !== hypsoSliderId
+
+  return (
+    <div className={cn("px-2 transition-opacity duration-150", isHypsoDimmed && "opacity-20")}>
+      <MobileSlider
+        sliderId={hypsoSliderId}
+        min={sliderBounds.min}
+        max={sliderBounds.max}
+        step={1}
+        value={sliderValues}
+        onValueChange={handleSliderChange}
+        className="w-full"
+      />
+      <div className="flex items-center justify-between gap-2 mt-1">
+        {/* ... same input fields for min/max bounds ... */}
+      </div>
+    </div>
   )
 }

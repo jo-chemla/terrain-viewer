@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
 import {SphericalXYPad} from './XYPad'
+import { isHillshadeXYPadOpenAtom } from "@/lib/settings-atoms"
+import { useAtom } from "jotai"
 
 export const HillshadeOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void;
@@ -15,6 +17,7 @@ export const HillshadeOptionsSection: React.FC<{
   const [isColorsOpen, setIsColorsOpen] = useState(false)
   const [isXypadOpen, setIsXypadOpen] = useState(false)
   const hillshadeMethodKeys = useMemo(() => ["standard", "combined", "igor", "basic", "multidirectional", "multidir-colors"], [])
+  const [isHillshadeXYPadOpen, setIsHillshadeXYPadOpen] = useAtom(isHillshadeXYPadOpenAtom)
 
   const cycleHillshadeMethod = useCallback((direction: number) => {
     const currentIndex = hillshadeMethodKeys.indexOf(state.hillshadeMethod)
@@ -46,16 +49,18 @@ export const HillshadeOptionsSection: React.FC<{
       </div>
       {/* XY Pad for both illumination azimuth and elevation */}
       {(supportsIlluminationDirection && supportsIlluminationAltitude) && (
-        <Collapsible open={isXypadOpen} onOpenChange={setIsXypadOpen}>
+        <Collapsible open={isHillshadeXYPadOpen} onOpenChange={setIsHillshadeXYPadOpen}>
           <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
-             Illumination Azimuth and Elevation<ChevronDown className={`h-4 w-4 transition-transform ${isXypadOpen ? "rotate-180" : ""}`} />
+             Illumination Azimuth and Elevation<ChevronDown className={`h-4 w-4 transition-transform ${isHillshadeXYPadOpen ? "rotate-180" : ""}`} />
           </CollapsibleTrigger>
-          <CollapsibleContent className="flex justify-center pt-1">
+          <CollapsibleContent className="flex justify-center pt-1 overflow-visible">
             <SphericalXYPad
               width={200}
               height={200}
-              azimuthRange={[-180, 180]}
+              azimuthRange={[0, 360]}
+              // azimuthRange={[-180, 180]}
               elevationRange={[1, 90]}
+              sliderId="illumination-xypad"
               value={{ azimuthDeg: state.illuminationDir, elevationDeg: state.illuminationAlt }}
               onChange={({ azimuthDeg, elevationDeg }) => {
                 setState({ illuminationDir: azimuthDeg, illuminationAlt: elevationDeg })

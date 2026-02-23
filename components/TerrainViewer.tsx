@@ -541,7 +541,6 @@ export function TerrainViewer() {
         mapsLoaded={mapsLoaded}
         animState={animState}
         setAnimState={setAnimState}
-
       />
     </div>
   )

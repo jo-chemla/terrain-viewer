@@ -5,12 +5,13 @@ import { Moon, Sun, Settings, ExternalLink } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
-  maxResolutionAtom, useCogProtocolVsTitilerAtom
+  maxResolutionAtom, useCogProtocolVsTitilerAtom, transparentUiAtom
 } from "@/lib/settings-atoms"
 import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
@@ -26,6 +27,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [batchEditMode, setBatchEditMode] = useState(false)
   const [batchApiKeys, setBatchApiKeys] = useState("")
   const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
+  const [isTransparentUi, setTransparentUi] = useAtom(transparentUiAtom)
 
   const handleBatchToggle = useCallback(() => {
     if (!batchEditMode) {
@@ -67,6 +69,23 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 {theme === "light" ? <><Moon className="h-4 w-4 mr-2" />Dark</> : <><Sun className="h-4 w-4 mr-2" />Light</>}
               </Button>
             </div>
+<div className="flex items-center justify-between">
+  <div className="flex items-baseline gap-2">
+    <Label htmlFor="transparent-ui">Transparent UI</Label>
+    <span className="text-sm text-muted-foreground">
+      Useful for editing symbology on mobile
+    </span>
+  </div>
+
+  <Switch
+    id="transparent-ui"
+    checked={isTransparentUi}
+    className="cursor-pointer"
+    onCheckedChange={setTransparentUi}
+  />
+</div>
+
+
           </div>
           <Separator />
           <div className="space-y-4">
