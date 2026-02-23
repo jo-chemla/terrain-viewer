@@ -420,11 +420,11 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
 // --- CONTROLS COMPONENT ---
 
 export function TerraDrawControls({ draw }: { draw: TerraDraw | null }) {
-    const [activeMode, setActiveMode] = useState<string>('select')
+    const [activeDrawMode, setActiveDrawMode] = useState<string>('select')
 
     useEffect(() => {
         if (!draw) return
-        const update = () => { try { const m = draw.getMode(); if (m) setActiveMode(m) } catch { } }
+        const update = () => { try { const m = draw.getMode(); if (m) setActiveDrawMode(m) } catch { } }
         draw.on('change', update)
         return () => { try { draw.off('change', update) } catch { } }
     }, [draw])
@@ -447,9 +447,9 @@ export function TerraDrawControls({ draw }: { draw: TerraDraw | null }) {
                 {modes.map(({ id, label, icon: Icon }) => (
                     <Button
                         key={id}
-                        variant={activeMode === id ? 'default' : 'outline'}
+                        variant={activeDrawMode === id ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { draw.setMode(id); setActiveMode(id) }}
+                        onClick={() => { draw.setMode(id); setActiveDrawMode(id) }}
                         className="cursor-pointer"
                     >
                         <Icon className="h-4 w-4 mr-1" />

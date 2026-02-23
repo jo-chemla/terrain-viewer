@@ -118,6 +118,7 @@ export function TerrainViewer() {
     graticuleWidth: parseAsFloat.withDefault(1.0),
     showGraticuleLabels: parseAsBoolean.withDefault(false),
     graticuleDensity: parseAsFloat.withDefault(0),
+    minimapMinimized: parseAsBoolean.withDefault(true),
   })
 
   const [skyConfig] = useAtom(skyConfigAtom)
@@ -449,7 +450,7 @@ export function TerrainViewer() {
                 mode="dynamic"
                 initBounds={[[-150, -30], [150, 50]]}
                 // mode="dynamic"
-                zoomLevelOffset={-4}
+                zoomLevelOffset={-6}
                 // mode="static" interactive = true only works in static mode 
                 interactive={true}
                 interactions={{
@@ -461,7 +462,8 @@ export function TerrainViewer() {
                 height={180}
                 showFrustum={false}
                 // showFootprint={true}
-                initialMinimized={true}
+                minimized={state.minimapMinimized}
+                onMinimizedChange={(v) => setState({ minimapMinimized: v })}
                 footprintFillPaint={{
                   "fill-color": "#3b82f6",
                   "fill-opacity": 0.15,

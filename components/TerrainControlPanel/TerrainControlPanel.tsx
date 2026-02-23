@@ -127,8 +127,6 @@ export function TerrainControlPanel({
       </TooltipProvider>
     )
   }
-  // const [activeSlider, setActiveSlider] = useState<string | null>(null)
-
 
   return (
     <TooltipProvider delayDuration={0} skipDelayDuration={0}>
