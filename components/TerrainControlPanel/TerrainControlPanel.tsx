@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback  } from "react"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
@@ -24,6 +24,8 @@ import { FooterSection } from "./footer-section"
 import { TooltipIconButton } from "./controls-components"
 
 import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
+import type { AnimState } from "./CameraUtilities"
+import { cn } from "@/lib/utils"
 
 // --- Persisted state ---
 export const isSidebarOpenAtom = atomWithStorage("isSidebarOpen", true)
@@ -65,6 +67,8 @@ interface TerrainControlPanelProps {
   getMapBounds: () => Bounds
   mapRef: React.RefObject<MapRef>
   mapsLoaded: boolean
+  animState: AnimState
+  setAnimState: (s: AnimState) => void
 }
 
 export function TerrainControlPanel({
@@ -73,6 +77,8 @@ export function TerrainControlPanel({
   getMapBounds,
   mapRef,
   mapsLoaded,
+  animState,
+  setAnimState,
 }: TerrainControlPanelProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -142,7 +148,7 @@ export function TerrainControlPanel({
         <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
         <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} />
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
-        <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} state={state} setState={setState} setIsSidebarOpen={setIsSidebarOpen} />
+        <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} state={state} setState={setState} setIsSidebarOpen={setIsSidebarOpen}        animState={animState} setAnimState={setAnimState} />
         <FooterSection />
       </Card>
     </TooltipProvider>

@@ -16,6 +16,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { Section, CheckboxWithSlider } from './controls-components'
 import { truncate as turf_truncate } from '@turf/truncate'
 import { CameraButtons } from "./CameraUtilities"
+import type { AnimState } from "./CameraUtilities"
+
 import * as toGeoJSON from '@tmcw/togeojson'
 // import { load } from '@loaders.gl/core'
 // import { GeoPackageLoader } from '@loaders.gl/geopackage'
@@ -766,9 +768,12 @@ interface TerraDrawSectionProps {
     state: Record<string, unknown>
     setState: (state: Record<string, unknown>) => void
     setIsSidebarOpen: (open: boolean) => void
+    animState: AnimState
+    setAnimState: (s: AnimState) => void
+
 }
 
-export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange, state, setState, setIsSidebarOpen }: TerraDrawSectionProps) {
+export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange, state, setState, setIsSidebarOpen, animState, setAnimState }: TerraDrawSectionProps) {
     return (
         <Section title="Tools / WIP" isOpen={isOpen} onOpenChange={onOpenChange}>
             <TerraDrawActions draw={draw} mapRef={mapRef} />
@@ -780,7 +785,10 @@ export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange, state, se
                 // onAppStateChange={setState}
                 state={state}
                 setState={setState}
-                setIsSidebarOpen={setIsSidebarOpen}         
+                setIsSidebarOpen={setIsSidebarOpen}
+                animState={animState}
+                setAnimState={setAnimState}
+
             />
         </Section>
     )
