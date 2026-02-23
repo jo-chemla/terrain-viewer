@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { MapRef, LngLatBoundsLike, ControlPosition } from 'react-map-gl/maplibre';
 import type { Map as MapLibreMap, StyleSpecification, IControl } from 'maplibre-gl';
-import { useIsMobile } from '@/components/TerrainControlPanel/controls-components'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 import * as turf from '@turf/turf';
 
