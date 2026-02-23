@@ -25,10 +25,11 @@ interface MinimapControlProps {
   width?: number;
   height?: number;
   zoomLevelOffset?: number;
-  initialMinimized?: boolean;
   initBounds?: LngLatBoundsLike;
   style?: string | StyleSpecification;
-  
+  minimized?: boolean;
+  onMinimizedChange?: (minimized: boolean) => void;
+
   footprintFillPaint?: {
     "fill-color"?: string;
     "fill-opacity"?: number;
@@ -71,7 +72,8 @@ function MinimapInternal({
   width = 200,
   height = 150,
   zoomLevelOffset = -3,
-  initialMinimized = false,
+  minimized = false,
+  onMinimizedChange,
   initBounds,
   style,
   footprintFillPaint = {
@@ -100,7 +102,9 @@ function MinimapInternal({
   const parentMap = externalParentMap || internalParentMap;
   const isMobile = useIsMobile()
   
-  const [minimized, setMinimized] = useState(initialMinimized);
+  const setMinimized = (v: boolean) => onMinimizedChange?.(v);
+  // const minimized = minimizedProp;
+
   const [footprintData, setFootprintData] = useState<GeoJSON.Feature | null>(null);
   const [frustumData, setFrustumData] = useState<GeoJSON.Feature | null>(null);
   const [viewState, setViewState] = useState({
