@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { MapRef, LngLatBoundsLike, ControlPosition } from 'react-map-gl/maplibre';
 import type { Map as MapLibreMap, StyleSpecification, IControl } from 'maplibre-gl';
+import { useIsMobile } from '@/components/TerrainControlPanel/controls-components'
 
 import * as turf from '@turf/turf';
 
@@ -97,6 +98,7 @@ function MinimapInternal({
 }: MinimapControlProps) {
   const { current: internalParentMap } = useMap();
   const parentMap = externalParentMap || internalParentMap;
+  const isMobile = useIsMobile()
   
   const [minimized, setMinimized] = useState(initialMinimized);
   const [footprintData, setFootprintData] = useState<GeoJSON.Feature | null>(null);
@@ -480,7 +482,12 @@ function MinimapInternal({
           <div className="minimap-ui">
             <Button
               className={cn(
-                "absolute h-7 w-7 rounded-sm opacity-10 group-hover/minimap:opacity-100 transition-opacity z-50 shadow-md border bg-background/90 hover:bg-background/90 hover:opacity-100 hover:cursor-pointer",
+                // "absolute h-7 w-7 rounded-sm opacity-10 group-hover/minimap:opacity-100 transition-opacity z-50 shadow-md border bg-background/90 hover:bg-background/90 hover:opacity-100 hover:cursor-pointer",
+                "absolute h-7 w-7 rounded-sm transition-opacity z-50 shadow-md border bg-background/90 hover:bg-background/90 hover:cursor-pointer",
+                // Desktop: hide until hover. Mobile: always fully visible.
+                isMobile
+                  ? "opacity-100"
+                  : "opacity-10 group-hover/minimap:opacity-100 hover:opacity-100",
                 getButtonPositionClasses(position)
               )}
               onClick={(e) => {
