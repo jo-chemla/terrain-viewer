@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, forwardRef } from "react"
+import { useState, useEffect, forwardRef } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -11,6 +11,77 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { LucideIcon } from "lucide-react"
+import { atom, useAtom } from "jotai"
+import { cn } from "@/lib/utils"
+
+// ─── Mobile detection (orientation-based) ────────────────────────────────────
+
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false
+    // portrait = mobile regardless of pixel width (covers tablets held portrait)
+    return window.matchMedia("(orientation: portrait)").matches
+  })
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: portrait)")
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener("change", handler)
+    return () => mq.removeEventListener("change", handler)
+  }, [])
+  // return isMobile
+  return true
+}
+
+// ─── Active-slider atom (global, no prop drilling) ────────────────────────────
+
+export const activeSliderAtom = atom<string | null>(null)
+
+// ─── MobileSlider — drop-in Slider replacement ───────────────────────────────
+// Usage: just swap `import { Slider } from "@/components/ui/slider"`
+//        with   `import { MobileSlider as Slider } from "./controls-components"`
+// The wrapper dims the sidebar panel on mobile while this slider is touched,
+// and restores it on release. Everything else is identical to shadcn Slider.
+
+export const MobileSlider = forwardRef<
+  React.ElementRef<typeof Slider>,
+  React.ComponentPropsWithoutRef<typeof Slider> & { sliderId?: string }
+>(({ sliderId, className, onPointerDown, onPointerUp, onPointerCancel, ...props }, ref) => {
+  const isMobile = useIsMobile()
+  const [, setActiveSlider] = useAtom(activeSliderAtom)
+  // stable id so the panel knows which element is active
+  const id = sliderId ?? (props as any)["aria-label"] ?? "slider"
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (isMobile) setActiveSlider(id)
+    onPointerDown?.(e)
+  }
+  const handlePointerUp = (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (isMobile) setActiveSlider(null)
+    onPointerUp?.(e)
+  }
+  const handlePointerCancel = (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (isMobile) setActiveSlider(null)
+    onPointerCancel?.(e)
+  }
+
+  return (
+    <Slider
+      ref={ref}
+       className={cn(
+         className,
+        isMobile ? "relative z-[60]" : ""
+       )}
+
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      {...props}
+    />
+  )
+})
+MobileSlider.displayName = "MobileSlider"
+
+
 
 export const PasswordInput = forwardRef<HTMLInputElement, any>(({ className, ...props }, ref) => {
   const [showPassword, setShowPassword] = useState(false);
@@ -64,28 +135,37 @@ export const Section: React.FC<{
 export const SliderControl: React.FC<{
   label: string; value: number; onChange: (value: number) => void; min: number; max: number; step: number
   suffix?: string; decimals?: number; disabled?: boolean; hideValue?: boolean
+  sliderId?: string
 }> = ({ label, value, onChange, min, max, step, suffix = "", decimals = 0, disabled = false, hideValue = false }) => (
-  <div className="space-y-1">
-    <div className="flex items-center justify-between">
-      <Label className="text-sm">{label}</Label>
-      {!hideValue && <span className="text-sm text-muted-foreground">{value.toFixed(decimals)}{suffix}</span>}
+  <div className="space-y-1">      <div className="flex items-center justify-between">
+        <Label className="text-sm">{label}</Label>
+        {!hideValue && <span className="text-sm text-muted-foreground">{value.toFixed(decimals)}{suffix}</span>}
+      </div>
+      {/* <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} /> */}
+      {/* <MobileSlider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} /> */}
+    <MobileSlider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} />
     </div>
-    <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} />
-  </div>
-)
+  )
+
 
 export const CheckboxWithSlider: React.FC<{
   id: string; label: string; checked: boolean; onCheckedChange: (checked: boolean) => void
   sliderValue?: number; onSliderChange?: (value: number) => void; hideSlider?: boolean; disabled?: boolean
+
 }> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false }) => (
   <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
-    <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />
+
+<Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />
     <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider ? "col-span-2" : ""}`}>{label}</Label>
     {!hideSlider && (
-      <Slider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
+      // <Slider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
+      // <MobileSlider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
+      <MobileSlider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
+
     )}
   </div>
 )
+
 
 export const CycleButtonGroup: React.FC<{
   value: string; options: { value: string; label: string | JSX.Element }[]

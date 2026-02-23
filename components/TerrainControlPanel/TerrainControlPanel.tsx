@@ -24,6 +24,7 @@ import { FooterSection } from "./footer-section"
 import { TooltipIconButton } from "./controls-components"
 
 import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
+import { useIsMobile, activeSliderAtom } from "./controls-components"
 import type { AnimState } from "./CameraUtilities"
 import { cn } from "@/lib/utils"
 
@@ -85,6 +86,9 @@ export function TerrainControlPanel({
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
   const [theme] = useAtom(themeAtom)
   const { draw } = useTerraDraw(mapRef, mapsLoaded)
+  const isMobile = useIsMobile()
+  const [activeSlider] = useAtom(activeSliderAtom)
+
 
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
 
@@ -118,10 +122,38 @@ export function TerrainControlPanel({
       </TooltipProvider>
     )
   }
+  // const [activeSlider, setActiveSlider] = useState<string | null>(null)
+
 
   return (
     <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-      <Card className="absolute right-4 top-4 bottom-4 w-96 overflow-y-auto p-4 gap-2 space-y-2 bg-background/95 backdrop-blur text-base">
+      {/* Mobile backdrop — tap outside to close */}
+      {isMobile && isSidebarOpen &&  (
+        <div
+          className="fixed inset-0 z-40 bg-transparent"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* <Card className="absolute right-4 top-4 bottom-4 w-96 overflow-y-auto p-4 gap-2 space-y-2 bg-background/95 backdrop-blur text-base"> */}
+       {/* <Card className={cn(
+         "absolute z-50 overflow-y-auto p-4 gap-2 space-y-2 backdrop-blur text-base",
+         "right-0 top-0 bottom-0 w-80 rounded-none",
+         "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
+        "bg-background/95 transition-[background-color] duration-150"
+       )}> */}
+        <Card className={cn(
+         "absolute z-50 overflow-y-auto p-4 gap-2 space-y-2 backdrop-blur-sm backdrop-blur-[2px] text-base",
+         "right-0 top-0 bottom-0 w-80 rounded-none",
+         "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
+        isMobile && activeSlider
+          ? "bg-background/20"
+          : "bg-background/95",
+        "transition-[background-color] duration-150"
+       )}>
+
+        {/* Invisible per-slider overlay restorer — individual sliders set opacity-100 on their wrapper */}
+
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Terrain Viewer</h2>
           <div className="flex gap-1 items-center">
