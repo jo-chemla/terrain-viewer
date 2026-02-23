@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useEffect, forwardRef } from "react"
+import { useState, useEffect, forwardRef, createContext, useContext, useId } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -19,7 +19,6 @@ import { cn } from "@/lib/utils"
 export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false
-    // portrait = mobile regardless of pixel width (covers tablets held portrait)
     return window.matchMedia("(orientation: portrait)").matches
   })
   useEffect(() => {
@@ -36,11 +35,11 @@ export function useIsMobile() {
 
 export const activeSliderAtom = atom<string | null>(null)
 
-// ─── MobileSlider — drop-in Slider replacement ───────────────────────────────
-// Usage: just swap `import { Slider } from "@/components/ui/slider"`
-//        with   `import { MobileSlider as Slider } from "./controls-components"`
-// The wrapper dims the sidebar panel on mobile while this slider is touched,
-// and restores it on release. Everything else is identical to shadcn Slider.
+// ─── Section context (module-level, not inside component) ────────────────────
+
+const SectionIdContext = createContext<string>("")
+
+// ─── MobileSlider ─────────────────────────────────────────────────────────────
 
 export const MobileSlider = forwardRef<
   React.ElementRef<typeof Slider>,
@@ -48,7 +47,6 @@ export const MobileSlider = forwardRef<
 >(({ sliderId, className, onPointerDown, onPointerUp, onPointerCancel, ...props }, ref) => {
   const isMobile = useIsMobile()
   const [, setActiveSlider] = useAtom(activeSliderAtom)
-  // stable id so the panel knows which element is active
   const id = sliderId ?? (props as any)["aria-label"] ?? "slider"
 
   const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
@@ -67,11 +65,7 @@ export const MobileSlider = forwardRef<
   return (
     <Slider
       ref={ref}
-       className={cn(
-         className,
-        isMobile ? "relative z-[60]" : ""
-       )}
-
+      className={cn(className, isMobile ? "relative z-[60]" : "")}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
@@ -81,10 +75,10 @@ export const MobileSlider = forwardRef<
 })
 MobileSlider.displayName = "MobileSlider"
 
-
+// ─── PasswordInput ────────────────────────────────────────────────────────────
 
 export const PasswordInput = forwardRef<HTMLInputElement, any>(({ className, ...props }, ref) => {
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false)
 
   return (
     <div className="relative">
@@ -108,10 +102,11 @@ export const PasswordInput = forwardRef<HTMLInputElement, any>(({ className, ...
         )}
       </Button>
     </div>
-  );
-});
+  )
+})
+PasswordInput.displayName = "PasswordInput"
 
-PasswordInput.displayName = "PasswordInput";
+// ─── Section ──────────────────────────────────────────────────────────────────
 
 export const Section: React.FC<{
   title: string
@@ -119,53 +114,84 @@ export const Section: React.FC<{
   onOpenChange: (open: boolean) => void
   withSeparator?: boolean
   children: React.ReactNode
-}> = ({ title, isOpen, onOpenChange, withSeparator = true, children }) => (
-  <>
-    <Collapsible open={isOpen} onOpenChange={onOpenChange}>
-      <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-base font-medium cursor-pointer">
-        {title}
-        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-2 pt-1">{children}</CollapsibleContent>
-    </Collapsible>
-    {withSeparator && <Separator />}
-  </>
-)
+}> = ({ title, isOpen, onOpenChange, withSeparator = true, children }) => {
+  const [activeSlider] = useAtom(activeSliderAtom)
+  const autoId = useId()
+  const isMine = activeSlider !== null && activeSlider.startsWith(autoId + ":")
+  const dim = activeSlider !== null && !isMine
+
+  return (
+    <>
+      <Collapsible open={isOpen} onOpenChange={onOpenChange}>
+        <CollapsibleTrigger className={cn(
+          "flex items-center justify-between w-full py-1 text-base font-medium cursor-pointer transition-opacity duration-150",
+          dim && "opacity-20"
+        )}>
+          {title}
+          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        </CollapsibleTrigger>
+        <SectionIdContext.Provider value={autoId}>
+          <CollapsibleContent className={cn(
+            "space-y-2 pt-1 transition-opacity duration-150",
+            dim && "opacity-20"
+          )}>
+            {children}
+          </CollapsibleContent>
+        </SectionIdContext.Provider>
+      </Collapsible>
+      {withSeparator && (
+        <Separator className={cn("transition-opacity duration-150", dim && "opacity-20")} />
+      )}
+    </>
+  )
+}
+
+// ─── SliderControl ────────────────────────────────────────────────────────────
 
 export const SliderControl: React.FC<{
   label: string; value: number; onChange: (value: number) => void; min: number; max: number; step: number
   suffix?: string; decimals?: number; disabled?: boolean; hideValue?: boolean
   sliderId?: string
-}> = ({ label, value, onChange, min, max, step, suffix = "", decimals = 0, disabled = false, hideValue = false }) => (
-  <div className="space-y-1">      <div className="flex items-center justify-between">
+}> = ({ label, value, onChange, min, max, step, suffix = "", decimals = 0, disabled = false, hideValue = false, sliderId }) => {
+  const [activeSlider] = useAtom(activeSliderAtom)
+  const sectionId = useContext(SectionIdContext)
+  const id = `${sectionId}:${sliderId ?? label}`
+  const isDimmed = activeSlider !== null && activeSlider !== id
+
+  return (
+    <div className={cn("space-y-1 transition-opacity duration-150", isDimmed && "opacity-20")}>
+      <div className="flex items-center justify-between">
         <Label className="text-sm">{label}</Label>
         {!hideValue && <span className="text-sm text-muted-foreground">{value.toFixed(decimals)}{suffix}</span>}
       </div>
-      {/* <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} /> */}
-      {/* <MobileSlider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} /> */}
-    <MobileSlider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} />
+      <MobileSlider sliderId={id} value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} />
     </div>
   )
+}
 
+// ─── CheckboxWithSlider ───────────────────────────────────────────────────────
 
 export const CheckboxWithSlider: React.FC<{
   id: string; label: string; checked: boolean; onCheckedChange: (checked: boolean) => void
   sliderValue?: number; onSliderChange?: (value: number) => void; hideSlider?: boolean; disabled?: boolean
+}> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false }) => {
+  const [activeSlider] = useAtom(activeSliderAtom)
+  const sectionId = useContext(SectionIdContext)
+  const fullId = `${sectionId}:${id}`
+  const isDimmed = activeSlider !== null && activeSlider !== fullId
 
-}> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false }) => (
-  <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+  return (
+    <div className={cn("grid grid-cols-[auto_1fr_1fr] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
+      <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />
+      <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider ? "col-span-2" : ""}`}>{label}</Label>
+      {!hideSlider && (
+        <MobileSlider sliderId={fullId} value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
+      )}
+    </div>
+  )
+}
 
-<Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />
-    <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider ? "col-span-2" : ""}`}>{label}</Label>
-    {!hideSlider && (
-      // <Slider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
-      // <MobileSlider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
-      <MobileSlider value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
-
-    )}
-  </div>
-)
-
+// ─── CycleButtonGroup ─────────────────────────────────────────────────────────
 
 export const CycleButtonGroup: React.FC<{
   value: string; options: { value: string; label: string | JSX.Element }[]
@@ -188,6 +214,8 @@ export const CycleButtonGroup: React.FC<{
     </div>
   </div>
 )
+
+// ─── TooltipButton ────────────────────────────────────────────────────────────
 
 interface TooltipButtonProps {
   icon: LucideIcon
@@ -224,6 +252,7 @@ export const TooltipButton: React.FC<TooltipButtonProps> = ({
   )
 }
 
+// ─── TooltipIconButton ────────────────────────────────────────────────────────
 
 interface TooltipIconButtonProps {
   icon: LucideIcon
