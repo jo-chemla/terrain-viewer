@@ -195,6 +195,7 @@ function applyProgress(
   if (appState && onAppStateChange &&
       Object.keys(p1.numericState).length > 0 &&
       Object.keys(p2.numericState).length > 0) {
+    console.log("Applying app state at t =", t)
     onAppStateChange(applyNumbers(appState, lerpNumericMaps(p1.numericState, p2.numericState, t)), shallow)
   }
 }
@@ -472,28 +473,29 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animS
   // const onAppStateChange = setState
   // const appState = state
 
-  // const [smoothCamera, setSmoothCamera] = useState(false)
+  const [smoothCamera, setSmoothCamera] = useState(false)
+  const onAppStateChange = smoothCamera ? setStateSafe : setState
+  const appState = smoothCamera ? null : state
+
+
   // Use lifted state when provided, fall back to local
   const [localAnimState, setLocalAnimState] = useState<AnimState>(DEFAULT_ANIM_STATE)
   const anim = animState ?? localAnimState
-  const setAnim = useCallback((patch: Partial<AnimState>) => {
-    const next = { ...(animState ?? localAnimState), ...patch }
-    if (setAnimState) setAnimState(next)
-    else setLocalAnimState(next)
-  }, [animState, localAnimState, setAnimState])
-
   // const setAnim = useCallback((patch: Partial<AnimState>) => {
-  //   const updater = (prev: AnimState) => ({ ...prev, ...patch })
-  //   if (setAnimState) setAnimState(updater)
-  //   else setLocalAnimState(updater)
-  // }, [setAnimState])
+  //   const next = { ...(animState ?? localAnimState), ...patch }
+  //   if (setAnimState) setAnimState(next)
+  //   else setLocalAnimState(next)
+  // }, [animState, localAnimState, setAnimState])
 
-
-  const smoothCamera  = anim.smoothCamera
-  const setSmoothCamera = (v: boolean) => setAnim({ smoothCamera: v })
-
-  const onAppStateChange = smoothCamera ? setStateSafe : setState
-  const appState = smoothCamera ? localState : state
+  const setAnim = useCallback((patch: Partial<AnimState>) => {
+    const updater = (prev: AnimState) => ({ ...prev, ...patch })
+    if (setAnimState) setAnimState(updater)
+    else setLocalAnimState(updater)
+  }, [setAnimState, smoothCamera])
+  // const smoothCamera  = anim.smoothCamera
+  // const setSmoothCamera = (v: boolean) => setAnim({ smoothCamera: v })
+  // const onAppStateChange = smoothCamera ? setStateSafe : setState
+  // const appState = smoothCamera ? localState : state
 
 
   // ── Spin ──────────────────────────────────────────────────────────────────────
@@ -804,7 +806,7 @@ reviveMapInteractions(map)
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                  <Label className="text-xs text-muted-foreground">Smooth</Label>
+                  <Label className="text-xs text-muted-foreground">Complete</Label>
               </TooltipTrigger>
               <TooltipContent className="text-xs max-w-xs">
                 Smooth: animates only camera poses. <br />
@@ -824,7 +826,7 @@ reviveMapInteractions(map)
             }} 
             className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent disabled:cursor-not-allowed disabled:opacity-50"
           />
-          <Label className="text-xs text-muted-foreground">Complete</Label>
+          <Label className="text-xs text-muted-foreground">Smooth</Label>
         </div>
       </div> 
 
