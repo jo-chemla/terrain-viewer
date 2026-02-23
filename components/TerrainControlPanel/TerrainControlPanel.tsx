@@ -143,7 +143,8 @@ export function TerrainControlPanel({
         "bg-background/95 transition-[background-color] duration-150"
        )}> */}
         <Card className={cn(
-         "absolute z-50 overflow-y-auto p-4 gap-2 space-y-2 backdrop-blur-sm backdrop-blur-[2px] text-base",
+        //  "absolute z-50 overflow-y-auto p-4 gap-2 space-y-2 backdrop-blur-sm backdrop-blur-[2px] text-base",
+  "absolute z-50 overflow-y-auto p-4 gap-2 space-y-2 backdrop-blur-[2px] text-base",
          "right-0 top-0 bottom-0 w-80 rounded-none",
          "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
         isMobile && activeSlider
