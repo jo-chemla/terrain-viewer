@@ -10,6 +10,8 @@ import Map, {
   ScaleControl,
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel } from "./TerrainControlPanel/TerrainControlPanel"
+import { DEFAULT_ANIM_STATE, type AnimState } from "./TerrainControlPanel/CameraUtilities"
+
 import GeocoderControl from "./MapControls/GeocoderControl"
 import { terrainSources } from "@/lib/terrain-sources"
 import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
@@ -119,6 +121,8 @@ export function TerrainViewer() {
   })
 
   const [skyConfig] = useAtom(skyConfigAtom)
+
+  const [animState, setAnimState] = useState<AnimState>(DEFAULT_ANIM_STATE)
 
   // Compute hillshade paint with useMemo to prevent recalculation
   const hillshadePaint = (() => {
@@ -535,6 +539,9 @@ export function TerrainViewer() {
         getMapBounds={getMapBounds}
         mapRef={mapARef as any}
         mapsLoaded={mapsLoaded}
+        animState={animState}
+        setAnimState={setAnimState}
+
       />
     </div>
   )

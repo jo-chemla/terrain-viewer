@@ -81,7 +81,31 @@ interface CameraButtonsProps {
   state?: Record<string, unknown>
   setState?: (state: Record<string, unknown>, shallow?: boolean) => void
   setIsSidebarOpen?: (open: boolean) => void
+  // Lifted animation state (optional — when provided, state survives sidebar close)
+  animState?: AnimState
+  setAnimState?: (s: AnimState) => void
 }
+// Exported so TerrainViewer can hold it
+export interface AnimState {
+  pose1: AppSnapshot | null
+  pose2: AppSnapshot | null
+  playing: boolean
+  progress: number
+  durationSec: number
+  loopMode: LoopMode
+  smoothCamera: boolean
+}
+
+export const DEFAULT_ANIM_STATE: AnimState = {
+  pose1: null,
+  pose2: null,
+  playing: false,
+  progress: 0,
+  durationSec: 3,
+  loopMode: 'bounce',
+  smoothCamera: false,
+}
+
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -431,7 +455,8 @@ function correctedZoom(baseZoom: number, canvasWidth: number, referenceWidth: nu
   return baseZoom + Math.log2(canvasWidth / referenceWidth)
 }
 
-export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen }: CameraButtonsProps) {
+// export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen }: CameraButtonsProps) {
+export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animState, setAnimState }: CameraButtonsProps) {
   const noop = () => {}
   const [localState, setLocalState] = useState(state ?? {})
   const setStateSafe = useNuqsAnimationSafeSetter(setState ?? noop, setLocalState)
@@ -445,7 +470,19 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen }: Cam
   // const onAppStateChange = setState
   // const appState = state
 
-  const [smoothCamera, setSmoothCamera] = useState(false)
+  // const [smoothCamera, setSmoothCamera] = useState(false)
+  // Use lifted state when provided, fall back to local
+  const [localAnimState, setLocalAnimState] = useState<AnimState>(DEFAULT_ANIM_STATE)
+  const anim = animState ?? localAnimState
+  const setAnim = useCallback((patch: Partial<AnimState>) => {
+    const next = { ...(animState ?? localAnimState), ...patch }
+    if (setAnimState) setAnimState(next)
+    else setLocalAnimState(next)
+  }, [animState, localAnimState, setAnimState])
+
+  const smoothCamera  = anim.smoothCamera
+  const setSmoothCamera = (v: boolean) => setAnim({ smoothCamera: v })
+
   const onAppStateChange = smoothCamera ? setStateSafe : setState
   const appState = smoothCamera ? localState : state
 
@@ -461,16 +498,30 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen }: Cam
   const fovRafRef = useRef<number | null>(null)
 
   // ── Poses ─────────────────────────────────────────────────────────────────────
-  const [pose1, setPose1] = useState<AppSnapshot | null>(null)
-  const [pose2, setPose2] = useState<AppSnapshot | null>(null)
+  // const [pose1, setPose1] = useState<AppSnapshot | null>(null)
+  // const [pose2, setPose2] = useState<AppSnapshot | null>(null)
 
-  // ── Playback ──────────────────────────────────────────────────────────────────
-  const [durationSec, setDurationSec] = useState(3)
-  const [loopMode,    setLoopMode]    = useState<LoopMode>("bounce")
+  // // ── Playback ──────────────────────────────────────────────────────────────────
+  // const [durationSec, setDurationSec] = useState(3)
+  // const [loopMode,    setLoopMode]    = useState<LoopMode>("bounce")
+  // ── Poses & Playback (from lifted or local state) ─────────────────────────────
+  const pose1      = anim.pose1
+  const pose2      = anim.pose2
+  const durationSec = anim.durationSec
+  const loopMode   = anim.loopMode
+  const setPose1   = (v: AppSnapshot | null) => setAnim({ pose1: v })
+  const setPose2   = (v: AppSnapshot | null) => setAnim({ pose2: v })
+  const setDurationSec = (v: number)         => setAnim({ durationSec: v })
+  const setLoopMode    = (v: LoopMode)       => setAnim({ loopMode: v })
+
   const durationMs = durationSec * 1_000
 
-  const [playing,  setPlaying]  = useState(false)
-  const [progress, setProgress] = useState(0)
+  // const [playing,  setPlaying]  = useState(false)
+  // const [progress, setProgress] = useState(0)
+  const playing  = anim.playing
+  const progress = anim.progress
+  const setPlaying  = (v: boolean) => setAnim({ playing: v })
+  const setProgress = (v: number)  => setAnim({ progress: v })
 
   const poseRafRef    = useRef<number | null>(null)
   const playStartRef  = useRef<number>(0)
