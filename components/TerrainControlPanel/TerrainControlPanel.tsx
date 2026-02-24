@@ -187,8 +187,6 @@ export function TerrainControlPanel({
       >
 
         <Card 
-          ref={scrollContainerRef}  // Add ref here
-          onScroll={handleScroll}    // Add scroll handler here
           className={cn(
             "p-4 pt-0 gap-2 space-y-2 backdrop-blur-[2px] text-base",
             "right-0 top-0 w-80 rounded-none",

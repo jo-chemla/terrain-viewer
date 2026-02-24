@@ -13,7 +13,12 @@ export const HillshadeOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void;
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, setState, isOpen, onOpenChange }) => {
+}> = ({ 
+  state, 
+  setState, 
+  isOpen, 
+  onOpenChange,
+}) => {
   const [isColorsOpen, setIsColorsOpen] = useState(false)
   const hillshadeMethodKeys = useMemo(() => ["standard", "combined", "igor", "basic", "multidirectional", "multidir-colors"], [])
   const [isHillshadeXYPadOpen, setIsHillshadeXYPadOpen] = useAtom(isHillshadeXYPadOpenAtom)
@@ -31,6 +36,12 @@ export const HillshadeOptionsSection: React.FC<{
   const supportsAccentColor = useMemo(() => state.hillshadeMethod === "standard", [state.hillshadeMethod])
   const supportsExaggeration = useMemo(() => ["standard", "combined", "multidirectional", "multidir-colors"].includes(state.hillshadeMethod), [state.hillshadeMethod])
 
+  // Set constraints based on what the current method supports
+  // If direction is not supported, fix it to 315° (northwest)
+  // If altitude is not supported, fix it to 45° (mid-elevation)
+  const fixedIlluminationDirection = !supportsIlluminationDirection ? 315 : null
+  const fixedIlluminationAltitude = !supportsIlluminationAltitude ? 45 : null
+
   if (!state.showHillshade) return null
 
   const hillshadeMethodOptions = [
@@ -46,8 +57,8 @@ export const HillshadeOptionsSection: React.FC<{
         <Label className="text-sm font-medium">Hillshade Method</Label>
         <CycleButtonGroup value={state.hillshadeMethod} options={hillshadeMethodOptions} onChange={(v) => setState({ hillshadeMethod: v })} onCycle={cycleHillshadeMethod} />
       </div>
-      {/* XY Pad for both illumination azimuth and elevation */}
-      {(supportsIlluminationDirection && supportsIlluminationAltitude) && (
+      {/* XY Pad for illumination azimuth and/or elevation */}
+      {(supportsIlluminationDirection || supportsIlluminationAltitude) && (
         <Collapsible open={isHillshadeXYPadOpen} onOpenChange={setIsHillshadeXYPadOpen}>
           <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
              Illumination Azimuth and Elevation<ChevronDown className={`h-4 w-4 transition-transform ${isHillshadeXYPadOpen ? "rotate-180" : ""}`} />
@@ -64,6 +75,9 @@ export const HillshadeOptionsSection: React.FC<{
               onChange={({ azimuthDeg, elevationDeg }) => {
                 setState({ illuminationDir: azimuthDeg, illuminationAlt: elevationDeg })
               }}
+              // Constrain based on what the current method supports
+              fixedAzimuth={fixedIlluminationDirection}
+              fixedElevation={fixedIlluminationAltitude}
             />
           </CollapsibleContent>
         </Collapsible>
