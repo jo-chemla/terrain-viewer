@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Slider } from "@/components/ui/slider"
 import {
@@ -212,39 +212,7 @@ export const HypsometricTintOptionsSection: React.FC<{
   return (
     <Section title="Hypsometric Tint Options" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
-        <Label className="text-sm font-medium">Color Ramp Type</Label>
-        <ToggleGroup
-          type="single"
-          value={colorRampType}
-          onValueChange={(value) => {
-            if (value) {
-              isUserActionRef.current = true
-              setColorRampType(value)
-              const filteredNow = filterColorRamps(colorRamps, value, licenseFilter)
-              // Always switch to first ramp in the new category
-              // if (!filteredNow[state.colorRamp]) {
-              const first = Object.values(filteredNow)[0].name
-              if (first) {
-                setState({
-                  colorRamp: first.toLowerCase(),
-                  hypsoSliderMinBound: undefined,
-                  hypsoSliderMaxBound: undefined
-                })
-              }
-              // }
-            }
-          }}
-          className="grid grid-cols-5 w-full"
-        >
-          <ToggleGroupItem value="classic" className="w-full data-[state=on]:font-bold">Classic</ToggleGroupItem>
-          <ToggleGroupItem value="topo" className="w-full data-[state=on]:font-bold">Topo</ToggleGroupItem>
-          <ToggleGroupItem value="topobath" className="w-full data-[state=on]:font-bold">Topo+bath</ToggleGroupItem>
-          <ToggleGroupItem value="temp" className="w-full data-[state=on]:font-bold">Temp</ToggleGroupItem>
-          <ToggleGroupItem value="topqgs" className="w-full data-[state=on]:font-bold">Top Qgs</ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-      <div className="space-y-4">
-        <div className="space-y-2">
+
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">Color Ramp</Label>
             <TooltipProvider>
@@ -265,7 +233,39 @@ export const HypsometricTintOptionsSection: React.FC<{
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          </div>
+          </div>        <Tabs
+          value={colorRampType}
+          onValueChange={(value) => {
+            if (value) {
+              isUserActionRef.current = true
+              setColorRampType(value)
+              const filteredNow = filterColorRamps(colorRamps, value, licenseFilter)
+              // Always switch to first ramp in the new category
+              // if (!filteredNow[state.colorRamp]) {
+              const first = Object.values(filteredNow)[0].name
+              if (first) {
+                setState({
+                  colorRamp: first.toLowerCase(),
+                  hypsoSliderMinBound: undefined,
+                  hypsoSliderMaxBound: undefined
+                })
+              }
+              // }
+            }
+          }}
+          className="w-full"
+        >
+          <TabsList className="grid grid-cols-5 w-full">
+            <TabsTrigger value="classic">Classic</TabsTrigger>
+            <TabsTrigger value="topo">Topo</TabsTrigger>
+            <TabsTrigger value="topobath">TopoBath</TabsTrigger>
+            <TabsTrigger value="temp">Temp</TabsTrigger>
+            <TabsTrigger value="topqgs">Top Qgs</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+      <div className="space-y-4">
+        <div className="space-y-2">
           <div className="flex gap-2">
             <Select value={state.colorRamp} onValueChange={(value) => setState({
               colorRamp: value,
@@ -301,32 +301,36 @@ export const HypsometricTintOptionsSection: React.FC<{
         </div>
 
         <div className="space-y-2">
-          <Label className="text-sm font-medium">License Type</Label>
-          <Select value={licenseFilter} onValueChange={(value) => {
-            if (value) {
-              setLicenseFilter(value)
-              const filteredNow = filterColorRamps(colorRamps, colorRampType, value)
-              if (!filteredNow[state.colorRamp]) {
-                const first = Object.values(filteredNow)[0].name
-                setState({
-                  colorRamp: first.toLowerCase(),
-                  hypsoSliderMinBound: undefined,
-                  hypsoSliderMaxBound: undefined
-                })
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm font-medium">License Type</Label>
+            <Select value={licenseFilter} onValueChange={(value) => {
+              if (value) {
+                setLicenseFilter(value)
+                const filteredNow = filterColorRamps(colorRamps, colorRampType, value)
+                if (!filteredNow[state.colorRamp]) {
+                  const first = Object.values(filteredNow)[0].name
+                  setState({
+                    colorRamp: first.toLowerCase(),
+                    hypsoSliderMinBound: undefined,
+                    hypsoSliderMaxBound: undefined
+                  })
+                }
               }
-            }
-          }}>
-            <SelectTrigger className="w-full cursor-pointer">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="open-license-only">Open License Only</SelectItem>
-              <SelectItem value="distribute-ok">Qgis Distribute Yes</SelectItem>
-              <SelectItem value="open-distribute">Open License + Distribute Yes</SelectItem>
-            </SelectContent>
-          </Select>
+            }}>
+              <SelectTrigger className="h-8 w-[210px] cursor-pointer text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-xs">
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="open-license-only">Open License Only</SelectItem>
+                <SelectItem value="distribute-ok">Qgis-Distribute=Yes Only</SelectItem>
+                <SelectItem value="open-distribute">Open License & Distribute Yes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+
 
         <div className="space-y-2">
           <div className="w-full gap-1 flex items-center">
