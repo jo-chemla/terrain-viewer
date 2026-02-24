@@ -176,21 +176,19 @@ export function TerrainControlPanel({
         ref={scrollContainerRef}
         onScroll={handleScroll}
         className={cn(
-          "absolute z-50 overflow-y-auto ",
-          "right-0 top-0 w-80 rounded-none",
+          "absolute z-50 overflow-y-auto",
+          "right-0 top-0 bottom-0 w-80 rounded-none",
           "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
         )}
         style={{ 
-          bottom: 0,
           height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined
         }}
       >
-
         <Card 
           className={cn(
-            "p-4 pt-0 gap-2 space-y-2 backdrop-blur-[2px] text-base",
-            "right-0 top-0 w-80 rounded-none",
-            "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
+            "p-4 pt-0 gap-2 space-y-2 backdrop-blur-[2px] text-base min-h-full",
+            "w-full rounded-none",
+            "sm:rounded-xl",
             transparentUi && activeSlider
               ? "bg-background/20"
               : "bg-background/95",
