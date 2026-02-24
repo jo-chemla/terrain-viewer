@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useMemo, useCallback, useEffect  } from "react"
+import { useState, useMemo, useCallback, useEffect, useRef  } from "react"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
@@ -64,6 +64,7 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
 }
 
 export const sectionOpenAtom = atomWithStorage<SectionOpenState>("sectionOpen", DEFAULT_OPEN_STATE)
+export const sidebarScrollAtom = atomWithStorage("sidebarScroll", 0)
 
 interface TerrainControlPanelProps {
   state: any
@@ -93,6 +94,21 @@ export function TerrainControlPanel({
   const isMobile = useIsMobile()
   const [activeSlider] = useAtom(activeSliderAtom)
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
+
+  // Add scroll position management
+  const [scrollPosition, setScrollPosition] = useAtom(sidebarScrollAtom)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  // Restore scroll position when sidebar opens
+  useEffect(() => {
+    if (isSidebarOpen && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollPosition
+    }
+  }, [isSidebarOpen, scrollPosition])
+  // Save scroll position on scroll
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop
+    setScrollPosition(scrollTop)
+  }, [setScrollPosition])
 
 
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
@@ -156,10 +172,25 @@ export function TerrainControlPanel({
           onPointerDown={() => setIsSidebarOpen(false)}
         />
       )}
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className={cn(
+          "absolute z-50 overflow-y-auto ",
+          "right-0 top-0 w-80 rounded-none",
+          "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
+        )}
+        style={{ 
+          bottom: 0,
+          height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined
+        }}
+      >
 
         <Card 
+          ref={scrollContainerRef}  // Add ref here
+          onScroll={handleScroll}    // Add scroll handler here
           className={cn(
-            "absolute z-50 overflow-y-auto p-4 pt-0 gap-2 space-y-2 backdrop-blur-[2px] text-base",
+            "p-4 pt-0 gap-2 space-y-2 backdrop-blur-[2px] text-base",
             "right-0 top-0 w-80 rounded-none",
             "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
             transparentUi && activeSlider
@@ -167,10 +198,6 @@ export function TerrainControlPanel({
               : "bg-background/95",
             "transition-[background-color] duration-150"
           )}
-          style={{ 
-            bottom: 0,
-            height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined
-          }}
         >
 
         {/* Sticky header row */}
@@ -207,6 +234,7 @@ export function TerrainControlPanel({
         <AnimationSection mapRef={mapRef} isOpen={sectionOpen.animation} onOpenChange={toggle("animation")} state={state} setState={setState} setIsSidebarOpen={setIsSidebarOpen} animState={animState} setAnimState={setAnimState} />
         <FooterSection />
       </Card>
+      </div>
     </TooltipProvider>
   )
 }
