@@ -153,8 +153,7 @@ export const TerrainSourceSection: React.FC<{
 
           <CollapsibleContent className="space-y-2 pt-1">
             <TooltipProvider>
-
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <TooltipButton
                   icon={Plus}
                   label="Add Dataset"
@@ -175,6 +174,7 @@ export const TerrainSourceSection: React.FC<{
                 />
               </div>
             </TooltipProvider>
+
             {customTerrainSources.length > 0 && (
               <div className="space-y-2">
                 <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })}>

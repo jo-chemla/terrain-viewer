@@ -92,7 +92,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
 
         <CollapsibleContent className="space-y-2 pt-1">
           <TooltipProvider>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <TooltipButton
                 icon={Plus}
                 label="Basemap"
@@ -139,6 +139,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
             </RadioGroup>
           )}
         </CollapsibleContent>
+
       </Collapsible>
       <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} />
       <BasemapBatchEditModal
