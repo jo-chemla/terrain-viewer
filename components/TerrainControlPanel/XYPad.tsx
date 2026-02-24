@@ -15,6 +15,8 @@ interface SphericalXYPadProps {
   azimuthRange?: [number, number]; // e.g., [-180, 180] or [0, 360]
   elevationRange?: [number, number]; // e.g., [1, 90] in degrees
   sliderId?: string;
+  fixedAzimuth?: number | null; // Fix azimuth to this value (degrees), allows only elevation changes
+  fixedElevation?: number | null; // Fix elevation to this value (degrees), allows only azimuth changes
 }
 
 export function SphericalXYPad({
@@ -28,6 +30,8 @@ export function SphericalXYPad({
   azimuthRange = [0, 360],
   elevationRange = [0, 90],
   sliderId = "xypad",
+  fixedAzimuth = null,
+  fixedElevation = null,
 }: SphericalXYPadProps) {
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
   
@@ -50,12 +54,16 @@ export function SphericalXYPad({
   };
 
   const degToXY = ({ azimuthDeg, elevationDeg }: { azimuthDeg: number; elevationDeg: number }) => {
-    let normalizedAz = azimuthDeg;
+    // Apply constraints before converting to XY
+    const constrainedAzimuth = fixedAzimuth !== null ? fixedAzimuth : azimuthDeg;
+    const constrainedElevation = fixedElevation !== null ? fixedElevation : elevationDeg;
+    
+    let normalizedAz = constrainedAzimuth;
     if (azimuthRange[0] === -180) {
-      normalizedAz = azimuthDeg < 0 ? azimuthDeg + 360 : azimuthDeg;
+      normalizedAz = constrainedAzimuth < 0 ? constrainedAzimuth + 360 : constrainedAzimuth;
     }
     const az = ((90 - normalizedAz) * Math.PI) / 180;
-    const el = (elevationDeg * Math.PI) / 180;
+    const el = (constrainedElevation * Math.PI) / 180;
     const r = Math.cos(el);
     return { x: r * Math.cos(az), y: -r * Math.sin(az) };
   };
@@ -77,7 +85,7 @@ export function SphericalXYPad({
 
   useEffect(() => {
     setPos(degToXY(value));
-  }, [value]);
+  }, [value, fixedAzimuth, fixedElevation]);
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!containerRef.current) return;
@@ -87,6 +95,44 @@ export function SphericalXYPad({
 
     const maxR = Math.cos((minElevationDeg * Math.PI) / 180);
     const minR = Math.cos((maxElevationDeg * Math.PI) / 180);
+
+    // Handle fixed azimuth mode (constrain to a radial line)
+    if (fixedAzimuth !== null) {
+      const fixedAzPos = degToXY({ azimuthDeg: fixedAzimuth, elevationDeg: 45 });
+      const angle = Math.atan2(fixedAzPos.y, fixedAzPos.x);
+      
+      // Project pointer position onto the fixed azimuth line
+      const projectedR = x * Math.cos(angle) + y * Math.sin(angle);
+      
+      // Clamp to elevation range
+      const clampedR = Math.max(minR, Math.min(maxR, Math.abs(projectedR)));
+      
+      x = clampedR * Math.cos(angle);
+      y = clampedR * Math.sin(angle);
+      
+      setPos({ x, y });
+      const result = xyToDeg(x, y);
+      onChange?.({ azimuthDeg: fixedAzimuth, elevationDeg: result.elevationDeg });
+      return;
+    }
+
+    // Handle fixed elevation mode (constrain to a circle)
+    if (fixedElevation !== null) {
+      const fixedR = Math.cos((fixedElevation * Math.PI) / 180);
+      const mag = Math.sqrt(x * x + y * y);
+      
+      if (mag > 0) {
+        x = (x / mag) * fixedR;
+        y = (y / mag) * fixedR;
+      }
+      
+      setPos({ x, y });
+      const result = xyToDeg(x, y);
+      onChange?.({ azimuthDeg: result.azimuthDeg, elevationDeg: fixedElevation });
+      return;
+    }
+
+    // Handle unconstrained mode (original behavior)
     const mag = Math.sqrt(x * x + y * y);
 
     if (mag > maxR) {
@@ -109,6 +155,15 @@ export function SphericalXYPad({
   const outerRadius = (width - 2 * margin) / 2;
   const minElevationRadius = outerRadius * Math.cos((minElevationDeg * Math.PI) / 180);
   const maxElevationRadius = outerRadius * Math.cos((maxElevationDeg * Math.PI) / 180);
+
+  // Calculate constraint visualization
+  const constraintCircleRadius = fixedElevation !== null 
+    ? outerRadius * Math.cos((fixedElevation * Math.PI) / 180)
+    : null;
+
+  const constraintLineAngle = fixedAzimuth !== null
+    ? ((90 - fixedAzimuth) * Math.PI) / 180
+    : null;
 
   return (
       <div
@@ -165,6 +220,36 @@ export function SphericalXYPad({
             transform: 'translate(-50%, -50%)',
           }}
         />
+      )}
+
+      {/* Fixed elevation constraint circle */}
+      {constraintCircleRadius !== null && (
+        <div
+          className="absolute border-2 border-primary/50 rounded-full pointer-events-none"
+          style={{
+            width: constraintCircleRadius * 2,
+            height: constraintCircleRadius * 2,
+            left: centerX,
+            top: centerY,
+            transform: 'translate(-50%, -50%)',
+          }}
+        />
+      )}
+
+      {/* Fixed azimuth constraint line */}
+      {constraintLineAngle !== null && (
+        <svg className="absolute inset-0 pointer-events-none" style={{ width, height }}>
+          <line
+            x1={centerX + minElevationRadius * Math.cos(constraintLineAngle)}
+            y1={centerY - minElevationRadius * Math.sin(constraintLineAngle)}
+            x2={centerX + maxR * outerRadius * Math.cos(constraintLineAngle)}
+            y2={centerY - maxR * outerRadius * Math.sin(constraintLineAngle)}
+            stroke="var(--primary)"
+            strokeOpacity="0.5"
+            strokeWidth="2"
+            strokeDasharray="4 4"
+          />
+        </svg>
       )}
 
       {/* Cardinal directions */}
