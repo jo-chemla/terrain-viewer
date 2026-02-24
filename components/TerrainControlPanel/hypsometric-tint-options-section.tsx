@@ -441,9 +441,34 @@ const HypsoDoubleRangeSlider: React.FC<{
         onValueChange={handleSliderChange}
         className="w-full"
       />
-      <div className="flex items-center justify-between gap-2 mt-1">
-        {/* ... same input fields for min/max bounds ... */}
-      </div>
+        <div className="flex items-center justify-between gap-2 mt-1">
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="Min"
+            className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-left w-16"
+            value={state.hypsoSliderMinBound ?? ""}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === "" || value === "-" || !isNaN(Number(value))) {
+                setState({ hypsoSliderMinBound: value === "" ? undefined : parseFloat(value) })
+              }
+            }}
+          />
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="Max"
+            className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-right w-16"
+            value={state.hypsoSliderMaxBound ?? ""}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === "" || value === "-" || !isNaN(Number(value))) {
+                setState({ hypsoSliderMaxBound: value === "" ? undefined : parseFloat(value) })
+              }
+            }}
+          />
+        </div>
     </div>
   )
 }
