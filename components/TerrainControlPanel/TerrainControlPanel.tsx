@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useMemo, useCallback  } from "react"
+import { useState, useMemo, useCallback, useEffect  } from "react"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
@@ -111,6 +111,25 @@ export function TerrainControlPanel({
     document.documentElement.classList.toggle("dark", theme === "dark")
   }, [theme])
 
+  // Handle dynamic viewport height for mobile browsers
+  useEffect(() => {
+    if (!isMobile) return
+
+    const setVH = () => {
+      const vh = window.innerHeight * 0.01
+      document.documentElement.style.setProperty('--vh', `${vh}px`)
+    }
+
+    setVH()
+    window.addEventListener('resize', setVH)
+    window.addEventListener('orientationchange', setVH)
+
+    return () => {
+      window.removeEventListener('resize', setVH)
+      window.removeEventListener('orientationchange', setVH)
+    }
+  }, [isMobile])
+
   if (!isSidebarOpen) {
     return (
       <TooltipProvider delayDuration={0} skipDelayDuration={0}>
@@ -134,23 +153,29 @@ export function TerrainControlPanel({
       {isMobile && isSidebarOpen &&  (
         <div
           className="fixed inset-0 z-40 bg-transparent"
-          onClick={() => setIsSidebarOpen(false)}
+          onPointerDown={() => setIsSidebarOpen(false)}
         />
       )}
 
-        <Card className={cn(
-  "absolute z-50 overflow-y-auto p-4 pt-0 gap-2 space-y-2 backdrop-blur-[2px] text-base",
-         "right-0 top-0 bottom-0 w-80 rounded-none",
-         "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
-        transparentUi && activeSlider
-          ? "bg-background/20"
-          : "bg-background/95",
-        "transition-[background-color] duration-150"
-       )}>
+        <Card 
+          className={cn(
+            "absolute z-50 overflow-y-auto p-4 pt-0 gap-2 space-y-2 backdrop-blur-[2px] text-base",
+            "right-0 top-0 w-80 rounded-none",
+            "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
+            transparentUi && activeSlider
+              ? "bg-background/20"
+              : "bg-background/95",
+            "transition-[background-color] duration-150"
+          )}
+          style={{ 
+            bottom: 0,
+            height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined
+          }}
+        >
 
         {/* Sticky header row */}
         <div className={cn(
-          "sticky top-0 z-10 flex items-center justify-between -mx-4 px-4 -mt-4 pt-4 pb-3 border-b backdrop-blur-[2px]",
+          "sticky top-0 z-10 flex items-center justify-between -mx-4 px-4 -mt-4 pt-4 pb-3 border-b backdrop-blur-[2px] mb-6",
           transparentUi && activeSlider ? "bg-background/20" : "bg-background/95"
         )}>
           <h2 className="text-xl font-semibold">Terrain Viewer</h2>

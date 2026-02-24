@@ -21,6 +21,7 @@ import {
   mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, themeAtom
 } from "@/lib/settings-atoms"
 import { MinimapControl } from "./MapControls/MinimapControl";
+import { useIsMobile } from '@/hooks/use-mobile'
 
 import maplibregl from 'maplibre-gl'
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol'
@@ -66,6 +67,7 @@ export function TerrainViewer() {
   const [mapLibreReady, setMapLibreReady] = useState(false)
   const [mapsLoaded, setMapsLoaded] = useState(false)
   const viewStateUpdateTimer = useRef<NodeJS.Timeout | null>(null)
+  const isMobile = useIsMobile()
 
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
@@ -195,6 +197,25 @@ export function TerrainViewer() {
   useEffect(() => {
     maplibregl.addProtocol('cog', cogProtocol)
   }, [])
+
+  // Handle dynamic viewport height for mobile browsers
+  useEffect(() => {
+    if (!isMobile) return
+
+    const setVH = () => {
+      const vh = window.innerHeight * 0.01
+      document.documentElement.style.setProperty('--vh', `${vh}px`)
+    }
+
+    setVH()
+    window.addEventListener('resize', setVH)
+    window.addEventListener('orientationchange', setVH)
+
+    return () => {
+      window.removeEventListener('resize', setVH)
+      window.removeEventListener('orientationchange', setVH)
+    }
+  }, [isMobile])
 
   const onMoveA = useCallback((evt: any) => {
     if (!isSyncing.current && state.splitScreen && mapBRef.current) {
@@ -353,7 +374,8 @@ export function TerrainViewer() {
           rollEnabled={state.viewMode !== "2d"}
           pitchWithRotate={state.viewMode !== "2d"}
           dragRotate={state.viewMode !== "2d"}
-          touchZoomRotate={state.viewMode !== "2d"}
+          // touchZoomRotate={state.viewMode !== "2d"}
+          touchZoomRotate={true}
           // terrain={{
           //   source: "terrainSource",
           //   exaggeration: state.exaggeration || 1,
@@ -526,7 +548,12 @@ export function TerrainViewer() {
   if (!mapLibreReady) return null
 
   return (
-    <div className="relative h-screen w-full">
+    <div 
+      className="relative w-full"
+      style={{
+        height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : '100vh'
+      }}
+    >
       <div className="absolute inset-0 flex">
         <div className={state.splitScreen ? "flex-1" : "w-full"}>
           {renderMap(state.sourceA, "map-a")}

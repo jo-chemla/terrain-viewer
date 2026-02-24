@@ -213,27 +213,31 @@ export const HypsometricTintOptionsSection: React.FC<{
     <Section title="Hypsometric Tint Options" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
 
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">Color Ramp</Label>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <a
-                    href="http://seaviewsensing.com/pub/cpt-city/index.html"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <span>cpt-city</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Load advanced color ramps</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>        <Tabs
+        {/* Colorramp Labels */}
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">Color Ramp</Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a
+                  href="http://seaviewsensing.com/pub/cpt-city/index.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span>cpt-city</span>
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Load advanced color ramps</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>        
+          
+        {/* Tabs for colorramp type */}
+        <Tabs
           value={colorRampType}
           onValueChange={(value) => {
             if (value) {
@@ -330,8 +334,7 @@ export const HypsometricTintOptionsSection: React.FC<{
           </div>
         </div>
 
-
-
+        {/* Custom min/max elevation */}
         <div className="space-y-2">
           <div className="w-full gap-1 flex items-center">
             <div className="flex-[2] flex items-center">

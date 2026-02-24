@@ -273,10 +273,10 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
     useEffect(() => { featuresRef.current = features }, [features])
 
     useEffect(() => {
-        console.log('[TerraDraw] effect fired — mapsLoaded:', mapsLoaded, 'mapRef.current:', !!mapRef.current)
+        // console.log('[TerraDraw] effect fired — mapsLoaded:', mapsLoaded, 'mapRef.current:', !!mapRef.current)
         
         const map = mapRef.current?.getMap()
-        console.log('[TerraDraw] map instance:', !!map, 'isStyleLoaded:', map?.isStyleLoaded())
+        // console.log('[TerraDraw] map instance:', !!map, 'isStyleLoaded:', map?.isStyleLoaded())
         
         if (!map || !mapsLoaded) {
             console.log('[TerraDraw] bailing out — map:', !!map, 'mapsLoaded:', mapsLoaded)
@@ -284,19 +284,18 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
         }
 
         const createDraw = () => {
-            console.log('[TerraDraw] createDraw called — stopping existing:', !!drawRef.current)
+            // console.log('[TerraDraw] createDraw called — stopping existing:', !!drawRef.current)
             if (drawRef.current) {
                 try { drawRef.current.stop() } catch (e) { console.error('Error stopping draw:', e) }
                 drawRef.current = null
                 setDraw(null)
             }
 
-            console.log('[TerraDraw] scheduling setTimeout...')
+            // console.log('[TerraDraw] scheduling setTimeout...')
             setTimeout(() => {
-                console.log('[TerraDraw] inside setTimeout — map still valid:', !!mapRef.current?.getMap())
+                // console.log('[TerraDraw] inside setTimeout — map still valid:', !!mapRef.current?.getMap())
                 try {
                     const adapter = new TerraDrawMapLibreGLAdapter({ map, renderBelowLayerId: undefined })
-                    console.log('[TerraDraw] adapter created')
                     const newDraw = new TerraDraw({
                         adapter,
                         modes: [
@@ -317,9 +316,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
                             new TerraDrawCircleMode(),
                         ],
                     })
-                    console.log('[TerraDraw] TerraDraw instance created, calling start()...')
                     newDraw.start()
-                    console.log('[TerraDraw] started, setting mode to select')
                     newDraw.setMode('select')
 
                     if (featuresRef.current.length > 0) {
@@ -400,7 +397,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
         // }
 
         return () => {
-            console.log('[TerraDraw] cleanup — stopping draw')
+            // console.log('[TerraDraw] cleanup — stopping draw')
             map.off('styledata', handleStyleData)
             map.off('sourcedata', handleStyleData)
             map.off('render', handleStyleData)
@@ -695,9 +692,7 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
                 }
             }
 
-            console.log('[gpkg] total features parsed:', allFeatures.length)
-            db.close()
-            handleGeojson({ type: 'FeatureCollection', features: allFeatures })
+            
         } else if (ext === 'kml') {
             reader.onload = (e) => {
                 try {
