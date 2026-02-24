@@ -222,11 +222,11 @@ export const TooltipButton: React.FC<TooltipButtonProps> = ({
         <Button
           variant="outline"
           size="sm"
-          className={`cursor-pointer bg-transparent ${className}`}
+          className={`cursor-pointer bg-transparent min-w-0 ${className}`}
           onClick={onClick}
         >
-          <Icon className="h-3 w-3 mr-2" />
-          {label}
+          <Icon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" />
+          <span className="truncate text-xs sm:text-sm">{label}</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>
