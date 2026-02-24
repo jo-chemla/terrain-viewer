@@ -138,16 +138,8 @@ export function TerrainControlPanel({
         />
       )}
 
-      {/* <Card className="absolute right-4 top-4 bottom-4 w-96 overflow-y-auto p-4 gap-2 space-y-2 bg-background/95 backdrop-blur text-base"> */}
-       {/* <Card className={cn(
-         "absolute z-50 overflow-y-auto p-4 gap-2 space-y-2 backdrop-blur text-base",
-         "right-0 top-0 bottom-0 w-80 rounded-none",
-         "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
-        "bg-background/95 transition-[background-color] duration-150"
-       )}> */}
         <Card className={cn(
-        //  "absolute z-50 overflow-y-auto p-4 gap-2 space-y-2 backdrop-blur-sm backdrop-blur-[2px] text-base",
-  "absolute z-50 overflow-y-auto p-4 gap-2 space-y-2 backdrop-blur-[2px] text-base",
+  "absolute z-50 overflow-y-auto p-4 pt-0 gap-2 space-y-2 backdrop-blur-[2px] text-base",
          "right-0 top-0 bottom-0 w-80 rounded-none",
          "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
         transparentUi && activeSlider
@@ -156,9 +148,11 @@ export function TerrainControlPanel({
         "transition-[background-color] duration-150"
        )}>
 
-        {/* Invisible per-slider overlay restorer — individual sliders set opacity-100 on their wrapper */}
-
-        <div className="flex items-center justify-between">
+        {/* Sticky header row */}
+        <div className={cn(
+          "sticky top-0 z-10 flex items-center justify-between -mx-4 px-4 -mt-4 pt-4 pb-3 border-b backdrop-blur-[2px]",
+          transparentUi && activeSlider ? "bg-background/20" : "bg-background/95"
+        )}>
           <h2 className="text-xl font-semibold">Terrain Viewer</h2>
           <div className="flex gap-1 items-center">
             <TooltipIconButton
