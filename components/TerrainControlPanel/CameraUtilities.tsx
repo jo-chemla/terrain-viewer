@@ -21,6 +21,8 @@ import { CanvasSource, Mp4OutputFormat, Output, QUALITY_HIGH, StreamTarget } fro
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section } from './controls-components'
+import { atomWithStorage } from 'jotai/utils'
+import { useAtom } from 'jotai'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,6 +110,12 @@ export const DEFAULT_ANIM_STATE: AnimState = {
   smoothCamera: false,
 }
 
+// ─── Persistent Atoms (Export Settings Only) ──────────────────────────────────
+
+export const resolutionKeyAtom = atomWithStorage('anim-resolution-key', '1080p FHD 16:9')
+export const renderQualityAtom = atomWithStorage<RenderQuality>('anim-render-quality', 'normal')
+export const fpsAtom = atomWithStorage('anim-fps', 60)
+export const targetSizeMBAtom = atomWithStorage('anim-target-size-mb', '')
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -172,22 +180,22 @@ function applyProgress(
   const baseZoom = lerp(p1.pose.zoom, p2.pose.zoom, t)
   const refWidth = lerp(p1.pose.refWidth, p2.pose.refWidth, t)
 
-  map.jumpTo({ 
-    center:  [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
-    // zoom:    lerp(p1.pose.zoom,  p2.pose.zoom,  t),
-    zoom: correctedZoom(baseZoom, canvasWidth, refWidth),
-    pitch:   lerp(p1.pose.pitch, p2.pose.pitch, t),
-    bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
-  })
-  // ease-to does not follow terrain, which jumpto does
-  // map.easeTo({
+  // map.jumpTo({ 
   //   center:  [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
-  //   zoom:    lerp(p1.pose.zoom,  p2.pose.zoom,  t),
+  //   // zoom:    lerp(p1.pose.zoom,  p2.pose.zoom,  t),
+  //   zoom: correctedZoom(baseZoom, canvasWidth, refWidth),
   //   pitch:   lerp(p1.pose.pitch, p2.pose.pitch, t),
   //   bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
-  //   duration: 0,
-  //   animate: false,    
   // })
+  // ease-to does not follow terrain, which jumpto does
+  map.easeTo({
+    center:  [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
+    zoom:    lerp(p1.pose.zoom,  p2.pose.zoom,  t),
+    pitch:   lerp(p1.pose.pitch, p2.pose.pitch, t),
+    bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
+    duration: 0,
+    animate: false,    
+  })
   ;(map as any).setRoll?.(lerp(p1.pose.roll, p2.pose.roll, t))
   map.setVerticalFieldOfView(lerp(p1.pose.vfov, p2.pose.vfov, t))
   map.triggerRepaint()
@@ -464,14 +472,23 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animS
   const [localState, setLocalState] = useState(state ?? {})
   const setStateSafe = useNuqsAnimationSafeSetter(setState ?? noop, setLocalState)
 
+  // ─── Persistent Atoms (Export Settings Only) ───────────────────────────────
+  const [resolutionKey, setResolutionKey] = useAtom(resolutionKeyAtom)
+  const [renderQuality, setRenderQuality] = useAtom(renderQualityAtom)
+  const [fps, setFps] = useAtom(fpsAtom)
+  const [targetSizeMB, setTargetSizeMB] = useAtom(targetSizeMBAtom)
 
-  // Smoother view animation camera transition, but cannot animate ther params
-  // const onAppStateChange = setStateSafe
-  // const appState = localState
-  
-  // Less smooth but can animate other props like iz modes opacities etc
-  // const onAppStateChange = setState
-  // const appState = state
+
+  // // Use lifted state when provided, fall back to local
+  // const [localAnimState, setLocalAnimState] = useState<AnimState>(DEFAULT_ANIM_STATE)
+  // const anim = animState ?? localAnimState
+
+  // // ─── Animation State (from props) ────────────────────────────────────────────
+  // const smoothCamera = anim.smoothCamera
+  // const setSmoothCamera = (v: boolean) => setAnim({ smoothCamera: v })
+
+  // const onAppStateChange = smoothCamera ? setStateSafe : setState
+  // const appState = smoothCamera ? null : state
 
   const [smoothCamera, setSmoothCamera] = useState(false)
   const onAppStateChange = smoothCamera ? setStateSafe : setState
@@ -487,16 +504,20 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animS
   //   else setLocalAnimState(next)
   // }, [animState, localAnimState, setAnimState])
 
+  // Smoother view animation camera transition, but cannot animate ther params
+  // const onAppStateChange = setStateSafe
+  // const appState = localState
+  
+  // Less smooth but can animate other props like iz modes opacities etc
+  // const onAppStateChange = setState
+  // const appState = state
+
+
   const setAnim = useCallback((patch: Partial<AnimState>) => {
     const updater = (prev: AnimState) => ({ ...prev, ...patch })
     if (setAnimState) setAnimState(updater)
     else setLocalAnimState(updater)
   }, [setAnimState, smoothCamera])
-  // const smoothCamera  = anim.smoothCamera
-  // const setSmoothCamera = (v: boolean) => setAnim({ smoothCamera: v })
-  // const onAppStateChange = smoothCamera ? setStateSafe : setState
-  // const appState = smoothCamera ? localState : state
-
 
   // ── Spin ──────────────────────────────────────────────────────────────────────
   const spinRafRef  = useRef<number | null>(null)
@@ -508,13 +529,6 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animS
   // ── FOV ──────────────────────────────────────────────────────────────────────
   const fovRafRef = useRef<number | null>(null)
 
-  // ── Poses ─────────────────────────────────────────────────────────────────────
-  // const [pose1, setPose1] = useState<AppSnapshot | null>(null)
-  // const [pose2, setPose2] = useState<AppSnapshot | null>(null)
-
-  // // ── Playback ──────────────────────────────────────────────────────────────────
-  // const [durationSec, setDurationSec] = useState(3)
-  // const [loopMode,    setLoopMode]    = useState<LoopMode>("bounce")
   // ── Poses & Playback (from lifted or local state) ─────────────────────────────
   const pose1      = anim.pose1
   const pose2      = anim.pose2
@@ -527,8 +541,6 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animS
 
   const durationMs = durationSec * 1_000
 
-  // const [playing,  setPlaying]  = useState(false)
-  // const [progress, setProgress] = useState(0)
   const playing  = anim.playing
   const progress = anim.progress
   const setPlaying  = (v: boolean) => setAnim({ playing: v })
@@ -543,10 +555,6 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animS
   const [exporting,      setExporting]      = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
   const [exportCodec,    setExportCodec]    = useState("")
-  const [resolutionKey,  setResolutionKey]  = useState("1080p FHD 16:9")
-  const [renderQuality,  setRenderQuality]  = useState<RenderQuality>("normal")
-  const [fps, setFps]                       = useState(60)
-  const [targetSizeMB,   setTargetSizeMB]   = useState<string>("")
 
   const targetSizeBytes = targetSizeMB !== "" && parseFloat(targetSizeMB) > 0
     ? Math.round(parseFloat(targetSizeMB) * 1024 * 1024)

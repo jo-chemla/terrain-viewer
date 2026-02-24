@@ -121,11 +121,49 @@ export function TerrainViewer() {
     showGraticuleLabels: parseAsBoolean.withDefault(false),
     graticuleDensity: parseAsFloat.withDefault(0),
     minimapMinimized: parseAsBoolean.withDefault(true),
+    animDuration: parseAsFloat.withDefault(3),
+    animLoopMode: parseAsString.withDefault("bounce"),
+    animSmoothCamera: parseAsBoolean.withDefault(false),
   })
 
   const [skyConfig] = useAtom(skyConfigAtom)
 
-  const [animState, setAnimState] = useState<AnimState>(DEFAULT_ANIM_STATE)
+  // Sync URL state with animState
+  const [animState, setAnimState] = useState<AnimState>({
+    ...DEFAULT_ANIM_STATE,
+    durationSec: state.animDuration,
+    loopMode: state.animLoopMode as "none" | "forward" | "bounce",
+    smoothCamera: state.animSmoothCamera,
+  })
+
+  // Update animState when URL params change
+  useEffect(() => {
+    setAnimState(prev => ({
+      ...prev,
+      durationSec: state.animDuration,
+      loopMode: state.animLoopMode as "none" | "forward" | "bounce",
+      smoothCamera: state.animSmoothCamera,
+    }))
+  }, [state.animDuration, state.animLoopMode, state.animSmoothCamera])
+
+  // Custom setAnimState that syncs back to URL
+  const setAnimStateWithSync = useCallback((updater: React.SetStateAction<AnimState>) => {
+    setAnimState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      
+      // Sync relevant fields back to URL
+      const updates: any = {}
+      if (next.durationSec !== prev.durationSec) updates.animDuration = next.durationSec
+      if (next.loopMode !== prev.loopMode) updates.animLoopMode = next.loopMode
+      if (next.smoothCamera !== prev.smoothCamera) updates.animSmoothCamera = next.smoothCamera
+      
+      if (Object.keys(updates).length > 0) {
+        setState(updates, { shallow: true })
+      }
+      
+      return next
+    })
+  }, [setState])
 
   // Compute hillshade paint with useMemo to prevent recalculation
   const hillshadePaint = (() => {
@@ -569,7 +607,7 @@ export function TerrainViewer() {
         mapRef={mapARef as any}
         mapsLoaded={mapsLoaded}
         animState={animState}
-        setAnimState={setAnimState}
+        setAnimState={setAnimStateWithSync}
       />
     </div>
   )
