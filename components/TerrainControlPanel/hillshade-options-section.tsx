@@ -15,7 +15,6 @@ export const HillshadeOptionsSection: React.FC<{
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, isOpen, onOpenChange }) => {
   const [isColorsOpen, setIsColorsOpen] = useState(false)
-  const [isXypadOpen, setIsXypadOpen] = useState(false)
   const hillshadeMethodKeys = useMemo(() => ["standard", "combined", "igor", "basic", "multidirectional", "multidir-colors"], [])
   const [isHillshadeXYPadOpen, setIsHillshadeXYPadOpen] = useAtom(isHillshadeXYPadOpenAtom)
 
