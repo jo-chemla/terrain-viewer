@@ -94,6 +94,7 @@ export const HillshadeLayer = memo(
         paint={hillshadePaint}
         layout={{
           visibility: showHillshade ? "visible" : "none",
+          // 'resampling': 'linear'  // upcoming although should be default: https://github.com/maplibre/maplibre-gl-js/issues/7154
         }}
       />
     )

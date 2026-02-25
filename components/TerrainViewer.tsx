@@ -207,6 +207,9 @@ export function TerrainViewer() {
       if (state.hillshadeMethod !== "standard") paint["hillshade-method"] = state.hillshadeMethod
     }
 
+    // paint["resampling"] = 'linear' 
+    paint["hillshade-illumination-anchor"] = 'map' 
+
     return paint
   })()
 
@@ -234,7 +237,9 @@ export function TerrainViewer() {
   // Register the COG protocol
   useEffect(() => {
     maplibregl.addProtocol('cog', cogProtocol)
+    
   }, [])
+
 
   // Handle dynamic viewport height for mobile browsers
   useEffect(() => {

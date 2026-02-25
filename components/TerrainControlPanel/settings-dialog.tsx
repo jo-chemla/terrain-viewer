@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
-  maxResolutionAtom, useCogProtocolVsTitilerAtom, transparentUiAtom
+  maxResolutionAtom, useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom
 } from "@/lib/settings-atoms"
 import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
@@ -28,6 +28,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [batchApiKeys, setBatchApiKeys] = useState("")
   const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [isTransparentUi, setTransparentUi] = useAtom(transparentUiAtom)
+  const [highResTerrain, setHighResTerrain] = useAtom(highResTerrainAtom)
 
   const handleBatchToggle = useCallback(() => {
     if (!batchEditMode) {
@@ -69,23 +70,21 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 {theme === "light" ? <><Moon className="h-4 w-4 mr-2" />Dark</> : <><Sun className="h-4 w-4 mr-2" />Light</>}
               </Button>
             </div>
-<div className="flex items-center justify-between">
-  <div className="flex items-baseline gap-2">
-    <Label htmlFor="transparent-ui">Transparent UI</Label>
-    <span className="text-sm text-muted-foreground">
-      Useful for editing symbology on mobile
-    </span>
-  </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <Label htmlFor="transparent-ui">Transparent UI</Label>
+                <span className="text-sm text-muted-foreground">
+                  Useful for editing symbology on mobile
+                </span>
+              </div>
 
-  <Switch
-    id="transparent-ui"
-    checked={isTransparentUi}
-    className="cursor-pointer"
-    onCheckedChange={setTransparentUi}
-  />
-</div>
-
-
+              <Switch
+                id="transparent-ui"
+                checked={isTransparentUi}
+                className="cursor-pointer"
+                onCheckedChange={setTransparentUi}
+              />
+            </div>
           </div>
           <Separator />
           <div className="space-y-4">
@@ -168,6 +167,23 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 and streams TMS tiles.
               </p>
             </div>
+
+            {useCogProtocolVsTitiler && (
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="high-res-terrain">High-Res Terrain Elevation (Terrarium)</Label>
+                  <span className="text-xs text-muted-foreground">
+                    Higher elevation quantization for COGs, slower processing
+                  </span>
+                </div>
+                <Switch
+                  id="high-res-terrain"
+                  checked={highResTerrain}
+                  className="cursor-pointer"
+                  onCheckedChange={setHighResTerrain}
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
