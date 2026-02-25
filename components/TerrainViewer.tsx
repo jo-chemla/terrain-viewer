@@ -18,7 +18,7 @@ import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
 import type { TerrainSource } from "@/lib/terrain-types"
 import { useAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, themeAtom
+  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, themeAtom, highResTerrainAtom
 } from "@/lib/settings-atoms"
 import { MinimapControl } from "./MapControls/MinimapControl";
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -74,6 +74,7 @@ export function TerrainViewer() {
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
+  const [highResTerrain] = useAtom(highResTerrainAtom)
 
   const [state, setState] = useQueryStates({
     viewMode: parseAsString.withDefault("3d"),
@@ -359,12 +360,12 @@ export function TerrainViewer() {
     }
   }, [state.exaggeration])
 
-  // Sync terrain when exaggeration or source changes
+  // Sync terrain when exaggeration, source, or highResTerrain changes
   useEffect(() => {
     const map = mapARef.current?.getMap()
     if (!map || !mapsLoaded) return
     applyTerrain(map)
-  }, [state.exaggeration, state.sourceA, mapsLoaded, applyTerrain])
+  }, [state.exaggeration, state.sourceA, highResTerrain, mapsLoaded, applyTerrain])
 
   // Also sync on viewMode changes (2d removes terrain, 3d/globe restores it)
   useEffect(() => {

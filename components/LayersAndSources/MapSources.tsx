@@ -97,8 +97,8 @@ export const TerrainSources = memo(
 
             return (
                 <>
-                    <Source id="terrainSource" key={`terrain-${source}`} {...sourceConfig} />
-                    <Source id="hillshadeSource" key={`hillshade-${source}`} {...sourceConfig} />
+                    <Source id="terrainSource" key={`terrain-${source}-${highResTerrain}`} {...sourceConfig} />
+                    <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}`} {...sourceConfig} />
                 </>
             )
         }
@@ -111,8 +111,8 @@ export const TerrainSources = memo(
 
         return (
             <>
-                <Source id="terrainSource" key={`terrain-${source}`} {...sourceConfig} />
-                <Source id="hillshadeSource" key={`hillshade-${source}`} {...sourceConfig} />
+                <Source id="terrainSource" key={`terrain-${source}-${highResTerrain}`} {...sourceConfig} />
+                <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}`} {...sourceConfig} />
             </>
         )
     },
