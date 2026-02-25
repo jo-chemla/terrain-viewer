@@ -1,5 +1,7 @@
 import { memo } from "react"
 import { Layer, type MapRef } from "react-map-gl/maplibre"
+import { useAtom } from "jotai"
+import { highResTerrainAtom } from "@/lib/settings-atoms"
 
 export const LAYER_SLOTS = {
   BACKGROUND: "slot-background",
@@ -85,10 +87,13 @@ export const HillshadeLayer = memo(
     showHillshade: boolean
     hillshadePaint: any
   }) => {
+    const [highResTerrain] = useAtom(highResTerrainAtom)
+
     return (
       <Layer
         beforeId={LAYER_SLOTS.HILLSHADE}   // ← always exists, order is stable
         id="hillshade"
+        key={`hillshade-${highResTerrain}`}
         type="hillshade"
         source="hillshadeSource"
         paint={hillshadePaint}
@@ -111,12 +116,15 @@ export const ColorReliefLayer = memo(
     showColorRelief: boolean
     colorReliefPaint: any
   }) => {
+    const [highResTerrain] = useAtom(highResTerrainAtom)
+
     if (!showColorRelief) return null
 
     return (
       <Layer
         beforeId={LAYER_SLOTS.COLOR_RELIEF}
         id="color-relief"
+        key={`color-relief-${highResTerrain}`}
         type="color-relief"
         source="hillshadeSource"
         paint={colorReliefPaint}

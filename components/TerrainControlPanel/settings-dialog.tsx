@@ -171,9 +171,9 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             {useCogProtocolVsTitiler && (
               <div className="flex items-center justify-between pt-2">
                 <div className="flex flex-col gap-1">
-                  <Label htmlFor="high-res-terrain">High-Res Terrain Elevation (Terrarium)</Label>
+                  <Label htmlFor="high-res-terrain">High-Precision Elevation Quantization </Label>
                   <span className="text-xs text-muted-foreground">
-                    Higher elevation quantization for COGs, slower processing
+                    Slower Streaming, Higher quantization steps (3.9mm vs 10cm) for COGs via Terrarium (vs TerrainRGB)
                   </span>
                 </div>
                 <Switch
