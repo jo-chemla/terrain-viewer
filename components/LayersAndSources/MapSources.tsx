@@ -3,8 +3,19 @@ import { Source } from "react-map-gl/maplibre"
 import { useAtom } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
-import { useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
+import { useCogProtocolVsTitilerAtom, highResTerrainAtom } from "@/lib/settings-atoms"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl';
+import {setColorFunction} from '@geomatico/maplibre-cog-protocol'
+
+// Terrarium color function - declared once outside component
+const terrariumColorFunction = (pixel: any, color: any) => {
+    const height = pixel[0];
+    const v = height + 32768;
+    const r = Math.floor(v / 256);
+    const g = Math.floor(v % 256);
+    const b = Math.floor((v - Math.floor(v)) * 256);
+    color.set([r, g, b, 255]);
+};
 
 // Sources Component - loads once per source change
 export const TerrainSources = memo(
@@ -22,13 +33,19 @@ export const TerrainSources = memo(
         titilerEndpoint: string
     }) => {
         const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
+        const [highResTerrain] = useAtom(highResTerrainAtom)
 
         const getTilesUrl = (key: TerrainSource | string) => {
             const customTerrainSource = customTerrainSources.find((s) => s.id === key)
             if (customTerrainSource) {
                 if (customTerrainSource.type === "cog") {
                     if (useCogProtocolVsTitiler) {
+                        // Register color function only if high-res mode is enabled
+                        if (highResTerrain) {
+                            setColorFunction(customTerrainSource.url, terrariumColorFunction);
+                        }
                         return `cog://${customTerrainSource.url}#dem`
+                        
                     } else {
                         return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customTerrainSource.url)}`
                     }
@@ -54,11 +71,14 @@ export const TerrainSources = memo(
             }
             return tileUrl
         }
+        
         const encodingsMap: any = {
             terrainrgb: 'mapbox',
-            cog: 'mapbox',
+            // Use terrarium encoding for COG only when high-res mode is enabled
+            cog: highResTerrain ? 'terrarium' : 'mapbox',
             terrarium: 'terrarium',
         }
+        
         const customTerrainSource = customTerrainSources.find((s) => s.id === source)
         if (customTerrainSource) {
             const tileUrl = getTilesUrl(source)

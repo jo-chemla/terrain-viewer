@@ -12,6 +12,7 @@ export const themeAtom = atomWithStorage<"light" | "dark">("theme", "light")
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)
 export const colorRampTypeAtom = atomWithStorage('colorRampType', 'classic')
 export const licenseFilterAtom = atomWithStorage('licenseFilter', 'open-distribute' )
+export const highResTerrainAtom = atomWithStorage("highResTerrain", false)
 
 type SkyConfig = {
   skyColor: string
