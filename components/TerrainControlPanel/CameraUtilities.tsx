@@ -24,6 +24,8 @@ import { Section } from './controls-components'
 import { atomWithStorage } from 'jotai/utils'
 import { useAtom } from 'jotai'
 
+import {type RenderQuality, EXPORT_RESOLUTIONS} from "@/lib/settings-atoms"
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CameraPose {
@@ -37,24 +39,9 @@ interface AppSnapshot {
   numericState: Record<string, number>
 }
 
-type LoopMode = "none" | "forward" | "bounce"
-type RenderQuality = "quick" | "normal" | "hq"
-
-interface ExportResolution {
-  label: string
-  width: number
-  height: number
-}
-
-const EXPORT_RESOLUTIONS: ExportResolution[] = [
-  { label: "Quick 360p 16:9",  width: 640,  height: 360  },
-  { label: "720p 16:9",        width: 1280, height: 720  },
-  { label: "1080p FHD 16:9",   width: 1920, height: 1080 },
-  { label: "4K UHD 16:9",      width: 3840, height: 2160 },
-  { label: "Native",           width: 0,    height: 0    },
-  { label: "1080×1080 1:1",    width: 1080, height: 1080 },
-  { label: "2048×2048 1:1",    width: 2048, height: 2048 },
-]
+// type LoopMode = "none" | "forward" | "bounce"
+export const LOOP_MODES = ["none", "forward", "bounce"] as const
+export type LoopMode = typeof LOOP_MODES[number]
 
 const RENDER_QUALITY_OPTIONS: {
   value: RenderQuality

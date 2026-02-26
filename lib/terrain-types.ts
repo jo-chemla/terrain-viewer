@@ -1,6 +1,16 @@
 export type TerrainSource = "mapterhorn" | "maptiler" | "aws" | "mapbox" | "mapzen" | "bing" | "google3dtiles"
 
-export type HillshadeMethod = "standard" | "combined" | "igor" | "basic" | "multidirectional"
+
+export const HILLSHADE_METHODS = [
+  "standard",
+  "combined",
+  "igor",
+  "basic",
+  "multidirectional",
+] as const
+
+// export type HillshadeMethod = "standard" | "combined" | "igor" | "basic" | "multidirectional"
+export type HillshadeMethod = typeof HILLSHADE_METHODS[number]
 
 export type ColorReliefRamp = "hypsometric" | "hypsometric-simple" | "rainbow" | "transparent" | "wiki" | "dem"
 

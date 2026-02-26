@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat } from "nuqs"
+import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral } from "nuqs"
 import Map, {
   NavigationControl,
   GeolocateControl,
@@ -10,12 +10,12 @@ import Map, {
   ScaleControl,
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel } from "./TerrainControlPanel/TerrainControlPanel"
-import { DEFAULT_ANIM_STATE, type AnimState } from "./TerrainControlPanel/CameraUtilities"
+import { DEFAULT_ANIM_STATE, type AnimState, LOOP_MODES } from "./TerrainControlPanel/CameraUtilities"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
 import { terrainSources } from "@/lib/terrain-sources"
-import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
-import type { TerrainSource } from "@/lib/terrain-types"
+import { COLOR_RAMP_IDS, colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
+import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, themeAtom, highResTerrainAtom
@@ -59,6 +59,7 @@ const parseAsFloatPrecise = createParser({
   serialize: (value) => value.toFixed(4)
 })
 
+export const VIEW_MODES = ['2d', 'globe', '3d'] as const
 
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
@@ -77,10 +78,13 @@ export function TerrainViewer() {
   const [highResTerrain] = useAtom(highResTerrainAtom)
 
   const [state, setState] = useQueryStates({
-    viewMode: parseAsString.withDefault("3d"),
+    viewMode: parseAsStringLiteral(VIEW_MODES).withDefault("3d"),
     splitScreen: parseAsBoolean.withDefault(false),
-    sourceA: parseAsString.withDefault("mapterhorn"),
-    sourceB: parseAsString.withDefault("maptiler"),
+    sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
+    sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
+    basemapSource: parseAsString.withDefault("esri"), // can have custom id in addition to @/lib/terrain-sources
+    // colorRamp: parseAsString.withDefault("mby"),
+    colorRamp: parseAsStringLiteral(COLOR_RAMP_IDS).withDefault("mby"),
     showHillshade: parseAsBoolean.withDefault(true),
     hillshadeOpacity: parseAsFloat.withDefault(1.0),
     showColorRelief: parseAsBoolean.withDefault(false),
@@ -89,11 +93,9 @@ export function TerrainViewer() {
     showContours: parseAsBoolean.withDefault(true),
     showContourLabels: parseAsBoolean.withDefault(true),
     showGraticules: parseAsBoolean.withDefault(false),
-    colorRamp: parseAsString.withDefault("mby"),
     showRasterBasemap: parseAsBoolean.withDefault(false),
     showBackground: parseAsBoolean.withDefault(false),
     rasterBasemapOpacity: parseAsFloat.withDefault(1.0),
-    basemapSource: parseAsString.withDefault("esri"),
     exaggeration: parseAsFloat.withDefault(1),
     lat: parseAsFloat.withDefault(45.9763),
     lng: parseAsFloat.withDefault(7.6586),
@@ -101,15 +103,16 @@ export function TerrainViewer() {
     // -- try getting out of pitch 0 loop in 3d
     // pitch: parseAsFloat.withDefault(60.001),
     pitch: parseAsFloatPrecise.withDefault(60),
-    // --
     bearing: parseAsFloat.withDefault(0),
+    // --
+    hillshadeMethod: parseAsStringLiteral(HILLSHADE_METHODS).withDefault("combined"),
     illuminationDir: parseAsFloat.withDefault(315),
     illuminationAlt: parseAsFloat.withDefault(45),
     shadowColor: parseAsString.withDefault("#000000"),
     highlightColor: parseAsString.withDefault("#FFFFFF"),
     accentColor: parseAsString.withDefault("#808080"),
+    graticuleColor: parseAsString.withDefault("#cccccc"),
     hillshadeExag: parseAsFloat.withDefault(1.0),
-    hillshadeMethod: parseAsString.withDefault("combined"),
     contourMinor: parseAsFloat.withDefault(50),
     contourMajor: parseAsFloat.withDefault(200),
     customHypsoMinMax: parseAsBoolean.withDefault(false),
@@ -117,13 +120,12 @@ export function TerrainViewer() {
     maxElevation: parseAsFloat.withDefault(8100),
     hypsoSliderMinBound: parseAsFloat.withDefault(0),
     hypsoSliderMaxBound: parseAsFloat.withDefault(8100),
-    graticuleColor: parseAsString.withDefault("#cccccc"),
     graticuleWidth: parseAsFloat.withDefault(1.0),
     showGraticuleLabels: parseAsBoolean.withDefault(false),
     graticuleDensity: parseAsFloat.withDefault(0),
     minimapMinimized: parseAsBoolean.withDefault(true),
     animDuration: parseAsFloat.withDefault(3),
-    animLoopMode: parseAsString.withDefault("bounce"),
+    animLoopMode: parseAsStringLiteral(LOOP_MODES).withDefault("bounce"),
     animSmoothCamera: parseAsBoolean.withDefault(false),
   })
 
