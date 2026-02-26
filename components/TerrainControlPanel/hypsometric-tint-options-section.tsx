@@ -21,6 +21,14 @@ import { getGradientColors } from "@/lib/controls-utils"
 import { useEffect } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 
+function computeStep(min: number, max: number) {
+  // return the magnitude order of the range divided by 100 (to get ~100 steps across the whole range), rounded down to the nearest power of 10
+  const range = max - min;
+  const rawStep = range / 100;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  return magnitude;
+}
+
 export const HypsometricTintOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void;
   isOpen: boolean
@@ -436,7 +444,8 @@ const HypsoDoubleRangeSlider: React.FC<{
         sliderId={hypsoSliderId}
         min={sliderBounds.min}
         max={sliderBounds.max}
-        step={1}
+        // step={1}
+        step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
         value={sliderValues}
         onValueChange={handleSliderChange}
         className="w-full"
