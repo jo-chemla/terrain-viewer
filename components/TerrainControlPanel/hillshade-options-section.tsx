@@ -20,21 +20,14 @@ export const HillshadeOptionsSection: React.FC<{
   onOpenChange,
 }) => {
   const [isColorsOpen, setIsColorsOpen] = useState(false)
-  const hillshadeMethodKeys = useMemo(() => ["standard", "combined", "igor", "basic", "multidirectional", "multidir-colors"], [])
   const [isHillshadeXYPadOpen, setIsHillshadeXYPadOpen] = useAtom(isHillshadeXYPadOpenAtom)
-
-  const cycleHillshadeMethod = useCallback((direction: number) => {
-    const currentIndex = hillshadeMethodKeys.indexOf(state.hillshadeMethod)
-    const newIndex = (currentIndex + direction + hillshadeMethodKeys.length) % hillshadeMethodKeys.length
-    setState({ hillshadeMethod: hillshadeMethodKeys[newIndex] })
-  }, [state.hillshadeMethod, hillshadeMethodKeys, setState])
 
   const supportsIlluminationDirection = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
   const supportsIlluminationAltitude = useMemo(() => ["combined", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
   const supportsShadowColor = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
   const supportsHighlightColor = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
   const supportsAccentColor = useMemo(() => state.hillshadeMethod === "standard", [state.hillshadeMethod])
-  const supportsExaggeration = useMemo(() => ["standard", "combined", "multidirectional", "multidir-colors"].includes(state.hillshadeMethod), [state.hillshadeMethod])
+  const supportsExaggeration = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
 
   // Set constraints based on what the current method supports
   // If direction is not supported, fix it to 315° (northwest)
@@ -45,11 +38,19 @@ export const HillshadeOptionsSection: React.FC<{
   if (!state.showHillshade) return null
 
   const hillshadeMethodOptions = [
-    { value: "combined", label: "Combined" }, { value: "standard", label: "Standard" },
-    { value: "multidir-colors", label: "Aspect (Multidir Colors)" }, { value: "igor", label: "Igor" },
-    { value: "basic", label: "Basic" }, { value: "multidirectional", label: "Multidirectional" },
-    { value: "aspect-multidir", label: "Aspect classic (Multidir Colors)" },
+    { value: "combined", label: "Combined [2d]" }, { value: "standard", label: "Standard [1d]" },
+    { value: "multidir-colors", label: "Aspect (Multidir Colors)" }, { value: "igor", label: "Igor [1d]" },
+    { value: "basic", label: "Basic [2d]" },
+    // { value: "aspect-multidir", label: "Aspect classic (Multidir Colors)" },
   ]
+  const hillshadeMethodKeys = hillshadeMethodOptions.map(({ value }) => value)
+
+  const cycleHillshadeMethod = useCallback((direction: number) => {
+    const currentIndex = hillshadeMethodKeys.indexOf(state.hillshadeMethod)
+    const newIndex = (currentIndex + direction + hillshadeMethodKeys.length) % hillshadeMethodKeys.length
+    setState({ hillshadeMethod: hillshadeMethodKeys[newIndex] })
+  }, [state.hillshadeMethod, hillshadeMethodKeys, setState])
+
 
   return (
     <Section title="Hillshade Options" isOpen={isOpen} onOpenChange={onOpenChange}>

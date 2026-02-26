@@ -177,12 +177,10 @@ export function TerrainViewer() {
     const supportsShadowColor = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
     const supportsHighlightColor = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
     const supportsAccentColor = state.hillshadeMethod === "standard"
-    const supportsExaggeration = ["standard", "combined", "multidirectional", "multidir-colors", "aspect-multidir"].includes(state.hillshadeMethod)
+    // const supportsExaggeration = ["standard", "combined", "igor"].includes(state.hillshadeMethod)
+    const supportsExaggeration = true
 
-    if (state.hillshadeMethod === "multidirectional") {
-      paint["hillshade-method"] = "multidirectional"
-      paint["hillshade-exaggeration"] = 0.5
-    } else if (state.hillshadeMethod === "multidir-colors") {
+    if (state.hillshadeMethod === "multidir-colors") {
       paint["hillshade-method"] = "multidirectional"
       paint["hillshade-highlight-color"] = ["#FF4000", "#FFFF00", "#40ff00", "#00FF80"]
       paint["hillshade-shadow-color"] = ["#00bfff", "#0000ff", "#bf00ff", "#FF0080"]
@@ -205,6 +203,8 @@ export function TerrainViewer() {
         paint["hillshade-highlight-color"] = `rgba(${highlightRgb.r}, ${highlightRgb.g}, ${highlightRgb.b}, ${state.hillshadeOpacity})`
       }
       if (supportsIlluminationAltitude) paint["hillshade-illumination-altitude"] = state.illuminationAlt
+      // Fix something that looks like a bug on mapillary side
+      if (supportsIlluminationAltitude && state.hillshadeMethod === "basic") paint["hillshade-illumination-altitude"] = 90 - (90 - state.illuminationAlt) / 6.28
       if (supportsExaggeration) paint["hillshade-exaggeration"] = state.hillshadeExag
       if (supportsAccentColor) paint["hillshade-accent-color"] = state.accentColor
       if (state.hillshadeMethod !== "standard") paint["hillshade-method"] = state.hillshadeMethod

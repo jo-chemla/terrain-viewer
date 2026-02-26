@@ -6,7 +6,8 @@ export const HILLSHADE_METHODS = [
   "combined",
   "igor",
   "basic",
-  "multidirectional",
+  "aspect-multidir",
+  "multidir-colors"
 ] as const
 
 // export type HillshadeMethod = "standard" | "combined" | "igor" | "basic" | "multidirectional"
