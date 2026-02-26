@@ -404,3 +404,6 @@ export const colorRampsFlat = Object.assign({}, ...Object.values(colorRamps));
 // const {palette, domain} = parsePaletteWithStops(cpt);
 // const colors = chromajsScaleToMaplibre(palette, domain)
 // console.log({cpt, palette, domain, colors})
+
+export const COLOR_RAMP_IDS = Object.keys(colorRampsFlat) 
+export type ColorRampId = keyof typeof colorRampsFlat
