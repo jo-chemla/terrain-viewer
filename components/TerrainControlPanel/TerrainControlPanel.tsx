@@ -71,7 +71,7 @@ interface TerrainControlPanelProps {
   setState: (updates: any) => void
   getMapBounds: () => Bounds
   mapRef: React.RefObject<MapRef>
-  mapsLoaded: boolean
+  mapLoaded: boolean
   animState: AnimState
   // setAnimState: (s: AnimState) => void
   setAnimState?: React.Dispatch<React.SetStateAction<AnimState>>
@@ -82,7 +82,7 @@ export function TerrainControlPanel({
   setState,
   getMapBounds,
   mapRef,
-  mapsLoaded,
+  mapLoaded,
   animState,
   setAnimState,
 }: TerrainControlPanelProps) {
@@ -90,7 +90,7 @@ export function TerrainControlPanel({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
   const [theme] = useAtom(themeAtom)
-  const { draw } = useTerraDraw(mapRef, mapsLoaded)
+  const { draw } = useTerraDraw(mapRef, mapLoaded)
   const isMobile = useIsMobile()
   const [activeSlider] = useAtom(activeSliderAtom)
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)

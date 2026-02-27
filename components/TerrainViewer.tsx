@@ -55,7 +55,8 @@ export function TerrainViewer() {
   const mapBRef = useRef<MapRef>(null)
   const isSyncing = useRef(false)
   const [mapLibreReady, setMapLibreReady] = useState(false)
-  const [mapsLoaded, setMapsLoaded] = useState(false)
+  const [mapALoaded, setMapALoaded] = useState(false)
+  const [mapBLoaded, setMapBLoaded] = useState(false)
   const viewStateUpdateTimer = useRef<NodeJS.Timeout | null>(null)
   const isMobile = useIsMobile()
 
@@ -280,8 +281,18 @@ export function TerrainViewer() {
     if (themeColor) setState({ graticuleColor: themeColor })
   }, [themeColor])
 
+
+  // ----------------------------------------
   // Handle terrain source changes and sync terrain with view mode changes
-  const applyTerrain = useCallback((map: maplibregl.Map) => {
+  // ----------------------------------------
+  const applyTerrain = useCallback((map: maplibregl.Map, viewMode: string) => {
+    // Remove terrain in 2D mode
+    if (viewMode === '2d') {
+      map.setTerrain(null)
+      return
+    }
+    
+    // Apply terrain in 3D/globe mode
     const apply = () => {
       if (map.getSource('terrainSource')) {
         map.setTerrain({
@@ -298,23 +309,30 @@ export function TerrainViewer() {
     }
   }, [state.exaggeration])
 
-  // Sync terrain when exaggeration, source, or highResTerrain changes
+  // Sync terrain for Map A
   useEffect(() => {
     const map = mapARef.current?.getMap()
-    if (!map || !mapsLoaded) return
-    applyTerrain(map)
-  }, [state.exaggeration, state.sourceA, highResTerrain, mapsLoaded, applyTerrain])
+    if (!map || !mapALoaded) return
+    applyTerrain(map, state.viewMode)
+  }, [state.exaggeration, state.sourceA, state.viewMode, highResTerrain, mapALoaded, applyTerrain])
 
-  // Also sync on viewMode changes (2d removes terrain, 3d/globe restores it)
+  // Sync terrain for Map B
   useEffect(() => {
-    const map = mapARef.current?.getMap()
-    if (!map || !mapsLoaded) return
-    if (state.viewMode === '2d') {
-      map.setTerrain(null)
-    } else {
-      applyTerrain(map)
+    if (!state.splitScreen) return
+    const map = mapBRef.current?.getMap()
+    if (!map || !mapBLoaded) return
+    applyTerrain(map, state.viewMode)
+  }, [state.exaggeration, state.sourceB, state.viewMode, highResTerrain, mapBLoaded, state.splitScreen, applyTerrain])
+
+  // Reset mapBLoaded when split screen is toggled off
+  useEffect(() => {
+    if (!state.splitScreen) {
+      setMapBLoaded(false)
     }
-  }, [state.viewMode, mapsLoaded, applyTerrain])
+  }, [state.splitScreen])
+  
+  // ----------------------------------------
+
 
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
@@ -334,7 +352,8 @@ export function TerrainViewer() {
           onMove={isPrimary ? onMoveA : undefined}
           onMoveEnd={isPrimary ? onMoveEndA : undefined}
           onLoad={() => {
-            if (isPrimary) setMapsLoaded(true)
+            if (isPrimary) setMapALoaded(true)
+            else setMapBLoaded(true)
             // const map = isPrimary ? mapARef.current : mapBRef.current
             // const mapInstance = map?.getMap()
             // if (!mapInstance) return
@@ -412,7 +431,7 @@ export function TerrainViewer() {
               maptilerKey={maptilerKey}
               customTerrainSources={customTerrainSources}
               titilerEndpoint={titilerEndpoint}
-              mapsLoaded={mapsLoaded}
+              mapLoaded={mapALoaded}
               theme={theme}
             />
           )}
@@ -448,7 +467,7 @@ export function TerrainViewer() {
               <GeolocateControl position="top-left" />
 
               {/* Minimap */}
-              {mapsLoaded && mapARef.current && (<MinimapControl
+              {mapALoaded && mapARef.current && (<MinimapControl
                 parentMap={mapARef.current.getMap()}
                 position="bottom-left"
                 mode="dynamic"
@@ -522,7 +541,7 @@ export function TerrainViewer() {
       state.sourceA, state.contourMinor, state.contourMajor,
       hillshadePaint, colorReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
-      mapsLoaded, onMoveA, onMoveEndA,
+      mapALoaded, onMoveA, onMoveEndA,
       theme, skyConfig.backgroundLayerActive,
     ],
   )
@@ -549,7 +568,7 @@ export function TerrainViewer() {
         setState={setState}
         getMapBounds={getMapBounds}
         mapRef={mapARef as any}
-        mapsLoaded={mapsLoaded}
+        mapLoaded={mapALoaded}
         animState={animState}
         setAnimState={setAnimStateWithSync}
       />
