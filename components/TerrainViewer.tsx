@@ -6,15 +6,13 @@ import Map, {
   NavigationControl,
   GeolocateControl,
   type MapRef,
-  type SkySpecification,
   ScaleControl,
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel } from "./TerrainControlPanel/TerrainControlPanel"
-import { DEFAULT_ANIM_STATE, type AnimState, LOOP_MODES } from "./TerrainControlPanel/CameraUtilities"
+import { DEFAULT_ANIM_STATE, type AnimState, LOOP_MODES, LoopMode } from "./TerrainControlPanel/CameraUtilities"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
-import { terrainSources } from "@/lib/terrain-sources"
-import { COLOR_RAMP_IDS, colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
+import { COLOR_RAMP_IDS } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom } from "jotai"
 import {
@@ -34,7 +32,8 @@ import {
   HillshadeLayer,
   ColorReliefLayer,
   LAYER_SLOTS,
-  computeHillshadePaint
+  computeHillshadePaint,
+  computeColorReliefPaint, 
 } from "./LayersAndSources/MapLayers"
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
@@ -159,55 +158,15 @@ export function TerrainViewer() {
   }, [setState])
 
   // Compute hillshade paint with useMemo to prevent recalculation
-  const {
-    hillshadeMethod,
-    illuminationDir,
-    illuminationAlt,
-    hillshadeOpacity,
-    shadowColor,
-    highlightColor,
-    hillshadeExag,
-    accentColor,
-  } = state
   const hillshadePaint = useMemo(
-    () =>
-      computeHillshadePaint({
-        hillshadeMethod,
-        illuminationDir,
-        illuminationAlt,
-        hillshadeOpacity,
-        shadowColor,
-        highlightColor,
-        hillshadeExag,
-        accentColor,
-      }),
-    [
-      hillshadeMethod,
-      illuminationDir,
-      illuminationAlt,
-      hillshadeOpacity,
-      shadowColor,
-      highlightColor,
-      hillshadeExag,
-      accentColor,
-    ]
+    () => computeHillshadePaint(state),
+    [ state.hillshadeMethod, state.illuminationDir, state.illuminationAlt, state.hillshadeOpacity, state.shadowColor, state.highlightColor, state.hillshadeExag, state.accentColor ]
   )
 
-  const colorReliefPaint = (() => {
-    const ramp = colorRampsFlat[state.colorRamp]
-    if (!ramp) return {}
-
-    let colors
-    if (state.customHypsoMinMax) {
-      colors = remapColorRampStops(ramp.colors, state.minElevation, state.maxElevation)
-    } else {
-      colors = ramp.colors
-    }
-    return {
-      "color-relief-opacity": state.colorReliefOpacity,
-      "color-relief-color": colors,
-    }
-  })()
+  const colorReliefPaint = useMemo(
+    () => computeColorReliefPaint(state),
+    [ state.colorRamp, state.customHypsoMinMax, state.minElevation, state.maxElevation, state.colorReliefOpacity ]
+  )
 
   // Check MapLibre availability
   useEffect(() => {

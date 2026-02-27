@@ -2,6 +2,7 @@ import { memo } from "react"
 import { Layer, type MapRef } from "react-map-gl/maplibre"
 import { useAtom } from "jotai"
 import { highResTerrainAtom } from "@/lib/settings-atoms"
+import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
 
 export const LAYER_SLOTS = {
   BACKGROUND: "slot-background",
@@ -215,4 +216,32 @@ export const computeHillshadePaint = ({
   paint["hillshade-illumination-anchor"] = illumAnchor
 
   return paint
+}
+
+export type ColorReliefConfig = {
+  colorRamp?: string
+  customHypsoMinMax?: boolean
+  minElevation?: number
+  maxElevation?: number
+  colorReliefOpacity?: number
+}
+
+export const computeColorReliefPaint = ({
+  colorRamp,
+  customHypsoMinMax = false,
+  minElevation = 0,
+  maxElevation = 8100,
+  colorReliefOpacity = 1.0,
+}: ColorReliefConfig) => {
+  const ramp = colorRamp ? colorRampsFlat[colorRamp] : undefined
+  if (!ramp) return {}
+
+  const colors = customHypsoMinMax
+    ? remapColorRampStops(ramp.colors, minElevation, maxElevation)
+    : ramp.colors
+
+  return {
+    "color-relief-opacity": colorReliefOpacity,
+    "color-relief-color": colors,
+  }
 }
