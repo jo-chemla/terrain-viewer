@@ -49,7 +49,7 @@ export const MobileSlider = forwardRef<
   return (
     <Slider
       ref={ref}
-      className={cn(className, transparentUi ? "relative z-[60]" : "")}
+      className={cn(className, transparentUi ? "relative z-[1]" : "")}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}

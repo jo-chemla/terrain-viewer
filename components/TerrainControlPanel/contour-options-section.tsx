@@ -115,12 +115,12 @@ export const ContourOptionsSection: React.FC<{
               min={0} max={DENSITY_VALUES.length - 1} step={1} hideValue
             />
             <div className="flex gap-3">
-              <Input
+              {/* <Input
                 type="color"
                 value={state.graticuleColor}
                 onChange={(e) => setState({ graticuleColor: e.target.value })}
                 className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
-              />
+              /> */}
               <div className="grow">
                 <SliderControl
                   label={`Width: ${graticuleWidth}px`}

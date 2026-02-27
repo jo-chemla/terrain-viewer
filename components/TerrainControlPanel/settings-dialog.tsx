@@ -17,8 +17,12 @@ import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
 import { TooltipIconButton } from "./controls-components"
 
-export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void }> = ({ isOpen, onOpenChange }) => {
+export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any }> = ({ isOpen, onOpenChange, state, setState }) => {
   const { theme, toggleTheme } = useTheme()
+  // const theme = state.theme
+  // const setTheme = useCallback((v: string) => setState({theme: v}), [setState])
+  // const toggleTheme = useCallback(() => setTheme(theme === "light" ? "dark" : "light"), [theme, setTheme])
+  
   const [mapboxKey, setMapboxKey] = useAtom(mapboxKeyAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [maptilerKey, setMaptilerKey] = useAtom(maptilerKeyAtom)
