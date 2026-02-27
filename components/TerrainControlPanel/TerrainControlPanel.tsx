@@ -6,7 +6,7 @@ import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown } from 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { themeAtom, transparentUiAtom, activeSliderAtom } from "@/lib/settings-atoms"
+import { transparentUiAtom, activeSliderAtom, themeAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
 import { useSourceConfig, type Bounds } from "@/lib/controls-utils"
@@ -90,6 +90,7 @@ export function TerrainControlPanel({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
   const [theme] = useAtom(themeAtom)
+  // const theme = state.theme
   const { draw } = useTerraDraw(mapRef, mapLoaded)
   const isMobile = useIsMobile()
   const [activeSlider] = useAtom(activeSliderAtom)
@@ -208,7 +209,7 @@ export function TerrainControlPanel({
               tooltip={allFolded ? "Expand all sections" : "Fold all sections"}
               onClick={handleFoldExpandAll}
             />
-            <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
+            <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState}/>
             <TooltipIconButton
               icon={PanelRightClose}
               tooltip="Close sidebar"

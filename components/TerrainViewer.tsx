@@ -69,6 +69,7 @@ export function TerrainViewer() {
 
   const [state, setState] = useQueryStates({
     viewMode: parseAsStringLiteral(VIEW_MODES).withDefault("3d"),
+    wip_theme: parseAsStringLiteral(['light', 'dark']).withDefault("light"),
     splitScreen: parseAsBoolean.withDefault(false),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
@@ -101,15 +102,16 @@ export function TerrainViewer() {
     shadowColor: parseAsString.withDefault("#000000"),
     highlightColor: parseAsString.withDefault("#FFFFFF"),
     accentColor: parseAsString.withDefault("#808080"),
-    graticuleColor: parseAsString.withDefault("#cccccc"),
+    // graticuleColor: parseAsString.withDefault("#000"),
+    // graticuleColor: parseAsString, // don't use default to sync with theme
     hillshadeExag: parseAsFloat.withDefault(1.0),
     contourMinor: parseAsFloat.withDefault(50),
     contourMajor: parseAsFloat.withDefault(200),
     customHypsoMinMax: parseAsBoolean.withDefault(false),
     minElevation: parseAsFloat.withDefault(0),
     maxElevation: parseAsFloat.withDefault(8100),
-    hypsoSliderMinBound: parseAsFloat.withDefault(0),
-    hypsoSliderMaxBound: parseAsFloat.withDefault(8100),
+    hypsoSliderMinBound: parseAsFloat.withDefault(-8000),
+    hypsoSliderMaxBound: parseAsFloat.withDefault(5000),
     graticuleWidth: parseAsFloat.withDefault(1.0),
     showGraticuleLabels: parseAsBoolean.withDefault(false),
     graticuleDensity: parseAsFloat.withDefault(0),
@@ -117,7 +119,9 @@ export function TerrainViewer() {
     animDuration: parseAsFloat.withDefault(3),
     animLoopMode: parseAsStringLiteral(LOOP_MODES).withDefault("bounce"),
     animSmoothCamera: parseAsBoolean.withDefault(false),
+    anim360Spinning: parseAsBoolean.withDefault(false),
   })
+
 
   const [skyConfig] = useAtom(skyConfigAtom)
 
@@ -250,8 +254,21 @@ export function TerrainViewer() {
   }, [state.viewMode])
 
   const [theme] = useAtom(themeAtom)
-  const themeColor = theme === 'light' ? '#fff' : '#000'
-  const themeAntiColor = theme === 'light' ? '#000' : '#fff'
+  // const theme = state.theme
+  // const themeColor = theme === 'light' ? '#fff' : '#000'
+  // const themeAntiColor = theme === 'light' ? '#000' : '#fff'
+
+  const themeColor = useMemo(
+    () => theme === 'light' ? '#fff' : '#000',
+    [theme]
+  )
+
+  const themeAntiColor = useMemo(
+    () => theme === 'light' ? '#000' : '#fff',
+    [theme]
+  )
+  
+  // const effectiveGraticuleColor = state.graticuleColor ?? themeColor
 
   const getSkyConfig = () => ({
     'sky-color': skyConfig.skyColor,
@@ -277,9 +294,34 @@ export function TerrainViewer() {
     '0 -2px 0', '0 2px 0',
   ].map((shadow) => shadow + themeColor).join(', ')
 
-  useEffect(() => {
-    if (themeColor) setState({ graticuleColor: themeColor })
-  }, [themeColor])
+  // For graticule color - only update URL when graticules are shown
+  // useEffect(() => {
+  //   if (state.showContoursAndGraticules && state.showGraticules) {
+  //     setState({ graticuleColor: themeColor })
+  //   }
+  // }, [themeColor, state.showContoursAndGraticules, state.showGraticules, state.graticuleColor])
+  // useEffect(() => {
+  //   // If graticules are shown and no custom color is set, use theme color
+  //   if (state.showContoursAndGraticules && state.showGraticules && !state.graticuleColor) {
+  //     setState({ graticuleColor: themeColor })
+  //   }
+    
+  //   // When theme changes, update color ONLY if it matches the old theme color
+  //   // (meaning user hasn't customized it)
+  //   if (state.graticuleColor === (themeColor === '#fff' ? '#000' : '#fff')) {
+  //     setState({ graticuleColor: themeColor })
+  //   }
+  // }, [themeColor, state.showContoursAndGraticules, state.showGraticules, state.graticuleColor, setState])
+
+  // useEffect(() => {
+  //   // Force update on mount if no color is set
+  //     setState({ graticuleColor: themeAntiColor })
+  // }, []) // Run once on mount
+
+  // useEffect(() => {
+  //   // Then sync on theme changes
+  //     setState({ graticuleColor: themeAntiColor })
+  // }, [themeAntiColor, setState])
 
 
   // ----------------------------------------
@@ -308,6 +350,33 @@ export function TerrainViewer() {
       map.on('sourcedata', apply)
     }
   }, [state.exaggeration])
+  // const applyTerrain = useCallback((map: maplibregl.Map, viewMode: string) => {
+  //   if (viewMode === '2d') {
+  //     map.setTerrain(null)
+  //     return
+  //   }
+    
+  //   const apply = () => {
+  //     if (map.getSource('terrainSource')) {
+  //       map.setTerrain({
+  //         source: 'terrainSource',
+  //         exaggeration: state.exaggeration || 1,
+  //       })
+  //       map.off('sourcedata', apply)
+  //     }
+  //   }
+    
+  //   if (map.getSource('terrainSource')) {
+  //     map.setTerrain({ source: 'terrainSource', exaggeration: state.exaggeration || 1 })
+  //   } else {
+  //     map.off('sourcedata', apply) // Clean up any existing listener first
+  //     map.on('sourcedata', apply)
+  //   }
+    
+  //   return () => {
+  //     map.off('sourcedata', apply)
+  //   }
+  // }, [state.exaggeration])
 
   // Sync terrain for Map A
   useEffect(() => {
@@ -315,6 +384,11 @@ export function TerrainViewer() {
     if (!map || !mapALoaded) return
     applyTerrain(map, state.viewMode)
   }, [state.exaggeration, state.sourceA, state.viewMode, highResTerrain, mapALoaded, applyTerrain])
+  // useEffect(() => {
+  //   const map = mapARef.current?.getMap()
+  //   if (!map || !mapALoaded) return
+  //   return applyTerrain(map, state.viewMode)
+  // }, [state.exaggeration, state.sourceA, state.viewMode, highResTerrain, mapALoaded, applyTerrain])
 
   // Sync terrain for Map B
   useEffect(() => {
@@ -440,7 +514,8 @@ export function TerrainViewer() {
           {isPrimary && state.showGraticules && (
             <GraticuleLayer
               showGraticules={state.showContoursAndGraticules && state.showGraticules}
-              graticuleColor={state.graticuleColor}
+              graticuleColor={themeAntiColor}
+              // graticuleColor={effectiveGraticuleColor}
               graticuleWidth={state.graticuleWidth}
               showLabels={state.showGraticuleLabels}
               labelColor={graticuleLabelColor}
@@ -537,12 +612,12 @@ export function TerrainViewer() {
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
       state.basemapSource, state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
       state.showColorRelief, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
-      state.showBackground, state.showGraticules, state.graticuleColor, state.graticuleWidth,
+      state.showBackground, state.showGraticules, state.graticuleWidth,
       state.sourceA, state.contourMinor, state.contourMajor,
       hillshadePaint, colorReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA,
-      theme, skyConfig.backgroundLayerActive,
+      skyConfig.backgroundLayerActive,
     ],
   )
 

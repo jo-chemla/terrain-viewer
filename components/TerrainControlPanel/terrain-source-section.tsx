@@ -9,7 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   isByodOpenAtom, customTerrainSourcesAtom,
-  titilerEndpointAtom, themeAtom, useCogProtocolVsTitilerAtom,
+  titilerEndpointAtom, useCogProtocolVsTitilerAtom,
   type CustomTerrainSource
 } from "@/lib/settings-atoms"
 import { terrainSources } from "@/lib/terrain-sources"
