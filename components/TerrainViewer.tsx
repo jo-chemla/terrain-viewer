@@ -50,6 +50,14 @@ const parseAsFloatPrecise = createParser({
 
 export const VIEW_MODES = ['2d', 'globe', '3d'] as const
 
+type AnimQuery = {
+  duration: number
+  loopMode: LoopMode
+  smoothCamera: boolean
+}
+
+
+
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
   const mapBRef = useRef<MapRef>(null)
@@ -120,6 +128,18 @@ export function TerrainViewer() {
     animLoopMode: parseAsStringLiteral(LOOP_MODES).withDefault("bounce"),
     animSmoothCamera: parseAsBoolean.withDefault(false),
     anim360Spinning: parseAsBoolean.withDefault(false),
+    // animSettings: parseAsJson<AnimQuery>((v) => v as AnimQuery).withDefault({
+    //   duration: 3,
+    //   loopMode: "bounce",
+    //   smoothCamera: false,
+    // }),  
+  },
+  {
+    history: 'replace', // push to remember past interactions, or replace to avoid cluttering history
+    limitUrlUpdates: {
+      method: 'throttle', // throttle or debounce debounce correctly fires only have paused setState, but flashes
+      timeMs: 500
+    }
   })
 
 
