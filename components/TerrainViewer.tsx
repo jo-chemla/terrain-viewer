@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral } from "nuqs"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral, parseAsJson } from "nuqs"
 import Map, {
   NavigationControl,
   GeolocateControl,
@@ -34,20 +34,10 @@ import {
   HillshadeLayer,
   ColorReliefLayer,
   LAYER_SLOTS,
+  computeHillshadePaint
 } from "./LayersAndSources/MapLayers"
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  return result
-    ? {
-        r: Number.parseInt(result[1], 16),
-        g: Number.parseInt(result[2], 16),
-        b: Number.parseInt(result[3], 16),
-      }
-    : { r: 0, g: 0, b: 0 }
-}
 
 import { createParser } from 'nuqs'
 
@@ -169,52 +159,39 @@ export function TerrainViewer() {
   }, [setState])
 
   // Compute hillshade paint with useMemo to prevent recalculation
-  const hillshadePaint = (() => {
-    const paint: any = {}
-
-    const supportsIlluminationDirection = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
-    const supportsIlluminationAltitude = ["combined", "basic"].includes(state.hillshadeMethod)
-    const supportsShadowColor = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
-    const supportsHighlightColor = ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod)
-    const supportsAccentColor = state.hillshadeMethod === "standard"
-    // const supportsExaggeration = ["standard", "combined", "igor"].includes(state.hillshadeMethod)
-    const supportsExaggeration = true
-
-    if (state.hillshadeMethod === "multidir-colors") {
-      paint["hillshade-method"] = "multidirectional"
-      paint["hillshade-highlight-color"] = ["#FF4000", "#FFFF00", "#40ff00", "#00FF80"]
-      paint["hillshade-shadow-color"] = ["#00bfff", "#0000ff", "#bf00ff", "#FF0080"]
-      paint["hillshade-illumination-direction"] = [270, 315, 0, 45]
-      paint["hillshade-illumination-altitude"] = [30, 30, 30, 30]
-    } else if (state.hillshadeMethod === "aspect-multidir") {
-      paint["hillshade-method"] = "multidirectional"
-      paint["hillshade-highlight-color"] = ["#CC0000", "#0000CC"]
-      paint["hillshade-shadow-color"] = ["#00CCCC", "#CCCC00"]
-      paint["hillshade-illumination-direction"] = [0, 270]
-      paint["hillshade-illumination-altitude"] = [30, 30]
-    } else {
-      if (supportsIlluminationDirection) paint["hillshade-illumination-direction"] = state.illuminationDir
-      if (supportsShadowColor) {
-        const shadowRgb = hexToRgb(state.shadowColor)
-        paint["hillshade-shadow-color"] = `rgba(${shadowRgb.r}, ${shadowRgb.g}, ${shadowRgb.b}, ${state.hillshadeOpacity})`
-      }
-      if (supportsHighlightColor) {
-        const highlightRgb = hexToRgb(state.highlightColor)
-        paint["hillshade-highlight-color"] = `rgba(${highlightRgb.r}, ${highlightRgb.g}, ${highlightRgb.b}, ${state.hillshadeOpacity})`
-      }
-      if (supportsIlluminationAltitude) paint["hillshade-illumination-altitude"] = state.illuminationAlt
-      // Fix something that looks like a bug on mapillary side
-      if (supportsIlluminationAltitude && state.hillshadeMethod === "basic") paint["hillshade-illumination-altitude"] = 90 - (90 - state.illuminationAlt) / 6.28
-      if (supportsExaggeration) paint["hillshade-exaggeration"] = state.hillshadeExag
-      if (supportsAccentColor) paint["hillshade-accent-color"] = state.accentColor
-      if (state.hillshadeMethod !== "standard") paint["hillshade-method"] = state.hillshadeMethod
-    }
-
-    // paint["resampling"] = 'linear' 
-    paint["hillshade-illumination-anchor"] = 'map' 
-
-    return paint
-  })()
+  const {
+    hillshadeMethod,
+    illuminationDir,
+    illuminationAlt,
+    hillshadeOpacity,
+    shadowColor,
+    highlightColor,
+    hillshadeExag,
+    accentColor,
+  } = state
+  const hillshadePaint = useMemo(
+    () =>
+      computeHillshadePaint({
+        hillshadeMethod,
+        illuminationDir,
+        illuminationAlt,
+        hillshadeOpacity,
+        shadowColor,
+        highlightColor,
+        hillshadeExag,
+        accentColor,
+      }),
+    [
+      hillshadeMethod,
+      illuminationDir,
+      illuminationAlt,
+      hillshadeOpacity,
+      shadowColor,
+      highlightColor,
+      hillshadeExag,
+      accentColor,
+    ]
+  )
 
   const colorReliefPaint = (() => {
     const ramp = colorRampsFlat[state.colorRamp]
