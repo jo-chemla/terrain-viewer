@@ -150,7 +150,7 @@ export interface ContoursLayerProps {
   customTerrainSources: CustomTerrainSource[]
   titilerEndpoint: string
   /** Set to true once the parent map has fired its `load` event */
-  mapsLoaded: boolean
+  mapLoaded: boolean
   theme: string
 }
 
@@ -168,7 +168,7 @@ export function ContoursLayer({
   maptilerKey,
   customTerrainSources,
   titilerEndpoint,
-  mapsLoaded,
+  mapLoaded,
   theme,
 }: ContoursLayerProps) {
   const { current: mapRef } = useMap()
@@ -191,7 +191,7 @@ export function ContoursLayer({
 
   // ── Init: register DemSource + add contour-source to map ───────────────────
   useEffect(() => {
-    if (!mapRef || !mapsLoaded) return
+    if (!mapRef || !mapLoaded) return
     if (initializedRef.current) return
     if (initAttemptsRef.current >= MAX_INIT_ATTEMPTS) return
 
@@ -264,7 +264,7 @@ export function ContoursLayer({
 
     const timer = setTimeout(tryInit, 1000)
     return () => clearTimeout(timer)
-  }, [mapsLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef])
+  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef])
 
   // ── Update thresholds when contourMinor/contourMajor change ───────────────
   useEffect(() => {
