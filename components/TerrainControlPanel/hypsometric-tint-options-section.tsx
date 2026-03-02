@@ -295,7 +295,10 @@ export const HypsometricTintOptionsSection: React.FC<{
                         className="w-12 h-4 rounded-sm"
                         style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
                       />
-                      <span>{ramp.name}</span>
+                      <span>
+                        {!ramp.continuous ? ' (D) ' : ' (C) '}
+                        {ramp.name}
+                      </span>
                     </div>
                   </SelectItem>
                 ))}

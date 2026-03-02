@@ -54,6 +54,26 @@ function chromajsScaleToMaplibre(paletteScale: Scale) {
   ]
 }
 
+// Check if a color ramp is continuous or discrete
+function isPaletteContinuous(paletteScale: Scale): boolean {
+  const colors = paletteScale.colors();
+  const domain = paletteScale.domain();
+  const nColors = colors.length  
+  if (nColors <= 2) return true
+  
+  // Count how many consecutive pairs have the same color at different stops
+  let discreteSegments = 0
+  for (let i = 0; i < nColors - 1; i++) {
+    if (colors[i] === colors[i + 1] && domain[i] !== domain[i + 1]) {
+      discreteSegments++
+    }
+  }
+
+  // If more than 30% of segments are discrete/stepped, mark as discrete
+  const discreteRatio = discreteSegments / (nColors - 1)
+  return discreteRatio < 0.3
+}
+
 function extendCptCity(arr: any[]) {
   return arr.map(
     (cpt: any, idx: number) => {
@@ -61,22 +81,39 @@ function extendCptCity(arr: any[]) {
       const domain = palette.domain()
       const domainFixed = fixDomain(domain)
       const colors = chromajsScaleToMaplibre(palette)
-      return {...cpt, colors, palette, domain, domainFixed} 
+      const continuous = isPaletteContinuous(palette)
+      return {...cpt, colors, palette, domain, domainFixed, continuous} 
     }
   )
 }
 
-function cptToObject(cptArray: any[]): Record<ColorReliefRamp, { name: string; colors: any[] }> {
+function cptToObject(cptArray: any[]): Record<ColorReliefRamp, { name: string; colors: any[]; continuous: boolean }> {
+  // Sort: continuous first, then discrete; alphabetically within each group
+  const sorted = cptArray.sort((a, b) => {
+    // First sort by continuous (true before false)
+    if (a.continuous !== b.continuous) {
+      return a.continuous ? -1 : 1
+    }
+    // Then alphabetically
+    return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+  })
+  
   return Object.fromEntries(
-    cptArray
-      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
-      .map((cpt) => [cpt.name.toLowerCase(), {...cpt, name: cpt.name, colors: cpt.colors, }])
+    sorted.map((cpt) => [
+      cpt.name.toLowerCase(), 
+      {
+        ...cpt, 
+        name: cpt.name, 
+        colors: cpt.colors, 
+        continuous: cpt.continuous
+      }
+    ])
   )
 }
 
 
-export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: any[] }> = {
-  // Original ramps
+export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: any[]; continuous: boolean }> = {
+  // Original ramps - all continuous
   "black-and-white": {
     name: "Black-and-White",
     colors: [
@@ -86,6 +123,7 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       0, "rgb(0, 0, 0)",
       8000, "rgb(255, 255, 255)",
     ],
+    continuous: true,
   },
   "white-and-black": {
     name: "White-and-Black",
@@ -96,32 +134,12 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       0, "rgb(255, 255, 255)",
       8000, "rgb(0, 0, 0)",
     ],
+    continuous: true,
   },
-  dem: {
-    name: "DEM",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      400, "rgb(112, 209, 255)",
-      494.1176471, "rgb(113, 211, 247)",
-      588.2352941, "rgb(114, 212, 234)",
-      682.3529412, "rgb(117, 213, 222)",
-      776.4705882, "rgb(120, 214, 209)",
-      870.5882353, "rgb(124, 215, 196)",
-      964.7058824, "rgb(130, 215, 183)",
-      1058.823529, "rgb(138, 215, 169)",
-      1152.941176, "rgb(149, 214, 155)",
-      1247.058824, "rgb(163, 212, 143)",
-      1341.176471, "rgb(178, 209, 134)",
-      1435.294118, "rgb(193, 205, 127)",
-      1529.411765, "rgb(207, 202, 121)",
-      1623.529412, "rgb(220, 197, 118)",
-      1717.647059, "rgb(233, 193, 118)",
-      1811.764706, "rgb(244, 188, 120)",
-      1905.882353, "rgb(255, 183, 124)",
-      2000, "rgb(255, 178, 129)",
-    ],
+  "hypsometric-simple": {
+    name: "Hypsometric Simple",
+    colors: ["interpolate", ["linear"], ["elevation"], 0, "rgb(112, 209, 255)", 3724, "rgb(255, 178, 129)"],
+    continuous: true,
   },
   hypsometric: {
     name: "Hypsometric",
@@ -148,40 +166,7 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       3298.768166, "rgb(255, 183, 124)",
       3724, "rgb(255, 178, 129)",
     ],
-  },
-  "hypsometric-simple": {
-    name: "Hypsometric Simple",
-    colors: ["interpolate", ["linear"], ["elevation"], 0, "rgb(112, 209, 255)", 3724, "rgb(255, 178, 129)"],
-  },
-  rainbow: {
-    name: "Rainbow",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      400, "#F00",
-      800, "#AA0",
-      1000, "#AF0",
-      1200, "#0F0",
-      1400, "#0AA",
-      1600, "#00F",
-      2000, "#C0C",
-    ],
-  },
-  transparent: {
-    name: "Transparent Rainbow",
-    colors: [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      400, "#F00C",
-      800, "#AA0A",
-      1000, "#AF09",
-      1200, "#0F08",
-      1400, "#0AA7",
-      1600, "#00F6",
-      2000, "#C0C4",
-    ],
+    continuous: true,
   },
   wiki: {
     name: "Wiki",
@@ -208,9 +193,8 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       3317.65, "rgb(243, 36, 13)",
       3500, "rgb(215, 5, 13)",
     ],
+    continuous: true,
   },
-
-  // other ramps
   "gmt-globe": {
     name: "GMT Globe",
     colors: [
@@ -264,8 +248,8 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       9500, "rgb(153, 0, 0)",
       10000, "rgb(255, 255, 255)",
     ],
+    continuous: true,
   },
-
   "gmt-relief": {
     name: "GMT Relief",
     colors: [
@@ -292,8 +276,8 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       9000, "rgb(240, 104, 126)",
       10000, "rgb(255, 255, 255)",
     ],
+    continuous: true,
   },
-
   "gmt-sealand": {
     name: "GMT Sealand",
     colors: [
@@ -326,8 +310,8 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       9000, "rgb(153, 0, 0)",
       10000, "rgb(255, 255, 255)",
     ],
+    continuous: true,
   },
-
   "gmt-topo": {
     name: "GMT Topo",
     colors: [
@@ -354,8 +338,8 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       9000, "rgb(102, 0, 0)",
       10000, "rgb(255, 255, 255)",
     ],
+    continuous: true,
   },
-
   "topo-15lev": {
     name: "Topo 15lev",
     colors: [
@@ -380,9 +364,25 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       6000, "rgb(224, 128, 32)",
       7000, "rgb(192, 96, 0)",
     ],
+    continuous: true,
   },
-
+  // Discrete ramps
+  // None
 }
+
+// Sort colorRampsClassic: continuous first, discrete last
+const sortedClassicEntries = Object.entries(colorRampsClassic).sort((a, b) => {
+  const [, aRamp] = a
+  const [, bRamp] = b
+  // First sort by continuous (true before false)
+  if (aRamp.continuous !== bRamp.continuous) {
+    return aRamp.continuous ? -1 : 1
+  }
+  // Then alphabetically
+  return aRamp.name.toLowerCase().localeCompare(bRamp.name.toLowerCase())
+})
+
+const colorRampsClassicSorted = Object.fromEntries(sortedClassicEntries)
 
 const colorRamps = Object.fromEntries(
   Object.entries(cpt_city_views).map(
