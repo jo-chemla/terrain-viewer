@@ -10,7 +10,9 @@ export default defineConfig({
     devtools(),
     react(),
     tailwindcss(), 
-    nodePolyfills({ include: ['buffer'] }),
+    nodePolyfills({
+      include: ['buffer', 'fs', 'path', 'crypto', 'stream', 'util'],
+    }),
   ],
   optimizeDeps: {
     exclude: ['@loaders.gl/geopackage', '@loaders.gl/core', 'sql.js'],
