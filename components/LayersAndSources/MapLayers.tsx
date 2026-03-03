@@ -90,11 +90,19 @@ export const HillshadeLayer = memo(
   }) => {
     const [highResTerrain] = useAtom(highResTerrainAtom)
 
+    // When switching between scalar and array paint values (e.g. standard → multidir-colors),
+    // MapLibre tries to interpolate mismatched array lengths and throws.
+    // Keying on array-mode + length forces a full layer unmount/remount, bypassing interpolation.
+    const isArrayMode = Array.isArray(hillshadePaint["hillshade-highlight-color"])
+    const arrayLength = isArrayMode
+      ? (hillshadePaint["hillshade-highlight-color"] as any[]).length
+      : 1
+
     return (
       <Layer
-        beforeId={LAYER_SLOTS.HILLSHADE}   // ← always exists, order is stable
+        beforeId={LAYER_SLOTS.HILLSHADE}
         id="hillshade"
-        key={`hillshade-${highResTerrain}`}
+        key={`hillshade-${highResTerrain}-${isArrayMode}-${arrayLength}`}
         type="hillshade"
         source="hillshadeSource"
         paint={hillshadePaint}
