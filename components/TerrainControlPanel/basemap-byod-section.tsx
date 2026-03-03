@@ -125,6 +125,10 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                   <Label
                     htmlFor={`basemap-${source.id}`}
                     className="cursor-pointer flex-1 min-w-0"
+                    onClick={() => {
+                      setState({ basemapSource: source.id })
+                      handleFitToBounds(source)
+                    }}
                   >
                     {source.name}
                   </Label>
@@ -133,6 +137,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     handleFitToBounds={handleFitToBounds}
                     handleEditSource={handleEditBasemap}
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
+                    setState={setState}
                   />
                 </div>
               ))}

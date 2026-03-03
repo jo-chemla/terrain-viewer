@@ -5,12 +5,19 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 export const CustomSourceDetails: React.FC<{
-  source: any; handleFitToBounds: any; handleEditSource: any; handleDeleteCustomSource: any
-}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource }) => (
+  source: any; handleFitToBounds: any; handleEditSource: any; handleDeleteCustomSource: any, setState: any
+}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, setState }) => (
   <>
     <Tooltip>
       <TooltipTrigger asChild>
-        <Label htmlFor={`source-${source.id}`} className="flex-1 text-sm cursor-pointer truncate min-w-0">
+        <Label 
+          htmlFor={`source-${source.id}`} 
+          className="flex-1 text-sm cursor-pointer truncate min-w-0"            
+          onClick={() => {
+            setState({ sourceA: source.id })
+            handleFitToBounds(source)
+          }}
+          >
           {source.name}
         </Label>
       </TooltipTrigger>
