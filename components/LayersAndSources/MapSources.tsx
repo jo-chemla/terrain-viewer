@@ -4,251 +4,216 @@ import { useAtom } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom } from "@/lib/settings-atoms"
-import type { RasterDEMSourceSpecification } from 'maplibre-gl';
-import {setColorFunction, getCogMetadata, type CogMetadata } from '@geomatico/maplibre-cog-protocol'
+import type { RasterDEMSourceSpecification } from 'maplibre-gl'
+import { setColorFunction, getCogMetadata, type CogMetadata } from '@geomatico/maplibre-cog-protocol'
 
-// Terrarium color function 
+// -------------------------
+// Color functions
+// -------------------------
+
 const terrariumColorFunction = (pixel: any, color: any) => {
-    const height = pixel[0];
-    const v = height + 32768;
-    const r = Math.floor(v / 256);
-    const g = Math.floor(v % 256);
-    const b = Math.floor((v - Math.floor(v)) * 256);
-    color.set([r, g, b, 255]);
-};
-// Terrain-rgb color function - needed to reset setColorFunction
+    const v = pixel[0] + 32768
+    color.set([
+        Math.floor(v / 256), 
+        Math.floor(v % 256), 
+        Math.floor((v - Math.floor(v)) * 256), 
+        255
+    ])
+}
+
 const terrainrgbColorFunction = (pixel: any, color: any) => {
-    const height = pixel[0];
-    const v = (height + 10000) / 0.1;
-    const r = Math.floor(v / (256 * 256)) % 256;
-    const g = Math.floor(v / 256) % 256;
-    const b = Math.floor(v) % 256;
-    color.set([r, g, b, 255]);
-};
+    const v = (pixel[0] + 10000) / 0.1
+    color.set([
+        Math.floor(v / (256 * 256)) % 256, 
+        Math.floor(v / 256) % 256, 
+        Math.floor(v) % 256, 
+        255
+    ])
+}
+
+// -------------------------
+// Hook
+// -------------------------
 
 export function useCogMetadata(cogUrl: string | null): CogMetadata | null {
-  const [metadata, setMetadata] = useState<CogMetadata | null>(null)
-
-  useEffect(() => {
-    if (!cogUrl) return
-    getCogMetadata(cogUrl)
-      .then(setMetadata)
-      .catch(() => setMetadata(null))
-  }, [cogUrl])
-
-  return metadata
+    const [metadata, setMetadata] = useState<CogMetadata | null>(null)
+    useEffect(() => {
+        if (!cogUrl) return
+        getCogMetadata(cogUrl).then(setMetadata).catch(() => setMetadata(null))
+    }, [cogUrl])
+    return metadata
 }
 
-// Sources Component - loads once per source change
-export const TerrainSources = memo(
-    ({
-        source,
-        mapboxKey,
-        maptilerKey,
-        customTerrainSources,
-        titilerEndpoint,
-    }: {
-        source: TerrainSource | string,
-        mapboxKey: string,
-        maptilerKey: string,
-        customTerrainSources: any[],
-        titilerEndpoint: string
-    }) => {
-        const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
-        const [highResTerrain] = useAtom(highResTerrainAtom)
+// -------------------------
+// Raster basemap tile configs
+// -------------------------
 
-        const getTilesUrl = (key: TerrainSource | string) => {
-            const customTerrainSource = customTerrainSources.find((s) => s.id === key)
+const rasterBasemaps: Record<string, { url: string; tileSize: number; maxzoom: number }> = {
+    osm:       { url: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", tileSize: 256, maxzoom: 19 },
+    googlesat: { url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 20 },
+    google:    { url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 20 },
+    esri:      { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", tileSize: 256, maxzoom: 19 },
+    mapbox:    { url: "https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token={API_KEY}", tileSize: 256, maxzoom: 22 },
+    bing:      { url: "https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1", tileSize: 256, maxzoom: 19 },
+}
 
-            if (customTerrainSource) {
-                if (customTerrainSource.type === "cog") {
-                    if (useCogProtocolVsTitiler) {
-                        // Register color function only if high-res mode is enabled
-                        if (highResTerrain) {
-                            setColorFunction(customTerrainSource.url, terrariumColorFunction);
-                        } else {
-                            setColorFunction(customTerrainSource.url, terrainrgbColorFunction);
-                        }
-                        return `cog://${customTerrainSource.url}#dem`
-                        
-                    } else {
-                        return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customTerrainSource.url)}`
-                    }
-                }
-                else if (customTerrainSource.type === "vrt") {
-                    if (useCogProtocolVsTitiler) {
-                        console.warn('Warning, VRT can only work with TiTiler COG streaming')
-                        return customTerrainSource.url
-                    } else {
-                        return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(customTerrainSource.url)}`
-                    }
-                }
-                return customTerrainSource.url
-            }
+// -------------------------
+// Helpers
+// -------------------------
 
-            const sourceConfig: TerrainSourceConfig = (terrainSources as any)[key as TerrainSource]
-            if (!sourceConfig) return ""
-            let tileUrl = sourceConfig.sourceConfig.tiles[0] || ""
-            if (key === "mapbox") {
-                tileUrl = tileUrl.replace("{API_KEY}", mapboxKey || "")
-            } else if (key === "maptiler") {
-                tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
-            }
-            return tileUrl
-        }
-        
-        const encodingsMap: any = {
-            terrainrgb: 'mapbox',
-            // Use terrarium encoding for COG only when high-res mode is enabled
-            cog: highResTerrain ? 'terrarium' : 'mapbox',
-            terrarium: 'terrarium',
-        }
-        
-        const customTerrainSource = customTerrainSources.find((s) => s.id === source)
-        const isCogProtocol = customTerrainSource?.type === 'cog' && useCogProtocolVsTitiler
-        const metadata = useCogMetadata(isCogProtocol ? customTerrainSource.url : null)
+function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number; maxzoom: number } {
+    if (!metadata?.images?.length) return { minzoom: 0, maxzoom: 20 }
+    const zooms = metadata.images.filter(img => !img.isMask).map(img => img.zoom)
+    return { minzoom: Math.round(Math.min(...zooms)), maxzoom: Math.round(Math.max(...zooms)) }
+}
 
-        const cogZoomRange = useMemo(() => {
-            if (!metadata) return { minzoom: 0, maxzoom: 20 }
-            const zooms = metadata.images.filter(img => !img.isMask).map(img => img.zoom)
+function cogTileUrl(url: string, useCogProtocol: boolean, titilerEndpoint: string, type: 'cog' | 'vrt'): string {
+    if (type === 'cog') {
+        return useCogProtocol
+            ? `cog://${url}#dem`
+            : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
+    }
+    // vrt
+    if (useCogProtocol) {
+        console.warn('Warning, VRT can only work with TiTiler COG streaming')
+        return url
+    }
+    return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}`
+}
+
+function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKey: string): string {
+    const config: TerrainSourceConfig = (terrainSources as any)[key]
+    if (!config) return ""
+    return (config.sourceConfig.tiles?.[0] ?? "")
+        .replace("{API_KEY}", key === "mapbox" ? mapboxKey : key === "maptiler" ? maptilerKey : "")
+}
+
+// -------------------------
+// TerrainSources
+// -------------------------
+
+export const TerrainSources = memo(({
+    // source, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint,
+    source, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, onZoomRangeChange,
+}: {
+    source: TerrainSource | string
+    mapboxKey: string
+    maptilerKey: string
+    customTerrainSources: any[]
+    titilerEndpoint: string
+    onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom?: boolean }) => void
+}) => {
+    const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
+    const [highResTerrain] = useAtom(highResTerrainAtom)
+
+    const customSource = customTerrainSources.find((s) => s.id === source)
+    const isCogProtocol = customSource?.type === 'cog' && useCogProtocol
+
+    const metadata = useCogMetadata(isCogProtocol ? customSource.url : null)
+    const { minzoom, maxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
+
+    useEffect(() => {
+        onZoomRangeChange?.({ minzoom, maxzoom })
+    }, [minzoom, maxzoom, onZoomRangeChange])
+
+    // Register color function for COG protocol
+    useEffect(() => {
+        if (!isCogProtocol) return
+        setColorFunction(customSource.url, highResTerrain ? terrariumColorFunction : terrainrgbColorFunction)
+    }, [isCogProtocol, customSource?.url, highResTerrain])
+
+    const sourceConfig: RasterDEMSourceSpecification = useMemo(() => {
+        if (customSource) {
+            const tileUrl = cogTileUrl(customSource.url, useCogProtocol, titilerEndpoint, customSource.type)
+            const encoding = customSource.type === 'terrainrgb' ? 'mapbox'
+                : customSource.type === 'terrarium' ? 'terrarium'
+                : highResTerrain ? 'terrarium' : 'mapbox'  // cog
+
             return {
-                minzoom: Math.round(Math.min(...zooms)),
-                maxzoom: Math.round(Math.max(...zooms)),
-            }
-        }, [metadata])
-        console.log({metadata, cogZoomRange})
-
-        if (customTerrainSource) {
-            const tileUrl = getTilesUrl(source)
-            const sourceConfig: RasterDEMSourceSpecification = {
-                type: "raster-dem" as const,
+                type: "raster-dem",
                 tileSize: 256,
-                minzoom: cogZoomRange.minzoom ?? 0,
-                maxzoom: cogZoomRange.maxzoom ?? 22,
-                encoding: encodingsMap[customTerrainSource.type],
+                minzoom,
+                maxzoom,
+                encoding,
+                ...(isCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }),
             }
-            if ((customTerrainSource.type == 'cog') && useCogProtocolVsTitiler) {
-                sourceConfig.url = tileUrl
-            } else {
-                sourceConfig.tiles = [tileUrl]
-            }
-
-
-            return (
-                <>
-                    <Source id="terrainSource" key={`terrain-${source}-${highResTerrain}`} {...sourceConfig} />
-                    <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}`} {...sourceConfig} />
-                </>
-            )
         }
 
-        const baseSource = (terrainSources as any)[source as TerrainSource];
-        if (!baseSource) return null;
+        // Builtin source
+        const base = (terrainSources as any)[source as TerrainSource]
+        if (!base) return null
+        return {
+            ...base.sourceConfig,
+            tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
+        }
+    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey])
 
-        const sourceConfig = { ...baseSource.sourceConfig }
-        sourceConfig.tiles = [getTilesUrl(source)]
+    if (!sourceConfig) return null
 
-        return (
-            <>
-                <Source id="terrainSource" key={`terrain-${source}-${highResTerrain}`} {...sourceConfig} />
-                <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}`} {...sourceConfig} />
-            </>
-        )
-    },
-)
+    return (
+        <>
+            <Source id="terrainSource"  key={`terrain-${source}-${highResTerrain}`}  {...sourceConfig} />
+            <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}`} {...sourceConfig} />
+        </>
+    )
+})
 TerrainSources.displayName = "TerrainSources"
 
-// Raster basemap definitions with tile URL, tileSize, and maxzoom
-const rasterBasemaps: Record<string, { url: string; tileSize: number; maxzoom: number }> = {
-    osm: {
-        url: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        tileSize: 256,
-        maxzoom: 19,
-    },
-    googlesat: {
-        url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-        tileSize: 256,
-        maxzoom: 20,
-    },
-    google: {
-        url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-        tileSize: 256,
-        maxzoom: 20,
-    },
-    esri: {
-        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        tileSize: 256,
-        maxzoom: 19,
-    },
-    mapbox: {
-        url: "https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token={API_KEY}",
-        tileSize: 256,
-        maxzoom: 22,
-    },
-    bing: {
-        url: "https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1",
-        tileSize: 256,
-        maxzoom: 19,
-    },
-}
+// -------------------------
+// RasterBasemapSource
+// -------------------------
 
-// Raster Source
-export const RasterBasemapSource = memo(
-    ({
-        basemapSource,
-        mapboxKey,
-        customBasemapSources,
-        titilerEndpoint,
-    }: {
-        basemapSource: string
-        mapboxKey: string
-        customBasemapSources: any[],
-        titilerEndpoint: string,
-    }) => {
-        const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
+export const RasterBasemapSource = memo(({
+    // basemapSource, mapboxKey, customBasemapSources, titilerEndpoint,
+    basemapSource, mapboxKey, customBasemapSources, titilerEndpoint, onZoomRangeChange,
+}: {
+    basemapSource: string
+    mapboxKey: string
+    customBasemapSources: any[]
+    titilerEndpoint: string
+    onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom?: boolean }) => void
+}) => {
+    const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
 
-        // Check if it's a custom basemap
-        const customBasemap = customBasemapSources.find((s) => s.id === basemapSource)
+    const customBasemap = customBasemapSources.find((s) => s.id === basemapSource)
+
+    const sourceProps = useMemo(() => {
         if (customBasemap) {
-            let tileUrl = customBasemap.url
-            if (customBasemap.type === "cog") {
-                if (useCogProtocolVsTitiler) {
-                    tileUrl = `cog://${(customBasemap.url)}`
-                } else {
-                    tileUrl = `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(customBasemap.url)}`
-                }
-            }
-            const sourceProps = (customBasemap.type === "cog" && useCogProtocolVsTitiler)
-                ? { url: tileUrl }
-                : { tiles: [tileUrl] }
-
-            return (
-                <Source
-                    id="raster-basemap-source"
-                    key={`raster-${basemapSource}`}
-                    type="raster"
-                    tileSize={256}
-                    maxzoom={19}
-                    {...sourceProps}
-                />
-            )
+            const isCog = customBasemap.type === "cog"
+            const tileUrl = isCog
+                ? useCogProtocol
+                    ? `cog://${customBasemap.url}`
+                    : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(customBasemap.url)}`
+                : customBasemap.url
+            return isCog && useCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }
         }
 
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         const tileUrl = basemapSource === "mapbox"
-            ? basemap.url.replace("{API_KEY}", mapboxKey || "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw")
+            ? basemap.url.replace("{API_KEY}", mapboxKey)
             : basemap.url
+        return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom }
+    }, [customBasemap, basemapSource, useCogProtocol, titilerEndpoint, mapboxKey])
 
-        return (
-            <Source
-                id="raster-basemap-source"
-                key={`raster-${basemapSource}`}
-                type="raster"
-                tiles={[tileUrl]}
-                tileSize={basemap.tileSize}
-                maxzoom={basemap.maxzoom}
-            />
-        )
-    },
-)
+    const zoomRange = useMemo(() => {
+        if (customBasemap) return { minzoom: 0, maxzoom: 22, isCustom: true }
+        const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
+        return { minzoom: 0, maxzoom: basemap.maxzoom, isCustom: false }
+    }, [customBasemap, basemapSource])
+
+    useEffect(() => {
+        onZoomRangeChange?.(zoomRange)
+    }, [zoomRange, onZoomRangeChange])
+
+    return (
+        <Source
+            id="raster-basemap-source"
+            key={`raster-${basemapSource}`}
+            type="raster"
+            tileSize={256}
+            maxzoom={19}
+            {...sourceProps}
+        />
+    )
+})
 RasterBasemapSource.displayName = "RasterBasemapSource"
