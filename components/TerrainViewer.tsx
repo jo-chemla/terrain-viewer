@@ -39,6 +39,7 @@ import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
 
 import { createParser } from 'nuqs'
+import { parseAsColor } from "@/lib/nuqs-parser-color"
 
 const parseAsFloatPrecise = createParser({
   parse: (value) => {
@@ -107,9 +108,12 @@ export function TerrainViewer() {
     hillshadeMethod: parseAsStringLiteral(HILLSHADE_METHODS).withDefault("combined"),
     illuminationDir: parseAsFloat.withDefault(315),
     illuminationAlt: parseAsFloat.withDefault(45),
-    shadowColor: parseAsString.withDefault("#000000"),
-    highlightColor: parseAsString.withDefault("#FFFFFF"),
-    accentColor: parseAsString.withDefault("#808080"),
+    // shadowColor: parseAsString.withDefault("#000000"),
+    // highlightColor: parseAsString.withDefault("#FFFFFF"),
+    // accentColor: parseAsString.withDefault("#808080"),
+    shadowColor: parseAsColor().withDefault("#000000"),
+    highlightColor: parseAsColor().withDefault("#FFFFFF"),
+    accentColor: parseAsColor().withDefault("#808080"),
     // graticuleColor: parseAsString.withDefault("#000"),
     // graticuleColor: parseAsString, // don't use default to sync with theme
     hillshadeExag: parseAsFloat.withDefault(1.0),
