@@ -7,13 +7,22 @@ import { useCogProtocolVsTitilerAtom, highResTerrainAtom } from "@/lib/settings-
 import type { RasterDEMSourceSpecification } from 'maplibre-gl';
 import {setColorFunction} from '@geomatico/maplibre-cog-protocol'
 
-// Terrarium color function - declared once outside component
+// Terrarium color function 
 const terrariumColorFunction = (pixel: any, color: any) => {
     const height = pixel[0];
     const v = height + 32768;
     const r = Math.floor(v / 256);
     const g = Math.floor(v % 256);
     const b = Math.floor((v - Math.floor(v)) * 256);
+    color.set([r, g, b, 255]);
+};
+// Terrain-rgb color function - needed to reset setColorFunction
+const terrainrgbColorFunction = (pixel: any, color: any) => {
+    const height = pixel[0];
+    const v = (height + 10000) / 0.1;
+    const r = Math.floor(v / (256 * 256)) % 256;
+    const g = Math.floor(v / 256) % 256;
+    const b = Math.floor(v) % 256;
     color.set([r, g, b, 255]);
 };
 
@@ -43,6 +52,8 @@ export const TerrainSources = memo(
                         // Register color function only if high-res mode is enabled
                         if (highResTerrain) {
                             setColorFunction(customTerrainSource.url, terrariumColorFunction);
+                        } else {
+                            setColorFunction(customTerrainSource.url, terrainrgbColorFunction);
                         }
                         return `cog://${customTerrainSource.url}#dem`
                         
@@ -84,7 +95,7 @@ export const TerrainSources = memo(
             const tileUrl = getTilesUrl(source)
             const sourceConfig: RasterDEMSourceSpecification = {
                 type: "raster-dem" as const,
-                tileSize: 512,
+                tileSize: 256,
                 maxzoom: 20,
                 encoding: encodingsMap[customTerrainSource.type],
             }
