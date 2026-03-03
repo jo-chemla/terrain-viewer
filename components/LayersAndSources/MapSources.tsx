@@ -1,11 +1,11 @@
-import { memo } from "react"
+import { memo, useMemo, useState, useEffect } from "react"
 import { Source } from "react-map-gl/maplibre"
 import { useAtom } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom } from "@/lib/settings-atoms"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl';
-import {setColorFunction} from '@geomatico/maplibre-cog-protocol'
+import {setColorFunction, getCogMetadata, type CogMetadata } from '@geomatico/maplibre-cog-protocol'
 
 // Terrarium color function 
 const terrariumColorFunction = (pixel: any, color: any) => {
@@ -25,6 +25,19 @@ const terrainrgbColorFunction = (pixel: any, color: any) => {
     const b = Math.floor(v) % 256;
     color.set([r, g, b, 255]);
 };
+
+export function useCogMetadata(cogUrl: string | null): CogMetadata | null {
+  const [metadata, setMetadata] = useState<CogMetadata | null>(null)
+
+  useEffect(() => {
+    if (!cogUrl) return
+    getCogMetadata(cogUrl)
+      .then(setMetadata)
+      .catch(() => setMetadata(null))
+  }, [cogUrl])
+
+  return metadata
+}
 
 // Sources Component - loads once per source change
 export const TerrainSources = memo(
@@ -46,6 +59,7 @@ export const TerrainSources = memo(
 
         const getTilesUrl = (key: TerrainSource | string) => {
             const customTerrainSource = customTerrainSources.find((s) => s.id === key)
+
             if (customTerrainSource) {
                 if (customTerrainSource.type === "cog") {
                     if (useCogProtocolVsTitiler) {
@@ -91,12 +105,26 @@ export const TerrainSources = memo(
         }
         
         const customTerrainSource = customTerrainSources.find((s) => s.id === source)
+        const isCogProtocol = customTerrainSource?.type === 'cog' && useCogProtocolVsTitiler
+        const metadata = useCogMetadata(isCogProtocol ? customTerrainSource.url : null)
+
+        const cogZoomRange = useMemo(() => {
+            if (!metadata) return { minzoom: 0, maxzoom: 20 }
+            const zooms = metadata.images.filter(img => !img.isMask).map(img => img.zoom)
+            return {
+                minzoom: Math.round(Math.min(...zooms)),
+                maxzoom: Math.round(Math.max(...zooms)),
+            }
+        }, [metadata])
+        console.log({metadata, cogZoomRange})
+
         if (customTerrainSource) {
             const tileUrl = getTilesUrl(source)
             const sourceConfig: RasterDEMSourceSpecification = {
                 type: "raster-dem" as const,
                 tileSize: 256,
-                maxzoom: 20,
+                minzoom: cogZoomRange.minzoom ?? 0,
+                maxzoom: cogZoomRange.maxzoom ?? 22,
                 encoding: encodingsMap[customTerrainSource.type],
             }
             if ((customTerrainSource.type == 'cog') && useCogProtocolVsTitiler) {

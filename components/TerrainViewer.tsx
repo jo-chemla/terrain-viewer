@@ -482,6 +482,7 @@ export function TerrainViewer() {
           projection={state.viewMode === "globe" ? "globe" : "mercator"}
           canvasContextAttributes={{ preserveDrawingBuffer: true }}
           pixelRatio={window.devicePixelRatio * 1.5}  // supersample (default is 1×)
+          maxZoom={22}
         >
           {/* Sources */}
           <TerrainSources
