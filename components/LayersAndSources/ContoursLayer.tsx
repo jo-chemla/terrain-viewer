@@ -182,6 +182,17 @@ export function ContoursLayer({
   const thresholdsRef = useRef({ contourMinor, contourMajor })
   thresholdsRef.current = { contourMinor, contourMajor }
 
+  useEffect(() => {
+    return () => {
+      if (!mapRef) return
+      const map = mapRef.getMap()
+      if (!map) return  // Add this check
+      removeLayers(map)
+      demSourceRef.current = null
+      initializedRef.current = false
+    }
+  }, [mapRef])
+
   // ── Reset when terrain source changes ──────────────────────────────────────
   useEffect(() => {
     initializedRef.current = false

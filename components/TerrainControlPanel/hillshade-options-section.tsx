@@ -19,6 +19,8 @@ export const HillshadeOptionsSection: React.FC<{
   isOpen, 
   onOpenChange,
 }) => {
+  if (!state.showHillshade) return null
+
   const [isColorsOpen, setIsColorsOpen] = useState(false)
   const [isHillshadeXYPadOpen, setIsHillshadeXYPadOpen] = useAtom(isHillshadeXYPadOpenAtom)
 
@@ -34,8 +36,6 @@ export const HillshadeOptionsSection: React.FC<{
   // If altitude is not supported, fix it to 45° (mid-elevation)
   const fixedIlluminationDirection = !supportsIlluminationDirection ? 315 : null
   const fixedIlluminationAltitude = !supportsIlluminationAltitude ? 45 : null
-
-  if (!state.showHillshade) return null
 
   const hillshadeMethodOptions = [
     { value: "combined", label: "Combined [2d]" }, { value: "standard", label: "Standard [1d]" },
