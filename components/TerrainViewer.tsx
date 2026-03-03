@@ -431,6 +431,25 @@ export function TerrainViewer() {
   
   // ----------------------------------------
 
+  const [zoomRangeA, setZoomRangeA] = useState<{ minzoom: number; maxzoom: number } | null>(null)
+  const [zoomRangeB, setZoomRangeB] = useState<{ minzoom: number; maxzoom: number } | null>(null)
+  const [zoomRangeBasemap, setZoomRangeBasemap] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
+
+  // Only include a range in the computation if it came from a custom source.
+  // Builtin terrain sources (no COG metadata) report {0, 20} as a fallback — ignore them.
+  // Builtin basemaps report a fixed maxzoom (e.g. 19) — ignore them too.
+  const hasCustomTerrain = zoomRangeA !== null && zoomRangeA.maxzoom !== 20  // 20 = zoomRangeFromMetadata fallback
+  const hasCustomBasemap = zoomRangeBasemap?.isCustom === true
+
+  const candidates = [
+    hasCustomTerrain ? zoomRangeA : null,
+    hasCustomBasemap ? zoomRangeBasemap : null,
+  ].filter(Boolean) as { minzoom: number; maxzoom: number }[]
+
+  const effectiveMinZoom = candidates.length > 0 ? Math.min(...candidates.map(r => r.minzoom)) : 0
+  const effectiveMaxZoom = candidates.length > 0 ? Math.max(...candidates.map(r => r.maxzoom)) : 22
+  console.log({zoomRangeA, zoomRangeBasemap, effectiveMinZoom, effectiveMaxZoom})
+
 
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
@@ -482,7 +501,10 @@ export function TerrainViewer() {
           projection={state.viewMode === "globe" ? "globe" : "mercator"}
           canvasContextAttributes={{ preserveDrawingBuffer: true }}
           pixelRatio={window.devicePixelRatio * 1.5}  // supersample (default is 1×)
-          maxZoom={22}
+          // maxZoom={22}
+          minZoom={effectiveMinZoom}
+          maxZoom={effectiveMaxZoom}
+
         >
           {/* Sources */}
           <TerrainSources
@@ -491,12 +513,14 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             customTerrainSources={customTerrainSources}
             titilerEndpoint={titilerEndpoint}
+            onZoomRangeChange={isPrimary ? setZoomRangeA : setZoomRangeB}
           />
           <RasterBasemapSource
             basemapSource={state.basemapSource}
             mapboxKey={mapboxKey}
             customBasemapSources={customBasemapSources}
             titilerEndpoint={titilerEndpoint}
+            onZoomRangeChange={setZoomRangeBasemap}
           />
 
           {/* Layers */}
@@ -643,6 +667,7 @@ export function TerrainViewer() {
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA,
       skyConfig.backgroundLayerActive,
+      effectiveMinZoom, effectiveMaxZoom, setZoomRangeBasemap
     ],
   )
 
