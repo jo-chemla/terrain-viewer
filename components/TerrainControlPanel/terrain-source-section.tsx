@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { useAtom } from "jotai"
 import { ChevronDown, Plus, Edit, TestTube, RotateCcw } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -164,7 +164,7 @@ export const TerrainSourceSection: React.FC<{
                   icon={Edit}
                   label="Batch"
                   tooltip="Batch edit all sources as JSON"
-                  onClick={() => setIsBatchEditModalOpen(true)}
+                  onClick={handleOpenBatchEdit}
                 />
                 <TooltipButton
                   icon={TestTube}
@@ -181,7 +181,7 @@ export const TerrainSourceSection: React.FC<{
                   {customTerrainSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
                       <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
-                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource }} />
+                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, setState }} />
                     </div>
                   ))}
                 </RadioGroup>
