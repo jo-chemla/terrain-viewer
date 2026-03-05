@@ -8,27 +8,40 @@ import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction, getCogMetadata, type CogMetadata } from '@geomatico/maplibre-cog-protocol'
 
 // -------------------------
-// Color functions
+// Color functions, inspired by https://github.com/geomatico/maplibre-cog-protocol/blob/main/src/render/renderTerrain.ts
 // -------------------------
-
-const terrariumColorFunction = (pixel: any, color: any) => {
-    const v = pixel[0] + 32768
-    color.set([
-        Math.floor(v / 256), 
-        Math.floor(v % 256), 
-        Math.floor((v - Math.floor(v)) * 256), 
+const elevationToTerrainrgb = (elevation: number) => {
+    const base = -10000
+    const interval = 0.1
+    const v = (elevation - base) / interval
+    return [
+        Math.floor(v / 256 / 256) % 256,
+        Math.floor(v / 256) % 256,
+        Math.floor(v) % 256,
         255
-    ])
+    ]
 }
 
-const terrainrgbColorFunction = (pixel: any, color: any) => {
-    const v = (pixel[0] + 10000) / 0.1
-    color.set([
-        Math.floor(v / (256 * 256)) % 256, 
-        Math.floor(v / 256) % 256, 
-        Math.floor(v) % 256, 
+const elevationToTerrarium = (elevation: number) => {
+    const v = elevation + 32768
+    return [
+        Math.floor(v / 256),
+        Math.floor(v % 256),
+        Math.floor((v - Math.floor(v)) * 256),
         255
-    ])
+    ]
+}
+
+const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
+    const raw = pixel[0]
+    const elevation = raw === noData ? 0 : offset + raw * scale
+    color.set(elevationToTerrainrgb(elevation))
+}
+
+const makeTerrariumColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
+    const raw = pixel[0]
+    const elevation = raw === noData ? 0 : offset + raw * scale
+    color.set(elevationToTerrarium(elevation))
 }
 
 // -------------------------
@@ -119,15 +132,23 @@ export const TerrainSources = memo(({
     // Register color function for COG protocol
     useEffect(() => {
         if (!isCogProtocol) return
-        setColorFunction(customSource.url, highResTerrain ? terrariumColorFunction : terrainrgbColorFunction)
-    }, [isCogProtocol, customSource?.url, highResTerrain])
+        const scale = metadata?.scale ?? 1
+        const offset = metadata?.offset ?? 0
+        setColorFunction(
+            customSource.url,
+            highResTerrain
+                ? makeTerrariumColorFunction(scale, offset)
+                : makeTerrainrgbColorFunction(scale, offset)
+        )
+    }, [isCogProtocol, customSource?.url, highResTerrain, metadata?.scale, metadata?.offset])
 
     const sourceConfig: RasterDEMSourceSpecification = useMemo(() => {
         if (customSource) {
             const tileUrl = cogTileUrl(customSource.url, useCogProtocol, titilerEndpoint, customSource.type)
-            const encoding = customSource.type === 'terrainrgb' ? 'mapbox'
+            const encoding = isCogProtocol
+                ? highResTerrain ? 'terrarium' : 'mapbox'
                 : customSource.type === 'terrarium' ? 'terrarium'
-                : highResTerrain ? 'terrarium' : 'mapbox'  // cog
+                : 'mapbox'  // terrainrgb
 
             return {
                 type: "raster-dem",
