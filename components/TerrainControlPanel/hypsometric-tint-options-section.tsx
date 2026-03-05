@@ -268,11 +268,11 @@ export const HypsometricTintOptionsSection: React.FC<{
           className="w-full"
         >
           <TabsList className="grid grid-cols-5 w-full">
-            <TabsTrigger value="classic">Classic</TabsTrigger>
-            <TabsTrigger value="topo">Topo</TabsTrigger>
-            <TabsTrigger value="topobath">TopoBath</TabsTrigger>
-            <TabsTrigger value="temp">Temp</TabsTrigger>
-            <TabsTrigger value="topqgs">Top Qgs</TabsTrigger>
+            <TabsTrigger value="classic" className="cursor-pointer">Classic</TabsTrigger>
+            <TabsTrigger value="topo" className="cursor-pointer">Topo</TabsTrigger>
+            <TabsTrigger value="topobath" className="cursor-pointer">TopoBath</TabsTrigger>
+            <TabsTrigger value="temp" className="cursor-pointer">Temp</TabsTrigger>
+            <TabsTrigger value="topqgs" className="cursor-pointer">Top Qgs</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -463,7 +463,7 @@ const HypsoDoubleRangeSlider: React.FC<{
         step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
         value={sliderValues}
         onValueChange={handleSliderChange}
-        className="w-full"
+        className="w-full cursor-pointer"
       />
         <div className="flex items-center justify-between gap-2 mt-1">
           <input

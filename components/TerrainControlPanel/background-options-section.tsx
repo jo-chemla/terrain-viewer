@@ -41,6 +41,7 @@ export const BackgroundOptionsSection: React.FC<{
           id="match-theme"
           checked={skyConfig.matchThemeColors}
           onCheckedChange={handleMatchThemeToggle}
+          className="cursor-pointer"
         />
         <Label htmlFor="match-theme" className="text-sm font-medium cursor-pointer flex-1 ml-2">
           Match Theme Colors
@@ -112,7 +113,9 @@ export const BackgroundOptionsSection: React.FC<{
           id="bg-layer-active"
           checked={skyConfig.backgroundLayerActive}
           onCheckedChange={(checked) =>
-            setSkyConfig({ ...skyConfig, backgroundLayerActive: checked === true })}
+            setSkyConfig({ ...skyConfig, backgroundLayerActive: checked === true })
+          }
+          className="cursor-pointer"
         />
         <div className="flex items-center flex-1 ml-2 gap-1">
           <Tooltip>

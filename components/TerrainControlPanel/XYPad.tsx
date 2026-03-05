@@ -169,7 +169,7 @@ export function SphericalXYPad({
       <div
         ref={containerRef}
         className={cn(
-          "relative border border-border rounded-lg touch-none select-none",
+          "relative border border-border rounded-lg touch-none select-none cursor-pointer",
           "transition-opacity duration-150",
           isDimmed && "opacity-20",
           transparentUi && "bg-background/50"
@@ -276,7 +276,7 @@ export function SphericalXYPad({
 
       {/* Draggable pill */}
       <div
-        className="absolute rounded-full bg-background border-2 border-primary shadow-sm hover:shadow-md transition-shadow pointer-events-none"
+        className="absolute rounded-full bg-background border-2 border-primary shadow-sm hover:shadow-md transition-shadow pointer-events-none cursor-pointer"
         style={{
           width: pillRadius * 2,
           height: pillRadius * 2,
