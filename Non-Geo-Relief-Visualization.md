@@ -17,7 +17,7 @@ Shows your actual pixel size (e.g., 0.0005m = 0.5mm for photogrammetry data)
 ## DSM Command (Elevation Data)
 
 ```bash
-gdal_translate -of COG -a_gt 0.01 2.0 0 -0.01 0 -2.0 -a_scale -4000 -a_nodata nan -co BIGTIFF=YES -a_srs EPSG:3857 -co BLOCKSIZE=256 -co TILING_SCHEME=GoogleMapsCompatible -co RESAMPLING=BILINEAR -co OVERVIEW_RESAMPLING=BILINEAR -co COMPRESS=DEFLATE -co PREDICTOR=3 -co OVERVIEWS=IGNORE_EXISTING -co ADD_ALPHA=NO -b 1 -colorinterp_1 gray DuraEuropos_Synagogue_W_0.5mm_DSM.tif
+gdal_translate -of COG -a_gt 0.01 2.0 0 -0.01 0 -2.0 -a_scale -4000 -a_nodata nan -co BIGTIFF=YES -a_srs EPSG:3857 -co BLOCKSIZE=256 -co TILING_SCHEME=GoogleMapsCompatible -co RESAMPLING=BILINEAR -co OVERVIEW_RESAMPLING=NEAREST -co COMPRESS=DEFLATE -co PREDICTOR=3 -co OVERVIEWS=IGNORE_EXISTING -co ADD_ALPHA=NO -b 1 -colorinterp_1 gray DuraEuropos_Synagogue_W_0.5mm_DSM.tif
 f DuraEuropos_Synagogue_W_0.5mm_DSM_fakegeo-3.cog.tiff
 ```
 
@@ -36,6 +36,8 @@ f DuraEuropos_Synagogue_W_0.5mm_DSM_fakegeo-3.cog.tiff
 - `-colorinterp_1 gray` - Mark as grayscale elevation (required for hillshade to work)
 
 **Choice of AVERAGE vs BILINEAR or other for DSM?** AVERAGE resampling properly excludes nodata pixels from calculations, preventing nodata from bleeding into valid elevation data in overviews. But results in poorer grid like structure in the data
+
+Good middle-ground: bilin for resampling, nearest for overview-resampling.
 
 ---
 

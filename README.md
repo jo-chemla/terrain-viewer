@@ -38,6 +38,9 @@ pnpm run build # bundles to dist dir
 
 Open [http://localhost:5173](http://localhost:5173) to view the app.
 
+## Procedure for non-geo relief visualization (frescoes etc)
+See the [guide](./Non-Geo-Relief-Visualization.md) for producing a COG, with required set of parameters, for correct version, with no artifacts.
+
 ## Technologies
 
 - [MapLibre GL v5](https://maplibre.org/maplibre-gl-js/docs/)
