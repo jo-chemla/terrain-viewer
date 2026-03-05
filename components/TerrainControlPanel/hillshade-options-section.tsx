@@ -53,7 +53,7 @@ export const HillshadeOptionsSection: React.FC<{
 
 
   return (
-    <Section title="Hillshade Options" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Options: Hillshade" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
         <Label className="text-sm font-medium">Hillshade Method</Label>
         <CycleButtonGroup value={state.hillshadeMethod} options={hillshadeMethodOptions} onChange={(v) => setState({ hillshadeMethod: v })} onCycle={cycleHillshadeMethod} />

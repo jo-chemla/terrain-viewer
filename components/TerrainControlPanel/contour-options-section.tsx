@@ -43,7 +43,7 @@ export const ContourOptionsSection: React.FC<{
   const graticuleWidth = Number(state.graticuleWidth) || 1
 
   return (
-    <Section title="Contours & GeoGrid" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Options: Contours & GeoGrid" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-4">
 
         <>

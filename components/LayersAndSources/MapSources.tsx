@@ -134,11 +134,12 @@ export const TerrainSources = memo(({
         if (!isCogProtocol) return
         const scale = metadata?.scale ?? 1
         const offset = metadata?.offset ?? 0
+        const noData = metadata?.noData
         setColorFunction(
             customSource.url,
             highResTerrain
-                ? makeTerrariumColorFunction(scale, offset)
-                : makeTerrainrgbColorFunction(scale, offset)
+                ? makeTerrariumColorFunction(scale, offset, noData)
+                : makeTerrainrgbColorFunction(scale, offset, noData)
         )
     }, [isCogProtocol, customSource?.url, highResTerrain, metadata?.scale, metadata?.offset])
 

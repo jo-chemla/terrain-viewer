@@ -218,7 +218,7 @@ export const HypsometricTintOptionsSection: React.FC<{
   if (!state.showColorRelief) return null
 
   return (
-    <Section title="Hypsometric Tint Options" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Options: Elevation Color (Hypsometric)" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
 
         {/* Colorramp Labels */}

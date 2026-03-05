@@ -35,7 +35,7 @@ export const BackgroundOptionsSection: React.FC<{
   }
 
   return (
-    <Section title="Background Options" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Options: Background" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="flex items-center justify-between py-0.5">
         <Checkbox
           id="match-theme"

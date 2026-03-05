@@ -35,7 +35,7 @@ export const RasterBasemapSection: React.FC<{
   if (!state.showRasterBasemap) return null
 
   return (
-    <Section title="Raster Basemap Options" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Basemap Source" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
         <Label className="text-sm">Source</Label>
         <CycleButtonGroup
