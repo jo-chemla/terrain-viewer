@@ -448,7 +448,7 @@ export function TerrainViewer() {
 
   const effectiveMinZoom = candidates.length > 0 ? Math.min(...candidates.map(r => r.minzoom)) : 0
   const effectiveMaxZoom = candidates.length > 0 ? Math.max(...candidates.map(r => r.maxzoom)) : 22
-  console.log({zoomRangeA, zoomRangeBasemap, effectiveMinZoom, effectiveMaxZoom})
+  // console.log({zoomRangeA, zoomRangeBasemap, effectiveMinZoom, effectiveMaxZoom})
 
 
   const renderMap = useCallback(
@@ -471,9 +471,10 @@ export function TerrainViewer() {
           onLoad={() => {
             if (isPrimary) setMapALoaded(true)
             else setMapBLoaded(true)
-            // const map = isPrimary ? mapARef.current : mapBRef.current
-            // const mapInstance = map?.getMap()
-            // if (!mapInstance) return
+            const map = isPrimary ? mapARef.current : mapBRef.current
+            const mapInstance = map?.getMap()
+            if (!mapInstance) return
+
             // const applyTerrain = () => {
             //   if (mapInstance.getSource("terrainSource")) {
             //     mapInstance.setTerrain({
@@ -485,6 +486,22 @@ export function TerrainViewer() {
             // }
             // mapInstance.on('sourcedata', applyTerrain)
             // applyTerrain()
+
+
+
+
+            // // Override all texture bindings to use LINEAR
+            // const gl = (mapInstance.painter as any).context.gl
+            // const originalBindTexture = gl.bindTexture
+            // gl.bindTexture = function(target: number, texture: WebGLTexture) {
+            //   originalBindTexture.call(this, target, texture)
+            //   if (target === gl.TEXTURE_2D) {
+            //     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+            //     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+            //     console.log('🔥 Forced LINEAR filtering')
+            //   }
+            // }
+
           }}
           sky={state.showBackground ? getSkyConfig() : getNoSkyConfig()}
           minPitch={0}
@@ -500,7 +517,9 @@ export function TerrainViewer() {
           // }}
           projection={state.viewMode === "globe" ? "globe" : "mercator"}
           canvasContextAttributes={{ preserveDrawingBuffer: true }}
-          pixelRatio={window.devicePixelRatio * 1.5}  // supersample (default is 1×)
+          // pixelRatio={window.devicePixelRatio * 1.5}  // supersample (default is 1×)
+          // pixelRatio={1.}  // supersample (default is 1×)
+          pixelRatio={window.devicePixelRatio}  // supersample (default is 1×)
           // maxZoom={22}
           minZoom={effectiveMinZoom}
           maxZoom={effectiveMaxZoom}
