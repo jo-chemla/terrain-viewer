@@ -132,6 +132,7 @@ export function TerrainViewer() {
     animLoopMode: parseAsStringLiteral(LOOP_MODES).withDefault("bounce"),
     animSmoothCamera: parseAsBoolean.withDefault(false),
     anim360Spinning: parseAsBoolean.withDefault(false),
+    invertColorRamp: parseAsBoolean.withDefault(false),
     // animSettings: parseAsJson<AnimQuery>((v) => v as AnimQuery).withDefault({
     //   duration: 3,
     //   loopMode: "bounce",
@@ -194,7 +195,7 @@ export function TerrainViewer() {
 
   const colorReliefPaint = useMemo(
     () => computeColorReliefPaint(state),
-    [ state.colorRamp, state.customHypsoMinMax, state.minElevation, state.maxElevation, state.colorReliefOpacity ]
+    [ state.colorRamp, state.customHypsoMinMax, state.minElevation, state.maxElevation, state.colorReliefOpacity, state.invertColorRamp ]
   )
 
   // Check MapLibre availability

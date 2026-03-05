@@ -232,6 +232,7 @@ export type ColorReliefConfig = {
   minElevation?: number
   maxElevation?: number
   colorReliefOpacity?: number
+  invertColorRamp?: boolean
 }
 
 export const computeColorReliefPaint = ({
@@ -240,12 +241,13 @@ export const computeColorReliefPaint = ({
   minElevation = 0,
   maxElevation = 8100,
   colorReliefOpacity = 1.0,
+  invertColorRamp = false,
 }: ColorReliefConfig) => {
   const ramp = colorRamp ? colorRampsFlat[colorRamp] : undefined
   if (!ramp) return {}
 
   const colors = customHypsoMinMax
-    ? remapColorRampStops(ramp.colors, minElevation, maxElevation)
+    ? remapColorRampStops(ramp.colors, minElevation, maxElevation, invertColorRamp)
     : ramp.colors
 
   return {

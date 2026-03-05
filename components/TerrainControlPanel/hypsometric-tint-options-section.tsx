@@ -350,7 +350,12 @@ export const HypsometricTintOptionsSection: React.FC<{
           <div className="w-full gap-1 flex items-center">
             <div className="flex-[2] flex items-center">
               <div className="flex items-center justify-between py-0.5 w-full">
-                <Checkbox id="hypso-min-max" checked={state.customHypsoMinMax} onCheckedChange={(checked) => setState({ customHypsoMinMax: checked === true })} />
+                <Checkbox 
+                  id="hypso-min-max" 
+                  checked={state.customHypsoMinMax} 
+                  onCheckedChange={(checked) => setState({ customHypsoMinMax: checked === true })}
+                  className="cursor-pointer" 
+                />
                 <div className="flex items-center flex-1 ml-2 gap-1">
                   
                   <TooltipProvider>
@@ -405,15 +410,6 @@ export const HypsometricTintOptionsSection: React.FC<{
             </div>
           </div>
 
-          {/* <div className="px-2">
-            <Slider
-              min={sliderBounds.min}
-              max={sliderBounds.max}
-              step={1}
-              value={sliderValues}
-              onValueChange={handleSliderChange}
-              className="w-full"
-            /> */}
           <HypsoDoubleRangeSlider
             sliderBounds={sliderBounds}
             sliderValues={sliderValues}
@@ -423,6 +419,22 @@ export const HypsometricTintOptionsSection: React.FC<{
           />
 
         </div>
+        
+        {/* Invert Color Ramp */}
+        {state.customHypsoMinMax && 
+          <div className="flex items-center gap-2">
+            <Checkbox 
+              id="invert-color-ramp" 
+              checked={state.invertColorRamp || false} 
+              onCheckedChange={(checked) => setState({ invertColorRamp: checked === true })} 
+              className="cursor-pointer"
+            />
+            <Label htmlFor="invert-color-ramp" className="text-sm font-medium cursor-pointer">
+              Invert Color Ramp
+            </Label>
+          </div>
+        }
+
       </div>
     </Section>
   )

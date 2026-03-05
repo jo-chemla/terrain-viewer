@@ -13,14 +13,20 @@ export function extractStops(colors: any[]): number[] {
   }
   return stops
 }
+
 // Utility: Remap stops to custom min/max
-export function remapColorRampStops(colors: any[], customMin: Number | undefined, customMax: Number | undefined) {
+export function remapColorRampStops(
+  colors: any[], 
+  customMin: number | undefined, 
+  customMax: number | undefined, 
+  invertColorRamp: boolean = false
+) {
   const newColors = [...colors]
   const stops = extractStops(colors)
   const rampMin = Math.min(...stops)
   const rampMax = Math.max(...stops)
   if (rampMax === rampMin) return newColors
-  const remap = (value: Number): Number => {
+  const remap = (value: number): number => {
     const t = (value - rampMin) / (rampMax - rampMin)
     return customMin + t * (customMax - customMin)
   }
@@ -29,6 +35,19 @@ export function remapColorRampStops(colors: any[], customMin: Number | undefined
   for (let i = 3; i < newColors.length; i += 2) {
     newColors[i] = remap(stops[si++])
   }
+  
+  // Invert colors if requested (swap colors while keeping stops)
+  if (invertColorRamp) {
+    const numColorPairs = (newColors.length - 3) / 2
+    for (let i = 0; i < numColorPairs / 2; i++) {
+      const idx1 = 4 + i * 2  // color at position i
+      const idx2 = newColors.length - 1 - i * 2  // color at position from end
+      const temp = newColors[idx1]
+      newColors[idx1] = newColors[idx2]
+      newColors[idx2] = temp
+    }
+  }
+  
   return newColors
 }
 
