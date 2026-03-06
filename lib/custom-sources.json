@@ -48,6 +48,20 @@
             "url": "WMS:https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.WGS84G&FORMAT=image%2Fgeotiff&BBoxOrder=yxYX",
             "type": "cog",
             "description": ""
+        }, 
+        {
+            "id": "dura-w-05mm",
+            "name": "Dura Synagogue - W-0.5mm DSM",
+            "url": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/DuraEuropos_Synagogue_W_0.5mm_DSM_fakegeo.cog.tiff",
+            "type": "cog",
+            "description": ""
+        },
+        {
+            "id": "dura-grid-2mm",
+            "name": "Dura Synagogue - GRID-2mm DSM",
+            "url": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/DuraEuropos_Synagogue_2mm_DSM_mosaic.cog.tiff",
+            "type": "cog",
+            "description": ""
         }
     ],
     "SAMPLE_BASEMAPS_SOURCES": [
@@ -69,6 +83,20 @@
             "id": "custom-basemap-1770130217503",
             "name": "GRE - Amphipolis RGB Iconem",
             "url": "https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif",
+            "type": "cog",
+            "description": ""
+        },
+        {
+            "id": "dura-w-05mm",
+            "name": "Dura Synagogue - W-0.5mm RGB",
+            "url": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/DuraEuropos_Synagogue_W_0.5mm_RGB_fakegeo.cog.tiff",
+            "type": "cog",
+            "description": ""
+        },
+        {
+            "id": "dura-grid-2mm",
+            "name": "Dura Synagogue - GRID-2mm RGB",
+            "url": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/DuraEuropos_Synagogue_2mm_RGB_mosaic.cog.tiff",
             "type": "cog",
             "description": ""
         }
