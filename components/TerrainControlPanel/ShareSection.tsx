@@ -19,6 +19,7 @@ import {
   SiThreads,
   SiReddit,
 } from "react-icons/si"
+import { FaLinkedin } from "react-icons/fa6";
 import { TooltipIconButton } from "./controls-components"
 import { captureMapScreenshot, copyBlobToClipboard } from "@/lib/controls-utils"
 
@@ -89,7 +90,7 @@ const PLATFORMS: SharePlatform[] = [
   {
     id: "linkedin",
     name: "LinkedIn",
-    icon: SiLinkedin,
+    icon: FaLinkedin,
     color: "#0a66c2",
     buildUrl: (_text, pageUrl) =>
       `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(pageUrl)}`,
