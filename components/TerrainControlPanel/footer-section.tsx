@@ -40,8 +40,8 @@ export const FooterSection: React.FC = () => (
         <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
       </li>
       <li className="flex items-center justify-between">
-        Mike Jenkin <a href="https://minimaps.mikejenkin.com/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">minimap</a>
-        (<a href="https://github.com/drjenkin/minimaps" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">repo</a>) 2026-06
+        Mike Jenkin <a href="https://minimaps.mikejenkin.com/" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">minimap</a>
+        2026-06 <a href="https://github.com/drjenkin/minimaps" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">(repo)</a> 
         <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
       </li>
     </ul>
