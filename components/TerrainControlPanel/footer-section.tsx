@@ -3,7 +3,10 @@ import { ExternalLink } from "lucide-react"
 
 export const FooterSection: React.FC = () => (
   <div className="text-xs text-muted-foreground space-y-1">
-    <p>Made by <a href="https://github.com/jo-chemla/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">jo-chemla</a>, <a href="https://iconem.com" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">Iconem</a></p>
+    <p>Made by <a href="https://github.com/jo-chemla/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">jo-chemla</a>, 
+      <a href="https://iconem.com" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">Iconem</a>, 
+      see <a href="https://github.com/iconem/terrain-viewer" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">repo</a>
+    </p>
 
     <p>Also see: <a href="/maplibre-raster-dem-wms-float32-generic.html" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">
       French IGN LidarHD DTM/DSM raw WMS Float32
@@ -34,6 +37,11 @@ export const FooterSection: React.FC = () => (
           {", "}
           <a href="https://github.com/ngwnos/threegs" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">repo</a>
         </p>
+        <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+      </li>
+      <li className="flex items-center justify-between">
+        Mike Jenkin <a href="https://minimaps.mikejenkin.com/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">minimap</a>
+        (<a href="https://github.com/drjenkin/minimaps" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">repo</a>) 2026-06
         <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
       </li>
     </ul>
