@@ -80,11 +80,15 @@ function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number;
     return { minzoom: Math.round(Math.min(...zooms)), maxzoom: Math.round(Math.max(...zooms)) }
 }
 
-function cogTileUrl(url: string, useCogProtocol: boolean, titilerEndpoint: string, type: 'cog' | 'vrt'): string {
+function cogTileUrl(url: string, useCogProtocol: boolean, titilerEndpoint: string, type: 'cog' | 'vrt' | 'terrarium' | 'terrainrgb'): string {
     if (type === 'cog') {
         return useCogProtocol
             ? `cog://${url}#dem`
             : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
+    }
+    if (type === 'terrarium' || type === 'terrainrgb') {
+        // Already a plain {z}/{x}/{y} XYZ tile template — nothing to route through titiler/COG protocol.
+        return url
     }
     // vrt
     if (useCogProtocol) {

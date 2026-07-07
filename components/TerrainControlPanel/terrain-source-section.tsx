@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Plus, Edit, TestTube, RotateCcw } from "lucide-react"
+import { ChevronDown, Plus, Edit, TestTube, RotateCcw, Lightbulb } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
@@ -189,6 +189,15 @@ export const TerrainSourceSection: React.FC<{
             )}
           </CollapsibleContent>
         </Collapsible>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full mt-2 text-muted-foreground cursor-pointer"
+          onClick={() => window.open("https://github.com/Iconem/terrain-viewer/issues/new", "_blank")}
+        >
+          <Lightbulb className="h-4 w-4 mr-1" /> Suggest a new terrain source
+        </Button>
       </Section>
       <CustomTerrainSourceModal isOpen={isAddSourceModalOpen} onOpenChange={setIsAddSourceModalOpen} editingSource={editingSource} onSave={handleSaveCustomSource} />
       <Dialog open={isBatchEditModalOpen} onOpenChange={setIsBatchEditModalOpen}>

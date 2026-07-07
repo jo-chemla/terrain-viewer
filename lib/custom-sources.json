@@ -8,6 +8,22 @@
             "description": "See https://blog-idee.blogspot.com/2024/03/nuevo-servicio-xyz-del-modelo-digital.html"
         },
         {
+            "id": "custom-reearth-terrarium",
+            "name": "Global - Re:Earth Terrain - Terrarium (ellipsoid)",
+            "url": "https://terrain.reearth.land/terrarium/ellipsoid/{z}/{x}/{y}.webp",
+            "type": "terrarium",
+            "maxzoom": 18,
+            "description": "Roughly Mapterhorn minus the geoid-vs-ellipsoidal height correction. See https://github.com/reearth/reearth-terrain"
+        },
+        {
+            "id": "custom-openwaters-seascape",
+            "name": "Global - Open Waters Seascape Bathymetry - Terrarium",
+            "url": "https://tiles.openwaters.io/seascape/{z}/{x}/{y}.webp",
+            "type": "terrarium",
+            "maxzoom": 17,
+            "description": "Merged global + regional bathymetric compilations (GEBCO, EMODnet, NOAA CUDEM, and many more). See https://github.com/openwatersio/seascape"
+        },
+        {
             "id": "custom-1762932753466",
             "name": "ESP - Andalucía - COG 286GB - MDE del PNOA-LIDAR de Andalucía, 2020-21 (1x1m)",
             "url": "https://portalrediam.cica.es/repositorio/01_CARACTERIZACION_TERRITORIO/07_BASES_REF_ELEV/01_ELEVACIONES/01_PROYECTOS_REGIONALES/2020_AND_PNOA_LIDAR_V226_el/InfGeografica/InfRaster/MDT/ETRS89_h30_Horto/Cuadrantes_1m/MDT_Andalucia_2020_COG.tif",

@@ -18,6 +18,15 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
 
   const gdalCommand = `gdal_translate -outsize ${maxResolution} 0 -projwin ${bounds.west} ${bounds.north} ${bounds.east} ${bounds.south} -projwin_srs EPSG:4326 "${wmsXml}" output.tif`
 
+  // gdal_translate above only exports the raw encoded (terrarium/terrain-rgb) pixel bytes —
+  // GDAL has no built-in driver for either scheme. gdal_calc.py decodes those RGB bytes into
+  // real-world altitude (meters) using each encoding's packing formula.
+  const gdalCalcCommand = config.encoding === "terrarium"
+    ? `gdal_calc.py -A output.tif --A_band=1 -B output.tif --B_band=2 -C output.tif --C_band=3 \\\n  --outfile=output_altitude.tif --type=Float32 \\\n  --calc="(A.astype(float)*256+B+C/256.0)-32768"`
+    : config.encoding === "terrainrgb"
+      ? `gdal_calc.py -A output.tif --A_band=1 -B output.tif --B_band=2 -C output.tif --C_band=3 \\\n  --outfile=output_altitude.tif --type=Float32 \\\n  --calc="-10000+((A.astype(float)*65536+B*256+C)*0.1)"`
+      : undefined
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -63,7 +72,12 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
             <div className="flex items-center justify-between mb-1">
               <span className="font-semibold">GDAL & TMS Access:</span>
             </div>
-            <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={gdalCommand} />
+            <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={gdalCommand} gdalCalcCommand={gdalCalcCommand} />
+            {gdalCalcCommand && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Run after <code>gdal_translate</code> to decode the exported {config.encoding} pixel bytes into real-world elevation (Float32 meters).
+              </p>
+            )}
           </div>
 
           <div>
