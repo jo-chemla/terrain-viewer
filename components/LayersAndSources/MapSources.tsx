@@ -207,8 +207,15 @@ export const TerrainSources = memo(({
                 ...(isCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }),
             }
         }
-        // ...builtin path unchanged
-    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey, metadata])  // <-- add metadata dep
+
+        // Builtin source
+        const base = (terrainSources as any)[source as TerrainSource]
+        if (!base) return null
+        return {
+            ...base.sourceConfig,
+            tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
+        }
+    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey, metadata])
 
     if (!sourceConfig) return null
 
