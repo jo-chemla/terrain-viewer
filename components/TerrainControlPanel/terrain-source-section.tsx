@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Plus, Edit, TestTube, RotateCcw } from "lucide-react"
+import { ChevronDown, Plus, Edit, TestTube, RotateCcw, Lightbulb } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
@@ -23,6 +23,7 @@ import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { TooltipButton } from "./controls-components"
+import { JsonEditor } from "@/components/ui/json-editor"
 
 import customSources from "@/lib/custom-sources.json"
 const SAMPLE_TERRAIN_SOURCES = customSources['SAMPLE_TERRAIN_SOURCES']
@@ -51,8 +52,11 @@ export const TerrainSourceSection: React.FC<{
     } else {
       const newSource: CustomTerrainSource = { ...source, id: `custom-${Date.now()}` } as CustomTerrainSource
       setCustomTerrainSources([...customTerrainSources, newSource])
+      // Newly added sources are the ones the user almost always wants to look at
+      // immediately — auto-select it as the primary (sourceA) terrain source.
+      setState({ sourceA: newSource.id })
     }
-  }, [customTerrainSources, setCustomTerrainSources])
+  }, [customTerrainSources, setCustomTerrainSources, setState])
 
   const handleDeleteCustomSource = useCallback((id: string) => {
     setCustomTerrainSources(customTerrainSources.filter((s) => s.id !== id))
@@ -177,18 +181,47 @@ export const TerrainSourceSection: React.FC<{
 
             {customTerrainSources.length > 0 && (
               <div className="space-y-2">
-                <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })}>
-                  {customTerrainSources.map((source) => (
+                {state.splitScreen ? (
+                  customTerrainSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
-                      <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
-                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, setState }} />
+                      <ToggleGroup
+                        type="single"
+                        value={state.sourceA === source.id ? "a" : state.sourceB === source.id ? "b" : ""}
+                        onValueChange={(value) => {
+                          if (value === "a") setState({ sourceA: source.id })
+                          else if (value === "b") setState({ sourceB: source.id })
+                        }}
+                        className="border rounded-md shrink-0 cursor-pointer"
+                      >
+                        <ToggleGroupItem value="a" className="px-3 cursor-pointer data-[state=on]:font-bold">A</ToggleGroupItem>
+                        <ToggleGroupItem value="b" className="px-3 cursor-pointer data-[state=on]:font-bold">B</ToggleGroupItem>
+                      </ToggleGroup>
+                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource }} />
                     </div>
-                  ))}
-                </RadioGroup>
+                  ))
+                ) : (
+                  <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })}>
+                    {customTerrainSources.map((source) => (
+                      <div key={source.id} className="flex items-center gap-2 min-w-0">
+                        <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
+                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: (id: string) => setState({ sourceA: id }) }} />
+                      </div>
+                    ))}
+                  </RadioGroup>
+                )}
               </div>
             )}
           </CollapsibleContent>
         </Collapsible>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full mt-2 text-muted-foreground cursor-pointer"
+          onClick={() => window.open("https://github.com/mapterhorn/mapterhorn/issues/27", "_blank")}
+        >
+          <Lightbulb className="h-4 w-4 mr-1" /> Suggest a new terrain source
+        </Button>
       </Section>
       <CustomTerrainSourceModal isOpen={isAddSourceModalOpen} onOpenChange={setIsAddSourceModalOpen} editingSource={editingSource} onSave={handleSaveCustomSource} />
       <Dialog open={isBatchEditModalOpen} onOpenChange={setIsBatchEditModalOpen}>
@@ -197,11 +230,7 @@ export const TerrainSourceSection: React.FC<{
             <DialogTitle>Batch Edit Terrain Sources</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 overflow-y-auto px-1">
-            <textarea
-              className="w-full min-h-[400px] p-3 border rounded-md font-mono text-xs bg-background text-foreground resize-none"
-              value={batchEditJson}
-              onChange={(e) => setBatchEditJson(e.target.value)}
-            />
+            <JsonEditor value={batchEditJson} onChange={setBatchEditJson} />
             {batchEditError && <p className="text-sm text-red-500">{batchEditError}</p>}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setIsBatchEditModalOpen(false)}>Cancel</Button>

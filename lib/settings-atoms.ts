@@ -7,7 +7,6 @@ export const mapzenKeyAtom = atomWithStorage("mapzenKey", "mapzen-xxxxxxx")
 export const maptilerKeyAtom = atomWithStorage("maptilerKey", "FbPGGTCFE8IRiPECxIrp")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 export const maxResolutionAtom = atomWithStorage("maxResolution", 1024)
-export const themeAtom = atomWithStorage<"light" | "dark">("theme", "light")
 
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)
 export const colorRampTypeAtom = atomWithStorage('colorRampType', 'classic')
@@ -40,8 +39,11 @@ export interface CustomTerrainSource {
   id: string
   name: string
   url: string
-  type: "cog" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson'
+  type: "cog" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson' | 'wms-raw'
   description?: string
+  /** Overrides the auto-detected (or fallback 0-20) zoom range — useful for WMS
+   *  sources where COG metadata detection doesn't apply. */
+  maxzoom?: number
 }
 
 export const customTerrainSourcesAtom = atomWithStorage<CustomTerrainSource[]>("customTerrainSources", [])
@@ -52,6 +54,11 @@ export interface CustomBasemapSource {
   url: string
   type: "cog" | "tms" | "wms" | "wmts"
   description?: string
+  /** 'tms' for bottom-left-origin tile grids (rare) — see maplibre raster source `scheme`. Defaults to 'xyz'. */
+  scheme?: "xyz" | "tms"
+  /** Overrides the default 0-22 fallback zoom range, e.g. from a NextGIS QMS z_min/z_max. */
+  minzoom?: number
+  maxzoom?: number
 }
 
 export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [])

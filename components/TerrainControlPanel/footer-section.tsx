@@ -15,6 +15,12 @@ export const FooterSection: React.FC = () => (
     <p>Inspired by:</p>
     <ul className="space-y-0.5">
       <li className="flex items-center justify-between">
+        <a href="https://mapterhorn.com/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
+          Mapterhorn
+        </a>
+        <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+      </li>
+      <li className="flex items-center justify-between">
         <a href="https://tangrams.github.io/heightmapper/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
           Tangram Height Mapper
         </a>

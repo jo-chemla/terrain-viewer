@@ -168,7 +168,7 @@ export const DownloadSection: React.FC<{
           tooltip="Export DTM as GeoTIFF"
           onClick={exportDTM}
           disabled={isExporting}
-          className={`flex-[2] ${isExporting ? "animate-spin" : ""}`}
+          className={`flex-[2] ${isExporting ? "[&_svg]:animate-spin" : ""}`}
         />
         <TooltipIconButton
           icon={Camera}

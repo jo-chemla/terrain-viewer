@@ -5,16 +5,21 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 export const CustomSourceDetails: React.FC<{
-  source: any; handleFitToBounds: any; handleEditSource: any; handleDeleteCustomSource: any, setState: any
-}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, setState }) => (
+  source: any; handleFitToBounds: any; handleEditSource: any; handleDeleteCustomSource: any
+  /** Called with source.id when the label is clicked, e.g. setState({ sourceA: id }) or
+   *  setState({ basemapSource: id }) — the caller decides which state key to write.
+   *  Omit in contexts (e.g. split-screen A/B) where a separate control already handles
+   *  selection and the label should only fit-to-bounds. */
+  onSelect?: (id: string) => void
+}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect }) => (
   <>
     <Tooltip>
       <TooltipTrigger asChild>
-        <Label 
-          htmlFor={`source-${source.id}`} 
-          className="flex-1 text-sm cursor-pointer truncate min-w-0"            
+        <Label
+          htmlFor={`source-${source.id}`}
+          className="flex-1 text-sm cursor-pointer truncate min-w-0"
           onClick={() => {
-            setState({ sourceA: source.id })
+            onSelect?.(source.id)
             handleFitToBounds(source)
           }}
           >

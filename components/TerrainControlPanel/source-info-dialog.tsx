@@ -18,6 +18,19 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
 
   const gdalCommand = `gdal_translate -outsize ${maxResolution} 0 -projwin ${bounds.west} ${bounds.north} ${bounds.east} ${bounds.south} -projwin_srs EPSG:4326 "${wmsXml}" output.tif`
 
+  // GDAL's WMS/TMS driver has no native decoder for terrarium or Mapbox terrain-rgb — it just
+  // reads the tile bytes as plain RGB imagery, so gdal_translate above only exports the raw
+  // encoded pixels. gdal_calc.py decodes them into real-world altitude (meters) as a second step.
+  const decodeFormula = config.encoding === "terrarium"
+    ? "(A.astype(float)*256+B+C/256.0)-32768"
+    : config.encoding === "terrainrgb"
+      ? "-10000+((A.astype(float)*65536+B*256+C)*0.1)"
+      : undefined
+
+  const fullGdalCommand = decodeFormula
+    ? `${gdalCommand}\n\n# GDAL has no native ${config.encoding} decoder — decode raw elevation (Float32 meters):\ngdal_calc.py -A output.tif --A_band=1 -B output.tif --B_band=2 -C output.tif --C_band=3 \\\n  --outfile=output_altitude.tif --type=Float32 \\\n  --calc="${decodeFormula}"`
+    : gdalCommand
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -63,7 +76,15 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
             <div className="flex items-center justify-between mb-1">
               <span className="font-semibold">GDAL & TMS Access:</span>
             </div>
-            <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={gdalCommand} />
+            <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={fullGdalCommand} />
+            <p className="text-xs text-muted-foreground mt-1">
+              Need GDAL? On Windows, install it via{" "}
+              <a href="https://trac.osgeo.org/osgeo4w/" target="_blank" rel="noopener noreferrer" className="underline">OSGeo4W</a>
+              {" "}(run commands from its "OSGeo4W Shell"), or{" "}
+              <code>conda install -c conda-forge gdal</code>. {" "}
+              <a href="https://qgis.org/" target="_blank" rel="noopener noreferrer" className="underline">QGIS</a>
+              {" "}also bundles its own GDAL binaries you can use directly.
+            </p>
           </div>
 
           <div>

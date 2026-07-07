@@ -80,11 +80,19 @@ function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number;
     return { minzoom: Math.round(Math.min(...zooms)), maxzoom: Math.round(Math.max(...zooms)) }
 }
 
-function cogTileUrl(url: string, useCogProtocol: boolean, titilerEndpoint: string, type: 'cog' | 'vrt'): string {
+function cogTileUrl(url: string, useCogProtocol: boolean, titilerEndpoint: string, type: 'cog' | 'vrt' | 'terrarium' | 'terrainrgb' | 'wms-raw'): string {
     if (type === 'cog') {
         return useCogProtocol
             ? `cog://${url}#dem`
             : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
+    }
+    if (type === 'terrarium' || type === 'terrainrgb') {
+        // Already a plain {z}/{x}/{y} XYZ tile template — nothing to route through titiler/COG protocol.
+        return url
+    }
+    if (type === 'wms-raw') {
+        // A WMS GetMap URL returning a raw Float32 GeoTIFF — decoded by float32demProtocol.
+        return `float32dem://${url.replace(/^https?:\/\//, '')}`
     }
     // vrt
     if (useCogProtocol) {
@@ -123,11 +131,15 @@ export const TerrainSources = memo(({
     const isCogProtocol = customSource?.type === 'cog' && useCogProtocol
 
     const metadata = useCogMetadata(isCogProtocol ? customSource.url : null)
-    const { minzoom, maxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
+    const { minzoom, maxzoom: detectedMaxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
+    // A custom source's explicit maxzoom (e.g. WMS sources without COG metadata to auto-detect from)
+    // wins over both the metadata-detected value and the 0-20 fallback.
+    const maxzoom = customSource?.maxzoom ?? detectedMaxzoom
 
     useEffect(() => {
-        onZoomRangeChange?.({ minzoom, maxzoom })
-    }, [minzoom, maxzoom, onZoomRangeChange])
+        if (isCogProtocol && !metadata) return  // don't fire until real metadata
+        onZoomRangeChange?.({ minzoom, maxzoom, isCustom: !!customSource })
+    }, [minzoom, maxzoom, metadata, isCogProtocol, onZoomRangeChange])
 
     // Register color function for COG protocol
     useEffect(() => {
@@ -143,32 +155,60 @@ export const TerrainSources = memo(({
         )
     }, [isCogProtocol, customSource?.url, highResTerrain, metadata?.scale, metadata?.offset])
 
-    const sourceConfig: RasterDEMSourceSpecification = useMemo(() => {
+    // const sourceConfig: RasterDEMSourceSpecification = useMemo(() => {
+    //     if (customSource) {
+    //         const tileUrl = cogTileUrl(customSource.url, useCogProtocol, titilerEndpoint, customSource.type)
+    //         const encoding = isCogProtocol
+    //             ? highResTerrain ? 'terrarium' : 'mapbox'
+    //             : customSource.type === 'terrarium' ? 'terrarium'
+    //             : 'mapbox'  // terrainrgb
+
+    //         return {
+    //             type: "raster-dem",
+    //             tileSize: 256,
+    //             minzoom,
+    //             maxzoom,
+    //             encoding,
+    //             ...(isCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }),
+    //         }
+    //     }
+
+    //     // Builtin source
+    //     const base = (terrainSources as any)[source as TerrainSource]
+    //     if (!base) return null
+    //     return {
+    //         ...base.sourceConfig,
+    //         tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
+    //     }
+    // }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey])
+
+    // if (!sourceConfig) return null
+
+    // In TerrainSources, replace the sourceConfig useMemo + return:
+
+    const sourceConfig: RasterDEMSourceSpecification | null | undefined = useMemo(() => {
         if (customSource) {
+            // For COG protocol, wait for metadata before rendering
+            if (isCogProtocol && !metadata) return null  // <-- ADD THIS
+            
             const tileUrl = cogTileUrl(customSource.url, useCogProtocol, titilerEndpoint, customSource.type)
             const encoding = isCogProtocol
                 ? highResTerrain ? 'terrarium' : 'mapbox'
                 : customSource.type === 'terrarium' ? 'terrarium'
                 : 'mapbox'  // terrainrgb
-
             return {
                 type: "raster-dem",
-                tileSize: 256,
+                // wms-raw's URL requests a fixed WIDTH/HEIGHT (e.g. 514 = 512 + 1px buffer per side)
+                // matching a 512px tile — see public/maplibre-raster-dem-wms-float32-generic.html.
+                tileSize: customSource.type === 'wms-raw' ? 512 : 256,
                 minzoom,
                 maxzoom,
                 encoding,
                 ...(isCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }),
             }
         }
-
-        // Builtin source
-        const base = (terrainSources as any)[source as TerrainSource]
-        if (!base) return null
-        return {
-            ...base.sourceConfig,
-            tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
-        }
-    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey])
+        // ...builtin path unchanged
+    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey, metadata])  // <-- add metadata dep
 
     if (!sourceConfig) return null
 
@@ -207,7 +247,13 @@ export const RasterBasemapSource = memo(({
                     ? `cog://${customBasemap.url}`
                     : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(customBasemap.url)}`
                 : customBasemap.url
-            return isCog && useCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }
+            if (isCog && useCogProtocol) return { url: tileUrl }
+            return {
+                tiles: [tileUrl],
+                // Bottom-left-origin (true TMS) tile grids need maplibre's scheme flag — most
+                // XYZ/Google-style sources (the default) don't set this.
+                ...(customBasemap.scheme === 'tms' ? { scheme: 'tms' } : {}),
+            }
         }
 
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
@@ -218,7 +264,7 @@ export const RasterBasemapSource = memo(({
     }, [customBasemap, basemapSource, useCogProtocol, titilerEndpoint, mapboxKey])
 
     const zoomRange = useMemo(() => {
-        if (customBasemap) return { minzoom: 0, maxzoom: 22, isCustom: true }
+        if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         return { minzoom: 0, maxzoom: basemap.maxzoom, isCustom: false }
     }, [customBasemap, basemapSource])

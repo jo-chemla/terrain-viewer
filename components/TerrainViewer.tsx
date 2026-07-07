@@ -1,28 +1,29 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral, parseAsJson } from "nuqs"
+import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral } from "nuqs"
 import Map, {
   NavigationControl,
   GeolocateControl,
   type MapRef,
   ScaleControl,
 } from "react-map-gl/maplibre"
-import { TerrainControlPanel } from "./TerrainControlPanel/TerrainControlPanel"
-import { DEFAULT_ANIM_STATE, type AnimState, LOOP_MODES, LoopMode } from "./TerrainControlPanel/CameraUtilities"
+import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
 import { COLOR_RAMP_IDS } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, themeAtom, highResTerrainAtom
+  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom
 } from "@/lib/settings-atoms"
+import { useTheme } from "@/lib/controls-utils"
 import { MinimapControl } from "./MapControls/MinimapControl";
 import { useIsMobile } from '@/hooks/use-mobile'
 
 import maplibregl from 'maplibre-gl'
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol'
+import { float32demProtocol } from '@/lib/float32dem-protocol'
 
 import { TerrainSources, RasterBasemapSource } from "./LayersAndSources/MapSources"
 import {
@@ -49,15 +50,10 @@ const parseAsFloatPrecise = createParser({
   serialize: (value) => value.toFixed(4)
 })
 
-export const VIEW_MODES = ['2d', 'globe', '3d'] as const
-
-type AnimQuery = {
-  duration: number
-  loopMode: LoopMode
-  smoothCamera: boolean
-}
-
-
+// Not exported: a non-component export here breaks React Fast Refresh (Vite
+// falls back to full remounting this whole tree on every edit), which was
+// causing spurious mid-teardown crashes in ContoursLayer/TerraDraw during dev.
+const VIEW_MODES = ['2d', 'globe', '3d'] as const
 
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
@@ -75,10 +71,10 @@ export function TerrainViewer() {
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [highResTerrain] = useAtom(highResTerrainAtom)
+  const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
 
   const [state, setState] = useQueryStates({
     viewMode: parseAsStringLiteral(VIEW_MODES).withDefault("3d"),
-    wip_theme: parseAsStringLiteral(['light', 'dark']).withDefault("light"),
     splitScreen: parseAsBoolean.withDefault(false),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
@@ -128,16 +124,10 @@ export function TerrainViewer() {
     showGraticuleLabels: parseAsBoolean.withDefault(false),
     graticuleDensity: parseAsFloat.withDefault(0),
     minimapMinimized: parseAsBoolean.withDefault(true),
-    animDuration: parseAsFloat.withDefault(3),
-    animLoopMode: parseAsStringLiteral(LOOP_MODES).withDefault("bounce"),
-    animSmoothCamera: parseAsBoolean.withDefault(false),
-    anim360Spinning: parseAsBoolean.withDefault(false),
+    // Keyframe/360 animation state (animDuration, animLoopMode, animSmoothCamera,
+    // animPlaying, animPlaying360, animPose1, animPose2Delta) lives in its own nuqs
+    // hook inside CameraUtilities.tsx, not in this shared bag.
     invertColorRamp: parseAsBoolean.withDefault(false),
-    // animSettings: parseAsJson<AnimQuery>((v) => v as AnimQuery).withDefault({
-    //   duration: 3,
-    //   loopMode: "bounce",
-    //   smoothCamera: false,
-    // }),  
   },
   {
     history: 'replace', // push to remember past interactions, or replace to avoid cluttering history
@@ -149,43 +139,6 @@ export function TerrainViewer() {
 
 
   const [skyConfig] = useAtom(skyConfigAtom)
-
-  // Sync URL state with animState
-  const [animState, setAnimState] = useState<AnimState>({
-    ...DEFAULT_ANIM_STATE,
-    durationSec: state.animDuration,
-    loopMode: state.animLoopMode as "none" | "forward" | "bounce",
-    smoothCamera: state.animSmoothCamera,
-  })
-
-  // Update animState when URL params change
-  useEffect(() => {
-    setAnimState(prev => ({
-      ...prev,
-      durationSec: state.animDuration,
-      loopMode: state.animLoopMode as "none" | "forward" | "bounce",
-      smoothCamera: state.animSmoothCamera,
-    }))
-  }, [state.animDuration, state.animLoopMode, state.animSmoothCamera])
-
-  // Custom setAnimState that syncs back to URL
-  const setAnimStateWithSync = useCallback((updater: React.SetStateAction<AnimState>) => {
-    setAnimState(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      
-      // Sync relevant fields back to URL
-      const updates: any = {}
-      if (next.durationSec !== prev.durationSec) updates.animDuration = next.durationSec
-      if (next.loopMode !== prev.loopMode) updates.animLoopMode = next.loopMode
-      if (next.smoothCamera !== prev.smoothCamera) updates.animSmoothCamera = next.smoothCamera
-      
-      if (Object.keys(updates).length > 0) {
-        setState(updates, { shallow: true })
-      }
-      
-      return next
-    })
-  }, [setState])
 
   // Compute hillshade paint with useMemo to prevent recalculation
   const hillshadePaint = useMemo(
@@ -206,7 +159,8 @@ export function TerrainViewer() {
   // Register the COG protocol
   useEffect(() => {
     maplibregl.addProtocol('cog', cogProtocol)
-    
+    maplibregl.addProtocol('float32dem', float32demProtocol)
+
   }, [])
 
 
@@ -278,7 +232,7 @@ export function TerrainViewer() {
     }
   }, [state.viewMode])
 
-  const [theme] = useAtom(themeAtom)
+  const { theme } = useTheme()
   // const theme = state.theme
   // const themeColor = theme === 'light' ? '#fff' : '#000'
   // const themeAntiColor = theme === 'light' ? '#000' : '#fff'
@@ -432,25 +386,47 @@ export function TerrainViewer() {
   
   // ----------------------------------------
 
-  const [zoomRangeA, setZoomRangeA] = useState<{ minzoom: number; maxzoom: number } | null>(null)
-  const [zoomRangeB, setZoomRangeB] = useState<{ minzoom: number; maxzoom: number } | null>(null)
+  const [zoomRangeA, setZoomRangeA] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
+  const [zoomRangeB, setZoomRangeB] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
   const [zoomRangeBasemap, setZoomRangeBasemap] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
 
-  // Only include a range in the computation if it came from a custom source.
-  // Builtin terrain sources (no COG metadata) report {0, 20} as a fallback — ignore them.
-  // Builtin basemaps report a fixed maxzoom (e.g. 19) — ignore them too.
-  const hasCustomTerrain = zoomRangeA !== null && zoomRangeA.maxzoom !== 20  // 20 = zoomRangeFromMetadata fallback
-  const hasCustomBasemap = zoomRangeBasemap?.isCustom === true
+  // Only include a range in the computation if it came from a custom source — checked
+  // directly against the id (a builtin source reporting a coincidental maxzoom of 20
+  // shouldn't be mistaken for "no custom range" the way a fallback-value heuristic would).
+  const isTerrainCustom = customTerrainSources.some(s => s.id === state.sourceA)
+  const isBasemapCustom = customBasemapSources.some(s => s.id === state.basemapSource)
 
-  const candidates = [
-    hasCustomTerrain ? zoomRangeA : null,
-    hasCustomBasemap ? zoomRangeBasemap : null,
-  ].filter(Boolean) as { minzoom: number; maxzoom: number }[]
+  // Shift the vanishing point left so it stays centered in the visible (non-obscured)
+  // portion of the map when the floating sidebar covers the right edge.
+  // Widths match the sidebar's own w-96/right-4 (desktop) and w-80 (mobile) classes.
+  const mapPadding = useMemo(
+    () => ({ top: 0, bottom: 0, left: 0, right: isSidebarOpen ? (isMobile ? 320 : 400) : 0 }),
+    [isSidebarOpen, isMobile],
+  )
 
-  const effectiveMinZoom = candidates.length > 0 ? Math.min(...candidates.map(r => r.minzoom)) : 0
-  const effectiveMaxZoom = candidates.length > 0 ? Math.max(...candidates.map(r => r.maxzoom)) : 22
-  // console.log({zoomRangeA, zoomRangeBasemap, effectiveMinZoom, effectiveMaxZoom})
+  // Ease the padding change imperatively (matching the sidebar's own CSS transition
+  // duration) rather than passing `padding` as a declarative prop — react-map-gl applies
+  // prop changes via an instant jumpTo, which snaps the vanishing point instead of easing it.
+  useEffect(() => {
+    if (mapALoaded && mapARef.current) mapARef.current.getMap().easeTo({ padding: mapPadding, duration: 300 })
+    if (mapBLoaded && mapBRef.current) mapBRef.current.getMap().easeTo({ padding: mapPadding, duration: 300 })
+  }, [mapPadding, mapALoaded, mapBLoaded])
 
+  const effectiveMaxZoom = useMemo(() => {
+      const candidates = [
+          isTerrainCustom && zoomRangeA ? zoomRangeA.maxzoom : null,
+          isBasemapCustom && zoomRangeBasemap ? zoomRangeBasemap.maxzoom : null,
+      ].filter((v): v is number => v !== null)
+      return candidates.length > 0 ? Math.max(...candidates) : 22
+  }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
+
+  const effectiveMinZoom = useMemo(() => {
+      const candidates = [
+          isTerrainCustom && zoomRangeA ? zoomRangeA.minzoom : null,
+          isBasemapCustom && zoomRangeBasemap ? zoomRangeBasemap.minzoom : null,
+      ].filter((v): v is number => v !== null)
+      return candidates.length > 0 ? Math.min(...candidates) : 0
+  }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
 
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
@@ -508,7 +484,12 @@ export function TerrainViewer() {
           minPitch={0}
           maxPitch={state.viewMode === "2d" ? 0 : 85}
           rollEnabled={state.viewMode !== "2d"}
-          pitchWithRotate={state.viewMode !== "2d"}
+          // pitchWithRotate is a maplibre-gl-js *construction-time-only* option — there's no
+          // imperative setter, so gating it on viewMode meant a map first created in "2d" mode
+          // (pitchWithRotate baked in as false) stayed locked out of right-click-drag pitch
+          // forever after switching to 3d/globe. maxPitch=0 already fully enforces the 2d
+          // pitch lock, so this can just stay true and let maxPitch do the gating.
+          pitchWithRotate={true}
           dragRotate={state.viewMode !== "2d"}
           // touchZoomRotate={state.viewMode !== "2d"}
           touchZoomRotate={true}
@@ -610,9 +591,12 @@ export function TerrainViewer() {
               <NavigationControl position="top-left" />
               <GeolocateControl position="top-left" />
 
-              {/* Minimap */}
-              {mapALoaded && mapARef.current && (<MinimapControl
-                parentMap={mapARef.current.getMap()}
+              {/* Minimap — no parentMap prop: it picks up the parent map via react-map-gl's
+                  useMap() context, which is available as soon as the Map mounts rather than
+                  waiting for mapALoaded (the 'load' event). Gating on mapALoaded needlessly
+                  serialized the minimap's own load after the main map's, doubling perceived
+                  load time instead of loading both concurrently. */}
+              <MinimapControl
                 position="bottom-left"
                 mode="dynamic"
                 initBounds={[[-150, -30], [150, 50]]}
@@ -667,9 +651,8 @@ export function TerrainViewer() {
                     },
                   ],
                 }}
-              />)} 
+              />
 
-              
               <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
 
             </>
@@ -714,8 +697,6 @@ export function TerrainViewer() {
         getMapBounds={getMapBounds}
         mapRef={mapARef as any}
         mapLoaded={mapALoaded}
-        animState={animState}
-        setAnimState={setAnimStateWithSync}
       />
     </div>
   )

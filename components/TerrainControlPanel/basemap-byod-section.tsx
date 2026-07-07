@@ -2,7 +2,6 @@ import type React from "react"
 import { useState, useCallback, useRef } from "react"
 import { useAtom } from "jotai"
 import { ChevronDown, Plus, Edit, TestTube } from "lucide-react"
-import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -36,8 +35,11 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     } else {
       const newSource: CustomBasemapSource = { ...source, id: `custom-basemap-${Date.now()}` } as CustomBasemapSource
       setCustomBasemapSources([...customBasemapSources, newSource])
+      // Newly added sources are the ones the user almost always wants to look at
+      // immediately — auto-select it as the active basemap.
+      setState({ basemapSource: newSource.id })
     }
-  }, [customBasemapSources, setCustomBasemapSources])
+  }, [customBasemapSources, setCustomBasemapSources, setState])
 
   const handleDeleteCustomBasemap = useCallback((id: string) => {
     setCustomBasemapSources(customBasemapSources.filter((s) => s.id !== id))
@@ -122,22 +124,12 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     id={`basemap-${source.id}`}
                     className="cursor-pointer shrink-0"
                   />
-                  <Label
-                    htmlFor={`basemap-${source.id}`}
-                    className="cursor-pointer flex-1 min-w-0"
-                    onClick={() => {
-                      setState({ basemapSource: source.id })
-                      handleFitToBounds(source)
-                    }}
-                  >
-                    {source.name}
-                  </Label>
                   <CustomSourceDetails
                     source={source}
                     handleFitToBounds={handleFitToBounds}
                     handleEditSource={handleEditBasemap}
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
-                    setState={setState}
+                    onSelect={(id) => setState({ basemapSource: id })}
                   />
                 </div>
               ))}

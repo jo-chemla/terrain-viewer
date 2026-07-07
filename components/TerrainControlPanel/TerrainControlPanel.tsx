@@ -6,10 +6,10 @@ import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown } from 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { transparentUiAtom, activeSliderAtom, themeAtom } from "@/lib/settings-atoms"
+import { transparentUiAtom, activeSliderAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
-import { useSourceConfig, type Bounds } from "@/lib/controls-utils"
+import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
 import { SettingsDialog } from "./settings-dialog"
 import { GeneralSettings } from "./general-settings"
 import { TerrainSourceSection } from "./terrain-source-section"
@@ -26,7 +26,6 @@ import { TooltipIconButton } from "./controls-components"
 import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
 import {AnimationSection} from "./CameraUtilities"
 import { useIsMobile } from '@/hooks/use-mobile'
-import type { AnimState } from "./CameraUtilities"
 import { cn } from "@/lib/utils"
 
 // --- Persisted state ---
@@ -72,9 +71,6 @@ interface TerrainControlPanelProps {
   getMapBounds: () => Bounds
   mapRef: React.RefObject<MapRef>
   mapLoaded: boolean
-  animState: AnimState
-  // setAnimState: (s: AnimState) => void
-  setAnimState?: React.Dispatch<React.SetStateAction<AnimState>>
 }
 
 export function TerrainControlPanel({
@@ -83,14 +79,18 @@ export function TerrainControlPanel({
   getMapBounds,
   mapRef,
   mapLoaded,
-  animState,
-  setAnimState,
 }: TerrainControlPanelProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
-  const [theme] = useAtom(themeAtom)
-  // const theme = state.theme
+  const { theme } = useTheme()
+
+  // AnimationSection's "complete" mode interpolates numeric leaves of this app state;
+  // shallow defaults true so per-frame animation writes don't spam browser history —
+  // callers (e.g. manual scrub) can pass shallow=false to make a value shareable.
+  const setAppState = useCallback((updates: Record<string, unknown>, shallow = true) => {
+    setState(updates, { shallow })
+  }, [setState])
   const { draw } = useTerraDraw(mapRef, mapLoaded)
   const isMobile = useIsMobile()
   const [activeSlider] = useAtom(activeSliderAtom)
@@ -223,12 +223,19 @@ export function TerrainControlPanel({
         <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} />
         <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
         <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} />
-        <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} />
+        <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
         <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
         <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
-        <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} state={state} setState={setState} setIsSidebarOpen={setIsSidebarOpen} animState={animState} setAnimState={setAnimState} />
-        <AnimationSection mapRef={mapRef} isOpen={sectionOpen.animation} onOpenChange={toggle("animation")} state={state} setState={setState} setIsSidebarOpen={setIsSidebarOpen} animState={animState} setAnimState={setAnimState} />
+        <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
+        <AnimationSection
+          mapRef={mapRef}
+          isOpen={sectionOpen.animation}
+          onOpenChange={toggle("animation")}
+          appState={state}
+          setAppState={setAppState}
+          setAppStateSafe={setAppState}
+        />
         <FooterSection />
       </Card>
       </div>

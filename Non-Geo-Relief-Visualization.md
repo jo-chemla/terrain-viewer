@@ -1,5 +1,12 @@
 ## Complete DSM & RGB Processing Guide
 
+### 0. Where to get the tools
+
+These commands need a `gdal_translate`/`gdal_calc.py` on your PATH:
+- **Windows:** install [OSGeo4W](https://trac.osgeo.org/osgeo4w/) (pick the "Express Install" and select the `gdal` package), which puts `gdal_translate.exe` in `C:\OSGeo4W\bin`. Run commands from the "OSGeo4W Shell" it installs, or add that `bin` folder to your PATH.
+- **Any OS via conda:** `conda install -c conda-forge gdal` (or `mamba install -c conda-forge gdal`) inside a fresh environment.
+- **QGIS:** the [QGIS](https://qgis.org/) desktop installer bundles its own GDAL — on Windows its `gdal_translate.exe` ships under `<QGIS install dir>\bin`, usable even if you don't open QGIS itself.
+
 ### 1. Check current resolution
 ```bash
 gdalinfo input.tiff | findstr "Pixel Size"
@@ -17,8 +24,7 @@ Shows your actual pixel size (e.g., 0.0005m = 0.5mm for photogrammetry data)
 ## DSM Command (Elevation Data)
 
 ```bash
-gdal_translate -of COG -a_gt 0.01 2.0 0 -0.01 0 -2.0 -a_scale -4000 -a_nodata nan -co BIGTIFF=YES -a_srs EPSG:3857 -co BLOCKSIZE=256 -co TILING_SCHEME=GoogleMapsCompatible -co RESAMPLING=BILINEAR -co OVERVIEW_RESAMPLING=NEAREST -co COMPRESS=DEFLATE -co PREDICTOR=3 -co OVERVIEWS=IGNORE_EXISTING -co ADD_ALPHA=NO -b 1 -colorinterp_1 gray DuraEuropos_Synagogue_W_0.5mm_DSM.tif
-f DuraEuropos_Synagogue_W_0.5mm_DSM_fakegeo-3.cog.tiff
+gdal_translate -of COG -a_gt 0.01 2.0 0 -0.01 0 -2.0 -a_scale -4000 -a_nodata nan -co BIGTIFF=YES -a_srs EPSG:3857 -co BLOCKSIZE=256 -co TILING_SCHEME=GoogleMapsCompatible -co RESAMPLING=BILINEAR -co OVERVIEW_RESAMPLING=NEAREST -co COMPRESS=DEFLATE -co PREDICTOR=3 -co OVERVIEWS=IGNORE_EXISTING -co ADD_ALPHA=NO -b 1 -colorinterp_1 gray DuraEuropos_Synagogue_W_0.5mm_DSM.tiff DuraEuropos_Synagogue_W_0.5mm_DSM_fakegeo-3.cog.tiff
 ```
 
 **DSM Parameters:**
@@ -38,6 +44,20 @@ f DuraEuropos_Synagogue_W_0.5mm_DSM_fakegeo-3.cog.tiff
 **Choice of AVERAGE vs BILINEAR or other for DSM?** AVERAGE resampling properly excludes nodata pixels from calculations, preventing nodata from bleeding into valid elevation data in overviews. But results in poorer grid like structure in the data
 
 Good middle-ground: bilin for resampling, nearest for overview-resampling.
+
+---
+
+## DSM Command — Raw Altitude (no fake-geo z-rescale)
+
+The DSM command above intentionally distorts elevation by `-a_scale 4000` so that the fake-geo xy rescale (0.0005m pixels reprojected as if they were 2m pixels) doesn't also compress the z-range into an unusable range for the web viewer's hillshade/color-relief. That's the right choice for viewing, but it means the resulting COG's pixel values are **not** real-world altitude — don't measure elevation directly off it in QGIS or elsewhere.
+
+To get a COG whose pixel values are true altitude (real elevation units, still georeferenced with the same fake-geo xy grid so it aligns with the fake-geo RGB/DSM above), drop `-a_scale` entirely and keep the source's native z-units as-is:
+
+```bash
+gdal_translate -of COG -a_gt 0.01 2.0 0 -0.01 0 -2.0 -a_nodata nan -co BIGTIFF=YES -a_srs EPSG:3857 -co BLOCKSIZE=256 -co TILING_SCHEME=GoogleMapsCompatible -co RESAMPLING=BILINEAR -co OVERVIEW_RESAMPLING=NEAREST -co COMPRESS=DEFLATE -co PREDICTOR=3 -co OVERVIEWS=IGNORE_EXISTING -co ADD_ALPHA=NO -b 1 -colorinterp_1 gray -ot Float32 input_DSM.tif output_DSM_raw-altitude.cog.tiff
+```
+
+If you already produced a `-a_scale 4000`-encoded COG and need to recover real altitude from it later (e.g. to measure a wall height in QGIS), either re-run `gdal_translate` from the original source without `-a_scale`, or use `gdal_calc.py -A encoded.cog.tiff --outfile=real_altitude.tif --calc="A/4000"` to invert the scale factor on the encoded output directly.
 
 ---
 

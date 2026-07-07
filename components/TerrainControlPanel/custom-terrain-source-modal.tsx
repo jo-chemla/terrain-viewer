@@ -13,7 +13,7 @@ export const CustomTerrainSourceModal: React.FC<{
 }> = ({ isOpen, onOpenChange, editingSource, onSave }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
-  const [type, setType] = useState<"cog" | "terrainrgb" | "terrarium" | "vrt">("cog")
+  const [type, setType] = useState<"cog" | "terrainrgb" | "terrarium" | "vrt" | "wms-raw">("cog")
   const [description, setDescription] = useState("")
 
   useEffect(() => {
@@ -38,8 +38,10 @@ export const CustomTerrainSourceModal: React.FC<{
 
   const url_placeholder = type === "cog" ?
     "https://example.com/terrain-dtm.cog.tiff" :
+    type === "wms-raw" ?
+    "https://example.com/wms?SERVICE=WMS&REQUEST=GetMap&LAYERS=...&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514" :
     "https://example.com/tms/{z}/{x}/{y}.png"
-    
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
@@ -66,6 +68,7 @@ export const CustomTerrainSourceModal: React.FC<{
                 <SelectItem value="terrainrgb">TMS (TerrainRGB)</SelectItem>
                 <SelectItem value="terrarium">TMS (Terrarium)</SelectItem>
                 <SelectItem value="vrt">VRT</SelectItem>
+                <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
               </SelectContent>
             </Select>
           </div>

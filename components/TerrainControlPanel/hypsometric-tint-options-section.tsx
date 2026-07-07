@@ -1,5 +1,5 @@
 import type React from "react"
-import { useMemo, useCallback, useRef, useContext } from "react"
+import { useMemo, useCallback, useRef, useContext, useState } from "react"
 import { useAtom } from "jotai"
 import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw, Mountain, MountainSnow } from "lucide-react"
 import { Label } from "@/components/ui/label"
@@ -162,15 +162,18 @@ export const HypsometricTintOptionsSection: React.FC<{
     if (!terrain) return null;
     
     const style = (mapInstance as any).style;
-    const tileManager = style?.tileManagers?.[terrain.options.source];
-    
+    const tileManager = style?.tileManagers?.[terrain.options?.source];
+
     if (!tileManager) return null;
-    
+
     // Get current zoom level
     const currentZoom = Math.floor(mapInstance.getZoom());
-    
-    // Use _inViewTiles to get only viewport tiles
+
+    // Use _inViewTiles to get only viewport tiles. This is an internal maplibre
+    // field that isn't always populated yet (e.g. right after a source switch,
+    // slower terrain load on mobile) — bail out rather than crashing.
     const inViewTiles = tileManager._inViewTiles;
+    if (!inViewTiles) return null;
     const tileIds = inViewTiles.getAllIds(); // This gets only in-view tiles
     
     let min = Infinity;
@@ -441,6 +444,52 @@ export const HypsometricTintOptionsSection: React.FC<{
 }
 
 
+// Text input for a slider bound that tolerates in-progress typing (e.g. a lone "-")
+// without ever committing or displaying NaN to the parent state.
+const DraftBoundInput: React.FC<{
+  value: number | undefined
+  onCommit: (value: number | undefined) => void
+  placeholder: string
+  className: string
+}> = ({ value, onCommit, placeholder, className }) => {
+  const [draft, setDraft] = useState<string>(value === undefined ? "" : String(value))
+
+  // Keep the draft in sync when the bound changes externally (ramp switch, reset button, etc.)
+  useEffect(() => {
+    setDraft(value === undefined ? "" : String(value))
+  }, [value])
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder={placeholder}
+      className={className}
+      value={draft}
+      onChange={(e) => {
+        const next = e.target.value
+        // Only accept strings that could become a valid number: optional leading
+        // minus, digits, optional single decimal point.
+        if (!/^-?\d*\.?\d*$/.test(next)) return
+        setDraft(next)
+
+        if (next === "") {
+          onCommit(undefined)
+          return
+        }
+        const parsed = parseFloat(next)
+        if (Number.isFinite(parsed)) onCommit(parsed)
+      }}
+      onBlur={() => {
+        // Revert an incomplete draft (e.g. a lone "-") back to the last committed value
+        if (draft !== "" && !Number.isFinite(parseFloat(draft))) {
+          setDraft(value === undefined ? "" : String(value))
+        }
+      }}
+    />
+  )
+}
+
 const HypsoDoubleRangeSlider: React.FC<{
   sliderBounds: { min: number; max: number };
   sliderValues: number[];
@@ -466,31 +515,17 @@ const HypsoDoubleRangeSlider: React.FC<{
         className="w-full cursor-pointer"
       />
         <div className="flex items-center justify-between gap-2 mt-1">
-          <input
-            type="text"
-            inputMode="numeric"
+          <DraftBoundInput
+            value={state.hypsoSliderMinBound}
+            onCommit={(v) => setState({ hypsoSliderMinBound: v })}
             placeholder="Min"
             className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-left w-16"
-            value={state.hypsoSliderMinBound ?? ""}
-            onChange={(e) => {
-              const value = e.target.value
-              if (value === "" || value === "-" || !isNaN(Number(value))) {
-                setState({ hypsoSliderMinBound: value === "" ? undefined : parseFloat(value) })
-              }
-            }}
           />
-          <input
-            type="text"
-            inputMode="numeric"
+          <DraftBoundInput
+            value={state.hypsoSliderMaxBound}
+            onCommit={(v) => setState({ hypsoSliderMaxBound: v })}
             placeholder="Max"
             className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-right w-16"
-            value={state.hypsoSliderMaxBound ?? ""}
-            onChange={(e) => {
-              const value = e.target.value
-              if (value === "" || value === "-" || !isNaN(Number(value))) {
-                setState({ hypsoSliderMaxBound: value === "" ? undefined : parseFloat(value) })
-              }
-            }}
           />
         </div>
     </div>

@@ -8,6 +8,30 @@
             "description": "See https://blog-idee.blogspot.com/2024/03/nuevo-servicio-xyz-del-modelo-digital.html"
         },
         {
+            "id": "custom-ign-lidarhd-dsm-wms-raw",
+            "name": "FRA - IGN Lidar HD DSM - WMS raw Float32",
+            "url": "data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514",
+            "type": "wms-raw",
+            "maxzoom": 18,
+            "description": "Raw Float32 elevation decoded client-side (float32dem:// protocol) — no gdal_calc needed to recover real altitude. Ported from public/maplibre-raster-dem-wms-float32-generic.html"
+        },
+        {
+            "id": "custom-reearth-terrarium",
+            "name": "Global - Re:Earth Terrain - Terrarium (ellipsoid)",
+            "url": "https://terrain.reearth.land/terrarium/ellipsoid/{z}/{x}/{y}.webp",
+            "type": "terrarium",
+            "maxzoom": 18,
+            "description": "Roughly Mapterhorn minus the geoid-vs-ellipsoidal height correction. See https://github.com/reearth/reearth-terrain"
+        },
+        {
+            "id": "custom-openwaters-seascape",
+            "name": "Global - Open Waters Seascape Bathymetry - Terrarium",
+            "url": "https://tiles.openwaters.io/seascape/{z}/{x}/{y}.webp",
+            "type": "terrarium",
+            "maxzoom": 17,
+            "description": "Merged global + regional bathymetric compilations (GEBCO, EMODnet, NOAA CUDEM, and many more). See https://github.com/openwatersio/seascape"
+        },
+        {
             "id": "custom-1762932753466",
             "name": "ESP - Andalucía - COG 286GB - MDE del PNOA-LIDAR de Andalucía, 2020-21 (1x1m)",
             "url": "https://portalrediam.cica.es/repositorio/01_CARACTERIZACION_TERRITORIO/07_BASES_REF_ELEV/01_ELEVACIONES/01_PROYECTOS_REGIONALES/2020_AND_PNOA_LIDAR_V226_el/InfGeografica/InfRaster/MDT/ETRS89_h30_Horto/Cuadrantes_1m/MDT_Andalucia_2020_COG.tif",
@@ -26,6 +50,7 @@
             "name": "FRA - IGN Lidar HD - WMS:url tiff 32 bits ",
             "url": "WMS:https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.WGS84G&FORMAT=image%2Fgeotiff&BBoxOrder=yxYX",
             "type": "cog",
+            "maxzoom": 18,
             "description": "FRA - IGN Lidar HD - WMS:url tiff 32 bits "
         },
         {
@@ -47,8 +72,9 @@
             "name": "FRA - IGN LidarHD WMS via Titiler",
             "url": "WMS:https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.WGS84G&FORMAT=image%2Fgeotiff&BBoxOrder=yxYX",
             "type": "cog",
+            "maxzoom": 18,
             "description": ""
-        }, 
+        },
         {
             "id": "dura-w-05mm",
             "name": "Dura Synagogue - W-0.5mm DSM",
