@@ -127,7 +127,13 @@ function subtractSnapshots(a: AppSnapshot, b: AppSnapshot): AppSnapshot {
   const pose = {} as CameraPose
   for (const k of POSE_KEYS) pose[k] = a.pose[k] - b.pose[k]
   const numericState: Record<string, number> = {}
-  for (const k of Object.keys(a.numericState)) numericState[k] = a.numericState[k] - (b.numericState[k] ?? 0)
+  // Only keep keys that actually changed between the two captures — a field
+  // overridden identically in both poses (or only in one, diffing against the
+  // implicit 0) would otherwise pad the delta with pointless `key: 0` entries.
+  for (const k of Object.keys(a.numericState)) {
+    const delta = a.numericState[k] - (b.numericState[k] ?? 0)
+    if (delta !== 0) numericState[k] = delta
+  }
   return { pose, numericState }
 }
 
@@ -558,6 +564,25 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
     if (!map) return null
     const c = map.getCenter()
     const canvas = map.getCanvas()
+
+    // extractNumbers(appState) sweeps every numeric leaf of the *entire* app state
+    // (hillshade opacity, contour thresholds, graticule density, ...), most of which
+    // the user never touched for this pose — they're just whatever the session's
+    // settings happen to be. Only keep the ones that actually differ from their nuqs
+    // default (i.e. what nuqs itself considers "changed" and has serialized into the
+    // URL right now) — this is "what differs from the nuqs state at the moment the
+    // pose button is clicked". Also drop lat/lng/zoom/pitch/bearing: they're already
+    // captured in `pose` above, so keeping them here too would just duplicate them.
+    let numericState: Record<string, number> = {}
+    if (appState && !smoothCamera) {
+      const overriddenKeys = new URLSearchParams(window.location.search)
+      const cameraKeys = new Set<string>(POSE_KEYS as string[])
+      numericState = Object.fromEntries(
+        Object.entries(extractNumbers(appState))
+          .filter(([key]) => overriddenKeys.has(key) && !cameraKeys.has(key))
+      )
+    }
+
     return {
       pose: {
         lat: c.lat, lng: c.lng, zoom: map.getZoom(),
@@ -566,9 +591,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
         vfov: map.getVerticalFieldOfView(),
         refWidth: canvas.clientWidth,
       },
-      // Smooth mode never reads numericState (see effectiveAppState above) — skip capturing
-      // it there entirely, since it's otherwise the biggest contributor to URL length.
-      numericState: appState && !smoothCamera ? extractNumbers(appState) : {},
+      numericState,
     }
   }, [mapRef, appState, smoothCamera])
 

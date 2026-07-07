@@ -35,8 +35,11 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     } else {
       const newSource: CustomBasemapSource = { ...source, id: `custom-basemap-${Date.now()}` } as CustomBasemapSource
       setCustomBasemapSources([...customBasemapSources, newSource])
+      // Newly added sources are the ones the user almost always wants to look at
+      // immediately — auto-select it as the active basemap.
+      setState({ basemapSource: newSource.id })
     }
-  }, [customBasemapSources, setCustomBasemapSources])
+  }, [customBasemapSources, setCustomBasemapSources, setState])
 
   const handleDeleteCustomBasemap = useCallback((id: string) => {
     setCustomBasemapSources(customBasemapSources.filter((s) => s.id !== id))

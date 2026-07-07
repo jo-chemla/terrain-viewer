@@ -4,6 +4,7 @@ import { Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { type CustomBasemapSource } from "@/lib/settings-atoms"
+import { JsonEditor } from "@/components/ui/json-editor"
 import saveAs from "file-saver"
 
 export const BasemapBatchEditModal: React.FC<{
@@ -84,14 +85,12 @@ export const BasemapBatchEditModal: React.FC<{
         </DialogClose>
         <div className="space-y-4 overflow-y-auto px-1">
           <div className="space-y-2">
-            <textarea
-              className="w-full min-h-[400px] p-3 border rounded-md font-mono text-xs bg-background text-foreground resize-none outline-none focus:ring-2 focus:ring-ring"
+            <JsonEditor
               value={json}
-              onChange={(e) => {
-                setJson(e.target.value)
+              onChange={(v) => {
+                setJson(v)
                 setError("")
               }}
-              spellCheck={false}
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
           </div>

@@ -77,6 +77,14 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
               <span className="font-semibold">GDAL & TMS Access:</span>
             </div>
             <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={fullGdalCommand} />
+            <p className="text-xs text-muted-foreground mt-1">
+              Need GDAL? On Windows, install it via{" "}
+              <a href="https://trac.osgeo.org/osgeo4w/" target="_blank" rel="noopener noreferrer" className="underline">OSGeo4W</a>
+              {" "}(run commands from its "OSGeo4W Shell"), or{" "}
+              <code>conda install -c conda-forge gdal</code>. {" "}
+              <a href="https://qgis.org/" target="_blank" rel="noopener noreferrer" className="underline">QGIS</a>
+              {" "}also bundles its own GDAL binaries you can use directly.
+            </p>
           </div>
 
           <div>

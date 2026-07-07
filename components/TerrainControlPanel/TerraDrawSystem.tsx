@@ -357,16 +357,6 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
         map.on('sourcedata', handleStyleData)
         map.on('render', handleStyleData)
 
-        // if (map.isStyleLoaded()) {
-        //     console.log('[TerraDraw] style already loaded — calling createDraw via rAF')
-        //     requestAnimationFrame(() => createDraw())
-        // } else {
-        //     console.log('[TerraDraw] style NOT loaded — waiting for style.load event')
-        //     map.once('style.load', () => {
-        //         console.log('[TerraDraw] style.load fired — calling createDraw via rAF')
-        //         requestAnimationFrame(() => createDraw())
-        //     })
-        // }
         const tryInit = () => {
             if (map.isStyleLoaded()) {
                 console.log('[TerraDraw] ✅ style ready — creating draw')
@@ -376,38 +366,29 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
             return false
         }
 
+        // Relying solely on a future 'styledata' event to re-check readiness is a race:
+        // if the style finishes loading in the gap between the tryInit() call above and
+        // this listener being attached (much more likely with two concurrent maps in
+        // split-screen), no further 'styledata' event ever fires and the listener waits
+        // forever — draw/select still work via the JS instance, but no td-* layers ever
+        // get created, so nothing renders. A bounded poll is a self-healing fallback that
+        // doesn't depend on catching a specific event.
+        let pollTimer: ReturnType<typeof setInterval> | null = null
         if (!tryInit()) {
-            console.log('[TerraDraw] style not ready — polling via styledata')
-            const onStyleData = () => {
-                if (tryInit()) {
-                    map.off('styledata', onStyleData)
+            console.log('[TerraDraw] style not ready — polling')
+            pollTimer = setInterval(() => {
+                if (tryInit() && pollTimer) {
+                    clearInterval(pollTimer)
+                    pollTimer = null
                 }
-            }
-            map.on('styledata', onStyleData)
-            // store for cleanup
-            ;(map as any).__tdInitCleanup = () => map.off('styledata', onStyleData)
+            }, 300)
         }
 
-
-
-        // return () => {
-        //     console.log('[TerraDraw] cleanup — stopping draw')
-        //     map.off('styledata', handleStyleData)
-        //     map.off('sourcedata', handleStyleData)
-        //     map.off('render', handleStyleData)
-        //     if (drawRef.current) {
-        //         try { drawRef.current.stop() } catch { }
-        //         drawRef.current = null
-        //     }
-        // }
-
         return () => {
-            // console.log('[TerraDraw] cleanup — stopping draw')
             map.off('styledata', handleStyleData)
             map.off('sourcedata', handleStyleData)
             map.off('render', handleStyleData)
-            ;(map as any).__tdInitCleanup?.()
-            delete (map as any).__tdInitCleanup
+            if (pollTimer) clearInterval(pollTimer)
             if (drawRef.current) {
                 try { drawRef.current.stop() } catch { }
                 drawRef.current = null

@@ -50,7 +50,10 @@ const parseAsFloatPrecise = createParser({
   serialize: (value) => value.toFixed(4)
 })
 
-export const VIEW_MODES = ['2d', 'globe', '3d'] as const
+// Not exported: a non-component export here breaks React Fast Refresh (Vite
+// falls back to full remounting this whole tree on every edit), which was
+// causing spurious mid-teardown crashes in ContoursLayer/TerraDraw during dev.
+const VIEW_MODES = ['2d', 'globe', '3d'] as const
 
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
@@ -401,6 +404,14 @@ export function TerrainViewer() {
     [isSidebarOpen, isMobile],
   )
 
+  // Ease the padding change imperatively (matching the sidebar's own CSS transition
+  // duration) rather than passing `padding` as a declarative prop — react-map-gl applies
+  // prop changes via an instant jumpTo, which snaps the vanishing point instead of easing it.
+  useEffect(() => {
+    if (mapALoaded && mapARef.current) mapARef.current.getMap().easeTo({ padding: mapPadding, duration: 300 })
+    if (mapBLoaded && mapBRef.current) mapBRef.current.getMap().easeTo({ padding: mapPadding, duration: 300 })
+  }, [mapPadding, mapALoaded, mapBLoaded])
+
   const effectiveMaxZoom = useMemo(() => {
       const candidates = [
           isTerrainCustom && zoomRangeA ? zoomRangeA.maxzoom : null,
@@ -494,7 +505,6 @@ export function TerrainViewer() {
           // maxZoom={22}
           minZoom={effectiveMinZoom}
           maxZoom={effectiveMaxZoom}
-          padding={mapPadding}
 
         >
           {/* Sources */}
@@ -581,9 +591,12 @@ export function TerrainViewer() {
               <NavigationControl position="top-left" />
               <GeolocateControl position="top-left" />
 
-              {/* Minimap */}
-              {mapALoaded && mapARef.current && (<MinimapControl
-                parentMap={mapARef.current.getMap()}
+              {/* Minimap — no parentMap prop: it picks up the parent map via react-map-gl's
+                  useMap() context, which is available as soon as the Map mounts rather than
+                  waiting for mapALoaded (the 'load' event). Gating on mapALoaded needlessly
+                  serialized the minimap's own load after the main map's, doubling perceived
+                  load time instead of loading both concurrently. */}
+              <MinimapControl
                 position="bottom-left"
                 mode="dynamic"
                 initBounds={[[-150, -30], [150, 50]]}
@@ -638,9 +651,8 @@ export function TerrainViewer() {
                     },
                   ],
                 }}
-              />)} 
+              />
 
-              
               <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
 
             </>

@@ -23,6 +23,7 @@ import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { TooltipButton } from "./controls-components"
+import { JsonEditor } from "@/components/ui/json-editor"
 
 import customSources from "@/lib/custom-sources.json"
 const SAMPLE_TERRAIN_SOURCES = customSources['SAMPLE_TERRAIN_SOURCES']
@@ -51,8 +52,11 @@ export const TerrainSourceSection: React.FC<{
     } else {
       const newSource: CustomTerrainSource = { ...source, id: `custom-${Date.now()}` } as CustomTerrainSource
       setCustomTerrainSources([...customTerrainSources, newSource])
+      // Newly added sources are the ones the user almost always wants to look at
+      // immediately — auto-select it as the primary (sourceA) terrain source.
+      setState({ sourceA: newSource.id })
     }
-  }, [customTerrainSources, setCustomTerrainSources])
+  }, [customTerrainSources, setCustomTerrainSources, setState])
 
   const handleDeleteCustomSource = useCallback((id: string) => {
     setCustomTerrainSources(customTerrainSources.filter((s) => s.id !== id))
@@ -226,11 +230,7 @@ export const TerrainSourceSection: React.FC<{
             <DialogTitle>Batch Edit Terrain Sources</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 overflow-y-auto px-1">
-            <textarea
-              className="w-full min-h-[400px] p-3 border rounded-md font-mono text-xs bg-background text-foreground resize-none"
-              value={batchEditJson}
-              onChange={(e) => setBatchEditJson(e.target.value)}
-            />
+            <JsonEditor value={batchEditJson} onChange={setBatchEditJson} />
             {batchEditError && <p className="text-sm text-red-500">{batchEditError}</p>}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setIsBatchEditModalOpen(false)}>Cancel</Button>
