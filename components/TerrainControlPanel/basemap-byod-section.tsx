@@ -1,8 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Plus, Edit, TestTube, Globe2 } from "lucide-react"
-import { Label } from "@/components/ui/label"
+import { ChevronDown, Plus, Edit, TestTube } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -17,7 +16,6 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { CustomBasemapModal } from "./custom-basemap-modal"
 import { BasemapBatchEditModal } from "./basemap-batch-edit-modal"
 import { CustomSourceDetails } from "./custom-source-details"
-import { NextGisQmsSearchModal } from "./nextgis-qms-search-modal"
 
 import customSources from "@/lib/custom-sources.json"
 const SAMPLE_BASEMAP_SOURCES = customSources['SAMPLE_BASEMAPS_SOURCES']
@@ -29,7 +27,6 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const [isAddBasemapModalOpen, setIsAddBasemapModalOpen] = useState(false)
   const [editingBasemap, setEditingBasemap] = useState<CustomBasemapSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
-  const [isQmsSearchOpen, setIsQmsSearchOpen] = useState(false)
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
 
   const handleSaveCustomBasemap = useCallback((source: Omit<CustomBasemapSource, "id"> & { id?: string }) => {
@@ -94,18 +91,12 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
 
         <CollapsibleContent className="space-y-2 pt-1">
           <TooltipProvider>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <TooltipButton
                 icon={Plus}
                 label="Basemap"
                 tooltip="Add a new custom basemap source"
                 onClick={() => { setEditingBasemap(null); setIsAddBasemapModalOpen(true) }}
-              />
-              <TooltipButton
-                icon={Globe2}
-                label="NextGIS QMS"
-                tooltip="Search the NextGIS Quick Map Services catalog"
-                onClick={() => setIsQmsSearchOpen(true)}
               />
               <TooltipButton
                 icon={Edit}
@@ -130,22 +121,12 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     id={`basemap-${source.id}`}
                     className="cursor-pointer shrink-0"
                   />
-                  <Label
-                    htmlFor={`basemap-${source.id}`}
-                    className="cursor-pointer flex-1 min-w-0"
-                    onClick={() => {
-                      setState({ basemapSource: source.id })
-                      handleFitToBounds(source)
-                    }}
-                  >
-                    {source.name}
-                  </Label>
                   <CustomSourceDetails
                     source={source}
                     handleFitToBounds={handleFitToBounds}
                     handleEditSource={handleEditBasemap}
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
-                    setState={setState}
+                    onSelect={(id) => setState({ basemapSource: id })}
                   />
                 </div>
               ))}
@@ -155,7 +136,6 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
 
       </Collapsible>
       <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} />
-      <NextGisQmsSearchModal isOpen={isQmsSearchOpen} onOpenChange={setIsQmsSearchOpen} onSave={handleSaveCustomBasemap} />
       <BasemapBatchEditModal
         isOpen={isBatchEditModalOpen}
         onOpenChange={setIsBatchEditModalOpen}

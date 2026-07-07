@@ -17,15 +17,13 @@ export const GdalTabs: React.FC<{
   tileUrl: string
   wmsXml: string
   gdalCommand: string
-  gdalCalcCommand?: string
-}> = ({ tileUrl, wmsXml, gdalCommand, gdalCalcCommand }) => {
+}> = ({ tileUrl, wmsXml, gdalCommand }) => {
   const [activeTab, setActiveTab] = useState("url")
 
   const handleCopy = () => {
     if (activeTab === "url") copyToClipboard(tileUrl)
     else if (activeTab === "xml") copyToClipboard(wmsXml)
-    else if (activeTab === "cmd") copyToClipboard(gdalCommand)
-    else if (gdalCalcCommand) copyToClipboard(gdalCalcCommand)
+    else copyToClipboard(gdalCommand)
   }
 
   return (
@@ -56,14 +54,6 @@ export const GdalTabs: React.FC<{
             >
               gdal_translate
             </TabsTrigger>
-            {gdalCalcCommand && (
-              <TabsTrigger
-                value="calc"
-                className="px-3 py-1 text-xs font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground cursor-pointer rounded-md"
-              >
-                Raw Altitude
-              </TabsTrigger>
-            )}
           </TabsList>
 
           <Tooltip>
@@ -83,9 +73,7 @@ export const GdalTabs: React.FC<{
                   ? "Copy TMS URL template"
                   : activeTab === "xml"
                     ? "Copy GDAL_WMS XML"
-                    : activeTab === "cmd"
-                      ? "Copy gdal_translate command"
-                      : "Copy gdal_calc command"
+                    : "Copy gdal_translate command"
               }</p>
             </TooltipContent>
           </Tooltip>
@@ -145,26 +133,6 @@ export const GdalTabs: React.FC<{
               {gdalCommand}
             </SyntaxHighlighter>
           </TabsContent>
-
-          {gdalCalcCommand && (
-            <TabsContent value="calc" className="p-3 pt-2 text-xs font-mono">
-              <SyntaxHighlighter
-                language="bash"
-                style={atomOneDark}
-                customStyle={{
-                  background: "transparent",
-                  fontSize: "0.75rem",
-                  margin: 0,
-                  padding: 0,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                }}
-                wrapLongLines
-              >
-                {gdalCalcCommand}
-              </SyntaxHighlighter>
-            </TabsContent>
-          )}
         </div>
       </div>
     </Tabs>

@@ -58,19 +58,17 @@ import { useAtom } from "jotai"
 /**
  * pose-codec.ts
  *
- * Compact base64 encode/decode of AppSnapshot for URL storage.
- * A pose has 8 floats (lat, lng, zoom, pitch, bearing, roll, vfov, refWidth)
- * plus a variable-size numericState map.
+ * Compact JSON encode/decode of AppSnapshot for URL storage. A pose has 8 floats
+ * (lat, lng, zoom, pitch, bearing, roll, vfov, refWidth) plus a variable-size
+ * numericState map (only populated in "Complete" mode — see captureSnapshot).
  *
- * Binary format:
- *   [8 x float64]  — CameraPose fields in fixed order
- *   [uint16]        — number of numeric state entries
- *   For each entry:
- *     [uint8]       — key length
- *     [utf8 bytes]  — key
- *     [float64]     — value
- *
- * Then base64url-encoded (URL-safe, no padding).
+ * Format: `[[8 pose floats], {numericState}?]` as JSON — a plain array keeps the
+ * fixed pose fields from repeating their names every time (unlike a `{pose:{lat:...}}`
+ * object would), and the numericState object is omitted entirely when empty (the
+ * common case: Smooth mode, or Complete mode where nothing besides camera differs).
+ * Numbers are rounded to 6 decimals since raw float64 precision isn't meaningful
+ * for lat/lng/opacity/etc and only adds digits. nuqs URL-encodes this string like
+ * any other query value — no extra base64 layer needed.
  */
 
 export interface CameraPose {
@@ -93,74 +91,27 @@ const POSE_KEYS: (keyof CameraPose)[] = [
   "lat", "lng", "zoom", "pitch", "bearing", "roll", "vfov", "refWidth",
 ]
 
+const round6 = (n: number) => Math.round(n * 1e6) / 1e6
+
 // ─── Encode ─────────────────────────────────────────────────────────────────────
 
 export function encodeSnapshot(snap: AppSnapshot): string {
-  const entries = Object.entries(snap.numericState)
-  const encoder = new TextEncoder()
-
-  // Calculate total byte size
-  let size = POSE_KEYS.length * 8 + 2 // 8 floats + entry count
-  for (const [key] of entries) {
-    size += 1 + encoder.encode(key).byteLength + 8 // keyLen + key + float64
-  }
-
-  const buf = new ArrayBuffer(size)
-  const view = new DataView(buf)
-  let offset = 0
-
-  // Write pose floats
-  for (const k of POSE_KEYS) {
-    view.setFloat64(offset, snap.pose[k], true)
-    offset += 8
-  }
-
-  // Write numeric state
-  view.setUint16(offset, entries.length, true)
-  offset += 2
-
-  for (const [key, val] of entries) {
-    const keyBytes = encoder.encode(key)
-    view.setUint8(offset, keyBytes.byteLength)
-    offset += 1
-    new Uint8Array(buf, offset, keyBytes.byteLength).set(keyBytes)
-    offset += keyBytes.byteLength
-    view.setFloat64(offset, val, true)
-    offset += 8
-  }
-
-  return uint8ToBase64Url(new Uint8Array(buf))
+  const pose = POSE_KEYS.map((k) => round6(snap.pose[k]))
+  const numericEntries = Object.entries(snap.numericState)
+  if (numericEntries.length === 0) return JSON.stringify([pose])
+  const numericState = Object.fromEntries(numericEntries.map(([k, v]) => [k, round6(v)]))
+  return JSON.stringify([pose, numericState])
 }
 
 // ─── Decode ─────────────────────────────────────────────────────────────────────
 
 export function decodeSnapshot(encoded: string): AppSnapshot | null {
   try {
-    const bytes = base64UrlToUint8(encoded)
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-    const decoder = new TextDecoder()
-    let offset = 0
-
+    const [poseArr, numericState] = JSON.parse(encoded) as [number[], Record<string, number>?]
+    if (!Array.isArray(poseArr) || poseArr.length !== POSE_KEYS.length) return null
     const pose = {} as CameraPose
-    for (const k of POSE_KEYS) {
-      ;(pose as any)[k] = view.getFloat64(offset, true)
-      offset += 8
-    }
-
-    const numEntries = view.getUint16(offset, true)
-    offset += 2
-
-    const numericState: Record<string, number> = {}
-    for (let i = 0; i < numEntries; i++) {
-      const keyLen = view.getUint8(offset)
-      offset += 1
-      const key = decoder.decode(bytes.slice(offset, offset + keyLen))
-      offset += keyLen
-      numericState[key] = view.getFloat64(offset, true)
-      offset += 8
-    }
-
-    return { pose, numericState }
+    POSE_KEYS.forEach((k, i) => { pose[k] = poseArr[i] })
+    return { pose, numericState: numericState ?? {} }
   } catch {
     return null
   }
@@ -186,22 +137,6 @@ function addSnapshots(a: AppSnapshot, delta: AppSnapshot): AppSnapshot {
   const numericState: Record<string, number> = {}
   for (const k of Object.keys(delta.numericState)) numericState[k] = (a.numericState[k] ?? 0) + delta.numericState[k]
   return { pose, numericState }
-}
-
-// ─── Base64url helpers (no padding, URL-safe) ────────────────────────────────
-
-function uint8ToBase64Url(bytes: Uint8Array): string {
-  let binary = ""
-  for (const b of bytes) binary += String.fromCharCode(b)
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
-}
-
-function base64UrlToUint8(str: string): Uint8Array {
-  const padded = str.replace(/-/g, "+").replace(/_/g, "/")
-  const binary = atob(padded)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
 }
 
 // ─── nuqs parser for poses ──────────────────────────────────────────────────────
@@ -548,6 +483,11 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
   const [exporting, setExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
   const [exportCodec, setExportCodec] = useState("")
+  // Draft text for the duration input — lets the field go through an empty/partial
+  // state while typing without a controlled-input revert (parseFloat("") is NaN,
+  // which used to bounce straight back to the last committed value on every keystroke).
+  const [durationDraft, setDurationDraft] = useState(String(durationSec))
+  useEffect(() => { setDurationDraft(String(durationSec)) }, [durationSec])
 
   // ═══ Derived ══════════════════════════════════════════════════════════════
   const canPlay = !!pose1 && !!pose2
@@ -626,9 +566,11 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
         vfov: map.getVerticalFieldOfView(),
         refWidth: canvas.clientWidth,
       },
-      numericState: appState ? extractNumbers(appState) : {},
+      // Smooth mode never reads numericState (see effectiveAppState above) — skip capturing
+      // it there entirely, since it's otherwise the biggest contributor to URL length.
+      numericState: appState && !smoothCamera ? extractNumbers(appState) : {},
     }
-  }, [mapRef, appState])
+  }, [mapRef, appState, smoothCamera])
 
   // ═══ Keyframe playback ════════════════════════════════════════════════════
   const stopPlay = useCallback(() => {
@@ -862,8 +804,17 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
           <div className="flex items-center gap-1">
             <Input
               type="number" min={0.5} max={300} step={0.5}
-              value={durationSec}
-              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) setDurationSec(v) }}
+              value={durationDraft}
+              onChange={e => {
+                const raw = e.target.value
+                setDurationDraft(raw)
+                const v = parseFloat(raw)
+                if (!isNaN(v) && v > 0) setDurationSec(v)
+              }}
+              onBlur={() => {
+                const v = parseFloat(durationDraft)
+                if (isNaN(v) || v <= 0) setDurationDraft(String(durationSec))
+              }}
               disabled={exporting}
               className="w-full h-8 text-xs px-2"
             />

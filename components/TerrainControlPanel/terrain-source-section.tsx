@@ -192,7 +192,7 @@ export const TerrainSourceSection: React.FC<{
                         <ToggleGroupItem value="a" className="px-3 cursor-pointer data-[state=on]:font-bold">A</ToggleGroupItem>
                         <ToggleGroupItem value="b" className="px-3 cursor-pointer data-[state=on]:font-bold">B</ToggleGroupItem>
                       </ToggleGroup>
-                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, setState, disableLabelSelect: true }} />
+                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource }} />
                     </div>
                   ))
                 ) : (
@@ -200,7 +200,7 @@ export const TerrainSourceSection: React.FC<{
                     {customTerrainSources.map((source) => (
                       <div key={source.id} className="flex items-center gap-2 min-w-0">
                         <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
-                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, setState }} />
+                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: (id: string) => setState({ sourceA: id }) }} />
                       </div>
                     ))}
                   </RadioGroup>
@@ -214,7 +214,7 @@ export const TerrainSourceSection: React.FC<{
           variant="ghost"
           size="sm"
           className="w-full mt-2 text-muted-foreground cursor-pointer"
-          onClick={() => window.open("https://github.com/Iconem/terrain-viewer/issues/new", "_blank")}
+          onClick={() => window.open("https://github.com/mapterhorn/mapterhorn/issues/27", "_blank")}
         >
           <Lightbulb className="h-4 w-4 mr-1" /> Suggest a new terrain source
         </Button>
