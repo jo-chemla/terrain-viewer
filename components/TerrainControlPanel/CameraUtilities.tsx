@@ -82,7 +82,7 @@ export interface AnimState {
   pose2: AppSnapshot | null
   playing: boolean
   progress: number
-  durationSec: number
+  // durationSec: number
   loopMode: LoopMode
   smoothCamera: boolean
 }
@@ -92,7 +92,7 @@ export const DEFAULT_ANIM_STATE: AnimState = {
   pose2: null,
   playing: false,
   progress: 0,
-  durationSec: 3,
+  // durationSec: 3,
   loopMode: 'bounce',
   smoothCamera: false,
 }
@@ -116,15 +116,42 @@ const lerpAngle    = (a: number, b: number, t: number) => {
 }
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
-function extractNumbers(obj: Record<string, unknown>, prefix = ""): Record<string, number> {
+// function extractNumbers(obj: Record<string, unknown>, prefix = ""): Record<string, number> {
+//   const out: Record<string, number> = {}
+//   for (const key of Object.keys(obj)) {
+//     const path = prefix ? `${prefix}.${key}` : key
+//     const val  = obj[key]
+//     if (typeof val === "number") out[path] = val
+//     else if (val && typeof val === "object" && !Array.isArray(val))
+//       Object.assign(out, extractNumbers(val as Record<string, unknown>, path))
+//   }
+//   return out
+// }
+const EXCLUDED_NUMERIC_KEYS = new Set([
+  "animDuration",
+  "animLoopMode",
+  "animSmoothCamera",
+])
+
+function extractNumbers(
+  obj: Record<string, unknown>,
+  prefix = ""
+): Record<string, number> {
   const out: Record<string, number> = {}
+
   for (const key of Object.keys(obj)) {
+    if (EXCLUDED_NUMERIC_KEYS.has(key)) continue
+
     const path = prefix ? `${prefix}.${key}` : key
-    const val  = obj[key]
-    if (typeof val === "number") out[path] = val
-    else if (val && typeof val === "object" && !Array.isArray(val))
+    const val = obj[key]
+
+    if (typeof val === "number") {
+      out[path] = val
+    } else if (val && typeof val === "object" && !Array.isArray(val)) {
       Object.assign(out, extractNumbers(val as Record<string, unknown>, path))
+    }
   }
+
   return out
 }
 
@@ -191,7 +218,13 @@ function applyProgress(
       Object.keys(p1.numericState).length > 0 &&
       Object.keys(p2.numericState).length > 0) {
     console.log("Applying app state at t =", t)
-    onAppStateChange(applyNumbers(appState, lerpNumericMaps(p1.numericState, p2.numericState, t)), shallow)
+    const { animDuration, ...restAppState } = appState as Record<string, unknown>
+
+    onAppStateChange(applyNumbers(restAppState, lerpNumericMaps(p1.numericState, p2.numericState, t)), shallow)
+
+    // setState('bar', { limitUrlUpdates: 250 }) defaults to throttle {method: 'throttle', timeMs: 250}
+    // TODO : nuqs shallow is for notifying the server, not what we want!
+
   }
 }
 
@@ -477,7 +510,11 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animS
   // const onAppStateChange = smoothCamera ? setStateSafe : setState
   // const appState = smoothCamera ? null : state
 
-  const [smoothCamera, setSmoothCamera] = useState(false)
+  // const [smoothCamera, setSmoothCamera] = useState(false)
+  const smoothCamera = state?.animSmoothCamera ?? DEFAULT_ANIM_STATE.smoothCamera
+  const setSmoothCamera = (v: boolean) => {
+    setState?.({ animSmoothCamera: v })
+  }
   const onAppStateChange = smoothCamera ? setStateSafe : setState
   const appState = smoothCamera ? null : state
 
@@ -511,7 +548,10 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animS
   const stoppingRef = useRef<number | null>(null)
   const spinLastRef = useRef<number | null>(null)
   const spinElapsed = useRef(0)
-  const [spinning, setSpinning] = useState(false)
+
+  // const [spinning, setSpinning] = useState(false)
+  const spinning = state?.anim360Spinning
+  const setSpinning = (v: boolean) => setState?.({ anim360Spinning: v })
 
   // ── FOV ──────────────────────────────────────────────────────────────────────
   const fovRafRef = useRef<number | null>(null)
@@ -519,12 +559,16 @@ export function CameraButtons({ mapRef, state, setState, setIsSidebarOpen, animS
   // ── Poses & Playback (from lifted or local state) ─────────────────────────────
   const pose1      = anim.pose1
   const pose2      = anim.pose2
-  const durationSec = anim.durationSec
-  const loopMode   = anim.loopMode
+  // const durationSec = anim.durationSec
+  // const loopMode   = anim.loopMode
+  // const setDurationSec = (v: number)         => setAnim({ durationSec: v })
+  // const setLoopMode    = (v: LoopMode)       => setAnim({ loopMode: v })
+  const durationSec = state?.animDuration ?? 3
+  const loopMode = state?.animLoopMode ?? DEFAULT_ANIM_STATE.loopMode
+  const setDurationSec = (v: number)         => setState?.({ animDuration: v })
+  const setLoopMode    = (v: LoopMode)       => setState?.({ animLoopMode: v })
   const setPose1   = (v: AppSnapshot | null) => setAnim({ pose1: v })
   const setPose2   = (v: AppSnapshot | null) => setAnim({ pose2: v })
-  const setDurationSec = (v: number)         => setAnim({ durationSec: v })
-  const setLoopMode    = (v: LoopMode)       => setAnim({ loopMode: v })
 
   const durationMs = durationSec * 1_000
 

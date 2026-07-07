@@ -30,6 +30,12 @@ import { Geometry } from 'wkx'
 import { Buffer } from 'buffer'
 import proj4 from 'proj4'
 
+
+// import { load } from '@loaders.gl/core';
+// import { GeoPackageLoader } from '@loaders.gl/geopackage';
+// import { transformGeoJsonCoords } from '@loaders.gl/gis';
+
+
 const wkbToGeoJSON = (buf: Uint8Array) =>
     Geometry.parse(Buffer.from(buf)).toGeoJSON() as any
 
@@ -566,16 +572,87 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
         }
 
         // @loaders.gl has deep ESM/CJS issues that make it fundamentally broken in Vite's dev server regardless of config. Cut your losses and drop it — use sql.js directly instead, which is what GeoPackageLoader uses under the hood anyway.
-        // if (ext === 'gpkg') {
-        //     const { load } = await import('@loaders.gl/core')
-        //     const { GeoPackageLoader } = await import('@loaders.gl/geopackage')
+        if (ext === 'gpkg') {
+            const { load } = await import('@loaders.gl/core')
+            const { GeoPackageLoader } = await import('@loaders.gl/geopackage')
 
-        //     load(file, GeoPackageLoader, { gis: { format: 'geojson' } })
-        //         .then((tables: Record<string, any[]>) => {
-        //             const features = Object.values(tables).flat()
-        //             handleGeojson({ type: 'FeatureCollection', features })
-        //         })
-        //         .catch((err) => console.error('GeoPackage import error:', err))
+            // load(file, GeoPackageLoader, { gis: { format: 'geojson' } })
+            //     // .then((tables: Record<string, any[]>) => {
+            //     .then((tables: any) => {
+            //         console.log({tables})
+            //         const features = Object.values(tables).flat()
+            //         handleGeojson({ type: 'FeatureCollection', features })
+            //     })
+            //     .catch((err) => console.error('GeoPackage import error:', err))
+
+
+            
+            // const data = await load(file, GeoPackageLoader, {
+            //     gis: { format: 'geojson' },
+            //     worker: false,
+            //     geopackage: {
+            //         sqlJsWorkerUrl: 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js'
+            //     }
+            // });
+            
+            // console.log('Raw loaded data:', data);
+
+            // let combinedFeatures: any[] = [];
+
+            // if (data && typeof data === 'object') {
+            // if ('shape' in data && data.shape === 'tables' && Array.isArray(data.tables)) {
+            //     for (const item of data.tables) {
+            //     if (item.table && Array.isArray(item.table.features)) {
+            //         combinedFeatures = [...combinedFeatures, ...item.table.features];
+            //     }
+            //     }
+            // } else {
+            //     const tables = Array.isArray(data) ? data : Object.values(data);
+            //     for (const table of tables) {
+            //     if (table && typeof table === 'object' && 'features' in table && Array.isArray(table.features)) {
+            //         combinedFeatures = [...combinedFeatures, ...table.features];
+            //     }
+            //     }
+            // }
+            // }
+
+            // if (combinedFeatures.length === 0) {
+            // throw new Error('No features found in GPKG.');
+            // }
+
+            // let fc = {
+            // type: 'FeatureCollection',
+            // features: combinedFeatures
+            // };
+
+            // // Check first feature coordinates to see if they need reprojection
+            // const firstFeature = combinedFeatures[0];
+            // if (firstFeature && firstFeature.geometry && firstFeature.geometry.coordinates) {
+            // const coords = firstFeature.geometry.type === 'Point' 
+            //     ? firstFeature.geometry.coordinates 
+            //     : firstFeature.geometry.type === 'LineString'
+            //     ? firstFeature.geometry.coordinates[0]
+            //     : firstFeature.geometry.coordinates[0][0];
+            
+            // console.log('Sample coordinates:', coords);
+            
+            // // If coordinates are large, they are likely EPSG:3857 (Web Mercator)
+            // if (Math.abs(coords[0]) > 180 || Math.abs(coords[1]) > 90) {
+            //     console.log('Detected non-WGS84 coordinates, attempting reprojection from EPSG:3857');
+            //     // Simple Web Mercator to WGS84 conversion if transformGeoJsonCoords doesn't handle it automatically
+            //     // loaders.gl transformGeoJsonCoords takes a transform function
+            //     fc.features = transformGeoJsonCoords(fc.features, (coord) => {
+            //     const x = coord[0];
+            //     const y = coord[1];
+            //     const lon = (x * 180) / 20037508.34;
+            //     let lat = (y * 180) / 20037508.34;
+            //     lat = (180 / Math.PI) * (2 * Math.atan(Math.exp((lat * Math.PI) / 180)) - Math.PI / 2);
+            //     return [lon, lat];
+            //     }) as any[];
+            // }
+            // }
+
+            
         // --
         // OR 
         // --
@@ -586,111 +663,140 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
         // const features = Object.values(tables).flat()
         // handleGeojson({ type: 'FeatureCollection', features })
 
-        if (ext === 'gpkg') {
+        // if (ext === 'gpkg') {
+            
+            // try {
+            //     const data = await load(url, GeoPackageLoader);
+                
+            //     // loaders.gl geopackage loader usually returns an object with layers
+            //     // We need to check for CRS and reproject if needed.
+            //     // The structure depends on the geopackage file.
+                
+            //     const features = data.features || [];
+            //     const crs = data.crs || 'EPSG:4326';
+                
+            //     if (crs !== 'EPSG:4326') {
+            //     console.log(`Reprojecting from ${crs} to EPSG:4326`);
+                
+            //     return {
+            //         ...data,
+            //         features: features.map((f: any) => reprojectFeature(f, crs, 'EPSG:4326'))
+            //     };
+            //     }
+                
+            //     return data;
+            // } catch (error) {
+            //     console.error('Failed to load GPKG:', error);
+            //     throw error;
+            // }
 
-            const initSqlJs = await loadSqlJs()
-            const arrayBuffer = await file.arrayBuffer()
-            console.log('[gpkg] file size:', arrayBuffer.byteLength)
+            // const initSqlJs = await loadSqlJs()
+            // const arrayBuffer = await file.arrayBuffer()
+            // console.log('[gpkg] file size:', arrayBuffer.byteLength)
 
-            function getGpkgHeaderSize(geomBytes: Uint8Array): number {
-                // Byte 3 is flags: bits 1-3 encode envelope type
-                const flags = geomBytes[3]
-                const envelopeType = (flags >> 1) & 0x07
-                // Envelope sizes in bytes: 0=none, 1=bbox(32), 2=bbox+Z(48), 3=bbox+M(48), 4=bbox+ZM(64)
-                const envelopeBytes = [0, 32, 48, 48, 64][envelopeType] ?? 0
-                return 8 + envelopeBytes
-            }
+            // function getGpkgHeaderSize(geomBytes: Uint8Array): number {
+            //     // Byte 3 is flags: bits 1-3 encode envelope type
+            //     const flags = geomBytes[3]
+            //     const envelopeType = (flags >> 1) & 0x07
+            //     // Envelope sizes in bytes: 0=none, 1=bbox(32), 2=bbox+Z(48), 3=bbox+M(48), 4=bbox+ZM(64)
+            //     const envelopeBytes = [0, 32, 48, 48, 64][envelopeType] ?? 0
+            //     return 8 + envelopeBytes
+            // }
 
-            const SQL = await initSqlJs({
-                locateFile: (f: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}`
-            })
-            const db = new SQL.Database(new Uint8Array(arrayBuffer))
+            // const SQL = await initSqlJs({
+            //     locateFile: (f: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}`
+            // })
+            // const db = new SQL.Database(new Uint8Array(arrayBuffer))
 
-            // Log all tables in the DB for debugging
-            const allTables = db.exec(`SELECT name FROM sqlite_master WHERE type='table'`)
-            console.log('[gpkg] all tables:', allTables[0]?.values.map((r: any) => r[0]))
+            // // Log all tables in the DB for debugging
+            // const allTables = db.exec(`SELECT name FROM sqlite_master WHERE type='table'`)
+            // console.log('[gpkg] all tables:', allTables[0]?.values.map((r: any) => r[0]))
 
-            const tables = db.exec(`SELECT table_name, data_type FROM gpkg_contents`)
-            console.log('[gpkg] gpkg_contents:', tables[0]?.values)
+            // const tables = db.exec(`SELECT table_name, data_type FROM gpkg_contents`)
+            // console.log('[gpkg] gpkg_contents:', tables[0]?.values)
 
-            const featureTables = db.exec(`SELECT table_name FROM gpkg_contents WHERE data_type='features'`)
-            const tableNames: string[] = featureTables[0]?.values.map((r: any) => r[0]) ?? []
-            console.log('[gpkg] feature tables:', tableNames)
+            // const featureTables = db.exec(`SELECT table_name FROM gpkg_contents WHERE data_type='features'`)
+            // const tableNames: string[] = featureTables[0]?.values.map((r: any) => r[0]) ?? []
+            // console.log('[gpkg] feature tables:', tableNames)
 
-            const allFeatures: any[] = []
-            for (const table of tableNames) {
-                // Get the SRS for this table
-                const srsQuery = db.exec(
-                    `SELECT gc.srs_id FROM gpkg_geometry_columns gc WHERE gc.table_name='${table}'`
-                )
-                const srsId: number = srsQuery[0]?.values[0]?.[0] as number ?? 4326
-                console.log('[gpkg] SRS for', table, ':', srsId)
+            // const allFeatures: any[] = []
+            // for (const table of tableNames) {
+            //     // Get the SRS for this table
+            //     const srsQuery = db.exec(
+            //         `SELECT gc.srs_id FROM gpkg_geometry_columns gc WHERE gc.table_name='${table}'`
+            //     )
+            //     const srsId: number = srsQuery[0]?.values[0]?.[0] as number ?? 4326
+            //     console.log('[gpkg] SRS for', table, ':', srsId)
 
-                const proj4String = await getProj4String(srsId)
-                if (srsId !== 4326 && !proj4String) {
-                    console.warn('[gpkg] cannot reproject table', table, '— skipping')
-                    continue
-                }
+            //     const proj4String = await getProj4String(srsId)
+            //     if (srsId !== 4326 && !proj4String) {
+            //         console.warn('[gpkg] cannot reproject table', table, '— skipping')
+            //         continue
+            //     }
 
 
-                const rows = db.exec(`SELECT * FROM "${table}" LIMIT 3`)
-                if (!rows[0]) { console.warn('[gpkg] no rows in table:', table); continue }
+            //     const rows = db.exec(`SELECT * FROM "${table}" LIMIT 3`)
+            //     if (!rows[0]) { console.warn('[gpkg] no rows in table:', table); continue }
 
-                const cols = rows[0].columns
-                console.log('[gpkg] columns in', table, ':', cols)
+            //     const cols = rows[0].columns
+            //     console.log('[gpkg] columns in', table, ':', cols)
 
-                // Log the actual gpkg_geometry_columns to find the real geom column name
-                const geomColQuery = db.exec(
-                    `SELECT column_name FROM gpkg_geometry_columns WHERE table_name='${table}'`
-                )
-                const geomColName: string = geomColQuery[0]?.values[0]?.[0] as string
-                    ?? cols.find((c: string) => !['id', 'fid'].includes(c.toLowerCase()) && !c.toLowerCase().includes('_id'))
-                    ?? cols[1]
-                console.log('[gpkg] geometry column for', table, ':', geomColName)
+            //     // Log the actual gpkg_geometry_columns to find the real geom column name
+            //     const geomColQuery = db.exec(
+            //         `SELECT column_name FROM gpkg_geometry_columns WHERE table_name='${table}'`
+            //     )
+            //     const geomColName: string = geomColQuery[0]?.values[0]?.[0] as string
+            //         ?? cols.find((c: string) => !['id', 'fid'].includes(c.toLowerCase()) && !c.toLowerCase().includes('_id'))
+            //         ?? cols[1]
+            //     console.log('[gpkg] geometry column for', table, ':', geomColName)
 
-                // Now fetch all rows
-                const allRows = db.exec(`SELECT * FROM "${table}"`)
-                if (!allRows[0]) continue
+            //     // Now fetch all rows
+            //     const allRows = db.exec(`SELECT * FROM "${table}"`)
+            //     if (!allRows[0]) continue
 
-                for (const row of allRows[0].values) {
-                    const props: Record<string, any> = {}
-                    allRows[0].columns.forEach((c: string, i: number) => { if (c !== geomColName) props[c] = row[i] })
-                    const geomBytes: Uint8Array = row[allRows[0].columns.indexOf(geomColName)] as Uint8Array
-                    const headerSize = getGpkgHeaderSize(geomBytes)
-                    if (!geomBytes) { console.warn('[gpkg] null geom in row, props:', props); continue }
+            //     for (const row of allRows[0].values) {
+            //         const props: Record<string, any> = {}
+            //         allRows[0].columns.forEach((c: string, i: number) => { if (c !== geomColName) props[c] = row[i] })
+            //         const geomBytes: Uint8Array = row[allRows[0].columns.indexOf(geomColName)] as Uint8Array
+            //         const headerSize = getGpkgHeaderSize(geomBytes)
+            //         if (!geomBytes) { console.warn('[gpkg] null geom in row, props:', props); continue }
 
-                    try {
-                        // GeoPackage WKB header: 2 magic bytes + 1 version + 1 flags + 4 srs_id = 8 bytes minimum
-                        // But if envelope is present, header is longer — read flags to get actual offset
-                        const flags = geomBytes[3]
-                        const envelopeType = (flags >> 1) & 0x07
-                        const envelopeSizes = [0, 32, 48, 48, 64] // bytes for envelope types 0-4
-                        const headerSize = 8 + (envelopeSizes[envelopeType] ?? 0)
-                        console.log('[gpkg] geomBytes length:', geomBytes.length, 'flags:', flags, 'envelopeType:', envelopeType, 'headerSize:', headerSize)
+            //         try {
+            //             // GeoPackage WKB header: 2 magic bytes + 1 version + 1 flags + 4 srs_id = 8 bytes minimum
+            //             // But if envelope is present, header is longer — read flags to get actual offset
+            //             const flags = geomBytes[3]
+            //             const envelopeType = (flags >> 1) & 0x07
+            //             const envelopeSizes = [0, 32, 48, 48, 64] // bytes for envelope types 0-4
+            //             const headerSize = 8 + (envelopeSizes[envelopeType] ?? 0)
+            //             console.log('[gpkg] geomBytes length:', geomBytes.length, 'flags:', flags, 'envelopeType:', envelopeType, 'headerSize:', headerSize)
 
-                        const wkb = geomBytes.slice(headerSize)
-                        const geojsonGeom = wkbToGeoJSON(wkb)
-                        console.log('[gpkg] parsed geom type:', geojsonGeom?.type)
-                        allFeatures.push({ type: 'Feature', geometry: geojsonGeom, properties: props })
-                    } catch (err) {
-                        console.error('[gpkg] wkb parse error:', err, 'bytes (hex):', Array.from(geomBytes.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' '))
-                    }
+            //             const wkb = geomBytes.slice(headerSize)
+            //             const geojsonGeom = wkbToGeoJSON(wkb)
+            //             console.log('[gpkg] parsed geom type:', geojsonGeom?.type)
+            //             allFeatures.push({ type: 'Feature', geometry: geojsonGeom, properties: props })
+            //         } catch (err) {
+            //             console.error('[gpkg] wkb parse error:', err, 'bytes (hex):', Array.from(geomBytes.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' '))
+            //         }
 
-                    try {
-                        const wkb = geomBytes.slice(headerSize)
-                        let geojsonGeom = wkbToGeoJSON(wkb)
+            //         try {
+            //             const wkb = geomBytes.slice(headerSize)
+            //             let geojsonGeom = wkbToGeoJSON(wkb)
 
-                        // Reproject if needed
-                        if (proj4String) {
-                            geojsonGeom = reprojectGeometry(geojsonGeom, proj4String)
-                        }
+            //             // Reproject if needed
+            //             if (proj4String) {
+            //                 geojsonGeom = reprojectGeometry(geojsonGeom, proj4String)
+            //             }
 
-                        allFeatures.push({ type: 'Feature', geometry: geojsonGeom, properties: props })
-                    } catch (err) {
-                        console.error('[gpkg] error:', err)
-                    }
-                }
-            }
+            //             allFeatures.push({ type: 'Feature', geometry: geojsonGeom, properties: props })
+            //         } catch (err) {
+            //             console.error('[gpkg] error:', err)
+            //         }
+            //     }
+            // }
+
+            // console.log('[gpkg] total features parsed:', allFeatures.length)
+            // db.close()
+            // handleGeojson({ type: 'FeatureCollection', features: allFeatures })
 
             
         } else if (ext === 'kml') {
@@ -747,7 +853,8 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
                     <Trash2 className="h-4 w-4 mr-1" /> Clear
                 </Button>
             </div>
-            <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml,.gpkg" onChange={importFile} className="hidden" />
+            <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml" onChange={importFile} className="hidden" />
+            {/* <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml,.gpkg" onChange={importFile} className="hidden" /> */}
             {/* <input ref={fileInputRef} type="file" accept=".geojson,.json" onChange={importGeoJSON} className="hidden" /> */}
         </div>
     )
@@ -770,3 +877,60 @@ export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange }: TerraDr
         </Section>
     )
 }
+
+
+// import { load } from '@loaders.gl/core';
+// import { GeoPackageLoader } from '@loaders.gl/geopackage';
+
+// // Common CRS definitions
+// proj4.defs([
+//   ["EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"],
+//   ["EPSG:2154", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"]
+// ]);
+
+// export async function loadGpkgUrl(url: string) {
+//   try {
+//     const data = await load(url, GeoPackageLoader);
+    
+//     // loaders.gl geopackage loader usually returns an object with layers
+//     // We need to check for CRS and reproject if needed.
+//     // The structure depends on the geopackage file.
+    
+//     const features = data.features || [];
+//     const crs = data.crs || 'EPSG:4326';
+    
+//     if (crs !== 'EPSG:4326') {
+//       console.log(`Reprojecting from ${crs} to EPSG:4326`);
+      
+//       return {
+//         ...data,
+//         features: features.map((f: any) => reprojectFeature(f, crs, 'EPSG:4326'))
+//       };
+//     }
+    
+//     return data;
+//   } catch (error) {
+//     console.error('Failed to load GPKG:', error);
+//     throw error;
+//   }
+// }
+
+// function reprojectFeature(feature: any, fromCrs: string, toCrs: string) {
+//   const transformed = { ...feature };
+  
+//   if (feature.geometry && feature.geometry.coordinates) {
+//     transformed.geometry = {
+//       ...feature.geometry,
+//       coordinates: reprojectCoordinates(feature.geometry.coordinates, fromCrs, toCrs)
+//     };
+//   }
+  
+//   return transformed;
+// }
+
+// function reprojectCoordinates(coords: any, fromCrs: string, toCrs: string): any {
+//   if (typeof coords[0] === 'number') {
+//     return proj4(fromCrs, toCrs, coords);
+//   }
+//   return coords.map((c: any) => reprojectCoordinates(c, fromCrs, toCrs));
+// }

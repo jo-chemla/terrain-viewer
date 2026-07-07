@@ -432,8 +432,8 @@ export function TerrainViewer() {
   
   // ----------------------------------------
 
-  const [zoomRangeA, setZoomRangeA] = useState<{ minzoom: number; maxzoom: number } | null>(null)
-  const [zoomRangeB, setZoomRangeB] = useState<{ minzoom: number; maxzoom: number } | null>(null)
+  const [zoomRangeA, setZoomRangeA] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
+  const [zoomRangeB, setZoomRangeB] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
   const [zoomRangeBasemap, setZoomRangeBasemap] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
 
   // Only include a range in the computation if it came from a custom source.
@@ -447,10 +447,43 @@ export function TerrainViewer() {
     hasCustomBasemap ? zoomRangeBasemap : null,
   ].filter(Boolean) as { minzoom: number; maxzoom: number }[]
 
-  const effectiveMinZoom = candidates.length > 0 ? Math.min(...candidates.map(r => r.minzoom)) : 0
-  const effectiveMaxZoom = candidates.length > 0 ? Math.max(...candidates.map(r => r.maxzoom)) : 22
+  // const effectiveMinZoom = candidates.length > 0 ? Math.min(...candidates.map(r => r.minzoom)) : 0
+  // const effectiveMaxZoom = candidates.length > 0 ? Math.max(...candidates.map(r => r.maxzoom)) : 22
   // console.log({zoomRangeA, zoomRangeBasemap, effectiveMinZoom, effectiveMaxZoom})
+  // const effectiveMinZoom = useMemo(() => {
+  //   const ranges = [zoomRangeA, zoomRangeBasemap].filter(
+  //     (r): r is NonNullable<typeof r> => r !== null && r.isCustom === true
+  //   )
+  //   return ranges.length > 0 ? Math.min(...ranges.map(r => r.minzoom)) : 0
+  // }, [zoomRangeA, zoomRangeBasemap])
 
+  // const effectiveMaxZoom = useMemo(() => {
+  //   const ranges = [zoomRangeA, zoomRangeBasemap].filter(
+  //     (r): r is NonNullable<typeof r> => r !== null && r.isCustom === true
+  //   )
+  //   return ranges.length > 0 ? Math.max(...ranges.map(r => r.maxzoom)) : 22
+  // }, [zoomRangeA, zoomRangeBasemap])
+
+  const isTerrainCustom = customTerrainSources.some(s => s.id === state.sourceA)
+  const isBasemapCustom = customBasemapSources.some(s => s.id === state.basemapSource)
+
+  console.log({ isBasemapCustom, zoomRangeBasemap, state_basemapSource: state.basemapSource, customBasemapSources })
+
+  const effectiveMaxZoom = useMemo(() => {
+      const candidates = [
+          isTerrainCustom && zoomRangeA ? zoomRangeA.maxzoom : null,
+          isBasemapCustom && zoomRangeBasemap ? zoomRangeBasemap.maxzoom : null,
+      ].filter((v): v is number => v !== null)
+      return candidates.length > 0 ? Math.max(...candidates) : 22
+  }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
+
+  const effectiveMinZoom = useMemo(() => {
+      const candidates = [
+          isTerrainCustom && zoomRangeA ? zoomRangeA.minzoom : null,
+          isBasemapCustom && zoomRangeBasemap ? zoomRangeBasemap.minzoom : null,
+      ].filter((v): v is number => v !== null)
+      return candidates.length > 0 ? Math.min(...candidates) : 0
+  }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
 
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
