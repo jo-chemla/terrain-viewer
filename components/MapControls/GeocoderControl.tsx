@@ -19,27 +19,27 @@ type GeocoderControlProps = Omit<MaplibreGeocoderOptions, 'maplibregl' | 'marker
 };
 
 /* eslint-disable camelcase */
+// Open-data geocoder (Photon / komoot, OSM-based, no key) — see riverrem-ui.
 const geocoderApi: MaplibreGeocoderApi = {
   forwardGeocode: async config => {
     const features = [];
     try {
-      const request = `https://nominatim.openstreetmap.org/search?q=${config.query}&format=geojson&polygon_geojson=1&addressdetails=1`;
+      const request = `https://photon.komoot.io/api/?limit=5&q=${encodeURIComponent(config.query)}`;
       const response = await fetch(request);
       const geojson = await response.json();
-      for (const feature of geojson.features) {
-        const center = [
-          feature.bbox[0] + (feature.bbox[2] - feature.bbox[0]) / 2,
-          feature.bbox[1] + (feature.bbox[3] - feature.bbox[1]) / 2
-        ];
+      for (const feature of geojson.features ?? []) {
+        const p = feature.properties ?? {};
+        const center = feature.geometry.coordinates;
+        const label = [p.name, p.city, p.state, p.country].filter(Boolean).join(", ");
         const point = {
           type: 'Feature',
           geometry: {
             type: 'Point',
             coordinates: center
           },
-          place_name: feature.properties.display_name,
-          properties: feature.properties,
-          text: feature.properties.display_name,
+          place_name: label || p.name || "?",
+          properties: p,
+          text: label || p.name || "?",
           place_type: ['place'],
           center
         };

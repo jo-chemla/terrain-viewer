@@ -23,6 +23,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 
 import maplibregl from 'maplibre-gl'
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol'
+import { float32demProtocol } from '@/lib/float32dem-protocol'
 
 import { TerrainSources, RasterBasemapSource } from "./LayersAndSources/MapSources"
 import {
@@ -207,7 +208,8 @@ export function TerrainViewer() {
   // Register the COG protocol
   useEffect(() => {
     maplibregl.addProtocol('cog', cogProtocol)
-    
+    maplibregl.addProtocol('float32dem', float32demProtocol)
+
   }, [])
 
 

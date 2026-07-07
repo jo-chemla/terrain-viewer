@@ -80,7 +80,7 @@ function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number;
     return { minzoom: Math.round(Math.min(...zooms)), maxzoom: Math.round(Math.max(...zooms)) }
 }
 
-function cogTileUrl(url: string, useCogProtocol: boolean, titilerEndpoint: string, type: 'cog' | 'vrt' | 'terrarium' | 'terrainrgb'): string {
+function cogTileUrl(url: string, useCogProtocol: boolean, titilerEndpoint: string, type: 'cog' | 'vrt' | 'terrarium' | 'terrainrgb' | 'wms-raw'): string {
     if (type === 'cog') {
         return useCogProtocol
             ? `cog://${url}#dem`
@@ -89,6 +89,10 @@ function cogTileUrl(url: string, useCogProtocol: boolean, titilerEndpoint: strin
     if (type === 'terrarium' || type === 'terrainrgb') {
         // Already a plain {z}/{x}/{y} XYZ tile template — nothing to route through titiler/COG protocol.
         return url
+    }
+    if (type === 'wms-raw') {
+        // A WMS GetMap URL returning a raw Float32 GeoTIFF — decoded by float32demProtocol.
+        return `float32dem://${url.replace(/^https?:\/\//, '')}`
     }
     // vrt
     if (useCogProtocol) {
@@ -160,7 +164,9 @@ export const TerrainSources = memo(({
 
             return {
                 type: "raster-dem",
-                tileSize: 256,
+                // wms-raw's URL requests a fixed WIDTH/HEIGHT (e.g. 514 = 512 + 1px buffer per side)
+                // matching a 512px tile — see public/maplibre-raster-dem-wms-float32-generic.html.
+                tileSize: customSource.type === 'wms-raw' ? 512 : 256,
                 minzoom,
                 maxzoom,
                 encoding,
@@ -214,7 +220,13 @@ export const RasterBasemapSource = memo(({
                     ? `cog://${customBasemap.url}`
                     : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(customBasemap.url)}`
                 : customBasemap.url
-            return isCog && useCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }
+            if (isCog && useCogProtocol) return { url: tileUrl }
+            return {
+                tiles: [tileUrl],
+                // Bottom-left-origin (true TMS) tile grids need maplibre's scheme flag — most
+                // XYZ/Google-style sources (the default) don't set this.
+                ...(customBasemap.scheme === 'tms' ? { scheme: 'tms' } : {}),
+            }
         }
 
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
@@ -225,7 +237,7 @@ export const RasterBasemapSource = memo(({
     }, [customBasemap, basemapSource, useCogProtocol, titilerEndpoint, mapboxKey])
 
     const zoomRange = useMemo(() => {
-        if (customBasemap) return { minzoom: 0, maxzoom: 22, isCustom: true }
+        if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         return { minzoom: 0, maxzoom: basemap.maxzoom, isCustom: false }
     }, [customBasemap, basemapSource])

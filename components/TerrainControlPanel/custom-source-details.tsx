@@ -6,15 +6,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 export const CustomSourceDetails: React.FC<{
   source: any; handleFitToBounds: any; handleEditSource: any; handleDeleteCustomSource: any, setState: any
-}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, setState }) => (
+  /** When true (e.g. split-screen A/B mode), the label only fits to bounds — selection is
+   *  handled by the ToggleGroup A/B control instead of always forcing sourceA. */
+  disableLabelSelect?: boolean
+}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, setState, disableLabelSelect }) => (
   <>
     <Tooltip>
       <TooltipTrigger asChild>
-        <Label 
-          htmlFor={`source-${source.id}`} 
-          className="flex-1 text-sm cursor-pointer truncate min-w-0"            
+        <Label
+          htmlFor={`source-${source.id}`}
+          className="flex-1 text-sm cursor-pointer truncate min-w-0"
           onClick={() => {
-            setState({ sourceA: source.id })
+            if (!disableLabelSelect) setState({ sourceA: source.id })
             handleFitToBounds(source)
           }}
           >

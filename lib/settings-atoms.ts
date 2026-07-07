@@ -40,7 +40,7 @@ export interface CustomTerrainSource {
   id: string
   name: string
   url: string
-  type: "cog" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson'
+  type: "cog" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson' | 'wms-raw'
   description?: string
   /** Overrides the auto-detected (or fallback 0-20) zoom range — useful for WMS
    *  sources where COG metadata detection doesn't apply. */
@@ -55,6 +55,11 @@ export interface CustomBasemapSource {
   url: string
   type: "cog" | "tms" | "wms" | "wmts"
   description?: string
+  /** 'tms' for bottom-left-origin tile grids (rare) — see maplibre raster source `scheme`. Defaults to 'xyz'. */
+  scheme?: "xyz" | "tms"
+  /** Overrides the default 0-22 fallback zoom range, e.g. from a NextGIS QMS z_min/z_max. */
+  minzoom?: number
+  maxzoom?: number
 }
 
 export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [])

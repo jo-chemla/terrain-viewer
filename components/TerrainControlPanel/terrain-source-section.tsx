@@ -177,14 +177,34 @@ export const TerrainSourceSection: React.FC<{
 
             {customTerrainSources.length > 0 && (
               <div className="space-y-2">
-                <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })}>
-                  {customTerrainSources.map((source) => (
+                {state.splitScreen ? (
+                  customTerrainSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
-                      <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
-                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, setState }} />
+                      <ToggleGroup
+                        type="single"
+                        value={state.sourceA === source.id ? "a" : state.sourceB === source.id ? "b" : ""}
+                        onValueChange={(value) => {
+                          if (value === "a") setState({ sourceA: source.id })
+                          else if (value === "b") setState({ sourceB: source.id })
+                        }}
+                        className="border rounded-md shrink-0 cursor-pointer"
+                      >
+                        <ToggleGroupItem value="a" className="px-3 cursor-pointer data-[state=on]:font-bold">A</ToggleGroupItem>
+                        <ToggleGroupItem value="b" className="px-3 cursor-pointer data-[state=on]:font-bold">B</ToggleGroupItem>
+                      </ToggleGroup>
+                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, setState, disableLabelSelect: true }} />
                     </div>
-                  ))}
-                </RadioGroup>
+                  ))
+                ) : (
+                  <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })}>
+                    {customTerrainSources.map((source) => (
+                      <div key={source.id} className="flex items-center gap-2 min-w-0">
+                        <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
+                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, setState }} />
+                      </div>
+                    ))}
+                  </RadioGroup>
+                )}
               </div>
             )}
           </CollapsibleContent>

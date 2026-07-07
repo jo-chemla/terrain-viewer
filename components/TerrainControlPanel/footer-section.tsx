@@ -15,6 +15,12 @@ export const FooterSection: React.FC = () => (
     <p>Inspired by:</p>
     <ul className="space-y-0.5">
       <li className="flex items-center justify-between">
+        <a href="https://mapterhorn.com/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
+          Mapterhorn
+        </a>
+        <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+      </li>
+      <li className="flex items-center justify-between">
         <a href="https://tangrams.github.io/heightmapper/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
           Tangram Height Mapper
         </a>
@@ -44,26 +50,6 @@ export const FooterSection: React.FC = () => (
         {", 2026-06 ("}<a href="https://github.com/drjenkin/minimaps" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">repo)</a>
         <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
       </li>
-      <li className="flex items-center justify-between">
-        <a href="https://mapterhorn.com/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
-          Mapterhorn
-        </a>
-        <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
-      </li>
-      <li className="flex items-center justify-between">
-        <p>
-          <a href="https://plantopo.com/" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">PlanTopo</a>
-          {" + "}
-          <a href="https://github.com/dzfranklin/slope-server" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">slope-server</a>
-        </p>
-        <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
-      </li>
     </ul>
-    <p>
-      Know a good Terrain-RGB or Terrarium tileset that's missing?{" "}
-      <a href="https://github.com/Iconem/terrain-viewer/issues/new" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">
-        Suggest it
-      </a>
-    </p>
   </div>
 )

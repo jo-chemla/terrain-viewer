@@ -8,6 +8,14 @@
             "description": "See https://blog-idee.blogspot.com/2024/03/nuevo-servicio-xyz-del-modelo-digital.html"
         },
         {
+            "id": "custom-ign-lidarhd-dsm-wms-raw",
+            "name": "FRA - IGN Lidar HD DSM - WMS raw Float32",
+            "url": "data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514",
+            "type": "wms-raw",
+            "maxzoom": 18,
+            "description": "Raw Float32 elevation decoded client-side (float32dem:// protocol) — no gdal_calc needed to recover real altitude. Ported from public/maplibre-raster-dem-wms-float32-generic.html"
+        },
+        {
             "id": "custom-reearth-terrarium",
             "name": "Global - Re:Earth Terrain - Terrarium (ellipsoid)",
             "url": "https://terrain.reearth.land/terrarium/ellipsoid/{z}/{x}/{y}.webp",
