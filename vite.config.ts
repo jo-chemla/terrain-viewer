@@ -27,7 +27,10 @@ export default defineConfig({
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'], // Add this
   },
   base: "./",
-  publicDir: 'public', 
+  publicDir: 'public',
+  server: {
+    host: true, // bind to 0.0.0.0 so the dev server is reachable on the LAN, not just localhost
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

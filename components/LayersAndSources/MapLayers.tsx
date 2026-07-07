@@ -41,6 +41,7 @@ export const RasterLayer = memo(
         source="raster-basemap-source"
         paint={{
           "raster-opacity": rasterBasemapOpacity,
+          "raster-resampling": 'linear' 
         }}
         layout={{
           visibility: showRasterBasemap ? "visible" : "none",
@@ -220,7 +221,7 @@ export const computeHillshadePaint = ({
     if (hillshadeMethod !== "standard") paint["hillshade-method"] = hillshadeMethod
   }
 
-  // paint["resampling"] = 'linear' 
+  paint["resampling"] = 'linear' 
   paint["hillshade-illumination-anchor"] = illumAnchor
 
   return paint

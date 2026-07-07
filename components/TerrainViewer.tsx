@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral, parseAsJson } from "nuqs"
+import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral } from "nuqs"
 import Map, {
   NavigationControl,
   GeolocateControl,
@@ -9,15 +9,15 @@ import Map, {
   ScaleControl,
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
-import { DEFAULT_ANIM_STATE, type AnimState, LOOP_MODES, LoopMode } from "./TerrainControlPanel/CameraUtilities"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
 import { COLOR_RAMP_IDS } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, themeAtom, highResTerrainAtom
+  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom
 } from "@/lib/settings-atoms"
+import { useTheme } from "@/lib/controls-utils"
 import { MinimapControl } from "./MapControls/MinimapControl";
 import { useIsMobile } from '@/hooks/use-mobile'
 
@@ -52,14 +52,6 @@ const parseAsFloatPrecise = createParser({
 
 export const VIEW_MODES = ['2d', 'globe', '3d'] as const
 
-type AnimQuery = {
-  duration: number
-  loopMode: LoopMode
-  smoothCamera: boolean
-}
-
-
-
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
   const mapBRef = useRef<MapRef>(null)
@@ -80,7 +72,6 @@ export function TerrainViewer() {
 
   const [state, setState] = useQueryStates({
     viewMode: parseAsStringLiteral(VIEW_MODES).withDefault("3d"),
-    wip_theme: parseAsStringLiteral(['light', 'dark']).withDefault("light"),
     splitScreen: parseAsBoolean.withDefault(false),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
@@ -130,16 +121,10 @@ export function TerrainViewer() {
     showGraticuleLabels: parseAsBoolean.withDefault(false),
     graticuleDensity: parseAsFloat.withDefault(0),
     minimapMinimized: parseAsBoolean.withDefault(true),
-    animDuration: parseAsFloat.withDefault(3),
-    animLoopMode: parseAsStringLiteral(LOOP_MODES).withDefault("bounce"),
-    animSmoothCamera: parseAsBoolean.withDefault(false),
-    anim360Spinning: parseAsBoolean.withDefault(false),
+    // Keyframe/360 animation state (animDuration, animLoopMode, animSmoothCamera,
+    // animPlaying, animPlaying360, animPose1, animPose2Delta) lives in its own nuqs
+    // hook inside CameraUtilities.tsx, not in this shared bag.
     invertColorRamp: parseAsBoolean.withDefault(false),
-    // animSettings: parseAsJson<AnimQuery>((v) => v as AnimQuery).withDefault({
-    //   duration: 3,
-    //   loopMode: "bounce",
-    //   smoothCamera: false,
-    // }),  
   },
   {
     history: 'replace', // push to remember past interactions, or replace to avoid cluttering history
@@ -151,43 +136,6 @@ export function TerrainViewer() {
 
 
   const [skyConfig] = useAtom(skyConfigAtom)
-
-  // Sync URL state with animState
-  const [animState, setAnimState] = useState<AnimState>({
-    ...DEFAULT_ANIM_STATE,
-    durationSec: state.animDuration,
-    loopMode: state.animLoopMode as "none" | "forward" | "bounce",
-    smoothCamera: state.animSmoothCamera,
-  })
-
-  // Update animState when URL params change
-  useEffect(() => {
-    setAnimState(prev => ({
-      ...prev,
-      durationSec: state.animDuration,
-      loopMode: state.animLoopMode as "none" | "forward" | "bounce",
-      smoothCamera: state.animSmoothCamera,
-    }))
-  }, [state.animDuration, state.animLoopMode, state.animSmoothCamera])
-
-  // Custom setAnimState that syncs back to URL
-  const setAnimStateWithSync = useCallback((updater: React.SetStateAction<AnimState>) => {
-    setAnimState(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      
-      // Sync relevant fields back to URL
-      const updates: any = {}
-      if (next.durationSec !== prev.durationSec) updates.animDuration = next.durationSec
-      if (next.loopMode !== prev.loopMode) updates.animLoopMode = next.loopMode
-      if (next.smoothCamera !== prev.smoothCamera) updates.animSmoothCamera = next.smoothCamera
-      
-      if (Object.keys(updates).length > 0) {
-        setState(updates, { shallow: true })
-      }
-      
-      return next
-    })
-  }, [setState])
 
   // Compute hillshade paint with useMemo to prevent recalculation
   const hillshadePaint = useMemo(
@@ -281,7 +229,7 @@ export function TerrainViewer() {
     }
   }, [state.viewMode])
 
-  const [theme] = useAtom(themeAtom)
+  const { theme } = useTheme()
   // const theme = state.theme
   // const themeColor = theme === 'light' ? '#fff' : '#000'
   // const themeAntiColor = theme === 'light' ? '#000' : '#fff'
@@ -435,23 +383,15 @@ export function TerrainViewer() {
   
   // ----------------------------------------
 
-  const [zoomRangeA, setZoomRangeA] = useState<{ minzoom: number; maxzoom: number } | null>(null)
-  const [zoomRangeB, setZoomRangeB] = useState<{ minzoom: number; maxzoom: number } | null>(null)
+  const [zoomRangeA, setZoomRangeA] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
+  const [zoomRangeB, setZoomRangeB] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
   const [zoomRangeBasemap, setZoomRangeBasemap] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
 
-  // Only include a range in the computation if it came from a custom source.
-  // Builtin terrain sources (no COG metadata) report {0, 20} as a fallback — ignore them.
-  // Builtin basemaps report a fixed maxzoom (e.g. 19) — ignore them too.
-  const hasCustomTerrain = zoomRangeA !== null && zoomRangeA.maxzoom !== 20  // 20 = zoomRangeFromMetadata fallback
-  const hasCustomBasemap = zoomRangeBasemap?.isCustom === true
-
-  const candidates = [
-    hasCustomTerrain ? zoomRangeA : null,
-    hasCustomBasemap ? zoomRangeBasemap : null,
-  ].filter(Boolean) as { minzoom: number; maxzoom: number }[]
-
-  const effectiveMinZoom = candidates.length > 0 ? Math.min(...candidates.map(r => r.minzoom)) : 0
-  const effectiveMaxZoom = candidates.length > 0 ? Math.max(...candidates.map(r => r.maxzoom)) : 22
+  // Only include a range in the computation if it came from a custom source — checked
+  // directly against the id (a builtin source reporting a coincidental maxzoom of 20
+  // shouldn't be mistaken for "no custom range" the way a fallback-value heuristic would).
+  const isTerrainCustom = customTerrainSources.some(s => s.id === state.sourceA)
+  const isBasemapCustom = customBasemapSources.some(s => s.id === state.basemapSource)
 
   // Shift the vanishing point left so it stays centered in the visible (non-obscured)
   // portion of the map when the floating sidebar covers the right edge.
@@ -460,8 +400,22 @@ export function TerrainViewer() {
     () => ({ top: 0, bottom: 0, left: 0, right: isSidebarOpen ? (isMobile ? 320 : 400) : 0 }),
     [isSidebarOpen, isMobile],
   )
-  // console.log({zoomRangeA, zoomRangeBasemap, effectiveMinZoom, effectiveMaxZoom})
 
+  const effectiveMaxZoom = useMemo(() => {
+      const candidates = [
+          isTerrainCustom && zoomRangeA ? zoomRangeA.maxzoom : null,
+          isBasemapCustom && zoomRangeBasemap ? zoomRangeBasemap.maxzoom : null,
+      ].filter((v): v is number => v !== null)
+      return candidates.length > 0 ? Math.max(...candidates) : 22
+  }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
+
+  const effectiveMinZoom = useMemo(() => {
+      const candidates = [
+          isTerrainCustom && zoomRangeA ? zoomRangeA.minzoom : null,
+          isBasemapCustom && zoomRangeBasemap ? zoomRangeBasemap.minzoom : null,
+      ].filter((v): v is number => v !== null)
+      return candidates.length > 0 ? Math.min(...candidates) : 0
+  }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
 
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
@@ -731,8 +685,6 @@ export function TerrainViewer() {
         getMapBounds={getMapBounds}
         mapRef={mapARef as any}
         mapLoaded={mapALoaded}
-        animState={animState}
-        setAnimState={setAnimStateWithSync}
       />
     </div>
   )

@@ -137,8 +137,9 @@ export const TerrainSources = memo(({
     const maxzoom = customSource?.maxzoom ?? detectedMaxzoom
 
     useEffect(() => {
-        onZoomRangeChange?.({ minzoom, maxzoom })
-    }, [minzoom, maxzoom, onZoomRangeChange])
+        if (isCogProtocol && !metadata) return  // don't fire until real metadata
+        onZoomRangeChange?.({ minzoom, maxzoom, isCustom: !!customSource })
+    }, [minzoom, maxzoom, metadata, isCogProtocol, onZoomRangeChange])
 
     // Register color function for COG protocol
     useEffect(() => {
@@ -154,14 +155,47 @@ export const TerrainSources = memo(({
         )
     }, [isCogProtocol, customSource?.url, highResTerrain, metadata?.scale, metadata?.offset])
 
-    const sourceConfig: RasterDEMSourceSpecification = useMemo(() => {
+    // const sourceConfig: RasterDEMSourceSpecification = useMemo(() => {
+    //     if (customSource) {
+    //         const tileUrl = cogTileUrl(customSource.url, useCogProtocol, titilerEndpoint, customSource.type)
+    //         const encoding = isCogProtocol
+    //             ? highResTerrain ? 'terrarium' : 'mapbox'
+    //             : customSource.type === 'terrarium' ? 'terrarium'
+    //             : 'mapbox'  // terrainrgb
+
+    //         return {
+    //             type: "raster-dem",
+    //             tileSize: 256,
+    //             minzoom,
+    //             maxzoom,
+    //             encoding,
+    //             ...(isCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }),
+    //         }
+    //     }
+
+    //     // Builtin source
+    //     const base = (terrainSources as any)[source as TerrainSource]
+    //     if (!base) return null
+    //     return {
+    //         ...base.sourceConfig,
+    //         tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
+    //     }
+    // }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey])
+
+    // if (!sourceConfig) return null
+
+    // In TerrainSources, replace the sourceConfig useMemo + return:
+
+    const sourceConfig: RasterDEMSourceSpecification | null | undefined = useMemo(() => {
         if (customSource) {
+            // For COG protocol, wait for metadata before rendering
+            if (isCogProtocol && !metadata) return null  // <-- ADD THIS
+            
             const tileUrl = cogTileUrl(customSource.url, useCogProtocol, titilerEndpoint, customSource.type)
             const encoding = isCogProtocol
                 ? highResTerrain ? 'terrarium' : 'mapbox'
                 : customSource.type === 'terrarium' ? 'terrarium'
                 : 'mapbox'  // terrainrgb
-
             return {
                 type: "raster-dem",
                 // wms-raw's URL requests a fixed WIDTH/HEIGHT (e.g. 514 = 512 + 1px buffer per side)
@@ -173,15 +207,8 @@ export const TerrainSources = memo(({
                 ...(isCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }),
             }
         }
-
-        // Builtin source
-        const base = (terrainSources as any)[source as TerrainSource]
-        if (!base) return null
-        return {
-            ...base.sourceConfig,
-            tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
-        }
-    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey])
+        // ...builtin path unchanged
+    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey, metadata])  // <-- add metadata dep
 
     if (!sourceConfig) return null
 

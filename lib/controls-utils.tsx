@@ -1,9 +1,10 @@
 import { useCallback } from "react"
 import { useAtom } from "jotai"
+import { useQueryState, parseAsStringLiteral } from "nuqs"
 import { terrainSources } from "@/lib/terrain-sources"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom, 
-  customTerrainSourcesAtom, customBasemapSourcesAtom, themeAtom
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
+  customTerrainSourcesAtom, customBasemapSourcesAtom
 } from "@/lib/settings-atoms"
 import type { TerrainSource } from "@/lib/terrain-types"
 import type { CustomTerrainSource, CustomBasemapSource } from "@/lib/settings-atoms"
@@ -17,7 +18,10 @@ export interface SourceConfig {
 export type Bounds = { west: number; east: number; north: number; south: number }
 
 export const useTheme = () => {
-  const [theme, setTheme] = useAtom(themeAtom)
+  const [theme, setTheme] = useQueryState(
+    "theme",
+    parseAsStringLiteral(["light", "dark"] as const).withDefault("light"),
+  )
   const toggleTheme = useCallback(() => setTheme(theme === "light" ? "dark" : "light"), [theme, setTheme])
   return { theme, toggleTheme }
 }
