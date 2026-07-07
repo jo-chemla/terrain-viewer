@@ -6,8 +6,9 @@ import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
 
 export const LAYER_SLOTS = {
   BACKGROUND: "slot-background",
-  BASEMAP: "slot-basemap", 
+  BASEMAP: "slot-basemap",
   COLOR_RELIEF: "slot-color-relief",
+  SLOPE: "slot-slope",
   HILLSHADE: "slot-hillshade",
   CONTOURS: "slot-contours",
 } as const
@@ -18,6 +19,7 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.BACKGROUND} type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.BASEMAP}     type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.COLOR_RELIEF}type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.SLOPE}       type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.HILLSHADE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
   </>
@@ -146,6 +148,48 @@ export const ColorReliefLayer = memo(
   },
 )
 ColorReliefLayer.displayName = "ColorReliefLayer"
+
+// ─── Slope-angle overlay ───────────────────────────────────────────────────────
+//
+// Reuses the same `color-relief` layer type as the hypsometric tint above, but
+// pointed at a DEM source whose "elevation" band actually encodes slope angle
+// in degrees rather than real elevation. PlanTopo's slope tile server (see
+// SLOPE_SOURCE_URL in MapSources.tsx) does this server-side: it fetches
+// Mapterhorn DEM tiles, computes the per-pixel slope, and re-packs the result
+// using the standard Mapbox terrain-rgb formula so any raster-dem consumer
+// (including maplibre's color-relief paint) can read it as if it were elevation.
+//
+// See the comment above SLOPE_SOURCE_URL for how this could instead be computed
+// entirely client-side via a custom protocol, without depending on PlanTopo.
+export const slopeReliefLayerDef = (showSlope: boolean) => ({
+  id: "slope-relief",
+  type: "color-relief" as const,
+  source: "slopeSource",
+  paint: {
+    "color-relief-color": [
+      "interpolate",
+      ["linear"],
+      ["elevation"],
+      0, "rgba(0, 0, 0, 0)",
+      29, "rgba(0, 0, 0, 0)",
+      30, "rgba(245, 247, 156, 0.4)",
+      35, "rgba(249, 200, 87, 0.4)",
+      40, "rgba(250, 101, 56, 0.4)",
+      45, "rgba(234, 72, 47, 0.4)",
+      50, "rgba(221, 50, 40, 0.4)",
+      55, "rgba(216, 37, 37, 0.4)",
+    ],
+  },
+  layout: {
+    visibility: showSlope ? "visible" : "none",
+  },
+})
+
+export const SlopeReliefLayer = memo(({ showSlope }: { showSlope: boolean }) => {
+  if (!showSlope) return null
+  return <Layer beforeId={LAYER_SLOTS.SLOPE} {...(slopeReliefLayerDef(showSlope) as any)} />
+})
+SlopeReliefLayer.displayName = "SlopeReliefLayer"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)

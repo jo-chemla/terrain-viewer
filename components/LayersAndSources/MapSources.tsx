@@ -292,3 +292,52 @@ export const RasterBasemapSource = memo(({
     )
 })
 RasterBasemapSource.displayName = "RasterBasemapSource"
+
+// -------------------------
+// SlopeSource — PlanTopo slope-angle overlay
+// -------------------------
+//
+// https://plantopo.com/map#c=12/44.97009/6.50524&l=default~slope-angle.overlay
+// PlanTopo runs a middleware "slope-server" in front of Mapterhorn's DEM: it
+// fetches DEM tiles, computes the per-pixel slope angle, and re-encodes the
+// result as a standard Mapbox terrain-rgb tile — so it can be consumed by any
+// raster-dem client exactly like an elevation source, which is what lets the
+// `color-relief` layer type (normally used for hypsometric elevation tinting,
+// see ColorReliefLayer above) be repointed at "slope degrees" instead of
+// "meters" for free, with zero maplibre-side special-casing.
+//
+// A client-side equivalent (no PlanTopo dependency) is possible via a custom
+// protocol, the same way lib/float32dem-protocol.ts decodes raw Float32 WMS
+// GeoTIFFs on the fly:
+//   1. Fetch the DEM tile *and its 8 neighbors* (needed so slope at the tile's
+//      edge pixels isn't computed from missing data) — maplibre-contour's
+//      `LocalDemManager`/`HeightTile.combineNeighbors` (already a dependency,
+//      see ContoursLayer.tsx) already implements exactly this fetch+stitch step.
+//   2. For each pixel, take the finite-difference gradient (dz/dx, dz/dy)
+//      against its 4/8 neighbors, scaled by real-world meters-per-pixel at
+//      that tile's zoom/latitude (Web Mercator pixel size shrinks with
+//      latitude — the same correction maplibre-contour applies internally).
+//   3. slopeDegrees = atan(sqrt((dz/dx)^2 + (dz/dy)^2)) * 180/PI — this is the
+//      first-order derivative (gradient magnitude) of the elevation surface.
+//   4. Re-encode slopeDegrees using the same terrain-rgb packing formula
+//      PlanTopo uses (see elevationToTerrainrgb above) and hand the resulting
+//      ImageData back through the protocol, so it drops into `slopeReliefLayerDef`
+//      (MapLayers.tsx) unchanged. This would remove the PlanTopo dependency
+//      and work with any DEM source already configured in this app, at the
+//      cost of doing the neighbor-fetch + gradient math on every unique tile
+//      the client requests instead of once, server-side, cached for everyone.
+const SLOPE_SOURCE_URL = "https://tile.plantopo.com/slope/{z}/{x}/{y}"
+
+export const SlopeSource = memo(({ enabled }: { enabled: boolean }) => {
+    if (!enabled) return null
+    return (
+        <Source
+            id="slopeSource"
+            type="raster-dem"
+            tiles={[SLOPE_SOURCE_URL]}
+            tileSize={256}
+            encoding="mapbox"
+        />
+    )
+})
+SlopeSource.displayName = "SlopeSource"

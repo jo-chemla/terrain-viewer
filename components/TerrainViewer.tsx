@@ -25,16 +25,17 @@ import maplibregl from 'maplibre-gl'
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
 
-import { TerrainSources, RasterBasemapSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, SlopeSource } from "./LayersAndSources/MapSources"
 import {
-  LayerOrderSlots, 
+  LayerOrderSlots,
   RasterLayer,
   BackgroundLayer,
   HillshadeLayer,
   ColorReliefLayer,
+  SlopeReliefLayer,
   LAYER_SLOTS,
   computeHillshadePaint,
-  computeColorReliefPaint, 
+  computeColorReliefPaint,
 } from "./LayersAndSources/MapLayers"
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
@@ -85,6 +86,7 @@ export function TerrainViewer() {
     hillshadeOpacity: parseAsFloat.withDefault(1.0),
     showColorRelief: parseAsBoolean.withDefault(false),
     colorReliefOpacity: parseAsFloat.withDefault(0.35),
+    showSlope: parseAsBoolean.withDefault(false),
     showContoursAndGraticules: parseAsBoolean.withDefault(false),
     showContours: parseAsBoolean.withDefault(true),
     showContourLabels: parseAsBoolean.withDefault(true),
@@ -523,6 +525,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
             onZoomRangeChange={setZoomRangeBasemap}
           />
+          <SlopeSource enabled={state.showSlope} />
 
           {/* Layers */}
           <LayerOrderSlots />
@@ -538,6 +541,7 @@ export function TerrainViewer() {
             showColorRelief={state.showColorRelief}
             colorReliefPaint={colorReliefPaint}
           />
+          <SlopeReliefLayer showSlope={state.showSlope} />
           <HillshadeLayer
             showHillshade={state.showHillshade}
             hillshadePaint={hillshadePaint}
@@ -663,7 +667,7 @@ export function TerrainViewer() {
     [
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
       state.basemapSource, state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
-      state.showColorRelief, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
+      state.showColorRelief, state.showSlope, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showBackground, state.showGraticules, state.graticuleWidth,
       state.sourceA, state.contourMinor, state.contourMajor,
       hillshadePaint, colorReliefPaint,
