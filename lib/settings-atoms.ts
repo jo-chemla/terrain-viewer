@@ -7,7 +7,6 @@ export const mapzenKeyAtom = atomWithStorage("mapzenKey", "mapzen-xxxxxxx")
 export const maptilerKeyAtom = atomWithStorage("maptilerKey", "FbPGGTCFE8IRiPECxIrp")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 export const maxResolutionAtom = atomWithStorage("maxResolution", 1024)
-export const themeAtom = atomWithStorage<"light" | "dark">("theme", "light")
 
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)
 export const colorRampTypeAtom = atomWithStorage('colorRampType', 'classic')

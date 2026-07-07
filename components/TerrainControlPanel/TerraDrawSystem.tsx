@@ -15,8 +15,6 @@ import bbox from '@turf/bbox'
 import { v4 as uuidv4 } from 'uuid'
 import { Section, CheckboxWithSlider } from './controls-components'
 import { truncate as turf_truncate } from '@turf/truncate'
-import { CameraButtons } from "./CameraUtilities"
-import type { AnimState } from "./CameraUtilities"
 
 import * as toGeoJSON from '@tmcw/togeojson'
 // import { load } from '@loaders.gl/core'
