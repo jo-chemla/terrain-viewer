@@ -57,6 +57,10 @@ This project was inspired by:
 - [Tangram Height Mapper](https://tangrams.github.io/heightmapper/)
 - [Impasto CAS Viewer](https://impasto.dev/)
 - Codetard threejs terrain demos [ui](https://x.com/codetaur/status/1968896182744207599), [modes](https://x.com/codetaur/status/1967783305866252557) and [TSL/webgpu globe](https://x.com/codetaur/status/1986614344957006075) + [threegs repo](https://github.com/ngwnos/threegs)
+- [Mapterhorn](https://mapterhorn.com/), a free global Terrarium-encoded terrain tileset built from open elevation data — one of this app's builtin terrain sources
+- [PlanTopo](https://plantopo.com/) and its [slope-server](https://github.com/dzfranklin/slope-server) middleware, which renders slope-angle tiles from Mapterhorn DEM data
+
+Know a good terrain tileset (Terrain-RGB or Terrarium encoded) that isn't in the built-in source list? [Suggest it as a new issue](https://github.com/Iconem/terrain-viewer/issues/new).
 
 ## License
 

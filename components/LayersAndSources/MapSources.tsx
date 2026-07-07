@@ -123,7 +123,10 @@ export const TerrainSources = memo(({
     const isCogProtocol = customSource?.type === 'cog' && useCogProtocol
 
     const metadata = useCogMetadata(isCogProtocol ? customSource.url : null)
-    const { minzoom, maxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
+    const { minzoom, maxzoom: detectedMaxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
+    // A custom source's explicit maxzoom (e.g. WMS sources without COG metadata to auto-detect from)
+    // wins over both the metadata-detected value and the 0-20 fallback.
+    const maxzoom = customSource?.maxzoom ?? detectedMaxzoom
 
     useEffect(() => {
         onZoomRangeChange?.({ minzoom, maxzoom })

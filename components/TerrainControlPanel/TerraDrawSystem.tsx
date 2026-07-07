@@ -17,6 +17,7 @@ import { Section, CheckboxWithSlider } from './controls-components'
 import { truncate as turf_truncate } from '@turf/truncate'
 import { CameraButtons } from "./CameraUtilities"
 import type { AnimState } from "./CameraUtilities"
+import { downloadGeoJSON } from "@/lib/download-geojson"
 
 import * as toGeoJSON from '@tmcw/togeojson'
 // import { load } from '@loaders.gl/core'
@@ -512,16 +513,7 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
         if (map) setTerraDrawOpacity(map, newOpacity)
     }
 
-    const exportGeoJSON = () => {
-        const geojson = { type: 'FeatureCollection', features }
-        const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/json' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `drawings-${Date.now()}.geojson`
-        a.click()
-        URL.revokeObjectURL(url)
-    }
+    const exportGeoJSON = () => downloadGeoJSON(features, 'drawings')
 
     const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]

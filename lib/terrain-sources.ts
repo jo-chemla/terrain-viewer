@@ -14,6 +14,19 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
       encoding: "terrarium",
     },
   },
+  reearth: {
+    name: "Re:Earth Terrain - Terrarium (ellipsoid)",
+    link: "https://github.com/reearth/reearth-terrain",
+    description: "Re:Earth terrain tiles, Terrarium encoding, ellipsoidal height (roughly Mapterhorn minus the geoid-vs-ellipsoidal height correction)",
+    encoding: "terrarium",
+    sourceConfig: {
+      type: "raster-dem",
+      tiles: ["https://terrain.reearth.land/terrarium/ellipsoid/{z}/{x}/{y}.webp"],
+      tileSize: 512,
+      maxzoom: 18,
+      encoding: "terrarium",
+    },
+  },
   mapbox: {
     name: "Mapbox - TerrainRGB",
     link: "https://docs.mapbox.com/data/tilesets/reference/mapbox-terrain-dem-v1/",

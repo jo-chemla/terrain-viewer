@@ -42,6 +42,9 @@ export interface CustomTerrainSource {
   url: string
   type: "cog" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson'
   description?: string
+  /** Overrides the auto-detected (or fallback 0-20) zoom range — useful for WMS
+   *  sources where COG metadata detection doesn't apply. */
+  maxzoom?: number
 }
 
 export const customTerrainSourcesAtom = atomWithStorage<CustomTerrainSource[]>("customTerrainSources", [])

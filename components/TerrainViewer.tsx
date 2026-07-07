@@ -8,7 +8,7 @@ import Map, {
   type MapRef,
   ScaleControl,
 } from "react-map-gl/maplibre"
-import { TerrainControlPanel } from "./TerrainControlPanel/TerrainControlPanel"
+import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { DEFAULT_ANIM_STATE, type AnimState, LOOP_MODES, LoopMode } from "./TerrainControlPanel/CameraUtilities"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
@@ -75,6 +75,7 @@ export function TerrainViewer() {
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [highResTerrain] = useAtom(highResTerrainAtom)
+  const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
 
   const [state, setState] = useQueryStates({
     viewMode: parseAsStringLiteral(VIEW_MODES).withDefault("3d"),
@@ -449,6 +450,14 @@ export function TerrainViewer() {
 
   const effectiveMinZoom = candidates.length > 0 ? Math.min(...candidates.map(r => r.minzoom)) : 0
   const effectiveMaxZoom = candidates.length > 0 ? Math.max(...candidates.map(r => r.maxzoom)) : 22
+
+  // Shift the vanishing point left so it stays centered in the visible (non-obscured)
+  // portion of the map when the floating sidebar covers the right edge.
+  // Widths match the sidebar's own w-96/right-4 (desktop) and w-80 (mobile) classes.
+  const mapPadding = useMemo(
+    () => ({ top: 0, bottom: 0, left: 0, right: isSidebarOpen ? (isMobile ? 320 : 400) : 0 }),
+    [isSidebarOpen, isMobile],
+  )
   // console.log({zoomRangeA, zoomRangeBasemap, effectiveMinZoom, effectiveMaxZoom})
 
 
@@ -508,7 +517,12 @@ export function TerrainViewer() {
           minPitch={0}
           maxPitch={state.viewMode === "2d" ? 0 : 85}
           rollEnabled={state.viewMode !== "2d"}
-          pitchWithRotate={state.viewMode !== "2d"}
+          // pitchWithRotate is a maplibre-gl-js *construction-time-only* option — there's no
+          // imperative setter, so gating it on viewMode meant a map first created in "2d" mode
+          // (pitchWithRotate baked in as false) stayed locked out of right-click-drag pitch
+          // forever after switching to 3d/globe. maxPitch=0 already fully enforces the 2d
+          // pitch lock, so this can just stay true and let maxPitch do the gating.
+          pitchWithRotate={true}
           dragRotate={state.viewMode !== "2d"}
           // touchZoomRotate={state.viewMode !== "2d"}
           touchZoomRotate={true}
@@ -524,6 +538,7 @@ export function TerrainViewer() {
           // maxZoom={22}
           minZoom={effectiveMinZoom}
           maxZoom={effectiveMaxZoom}
+          padding={mapPadding}
 
         >
           {/* Sources */}

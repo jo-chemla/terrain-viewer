@@ -1,4 +1,4 @@
-export type TerrainSource = "mapterhorn" | "maptiler" | "aws" | "mapbox" | "mapzen" | "bing" | "google3dtiles"
+export type TerrainSource = "mapterhorn" | "reearth" | "maptiler" | "aws" | "mapbox" | "mapzen" | "bing" | "google3dtiles"
 
 
 export const HILLSHADE_METHODS = [

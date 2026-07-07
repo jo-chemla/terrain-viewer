@@ -26,6 +26,7 @@
             "name": "FRA - IGN Lidar HD - WMS:url tiff 32 bits ",
             "url": "WMS:https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.WGS84G&FORMAT=image%2Fgeotiff&BBoxOrder=yxYX",
             "type": "cog",
+            "maxzoom": 18,
             "description": "FRA - IGN Lidar HD - WMS:url tiff 32 bits "
         },
         {
@@ -47,8 +48,9 @@
             "name": "FRA - IGN LidarHD WMS via Titiler",
             "url": "WMS:https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.WGS84G&FORMAT=image%2Fgeotiff&BBoxOrder=yxYX",
             "type": "cog",
+            "maxzoom": 18,
             "description": ""
-        }, 
+        },
         {
             "id": "dura-w-05mm",
             "name": "Dura Synagogue - W-0.5mm DSM",
