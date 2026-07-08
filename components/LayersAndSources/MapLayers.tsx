@@ -255,7 +255,12 @@ export const computeHillshadePaint = ({
     if (hillshadeMethod !== "standard") paint["hillshade-method"] = hillshadeMethod
   }
 
-  paint["resampling"] = 'linear' 
+  // NOTE: there is no "resampling" paint property for any layer type (raster layers have
+  // "raster-resampling", but hillshade has no equivalent yet — see the maplibre issue linked
+  // in HillshadeLayer's layout comment below). A stray `paint["resampling"] = 'linear'` used
+  // to live here; the style spec's strict validator rejects unknown paint properties outright
+  // (throws on map.addLayer, silently dropping the whole hillshade layer), which is exactly
+  // what broke hillshade in production — not a maplibre version issue.
   paint["hillshade-illumination-anchor"] = illumAnchor
 
   return paint
