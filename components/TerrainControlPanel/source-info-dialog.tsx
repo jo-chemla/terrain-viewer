@@ -78,12 +78,15 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
             </div>
             <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={fullGdalCommand} />
             <p className="text-xs text-muted-foreground mt-1">
-              Need GDAL? On Windows, install it via{" "}
+              Need GDAL? If you already have{" "}
+              <a href="https://qgis.org/" target="_blank" rel="noopener noreferrer" className="underline">QGIS</a>
+              {" "}installed, it bundles its own GDAL binaries — on Windows they're usually at{" "}
+              <code>C:\Program Files\QGIS {"<version>"}\bin\gdal_translate.exe</code> (autocomplete
+              from <code>C:\Program Files\</code> to find your installed version). Otherwise, install
+              it via{" "}
               <a href="https://trac.osgeo.org/osgeo4w/" target="_blank" rel="noopener noreferrer" className="underline">OSGeo4W</a>
               {" "}(run commands from its "OSGeo4W Shell"), or{" "}
-              <code>conda install -c conda-forge gdal</code>. {" "}
-              <a href="https://qgis.org/" target="_blank" rel="noopener noreferrer" className="underline">QGIS</a>
-              {" "}also bundles its own GDAL binaries you can use directly.
+              <code>conda install -c conda-forge gdal</code>.
             </p>
           </div>
 

@@ -158,16 +158,24 @@ export const SliderControl: React.FC<{
 export const CheckboxWithSlider: React.FC<{
   id: string; label: string; checked: boolean; onCheckedChange: (checked: boolean) => void
   sliderValue?: number; onSliderChange?: (value: number) => void; hideSlider?: boolean; disabled?: boolean
-}> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false }) => {
+  tooltip?: string
+}> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false, tooltip }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const fullId = `${sectionId}:${id}`
   const isDimmed = activeSlider !== null && activeSlider !== fullId
 
+  const labelEl = <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider ? "col-span-2" : ""}`}>{label}</Label>
+
   return (
     <div className={cn("grid grid-cols-[auto_1fr_1fr] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
       <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />
-      <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider ? "col-span-2" : ""}`}>{label}</Label>
+      {tooltip ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{labelEl}</TooltipTrigger>
+          <TooltipContent><p>{tooltip}</p></TooltipContent>
+        </Tooltip>
+      ) : labelEl}
       {!hideSlider && (
         <MobileSlider sliderId={fullId} value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
       )}

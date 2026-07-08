@@ -87,6 +87,11 @@ export function TerrainViewer() {
     showColorRelief: parseAsBoolean.withDefault(false),
     colorReliefOpacity: parseAsFloat.withDefault(0.35),
     showSlope: parseAsBoolean.withDefault(false),
+    slopeOpacity: parseAsFloat.withDefault(1.0),
+    slopeColorRamp: parseAsString.withDefault("slope-plantopo"),
+    slopeMinDegrees: parseAsFloat.withDefault(0),
+    slopeMaxDegrees: parseAsFloat.withDefault(55),
+    slopeInvertColorRamp: parseAsBoolean.withDefault(false),
     showContoursAndGraticules: parseAsBoolean.withDefault(false),
     showContours: parseAsBoolean.withDefault(true),
     showContourLabels: parseAsBoolean.withDefault(true),
@@ -151,6 +156,23 @@ export function TerrainViewer() {
   const colorReliefPaint = useMemo(
     () => computeColorReliefPaint(state),
     [ state.colorRamp, state.customHypsoMinMax, state.minElevation, state.maxElevation, state.colorReliefOpacity, state.invertColorRamp ]
+  )
+
+  // Slope reuses the exact same paint-computation as the hypsometric tint above — a
+  // color-relief layer doesn't care whether "elevation" means meters or slope degrees —
+  // just fed its own (differently-named) state fields, always remapped to its own min/max
+  // range since a 0-8000m elevation ramp's stops would be meaningless applied verbatim to
+  // a 0-55° slope domain.
+  const slopeReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.slopeColorRamp,
+      customHypsoMinMax: true,
+      minElevation: state.slopeMinDegrees,
+      maxElevation: state.slopeMaxDegrees,
+      colorReliefOpacity: state.slopeOpacity,
+      invertColorRamp: state.slopeInvertColorRamp,
+    }),
+    [ state.slopeColorRamp, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.slopeInvertColorRamp ]
   )
 
   // Check MapLibre availability
@@ -541,7 +563,7 @@ export function TerrainViewer() {
             showColorRelief={state.showColorRelief}
             colorReliefPaint={colorReliefPaint}
           />
-          <SlopeReliefLayer showSlope={state.showSlope} />
+          <SlopeReliefLayer showSlope={state.showSlope} slopeReliefPaint={slopeReliefPaint} />
           <HillshadeLayer
             showHillshade={state.showHillshade}
             hillshadePaint={hillshadePaint}
@@ -668,9 +690,10 @@ export function TerrainViewer() {
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
       state.basemapSource, state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
       state.showColorRelief, state.showSlope, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
-      state.showBackground, state.showGraticules, state.graticuleWidth,
+      state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
+      state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor,
-      hillshadePaint, colorReliefPaint,
+      hillshadePaint, colorReliefPaint, slopeReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA,
       skyConfig.backgroundLayerActive,

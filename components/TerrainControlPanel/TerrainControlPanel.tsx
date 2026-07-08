@@ -17,6 +17,7 @@ import { DownloadSection } from "./download-section"
 import { VisualizationModesSection } from "./visualization-modes-section"
 import { HillshadeOptionsSection } from "./hillshade-options-section"
 import { HypsometricTintOptionsSection } from "./hypsometric-tint-options-section"
+import { SlopeOptionsSection } from "./slope-options-section"
 import { RasterBasemapSection } from "./raster-basemap-section"
 import { ContourOptionsSection } from "./contour-options-section"
 import { BackgroundOptionsSection } from "./background-options-section"
@@ -38,6 +39,7 @@ const SECTION_KEYS = [
   "visualizationModes",
   "hillshade",
   "hypsometricTint",
+  "slope",
   "rasterBasemap",
   "contour",
   "background",
@@ -55,6 +57,7 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   terrainSource: false,
   hillshade: false,
   hypsometricTint: false,
+  slope: false,
   rasterBasemap: false,
   contour: false,
   background: false,
@@ -226,6 +229,7 @@ export function TerrainControlPanel({
         <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
         <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
         <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
+        <SlopeOptionsSection state={state} setState={setState} isOpen={sectionOpen.slope} onOpenChange={toggle("slope")} />
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
         <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
         <AnimationSection

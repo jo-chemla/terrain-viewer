@@ -53,8 +53,14 @@ export const JsonEditor: React.FC<{
         <SyntaxHighlighter
           language={language}
           style={atomOneDark}
-          customStyle={{ background: "transparent", margin: 0, padding: 0, ...sharedTextStyle }}
-          codeTagProps={{ style: { fontFamily: "inherit" } }}
+          // sharedTextStyle's padding is applied once on the *outer* highlightRef div (to
+          // match the textarea's own padding) — spreading it again here after padding:0
+          // would silently win and double the offset, which is exactly why the two layers
+          // used to drift out of alignment. Keep font/line-height/wrap settings from
+          // sharedTextStyle but force padding/margin to 0 on this inner layer.
+          customStyle={{ ...sharedTextStyle, background: "transparent", margin: 0, padding: 0 }}
+          codeTagProps={{ style: { fontFamily: "inherit", whiteSpace: "inherit" } }}
+          wrapLongLines
         >
           {/* Trailing newline keeps the last line's height in sync with the textarea */}
           {value + "\n"}

@@ -385,6 +385,29 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
     ],
     continuous: true,
   },
+  // https://plantopo.com/map#c=12/44.97009/6.50524&l=default~slope-angle.overlay — degrees of
+  // slope, not elevation, but the "elevation" expression in a color-relief layer just reads
+  // whatever the DEM source decodes, so this drops straight into the same pipeline as the
+  // elevation ramps above when pointed at a slope-angle-encoded source (see SlopeReliefLayer
+  // in MapLayers.tsx). Colors kept fully opaque here — like every other ramp — since overall
+  // transparency is controlled separately via the layer's color-relief-opacity paint property.
+  "slope-plantopo": {
+    name: "Slope (PlanTopo)",
+    colors: [
+      "interpolate",
+      ["linear"],
+      ["elevation"],
+      0, "rgba(0, 0, 0, 0)",
+      29, "rgba(0, 0, 0, 0)",
+      30, "rgb(245, 247, 156)",
+      35, "rgb(249, 200, 87)",
+      40, "rgb(250, 101, 56)",
+      45, "rgb(234, 72, 47)",
+      50, "rgb(221, 50, 40)",
+      55, "rgb(216, 37, 37)",
+    ],
+    continuous: true,
+  },
   // Discrete ramps
   // None
 }

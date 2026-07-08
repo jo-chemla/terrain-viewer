@@ -11,7 +11,15 @@ export const VisualizationModesSection: React.FC<{
       <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} />
       <CheckboxWithSlider id="hillshade" checked={state.showHillshade} onCheckedChange={(checked) => setState({ showHillshade: checked })} label="Hillshade" sliderValue={state.hillshadeOpacity} onSliderChange={(value) => setState({ hillshadeOpacity: value })} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
-      <CheckboxWithSlider id="slope" checked={state.showSlope} onCheckedChange={(checked) => setState({ showSlope: checked })} label="Slope (PlanTopo Mapterhorn)" hideSlider />
+      <CheckboxWithSlider
+        id="slope"
+        checked={state.showSlope}
+        onCheckedChange={(checked) => setState({ showSlope: checked })}
+        label="Slope (PlanTopo)"
+        tooltip="Computed from Mapterhorn, by PlanTopo's slope-server 1st order derivative"
+        sliderValue={state.slopeOpacity}
+        onSliderChange={(value) => setState({ slopeOpacity: value })}
+      />
       <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} />
       <CheckboxWithSlider id="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />
     </Section>

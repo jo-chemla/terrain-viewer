@@ -407,6 +407,20 @@ function MinimapInternal({
     }
   }, [footprintData, frustumData, showFrustum, footprintFillPaint, footprintLinePaint, frustumFillPaint, frustumLinePaint]);
 
+  // The container animates between 40x40 (minimized) and full width/height over the
+  // `transition-all duration-300` CSS below. MapLibre only resizes its WebGL canvas in
+  // response to its own container's box changing, and a CSS *transition* doesn't reliably
+  // trigger that the way a plain layout change does — so without an explicit resize() the
+  // map can appear to hang with a stale (often blank/cropped) render until something
+  // unrelated forces a repaint (e.g. panning the main map). Nudge it once the transition
+  // has settled.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return
+    const timer = setTimeout(() => map.resize(), 320)
+    return () => clearTimeout(timer)
+  }, [minimized]);
+
   const containerStyle = minimized ? {
     width: '40px',
     height: '40px'
@@ -484,7 +498,11 @@ function MinimapInternal({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute inset-0 h-full w-full rounded-none hover:cursor-pointer"
+            // variant="ghost" is transparent by default — needed an opaque bg to fully cover
+            // the live map underneath (otherwise it bled through visually), and an explicit
+            // z-index since it sits after the map in paint order but pointer targeting was
+            // still landing on the map's own canvas without it.
+            className="absolute inset-0 z-10 h-full w-full rounded-none bg-background hover:bg-accent hover:cursor-pointer"
             onClick={() => setMinimized(false)}
           >
             <MapIcon className="h-4 w-4" />

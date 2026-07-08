@@ -161,33 +161,23 @@ ColorReliefLayer.displayName = "ColorReliefLayer"
 //
 // See the comment above SLOPE_SOURCE_URL for how this could instead be computed
 // entirely client-side via a custom protocol, without depending on PlanTopo.
-export const slopeReliefLayerDef = (showSlope: boolean) => ({
-  id: "slope-relief",
-  type: "color-relief" as const,
-  source: "slopeSource",
-  paint: {
-    "color-relief-color": [
-      "interpolate",
-      ["linear"],
-      ["elevation"],
-      0, "rgba(0, 0, 0, 0)",
-      29, "rgba(0, 0, 0, 0)",
-      30, "rgba(245, 247, 156, 0.4)",
-      35, "rgba(249, 200, 87, 0.4)",
-      40, "rgba(250, 101, 56, 0.4)",
-      45, "rgba(234, 72, 47, 0.4)",
-      50, "rgba(221, 50, 40, 0.4)",
-      55, "rgba(216, 37, 37, 0.4)",
-    ],
-  },
-  layout: {
-    visibility: showSlope ? "visible" : "none",
-  },
-})
-
-export const SlopeReliefLayer = memo(({ showSlope }: { showSlope: boolean }) => {
+//
+// The color ramp/opacity/min-max-remap/invert are all just computeColorReliefPaint
+// (same function the hypsometric tint above uses) — a color-relief layer's paint
+// doesn't care whether "elevation" means meters or degrees of slope, so the same
+// classic-ramp machinery works unchanged. See slope-options-section.tsx.
+export const SlopeReliefLayer = memo(({ showSlope, slopeReliefPaint }: { showSlope: boolean; slopeReliefPaint: any }) => {
   if (!showSlope) return null
-  return <Layer beforeId={LAYER_SLOTS.SLOPE} {...(slopeReliefLayerDef(showSlope) as any)} />
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.SLOPE}
+      id="slope-relief"
+      type="color-relief"
+      source="slopeSource"
+      paint={slopeReliefPaint}
+      layout={{ visibility: "visible" }}
+    />
+  )
 })
 SlopeReliefLayer.displayName = "SlopeReliefLayer"
 

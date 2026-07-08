@@ -4,7 +4,8 @@
  * State ownership:
  *   nuqs URL params (owned here via useQueryStates):
  *     animDuration, animLoopMode, animSmoothCamera, animPlaying, animPlaying360,
- *     animPose1 (absolute), animPose2Delta (relative to animPose1)
+ *     animPose1Delta (absolute — named "Delta" for consistency with animPose2Delta,
+ *     though it has nothing to diff against), animPose2Delta (relative to animPose1Delta)
  *   Atoms with storage (persist across sessions):
  *     resolutionKeyAtom, renderQualityAtom, fpsAtom, targetSizeMBAtom
  *   Local state (component-only):
@@ -62,9 +63,12 @@ import { useAtom } from "jotai"
  * (lat, lng, zoom, pitch, bearing, roll, vfov, refWidth) plus a variable-size
  * numericState map (only populated in "Complete" mode — see captureSnapshot).
  *
- * Format: `[[8 pose floats], {numericState}?]` as JSON — a plain array keeps the
- * fixed pose fields from repeating their names every time (unlike a `{pose:{lat:...}}`
- * object would), and the numericState object is omitted entirely when empty (the
+ * Format: `{"pose": {lat, lng, ...}, "numericState": {...}?}` — named keys rather
+ * than a positional array, deliberately, for forward/backward compatibility: if a
+ * pose field is ever added, removed, or reordered in CameraPose, an old encoded
+ * URL still decodes correctly (missing fields fall back to DEFAULT_POSE below,
+ * extra/unknown fields are ignored) instead of silently misreading values at the
+ * wrong array index. The numericState object is omitted entirely when empty (the
  * common case: Smooth mode, or Complete mode where nothing besides camera differs).
  * Numbers are rounded to 6 decimals since raw float64 precision isn't meaningful
  * for lat/lng/opacity/etc and only adds digits. nuqs URL-encodes this string like
@@ -91,27 +95,40 @@ const POSE_KEYS: (keyof CameraPose)[] = [
   "lat", "lng", "zoom", "pitch", "bearing", "roll", "vfov", "refWidth",
 ]
 
+// Fallback values for decoding a pose that's missing fields (e.g. an older/newer
+// URL than this build expects) — matches this app's own default camera view.
+const DEFAULT_POSE: CameraPose = {
+  lat: 45.9763, lng: 7.6586, zoom: 12.5, pitch: 60, bearing: 0, roll: 0, vfov: 36.869898, refWidth: 800,
+}
+
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6
 
 // ─── Encode ─────────────────────────────────────────────────────────────────────
 
 export function encodeSnapshot(snap: AppSnapshot): string {
-  const pose = POSE_KEYS.map((k) => round6(snap.pose[k]))
+  const pose: Partial<Record<keyof CameraPose, number>> = {}
+  for (const k of POSE_KEYS) pose[k] = round6(snap.pose[k])
   const numericEntries = Object.entries(snap.numericState)
-  if (numericEntries.length === 0) return JSON.stringify([pose])
-  const numericState = Object.fromEntries(numericEntries.map(([k, v]) => [k, round6(v)]))
-  return JSON.stringify([pose, numericState])
+  const obj: { pose: typeof pose; numericState?: Record<string, number> } = { pose }
+  if (numericEntries.length > 0) {
+    obj.numericState = Object.fromEntries(numericEntries.map(([k, v]) => [k, round6(v)]))
+  }
+  return JSON.stringify(obj)
 }
 
 // ─── Decode ─────────────────────────────────────────────────────────────────────
 
 export function decodeSnapshot(encoded: string): AppSnapshot | null {
   try {
-    const [poseArr, numericState] = JSON.parse(encoded) as [number[], Record<string, number>?]
-    if (!Array.isArray(poseArr) || poseArr.length !== POSE_KEYS.length) return null
+    const obj = JSON.parse(encoded)
+    if (!obj || typeof obj !== "object" || !obj.pose || typeof obj.pose !== "object") return null
     const pose = {} as CameraPose
-    POSE_KEYS.forEach((k, i) => { pose[k] = poseArr[i] })
-    return { pose, numericState: numericState ?? {} }
+    for (const k of POSE_KEYS) {
+      const v = obj.pose[k]
+      pose[k] = typeof v === "number" ? v : DEFAULT_POSE[k]
+    }
+    const numericState = obj.numericState && typeof obj.numericState === "object" ? obj.numericState : {}
+    return { pose, numericState }
   } catch {
     return null
   }
@@ -437,7 +454,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
     animSmoothCamera: parseAsBoolean.withDefault(false),
     animPlaying:      parseAsBoolean.withDefault(false),
     animPlaying360:   parseAsBoolean.withDefault(false),
-    animPose1:        parseAsSnapshot.withDefault(null as any),
+    animPose1Delta:   parseAsSnapshot.withDefault(null as any),
     // Stored as a delta from pose1 (see subtractSnapshots/addSnapshots below), not an
     // absolute snapshot — deltas tend to be small so there's nothing extra to compress.
     animPose2Delta:   parseAsSnapshot.withDefault(null as any),
@@ -449,7 +466,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
     animSmoothCamera: smoothCamera,
     animPlaying: playing,
     animPlaying360: spinning,
-    animPose1: pose1,
+    animPose1Delta: pose1,
     animPose2Delta: pose2Delta,
   } = animParams
 
@@ -471,7 +488,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
     // Re-deriving pose1 keeps the existing pose2 delta, which shifts pose2's
     // absolute position along with it — that's the inherent trade-off of
     // storing pose2 relative to pose1.
-    setAnimParams({ animPose1: v as any })
+    setAnimParams({ animPose1Delta: v as any })
   }
   // pose1 must exist first — pose2 is only meaningful as a delta from it.
   const setPose2 = (v: AppSnapshot | null) => {
