@@ -89,6 +89,8 @@ export const HypsometricTintOptionsSection: React.FC<{
 
   function filterColorRamps(colorRamps_: any, colorRampType_: string, licenseFilter_: string) {
     const ramps = colorRamps_[colorRampType_] || {}
+    // classic is hand-curated by this app rather than pulled from an external archive, so it
+    // doesn't carry per-ramp license/distribute metadata — skip the license filter for it.
     if (colorRampType_ == 'classic') { return ramps }
     const rampsArray = Object.values(ramps)
 
@@ -98,11 +100,11 @@ export const HypsometricTintOptionsSection: React.FC<{
 
     const filteredEntries = rampsArray.filter((ramp: any) => {
       if (licenseFilter_ === 'open-license-only') {
-        return ['gpl', 'gplv2', 'cc3', 'ccnc'].includes(ramp.license)
+        return ['gpl', 'gplv2', 'gpl3', 'cc3', 'cc4', 'ccnc'].includes(ramp.license)
       } else if (licenseFilter_ === 'distribute-ok') {
         return ramp.distribute === 'yes'
       } else if (licenseFilter_ === 'open-distribute') {
-        return ['gpl', 'gplv2', 'cc3', 'ccnc'].includes(ramp.license) || ramp.distribute === 'yes'
+        return ['gpl', 'gplv2', 'gpl3', 'cc3', 'cc4', 'ccnc'].includes(ramp.license) || ramp.distribute === 'yes'
       }
       return true
     })
@@ -233,24 +235,42 @@ export const HypsometricTintOptionsSection: React.FC<{
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">Color Ramp</Label>
           <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <a
-                  href="http://seaviewsensing.com/pub/cpt-city/index.html"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <span>cpt-city</span>
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Load advanced color ramps</p>
-              </TooltipContent>
-            </Tooltip>
+            <div className="flex items-center gap-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href="https://colorcet.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <span>CET</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Peter Kovesi&apos;s perceptually-uniform CET colormaps</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href="http://seaviewsensing.com/pub/cpt-city/index.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <span>cpt-city</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Load advanced color ramps</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </TooltipProvider>
-        </div>        
+        </div>
           
         {/* Tabs for colorramp type */}
         <Tabs
@@ -270,12 +290,17 @@ export const HypsometricTintOptionsSection: React.FC<{
           }}
           className="w-full"
         >
-          <TabsList className="grid grid-cols-5 w-full">
+          {/* grid-cols-N hard-codes N equal-width columns, which breaks as soon as a category
+              gets added (labels start clipping/wrapping) — a horizontally-scrollable flex row
+              scales to any number of categories instead. */}
+          <TabsList className="flex w-full overflow-x-auto justify-start gap-1 [&>*]:shrink-0">
             <TabsTrigger value="classic" className="cursor-pointer">Classic</TabsTrigger>
-            <TabsTrigger value="topo" className="cursor-pointer">Topo</TabsTrigger>
-            <TabsTrigger value="topobath" className="cursor-pointer">TopoBath</TabsTrigger>
-            <TabsTrigger value="temp" className="cursor-pointer">Temp</TabsTrigger>
             <TabsTrigger value="topqgs" className="cursor-pointer">Top Qgs</TabsTrigger>
+            <TabsTrigger value="topo" className="cursor-pointer">Topo</TabsTrigger>
+            <TabsTrigger value="cet" className="cursor-pointer">CET</TabsTrigger>
+            <TabsTrigger value="sdr" className="cursor-pointer">SDR</TabsTrigger>
+            <TabsTrigger value="temp" className="cursor-pointer">Temp</TabsTrigger>
+            <TabsTrigger value="topobath" className="cursor-pointer">TopoBath</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -283,18 +308,18 @@ export const HypsometricTintOptionsSection: React.FC<{
         <div className="space-y-2">
           <div className="flex gap-2">
             <Select value={state.colorRamp} onValueChange={(value) => setState({ colorRamp: value })}>
-              <SelectTrigger className="flex-1 cursor-pointer">
-                <SelectValue />
+              <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
+                <SelectValue className="min-w-0 truncate" />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(filteredColorRamps).map(([key, ramp]: [string, any]) => (
                   <SelectItem key={key} value={key}>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <div
-                        className="w-12 h-4 rounded-sm"
+                        className="w-12 h-4 rounded-sm shrink-0"
                         style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
                       />
-                      <span>
+                      <span className="truncate">
                         {!ramp.continuous ? ' (D) ' : ' (C) '}
                         {ramp.name}
                       </span>

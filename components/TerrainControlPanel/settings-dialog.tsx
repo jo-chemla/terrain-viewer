@@ -251,6 +251,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 <a href="https://www.npmjs.com/package/cpt2js" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
                   <span>Color-ramps (Topo, topobath etc) distributed from cpt2js Package</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
                 </a>
+                <a href="https://rfspace.com/RFSPACE/SpectraFlux/colormaps/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>RFSpace/SpectraFlux Colormaps — mostly a wrapper around Peter Kovesi&apos;s perceptually-uniform CET collection (CC BY 4.0), matplotlib (CC0) and SDR-community ramps; our CET/SDR tabs above source them directly. Attribute the original author when reusing in published work.</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://colorcet.com/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>CET — Peter Kovesi&apos;s perceptually-uniform colormaps, source of our CET tab</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
               </div>
             </div>
           </div>

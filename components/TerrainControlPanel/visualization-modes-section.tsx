@@ -15,8 +15,8 @@ export const VisualizationModesSection: React.FC<{
         id="slope"
         checked={state.showSlope}
         onCheckedChange={(checked) => setState({ showSlope: checked })}
-        label="Slope (PlanTopo)"
-        tooltip="Computed from Mapterhorn, by PlanTopo's slope-server 1st order derivative"
+        label="Slope"
+        tooltip="Slope-angle overlay, computed client-side from the active terrain source by default; see Options: Slope to switch to PlanTopo's server (always Mapterhorn-derived)"
         sliderValue={state.slopeOpacity}
         onSliderChange={(value) => setState({ slopeOpacity: value })}
       />

@@ -24,6 +24,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import maplibregl from 'maplibre-gl'
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
+import { slopeProtocol } from '@/lib/slope-protocol'
 
 import { TerrainSources, RasterBasemapSource, SlopeSource } from "./LayersAndSources/MapSources"
 import {
@@ -55,6 +56,7 @@ const parseAsFloatPrecise = createParser({
 // falls back to full remounting this whole tree on every edit), which was
 // causing spurious mid-teardown crashes in ContoursLayer/TerraDraw during dev.
 const VIEW_MODES = ['2d', 'globe', '3d'] as const
+const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
@@ -80,6 +82,9 @@ export function TerrainViewer() {
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
     basemapSource: parseAsString.withDefault("esri"), // can have custom id in addition to @/lib/terrain-sources
+    basemapPerView: parseAsBoolean.withDefault(false),
+    basemapSourceA: parseAsString.withDefault("esri"),
+    basemapSourceB: parseAsString.withDefault("google"),
     // colorRamp: parseAsString.withDefault("mby"),
     colorRamp: parseAsStringLiteral(COLOR_RAMP_IDS).withDefault("mby"),
     showHillshade: parseAsBoolean.withDefault(true),
@@ -89,6 +94,7 @@ export function TerrainViewer() {
     showSlope: parseAsBoolean.withDefault(false),
     slopeOpacity: parseAsFloat.withDefault(1.0),
     slopeColorRamp: parseAsString.withDefault("slope-plantopo"),
+    slopeSourceMode: parseAsStringLiteral(SLOPE_SOURCE_MODES).withDefault("client"),
     slopeMinDegrees: parseAsFloat.withDefault(0),
     slopeMaxDegrees: parseAsFloat.withDefault(55),
     slopeInvertColorRamp: parseAsBoolean.withDefault(false),
@@ -184,7 +190,7 @@ export function TerrainViewer() {
   useEffect(() => {
     maplibregl.addProtocol('cog', cogProtocol)
     maplibregl.addProtocol('float32dem', float32demProtocol)
-
+    maplibregl.addProtocol('slope', slopeProtocol)
   }, [])
 
 
@@ -207,6 +213,9 @@ export function TerrainViewer() {
     }
   }, [isMobile])
 
+  // Map B is fully interactive too (drag/scroll/rotate), so sync has to run both ways —
+  // otherwise panning or zooming map B directly desyncs it from map A with nothing to
+  // bring it back, since only A's own moves used to propagate to B.
   const onMoveA = useCallback((evt: any) => {
     if (!isSyncing.current && state.splitScreen && mapBRef.current) {
       isSyncing.current = true
@@ -220,22 +229,41 @@ export function TerrainViewer() {
     }
   }, [state.splitScreen])
 
-  const onMoveEndA = useCallback((evt: any) => {
-    if (!isSyncing.current) {
-      if (viewStateUpdateTimer.current) clearTimeout(viewStateUpdateTimer.current)
-      // Debounce URL update
-      viewStateUpdateTimer.current = setTimeout(() => {
-        const newState = {
-          lat: Number.parseFloat(evt.viewState.latitude.toFixed(4)),
-          lng: Number.parseFloat(evt.viewState.longitude.toFixed(4)),
-          zoom: Number.parseFloat(evt.viewState.zoom.toFixed(2)),
-          pitch: Number.parseFloat(evt.viewState.pitch.toFixed(1)),
-          bearing: Number.parseFloat(evt.viewState.bearing.toFixed(1)),
-        }
-        setState(newState, { shallow: true })
-      }, 500)
+  const onMoveB = useCallback((evt: any) => {
+    if (!isSyncing.current && state.splitScreen && mapARef.current) {
+      isSyncing.current = true
+      mapARef.current.getMap().jumpTo({
+        center: [evt.viewState.longitude, evt.viewState.latitude],
+        zoom: evt.viewState.zoom,
+        bearing: evt.viewState.bearing,
+        pitch: evt.viewState.pitch,
+      })
+      setTimeout(() => { isSyncing.current = false }, 50)
     }
+  }, [state.splitScreen])
+
+  const commitViewState = useCallback((evt: any) => {
+    if (viewStateUpdateTimer.current) clearTimeout(viewStateUpdateTimer.current)
+    // Debounce URL update
+    viewStateUpdateTimer.current = setTimeout(() => {
+      const newState = {
+        lat: Number.parseFloat(evt.viewState.latitude.toFixed(4)),
+        lng: Number.parseFloat(evt.viewState.longitude.toFixed(4)),
+        zoom: Number.parseFloat(evt.viewState.zoom.toFixed(2)),
+        pitch: Number.parseFloat(evt.viewState.pitch.toFixed(1)),
+        bearing: Number.parseFloat(evt.viewState.bearing.toFixed(1)),
+      }
+      setState(newState, { shallow: true })
+    }, 500)
   }, [setState])
+
+  const onMoveEndA = useCallback((evt: any) => {
+    if (!isSyncing.current) commitViewState(evt)
+  }, [commitViewState])
+
+  const onMoveEndB = useCallback((evt: any) => {
+    if (!isSyncing.current) commitViewState(evt)
+  }, [commitViewState])
 
   const getMapBounds = useCallback(() => {
     if (!mapARef.current) return { west: -180, south: -90, east: 180, north: 90 }
@@ -418,7 +446,12 @@ export function TerrainViewer() {
   // directly against the id (a builtin source reporting a coincidental maxzoom of 20
   // shouldn't be mistaken for "no custom range" the way a fallback-value heuristic would).
   const isTerrainCustom = customTerrainSources.some(s => s.id === state.sourceA)
-  const isBasemapCustom = customBasemapSources.some(s => s.id === state.basemapSource)
+  // effectiveMinZoom/effectiveMaxZoom below are driven by the primary map only, so the
+  // "active basemap" for zoom purposes is always map A's — basemapSourceA in per-view
+  // mode, basemapSource otherwise.
+  const activeBasemapSourceA = state.basemapPerView ? state.basemapSourceA : state.basemapSource
+  const activeBasemapSourceB = state.basemapPerView ? state.basemapSourceB : state.basemapSource
+  const isBasemapCustom = customBasemapSources.some(s => s.id === activeBasemapSourceA)
 
   // Shift the vanishing point left so it stays centered in the visible (non-obscured)
   // portion of the map when the floating sidebar covers the right edge.
@@ -467,8 +500,8 @@ export function TerrainViewer() {
             pitch: state.viewMode === "2d" ? 0 : state.pitch,
             bearing: state.viewMode === "2d" ? 0 : state.bearing,
           }}
-          onMove={isPrimary ? onMoveA : undefined}
-          onMoveEnd={isPrimary ? onMoveEndA : undefined}
+          onMove={isPrimary ? onMoveA : onMoveB}
+          onMoveEnd={isPrimary ? onMoveEndA : onMoveEndB}
           onLoad={() => {
             if (isPrimary) setMapALoaded(true)
             else setMapBLoaded(true)
@@ -541,13 +574,20 @@ export function TerrainViewer() {
             onZoomRangeChange={isPrimary ? setZoomRangeA : setZoomRangeB}
           />
           <RasterBasemapSource
-            basemapSource={state.basemapSource}
+            basemapSource={isPrimary ? activeBasemapSourceA : activeBasemapSourceB}
             mapboxKey={mapboxKey}
             customBasemapSources={customBasemapSources}
             titilerEndpoint={titilerEndpoint}
-            onZoomRangeChange={setZoomRangeBasemap}
+            onZoomRangeChange={isPrimary ? setZoomRangeBasemap : undefined}
           />
-          <SlopeSource enabled={state.showSlope} />
+          <SlopeSource
+            enabled={state.showSlope}
+            sourceMode={state.slopeSourceMode}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+          />
 
           {/* Layers */}
           <LayerOrderSlots />
@@ -688,14 +728,16 @@ export function TerrainViewer() {
     },
     [
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
-      state.basemapSource, state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
-      state.showColorRelief, state.showSlope, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
+      state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB,
+      state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
+      state.showColorRelief, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor,
+      activeBasemapSourceA, activeBasemapSourceB,
       hillshadePaint, colorReliefPaint, slopeReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
-      mapALoaded, onMoveA, onMoveEndA,
+      mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,
       skyConfig.backgroundLayerActive,
       effectiveMinZoom, effectiveMaxZoom, setZoomRangeBasemap
     ],

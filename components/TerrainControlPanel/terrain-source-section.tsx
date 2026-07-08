@@ -65,6 +65,20 @@ export const TerrainSourceSection: React.FC<{
   }, [customTerrainSources, setCustomTerrainSources, state, setState])
 
   const handleFitToBounds = useCallback(async (source: CustomTerrainSource) => {
+    if (source.type === 'tilejson') {
+      try {
+        const response = await fetch(source.url)
+        const data = await response.json()
+        const bbox = data.bounds
+        if (bbox && mapRef.current) {
+          const [west, south, east, north] = bbox
+          mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
+        }
+      } catch (error) {
+        console.error("Failed to fetch TileJSON bounds:", error)
+      }
+      return
+    }
     if (!['cog', 'vrt'].includes(source.type)) return
     try {
       if (useCogProtocolVsTitiler) {
@@ -120,7 +134,7 @@ export const TerrainSourceSection: React.FC<{
         {state.splitScreen ? (
           <>
             {Object.entries(terrainSources).map(([key, config]) => (
-              <div key={key} className="flex items-center gap-2">
+              <div key={key} className="flex items-center gap-2 min-w-0">
                 <ToggleGroup
                   type="single"
                   disabled={config.encoding === "3dtiles"}
@@ -139,10 +153,10 @@ export const TerrainSourceSection: React.FC<{
             ))}
           </>
         ) : (
-          <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })}>
+          <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })} className="gap-2">
             {Object.entries(terrainSources).map(([key, config]) => (
-              <div key={key} className="flex items-center gap-2">
-                <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer" disabled={config.encoding === "3dtiles"} />
+              <div key={key} className="flex items-center gap-2 min-w-0">
+                <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer shrink-0" disabled={config.encoding === "3dtiles"} />
                 <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
               </div>
             ))}
@@ -200,7 +214,7 @@ export const TerrainSourceSection: React.FC<{
                     </div>
                   ))
                 ) : (
-                  <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })}>
+                  <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })} className="gap-2">
                     {customTerrainSources.map((source) => (
                       <div key={source.id} className="flex items-center gap-2 min-w-0">
                         <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />

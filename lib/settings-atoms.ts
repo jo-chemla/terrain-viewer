@@ -39,11 +39,15 @@ export interface CustomTerrainSource {
   id: string
   name: string
   url: string
-  type: "cog" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson' | 'wms-raw'
+  type: "cog" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson' | 'wms-raw' | 'tilejson'
   description?: string
   /** Overrides the auto-detected (or fallback 0-20) zoom range — useful for WMS
    *  sources where COG metadata detection doesn't apply. */
   maxzoom?: number
+  /** Fallback raster-dem encoding used only when a 'tilejson' source's manifest omits
+   *  its own "encoding" field (most, e.g. Mapterhorn's, declare it — see
+   *  useTilejsonMetadata in MapSources.tsx, which is preferred over this when present). */
+  encoding?: 'terrarium' | 'mapbox'
 }
 
 // getOnInit: true reads localStorage synchronously on first render instead of the
@@ -58,7 +62,7 @@ export interface CustomBasemapSource {
   id: string
   name: string
   url: string
-  type: "cog" | "tms" | "wms" | "wmts"
+  type: "cog" | "tms" | "wms" | "wmts" | "tilejson"
   description?: string
   /** 'tms' for bottom-left-origin tile grids (rare) — see maplibre raster source `scheme`. Defaults to 'xyz'. */
   scheme?: "xyz" | "tms"

@@ -3,6 +3,7 @@ import { useMemo } from "react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { MobileSlider, Section, DraftBoundInput } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
@@ -28,6 +29,29 @@ export const SlopeOptionsSection: React.FC<{
   return (
     <Section title="Options: Slope" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-sm font-medium">Source</Label>
+          <ToggleGroup
+            type="single"
+            value={state.slopeSourceMode ?? "client"}
+            onValueChange={(value) => value && setState({ slopeSourceMode: value })}
+            className="border rounded-md"
+          >
+            <ToggleGroupItem
+              value="client"
+              className="px-3 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+            >
+              Client (protocol)
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="plantopo"
+              className="px-3 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+            >
+              Server (PlanTopo)
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
         <div className="space-y-2">
           <Label className="text-sm font-medium">Color Ramp</Label>
           <Select

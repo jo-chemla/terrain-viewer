@@ -3,34 +3,12 @@ import { Source } from "react-map-gl/maplibre"
 import { useAtom } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
-import { useCogProtocolVsTitilerAtom, highResTerrainAtom } from "@/lib/settings-atoms"
+import { useCogProtocolVsTitilerAtom, highResTerrainAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction, getCogMetadata, type CogMetadata } from '@geomatico/maplibre-cog-protocol'
-
-// -------------------------
-// Color functions, inspired by https://github.com/geomatico/maplibre-cog-protocol/blob/main/src/render/renderTerrain.ts
-// -------------------------
-const elevationToTerrainrgb = (elevation: number) => {
-    const base = -10000
-    const interval = 0.1
-    const v = (elevation - base) / interval
-    return [
-        Math.floor(v / 256 / 256) % 256,
-        Math.floor(v / 256) % 256,
-        Math.floor(v) % 256,
-        255
-    ]
-}
-
-const elevationToTerrarium = (elevation: number) => {
-    const v = elevation + 32768
-    return [
-        Math.floor(v / 256),
-        Math.floor(v % 256),
-        Math.floor((v - Math.floor(v)) * 256),
-        255
-    ]
-}
+import { elevationToTerrainrgb, elevationToTerrarium } from "@/lib/elevation-encoding"
+import { buildRasterTileSource } from "@/lib/source-builder"
+import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -57,6 +35,26 @@ export function useCogMetadata(cogUrl: string | null): CogMetadata | null {
     return metadata
 }
 
+export interface TilejsonMetadata {
+    encoding?: "terrarium" | "mapbox"
+    bounds?: [number, number, number, number]
+    minzoom?: number
+    maxzoom?: number
+}
+
+// Most TileJSON DEM manifests (e.g. Mapterhorn's) declare their own "encoding" —
+// fetch it instead of asking the user to guess, same spirit as useCogMetadata above.
+export function useTilejsonMetadata(tilejsonUrl: string | null): TilejsonMetadata | null {
+    const [metadata, setMetadata] = useState<TilejsonMetadata | null>(null)
+    useEffect(() => {
+        if (!tilejsonUrl) { setMetadata(null); return }
+        let cancelled = false
+        fetch(tilejsonUrl).then(r => r.json()).then((json) => { if (!cancelled) setMetadata(json) }).catch(() => { if (!cancelled) setMetadata(null) })
+        return () => { cancelled = true }
+    }, [tilejsonUrl])
+    return metadata
+}
+
 // -------------------------
 // Raster basemap tile configs
 // -------------------------
@@ -80,29 +78,7 @@ function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number;
     return { minzoom: Math.round(Math.min(...zooms)), maxzoom: Math.round(Math.max(...zooms)) }
 }
 
-function cogTileUrl(url: string, useCogProtocol: boolean, titilerEndpoint: string, type: 'cog' | 'vrt' | 'terrarium' | 'terrainrgb' | 'wms-raw'): string {
-    if (type === 'cog') {
-        return useCogProtocol
-            ? `cog://${url}#dem`
-            : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
-    }
-    if (type === 'terrarium' || type === 'terrainrgb') {
-        // Already a plain {z}/{x}/{y} XYZ tile template — nothing to route through titiler/COG protocol.
-        return url
-    }
-    if (type === 'wms-raw') {
-        // A WMS GetMap URL returning a raw Float32 GeoTIFF — decoded by float32demProtocol.
-        return `float32dem://${url.replace(/^https?:\/\//, '')}`
-    }
-    // vrt
-    if (useCogProtocol) {
-        console.warn('Warning, VRT can only work with TiTiler COG streaming')
-        return url
-    }
-    return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}`
-}
-
-function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKey: string): string {
+export function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKey: string): string {
     const config: TerrainSourceConfig = (terrainSources as any)[key]
     if (!config) return ""
     return (config.sourceConfig.tiles?.[0] ?? "")
@@ -129,8 +105,10 @@ export const TerrainSources = memo(({
 
     const customSource = customTerrainSources.find((s) => s.id === source)
     const isCogProtocol = customSource?.type === 'cog' && useCogProtocol
+    const isTilejson = customSource?.type === 'tilejson'
 
     const metadata = useCogMetadata(isCogProtocol ? customSource.url : null)
+    const tilejsonMetadata = useTilejsonMetadata(isTilejson ? customSource.url : null)
     const { minzoom, maxzoom: detectedMaxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
     // A custom source's explicit maxzoom (e.g. WMS sources without COG metadata to auto-detect from)
     // wins over both the metadata-detected value and the 0-20 fallback.
@@ -155,45 +133,24 @@ export const TerrainSources = memo(({
         )
     }, [isCogProtocol, customSource?.url, highResTerrain, metadata?.scale, metadata?.offset])
 
-    // const sourceConfig: RasterDEMSourceSpecification = useMemo(() => {
-    //     if (customSource) {
-    //         const tileUrl = cogTileUrl(customSource.url, useCogProtocol, titilerEndpoint, customSource.type)
-    //         const encoding = isCogProtocol
-    //             ? highResTerrain ? 'terrarium' : 'mapbox'
-    //             : customSource.type === 'terrarium' ? 'terrarium'
-    //             : 'mapbox'  // terrainrgb
-
-    //         return {
-    //             type: "raster-dem",
-    //             tileSize: 256,
-    //             minzoom,
-    //             maxzoom,
-    //             encoding,
-    //             ...(isCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }),
-    //         }
-    //     }
-
-    //     // Builtin source
-    //     const base = (terrainSources as any)[source as TerrainSource]
-    //     if (!base) return null
-    //     return {
-    //         ...base.sourceConfig,
-    //         tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
-    //     }
-    // }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey])
-
-    // if (!sourceConfig) return null
-
-    // In TerrainSources, replace the sourceConfig useMemo + return:
-
     const sourceConfig: RasterDEMSourceSpecification | null | undefined = useMemo(() => {
         if (customSource) {
-            // For COG protocol, wait for metadata before rendering
-            if (isCogProtocol && !metadata) return null  // <-- ADD THIS
-            
-            const tileUrl = cogTileUrl(customSource.url, useCogProtocol, titilerEndpoint, customSource.type)
+            // For COG protocol, wait for metadata before rendering; same for tilejson,
+            // whose "encoding" field (when present) is fetched instead of asked upfront.
+            if (isCogProtocol && !metadata) return null
+            if (isTilejson && !tilejsonMetadata) return null
+
+            const built = buildRasterTileSource({
+                url: customSource.url,
+                type: customSource.type,
+                useCogProtocol,
+                titilerEndpoint,
+                isDem: true,
+            })
             const encoding = isCogProtocol
                 ? highResTerrain ? 'terrarium' : 'mapbox'
+                : isTilejson
+                ? (tilejsonMetadata?.encoding === 'terrarium' ? 'terrarium' : tilejsonMetadata?.encoding === 'mapbox' ? 'mapbox' : (customSource.encoding ?? 'mapbox'))
                 // float32demProtocol (float32dem-protocol.ts) re-encodes the WMS-raw
                 // GeoTIFF as Terrarium (not Terrain-RGB) for its ~4mm vs 10cm precision —
                 // must match here or maplibre would misdecode every pixel.
@@ -203,11 +160,12 @@ export const TerrainSources = memo(({
                 type: "raster-dem",
                 // wms-raw's URL requests a fixed WIDTH/HEIGHT (e.g. 514 = 512 + 1px buffer per side)
                 // matching a 512px tile — see public/maplibre-raster-dem-wms-float32-generic.html.
-                tileSize: customSource.type === 'wms-raw' ? 512 : 256,
+                // TileJSON sources carry their own tileSize in the manifest maplibre fetches.
+                ...(customSource.type === 'tilejson' ? {} : { tileSize: customSource.type === 'wms-raw' ? 512 : 256 }),
                 minzoom,
                 maxzoom,
                 encoding,
-                ...(isCogProtocol ? { url: tileUrl } : { tiles: [tileUrl] }),
+                ...built,
             }
         }
 
@@ -218,7 +176,7 @@ export const TerrainSources = memo(({
             ...base.sourceConfig,
             tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
         }
-    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, mapboxKey, maptilerKey, metadata])
+    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, isTilejson, tilejsonMetadata, mapboxKey, maptilerKey, metadata])
 
     if (!sourceConfig) return null
 
@@ -251,19 +209,13 @@ export const RasterBasemapSource = memo(({
 
     const sourceProps = useMemo(() => {
         if (customBasemap) {
-            const isCog = customBasemap.type === "cog"
-            const tileUrl = isCog
-                ? useCogProtocol
-                    ? `cog://${customBasemap.url}`
-                    : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(customBasemap.url)}`
-                : customBasemap.url
-            if (isCog && useCogProtocol) return { url: tileUrl }
-            return {
-                tiles: [tileUrl],
-                // Bottom-left-origin (true TMS) tile grids need maplibre's scheme flag — most
-                // XYZ/Google-style sources (the default) don't set this.
-                ...(customBasemap.scheme === 'tms' ? { scheme: 'tms' } : {}),
-            }
+            return buildRasterTileSource({
+                url: customBasemap.url,
+                type: customBasemap.type,
+                useCogProtocol,
+                titilerEndpoint,
+                scheme: customBasemap.scheme,
+            })
         }
 
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
@@ -297,7 +249,7 @@ export const RasterBasemapSource = memo(({
 RasterBasemapSource.displayName = "RasterBasemapSource"
 
 // -------------------------
-// SlopeSource — PlanTopo slope-angle overlay
+// SlopeSource — PlanTopo slope-angle overlay, or a client-computed equivalent
 // -------------------------
 //
 // https://plantopo.com/map#c=12/44.97009/6.50524&l=default~slope-angle.overlay
@@ -309,33 +261,69 @@ RasterBasemapSource.displayName = "RasterBasemapSource"
 // see ColorReliefLayer above) be repointed at "slope degrees" instead of
 // "meters" for free, with zero maplibre-side special-casing.
 //
-// A client-side equivalent (no PlanTopo dependency) is possible via a custom
-// protocol, the same way lib/float32dem-protocol.ts decodes raw Float32 WMS
-// GeoTIFFs on the fly:
-//   1. Fetch the DEM tile *and its 8 neighbors* (needed so slope at the tile's
-//      edge pixels isn't computed from missing data) — maplibre-contour's
-//      `LocalDemManager`/`HeightTile.combineNeighbors` (already a dependency,
-//      see ContoursLayer.tsx) already implements exactly this fetch+stitch step.
-//   2. For each pixel, take the finite-difference gradient (dz/dx, dz/dy)
-//      against its 4/8 neighbors, scaled by real-world meters-per-pixel at
-//      that tile's zoom/latitude (Web Mercator pixel size shrinks with
-//      latitude — the same correction maplibre-contour applies internally).
-//   3. slopeDegrees = atan(sqrt((dz/dx)^2 + (dz/dy)^2)) * 180/PI — this is the
-//      first-order derivative (gradient magnitude) of the elevation surface.
-//   4. Re-encode slopeDegrees using the same terrain-rgb packing formula
-//      PlanTopo uses (see elevationToTerrainrgb above) and hand the resulting
-//      ImageData back through the protocol, so it drops into `slopeReliefLayerDef`
-//      (MapLayers.tsx) unchanged. This would remove the PlanTopo dependency
-//      and work with any DEM source already configured in this app, at the
-//      cost of doing the neighbor-fetch + gradient math on every unique tile
-//      the client requests instead of once, server-side, cached for everyone.
+// lib/slope-protocol.ts (`slope://`) implements the client-side equivalent
+// described in https://github.com/Iconem/terrain-viewer/issues/8: it fetches the
+// currently-active terrain source's own tiles (9 at a time, LRU-cached) and computes
+// slope in-browser via GDAL's Horn kernel, removing the PlanTopo dependency at the
+// cost of doing that work per-client instead of once, server-side, cached for everyone.
 const SLOPE_SOURCE_URL = "https://tile.plantopo.com/slope/{z}/{x}/{y}"
 
-export const SlopeSource = memo(({ enabled }: { enabled: boolean }) => {
+export type SlopeSourceMode = "plantopo" | "client"
+
+export const SlopeSource = memo(({
+    enabled, sourceMode, terrainSource, customTerrainSources, mapboxKey, maptilerKey,
+}: {
+    enabled: boolean
+    sourceMode: SlopeSourceMode
+    terrainSource: TerrainSource | string
+    customTerrainSources: CustomTerrainSource[]
+    mapboxKey: string
+    maptilerKey: string
+}) => {
+    // The client protocol only supports plain XYZ raster-dem tile templates it can
+    // `fetch()` directly (builtin sources, or custom terrarium/terrainrgb TMS sources) —
+    // COG/VRT/WMS-raw/tilejson sources go through maplibre-internal protocols/manifests
+    // it can't easily re-invoke standalone, so those fall back to the PlanTopo default.
+    const clientUpstream = useMemo(() => {
+        if (sourceMode !== "client") return null
+        const customSource = customTerrainSources.find((s) => s.id === terrainSource)
+        if (customSource) {
+            if (customSource.type !== "terrarium" && customSource.type !== "terrainrgb") return null
+            return {
+                template: customSource.url,
+                encoding: customSource.type === "terrarium" ? "terrarium" as const : "mapbox" as const,
+                tileSize: 256,
+            }
+        }
+        const builtin = (terrainSources as any)[terrainSource as TerrainSource]
+        if (!builtin || builtin.encoding === "3dtiles") return null
+        return {
+            template: builtinTileUrl(terrainSource as TerrainSource, mapboxKey, maptilerKey),
+            encoding: builtin.sourceConfig.encoding === "terrarium" ? "terrarium" as const : "mapbox" as const,
+            tileSize: builtin.sourceConfig.tileSize,
+        }
+    }, [sourceMode, terrainSource, customTerrainSources, mapboxKey, maptilerKey])
+
     if (!enabled) return null
+
+    if (clientUpstream) {
+        const url = buildSlopeProtocolUrl(clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize)
+        return (
+            <Source
+                id="slopeSource"
+                key={`slope-client-${terrainSource}`}
+                type="raster-dem"
+                tiles={[url]}
+                tileSize={clientUpstream.tileSize}
+                encoding="mapbox"
+            />
+        )
+    }
+
     return (
         <Source
             id="slopeSource"
+            key="slope-plantopo"
             type="raster-dem"
             tiles={[SLOPE_SOURCE_URL]}
             tileSize={256}

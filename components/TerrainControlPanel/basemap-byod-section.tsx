@@ -3,6 +3,7 @@ import { useState, useCallback, useRef } from "react"
 import { useAtom } from "jotai"
 import { ChevronDown, Plus, Edit, TestTube } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { TooltipButton } from "./controls-components"
@@ -44,9 +45,25 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const handleDeleteCustomBasemap = useCallback((id: string) => {
     setCustomBasemapSources(customBasemapSources.filter((s) => s.id !== id))
     if (state.basemapSource === id) setState({ basemapSource: "osm" })
+    if (state.basemapSourceA === id) setState({ basemapSourceA: "esri" })
+    if (state.basemapSourceB === id) setState({ basemapSourceB: "google" })
   }, [customBasemapSources, setCustomBasemapSources, state, setState])
 
   const handleFitToBounds = useCallback(async (source: CustomBasemapSource) => {
+    if (source.type === 'tilejson') {
+      try {
+        const response = await fetch(source.url)
+        const data = await response.json()
+        const bbox = data.bounds
+        if (bbox && mapRef.current) {
+          const [west, south, east, north] = bbox
+          mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
+        }
+      } catch (error) {
+        console.error("Failed to fetch TileJSON bounds:", error)
+      }
+      return
+    }
     if (!['cog'].includes(source.type)) return
     try {
       if (useCogProtocolVsTitiler) {
@@ -116,24 +133,72 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
             </div>
           </TooltipProvider>
           {customBasemapSources.length > 0 && (
-            <RadioGroup value={state.basemapSource} onValueChange={(value) => setState({ basemapSource: value })}>
-              {customBasemapSources.map((source) => (
-                <div key={source.id} className="flex items-center gap-2 min-w-0">
-                  <RadioGroupItem
-                    value={source.id}
-                    id={`basemap-${source.id}`}
-                    className="cursor-pointer shrink-0"
-                  />
-                  <CustomSourceDetails
-                    source={source}
-                    handleFitToBounds={handleFitToBounds}
-                    handleEditSource={handleEditBasemap}
-                    handleDeleteCustomSource={handleDeleteCustomBasemap}
-                    onSelect={(id) => setState({ basemapSource: id })}
-                  />
+            state.basemapPerView ? (
+              state.splitScreen ? (
+                <div className="space-y-2">
+                  {customBasemapSources.map((source) => (
+                    <div key={source.id} className="flex items-center gap-2 min-w-0">
+                      <ToggleGroup
+                        type="single"
+                        value={state.basemapSourceA === source.id ? "a" : state.basemapSourceB === source.id ? "b" : ""}
+                        onValueChange={(value) => {
+                          if (value === "a") setState({ basemapSourceA: source.id })
+                          else if (value === "b") setState({ basemapSourceB: source.id })
+                        }}
+                        className="border rounded-md shrink-0 cursor-pointer"
+                      >
+                        <ToggleGroupItem value="a" className="px-3 cursor-pointer data-[state=on]:font-bold">A</ToggleGroupItem>
+                        <ToggleGroupItem value="b" className="px-3 cursor-pointer data-[state=on]:font-bold">B</ToggleGroupItem>
+                      </ToggleGroup>
+                      <CustomSourceDetails
+                        source={source}
+                        handleFitToBounds={handleFitToBounds}
+                        handleEditSource={handleEditBasemap}
+                        handleDeleteCustomSource={handleDeleteCustomBasemap}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </RadioGroup>
+              ) : (
+                <RadioGroup value={state.basemapSourceA} onValueChange={(value) => setState({ basemapSourceA: value })} className="gap-2">
+                  {customBasemapSources.map((source) => (
+                    <div key={source.id} className="flex items-center gap-2 min-w-0">
+                      <RadioGroupItem
+                        value={source.id}
+                        id={`basemap-${source.id}`}
+                        className="cursor-pointer shrink-0"
+                      />
+                      <CustomSourceDetails
+                        source={source}
+                        handleFitToBounds={handleFitToBounds}
+                        handleEditSource={handleEditBasemap}
+                        handleDeleteCustomSource={handleDeleteCustomBasemap}
+                        onSelect={(id) => setState({ basemapSourceA: id })}
+                      />
+                    </div>
+                  ))}
+                </RadioGroup>
+              )
+            ) : (
+              <RadioGroup value={state.basemapSource} onValueChange={(value) => setState({ basemapSource: value })} className="gap-2">
+                {customBasemapSources.map((source) => (
+                  <div key={source.id} className="flex items-center gap-2 min-w-0">
+                    <RadioGroupItem
+                      value={source.id}
+                      id={`basemap-${source.id}`}
+                      className="cursor-pointer shrink-0"
+                    />
+                    <CustomSourceDetails
+                      source={source}
+                      handleFitToBounds={handleFitToBounds}
+                      handleEditSource={handleEditBasemap}
+                      handleDeleteCustomSource={handleDeleteCustomBasemap}
+                      onSelect={(id) => setState({ basemapSource: id })}
+                    />
+                  </div>
+                ))}
+              </RadioGroup>
+            )
           )}
         </CollapsibleContent>
 

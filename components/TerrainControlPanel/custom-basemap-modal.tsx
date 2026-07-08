@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { type CustomBasemapSource } from "@/lib/settings-atoms"
 import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
 
-type BasemapFormType = "cog" | "tms" | "wms" | "wmts" | "qms"
+type BasemapFormType = "cog" | "tms" | "wms" | "wmts" | "qms" | "tilejson"
 
 export const CustomBasemapModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomBasemapSource | null
@@ -45,7 +45,9 @@ export const CustomBasemapModal: React.FC<{
       "https://example.com/tms/{z}/{x}/{y}.png" :
       type === "wms" ?
         "http://tiles.example.com/wms?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&width=256&height=256&layers=example" :
-        "Not supported type"
+        type === "tilejson" ?
+          "https://example.com/basemap-tilejson.json" :
+          "Not supported type"
 
   let helper_text = ""
   if (type === "tms") helper_text = '/{z}/{x}/{y}.png'
@@ -88,6 +90,7 @@ export const CustomBasemapModal: React.FC<{
                 <SelectItem value="tms">Raster (XYZ / TMS)</SelectItem>
                 <SelectItem value="cog">COG (Cloud Optimized Geotiff)</SelectItem>
                 <SelectItem value="wms">Raster (WMS / WMTS)</SelectItem>
+                <SelectItem value="tilejson">TileJSON</SelectItem>
                 {!editingSource && <SelectItem value="qms">NextGIS QMS (search)</SelectItem>}
               </SelectContent>
             </Select>

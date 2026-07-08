@@ -13,7 +13,7 @@ export const CustomTerrainSourceModal: React.FC<{
 }> = ({ isOpen, onOpenChange, editingSource, onSave }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
-  const [type, setType] = useState<"cog" | "terrainrgb" | "terrarium" | "vrt" | "wms-raw">("cog")
+  const [type, setType] = useState<"cog" | "terrainrgb" | "terrarium" | "vrt" | "wms-raw" | "tilejson">("cog")
   const [description, setDescription] = useState("")
   const [maxzoom, setMaxzoom] = useState("")
 
@@ -40,15 +40,20 @@ export const CustomTerrainSourceModal: React.FC<{
     onOpenChange(false)
   }, [name, url, type, description, maxzoom, editingSource, onSave, onOpenChange])
 
-  // COG/VRT sources detect their own zoom range from file metadata; WMS/TMS sources
-  // (wms-raw, terrainrgb, terrarium) have no such metadata, so they fall back to a
-  // generic 0-20 range unless the user overrides it here.
-  const showMaxzoomField = type === "wms-raw" || type === "terrainrgb" || type === "terrarium"
+  // COG/VRT sources detect their own zoom range from file metadata; WMS/TMS/TileJSON
+  // sources (wms-raw, terrainrgb, terrarium, tilejson) have no such metadata, so they
+  // fall back to a generic 0-20 range unless the user overrides it here. TileJSON's
+  // manifest technically carries its own maxzoom, but MapLibre applies that as a hard
+  // tile-fetch ceiling rather than feeding it back into this app's zoom-range UI, so
+  // the override still matters here too.
+  const showMaxzoomField = type === "wms-raw" || type === "terrainrgb" || type === "terrarium" || type === "tilejson"
 
   const url_placeholder = type === "cog" ?
     "https://example.com/terrain-dtm.cog.tiff" :
     type === "wms-raw" ?
     "https://example.com/wms?SERVICE=WMS&REQUEST=GetMap&LAYERS=...&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514" :
+    type === "tilejson" ?
+    "https://example.com/terrain-tilejson.json" :
     "https://example.com/tms/{z}/{x}/{y}.png"
 
   return (
@@ -78,6 +83,7 @@ export const CustomTerrainSourceModal: React.FC<{
                 <SelectItem value="terrarium">TMS (Terrarium)</SelectItem>
                 <SelectItem value="vrt">VRT</SelectItem>
                 <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
+                <SelectItem value="tilejson">TileJSON</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -1,5 +1,7 @@
 import type { ColorReliefRamp } from "./terrain-types"
 import {cpt_city_views} from "./cpt-city/cpt-city-views"
+import {colorRampsCet} from "./cpt-city/cet-colormaps"
+import {colorRampsSdr} from "./cpt-city/sdr-colormaps"
 import type { Scale } from 'chroma-js';
 
 // import { parsePalette, colorRampCanvas } from 'cpt2js';
@@ -436,6 +438,8 @@ const colorRamps = Object.fromEntries(
   )
 )
 colorRamps['classic'] = colorRampsClassic;
+colorRamps['cet'] = colorRampsCet;
+colorRamps['sdr'] = colorRampsSdr;
 
 export {colorRamps}
 

@@ -29,7 +29,7 @@ export const CustomSourceDetails: React.FC<{
       <TooltipContent> <p>{source.name}</p> </TooltipContent>
     </Tooltip>
 
-    {['cog', 'vrt'].includes(source.type) && (
+    {['cog', 'vrt', 'tilejson'].includes(source.type) && (
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleFitToBounds(source)}>

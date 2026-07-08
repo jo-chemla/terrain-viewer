@@ -10,7 +10,7 @@ export const SourceDetails: React.FC<{
   sourceKey: string; config: any; getTilesUrl: any; linkCallback: any; getMapBounds: () => Bounds
 }> = ({ sourceKey, config, getTilesUrl, linkCallback, getMapBounds }) => (
   <>
-    <Label htmlFor={`source-${sourceKey}`} className={`flex-1 text-sm ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
+    <Label htmlFor={`source-${sourceKey}`} className={`flex-1 text-sm truncate min-w-0 ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
       {config.name}
     </Label>
     <SourceInfoDialog sourceKey={sourceKey} config={config} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} />
