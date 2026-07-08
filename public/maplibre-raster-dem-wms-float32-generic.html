@@ -115,19 +115,23 @@
         const height = image.getHeight();
         
         const elevationData = rasters[0];
-        
-        // Encode to Mapbox Terrain RGB
+
+        // Encode to Terrarium: height = (R*256 + G + B/256) - 32768. R/G pack the integer
+        // meters (16-bit split across two bytes), B packs the sub-meter fraction at 1/256m
+        // (~4mm) resolution — much finer than Terrain-RGB's fixed 10cm step, which matters
+        // for LidarHD-grade source data.
         const rgbaData = new Uint8ClampedArray(width * height * 4);
-        
+
         for (let i = 0; i < elevationData.length; i++) {
             let elevation = elevationData[i];
             if (!isFinite(elevation)) elevation = 0;
-            
-            const encodedValue = Math.round((elevation + 10000) / 0.1);
-            
-            rgbaData[i * 4 + 0] = Math.floor(encodedValue / 65536) & 0xFF;
-            rgbaData[i * 4 + 1] = Math.floor(encodedValue / 256) & 0xFF;
-            rgbaData[i * 4 + 2] = encodedValue & 0xFF;
+
+            const v = elevation + 32768;
+            const intPart = Math.floor(v);
+
+            rgbaData[i * 4 + 0] = Math.floor(intPart / 256) & 0xFF;
+            rgbaData[i * 4 + 1] = intPart & 0xFF;
+            rgbaData[i * 4 + 2] = Math.floor((v - intPart) * 256) & 0xFF;
             rgbaData[i * 4 + 3] = 255;
         }
         
@@ -147,15 +151,17 @@
             sources: {
                 'lidar-hd-dem-dsm': {
                     type: 'raster-dem',
-                    encoding: 'mapbox',
+                    encoding: 'terrarium',
                     tiles: [SOURCES.dsm],
-                    tileSize: 512
+                    tileSize: 512,
+                    maxzoom: 17
                 },
                 'lidar-hd-dem-dtm': {
                     type: 'raster-dem',
-                    encoding: 'mapbox',
+                    encoding: 'terrarium',
                     tiles: [SOURCES.dtm],
-                    tileSize: 512
+                        tileSize: 512,
+                        maxzoom: 17
                 },
                 sat: {
                     type: 'raster',

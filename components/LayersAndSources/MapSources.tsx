@@ -194,7 +194,10 @@ export const TerrainSources = memo(({
             const tileUrl = cogTileUrl(customSource.url, useCogProtocol, titilerEndpoint, customSource.type)
             const encoding = isCogProtocol
                 ? highResTerrain ? 'terrarium' : 'mapbox'
-                : customSource.type === 'terrarium' ? 'terrarium'
+                // float32demProtocol (float32dem-protocol.ts) re-encodes the WMS-raw
+                // GeoTIFF as Terrarium (not Terrain-RGB) for its ~4mm vs 10cm precision —
+                // must match here or maplibre would misdecode every pixel.
+                : customSource.type === 'terrarium' || customSource.type === 'wms-raw' ? 'terrarium'
                 : 'mapbox'  // terrainrgb
             return {
                 type: "raster-dem",

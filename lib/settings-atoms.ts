@@ -46,7 +46,13 @@ export interface CustomTerrainSource {
   maxzoom?: number
 }
 
-export const customTerrainSourcesAtom = atomWithStorage<CustomTerrainSource[]>("customTerrainSources", [])
+// getOnInit: true reads localStorage synchronously on first render instead of the
+// jotai default (hardcoded `[]` on first paint, real value applied post-mount via
+// onMount). Without it, TerrainViewer's isTerrainCustom/isBasemapCustom checks — and
+// therefore effectiveMinZoom/effectiveMaxZoom — are wrong for one render whenever the
+// initially-selected source is a custom one, only self-correcting once something else
+// (e.g. a manual source switch) forces a fresh recompute.
+export const customTerrainSourcesAtom = atomWithStorage<CustomTerrainSource[]>("customTerrainSources", [], undefined, { getOnInit: true })
 export const isByodOpenAtom = atomWithStorage("isByodOpen", true)
 export interface CustomBasemapSource {
   id: string
@@ -61,7 +67,7 @@ export interface CustomBasemapSource {
   maxzoom?: number
 }
 
-export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [])
+export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [], undefined, { getOnInit: true })
 export const isBasemapByodOpenAtom = atomWithStorage("isBasemapByodOpen", true)
 export const isHillshadeXYPadOpenAtom = atomWithStorage("isHillshadeXYPadOpen", true)
 

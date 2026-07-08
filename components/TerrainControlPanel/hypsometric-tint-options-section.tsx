@@ -15,7 +15,7 @@ import {
 } from "@/lib/settings-atoms"
 import { colorRamps, extractStops, colorRampsFlat } from "@/lib/color-ramps"
 // import { Section, TooltipIconButton } from "./controls-components"
-import { Section, TooltipIconButton, MobileSlider, SectionIdContext } from "./controls-components"
+import { Section, TooltipIconButton, MobileSlider, SectionIdContext, DraftBoundInput } from "./controls-components"
 import { cn } from "@/lib/utils"
 import { getGradientColors } from "@/lib/controls-utils"
 import { useEffect } from "react"
@@ -48,15 +48,23 @@ export const HypsometricTintOptionsSection: React.FC<{
     }
   }, [state.colorRamp])
 
-  // Reset slider bounds when color ramp changes
+  // Reset slider bounds when color ramp changes, so the slider track always starts
+  // out matching the newly-selected ramp's own min/max. This used to be keyed on
+  // [state.colorRamp, setState], but nuqs's setState reference isn't stable across
+  // renders, so the effect actually re-ran on every render (verified: it fired dozens
+  // of times on a single idle page load) and kept silently overwriting any
+  // just-committed hypsoSliderMinBound/MaxBound back to the ramp default — e.g. typing
+  // a custom min bound and blurring would revert a moment later. Gate on a ref holding
+  // the previous colorRamp so the body only actually runs on a genuine ramp change,
+  // not on every unrelated re-render.
+  const prevColorRampRef = useRef(state.colorRamp)
   useEffect(() => {
+    if (prevColorRampRef.current === state.colorRamp) return
+    prevColorRampRef.current = state.colorRamp
     const stops = extractStops(colorRampsFlat[state.colorRamp].colors)
-    const newMin = Math.floor(Math.min(...stops))
-    const newMax = Math.ceil(Math.max(...stops))
-
     setState({
-      hypsoSliderMinBound: newMin,
-      hypsoSliderMaxBound: newMax
+      hypsoSliderMinBound: Math.floor(Math.min(...stops)),
+      hypsoSliderMaxBound: Math.ceil(Math.max(...stops)),
     })
   }, [state.colorRamp, setState])
 
@@ -125,11 +133,8 @@ export const HypsometricTintOptionsSection: React.FC<{
   const cycleColorRamp = useCallback((direction: number) => {
     const currentIndex = colorRampKeys.indexOf(state.colorRamp)
     const newIndex = (currentIndex + direction + colorRampKeys.length) % colorRampKeys.length
-    setState({
-      colorRamp: colorRampKeys[newIndex],
-      hypsoSliderMinBound: undefined,
-      hypsoSliderMaxBound: undefined
-    })
+    // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
+    setState({ colorRamp: colorRampKeys[newIndex] })
   }, [state.colorRamp, colorRampKeys, setState])
 
   // Get current slider values, defaulting to ramp bounds if not set
@@ -258,13 +263,8 @@ export const HypsometricTintOptionsSection: React.FC<{
               // Always switch to first ramp in the new category
               // if (!filteredNow[state.colorRamp]) {
               const first = Object.values(filteredNow)[0].name
-              if (first) {
-                setState({
-                  colorRamp: first.toLowerCase(),
-                  hypsoSliderMinBound: undefined,
-                  hypsoSliderMaxBound: undefined
-                })
-              }
+              // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
+              if (first) setState({ colorRamp: first.toLowerCase() })
               // }
             }
           }}
@@ -282,11 +282,7 @@ export const HypsometricTintOptionsSection: React.FC<{
       <div className="space-y-4">
         <div className="space-y-2">
           <div className="flex gap-2">
-            <Select value={state.colorRamp} onValueChange={(value) => setState({
-              colorRamp: value,
-              hypsoSliderMinBound: undefined,
-              hypsoSliderMaxBound: undefined
-            })}>
+            <Select value={state.colorRamp} onValueChange={(value) => setState({ colorRamp: value })}>
               <SelectTrigger className="flex-1 cursor-pointer">
                 <SelectValue />
               </SelectTrigger>
@@ -327,11 +323,8 @@ export const HypsometricTintOptionsSection: React.FC<{
                 const filteredNow = filterColorRamps(colorRamps, colorRampType, value)
                 if (!filteredNow[state.colorRamp]) {
                   const first = Object.values(filteredNow)[0].name
-                  setState({
-                    colorRamp: first.toLowerCase(),
-                    hypsoSliderMinBound: undefined,
-                    hypsoSliderMaxBound: undefined
-                  })
+                  // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
+                  setState({ colorRamp: first.toLowerCase() })
                 }
               }
             }}>
@@ -392,23 +385,19 @@ export const HypsometricTintOptionsSection: React.FC<{
               </div>
             </div>
             <div className="flex-1 flex items-center">
-              <Input
-                type="number"
-                step="any"
+              <DraftBoundInput
+                value={state.minElevation}
+                onCommit={(v) => setState({ minElevation: v, customHypsoMinMax: true })}
                 placeholder="Min"
-                className="h-8 py-1 text-sm"
-                value={state.minElevation ?? ""}
-                onChange={(e) => setState({ minElevation: e.target.value === "" ? undefined : parseFloat(e.target.value), customHypsoMinMax: true })}
+                className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               />
             </div>
             <div className="flex-1 flex items-center">
-              <Input
-                type="number"
-                step="any"
+              <DraftBoundInput
+                value={state.maxElevation}
+                onCommit={(v) => setState({ maxElevation: v, customHypsoMinMax: true })}
                 placeholder="Max"
-                className="h-8 py-1 text-sm"
-                value={state.maxElevation ?? ""}
-                onChange={(e) => setState({ maxElevation: e.target.value === "" ? undefined : parseFloat(e.target.value), customHypsoMinMax: true })}
+                className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               />
             </div>
           </div>
@@ -443,52 +432,6 @@ export const HypsometricTintOptionsSection: React.FC<{
   )
 }
 
-
-// Text input for a slider bound that tolerates in-progress typing (e.g. a lone "-")
-// without ever committing or displaying NaN to the parent state.
-const DraftBoundInput: React.FC<{
-  value: number | undefined
-  onCommit: (value: number | undefined) => void
-  placeholder: string
-  className: string
-}> = ({ value, onCommit, placeholder, className }) => {
-  const [draft, setDraft] = useState<string>(value === undefined ? "" : String(value))
-
-  // Keep the draft in sync when the bound changes externally (ramp switch, reset button, etc.)
-  useEffect(() => {
-    setDraft(value === undefined ? "" : String(value))
-  }, [value])
-
-  return (
-    <input
-      type="text"
-      inputMode="numeric"
-      placeholder={placeholder}
-      className={className}
-      value={draft}
-      onChange={(e) => {
-        const next = e.target.value
-        // Only accept strings that could become a valid number: optional leading
-        // minus, digits, optional single decimal point.
-        if (!/^-?\d*\.?\d*$/.test(next)) return
-        setDraft(next)
-
-        if (next === "") {
-          onCommit(undefined)
-          return
-        }
-        const parsed = parseFloat(next)
-        if (Number.isFinite(parsed)) onCommit(parsed)
-      }}
-      onBlur={() => {
-        // Revert an incomplete draft (e.g. a lone "-") back to the last committed value
-        if (draft !== "" && !Number.isFinite(parseFloat(draft))) {
-          setDraft(value === undefined ? "" : String(value))
-        }
-      }}
-    />
-  )
-}
 
 const HypsoDoubleRangeSlider: React.FC<{
   sliderBounds: { min: number; max: number };

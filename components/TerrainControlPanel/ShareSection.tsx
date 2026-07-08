@@ -20,7 +20,7 @@ import {
   SiReddit,
 } from "react-icons/si"
 import { FaLinkedin } from "react-icons/fa6";
-import { TooltipIconButton } from "./controls-components"
+import { TooltipButton } from "./controls-components"
 import { captureMapScreenshot, copyBlobToClipboard } from "@/lib/controls-utils"
 
 // ── config — swap these for your self-hosted Zipline or Dub.co instance ──────
@@ -625,11 +625,11 @@ export const ShareButton: React.FC<{
 
   return (
     <>
-      <TooltipIconButton
+      <TooltipButton
         icon={Share2}
+        label="Share"
         tooltip="Share to social media"
         onClick={() => setOpen(true)}
-        variant="outline"
         className="flex-1 bg-transparent"
       />
       <ShareModal open={open} onOpenChange={setOpen} mapRef={mapRef} />

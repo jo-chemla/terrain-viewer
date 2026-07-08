@@ -1,43 +1,11 @@
 import type React from "react"
-import { useMemo, useState, useEffect } from "react"
+import { useMemo } from "react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MobileSlider, Section } from "./controls-components"
+import { MobileSlider, Section, DraftBoundInput } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
-
-// Text input for a slider bound that tolerates in-progress typing (e.g. a lone "-")
-// without ever committing or displaying NaN to the parent state — same pattern as
-// the equivalent input in hypsometric-tint-options-section.tsx.
-const DraftBoundInput: React.FC<{
-  value: number
-  onCommit: (value: number) => void
-  className: string
-}> = ({ value, onCommit, className }) => {
-  const [draft, setDraft] = useState(String(value))
-
-  useEffect(() => { setDraft(String(value)) }, [value])
-
-  return (
-    <input
-      type="text"
-      inputMode="numeric"
-      className={className}
-      value={draft}
-      onChange={(e) => {
-        const next = e.target.value
-        if (!/^-?\d*\.?\d*$/.test(next)) return
-        setDraft(next)
-        const parsed = parseFloat(next)
-        if (Number.isFinite(parsed)) onCommit(parsed)
-      }}
-      onBlur={() => {
-        if (!Number.isFinite(parseFloat(draft))) setDraft(String(value))
-      }}
-    />
-  )
-}
 
 // Simplified sibling of HypsometricTintOptionsSection — same "color-relief layer"
 // underpinning (see computeColorReliefPaint usage in TerrainViewer.tsx), but slope

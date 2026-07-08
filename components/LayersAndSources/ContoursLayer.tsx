@@ -78,6 +78,18 @@ function buildTileUrl(
         maxzoom: 14,
       }
     }
+    if (customSource.type === "wms-raw") {
+      // Needs the float32dem:// protocol prefix (registered in TerrainViewer.tsx) the
+      // same way MapSources.tsx's cogTileUrl does — without it maplibre-contour would
+      // fetch the raw WMS response as an ordinary image tile instead of routing it
+      // through float32demProtocol's GeoTIFF decode. Re-encoded as Terrarium (see
+      // float32dem-protocol.ts) for its ~4mm vs Terrain-RGB's 10cm precision.
+      return {
+        tileUrl: `float32dem://${customSource.url.replace(/^https?:\/\//, "")}`,
+        encoding: "terrarium",
+        maxzoom: 14,
+      }
+    }
     return {
       tileUrl: customSource.url,
       encoding: customSource.type === "terrarium" ? "terrarium" : "mapbox",

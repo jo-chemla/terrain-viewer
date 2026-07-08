@@ -214,6 +214,7 @@ interface TooltipButtonProps {
   label: string
   tooltip: string
   onClick: () => void
+  disabled?: boolean
   className?: string
 }
 
@@ -222,6 +223,7 @@ export const TooltipButton: React.FC<TooltipButtonProps> = ({
   label,
   tooltip,
   onClick,
+  disabled = false,
   className = "flex-1"
 }) => {
   return (
@@ -230,6 +232,7 @@ export const TooltipButton: React.FC<TooltipButtonProps> = ({
         <Button
           variant="outline"
           size="sm"
+          disabled={disabled}
           className={`cursor-pointer bg-transparent min-w-0 ${className}`}
           onClick={onClick}
         >
@@ -250,6 +253,7 @@ interface TooltipIconButtonProps {
   icon: LucideIcon
   tooltip: string
   onClick?: () => void
+  disabled?: boolean
   className?: string
   variant?: React.ComponentProps<typeof Button>["variant"]
   size?: React.ComponentProps<typeof Button>["size"]
@@ -259,6 +263,7 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
   icon: Icon,
   tooltip,
   onClick,
+  disabled = false,
   className = "",
   variant = "ghost",
   size = "icon",
@@ -271,6 +276,7 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
           variant={variant}
           size={size}
           onClick={onClick}
+          disabled={disabled}
           className={`cursor-pointer ${className}`}
         >
           <Icon className="h-4 w-4" />
@@ -282,4 +288,52 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
     </Tooltip>
   )
 })
+
+// ─── DraftBoundInput ────────────────────────────────────────────────────────────
+//
+// Text input for a slider min/max bound that tolerates in-progress typing (e.g. a
+// lone "-", or clearing the field to retype) without ever committing or displaying
+// NaN. Deliberately does NOT commit on every keystroke — typing "100" digit-by-digit
+// used to commit 1, then 10, then 100 in quick succession, visibly jerking the slider
+// track as its range changed mid-type. Validation/commit only happens on Enter or blur.
+export const DraftBoundInput: React.FC<{
+  value: number | undefined
+  onCommit: (value: number | undefined) => void
+  placeholder?: string
+  className: string
+}> = ({ value, onCommit, placeholder, className }) => {
+  const [draft, setDraft] = useState<string>(value === undefined ? "" : String(value))
+
+  // Keep the draft in sync when the bound changes externally (ramp switch, reset button, etc.)
+  useEffect(() => {
+    setDraft(value === undefined ? "" : String(value))
+  }, [value])
+
+  const commit = () => {
+    if (draft === "") { onCommit(undefined); return }
+    const parsed = parseFloat(draft)
+    if (Number.isFinite(parsed)) onCommit(parsed)
+    else setDraft(value === undefined ? "" : String(value)) // revert an incomplete draft (e.g. a lone "-")
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder={placeholder}
+      className={className}
+      value={draft}
+      onChange={(e) => {
+        const next = e.target.value
+        // Only accept strings that could become a valid number: optional leading
+        // minus, digits, optional single decimal point — lets "-" sit there uncommitted
+        // while the user keeps typing instead of being rejected/reverted immediately.
+        if (!/^-?\d*\.?\d*$/.test(next)) return
+        setDraft(next)
+      }}
+      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur() }}
+      onBlur={commit}
+    />
+  )
+}
 TooltipIconButton.displayName = "TooltipIconButton"

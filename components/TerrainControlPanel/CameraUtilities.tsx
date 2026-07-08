@@ -244,6 +244,15 @@ export const animEngine = new RafEngine()
 /** 360° spin RAF engine */
 export const spinEngine = new RafEngine()
 
+// Spin timing state lives here, module-level, alongside spinEngine itself — not as a
+// useRef inside CameraButtons. The RAF tick closure that reads it is created once by
+// whichever component instance called doStartSpin(); if the sidebar closes and reopens,
+// a *new* CameraButtons mounts with its own fresh refs, but spinEngine (and the old
+// tick closure) keeps running unchanged. Setting the new mount's own local ref to
+// request a stop would never be seen by that old closure — the click would silently
+// no-op, which is exactly the "shows Stop but the button doesn't work" bug this fixes.
+const spinState = { last: null as number | null, elapsed: 0, stoppingAt: null as number | null }
+
 /** FOV animation RAF engine */
 export const fovEngine = new RafEngine()
 
@@ -593,11 +602,6 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
   const playOffsetRef = useRef(0)
   const bounceDir = useRef<1 | -1>(1)
 
-  // Spin timing refs
-  const spinLastRef = useRef<number | null>(null)
-  const spinElapsed = useRef(0)
-  const stoppingRef = useRef<number | null>(null)
-
   // ═══ Sync running state on mount (survive sidebar reopen) ═════════════════
   useEffect(() => {
     // If URL says playing but engine stopped (e.g. animation finished while unmounted)
@@ -720,18 +724,18 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
   const doStartSpin = useCallback(() => {
     const map = getMap(mapRef)
     if (!map) return
-    spinLastRef.current = null; spinElapsed.current = 0; stoppingRef.current = null
+    spinState.last = null; spinState.elapsed = 0; spinState.stoppingAt = null
     setSpinning(true)
 
     spinEngine.start((now) => {
-      const delta = spinLastRef.current !== null ? now - spinLastRef.current : 0
-      spinLastRef.current = now; spinElapsed.current += delta
-      const speedIn = smoothstep(Math.min(spinElapsed.current / EASE_MS, 1))
+      const delta = spinState.last !== null ? now - spinState.last : 0
+      spinState.last = now; spinState.elapsed += delta
+      const speedIn = smoothstep(Math.min(spinState.elapsed / EASE_MS, 1))
       let mul: number
-      if (stoppingRef.current) {
-        const tOut = Math.min((now - stoppingRef.current) / EASE_MS, 1)
+      if (spinState.stoppingAt) {
+        const tOut = Math.min((now - spinState.stoppingAt) / EASE_MS, 1)
         mul = (1 - smoothstep(tOut)) * speedIn
-        if (tOut >= 1) { stoppingRef.current = null; setSpinning(false); return false }
+        if (tOut >= 1) { spinState.stoppingAt = null; setSpinning(false); return false }
       } else { mul = speedIn }
       map.setBearing((map.getBearing() + CRUISE_DEG_PER_MS * delta * mul) % 360)
       return true
@@ -739,7 +743,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
   }, [mapRef, setSpinning])
 
   const triggerStopSpin = useCallback(() => {
-    if (spinEngine.isRunning() && !stoppingRef.current) stoppingRef.current = performance.now()
+    if (spinEngine.isRunning() && !spinState.stoppingAt) spinState.stoppingAt = performance.now()
   }, [])
 
   const toggleSpin = useCallback(() => {

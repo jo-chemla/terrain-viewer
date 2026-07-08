@@ -15,6 +15,7 @@ export const CustomTerrainSourceModal: React.FC<{
   const [url, setUrl] = useState("")
   const [type, setType] = useState<"cog" | "terrainrgb" | "terrarium" | "vrt" | "wms-raw">("cog")
   const [description, setDescription] = useState("")
+  const [maxzoom, setMaxzoom] = useState("")
 
   useEffect(() => {
     if (editingSource) {
@@ -22,19 +23,27 @@ export const CustomTerrainSourceModal: React.FC<{
       setUrl(editingSource.url)
       setType(editingSource.type)
       setDescription(editingSource.description || "")
+      setMaxzoom(editingSource.maxzoom === undefined ? "" : String(editingSource.maxzoom))
     } else {
       setName("")
       setUrl("")
       setType("cog")
       setDescription("")
+      setMaxzoom("")
     }
   }, [editingSource, isOpen])
 
   const handleSave = useCallback(() => {
     if (!name || !url) return
-    onSave({ id: editingSource?.id, name, url, type, description })
+    const parsedMaxzoom = maxzoom === "" ? undefined : Number(maxzoom)
+    onSave({ id: editingSource?.id, name, url, type, description, maxzoom: parsedMaxzoom })
     onOpenChange(false)
-  }, [name, url, type, description, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, maxzoom, editingSource, onSave, onOpenChange])
+
+  // COG/VRT sources detect their own zoom range from file metadata; WMS/TMS sources
+  // (wms-raw, terrainrgb, terrarium) have no such metadata, so they fall back to a
+  // generic 0-20 range unless the user overrides it here.
+  const showMaxzoomField = type === "wms-raw" || type === "terrainrgb" || type === "terrarium"
 
   const url_placeholder = type === "cog" ?
     "https://example.com/terrain-dtm.cog.tiff" :
@@ -72,6 +81,21 @@ export const CustomTerrainSourceModal: React.FC<{
               </SelectContent>
             </Select>
           </div>
+          {showMaxzoomField && (
+            <div className="space-y-2">
+              <Label htmlFor="source-maxzoom">Max Zoom (optional)</Label>
+              <Input
+                id="source-maxzoom"
+                type="number"
+                min={0}
+                max={24}
+                placeholder="Native resolution zoom level, e.g. 17"
+                value={maxzoom}
+                onChange={(e) => setMaxzoom(e.target.value)}
+                className="cursor-text"
+              />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="source-description">Description (optional)</Label>
             <Input id="source-description" type="text" placeholder="Custom terrain data from..." value={description} onChange={(e) => setDescription(e.target.value)} className="cursor-text" />

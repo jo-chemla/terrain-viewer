@@ -1,10 +1,6 @@
 import type React from "react"
 import type { MapRef } from "react-map-gl/maplibre"
-import { Download } from "lucide-react"
 import { Section, SliderControl, CheckboxWithSlider } from "./controls-components"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { downloadGeoJSON } from "@/lib/download-geojson"
 
 // ── Contour snap tables ────────────────────────────────────────────────────
 const MINOR_INTERVALS = [0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]
@@ -26,13 +22,6 @@ export const ContourOptionsSection: React.FC<{
   onOpenChange: (open: boolean) => void
   mapRef?: React.RefObject<MapRef>
 }> = ({ state, setState, isOpen, onOpenChange, mapRef }) => {
-
-  const exportContours = () => {
-    const map = mapRef?.current?.getMap()
-    if (!map) return
-    const features = map.queryRenderedFeatures({ layers: ['contour-lines'] })
-    downloadGeoJSON(features as GeoJSON.Feature[], 'contours')
-  }
 
   if (!state.showContoursAndGraticules) return null
 
@@ -95,16 +84,6 @@ export const ContourOptionsSection: React.FC<{
                 onChange={(i) => setState({ contourMajor: snappedMinor * MAJOR_MULTIPLIERS[i] })}
                 min={0} max={MAJOR_MULTIPLIERS.length - 1} step={1} hideValue
               />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={exportContours}
-                disabled={!mapRef?.current}
-                className="cursor-pointer"
-                title="Export the contour lines currently rendered in the viewport as GeoJSON"
-              >
-                <Download className="h-4 w-4 mr-1" /> Export Contours (GeoJSON)
-              </Button>
             </>
           )}
         </>

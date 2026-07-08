@@ -324,6 +324,14 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
                     newDraw.start()
                     newDraw.setMode('select')
 
+                    // Freehand drawing (point/line/polygon tools) only ever updated TerraDraw's
+                    // own internal store — nothing synced it back to drawingFeaturesAtom, so
+                    // "Features: N" and Export both silently ignored anything drawn on the map
+                    // (only imported features, which call setFeatures directly, ever showed up).
+                    newDraw.on('change', () => {
+                        try { setFeatures(newDraw.getSnapshot() as GeoJSONFeature[]) } catch { }
+                    })
+
                     if (featuresRef.current.length > 0) {
                         setTimeout(() => {
                             try { newDraw.addFeatures(featuresRef.current) } catch (e) {

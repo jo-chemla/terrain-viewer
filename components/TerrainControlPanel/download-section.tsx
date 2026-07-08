@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback } from "react"
 import { useAtom } from "jotai"
-import { Download, Camera, Copy, Loader2 } from "lucide-react"
+import { Download, Camera, Copy, Loader2, MountainSnow } from "lucide-react"
 import { titilerEndpointAtom, maxResolutionAtom } from "@/lib/settings-atoms"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
@@ -9,8 +9,10 @@ import saveAs from "file-saver"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
 import { type SourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot } from "@/lib/controls-utils"
+import { downloadGeoJSON } from "@/lib/download-geojson"
+import { mergeContourLines } from "@/lib/merge-contours"
 import { ShareButton } from "./ShareSection"
-import { TooltipButton, TooltipIconButton } from "./controls-components"
+import { TooltipButton } from "./controls-components"
 
 export const DownloadSection: React.FC<{
   state: any
@@ -159,33 +161,63 @@ export const DownloadSection: React.FC<{
     }
   }, [getTitilerDownloadUrl, getSourceConfig, state.sourceA, getMapBounds, isExporting])
 
+  // Moved here from ContourOptionsSection — contour export is a download action like
+  // the others in this section, not a contour-rendering option.
+  const exportContours = useCallback(() => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    const features = map.queryRenderedFeatures({ layers: ['contour-lines'] })
+    // Stitches contour segments that were only cut apart by tile boundaries back
+    // into single continuous lines — see lib/merge-contours.ts.
+    downloadGeoJSON(mergeContourLines(features as GeoJSON.Feature[]), 'contours')
+  }, [mapRef])
+
   return (
     <Section title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange}>
-      <div className="flex gap-2">
-        <TooltipButton
-          icon={isExporting ? Loader2 : Download}
-          label={isExporting ? "Exporting…" : "Export DTM"}
-          tooltip="Export DTM as GeoTIFF"
-          onClick={exportDTM}
-          disabled={isExporting}
-          className={`flex-[2] ${isExporting ? "[&_svg]:animate-spin" : ""}`}
-        />
-        <TooltipIconButton
-          icon={Camera}
-          tooltip="Download Snapshot to Disk"
-          onClick={downloadScreenshot}
-          variant="outline"
-          className="flex-1 bg-transparent"
-        />
-        <TooltipIconButton
-          icon={isCopying ? Loader2 : Copy}
-          tooltip="Copy snapshot to clipboard"
-          onClick={copySnapshotToClipboard}
-          disabled={isCopying}
-          variant="outline"
-          className={`flex-1 bg-transparent ${isCopying ? "[&_svg]:animate-spin" : ""}`}
-        />
-        <ShareButton mapRef={mapRef} />
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <TooltipButton
+            icon={isExporting ? Loader2 : Download}
+            label={isExporting ? "Exporting…" : "DEM GeoTiff"}
+            tooltip="Export DTM as GeoTIFF"
+            onClick={exportDTM}
+            disabled={isExporting}
+            className={`flex-1 ${isExporting ? "[&_svg]:animate-spin" : ""}`}
+          />
+          <TooltipButton
+            icon={Camera}
+            label="Snapshot"
+            tooltip="Download Snapshot to Disk"
+            onClick={downloadScreenshot}
+            className="flex-1 bg-transparent"
+          />
+        </div>
+        <div className="flex gap-2">
+          <TooltipButton
+            icon={MountainSnow}
+            label="Contours"
+            tooltip={state.showContoursAndGraticules && state.showContours
+              ? "Export the contour lines currently rendered in the viewport as GeoJSON"
+              : "Enable Contour Lines (Options: Contours & GeoGrid) to export them"}
+            onClick={exportContours}
+            // Matches the actual layer-visibility condition in TerrainViewer.tsx
+            // (showContoursAndGraticules is the "Contours & GeoGrid" viz-mode master
+            // toggle, showContours is the sub-checkbox for the lines specifically) —
+            // checking showContours alone left this enabled even when the whole
+            // contours feature was off, since showContours defaults to true.
+            disabled={!(state.showContoursAndGraticules && state.showContours)}
+            className="flex-1 bg-transparent"
+          />
+          <TooltipButton
+            icon={isCopying ? Loader2 : Copy}
+            label="Copy"
+            tooltip="Copy snapshot to clipboard"
+            onClick={copySnapshotToClipboard}
+            disabled={isCopying}
+            className={`flex-1 bg-transparent ${isCopying ? "[&_svg]:animate-spin" : ""}`}
+          />
+          <ShareButton mapRef={mapRef} />
+        </div>
       </div>
     </Section>
   )
