@@ -2,10 +2,14 @@ import type React from "react"
 import { useRef } from "react"
 import { Light as SyntaxHighlighter } from "react-syntax-highlighter"
 import json from "react-syntax-highlighter/dist/esm/languages/hljs/json"
+import properties from "react-syntax-highlighter/dist/esm/languages/hljs/properties"
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs"
 import { cn } from "@/lib/utils"
 
 SyntaxHighlighter.registerLanguage("json", json)
+// "properties" (Java .properties / dotenv-style KEY=VALUE lines) — used for the
+// API-keys batch editor, which isn't JSON, just one key=value pair per line.
+SyntaxHighlighter.registerLanguage("properties", properties)
 
 // Classic "transparent textarea over a highlighted <pre>" overlay: the textarea stays fully
 // editable (real caret, selection, undo history) while a syntax-highlighted copy of the same
@@ -17,7 +21,8 @@ export const JsonEditor: React.FC<{
   onChange: (value: string) => void
   className?: string
   placeholder?: string
-}> = ({ value, onChange, className, placeholder }) => {
+  language?: "json" | "properties"
+}> = ({ value, onChange, className, placeholder, language = "json" }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const highlightRef = useRef<HTMLDivElement>(null)
 
@@ -46,7 +51,7 @@ export const JsonEditor: React.FC<{
         style={sharedTextStyle}
       >
         <SyntaxHighlighter
-          language="json"
+          language={language}
           style={atomOneDark}
           customStyle={{ background: "transparent", margin: 0, padding: 0, ...sharedTextStyle }}
           codeTagProps={{ style: { fontFamily: "inherit" } }}

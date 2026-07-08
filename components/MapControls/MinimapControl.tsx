@@ -456,33 +456,40 @@ function MinimapInternal({
       )}
       style={containerStyle}
     >
-      {minimized ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-full w-full rounded-none hover:cursor-pointer"
-          onClick={() => setMinimized(false)}
-        >
-          <MapIcon className="h-4 w-4" />
-        </Button>
-      ) : (
-        <div className="relative h-full w-full group/minimap">
-          <Map
-            ref={minimapRef}
-            {...viewState}
-            mapStyle={baseStyle}
-            attributionControl={false}
-            {...interactionProps}
-            onLoad={(e) => {
-              mapInstanceRef.current = e.target;
-            }}
-            onMove={evt => {
-              if (mode === 'static' && interactive) {
-                setViewState(evt.viewState);
-              }
-            }}
-          />
+      {/* The minimap's own maplibre <Map> is always mounted, even while minimized — it used
+          to only mount once `!minimized`, which meant clicking to expand it triggered a cold
+          start (WebGL context creation + first tile fetch) right at that moment, with the
+          visible delay landing exactly when the user is looking at it. Keeping it mounted
+          (just visually covered by the minimize button) lets it establish its WebGL context
+          and start loading tiles in the background from page load, so expanding it just
+          reveals a map that's already warm or fully loaded. */}
+      <div className="relative h-full w-full group/minimap">
+        <Map
+          ref={minimapRef}
+          {...viewState}
+          mapStyle={baseStyle}
+          attributionControl={false}
+          {...interactionProps}
+          onLoad={(e) => {
+            mapInstanceRef.current = e.target;
+          }}
+          onMove={evt => {
+            if (mode === 'static' && interactive) {
+              setViewState(evt.viewState);
+            }
+          }}
+        />
 
+        {minimized ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute inset-0 h-full w-full rounded-none hover:cursor-pointer"
+            onClick={() => setMinimized(false)}
+          >
+            <MapIcon className="h-4 w-4" />
+          </Button>
+        ) : (
           <div className="minimap-ui">
             <Button
               className={cn(
@@ -503,8 +510,8 @@ function MinimapInternal({
               <Minimize2 className="h-4 w-4 text-foreground" />
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

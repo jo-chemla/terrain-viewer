@@ -16,6 +16,7 @@ import {
 import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
 import { TooltipIconButton } from "./controls-components"
+import { JsonEditor } from "@/components/ui/json-editor"
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any }> = ({ isOpen, onOpenChange, state, setState }) => {
   const { theme, toggleTheme } = useTheme()
@@ -99,7 +100,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             {batchEditMode ? (
               <div className="space-y-2">
                 <Label htmlFor="batch-keys">API Keys (one per line: key=value)</Label>
-                <textarea id="batch-keys" className="w-full min-h-[120px] p-2 border rounded-md font-mono text-sm" value={batchApiKeys} onChange={(e) => setBatchApiKeys(e.target.value)} />
+                <JsonEditor
+                  language="properties"
+                  value={batchApiKeys}
+                  onChange={setBatchApiKeys}
+                  className="min-h-[120px]"
+                />
               </div>
             ) : (
               <>
