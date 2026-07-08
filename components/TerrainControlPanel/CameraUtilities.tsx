@@ -101,6 +101,33 @@ const DEFAULT_POSE: CameraPose = {
   lat: 45.9763, lng: 7.6586, zoom: 12.5, pitch: 60, bearing: 0, roll: 0, vfov: 36.869898, refWidth: 800,
 }
 
+// Default values for the numeric (non-camera) state fields that can end up in a
+// pose's numericState — kept in sync by hand with the nuqs defaults declared in
+// TerrainViewer.tsx's useQueryStates. Used only to backfill a pose that's missing
+// a field the *other* pose just introduced (see setPose2 below) — every field
+// here was, by construction, at exactly this default when it was omitted from a
+// capture, since captureSnapshot only records fields the URL currently overrides.
+const NUMERIC_STATE_DEFAULTS: Record<string, number> = {
+  hillshadeOpacity: 1.0,
+  colorReliefOpacity: 0.35,
+  slopeOpacity: 1.0,
+  rasterBasemapOpacity: 1.0,
+  exaggeration: 1,
+  illuminationDir: 315,
+  illuminationAlt: 45,
+  hillshadeExag: 1.0,
+  contourMinor: 50,
+  contourMajor: 200,
+  minElevation: 0,
+  maxElevation: 8100,
+  hypsoSliderMinBound: -8000,
+  hypsoSliderMaxBound: 5000,
+  graticuleWidth: 1.0,
+  graticuleDensity: 0,
+  slopeMinDegrees: 0,
+  slopeMaxDegrees: 55,
+}
+
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6
 
 // ─── Encode ─────────────────────────────────────────────────────────────────────
@@ -492,7 +519,30 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
   }
   // pose1 must exist first — pose2 is only meaningful as a delta from it.
   const setPose2 = (v: AppSnapshot | null) => {
-    setAnimParams({ animPose2Delta: (v && pose1 ? subtractSnapshots(v, pose1) : null) as any })
+    if (!v || !pose1) {
+      setAnimParams({ animPose2Delta: null })
+      return
+    }
+    // A numeric field can be in this new pose2 capture but missing from pose1 —
+    // it was at its nuqs default when pose1 was set, then changed before pose2.
+    // subtractSnapshots/addSnapshots would silently treat pose1's missing value
+    // as 0 (wrong baseline), and interpolation (lerpNumericMaps) only walks
+    // pose1's own keys, so the field would never animate at all — effectively
+    // "not kept in memory". Backfill pose1 with the field's real default (that's
+    // exactly what it was, by construction, since it wasn't overridden then) so
+    // both the delta math and the interpolation actually account for it.
+    const missingKeys = Object.keys(v.numericState).filter((k) => !(k in pose1.numericState))
+    const pose1Backfilled: AppSnapshot = missingKeys.length === 0 ? pose1 : {
+      ...pose1,
+      numericState: {
+        ...pose1.numericState,
+        ...Object.fromEntries(missingKeys.map((k) => [k, NUMERIC_STATE_DEFAULTS[k] ?? 0])),
+      },
+    }
+    setAnimParams({
+      ...(missingKeys.length > 0 ? { animPose1Delta: pose1Backfilled as any } : {}),
+      animPose2Delta: subtractSnapshots(v, pose1Backfilled) as any,
+    })
   }
 
   // ═══ Atoms with storage (export settings) ═════════════════════════════════

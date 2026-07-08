@@ -95,7 +95,14 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">API Keys</h3>
-              <Button variant="outline" size="sm" onClick={handleBatchToggle} className="cursor-pointer">{batchEditMode ? "Save" : "Batch Edit"}</Button>
+              <div className="flex gap-2">
+                {batchEditMode && (
+                  <Button variant="outline" size="sm" onClick={() => setBatchEditMode(false)} className="cursor-pointer">
+                    Cancel
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={handleBatchToggle} className="cursor-pointer">{batchEditMode ? "Save" : "Batch Edit"}</Button>
+              </div>
             </div>
             {batchEditMode ? (
               <div className="space-y-2">

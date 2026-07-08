@@ -1,4 +1,5 @@
 import type React from "react"
+import { useState } from "react"
 import { useAtom } from "jotai"
 import { Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,7 @@ import { GdalTabs } from "./gdal-tabs"
 
 export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds }> = ({ sourceKey, config, getTilesUrl, getMapBounds }) => {
   const [maxResolution] = useAtom(maxResolutionAtom)
+  const [activeGdalTab, setActiveGdalTab] = useState("url")
 
   const bounds = getMapBounds()
   const tileUrl = getTilesUrl(sourceKey)
@@ -76,18 +78,19 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
             <div className="flex items-center justify-between mb-1">
               <span className="font-semibold">GDAL & TMS Access:</span>
             </div>
-            <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={fullGdalCommand} />
-            <p className="text-xs text-muted-foreground mt-1">
-              Need GDAL? If you already have{" "}
-              <a href="https://qgis.org/" target="_blank" rel="noopener noreferrer" className="underline">QGIS</a>
-              {" "}installed, it bundles its own GDAL binaries — on Windows they're usually at{" "}
-              <code>C:\Program Files\QGIS {"<version>"}\bin\gdal_translate.exe</code> (autocomplete
-              from <code>C:\Program Files\</code> to find your installed version). Otherwise, install
-              it via{" "}
-              <a href="https://trac.osgeo.org/osgeo4w/" target="_blank" rel="noopener noreferrer" className="underline">OSGeo4W</a>
-              {" "}(run commands from its "OSGeo4W Shell"), or{" "}
-              <code>conda install -c conda-forge gdal</code>.
-            </p>
+            <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={fullGdalCommand} onTabChange={setActiveGdalTab} />
+            {activeGdalTab === "cmd" && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Need GDAL?{" "}
+                <a href="https://qgis.org/" target="_blank" rel="noopener noreferrer" className="underline">QGIS</a>
+                {" "}bundles its own GDAL binaries — usually at{" "}
+                <code>C:\Program Files\QGIS {"<version>"}\bin\gdal_translate.exe</code>. Otherwise,
+                install it via{" "}
+                <a href="https://trac.osgeo.org/osgeo4w/" target="_blank" rel="noopener noreferrer" className="underline">OSGeo4W</a>
+                {" "}(run commands from its "OSGeo4W Shell"), or{" "}
+                <code>conda install -c conda-forge gdal</code>.
+              </p>
+            )}
           </div>
 
           <div>

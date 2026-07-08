@@ -17,7 +17,8 @@ export const GdalTabs: React.FC<{
   tileUrl: string
   wmsXml: string
   gdalCommand: string
-}> = ({ tileUrl, wmsXml, gdalCommand }) => {
+  onTabChange?: (tab: string) => void
+}> = ({ tileUrl, wmsXml, gdalCommand, onTabChange }) => {
   const [activeTab, setActiveTab] = useState("url")
 
   const handleCopy = () => {
@@ -30,7 +31,7 @@ export const GdalTabs: React.FC<{
     <Tabs
       defaultValue="url"
       value={activeTab}
-      onValueChange={setActiveTab}
+      onValueChange={(tab) => { setActiveTab(tab); onTabChange?.(tab) }}
       className="w-full"
     >
       <div className="bg-muted/60 dark:bg-zinc-900 rounded-lg overflow-hidden border border-border">
