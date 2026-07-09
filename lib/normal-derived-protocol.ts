@@ -1,4 +1,6 @@
 import { elevationToTerrainrgb } from "./elevation-encoding"
+import { cogProtocol } from "@geomatico/maplibre-cog-protocol"
+import { float32demProtocol } from "./float32dem-protocol"
 
 // Shared scaffolding behind the `aspect://`, `tri://` and `curvature://` maplibre
 // custom protocols — the same tile-fetch/neighbor-stitch/re-encode pipeline
@@ -53,6 +55,64 @@ function cacheSet(cache: Map<string, Promise<DecodedTile | null>>, key: string, 
   cache.set(key, value)
 }
 
+// Ported from maplibre-gl-js's own `getTileBBox` (the "whoots" WMS-url helper it
+// vendors internally to substitute `{bbox-epsg-3857}` for ordinary WMS raster/
+// raster-dem Sources) — replicated here because wms-raw's `float32demProtocol` is
+// called directly, bypassing maplibre's Source/tile machinery entirely, so nothing
+// else performs that substitution for us. Formula: standard Web Mercator tile
+// bounds at (x, y, z), XYZ (Google/OSM) scheme.
+const MERCATOR_EARTH_RADIUS = 6378137
+function tileBBoxEPSG3857(x: number, y: number, z: number): string {
+  const size = 1 << z
+  const resolution = (2 * Math.PI * MERCATOR_EARTH_RADIUS / 256) / size
+  const merc = (px: number) => px * resolution - Math.PI * MERCATOR_EARTH_RADIUS
+  const flippedY = size - y - 1
+  const minX = merc(x * 256)
+  const minY = merc(flippedY * 256)
+  const maxX = merc((x + 1) * 256)
+  const maxY = merc((flippedY + 1) * 256)
+  return `${minX},${minY},${maxX},${maxY}`
+}
+
+// COG tiles don't come from a real HTTP endpoint — `cog://` is a maplibre custom
+// protocol (see @geomatico/maplibre-cog-protocol, registered via addProtocol in
+// TerrainViewer.tsx) that reads GeoTIFF byte ranges directly and renders a
+// terrain-rgb-encoded tile in-memory, returned as a ready-to-draw ImageBitmap —
+// this is the exact same mechanism the primary elevation/hillshade/hypsometric
+// sources use to ingest a COG (see TerrainSources in MapSources.tsx, which also
+// registers the per-URL color function this reuses via setColorFunction). Calling
+// it directly (instead of only going through maplibre's Source/tile machinery)
+// is what lets slope/aspect/TRI/curvature work on COG terrain sources too, not
+// just plain terrarium/terrainrgb XYZ tiles.
+//
+// `float32dem-bbox://` is this file's own pseudo-scheme (not a real maplibre
+// protocol) wrapping a wms-raw source's GetMap URL template — since that template
+// still has its own unresolved `{bbox-epsg-3857}` placeholder (only ever
+// substituted by maplibre itself for ordinary Sources), we substitute it here
+// using the tile's own (z, x, y) — encoded as the URL's trailing /{z}/{x}/{y}
+// segments by buildWmsRawUpstreamTemplate in MapSources.tsx — before handing the
+// resolved GetMap URL to float32demProtocol.
+async function loadTileBitmap(url: string, signal: AbortSignal): Promise<ImageBitmap | null> {
+  if (url.startsWith("cog://")) {
+    const result = await cogProtocol({ url, type: "image" } as any)
+    return (result as any).data as ImageBitmap
+  }
+  if (url.startsWith("float32dem-bbox://")) {
+    const match = url.match(/^float32dem-bbox:\/\/(.+)\/(\d+)\/(\d+)\/(\d+)$/)
+    if (!match) return null
+    const [, encodedWmsUrl, zStr, xStr, yStr] = match
+    const bbox = tileBBoxEPSG3857(Number(xStr), Number(yStr), Number(zStr))
+    const resolvedUrl = decodeURIComponent(encodedWmsUrl).replace("{bbox-epsg-3857}", bbox)
+    const result = await float32demProtocol({ url: `float32dem://${resolvedUrl}` }, { signal } as AbortController)
+    const blob = new Blob([result.data.buffer as ArrayBuffer], { type: "image/png" })
+    return createImageBitmap(blob)
+  }
+  const response = await fetch(url, { signal })
+  if (!response.ok) return null
+  const blob = await response.blob()
+  return createImageBitmap(blob)
+}
+
 export async function fetchDecodedTile(
   cache: Map<string, Promise<DecodedTile | null>>,
   url: string,
@@ -62,27 +122,43 @@ export async function fetchDecodedTile(
   const cached = cacheGet(cache, url)
   if (cached) return cached
 
+  const decode = async (): Promise<DecodedTile | null> => {
+    const bitmap = await loadTileBitmap(url, signal)
+    if (!bitmap) return null
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const ctx = canvas.getContext("2d")!
+    ctx.drawImage(bitmap, 0, 0)
+    const { data, width, height } = ctx.getImageData(0, 0, bitmap.width, bitmap.height)
+
+    const elevations = new Float32Array(width * height)
+    for (let i = 0; i < width * height; i++) {
+      const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2]
+      elevations[i] = encoding === "terrarium"
+        ? (r * 256 + g + b / 256) - 32768
+        : -10000 + (r * 256 * 256 + g * 256 + b) * 0.1
+    }
+    return { data: elevations, width, height }
+  }
+
   const promise = (async (): Promise<DecodedTile | null> => {
     try {
-      const response = await fetch(url, { signal })
-      if (!response.ok) return null
-      const blob = await response.blob()
-      const bitmap = await createImageBitmap(blob)
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-      const ctx = canvas.getContext("2d")!
-      ctx.drawImage(bitmap, 0, 0)
-      const { data, width, height } = ctx.getImageData(0, 0, bitmap.width, bitmap.height)
-
-      const elevations = new Float32Array(width * height)
-      for (let i = 0; i < width * height; i++) {
-        const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2]
-        elevations[i] = encoding === "terrarium"
-          ? (r * 256 + g + b / 256) - 32768
-          : -10000 + (r * 256 * 256 + g * 256 + b) * 0.1
-      }
-      return { data: elevations, width, height }
+      return await decode()
     } catch {
-      return null
+      // A tile fetch/decode failure is often transient — a rate-limited WMS
+      // endpoint (some, like IGN's, cap at 1 req/sec while the Horn kernel fires 9
+      // concurrent neighbor requests per output tile) or a momentary COG
+      // byte-range read blip. One short-delayed retry clears most of these
+      // without letting a single bad tile block the whole neighborhood — the
+      // caller (runNormalDerivedProtocol) still falls back gracefully to
+      // neighboring/center data if this second attempt also fails.
+      if (signal.aborted) return null
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      if (signal.aborted) return null
+      try {
+        return await decode()
+      } catch {
+        return null
+      }
     }
   })()
 

@@ -1,11 +1,12 @@
 import type React from "react"
 import { useState, useEffect, useCallback } from "react"
+import { useAtom } from "jotai"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { type CustomTerrainSource } from "@/lib/settings-atoms"
+import { type CustomTerrainSource, useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
 import { WmsPickerPanel } from "./wms-picker-panel"
 
 type TerrainFormType = CustomTerrainSource["type"] | "wms-picker"
@@ -19,6 +20,7 @@ export const CustomTerrainSourceModal: React.FC<{
   const [type, setType] = useState<TerrainFormType>("cog")
   const [description, setDescription] = useState("")
   const [maxzoom, setMaxzoom] = useState("")
+  const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
 
   useEffect(() => {
     if (editingSource) {
@@ -79,7 +81,12 @@ export const CustomTerrainSourceModal: React.FC<{
                 {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
                 <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
                 <SelectItem value="tilejson">TileJSON</SelectItem>
-                <SelectItem value="vrt">VRT</SelectItem>
+                {/* VRT only streams through titiler (GDAL's vsicurl driver) — the
+                    geomatico cog:// protocol reads a real COG file directly and can't
+                    open a VRT mosaic, so this option is a dead end in that mode. */}
+                <SelectItem value="vrt" disabled={useCogProtocol}>
+                  VRT{useCogProtocol ? " (titiler mode only)" : ""}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

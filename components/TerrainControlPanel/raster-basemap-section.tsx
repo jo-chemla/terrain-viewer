@@ -10,7 +10,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
 
-const BUILTIN_BASEMAP_OPTIONS = [
+export const BUILTIN_BASEMAP_OPTIONS = [
   { value: "google", label: "Google Hybrid" },
   { value: "mapbox", label: "Mapbox Satellite" },
   { value: "esri", label: "ESRI World Imagery" },
@@ -60,9 +60,10 @@ export const RasterBasemapSection: React.FC<{
 
         <SliderControl
           label="Basemap Opacity"
-          value={state.rasterBasemapOpacity}
-          onChange={(v) => setState({ rasterBasemapOpacity: v })}
-          min={0} max={1} step={0.05}
+          value={state.basemapSourceOpacity * 100}
+          onChange={(v) => setState({ basemapSourceOpacity: v / 100 })}
+          min={0} max={100} step={5}
+          suffix="%"
           sliderId="raster-basemap-opacity"
         />
 

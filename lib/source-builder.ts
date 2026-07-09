@@ -55,8 +55,23 @@ export function buildRasterTileSource(params: {
       }
 
     case "wms-raw":
-      // A WMS GetMap URL returning a raw Float32 GeoTIFF — decoded by float32demProtocol.
-      return { tiles: [`float32dem://${url.replace(/^https?:\/\//, "")}`] }
+      if (useCogProtocol) {
+        // geomatico's cogProtocol reads a real COG file directly — it can't stream a
+        // live WMS endpoint, so geomatico mode always goes through the client-side
+        // float32dem:// protocol (decoded by float32demProtocol), regardless of what
+        // FORMAT the source's own GetMap URL requests.
+        return { tiles: [`float32dem://${url.replace(/^https?:\/\//, "")}`] }
+      }
+      // Titiler mode: GDAL's WMS minidriver (the `WMS:` connection-string prefix)
+      // lets titiler/GDAL treat the live WMS service as a single addressable raster
+      // dataset — the same trick the VRT case below uses (vrt:///vsicurl/) — so
+      // titiler handles reprojection/windowing server-side per z/x/y tile instead of
+      // this app hand-rolling per-tile GetMap+bbox requests itself.
+      return {
+        tiles: [
+          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(`WMS:${url}`)}`,
+        ],
+      }
 
     // terrarium / terrainrgb / tms / wms / wmts: already a plain XYZ/WMS tile
     // template — nothing to route through titiler or a custom protocol.

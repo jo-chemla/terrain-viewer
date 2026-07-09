@@ -121,6 +121,7 @@ export function TerrainControlPanel({
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const hideSourcePanels = activeProjectConfig?.hideSourcePanels ?? false
+  const hiddenSections = activeProjectConfig?.hiddenSections ?? []
 
   const allFolded = SECTION_KEYS.every((k) => !sectionOpen[k])
 
@@ -129,23 +130,49 @@ export function TerrainControlPanel({
     setSectionOpen(Object.fromEntries(SECTION_KEYS.map((k) => [k, next])) as SectionOpenState)
   }
 
-  // With a project active, clears every other URL param back to default —
-  // `project` stays sticky so there's always somewhere to "go home" to (see
-  // lib/project-config.ts). Without one, a bare param reset would fall back to
-  // the app's hardcoded Mont Blanc default view, which isn't "home" in any
-  // meaningful sense — so zoom out to the whole world instead. A full navigation
-  // rather than a nuqs setState: simpler than enumerating every param's default,
-  // and correctly leaves jotai-persisted settings (API keys, custom sources, etc.)
-  // untouched since those live in localStorage, not the URL.
+  // With a project active, clears every other URL param back to default, then
+  // re-applies that project's own initialState/initialViewMode on top — `project`
+  // stays sticky so there's always somewhere to "go home" to (see
+  // lib/project-config.ts). Re-applying is needed because nulling alone would only
+  // restore the app's generic hardcoded defaults, not the project's curated view;
+  // the original implementation got this "for free" via a full page reload (which
+  // re-ran the once-only embed-config effect from scratch), but a plain reset
+  // still needs it done explicitly. Without a project, a bare reset would fall
+  // back to the hardcoded Mont Blanc default view, which isn't "home" in any
+  // meaningful sense — so zoom out to the whole world instead.
+  //
+  // Camera fields (lat/lng/zoom/pitch/bearing) are excluded from the setState
+  // batch and commanded on the map directly instead: react-map-gl's
+  // `initialViewState` (see TerrainViewer.tsx) only seeds the camera once on
+  // mount and is otherwise uncontrolled — only the map's own onMoveEnd writes
+  // those fields back into the URL. A setState alone would just get silently
+  // overwritten by the next moveend firing with the (unchanged) current camera.
+  const CAMERA_KEYS = ["lat", "lng", "zoom", "pitch", "bearing"] as const
   const handleGoHome = () => {
-    const params = new URLSearchParams(window.location.search)
-    const project = params.get("project")
-    if (project) {
-      window.location.href = `${window.location.pathname}?project=${encodeURIComponent(project)}`
-    } else {
-      const worldView = new URLSearchParams({ lat: "20", lng: "0", zoom: "1", pitch: "0", bearing: "0" })
-      window.location.href = `${window.location.pathname}?${worldView.toString()}`
+    const resets: Record<string, unknown> = {}
+    for (const key of Object.keys(state)) {
+      if (key === "project") continue
+      resets[key] = null
     }
+    if (activeProjectConfig) {
+      Object.assign(resets, activeProjectConfig.initialState)
+      if (activeProjectConfig.initialViewMode) resets.viewMode = activeProjectConfig.initialViewMode
+    }
+    const camera = {
+      lat: (activeProjectConfig?.initialState?.lat as number | undefined) ?? 20,
+      lng: (activeProjectConfig?.initialState?.lng as number | undefined) ?? 0,
+      zoom: (activeProjectConfig?.initialState?.zoom as number | undefined) ?? 1,
+      pitch: (activeProjectConfig?.initialState?.pitch as number | undefined) ?? 0,
+      bearing: (activeProjectConfig?.initialState?.bearing as number | undefined) ?? 0,
+    }
+    for (const key of CAMERA_KEYS) delete resets[key]
+    setState(resets)
+    mapRef.current?.getMap()?.jumpTo({
+      center: [camera.lng, camera.lat],
+      zoom: camera.zoom,
+      pitch: camera.pitch,
+      bearing: camera.bearing,
+    })
   }
 
   const toggle = (key: SectionKey) => (open: boolean) =>
@@ -259,7 +286,9 @@ export function TerrainControlPanel({
         {!hideSourcePanels && (
           <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} />
         )}
-        <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
+        {!hiddenSections.includes("contour") && (
+          <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
+        )}
         <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
         <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
         <SlopeAndMoreOptionsSection state={state} setState={setState} isOpen={sectionOpen.slopeAndMore} onOpenChange={toggle("slopeAndMore")} />

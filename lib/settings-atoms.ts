@@ -41,7 +41,7 @@ export const skyConfigAtom = atom<SkyConfig>({
   horizonFogBlend: 0.5,
   fogColor: '#fcf0dd',
   fogGroundBlend: 0.2,
-  matchThemeColors: false,
+  matchThemeColors: true,
   backgroundLayerActive: true,
 })
 

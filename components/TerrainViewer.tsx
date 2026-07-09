@@ -22,6 +22,12 @@ import {
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { getProjectConfig } from "@/lib/project-config"
 import { useTheme } from "@/lib/controls-utils"
+import { terrainSources } from "@/lib/terrain-sources"
+import { BUILTIN_BASEMAP_OPTIONS } from "./TerrainControlPanel/raster-basemap-section"
+import customSourcesData from "@/lib/custom-sources.json"
+
+const SAMPLE_TERRAIN_SOURCES = customSourcesData["SAMPLE_TERRAIN_SOURCES"] as CustomTerrainSource[]
+const SAMPLE_BASEMAP_SOURCES = customSourcesData["SAMPLE_BASEMAPS_SOURCES"] as CustomBasemapSource[]
 import { MinimapControl } from "./MapControls/MinimapControl";
 import { useIsMobile } from '@/hooks/use-mobile'
 
@@ -85,12 +91,29 @@ export function TerrainViewer() {
   const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [highResTerrain] = useAtom(highResTerrainAtom)
-  const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
-  const [, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
+  const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
+  const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
   const [, setSectionOpen] = useAtom(sectionOpenAtom)
   const hasAppliedEmbedConfig = useRef(false)
 
   const [state, setState] = useQueryStates({
+    // Embed/project convenience params: `project` looks up a named preset in
+    // lib/projects.json (see lib/project-config.ts); terrainUrl/basemapUrl let an
+    // embedder point straight at a raw tile/COG URL without registering a custom
+    // source first — see the embed-config effect below. Defined first in this
+    // object for readability, though note nuqs does NOT serialize the URL in this
+    // object's key order (it extends whatever's already in location.search plus
+    // queued-update insertion order) — verified live that `project=` still doesn't
+    // consistently land first in the resulting query string.
+    project: parseAsString.withDefault(""),
+    terrainUrl: parseAsString.withDefault(""),
+    basemapUrl: parseAsString.withDefault(""),
+    // Explicit source type for terrainUrl/basemapUrl when it's a raw URL (not an
+    // existing source id) — type can't always be inferred from the URL shape alone
+    // (e.g. a titiler VRT vs a plain COG both being a bare https URL). Falls back
+    // to the existing includes("{z}") heuristic when omitted.
+    terrainType: parseAsString.withDefault(""),
+    basemapType: parseAsString.withDefault(""),
     viewMode: parseAsStringLiteral(VIEW_MODES).withDefault("3d"),
     splitScreen: parseAsBoolean.withDefault(false),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
@@ -149,7 +172,14 @@ export function TerrainViewer() {
     showGraticules: parseAsBoolean.withDefault(false),
     showRasterBasemap: parseAsBoolean.withDefault(false),
     showBackground: parseAsBoolean.withDefault(false),
+    // Viz-mode master opacity (the "Raster Basemap" checkbox's own slider) — composites
+    // (multiplies) with basemapSourceOpacity below for the single/split basemap layer,
+    // same pattern as Slope-and-More's master-vs-submode opacity. Overlay layers use
+    // this value directly (100% × master), since they have no solo slider of their own.
     rasterBasemapOpacity: parseAsFloat.withDefault(1.0),
+    // Basemap-solo opacity (the "Basemap Opacity" slider inside the Basemap Source
+    // section) — only affects the single/split basemap layer, not overlays.
+    basemapSourceOpacity: parseAsFloat.withDefault(1.0),
     exaggeration: parseAsFloat.withDefault(1),
     lat: parseAsFloat.withDefault(45.9763),
     lng: parseAsFloat.withDefault(7.6586),
@@ -182,13 +212,6 @@ export function TerrainViewer() {
     showGraticuleLabels: parseAsBoolean.withDefault(false),
     graticuleDensity: parseAsFloat.withDefault(0),
     minimapMinimized: parseAsBoolean.withDefault(true),
-    // Embed/project convenience params: `project` looks up a named preset in
-    // lib/projects.json (see lib/project-config.ts); terrainUrl/basemapUrl let an
-    // embedder point straight at a raw tile/COG URL without registering a custom
-    // source first — see the embed-config effect below.
-    project: parseAsString.withDefault(""),
-    terrainUrl: parseAsString.withDefault(""),
-    basemapUrl: parseAsString.withDefault(""),
     // Keyframe/360 animation state (animDuration, animLoopMode, animSmoothCamera,
     // animPlaying, animPlaying360, animPose1, animPose2Delta) lives in its own nuqs
     // hook inside CameraUtilities.tsx, not in this shared bag.
@@ -308,23 +331,53 @@ export function TerrainViewer() {
       stateOverrides.viewMode = projectConfig.initialViewMode
     }
 
+    // terrainUrl/basemapUrl can carry either an id of a source the visitor's browser
+    // (or the sample library) already knows about, or a raw tile/COG URL to
+    // register on the fly — check for an id match first so e.g.
+    // `?terrainUrl=mapterhorn` or `?terrainUrl=dura-w-05mm` just selects the
+    // existing source instead of wastefully re-registering it as a new "embedded"
+    // one keyed off its own id-as-a-string (which isn't a valid URL anyway).
     if (state.terrainUrl) {
-      const embedId = "__embed_terrain__"
-      const type: CustomTerrainSource["type"] = state.terrainUrl.includes("{z}") ? "terrarium" : "cog"
-      setCustomTerrainSources((prev) => [
-        ...prev.filter((s) => s.id !== embedId),
-        { id: embedId, name: "Embedded Terrain", url: state.terrainUrl, type },
-      ])
-      if (!searchParams.has("sourceA")) stateOverrides.sourceA = embedId
+      const value = state.terrainUrl
+      const isKnownId = value in ((terrainSources as any) ?? {})
+        || customTerrainSources.some((s) => s.id === value)
+        || SAMPLE_TERRAIN_SOURCES.some((s) => s.id === value)
+      if (isKnownId) {
+        const sample = SAMPLE_TERRAIN_SOURCES.find((s) => s.id === value)
+        if (sample && !customTerrainSources.some((s) => s.id === value)) {
+          setCustomTerrainSources((prev) => [...prev.filter((s) => s.id !== value), sample])
+        }
+        if (!searchParams.has("sourceA")) stateOverrides.sourceA = value
+      } else {
+        const embedId = "__embed_terrain__"
+        const type = (state.terrainType || (value.includes("{z}") ? "terrarium" : "cog")) as CustomTerrainSource["type"]
+        setCustomTerrainSources((prev) => [
+          ...prev.filter((s) => s.id !== embedId),
+          { id: embedId, name: "Embedded Terrain", url: value, type },
+        ])
+        if (!searchParams.has("sourceA")) stateOverrides.sourceA = embedId
+      }
     }
     if (state.basemapUrl) {
-      const embedId = "__embed_basemap__"
-      const type: CustomBasemapSource["type"] = state.basemapUrl.includes("{z}") ? "tms" : "cog"
-      setCustomBasemapSources((prev) => [
-        ...prev.filter((s) => s.id !== embedId),
-        { id: embedId, name: "Embedded Basemap", url: state.basemapUrl, type },
-      ])
-      if (!searchParams.has("basemapSource")) stateOverrides.basemapSource = embedId
+      const value = state.basemapUrl
+      const isKnownId = BUILTIN_BASEMAP_OPTIONS.some((o) => o.value === value)
+        || customBasemapSources.some((s) => s.id === value)
+        || SAMPLE_BASEMAP_SOURCES.some((s) => s.id === value)
+      if (isKnownId) {
+        const sample = SAMPLE_BASEMAP_SOURCES.find((s) => s.id === value)
+        if (sample && !customBasemapSources.some((s) => s.id === value)) {
+          setCustomBasemapSources((prev) => [...prev.filter((s) => s.id !== value), sample])
+        }
+        if (!searchParams.has("basemapSource")) stateOverrides.basemapSource = value
+      } else {
+        const embedId = "__embed_basemap__"
+        const type = (state.basemapType || (value.includes("{z}") ? "tms" : "cog")) as CustomBasemapSource["type"]
+        setCustomBasemapSources((prev) => [
+          ...prev.filter((s) => s.id !== embedId),
+          { id: embedId, name: "Embedded Basemap", url: value, type },
+        ])
+        if (!searchParams.has("basemapSource")) stateOverrides.basemapSource = embedId
+      }
     }
 
     // Seed any custom sources this project depends on (merge by id — same
@@ -344,6 +397,10 @@ export function TerrainViewer() {
 
     if (projectConfig?.initialSections) {
       setSectionOpen((prev) => ({ ...prev, ...projectConfig.initialSections }))
+    }
+
+    if (typeof projectConfig?.initialSidebarOpen === "boolean") {
+      setIsSidebarOpen(projectConfig.initialSidebarOpen)
     }
 
     if (projectConfig?.initialBounds) {
@@ -786,6 +843,7 @@ export function TerrainViewer() {
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
             maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
           />
           <AspectSource
             enabled={state.showSlopeAndMore}
@@ -793,6 +851,7 @@ export function TerrainViewer() {
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
             maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
           />
           <TriSource
             enabled={state.showSlopeAndMore}
@@ -800,6 +859,7 @@ export function TerrainViewer() {
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
             maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
           />
           <CurvatureSource
             enabled={state.showSlopeAndMore}
@@ -807,6 +867,7 @@ export function TerrainViewer() {
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
             maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
           />
 
           {/* Layers */}
@@ -817,9 +878,11 @@ export function TerrainViewer() {
           )}
           <RasterLayer
             showRasterBasemap={state.showRasterBasemap}
-            rasterBasemapOpacity={state.rasterBasemapOpacity}
+            rasterBasemapOpacity={state.rasterBasemapOpacity * state.basemapSourceOpacity}
           />
-          {state.basemapPerView && state.showRasterBasemap && <OverlayBasemapLayers overlayIds={state.overlayBasemapIds} />}
+          {state.basemapPerView && state.showRasterBasemap && (
+            <OverlayBasemapLayers overlayIds={state.overlayBasemapIds} opacity={state.rasterBasemapOpacity} />
+          )}
           <ColorReliefLayer
             showColorRelief={state.showColorRelief}
             colorReliefPaint={colorReliefPaint}
@@ -867,95 +930,105 @@ export function TerrainViewer() {
 
           {isPrimary && (
             <>
-              <GeocoderControl
-                position="top-left"
-                placeholder="Search and press Enter"
-                // A small dot instead of maplibre-gl-geocoder's default big pin,
-                // matching the Elevation Picker's point markers for visual consistency.
-                marker={{
-                  children: (
-                    <div
-                      style={{
-                        width: 14, height: 14, borderRadius: "50%",
-                        border: "2px solid white", boxShadow: "0 0 4px rgba(0,0,0,0.6)",
-                        background: "#3b82f6",
-                      }}
-                    />
-                  ),
-                }}
-                showResultsWhileTyping={true}
-                zoom={14}
-                flyTo={{ speed: 5 }}
-                showResultMarkers={false}
-                limit={10}
-                minLength={3}
-              />
-              <NavigationControl position="top-left" />
-              <GeolocateControl position="top-left" />
+              {!activeProjectConfig?.hideMapControls?.includes("geocoder") && (
+                <GeocoderControl
+                  position="top-left"
+                  placeholder="Search and press Enter"
+                  // A small dot instead of maplibre-gl-geocoder's default big pin,
+                  // matching the Elevation Picker's point markers for visual consistency.
+                  marker={{
+                    children: (
+                      <div
+                        style={{
+                          width: 14, height: 14, borderRadius: "50%",
+                          border: "2px solid white", boxShadow: "0 0 4px rgba(0,0,0,0.6)",
+                          background: "#3b82f6",
+                        }}
+                      />
+                    ),
+                  }}
+                  showResultsWhileTyping={true}
+                  zoom={14}
+                  flyTo={{ speed: 5 }}
+                  showResultMarkers={false}
+                  limit={10}
+                  minLength={3}
+                />
+              )}
+              {!activeProjectConfig?.hideMapControls?.includes("zoom") && (
+                <NavigationControl position="top-left" />
+              )}
+              {!activeProjectConfig?.hideMapControls?.includes("geolocate") && (
+                <GeolocateControl position="top-left" />
+              )}
 
               {/* Minimap — no parentMap prop: it picks up the parent map via react-map-gl's
                   useMap() context, which is available as soon as the Map mounts rather than
                   waiting for mapALoaded (the 'load' event). Gating on mapALoaded needlessly
                   serialized the minimap's own load after the main map's, doubling perceived
                   load time instead of loading both concurrently. */}
-              <MinimapControl
-                position="bottom-left"
-                mode="dynamic"
-                initBounds={[[-150, -30], [150, 50]]}
-                // mode="dynamic"
-                zoomLevelOffset={-6}
-                // mode="static" interactive = true only works in static mode 
-                interactive={true}
-                interactions={{
-                  dragPan: true,
-                  scrollZoom: true,
-                  boxZoom: true,
-                }}
-                width={260}
-                height={180}
-                showFrustum={false}
-                // showFootprint={true}
-                minimized={state.minimapMinimized}
-                onMinimizedChange={(v) => setState({ minimapMinimized: v })}
-                footprintFillPaint={{
-                  "fill-color": "#3b82f6",
-                  "fill-opacity": 0.15,
-                }}
-                footprintLinePaint={{
-                  "line-color": "#2563eb",
-                  "line-width": 2.5,
-                }}
-                frustumFillPaint={{
-                  "fill-color": "#f59e0b",
-                  "fill-opacity": 0.2,
-                }}
-                frustumLinePaint={{
-                  "line-color": "#ea580c",
-                  "line-width": 2,
-                  "line-dasharray": [3, 2],
-                }}
-                style={{
-                  version: 8,
-                  sources: {
-                    basemap: {
-                      type: "raster",
-                      tiles: [
-                        "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                      ],
-                      tileSize: 256,
+              {!activeProjectConfig?.hideMapControls?.includes("minimap") && (
+                <MinimapControl
+                  position="bottom-left"
+                  mode="dynamic"
+                  initBounds={[[-150, -30], [150, 50]]}
+                  // mode="dynamic"
+                  zoomLevelOffset={-6}
+                  // mode="static" interactive = true only works in static mode
+                  interactive={true}
+                  interactions={{
+                    dragPan: true,
+                    scrollZoom: true,
+                    boxZoom: true,
+                  }}
+                  width={260}
+                  height={180}
+                  showFrustum={false}
+                  // showFootprint={true}
+                  minimized={state.minimapMinimized}
+                  onMinimizedChange={(v) => setState({ minimapMinimized: v })}
+                  footprintFillPaint={{
+                    "fill-color": "#3b82f6",
+                    "fill-opacity": 0.15,
+                  }}
+                  footprintLinePaint={{
+                    "line-color": "#2563eb",
+                    "line-width": 2.5,
+                  }}
+                  frustumFillPaint={{
+                    "fill-color": "#f59e0b",
+                    "fill-opacity": 0.2,
+                  }}
+                  frustumLinePaint={{
+                    "line-color": "#ea580c",
+                    "line-width": 2,
+                    "line-dasharray": [3, 2],
+                  }}
+                  style={{
+                    version: 8,
+                    sources: {
+                      basemap: {
+                        type: "raster",
+                        tiles: [
+                          "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                        ],
+                        tileSize: 256,
+                      },
                     },
-                  },
-                  layers: [
-                    {
-                      id: "basemap",
-                      type: "raster",
-                      source: "basemap",
-                    },
-                  ],
-                }}
-              />
+                    layers: [
+                      {
+                        id: "basemap",
+                        type: "raster",
+                        source: "basemap",
+                      },
+                    ],
+                  }}
+                />
+              )}
 
-              <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
+              {!activeProjectConfig?.hideMapControls?.includes("scale") && (
+                <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
+              )}
 
             </>
           )}
@@ -965,7 +1038,7 @@ export function TerrainViewer() {
     [
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
       state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB, state.overlayBasemapIds,
-      state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
+      state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity, state.showHillshade,
       state.showColorRelief, state.showSlopeAndMore, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
@@ -977,6 +1050,7 @@ export function TerrainViewer() {
       mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,
       skyConfig.skyColor, skyConfig.skyHorizonBlend, skyConfig.horizonColor, skyConfig.horizonFogBlend,
       skyConfig.fogColor, skyConfig.fogGroundBlend, skyConfig.matchThemeColors, skyConfig.backgroundLayerActive,
+      activeProjectConfig,
       themeColor,
       effectiveMinZoom, effectiveMaxZoom, setZoomRangeBasemap
     ],

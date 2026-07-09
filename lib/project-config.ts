@@ -33,6 +33,20 @@ export interface ProjectConfig {
    *  (jotai sectionOpenAtom) on first load — keys match TerrainControlPanel's
    *  SectionKey (e.g. "general", "terrainSource", "hillshade", ...). */
   initialSections?: Record<string, boolean>
+  /** Whether the whole sidebar (isSidebarOpenAtom) starts open or closed — for
+   *  embeds that want a clean, panel-free view by default. Visitors can still
+   *  reopen it via the collapse/expand toggle; this only sets the first-load state. */
+  initialSidebarOpen?: boolean
+  /** Map controls to omit entirely (not just visually hide) — "zoom" is MapLibre's
+   *  NavigationControl (zoom + rotate buttons). For embeds that want a minimal,
+   *  chrome-free map. Defaults to showing all of them. */
+  hideMapControls?: Array<"geocoder" | "zoom" | "geolocate" | "minimap" | "scale">
+  /** Sidebar accordion sections to hide entirely — keys match TerrainControlPanel's
+   *  SectionKey (e.g. "contour", "background", "drawing", ...). Distinct from
+   *  hideSourcePanels (which only covers terrainSource/rasterBasemap): for "contour"
+   *  specifically, this also hides the "Contours + GeoGrid" checkbox row in
+   *  VisualizationModesSection, since that's the same feature exposed twice. */
+  hiddenSections?: string[]
   /** Custom terrain/basemap sources this project depends on (e.g. referenced by id
    *  in initialState.sourceA/basemapSource) — merged by id into the visitor's
    *  customTerrainSourcesAtom/customBasemapSourcesAtom on first load (same

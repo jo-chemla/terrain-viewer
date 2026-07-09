@@ -64,33 +64,37 @@ export const TerrainSourceSection: React.FC<{
     if (state.sourceB === id) setState({ sourceB: "mapterhorn" })
   }, [customTerrainSources, setCustomTerrainSources, state, setState])
 
-  // Only actually moves the camera when the target bounds are fully inside the
-  // current viewport, or fully disjoint from it — see shouldZoomToBounds. Clicking
-  // a source whose bounds cover (or only partially overlap) the current viewport
-  // leaves the camera alone instead of yanking the user's context away from
-  // wherever they're already looking.
-  const attemptFitBounds = useCallback((bbox: [number, number, number, number]) => {
+  // `force` skips the smart-zoom heuristic and always moves the camera — used by
+  // the dedicated "Fit to bounds" button. Without it (the default, used when a
+  // source's label is clicked to activate it), the camera only moves when the
+  // target bounds are fully inside the current viewport, or fully disjoint from
+  // it — see shouldZoomToBounds — so activating a source whose bounds cover (or
+  // only partially overlap) the current viewport doesn't yank the user's context
+  // away from wherever they're already looking.
+  const attemptFitBounds = useCallback((bbox: [number, number, number, number], force = false) => {
     if (!mapRef.current) return
     const [west, south, east, north] = bbox
-    const viewport = mapRef.current.getMap().getBounds()
-    const target = { west, south, east, north }
-    const viewportBounds = { west: viewport.getWest(), south: viewport.getSouth(), east: viewport.getEast(), north: viewport.getNorth() }
-    if (!shouldZoomToBounds(viewportBounds, target)) return
+    if (!force) {
+      const viewport = mapRef.current.getMap().getBounds()
+      const target = { west, south, east, north }
+      const viewportBounds = { west: viewport.getWest(), south: viewport.getSouth(), east: viewport.getEast(), north: viewport.getNorth() }
+      if (!shouldZoomToBounds(viewportBounds, target)) return
+    }
     mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
   }, [mapRef])
 
-  const handleFitToBounds = useCallback(async (source: CustomTerrainSource) => {
+  const handleFitToBounds = useCallback(async (source: CustomTerrainSource, force = false) => {
     // Populated directly from WMS GetCapabilities (see wms-picker-panel.tsx) — no
     // fetch needed, unlike the type-specific detection below.
     if (source.bounds) {
-      attemptFitBounds(source.bounds)
+      attemptFitBounds(source.bounds, force)
       return
     }
     if (source.type === 'tilejson') {
       try {
         const response = await fetch(source.url)
         const data = await response.json()
-        if (data.bounds) attemptFitBounds(data.bounds)
+        if (data.bounds) attemptFitBounds(data.bounds, force)
       } catch (error) {
         console.error("Failed to fetch TileJSON bounds:", error)
       }
@@ -100,14 +104,14 @@ export const TerrainSourceSection: React.FC<{
     try {
       if (useCogProtocolVsTitiler) {
         getCogMetadata(source.url).then(metadata => {
-          if (metadata.bbox) attemptFitBounds(metadata.bbox)
+          if (metadata.bbox) attemptFitBounds(metadata.bbox, force)
         })
       } else {
         const infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
         const response = await fetch(infoUrl)
         const data = await response.json()
         const bbox = data.bbox ?? data.properties.bounds
-        if (bbox) attemptFitBounds(bbox)
+        if (bbox) attemptFitBounds(bbox, force)
       }
     } catch (error) {
       console.error("Failed to fetch COG bounds:", error)

@@ -64,8 +64,11 @@ RasterLayer.displayName = "RasterLayer"
 
 // Overlay Layers — one raster layer per active 'overlay'-role custom basemap
 // source (see OverlayBasemapSources in MapSources.tsx), stacked between the
-// basemap and every terrain-derived visualization.
-export const OverlayBasemapLayers = memo(({ overlayIds }: { overlayIds: string[] }) => (
+// basemap and every terrain-derived visualization. Opacity is just the viz-mode
+// "Raster Basemap" master slider (100% × it) — there's no per-overlay solo slider,
+// unlike the single/split basemap layer (see RasterLayer), which additionally
+// composites with its own Basemap Opacity slider.
+export const OverlayBasemapLayers = memo(({ overlayIds, opacity }: { overlayIds: string[]; opacity: number }) => (
   <>
     {overlayIds.map((id) => (
       <Layer
@@ -74,7 +77,7 @@ export const OverlayBasemapLayers = memo(({ overlayIds }: { overlayIds: string[]
         id={`overlay-basemap-${id}`}
         type="raster"
         source={`overlay-basemap-source-${id}`}
-        paint={{ "raster-opacity": 1, "raster-resampling": "linear" }}
+        paint={{ "raster-opacity": opacity, "raster-resampling": "linear" }}
       />
     ))}
   </>
