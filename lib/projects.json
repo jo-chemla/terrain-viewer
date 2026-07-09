@@ -15,5 +15,60 @@
       "visualizationModes": true,
       "download": false
     }
+  },
+  "mapterhorn-globe": {
+    "id": "mapterhorn-globe",
+    "name": "Mapterhorn Globe",
+    "description": "Minimal globe view zoomed out to the whole world, Mapterhorn as the only terrain source, source pickers hidden.",
+    "initialViewMode": "globe",
+    "hideSourcePanels": true,
+    "initialState": {
+      "sourceA": "mapterhorn",
+      "lat": 15,
+      "lng": 10,
+      "zoom": 2.5,
+      "pitch": 0,
+      "bearing": 0,
+      "showColorRelief": true,
+      "colorReliefOpacity": 0.2
+    },
+    "initialSections": {
+      "hillshade": true
+    }
+  },
+  "dura": {
+    "id": "dura",
+    "name": "Dura Frescoes Viewer",
+    "description": "Dura Europos Synagogue COG terrain + basemap (W-0.5mm), auto-zoomed to the site, hillshade + hypsometric tint on, raster basemap at 20% opacity, contours and Slope-and-More off.",
+    "initialState": {
+      "sourceA": "dura-w-05mm",
+      "basemapSource": "dura-w-05mm",
+      "basemapSourceA": "dura-w-05mm",
+      "showContoursAndGraticules": false,
+      "showSlopeAndMore": false,
+      "showHillshade": true,
+      "showColorRelief": true,
+      "showRasterBasemap": true,
+      "rasterBasemapOpacity": 0.2
+    },
+    "customTerrainSources": [
+      {
+        "id": "dura-w-05mm",
+        "name": "Dura Synagogue - W-0.5mm DSM",
+        "url": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/DuraEuropos_Synagogue_W_0.5mm_DSM_fakegeo.cog.tiff",
+        "type": "cog",
+        "description": ""
+      }
+    ],
+    "customBasemapSources": [
+      {
+        "id": "dura-w-05mm",
+        "name": "Dura Synagogue - W-0.5mm RGB",
+        "url": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/DuraEuropos_Synagogue_W_0.5mm_RGB_fakegeo.cog.tiff",
+        "type": "cog",
+        "description": ""
+      }
+    ],
+    "autoZoomToSource": "sourceA"
   }
 }

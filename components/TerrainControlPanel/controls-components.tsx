@@ -108,11 +108,11 @@ export const Section: React.FC<{
     <>
       <Collapsible open={isOpen} onOpenChange={onOpenChange}>
         <CollapsibleTrigger className={cn(
-          "flex items-center justify-between w-full py-1 text-base font-medium cursor-pointer transition-opacity duration-150",
+          "flex items-center justify-between w-full py-1 text-base font-medium text-left cursor-pointer transition-opacity duration-150",
           dim && "opacity-20"
         )}>
-          {title}
-          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+          <span className="text-left">{title}</span>
+          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </CollapsibleTrigger>
         <SectionIdContext.Provider value={autoId}>
           <CollapsibleContent className={cn(

@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
-  maxResolutionAtom, useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom
+  maxResolutionAtom, useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
+  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
 } from "@/lib/settings-atoms"
 import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
@@ -34,6 +35,45 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [isTransparentUi, setTransparentUi] = useAtom(transparentUiAtom)
   const [highResTerrain, setHighResTerrain] = useAtom(highResTerrainAtom)
+  const [useClientExport, setUseClientExport] = useAtom(useClientExportAtom)
+  const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
+  const [projectId, setProjectId] = useState("")
+  const [projectName, setProjectName] = useState("")
+  const [projectCopied, setProjectCopied] = useState(false)
+
+  // Excluded from initialState: `project` itself (avoid self-reference) and
+  // terrainUrl/basemapUrl (the *other* embed mechanism — redundant/conflicting
+  // with a project preset, which seeds full custom-source objects instead).
+  const EXCLUDED_STATE_KEYS = ["project", "terrainUrl", "basemapUrl"]
+
+  const handleCopyProjectJson = useCallback(() => {
+    const initialState: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(state)) {
+      if (!EXCLUDED_STATE_KEYS.includes(key)) initialState[key] = value
+    }
+
+    // Any referenced source that isn't a builtin needs to travel WITH the preset —
+    // a fresh visitor's browser has never seen it, so pull it out of the current
+    // customTerrainSources/customBasemapSources lists by id.
+    const referencedTerrainIds = [state.sourceA, state.sourceB].filter(Boolean)
+    const referencedBasemapIds = [state.basemapSource, state.basemapSourceA, state.basemapSourceB, ...(state.overlayBasemapIds || [])].filter(Boolean)
+    const usedTerrainSources = customTerrainSources.filter((s) => referencedTerrainIds.includes(s.id))
+    const usedBasemapSources = customBasemapSources.filter((s) => referencedBasemapIds.includes(s.id))
+
+    const config: Record<string, unknown> = {
+      id: projectId || "my-project",
+      name: projectName || "My Project",
+      initialState,
+    }
+    if (usedTerrainSources.length) config.customTerrainSources = usedTerrainSources
+    if (usedBasemapSources.length) config.customBasemapSources = usedBasemapSources
+
+    const snippet = JSON.stringify({ [projectId || "my-project"]: config }, null, 2)
+    navigator.clipboard.writeText(snippet)
+    setProjectCopied(true)
+    setTimeout(() => setProjectCopied(false), 2000)
+  }, [state, projectId, projectName, customTerrainSources, customBasemapSources])
 
   const handleBatchToggle = useCallback(() => {
     if (!batchEditMode) {
@@ -185,6 +225,21 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               </p>
             </div>
 
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="use-client-export">DTM Export without Titiler</Label>
+                <span className="text-xs text-muted-foreground">
+                  Browser range-reads and mosaics tiles/COGs directly, bypassing Titiler's server-side size limit
+                </span>
+              </div>
+              <Switch
+                id="use-client-export"
+                checked={useClientExport}
+                className="cursor-pointer"
+                onCheckedChange={setUseClientExport}
+              />
+            </div>
+
             {useCogProtocolVsTitiler && (
               <div className="flex items-center justify-between pt-2">
                 <div className="flex flex-col gap-1">
@@ -224,6 +279,38 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </div>
           </div>
           <Separator />
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Smart Bounds Zoom</h3>
+            <p className="text-xs text-muted-foreground">
+              Clicking a source's name (Terrain Source / Basemap Source lists) only flies to its
+              bounds when they're fully inside the current viewport or fully disjoint from it — a
+              world-covering basemap or a partially-overlapping COG preserves your camera viewport
+              instead of yanking your context away.
+            </p>
+          </div>
+          <Separator />
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold">Save Project Preset</h3>
+            <p className="text-xs text-muted-foreground">
+              Copies the current view/sources/viz settings as a project-preset JSON snippet you can
+              paste into lib/projects.json (as a new top-level key) to make it loadable via
+              <code className="mx-1 bg-muted px-1 rounded">?project=your-id</code>.
+            </p>
+            <div className="flex gap-2">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="project-id">Project ID</Label>
+                <Input id="project-id" type="text" placeholder="my-project" value={projectId} onChange={(e) => setProjectId(e.target.value)} className="cursor-text" />
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="project-name">Project Name</Label>
+                <Input id="project-name" type="text" placeholder="My Project" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="cursor-text" />
+              </div>
+            </div>
+            <Button onClick={handleCopyProjectJson} className="cursor-pointer w-full" variant="outline">
+              {projectCopied ? "Copied!" : "Copy Project JSON"}
+            </Button>
+          </div>
+          <Separator />
           <div className="space-y-3">
 
             <div className="space-y-3">
@@ -252,10 +339,10 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   <span>Color-ramps (Topo, topobath etc) distributed from cpt2js Package</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
                 </a>
                 <a href="https://rfspace.com/RFSPACE/SpectraFlux/colormaps/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>RFSpace/SpectraFlux Colormaps — mostly a wrapper around Peter Kovesi&apos;s perceptually-uniform CET collection (CC BY 4.0), matplotlib (CC0) and SDR-community ramps; our CET/SDR tabs above source them directly. Attribute the original author when reusing in published work.</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                  <span>RFSpace/SpectraFlux Colormaps — mostly a wrapper around Kovesi&apos;s CET, matplotlib and SDR community ramps</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
                 </a>
                 <a href="https://colorcet.com/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>CET — Peter Kovesi&apos;s perceptually-uniform colormaps, source of our CET tab</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                  <span>CET — Peter Kovesi&apos;s perceptually-uniform colormaps</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
                 </a>
               </div>
             </div>

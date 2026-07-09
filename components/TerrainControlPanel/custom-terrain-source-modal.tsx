@@ -74,12 +74,12 @@ export const CustomTerrainSourceModal: React.FC<{
               <SelectTrigger id="source-type" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="cog">COG (Cloud Optimized GeoTIFF)</SelectItem>
-                <SelectItem value="terrainrgb">TMS (TerrainRGB)</SelectItem>
                 <SelectItem value="terrarium">TMS (Terrarium)</SelectItem>
-                <SelectItem value="vrt">VRT</SelectItem>
+                <SelectItem value="terrainrgb">TMS (TerrainRGB)</SelectItem>
+                {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
                 <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
                 <SelectItem value="tilejson">TileJSON</SelectItem>
-                {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
+                <SelectItem value="vrt">VRT</SelectItem>
               </SelectContent>
             </Select>
           </div>

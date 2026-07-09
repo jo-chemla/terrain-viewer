@@ -292,3 +292,12 @@
 .maplibregl-ctrl .minimap-ui button:focus {
   background-color: var(--background) !important;
 }
+
+/* Elevation Picker: !important beats maplibre's own inline cursor changes
+   (its drag-pan handler continuously re-sets the canvas cursor to grab/grabbing
+   during interaction, which would otherwise stomp a plain inline style set once
+   on toggle — see ElevationPickerSection.tsx). */
+.elevation-picker-active .maplibregl-canvas-container,
+.elevation-picker-active .maplibregl-canvas {
+  cursor: crosshair !important;
+}

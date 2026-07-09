@@ -133,6 +133,29 @@
             "url": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/DuraEuropos_Synagogue_2mm_RGB_mosaic.cog.tiff",
             "type": "cog",
             "description": ""
+        },
+        {
+            "id": "stadia-stamen-watercolor",
+            "name": "Stadia Maps - Stamen Watercolor",
+            "url": "https://tiles.stadiamaps.com/styles/stamen_watercolor/rendered.json",
+            "type": "tilejson",
+            "description": "Stamen's hand-painted watercolor style, served by Stadia Maps as a rendered raster TileJSON"
+        },
+        {
+            "id": "waymarked-trails-hiking",
+            "name": "Waymarked Trails - Hiking",
+            "url": "https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png",
+            "type": "tms",
+            "role": "overlay",
+            "description": "Hiking route overlay from waymarkedtrails.org, meant to stack on top of another basemap"
+        },
+        {
+            "id": "openweathermap-radar",
+            "name": "OpenWeatherMap - Precipitation Radar",
+            "url": "https://openweathermap.org/api/proxy/maps/2.0/radar/{z}/{x}/{y}?date=1783603800",
+            "type": "tms",
+            "role": "overlay",
+            "description": "CORS-open, no API key needed via this proxy endpoint — but the ?date= param is a fixed radar-frame timestamp captured at add-time, so this will show an increasingly stale frame; re-grab a fresh `date` value from openweathermap.org/weathermap periodically"
         }
     ]
 }

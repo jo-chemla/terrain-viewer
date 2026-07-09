@@ -2,7 +2,7 @@ import type React from "react"
 import { useState, useMemo, useCallback, useEffect, useRef  } from "react"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
+import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -17,7 +17,7 @@ import { DownloadSection } from "./download-section"
 import { VisualizationModesSection } from "./visualization-modes-section"
 import { HillshadeOptionsSection } from "./hillshade-options-section"
 import { HypsometricTintOptionsSection } from "./hypsometric-tint-options-section"
-import { SlopeOptionsSection } from "./slope-options-section"
+import { SlopeAndMoreOptionsSection } from "./slope-and-more-section"
 import { RasterBasemapSection } from "./raster-basemap-section"
 import { ContourOptionsSection } from "./contour-options-section"
 import { BackgroundOptionsSection } from "./background-options-section"
@@ -26,6 +26,7 @@ import { TooltipIconButton } from "./controls-components"
 
 import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
 import {AnimationSection} from "./CameraUtilities"
+import { ElevationPickerSection } from "./ElevationPickerSection"
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from "@/lib/utils"
 
@@ -39,11 +40,12 @@ const SECTION_KEYS = [
   "visualizationModes",
   "hillshade",
   "hypsometricTint",
-  "slope",
+  "slopeAndMore",
   "rasterBasemap",
   "contour",
   "background",
   "drawing",
+  "elevationPicker",
   "animation"
 ] as const
 
@@ -57,11 +59,12 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   terrainSource: false,
   hillshade: false,
   hypsometricTint: false,
-  slope: false,
+  slopeAndMore: false,
   rasterBasemap: false,
   contour: false,
   background: false,
   drawing: false,
+  elevationPicker: false,
   animation: false,
 }
 
@@ -124,6 +127,25 @@ export function TerrainControlPanel({
   const handleFoldExpandAll = () => {
     const next = allFolded
     setSectionOpen(Object.fromEntries(SECTION_KEYS.map((k) => [k, next])) as SectionOpenState)
+  }
+
+  // With a project active, clears every other URL param back to default —
+  // `project` stays sticky so there's always somewhere to "go home" to (see
+  // lib/project-config.ts). Without one, a bare param reset would fall back to
+  // the app's hardcoded Mont Blanc default view, which isn't "home" in any
+  // meaningful sense — so zoom out to the whole world instead. A full navigation
+  // rather than a nuqs setState: simpler than enumerating every param's default,
+  // and correctly leaves jotai-persisted settings (API keys, custom sources, etc.)
+  // untouched since those live in localStorage, not the URL.
+  const handleGoHome = () => {
+    const params = new URLSearchParams(window.location.search)
+    const project = params.get("project")
+    if (project) {
+      window.location.href = `${window.location.pathname}?project=${encodeURIComponent(project)}`
+    } else {
+      const worldView = new URLSearchParams({ lat: "20", lng: "0", zoom: "1", pitch: "0", bearing: "0" })
+      window.location.href = `${window.location.pathname}?${worldView.toString()}`
+    }
   }
 
   const toggle = (key: SectionKey) => (open: boolean) =>
@@ -207,12 +229,17 @@ export function TerrainControlPanel({
           "sticky top-0 z-10 flex items-center justify-between -mx-4 px-4 -mt-4 pt-4 pb-3 border-b backdrop-blur-[2px] mb-6",
           transparentUi && activeSlider ? "bg-background/20" : "bg-background/95"
         )}>
-          <h2 className="text-xl font-semibold">Terrain Viewer</h2>
+          <h2 className="text-xl font-semibold">{activeProjectConfig?.name || "Terrain Viewer"}</h2>
           <div className="flex gap-1 items-center">
             <TooltipIconButton
               icon={allFolded ? ChevronsUpDown : ChevronsDownUp}
               tooltip={allFolded ? "Expand all sections" : "Fold all sections"}
               onClick={handleFoldExpandAll}
+            />
+            <TooltipIconButton
+              icon={Home}
+              tooltip="Home"
+              onClick={handleGoHome}
             />
             <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState}/>
             <TooltipIconButton
@@ -235,9 +262,10 @@ export function TerrainControlPanel({
         <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
         <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
         <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
-        <SlopeOptionsSection state={state} setState={setState} isOpen={sectionOpen.slope} onOpenChange={toggle("slope")} />
+        <SlopeAndMoreOptionsSection state={state} setState={setState} isOpen={sectionOpen.slopeAndMore} onOpenChange={toggle("slopeAndMore")} />
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
         <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
+        <ElevationPickerSection state={state} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
         <AnimationSection
           mapRef={mapRef}
           isOpen={sectionOpen.animation}

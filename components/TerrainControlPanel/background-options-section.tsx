@@ -16,22 +16,11 @@ export const BackgroundOptionsSection: React.FC<{
 
   if (!state.showBackground) return null
 
+  // Only flips the flag — never overwrites skyColor/horizonColor/fogColor, so the
+  // user's custom colors survive a toggle-on-then-off round trip. TerrainViewer.tsx's
+  // getSkyConfig() resolves the actual applied color (theme vs. custom) at render time.
   const handleMatchThemeToggle = (checked: boolean | string) => {
-    if (checked === true) {
-      const themeColor = theme === 'light' ? '#ffffff' : '#000000'
-      setSkyConfig({
-        ...skyConfig,
-        matchThemeColors: true,
-        skyColor: themeColor,
-        horizonColor: themeColor,
-        fogColor: themeColor
-      })
-    } else {
-      setSkyConfig({
-        ...skyConfig,
-        matchThemeColors: false
-      })
-    }
+    setSkyConfig({ ...skyConfig, matchThemeColors: checked === true })
   }
 
   return (

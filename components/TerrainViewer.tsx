@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral } from "nuqs"
+import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral, parseAsArrayOf } from "nuqs"
 import Map, {
   NavigationControl,
   GeolocateControl,
@@ -26,18 +26,25 @@ import { MinimapControl } from "./MapControls/MinimapControl";
 import { useIsMobile } from '@/hooks/use-mobile'
 
 import maplibregl from 'maplibre-gl'
-import { cogProtocol } from '@geomatico/maplibre-cog-protocol'
+import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
 import { slopeProtocol } from '@/lib/slope-protocol'
+import { aspectProtocol } from '@/lib/aspect-protocol'
+import { triProtocol } from '@/lib/tri-protocol'
+import { curvatureProtocol } from '@/lib/curvature-protocol'
 
-import { TerrainSources, RasterBasemapSource, SlopeSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource } from "./LayersAndSources/MapSources"
 import {
   LayerOrderSlots,
   RasterLayer,
+  OverlayBasemapLayers,
   BackgroundLayer,
   HillshadeLayer,
   ColorReliefLayer,
   SlopeReliefLayer,
+  AspectReliefLayer,
+  TriReliefLayer,
+  CurvatureReliefLayer,
   LAYER_SLOTS,
   computeHillshadePaint,
   computeColorReliefPaint,
@@ -89,22 +96,53 @@ export function TerrainViewer() {
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
     basemapSource: parseAsString.withDefault("esri"), // can have custom id in addition to @/lib/terrain-sources
-    basemapPerView: parseAsBoolean.withDefault(false),
+    basemapPerView: parseAsBoolean.withDefault(true),
     basemapSourceA: parseAsString.withDefault("esri"),
     basemapSourceB: parseAsString.withDefault("google"),
+    // 'overlay'-role custom basemap sources currently stacked on top of the active
+    // basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B,
+    // only meaningful in split-or-radio basemap mode (basemapPerView).
+    overlayBasemapIds: parseAsArrayOf(parseAsString).withDefault([]),
     // colorRamp: parseAsString.withDefault("mby"),
     colorRamp: parseAsStringLiteral(COLOR_RAMP_IDS).withDefault("mby"),
     showHillshade: parseAsBoolean.withDefault(true),
     hillshadeOpacity: parseAsFloat.withDefault(1.0),
     showColorRelief: parseAsBoolean.withDefault(false),
     colorReliefOpacity: parseAsFloat.withDefault(0.35),
-    showSlope: parseAsBoolean.withDefault(false),
+    // Master toggle for the merged "Slope and More" viz mode (see
+    // slope-and-more-section.tsx) — mirrors showContoursAndGraticules. Slope is the
+    // only sub-mode on by default; aspect/TRI/curvature default off, matching the
+    // old standalone-Slope-toggle behavior the first time this is turned on.
+    showSlopeAndMore: parseAsBoolean.withDefault(false),
+    // Master opacity for the whole "Slope and More" viz mode — composites (multiplies)
+    // with each sub-mode's own opacity below, rather than replacing it.
+    slopeAndMoreOpacity: parseAsFloat.withDefault(1.0),
+    showSlope: parseAsBoolean.withDefault(true),
     slopeOpacity: parseAsFloat.withDefault(1.0),
     slopeColorRamp: parseAsString.withDefault("slope-plantopo"),
     slopeSourceMode: parseAsStringLiteral(SLOPE_SOURCE_MODES).withDefault("client"),
     slopeMinDegrees: parseAsFloat.withDefault(0),
     slopeMaxDegrees: parseAsFloat.withDefault(55),
     slopeInvertColorRamp: parseAsBoolean.withDefault(false),
+    showAspect: parseAsBoolean.withDefault(false),
+    aspectOpacity: parseAsFloat.withDefault(1.0),
+    aspectColorRamp: parseAsString.withDefault("aspect-compass"),
+    aspectMinDegrees: parseAsFloat.withDefault(0),
+    aspectMaxDegrees: parseAsFloat.withDefault(360),
+    aspectInvertColorRamp: parseAsBoolean.withDefault(false),
+    showTri: parseAsBoolean.withDefault(false),
+    triOpacity: parseAsFloat.withDefault(1.0),
+    triColorRamp: parseAsString.withDefault("tri-default"),
+    triMin: parseAsFloat.withDefault(0),
+    triMax: parseAsFloat.withDefault(50),
+    triInvertColorRamp: parseAsBoolean.withDefault(false),
+    showCurvature: parseAsBoolean.withDefault(false),
+    curvatureOpacity: parseAsFloat.withDefault(1.0),
+    curvatureColorRamp: parseAsString.withDefault("curvature-diverging"),
+    curvatureMin: parseAsFloat.withDefault(-20),
+    curvatureMax: parseAsFloat.withDefault(20),
+    curvatureInvertColorRamp: parseAsBoolean.withDefault(false),
+    curvatureSymmetric: parseAsBoolean.withDefault(true),
     showContoursAndGraticules: parseAsBoolean.withDefault(false),
     showContours: parseAsBoolean.withDefault(true),
     showContourLabels: parseAsBoolean.withDefault(true),
@@ -182,17 +220,55 @@ export function TerrainViewer() {
   // color-relief layer doesn't care whether "elevation" means meters or slope degrees —
   // just fed its own (differently-named) state fields, always remapped to its own min/max
   // range since a 0-8000m elevation ramp's stops would be meaningless applied verbatim to
-  // a 0-55° slope domain.
+  // a 0-55° slope domain. Opacity composites (multiplies) with the "Slope and More"
+  // master opacity rather than replacing it — see VisualizationModesSection.
   const slopeReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.slopeColorRamp,
       customHypsoMinMax: true,
       minElevation: state.slopeMinDegrees,
       maxElevation: state.slopeMaxDegrees,
-      colorReliefOpacity: state.slopeOpacity,
+      colorReliefOpacity: state.slopeOpacity * state.slopeAndMoreOpacity,
       invertColorRamp: state.slopeInvertColorRamp,
     }),
-    [ state.slopeColorRamp, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.slopeInvertColorRamp ]
+    [ state.slopeColorRamp, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.slopeAndMoreOpacity, state.slopeInvertColorRamp ]
+  )
+
+  // Aspect/TRI/curvature: same trick as slope above, just with their own state fields.
+  const aspectReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.aspectColorRamp,
+      customHypsoMinMax: true,
+      minElevation: state.aspectMinDegrees,
+      maxElevation: state.aspectMaxDegrees,
+      colorReliefOpacity: state.aspectOpacity * state.slopeAndMoreOpacity,
+      invertColorRamp: state.aspectInvertColorRamp,
+    }),
+    [ state.aspectColorRamp, state.aspectMinDegrees, state.aspectMaxDegrees, state.aspectOpacity, state.slopeAndMoreOpacity, state.aspectInvertColorRamp ]
+  )
+
+  const triReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.triColorRamp,
+      customHypsoMinMax: true,
+      minElevation: state.triMin,
+      maxElevation: state.triMax,
+      colorReliefOpacity: state.triOpacity * state.slopeAndMoreOpacity,
+      invertColorRamp: state.triInvertColorRamp,
+    }),
+    [ state.triColorRamp, state.triMin, state.triMax, state.triOpacity, state.slopeAndMoreOpacity, state.triInvertColorRamp ]
+  )
+
+  const curvatureReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.curvatureColorRamp,
+      customHypsoMinMax: true,
+      minElevation: state.curvatureMin,
+      maxElevation: state.curvatureMax,
+      colorReliefOpacity: state.curvatureOpacity * state.slopeAndMoreOpacity,
+      invertColorRamp: state.curvatureInvertColorRamp,
+    }),
+    [ state.curvatureColorRamp, state.curvatureMin, state.curvatureMax, state.curvatureOpacity, state.slopeAndMoreOpacity, state.curvatureInvertColorRamp ]
   )
 
   // Check MapLibre availability
@@ -205,6 +281,9 @@ export function TerrainViewer() {
     maplibregl.addProtocol('cog', cogProtocol)
     maplibregl.addProtocol('float32dem', float32demProtocol)
     maplibregl.addProtocol('slope', slopeProtocol)
+    maplibregl.addProtocol('aspect', aspectProtocol)
+    maplibregl.addProtocol('tri', triProtocol)
+    maplibregl.addProtocol('curvature', curvatureProtocol)
   }, [])
 
   // Applies a `?project=` preset (lib/projects.json) and/or terrainUrl/basemapUrl
@@ -248,10 +327,51 @@ export function TerrainViewer() {
       if (!searchParams.has("basemapSource")) stateOverrides.basemapSource = embedId
     }
 
+    // Seed any custom sources this project depends on (merge by id — same
+    // semantics as the "Load Sample" buttons) so referencing them in initialState
+    // (e.g. sourceA: "dura-w-05mm") works even for a visitor whose browser has
+    // never seen them before.
+    if (projectConfig?.customTerrainSources?.length) {
+      const ids = new Set(projectConfig.customTerrainSources.map((s) => s.id))
+      setCustomTerrainSources((prev) => [...prev.filter((s) => !ids.has(s.id)), ...projectConfig.customTerrainSources!])
+    }
+    if (projectConfig?.customBasemapSources?.length) {
+      const ids = new Set(projectConfig.customBasemapSources.map((s) => s.id))
+      setCustomBasemapSources((prev) => [...prev.filter((s) => !ids.has(s.id)), ...projectConfig.customBasemapSources!])
+    }
+
     if (Object.keys(stateOverrides).length > 0) setState(stateOverrides)
 
     if (projectConfig?.initialSections) {
       setSectionOpen((prev) => ({ ...prev, ...projectConfig.initialSections }))
+    }
+
+    if (projectConfig?.initialBounds) {
+      const [west, south, east, north] = projectConfig.initialBounds
+      const flyToBounds = () => mapARef.current?.fitBounds([[west, south], [east, north]], { padding: 50, duration: 0 })
+      const map = mapARef.current?.getMap()
+      if (map?.isStyleLoaded()) flyToBounds()
+      else map?.once("load", flyToBounds)
+    }
+
+    // Reads the actual bbox out of the COG rather than a hardcoded literal — needed
+    // for "fakegeo" COGs (see project-config.ts) whose embedded bounds are an
+    // arbitrary synthetic anchor, not real-world coordinates, so no hardcoded
+    // initialBounds could be correct ahead of time.
+    if (projectConfig?.autoZoomToSource) {
+      const key = projectConfig.autoZoomToSource
+      const sourceId = (stateOverrides[key] as string | undefined) ?? state[key]
+      const pool = key === "sourceA" ? projectConfig.customTerrainSources : projectConfig.customBasemapSources
+      const source = pool?.find((s) => s.id === sourceId)
+      if (source?.type === "cog") {
+        getCogMetadata(source.url).then((metadata: any) => {
+          const bbox = metadata.bbox
+          if (bbox && mapARef.current) {
+            const [west, south, east, north] = bbox
+            mapARef.current.fitBounds([[west, south], [east, north]], { padding: 50, duration: 0 })
+          }
+        }).catch((err: unknown) => console.error("Failed to auto-zoom to project source bounds:", err))
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -364,12 +484,16 @@ export function TerrainViewer() {
   
   // const effectiveGraticuleColor = state.graticuleColor ?? themeColor
 
+  // matchThemeColors only overrides the *applied* color here — the atom's
+  // skyColor/horizonColor/fogColor always keep the user's last custom picks, so
+  // toggling this off restores them instead of losing them (see
+  // background-options-section.tsx's handleMatchThemeToggle).
   const getSkyConfig = () => ({
-    'sky-color': skyConfig.skyColor,
+    'sky-color': skyConfig.matchThemeColors ? themeColor : skyConfig.skyColor,
     'sky-horizon-blend': skyConfig.skyHorizonBlend,
-    'horizon-color': skyConfig.horizonColor,
+    'horizon-color': skyConfig.matchThemeColors ? themeColor : skyConfig.horizonColor,
     'horizon-fog-blend': skyConfig.horizonFogBlend,
-    'fog-color': skyConfig.fogColor,
+    'fog-color': skyConfig.matchThemeColors ? themeColor : skyConfig.fogColor,
     'fog-ground-blend': skyConfig.fogGroundBlend,
   })
 
@@ -643,9 +767,42 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
             onZoomRangeChange={isPrimary ? setZoomRangeBasemap : undefined}
           />
+          {state.basemapPerView && state.showRasterBasemap && (
+            <OverlayBasemapSources
+              overlayIds={state.overlayBasemapIds}
+              customBasemapSources={customBasemapSources}
+              titilerEndpoint={titilerEndpoint}
+            />
+          )}
+          {/* Mounted whenever the "Slope and More" master is on — regardless of which
+              specific sub-mode checkbox is checked — so toggling an individual
+              sub-mode off and back on doesn't tear down maplibre's tile cache for it.
+              SlopeReliefLayer etc (below) control per-mode visibility via
+              layout.visibility instead of unmounting, for the same reason. */}
           <SlopeSource
-            enabled={state.showSlope}
+            enabled={state.showSlopeAndMore}
             sourceMode={state.slopeSourceMode}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+          />
+          <AspectSource
+            enabled={state.showSlopeAndMore}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+          />
+          <TriSource
+            enabled={state.showSlopeAndMore}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+          />
+          <CurvatureSource
+            enabled={state.showSlopeAndMore}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -662,11 +819,15 @@ export function TerrainViewer() {
             showRasterBasemap={state.showRasterBasemap}
             rasterBasemapOpacity={state.rasterBasemapOpacity}
           />
+          {state.basemapPerView && state.showRasterBasemap && <OverlayBasemapLayers overlayIds={state.overlayBasemapIds} />}
           <ColorReliefLayer
             showColorRelief={state.showColorRelief}
             colorReliefPaint={colorReliefPaint}
           />
-          <SlopeReliefLayer showSlope={state.showSlope} slopeReliefPaint={slopeReliefPaint} />
+          <SlopeReliefLayer showSlopeAndMore={state.showSlopeAndMore} showSlope={state.showSlope} slopeReliefPaint={slopeReliefPaint} />
+          <AspectReliefLayer showSlopeAndMore={state.showSlopeAndMore} showAspect={state.showAspect} aspectReliefPaint={aspectReliefPaint} />
+          <TriReliefLayer showSlopeAndMore={state.showSlopeAndMore} showTri={state.showTri} triReliefPaint={triReliefPaint} />
+          <CurvatureReliefLayer showSlopeAndMore={state.showSlopeAndMore} showCurvature={state.showCurvature} curvatureReliefPaint={curvatureReliefPaint} />
           <HillshadeLayer
             showHillshade={state.showHillshade}
             hillshadePaint={hillshadePaint}
@@ -709,7 +870,19 @@ export function TerrainViewer() {
               <GeocoderControl
                 position="top-left"
                 placeholder="Search and press Enter"
-                marker={false}
+                // A small dot instead of maplibre-gl-geocoder's default big pin,
+                // matching the Elevation Picker's point markers for visual consistency.
+                marker={{
+                  children: (
+                    <div
+                      style={{
+                        width: 14, height: 14, borderRadius: "50%",
+                        border: "2px solid white", boxShadow: "0 0 4px rgba(0,0,0,0.6)",
+                        background: "#3b82f6",
+                      }}
+                    />
+                  ),
+                }}
                 showResultsWhileTyping={true}
                 zoom={14}
                 flyTo={{ speed: 5 }}
@@ -791,17 +964,20 @@ export function TerrainViewer() {
     },
     [
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
-      state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB,
+      state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB, state.overlayBasemapIds,
       state.showRasterBasemap, state.rasterBasemapOpacity, state.showHillshade,
-      state.showColorRelief, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
+      state.showColorRelief, state.showSlopeAndMore, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
+      state.showAspect, state.showTri, state.showCurvature,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor,
       activeBasemapSourceA, activeBasemapSourceB,
-      hillshadePaint, colorReliefPaint, slopeReliefPaint,
+      hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,
-      skyConfig.backgroundLayerActive,
+      skyConfig.skyColor, skyConfig.skyHorizonBlend, skyConfig.horizonColor, skyConfig.horizonFogBlend,
+      skyConfig.fogColor, skyConfig.fogGroundBlend, skyConfig.matchThemeColors, skyConfig.backgroundLayerActive,
+      themeColor,
       effectiveMinZoom, effectiveMaxZoom, setZoomRangeBasemap
     ],
   )

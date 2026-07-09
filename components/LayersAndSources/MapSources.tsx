@@ -9,6 +9,9 @@ import { setColorFunction, getCogMetadata, type CogMetadata } from '@geomatico/m
 import { elevationToTerrainrgb, elevationToTerrarium } from "@/lib/elevation-encoding"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
+import { buildAspectProtocolUrl } from "@/lib/aspect-protocol"
+import { buildTriProtocolUrl } from "@/lib/tri-protocol"
+import { buildCurvatureProtocolUrl } from "@/lib/curvature-protocol"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -249,6 +252,50 @@ export const RasterBasemapSource = memo(({
 RasterBasemapSource.displayName = "RasterBasemapSource"
 
 // -------------------------
+// OverlayBasemapSources — 'overlay'-role custom basemap sources (see raster-basemap-
+// section.tsx / basemap-byod-section.tsx), stacked on top of the active basemap
+// instead of replacing it. Multiple can be active at once, unlike the single
+// primary basemap above, so this renders one <Source> per selected id.
+// -------------------------
+
+export const OverlayBasemapSources = memo(({
+    overlayIds, customBasemapSources, titilerEndpoint,
+}: {
+    overlayIds: string[]
+    customBasemapSources: any[]
+    titilerEndpoint: string
+}) => {
+    const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
+
+    return (
+        <>
+            {overlayIds.map((id) => {
+                const source = customBasemapSources.find((s) => s.id === id)
+                if (!source) return null
+                const sourceProps = buildRasterTileSource({
+                    url: source.url,
+                    type: source.type,
+                    useCogProtocol,
+                    titilerEndpoint,
+                    scheme: source.scheme,
+                })
+                return (
+                    <Source
+                        key={`overlay-${id}`}
+                        id={`overlay-basemap-source-${id}`}
+                        type="raster"
+                        tileSize={256}
+                        maxzoom={19}
+                        {...sourceProps}
+                    />
+                )
+            })}
+        </>
+    )
+})
+OverlayBasemapSources.displayName = "OverlayBasemapSources"
+
+// -------------------------
 // SlopeSource — PlanTopo slope-angle overlay, or a client-computed equivalent
 // -------------------------
 //
@@ -332,3 +379,74 @@ export const SlopeSource = memo(({
     )
 })
 SlopeSource.displayName = "SlopeSource"
+
+// ─── Aspect / TRI / Curvature sources ──────────────────────────────────────────
+//
+// Unlike slope, these have no PlanTopo-style server fallback — they're
+// client-protocol-only, so when the active terrain source isn't a plain
+// terrarium/terrainrgb TMS (built-in or custom) this simply renders nothing (see
+// AspectOptionsSection/TriOptionsSection/CurvatureOptionsSection, which don't
+// offer a source-mode toggle for the same reason). Shares the client-upstream
+// resolution logic SlopeSource above uses, parameterized by which `{scheme}://`
+// protocol builds the tile URL.
+const useClientUpstream = (terrainSource: TerrainSource | string, customTerrainSources: CustomTerrainSource[], mapboxKey: string, maptilerKey: string) =>
+    useMemo(() => {
+        const customSource = customTerrainSources.find((s) => s.id === terrainSource)
+        if (customSource) {
+            if (customSource.type !== "terrarium" && customSource.type !== "terrainrgb") return null
+            return {
+                template: customSource.url,
+                encoding: customSource.type === "terrarium" ? "terrarium" as const : "mapbox" as const,
+                tileSize: 256,
+            }
+        }
+        const builtin = (terrainSources as any)[terrainSource as TerrainSource]
+        if (!builtin || builtin.encoding === "3dtiles") return null
+        return {
+            template: builtinTileUrl(terrainSource as TerrainSource, mapboxKey, maptilerKey),
+            encoding: builtin.sourceConfig.encoding === "terrarium" ? "terrarium" as const : "mapbox" as const,
+            tileSize: builtin.sourceConfig.tileSize,
+        }
+    }, [terrainSource, customTerrainSources, mapboxKey, maptilerKey])
+
+interface NormalDerivedSourceProps {
+    enabled: boolean
+    sourceId: string
+    terrainSource: TerrainSource | string
+    customTerrainSources: CustomTerrainSource[]
+    mapboxKey: string
+    maptilerKey: string
+    buildUrl: (template: string, encoding: "terrarium" | "mapbox", tileSize: number) => string
+}
+
+const NormalDerivedSource = memo(({ enabled, sourceId, terrainSource, customTerrainSources, mapboxKey, maptilerKey, buildUrl }: NormalDerivedSourceProps) => {
+    const clientUpstream = useClientUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey)
+    if (!enabled || !clientUpstream) return null
+    const url = buildUrl(clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize)
+    return (
+        <Source
+            id={sourceId}
+            key={`${sourceId}-${terrainSource}`}
+            type="raster-dem"
+            tiles={[url]}
+            tileSize={clientUpstream.tileSize}
+            encoding="mapbox"
+        />
+    )
+})
+NormalDerivedSource.displayName = "NormalDerivedSource"
+
+export const AspectSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
+    <NormalDerivedSource {...props} sourceId="aspectSource" buildUrl={buildAspectProtocolUrl} />
+))
+AspectSource.displayName = "AspectSource"
+
+export const TriSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
+    <NormalDerivedSource {...props} sourceId="triSource" buildUrl={buildTriProtocolUrl} />
+))
+TriSource.displayName = "TriSource"
+
+export const CurvatureSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
+    <NormalDerivedSource {...props} sourceId="curvatureSource" buildUrl={buildCurvatureProtocolUrl} />
+))
+CurvatureSource.displayName = "CurvatureSource"

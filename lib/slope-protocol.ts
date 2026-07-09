@@ -1,4 +1,5 @@
 import { elevationToTerrainrgb } from "./elevation-encoding"
+import { sharedTileCache, fetchDecodedTile as fetchDecodedTileShared } from "./normal-derived-protocol"
 
 // Client-side slope-angle tile computation, registered as the `slope://` maplibre
 // custom protocol — a from-scratch equivalent of PlanTopo's server-side slope-server
@@ -36,65 +37,17 @@ export function buildSlopeProtocolUrl(upstreamTileTemplate: string, encoding: "t
 }
 
 // -------------------------
-// Decoded-tile LRU cache
+// Decoded-tile cache — shared with aspect/tri/curvature-protocol.ts (see
+// lib/normal-derived-protocol.ts): when more than one of these is active at once
+// they're all decoding the exact same upstream tiles, so sharing the cache means
+// the expensive fetch+decode step happens once per tile no matter how many
+// derived layers are turned on.
 // -------------------------
 
 type DecodedTile = { data: Float32Array; width: number; height: number }
 
-const TILE_CACHE_MAX = 200
-const tileCache = new Map<string, Promise<DecodedTile | null>>()
-
-function cacheGet(key: string): Promise<DecodedTile | null> | undefined {
-  const value = tileCache.get(key)
-  if (value) {
-    // Refresh recency: Map iteration order is insertion order, so re-inserting
-    // moves this key to the "most recently used" end.
-    tileCache.delete(key)
-    tileCache.set(key, value)
-  }
-  return value
-}
-
-function cacheSet(key: string, value: Promise<DecodedTile | null>) {
-  if (tileCache.size >= TILE_CACHE_MAX) {
-    const oldestKey = tileCache.keys().next().value
-    if (oldestKey !== undefined) tileCache.delete(oldestKey)
-  }
-  tileCache.set(key, value)
-}
-
-async function fetchDecodedTile(url: string, encoding: "terrarium" | "mapbox", signal: AbortSignal): Promise<DecodedTile | null> {
-  const cached = cacheGet(url)
-  if (cached) return cached
-
-  const promise = (async (): Promise<DecodedTile | null> => {
-    try {
-      const response = await fetch(url, { signal })
-      if (!response.ok) return null
-      const blob = await response.blob()
-      const bitmap = await createImageBitmap(blob)
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-      const ctx = canvas.getContext("2d")!
-      ctx.drawImage(bitmap, 0, 0)
-      const { data, width, height } = ctx.getImageData(0, 0, bitmap.width, bitmap.height)
-
-      const elevations = new Float32Array(width * height)
-      for (let i = 0; i < width * height; i++) {
-        const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2]
-        elevations[i] = encoding === "terrarium"
-          ? (r * 256 + g + b / 256) - 32768
-          : -10000 + (r * 256 * 256 + g * 256 + b) * 0.1
-      }
-      return { data: elevations, width, height }
-    } catch {
-      return null
-    }
-  })()
-
-  cacheSet(url, promise)
-  // Don't let a transient failure poison the cache forever.
-  promise.then((result) => { if (!result) tileCache.delete(url) })
-  return promise
+function fetchDecodedTile(url: string, encoding: "terrarium" | "mapbox", signal: AbortSignal): Promise<DecodedTile | null> {
+  return fetchDecodedTileShared(sharedTileCache, url, encoding, signal)
 }
 
 // -------------------------

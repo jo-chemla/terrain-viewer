@@ -17,7 +17,7 @@ import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import type { MapRef } from "react-map-gl/maplibre"
 import saveAs from "file-saver"
 import { Section } from "./controls-components"
-import { type Bounds, templateLink } from "@/lib/controls-utils"
+import { type Bounds, templateLink, shouldZoomToBounds } from "@/lib/controls-utils"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
@@ -64,16 +64,33 @@ export const TerrainSourceSection: React.FC<{
     if (state.sourceB === id) setState({ sourceB: "mapterhorn" })
   }, [customTerrainSources, setCustomTerrainSources, state, setState])
 
+  // Only actually moves the camera when the target bounds are fully inside the
+  // current viewport, or fully disjoint from it — see shouldZoomToBounds. Clicking
+  // a source whose bounds cover (or only partially overlap) the current viewport
+  // leaves the camera alone instead of yanking the user's context away from
+  // wherever they're already looking.
+  const attemptFitBounds = useCallback((bbox: [number, number, number, number]) => {
+    if (!mapRef.current) return
+    const [west, south, east, north] = bbox
+    const viewport = mapRef.current.getMap().getBounds()
+    const target = { west, south, east, north }
+    const viewportBounds = { west: viewport.getWest(), south: viewport.getSouth(), east: viewport.getEast(), north: viewport.getNorth() }
+    if (!shouldZoomToBounds(viewportBounds, target)) return
+    mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
+  }, [mapRef])
+
   const handleFitToBounds = useCallback(async (source: CustomTerrainSource) => {
+    // Populated directly from WMS GetCapabilities (see wms-picker-panel.tsx) — no
+    // fetch needed, unlike the type-specific detection below.
+    if (source.bounds) {
+      attemptFitBounds(source.bounds)
+      return
+    }
     if (source.type === 'tilejson') {
       try {
         const response = await fetch(source.url)
         const data = await response.json()
-        const bbox = data.bounds
-        if (bbox && mapRef.current) {
-          const [west, south, east, north] = bbox
-          mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
-        }
+        if (data.bounds) attemptFitBounds(data.bounds)
       } catch (error) {
         console.error("Failed to fetch TileJSON bounds:", error)
       }
@@ -83,26 +100,19 @@ export const TerrainSourceSection: React.FC<{
     try {
       if (useCogProtocolVsTitiler) {
         getCogMetadata(source.url).then(metadata => {
-          const bbox = metadata.bbox
-          const [west, south, east, north] = bbox
-          if (bbox && mapRef.current) {
-            mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
-          }
+          if (metadata.bbox) attemptFitBounds(metadata.bbox)
         })
       } else {
-        let infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
+        const infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
         const response = await fetch(infoUrl)
         const data = await response.json()
         const bbox = data.bbox ?? data.properties.bounds
-        const [west, south, east, north] = bbox
-        if (bbox && mapRef.current) {
-          mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
-        }
+        if (bbox) attemptFitBounds(bbox)
       }
     } catch (error) {
       console.error("Failed to fetch COG bounds:", error)
     }
-  }, [titilerEndpoint, mapRef, useCogProtocolVsTitiler])
+  }, [titilerEndpoint, useCogProtocolVsTitiler, attemptFitBounds])
 
   const handleOpenBatchEdit = useCallback(() => {
     setBatchEditJson(JSON.stringify(customTerrainSources, null, 2))
@@ -124,9 +134,15 @@ export const TerrainSourceSection: React.FC<{
     }
   }, [batchEditJson, setCustomTerrainSources])
 
+  // Merge by id rather than replacing the whole list — refresh any sample entries
+  // the user already has (matching id), add ones they don't, and leave every other
+  // user-added source (not part of the sample set) untouched.
   const handleLoadSample = useCallback(() => {
-    setCustomTerrainSources(SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[])
-  }, [setCustomTerrainSources])
+    const samples = SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[]
+    const sampleIds = new Set(samples.map((s) => s.id))
+    const preserved = customTerrainSources.filter((s) => !sampleIds.has(s.id))
+    setCustomTerrainSources([...preserved, ...samples])
+  }, [customTerrainSources, setCustomTerrainSources])
 
   return (
     <>

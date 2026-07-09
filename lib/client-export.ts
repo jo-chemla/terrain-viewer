@@ -71,7 +71,7 @@ function lonLatToWebMercator(lon: number, lat: number): [number, number] {
   return [x, y]
 }
 
-async function exportCogWindow(
+export async function exportCogWindow(
   url: string,
   bbox: [number, number, number, number],
   width: number,

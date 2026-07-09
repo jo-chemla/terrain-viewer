@@ -22,6 +22,22 @@ export interface SourceConfig {
 
 export type Bounds = { west: number; east: number; north: number; south: number }
 
+/** Whether "fit to bounds" should actually move the camera: only when the target
+ *  bounds are fully inside the current viewport (zooming in on something already
+ *  visible), or fully disjoint from it (nothing in common, worth flying there) —
+ *  never when the target only partially overlaps the viewport, or fully contains
+ *  it (e.g. a world-covering basemap), since either would yank the user's context
+ *  away from where they're already looking. */
+export function shouldZoomToBounds(viewport: Bounds, target: Bounds): boolean {
+  const fullyWithin =
+    target.west >= viewport.west && target.east <= viewport.east &&
+    target.south >= viewport.south && target.north <= viewport.north
+  const disjoint =
+    target.east < viewport.west || target.west > viewport.east ||
+    target.north < viewport.south || target.south > viewport.north
+  return fullyWithin || disjoint
+}
+
 export const useTheme = () => {
   const [theme, setTheme] = useQueryState(
     "theme",

@@ -13,7 +13,12 @@ export const HILLSHADE_METHODS = [
 // export type HillshadeMethod = "standard" | "combined" | "igor" | "basic" | "multidirectional"
 export type HillshadeMethod = typeof HILLSHADE_METHODS[number]
 
-export type ColorReliefRamp = "hypsometric" | "hypsometric-simple" | "rainbow" | "transparent" | "wiki" | "dem"
+// Derived from the real ramp keys instead of hand-listed, so it can never drift out
+// of sync with lib/color-ramps.ts again (it used to be a hardcoded literal union that
+// only covered a handful of the ~40 actual ramps, throwing TS7053/TS2353 everywhere
+// a newer ramp key like "slope-plantopo" or "aspect-compass" got used).
+import type { colorRampsClassic } from "./color-ramps"
+export type ColorReliefRamp = keyof typeof colorRampsClassic
 
 export interface TerrainSourceConfig {
   name: string

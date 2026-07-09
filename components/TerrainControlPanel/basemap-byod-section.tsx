@@ -4,6 +4,8 @@ import { useAtom } from "jotai"
 import { ChevronDown, Plus, Edit, TestTube } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { TooltipButton } from "./controls-components"
@@ -17,6 +19,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { CustomBasemapModal } from "./custom-basemap-modal"
 import { BasemapBatchEditModal } from "./basemap-batch-edit-modal"
 import { CustomSourceDetails } from "./custom-source-details"
+import { shouldZoomToBounds } from "@/lib/controls-utils"
 
 import customSources from "@/lib/custom-sources.json"
 const SAMPLE_BASEMAP_SOURCES = customSources['SAMPLE_BASEMAPS_SOURCES']
@@ -49,16 +52,33 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     if (state.basemapSourceB === id) setState({ basemapSourceB: "google" })
   }, [customBasemapSources, setCustomBasemapSources, state, setState])
 
+  // Only actually moves the camera when the target bounds are fully inside the
+  // current viewport, or fully disjoint from it — see shouldZoomToBounds. Clicking
+  // a world-covering basemap (bounds fully contain the viewport) or one that only
+  // partially overlaps it leaves the camera alone instead of yanking the user's
+  // context away from wherever they're already looking.
+  const attemptFitBounds = useCallback((bbox: [number, number, number, number]) => {
+    if (!mapRef.current) return
+    const [west, south, east, north] = bbox
+    const viewport = mapRef.current.getMap().getBounds()
+    const target = { west, south, east, north }
+    const viewportBounds = { west: viewport.getWest(), south: viewport.getSouth(), east: viewport.getEast(), north: viewport.getNorth() }
+    if (!shouldZoomToBounds(viewportBounds, target)) return
+    mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
+  }, [mapRef])
+
   const handleFitToBounds = useCallback(async (source: CustomBasemapSource) => {
+    // Populated directly from WMS GetCapabilities (see wms-picker-panel.tsx) — no
+    // fetch needed, unlike the type-specific detection below.
+    if (source.bounds) {
+      attemptFitBounds(source.bounds)
+      return
+    }
     if (source.type === 'tilejson') {
       try {
         const response = await fetch(source.url)
         const data = await response.json()
-        const bbox = data.bounds
-        if (bbox && mapRef.current) {
-          const [west, south, east, north] = bbox
-          mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
-        }
+        if (data.bounds) attemptFitBounds(data.bounds)
       } catch (error) {
         console.error("Failed to fetch TileJSON bounds:", error)
       }
@@ -68,26 +88,19 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     try {
       if (useCogProtocolVsTitiler) {
         getCogMetadata(source.url).then(metadata => {
-          const bbox = metadata.bbox
-          const [west, south, east, north] = bbox
-          if (bbox && mapRef.current) {
-            mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
-          }
+          if (metadata.bbox) attemptFitBounds(metadata.bbox)
         })
       } else {
         const infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
         const response = await fetch(infoUrl)
         const data = await response.json()
         const bbox = data.bbox ?? data.properties.bounds
-        const [west, south, east, north] = bbox
-        if (bbox && mapRef.current) {
-          mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
-        }
+        if (bbox) attemptFitBounds(bbox)
       }
     } catch (error) {
       console.error("Failed to fetch COG bounds:", error)
     }
-  }, [titilerEndpoint, mapRef, useCogProtocolVsTitiler])
+  }, [titilerEndpoint, useCogProtocolVsTitiler, attemptFitBounds])
 
   const handleEditBasemap = useCallback((sourceId: string) => {
     const source = customBasemapSources.find(s => s.id === sourceId)
@@ -97,9 +110,27 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     }
   }, [customBasemapSources])
 
+  // Merge by id rather than replacing the whole list — refresh any sample entries
+  // the user already has (matching id), add ones they don't, and leave every other
+  // user-added source (not part of the sample set) untouched.
   const handleLoadSample = useCallback(() => {
-    setCustomBasemapSources(SAMPLE_BASEMAP_SOURCES as CustomBasemapSource[])
-  }, [setCustomBasemapSources])
+    const samples = SAMPLE_BASEMAP_SOURCES as CustomBasemapSource[]
+    const sampleIds = new Set(samples.map((s) => s.id))
+    const preserved = customBasemapSources.filter((s) => !sampleIds.has(s.id))
+    setCustomBasemapSources([...preserved, ...samples])
+  }, [customBasemapSources, setCustomBasemapSources])
+
+  // 'overlay' sources stack on top of the active basemap (see OverlayBasemapSources/
+  // Layers in MapSources.tsx/MapLayers.tsx) instead of being one themselves — keep
+  // them out of the basemap radio/toggle lists below, and multi-select them in their
+  // own checkbox list further down.
+  const basemapRoleSources = customBasemapSources.filter((s) => (s.role ?? "basemap") === "basemap")
+  const overlaySources = customBasemapSources.filter((s) => s.role === "overlay")
+
+  const handleToggleOverlay = useCallback((id: string, checked: boolean) => {
+    const current: string[] = state.overlayBasemapIds || []
+    setState({ overlayBasemapIds: checked ? [...current, id] : current.filter((x) => x !== id) })
+  }, [state.overlayBasemapIds, setState])
 
   return (
     <>
@@ -132,11 +163,11 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               />
             </div>
           </TooltipProvider>
-          {customBasemapSources.length > 0 && (
+          {basemapRoleSources.length > 0 && (
             state.basemapPerView ? (
               state.splitScreen ? (
                 <div className="space-y-2">
-                  {customBasemapSources.map((source) => (
+                  {basemapRoleSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
                       <ToggleGroup
                         type="single"
@@ -161,7 +192,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                 </div>
               ) : (
                 <RadioGroup value={state.basemapSourceA} onValueChange={(value) => setState({ basemapSourceA: value })} className="gap-2">
-                  {customBasemapSources.map((source) => (
+                  {basemapRoleSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
                       <RadioGroupItem
                         value={source.id}
@@ -181,7 +212,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               )
             ) : (
               <RadioGroup value={state.basemapSource} onValueChange={(value) => setState({ basemapSource: value })} className="gap-2">
-                {customBasemapSources.map((source) => (
+                {basemapRoleSources.map((source) => (
                   <div key={source.id} className="flex items-center gap-2 min-w-0">
                     <RadioGroupItem
                       value={source.id}
@@ -199,6 +230,27 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                 ))}
               </RadioGroup>
             )
+          )}
+          {state.basemapPerView && overlaySources.length > 0 && (
+            <div className="space-y-2 pt-2 mt-2 border-t">
+              <Label className="text-sm font-medium">Overlays</Label>
+              {overlaySources.map((source) => (
+                <div key={source.id} className="flex items-center gap-2 min-w-0">
+                  <Checkbox
+                    checked={(state.overlayBasemapIds || []).includes(source.id)}
+                    onCheckedChange={(checked) => handleToggleOverlay(source.id, checked === true)}
+                    className="cursor-pointer shrink-0"
+                  />
+                  <CustomSourceDetails
+                    source={source}
+                    handleFitToBounds={handleFitToBounds}
+                    handleEditSource={handleEditBasemap}
+                    handleDeleteCustomSource={handleDeleteCustomBasemap}
+                    onSelect={(id) => handleToggleOverlay(id, !(state.overlayBasemapIds || []).includes(id))}
+                  />
+                </div>
+              ))}
+            </div>
           )}
         </CollapsibleContent>
 

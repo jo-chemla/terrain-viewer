@@ -7,8 +7,12 @@ import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
 export const LAYER_SLOTS = {
   BACKGROUND: "slot-background",
   BASEMAP: "slot-basemap",
+  OVERLAYS: "slot-overlays",
   COLOR_RELIEF: "slot-color-relief",
   SLOPE: "slot-slope",
+  ASPECT: "slot-aspect",
+  TRI: "slot-tri",
+  CURVATURE: "slot-curvature",
   HILLSHADE: "slot-hillshade",
   CONTOURS: "slot-contours",
 } as const
@@ -18,8 +22,12 @@ export const LayerOrderSlots = () => (
   <>
     <Layer id={LAYER_SLOTS.BACKGROUND} type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.BASEMAP}     type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.OVERLAYS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.COLOR_RELIEF}type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.SLOPE}       type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.ASPECT}      type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.TRI}         type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.CURVATURE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.HILLSHADE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
   </>
@@ -53,6 +61,25 @@ export const RasterLayer = memo(
   },
 )
 RasterLayer.displayName = "RasterLayer"
+
+// Overlay Layers — one raster layer per active 'overlay'-role custom basemap
+// source (see OverlayBasemapSources in MapSources.tsx), stacked between the
+// basemap and every terrain-derived visualization.
+export const OverlayBasemapLayers = memo(({ overlayIds }: { overlayIds: string[] }) => (
+  <>
+    {overlayIds.map((id) => (
+      <Layer
+        key={`overlay-layer-${id}`}
+        beforeId={LAYER_SLOTS.OVERLAYS}
+        id={`overlay-basemap-${id}`}
+        type="raster"
+        source={`overlay-basemap-source-${id}`}
+        paint={{ "raster-opacity": 1, "raster-resampling": "linear" }}
+      />
+    ))}
+  </>
+))
+OverlayBasemapLayers.displayName = "OverlayBasemapLayers"
 
 // Background Layer
 export const BackgroundLayer = memo(
@@ -166,8 +193,14 @@ ColorReliefLayer.displayName = "ColorReliefLayer"
 // (same function the hypsometric tint above uses) — a color-relief layer's paint
 // doesn't care whether "elevation" means meters or degrees of slope, so the same
 // classic-ramp machinery works unchanged. See slope-options-section.tsx.
-export const SlopeReliefLayer = memo(({ showSlope, slopeReliefPaint }: { showSlope: boolean; slopeReliefPaint: any }) => {
-  if (!showSlope) return null
+// `showSlopeAndMore` (the master) gates mounting — matches SlopeSource in
+// MapSources.tsx, which only exists while the master is on, so this layer can't
+// reference a "slopeSource" that isn't there. `showSlope` (the sub-mode checkbox)
+// only toggles layout.visibility, not mounting — switching sub-modes on/off while
+// the master stays on keeps maplibre's tile cache warm instead of forcing a slow
+// re-fetch/re-decode the next time this sub-mode is re-checked.
+export const SlopeReliefLayer = memo(({ showSlopeAndMore, showSlope, slopeReliefPaint }: { showSlopeAndMore: boolean; showSlope: boolean; slopeReliefPaint: any }) => {
+  if (!showSlopeAndMore) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.SLOPE}
@@ -175,11 +208,60 @@ export const SlopeReliefLayer = memo(({ showSlope, slopeReliefPaint }: { showSlo
       type="color-relief"
       source="slopeSource"
       paint={slopeReliefPaint}
-      layout={{ visibility: "visible" }}
+      layout={{ visibility: showSlope ? "visible" : "none" }}
     />
   )
 })
 SlopeReliefLayer.displayName = "SlopeReliefLayer"
+
+// ─── Aspect / TRI / Curvature overlays ─────────────────────────────────────────
+// Same color-relief-over-a-reinterpreted-DEM trick as SlopeReliefLayer above, one
+// per normal-derived attribute (see AspectSource/TriSource/CurvatureSource in
+// MapSources.tsx for how each source gets its values).
+export const AspectReliefLayer = memo(({ showSlopeAndMore, showAspect, aspectReliefPaint }: { showSlopeAndMore: boolean; showAspect: boolean; aspectReliefPaint: any }) => {
+  if (!showSlopeAndMore) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.ASPECT}
+      id="aspect-relief"
+      type="color-relief"
+      source="aspectSource"
+      paint={aspectReliefPaint}
+      layout={{ visibility: showAspect ? "visible" : "none" }}
+    />
+  )
+})
+AspectReliefLayer.displayName = "AspectReliefLayer"
+
+export const TriReliefLayer = memo(({ showSlopeAndMore, showTri, triReliefPaint }: { showSlopeAndMore: boolean; showTri: boolean; triReliefPaint: any }) => {
+  if (!showSlopeAndMore) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.TRI}
+      id="tri-relief"
+      type="color-relief"
+      source="triSource"
+      paint={triReliefPaint}
+      layout={{ visibility: showTri ? "visible" : "none" }}
+    />
+  )
+})
+TriReliefLayer.displayName = "TriReliefLayer"
+
+export const CurvatureReliefLayer = memo(({ showSlopeAndMore, showCurvature, curvatureReliefPaint }: { showSlopeAndMore: boolean; showCurvature: boolean; curvatureReliefPaint: any }) => {
+  if (!showSlopeAndMore) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.CURVATURE}
+      id="curvature-relief"
+      type="color-relief"
+      source="curvatureSource"
+      paint={curvatureReliefPaint}
+      layout={{ visibility: showCurvature ? "visible" : "none" }}
+    />
+  )
+})
+CurvatureReliefLayer.displayName = "CurvatureReliefLayer"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)

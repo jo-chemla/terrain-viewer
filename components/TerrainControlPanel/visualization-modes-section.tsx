@@ -12,13 +12,12 @@ export const VisualizationModesSection: React.FC<{
       <CheckboxWithSlider id="hillshade" checked={state.showHillshade} onCheckedChange={(checked) => setState({ showHillshade: checked })} label="Hillshade" sliderValue={state.hillshadeOpacity} onSliderChange={(value) => setState({ hillshadeOpacity: value })} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
       <CheckboxWithSlider
-        id="slope"
-        checked={state.showSlope}
-        onCheckedChange={(checked) => setState({ showSlope: checked })}
-        label="Slope"
-        tooltip="Slope-angle overlay, computed client-side from the active terrain source by default; see Options: Slope to switch to PlanTopo's server (always Mapterhorn-derived)"
-        sliderValue={state.slopeOpacity}
-        onSliderChange={(value) => setState({ slopeOpacity: value })}
+        id="slope-and-more"
+        checked={state.showSlopeAndMore}
+        onCheckedChange={(checked) => setState({ showSlopeAndMore: checked })}
+        label="Slope and More"
+        sliderValue={state.slopeAndMoreOpacity}
+        onSliderChange={(value) => setState({ slopeAndMoreOpacity: value })}
       />
       <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} />
       <CheckboxWithSlider id="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />

@@ -58,6 +58,11 @@ export interface CustomTerrainSource {
    *  its own "encoding" field (most, e.g. Mapterhorn's, declare it — see
    *  useTilejsonMetadata in MapSources.tsx, which is preferred over this when present). */
   encoding?: 'terrarium' | 'mapbox'
+  /** [west, south, east, north] — populated for WMS-picked layers straight from their
+   *  GetCapabilities geographicBoundingBox (no extra fetch needed), so the existing
+   *  per-source "fit to bounds" action works instantly instead of needing type-specific
+   *  metadata detection (see handleFitToBounds in terrain-source-section.tsx). */
+  bounds?: [west: number, south: number, east: number, north: number]
 }
 
 // getOnInit: true reads localStorage synchronously on first render instead of the
@@ -79,6 +84,13 @@ export interface CustomBasemapSource {
   /** Overrides the default 0-22 fallback zoom range, e.g. from a NextGIS QMS z_min/z_max. */
   minzoom?: number
   maxzoom?: number
+  /** [west, south, east, north] — see the same field on CustomTerrainSource. */
+  bounds?: [west: number, south: number, east: number, north: number]
+  /** 'overlay' sources render stacked on top of the active basemap instead of
+   *  replacing it, and are multi-selectable (see the "Overlays" checkbox list in
+   *  raster-basemap-section.tsx) — only meaningful outside the simplified single-select
+   *  basemap mode. Defaults to 'basemap' for sources created before this field existed. */
+  role?: "basemap" | "overlay"
 }
 
 export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [], undefined, { getOnInit: true })

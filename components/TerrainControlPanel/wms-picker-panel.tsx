@@ -9,6 +9,7 @@ export interface WmsPickerSaveParams {
   name: string
   url: string
   description?: string
+  bounds?: [west: number, south: number, east: number, north: number]
 }
 
 /**
@@ -29,6 +30,7 @@ export const WmsPickerPanel: React.FC<{
   const [service, setService] = useState<WmsServiceInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [layerFilter, setLayerFilter] = useState("")
 
   const handleFetchLayers = useCallback(async () => {
     if (!baseUrl.trim()) return
@@ -49,11 +51,22 @@ export const WmsPickerPanel: React.FC<{
   const handlePick = useCallback((layer: FlatWmsLayer) => {
     if (!service) return
     const url = buildWmsTileUrl({ source: service.source, layerName: layer.name, tileSize, format })
-    onSave({ name: layer.title, url, description: service.capabilities.title })
+    const bbox = layer.geographicBoundingBox
+    const bounds: WmsPickerSaveParams["bounds"] = bbox
+      ? [bbox[0][0], bbox[0][1], bbox[1][0], bbox[1][1]]
+      : undefined
+    onSave({ name: layer.title, url, description: service.capabilities.title, bounds })
   }, [service, tileSize, format, onSave])
 
+  const filterQuery = layerFilter.trim().toLowerCase()
+  const filteredLayers = service
+    ? service.layers.filter((layer) => !filterQuery
+        || layer.title.toLowerCase().includes(filterQuery)
+        || layer.name.toLowerCase().includes(filterQuery))
+    : []
+
   return (
-    <div className="space-y-3 min-w-0">
+    <div className="space-y-3 w-full min-w-0 overflow-hidden">
       <p className="text-xs text-muted-foreground">
         Enter a WMS service's base URL to list its layers and build the tile URL automatically.
       </p>
@@ -79,23 +92,37 @@ export const WmsPickerPanel: React.FC<{
       {error && <p className="text-sm text-red-500">{error}</p>}
 
       {service && (
-        <div className="max-h-72 overflow-y-auto overflow-x-hidden space-y-1">
-          {service.layers.map((layer) => (
-            <div key={layer.name} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/60 max-w-full">
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <p className="text-sm font-medium truncate" title={layer.title}>{layer.title}</p>
-                <p className="text-xs text-muted-foreground truncate" title={layer.name}>{layer.name}</p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="shrink-0 cursor-pointer"
-                onClick={() => handlePick(layer)}
+        <div className="space-y-2 w-full min-w-0">
+          <Input
+            placeholder={`Filter ${service.layers.length} layers…`}
+            value={layerFilter}
+            onChange={(e) => setLayerFilter(e.target.value)}
+            className="cursor-text"
+          />
+          <div className="max-h-72 w-full overflow-y-auto overflow-x-hidden space-y-1">
+            {filteredLayers.map((layer) => (
+              <div
+                key={layer.name}
+                className="grid grid-cols-[1fr_auto] items-center gap-2 p-2 rounded-md hover:bg-muted/60 w-full"
               >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+                <div className="min-w-0 overflow-hidden">
+                  <p className="text-sm font-medium truncate" title={layer.title}>{layer.title}</p>
+                  <p className="text-xs text-muted-foreground truncate" title={layer.name}>{layer.name}</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="cursor-pointer"
+                  onClick={() => handlePick(layer)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            {filteredLayers.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No layers match "{layerFilter}"</p>
+            )}
+          </div>
         </div>
       )}
     </div>

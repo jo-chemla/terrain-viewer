@@ -7,7 +7,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
-import { Section, CycleButtonGroup } from "./controls-components"
+import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
 
 const BUILTIN_BASEMAP_OPTIONS = [
@@ -57,6 +57,14 @@ export const RasterBasemapSection: React.FC<{
             <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Split</Label>
           </div>
         </div>
+
+        <SliderControl
+          label="Basemap Opacity"
+          value={state.rasterBasemapOpacity}
+          onChange={(v) => setState({ rasterBasemapOpacity: v })}
+          min={0} max={1} step={0.05}
+          sliderId="raster-basemap-opacity"
+        />
 
         {state.basemapPerView ? (
           state.splitScreen ? (

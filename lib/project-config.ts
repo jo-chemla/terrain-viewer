@@ -4,6 +4,9 @@
 // instead of hand-assembling dozens of individual query params.
 
 import projectsData from "./projects.json"
+// Type-only — erased at compile time, so this doesn't create a real circular
+// runtime dependency with settings-atoms.ts (which imports ProjectConfig from here).
+import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
 
 export type ProjectViewMode = "2d" | "globe" | "3d"
 
@@ -30,6 +33,25 @@ export interface ProjectConfig {
    *  (jotai sectionOpenAtom) on first load — keys match TerrainControlPanel's
    *  SectionKey (e.g. "general", "terrainSource", "hillshade", ...). */
   initialSections?: Record<string, boolean>
+  /** Custom terrain/basemap sources this project depends on (e.g. referenced by id
+   *  in initialState.sourceA/basemapSource) — merged by id into the visitor's
+   *  customTerrainSourcesAtom/customBasemapSourcesAtom on first load (same
+   *  merge-by-id semantics as the "Load Sample" buttons), so a project embed works
+   *  even for a visitor whose browser has never seen these sources before. */
+  customTerrainSources?: CustomTerrainSource[]
+  customBasemapSources?: CustomBasemapSource[]
+  /** [west, south, east, north] — if set, the map flies to these bounds once on
+   *  first load (after sources are seeded), independent of the smart-bounds-zoom
+   *  heuristic used for click-driven fits elsewhere (see shouldZoomToBounds). Use
+   *  this for a literal, known bbox (e.g. "whole world"); for a COG whose real
+   *  extent isn't known ahead of time (including "fakegeo" COGs whose embedded
+   *  bounds are an arbitrary synthetic anchor, not real-world coordinates), use
+   *  `autoZoomToSource` instead so the bounds are read from the file itself. */
+  initialBounds?: [west: number, south: number, east: number, north: number]
+  /** Fetches the COG metadata bbox for sourceA/basemapSource (whichever is named)
+   *  once it's resolved, and flies to it — for sources whose real extent can only
+   *  be known by reading the file (see initialBounds' doc for why). COG only. */
+  autoZoomToSource?: "sourceA" | "basemapSource"
 }
 
 const projects = projectsData as Record<string, ProjectConfig>

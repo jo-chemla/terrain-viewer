@@ -70,6 +70,9 @@ export default function GeocoderControl({
     ({ mapLib }) => {
       const ctrl = new MaplibreGeocoder(geocoderApi, {
         ...props,
+        // Always suppress the library's own built-in pin marker — this wrapper
+        // renders its own (small dot, see the `marker` prop) via markerEl below.
+        marker: false,
         maplibregl: mapLib,
       });
 

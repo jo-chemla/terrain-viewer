@@ -14,8 +14,6 @@ import { downloadGeoJSON } from "@/lib/download-geojson"
 import { mergeContourLines } from "@/lib/merge-contours"
 import { ShareButton } from "./ShareSection"
 import { TooltipButton } from "./controls-components"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
 
 export const DownloadSection: React.FC<{
@@ -28,7 +26,7 @@ export const DownloadSection: React.FC<{
 }> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange }) => {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [maxResolution] = useAtom(maxResolutionAtom)
-  const [useClientExport, setUseClientExport] = useAtom(useClientExportAtom)
+  const [useClientExport] = useAtom(useClientExportAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const { getTilesUrl } = useSourceConfig()
   const [isExporting, setIsExporting] = useState(false)
@@ -241,17 +239,6 @@ export const DownloadSection: React.FC<{
             tooltip="Download Snapshot to Disk"
             onClick={downloadScreenshot}
             className="flex-1 bg-transparent"
-          />
-        </div>
-        <div className="flex items-center justify-between gap-2 px-1">
-          <Label htmlFor="use-client-export" className="text-xs font-normal text-muted-foreground">
-            Client-side export (browser range-reads, no Titiler size limit)
-          </Label>
-          <Switch
-            id="use-client-export"
-            checked={useClientExport}
-            onCheckedChange={setUseClientExport}
-            disabled={isExporting}
           />
         </div>
         {exportProgress !== null && (

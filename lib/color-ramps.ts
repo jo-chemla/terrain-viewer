@@ -1,4 +1,3 @@
-import type { ColorReliefRamp } from "./terrain-types"
 import {cpt_city_views} from "./cpt-city/cpt-city-views"
 import {colorRampsCet} from "./cpt-city/cet-colormaps"
 import {colorRampsSdr} from "./cpt-city/sdr-colormaps"
@@ -108,7 +107,7 @@ function extendCptCity(arr: any[]) {
   )
 }
 
-function cptToObject(cptArray: any[]): Record<ColorReliefRamp, { name: string; colors: any[]; continuous: boolean }> {
+function cptToObject(cptArray: any[]): Record<string, { name: string; colors: any[]; continuous: boolean }> {
   // Sort: continuous first, then discrete; alphabetically within each group
   const sorted = cptArray.sort((a, b) => {
     // First sort by continuous (true before false)
@@ -133,7 +132,7 @@ function cptToObject(cptArray: any[]): Record<ColorReliefRamp, { name: string; c
 }
 
 
-export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: any[]; continuous: boolean }> = {
+export const colorRampsClassic = {
   // Original ramps - all continuous
   "black-and-white": {
     name: "Black-and-White",
@@ -407,6 +406,57 @@ export const colorRampsClassic: Record<ColorReliefRamp, { name: string; colors: 
       45, "rgb(234, 72, 47)",
       50, "rgb(221, 50, 40)",
       55, "rgb(216, 37, 37)",
+    ],
+    continuous: true,
+  },
+  // Compass bearing (0-360°, 0=North) from lib/aspect-protocol.ts — a single hue-wheel
+  // cycle, red only at the two endpoints (0° and 360° both mean North, so they must
+  // match; every other stop is a distinct hue). Linear ramps can't truly wrap a
+  // circular domain, so there's an inherent seam right at that N/N boundary — same
+  // caveat most GIS aspect renderers accept.
+  "aspect-compass": {
+    name: "Aspect (Compass)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "rgb(255, 0, 0)",     // N
+      45, "rgb(255, 165, 0)",  // NE
+      90, "rgb(255, 255, 0)",  // E
+      135, "rgb(0, 255, 0)",   // SE
+      180, "rgb(0, 255, 255)", // S
+      225, "rgb(0, 0, 255)",   // SW
+      270, "rgb(128, 0, 255)", // W
+      315, "rgb(255, 0, 255)", // NW
+      360, "rgb(255, 0, 0)",   // N (wraps back to the same color as 0°)
+    ],
+    continuous: true,
+  },
+  // Terrain Ruggedness Index (meters, Riley et al. 2006) from lib/tri-protocol.ts.
+  // Flat ground (0) is fully transparent rather than opaque white, so unrugged
+  // terrain doesn't get tinted at all — only the ruggedness itself shows through.
+  "tri-default": {
+    name: "Terrain Ruggedness",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "rgba(255, 255, 255, 0)",
+      5, "rgb(255, 247, 188)",
+      15, "rgb(254, 196, 79)",
+      30, "rgb(217, 95, 14)",
+      50, "rgb(153, 0, 0)",
+    ],
+    continuous: true,
+  },
+  // General (Laplacian) curvature from lib/curvature-protocol.ts — negative/convex
+  // (ridges) to positive/concave (valleys), diverging around a flat=fully-transparent
+  // midpoint rather than opaque white, so flat ground doesn't get tinted at all.
+  "curvature-diverging": {
+    name: "Curvature (Diverging)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -20, "rgb(178, 24, 43)",
+      -5, "rgb(244, 165, 130)",
+      0, "rgba(255, 255, 255, 0)",
+      5, "rgb(146, 197, 222)",
+      20, "rgb(33, 102, 172)",
     ],
     continuous: true,
   },

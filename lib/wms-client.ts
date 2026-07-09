@@ -43,7 +43,23 @@ export interface WmsServiceInfo {
  *  build a GetMap URL for a selected layer without re-deriving WMS version/CRS/
  *  axis-order quirks. */
 export async function fetchWmsService(baseUrl: string): Promise<WmsServiceInfo> {
-  const source = new WMSImageSource(baseUrl, {})
+  const source = new WMSImageSource(baseUrl, {
+    // fast-xml-parser (used internally by @loaders.gl/xml) caps total entity
+    // references at 1000 by default as a billion-laughs guard. Large government
+    // WMS capabilities documents (e.g. IGN's data.geopf.fr/wms-r, with thousands
+    // of layers each carrying "&amp;"-style entities in their titles/abstracts)
+    // blow past that on legitimate documents, throwing "Entity expansion limit
+    // exceeded" — raise the cap rather than disable the guard outright.
+    loadOptions: {
+      wms: {
+        xml: {
+          _fastXML: {
+            processEntities: { enabled: true, maxTotalExpansions: 100_000 },
+          },
+        },
+      },
+    },
+  })
   const capabilities = await source.getCapabilities()
   return { source, capabilities, layers: flattenLayers(capabilities.layers) }
 }

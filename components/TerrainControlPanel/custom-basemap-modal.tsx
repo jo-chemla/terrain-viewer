@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { type CustomBasemapSource } from "@/lib/settings-atoms"
 import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
 import { WmsPickerPanel } from "./wms-picker-panel"
@@ -19,6 +20,7 @@ export const CustomBasemapModal: React.FC<{
   const [url, setUrl] = useState("")
   const [type, setType] = useState<BasemapFormType>("tms")
   const [description, setDescription] = useState("")
+  const [role, setRole] = useState<CustomBasemapSource["role"]>("basemap")
 
   useEffect(() => {
     if (editingSource) {
@@ -26,19 +28,21 @@ export const CustomBasemapModal: React.FC<{
       setUrl(editingSource.url)
       setType(editingSource.type)
       setDescription(editingSource.description || "")
+      setRole(editingSource.role ?? "basemap")
     } else {
       setName("")
       setUrl("")
       setType("tms")
       setDescription("")
+      setRole("basemap")
     }
   }, [editingSource, isOpen])
 
   const handleSave = useCallback(() => {
     if (!name || !url) return
-    onSave({ id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description })
+    onSave({ id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role })
     onOpenChange(false)
-  }, [name, url, type, description, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, role, editingSource, onSave, onOpenChange])
 
   const url_placeholder = type === "cog" ?
     "https://example.com/basemap.cog.tiff" :
@@ -54,7 +58,12 @@ export const CustomBasemapModal: React.FC<{
   if (type === "tms") helper_text = '/{z}/{x}/{y}.png'
   else if (type === "wms") helper_text = 'bbox={bbox-epsg-3857}'
   
+  // Only WMS URLs need this — re-serializing via `new URL(...).toString()` percent-
+  // encodes literal `{`/`}` characters, which would corrupt a TMS/XYZ/TileJSON URL's
+  // `{z}/{x}/{y}` placeholders (e.g. tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png
+  // failing to fetch because its braces got encoded to %7Bz%7D etc).
   const normalizeBboxParam = (input: string) => {
+    if (type !== "wms") return input
     try {
       const parsedUrl = new URL(input);
       if (parsedUrl.searchParams.has("bbox")) {
@@ -88,10 +97,10 @@ export const CustomBasemapModal: React.FC<{
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="tms">Raster (XYZ / TMS)</SelectItem>
+                <SelectItem value="tms">TMS/XYZ (Raster Tile)</SelectItem>
                 <SelectItem value="cog">COG (Cloud Optimized Geotiff)</SelectItem>
                 <SelectItem value="wms">Raster (WMS / WMTS)</SelectItem>
-                <SelectItem value="tilejson">TileJSON</SelectItem>
+                <SelectItem value="tilejson">TileJSON (Raster Basemap)</SelectItem>
                 {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
                 {!editingSource && <SelectItem value="qms">NextGIS QMS (search)</SelectItem>}
               </SelectContent>
@@ -135,6 +144,31 @@ export const CustomBasemapModal: React.FC<{
                   }}
                   className="cursor-text"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Use as</Label>
+                <ToggleGroup
+                  type="single"
+                  value={role}
+                  onValueChange={(value) => value && setRole(value as CustomBasemapSource["role"])}
+                  className="border rounded-md w-full"
+                >
+                  <ToggleGroupItem
+                    value="basemap"
+                    className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+                  >
+                    Basemap
+                  </ToggleGroupItem>
+                  <ToggleGroupItem
+                    value="overlay"
+                    className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+                  >
+                    Overlay
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                <p className="text-xs text-muted-foreground">
+                  Overlays stack on top of the active basemap instead of replacing it — only available in Split/Radio basemap mode.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="basemap-description">
