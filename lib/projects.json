@@ -1,0 +1,19 @@
+{
+  "example-embed": {
+    "id": "example-embed",
+    "name": "Example Embed",
+    "description": "Minimal embed preset: 3D only, source panels hidden, hillshade + hypsometric tint on by default.",
+    "disableViewModes": ["2d", "globe"],
+    "initialViewMode": "3d",
+    "hideSourcePanels": true,
+    "initialState": {
+      "showHillshade": true,
+      "showColorRelief": true
+    },
+    "initialSections": {
+      "general": false,
+      "visualizationModes": true,
+      "download": false
+    }
+  }
+}

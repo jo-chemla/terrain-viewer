@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { type CustomTerrainSource } from "@/lib/settings-atoms"
+import { WmsPickerPanel } from "./wms-picker-panel"
+
+type TerrainFormType = CustomTerrainSource["type"] | "wms-picker"
 
 export const CustomTerrainSourceModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomTerrainSource | null
@@ -13,7 +16,7 @@ export const CustomTerrainSourceModal: React.FC<{
 }> = ({ isOpen, onOpenChange, editingSource, onSave }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
-  const [type, setType] = useState<"cog" | "terrainrgb" | "terrarium" | "vrt" | "wms-raw" | "tilejson">("cog")
+  const [type, setType] = useState<TerrainFormType>("cog")
   const [description, setDescription] = useState("")
   const [maxzoom, setMaxzoom] = useState("")
 
@@ -36,7 +39,7 @@ export const CustomTerrainSourceModal: React.FC<{
   const handleSave = useCallback(() => {
     if (!name || !url) return
     const parsedMaxzoom = maxzoom === "" ? undefined : Number(maxzoom)
-    onSave({ id: editingSource?.id, name, url, type, description, maxzoom: parsedMaxzoom })
+    onSave({ id: editingSource?.id, name, url, type: type as CustomTerrainSource["type"], description, maxzoom: parsedMaxzoom })
     onOpenChange(false)
   }, [name, url, type, description, maxzoom, editingSource, onSave, onOpenChange])
 
@@ -66,14 +69,6 @@ export const CustomTerrainSourceModal: React.FC<{
         <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="source-name">Name *</Label>
-            <Input id="source-name" type="text" placeholder="My Custom Terrain" value={name} onChange={(e) => setName(e.target.value)} className="cursor-text" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="source-url">URL *</Label>
-            <Input id="source-url" type="text" placeholder={url_placeholder} value={url} onChange={(e) => setUrl(e.target.value)} className="cursor-text" />
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="source-type">Type *</Label>
             <Select value={type} onValueChange={(value: any) => setType(value)}>
               <SelectTrigger id="source-type" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
@@ -84,32 +79,52 @@ export const CustomTerrainSourceModal: React.FC<{
                 <SelectItem value="vrt">VRT</SelectItem>
                 <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
                 <SelectItem value="tilejson">TileJSON</SelectItem>
+                {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
               </SelectContent>
             </Select>
           </div>
-          {showMaxzoomField && (
-            <div className="space-y-2">
-              <Label htmlFor="source-maxzoom">Max Zoom (optional)</Label>
-              <Input
-                id="source-maxzoom"
-                type="number"
-                min={0}
-                max={24}
-                placeholder="Native resolution zoom level, e.g. 17"
-                value={maxzoom}
-                onChange={(e) => setMaxzoom(e.target.value)}
-                className="cursor-text"
-              />
-            </div>
+
+          {type === "wms-picker" ? (
+            <WmsPickerPanel
+              format="image/geotiff"
+              tileSize={514}
+              onSave={(params) => { onSave({ ...params, type: "wms-raw" }); onOpenChange(false) }}
+            />
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="source-name">Name *</Label>
+                <Input id="source-name" type="text" placeholder="My Custom Terrain" value={name} onChange={(e) => setName(e.target.value)} className="cursor-text" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="source-url">URL *</Label>
+                <Input id="source-url" type="text" placeholder={url_placeholder} value={url} onChange={(e) => setUrl(e.target.value)} className="cursor-text" />
+              </div>
+              {showMaxzoomField && (
+                <div className="space-y-2">
+                  <Label htmlFor="source-maxzoom">Max Zoom (optional)</Label>
+                  <Input
+                    id="source-maxzoom"
+                    type="number"
+                    min={0}
+                    max={24}
+                    placeholder="Native resolution zoom level, e.g. 17"
+                    value={maxzoom}
+                    onChange={(e) => setMaxzoom(e.target.value)}
+                    className="cursor-text"
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="source-description">Description (optional)</Label>
+                <Input id="source-description" type="text" placeholder="Custom terrain data from..." value={description} onChange={(e) => setDescription(e.target.value)} className="cursor-text" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)} className="cursor-pointer">Cancel</Button>
+                <Button onClick={handleSave} disabled={!name || !url} className="cursor-pointer">{editingSource ? "Save Changes" : "Add Source"}</Button>
+              </div>
+            </>
           )}
-          <div className="space-y-2">
-            <Label htmlFor="source-description">Description (optional)</Label>
-            <Input id="source-description" type="text" placeholder="Custom terrain data from..." value={description} onChange={(e) => setDescription(e.target.value)} className="cursor-text" />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="cursor-pointer">Cancel</Button>
-            <Button onClick={handleSave} disabled={!name || !url} className="cursor-pointer">{editingSource ? "Save Changes" : "Add Source"}</Button>
-          </div>
         </div>
       </DialogContent>
     </Dialog>

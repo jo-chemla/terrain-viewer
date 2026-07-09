@@ -24,3 +24,14 @@ export function elevationToTerrarium(elevation: number): [number, number, number
     255,
   ]
 }
+
+// Inverse of the two encoders above — decodes a rendered tile's RGB back into an
+// elevation value, e.g. for client-side DTM export from terrainrgb/terrarium TMS
+// tiles (no server-side GDAL/titiler involved).
+export function terrainrgbToElevation(r: number, g: number, b: number): number {
+  return -10000 + (r * 256 * 256 + g * 256 + b) * 0.1
+}
+
+export function terrariumToElevation(r: number, g: number, b: number): number {
+  return r * 256 + g + b / 256 - 32768
+}

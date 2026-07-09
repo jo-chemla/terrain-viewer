@@ -15,8 +15,12 @@ import { COLOR_RAMP_IDS } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom
+  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom,
+  activeProjectConfigAtom,
+  type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
+import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
+import { getProjectConfig } from "@/lib/project-config"
 import { useTheme } from "@/lib/controls-utils"
 import { MinimapControl } from "./MapControls/MinimapControl";
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -70,11 +74,14 @@ export function TerrainViewer() {
 
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
-  const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
-  const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
+  const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [highResTerrain] = useAtom(highResTerrainAtom)
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
+  const [, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
+  const [, setSectionOpen] = useAtom(sectionOpenAtom)
+  const hasAppliedEmbedConfig = useRef(false)
 
   const [state, setState] = useQueryStates({
     viewMode: parseAsStringLiteral(VIEW_MODES).withDefault("3d"),
@@ -137,6 +144,13 @@ export function TerrainViewer() {
     showGraticuleLabels: parseAsBoolean.withDefault(false),
     graticuleDensity: parseAsFloat.withDefault(0),
     minimapMinimized: parseAsBoolean.withDefault(true),
+    // Embed/project convenience params: `project` looks up a named preset in
+    // lib/projects.json (see lib/project-config.ts); terrainUrl/basemapUrl let an
+    // embedder point straight at a raw tile/COG URL without registering a custom
+    // source first — see the embed-config effect below.
+    project: parseAsString.withDefault(""),
+    terrainUrl: parseAsString.withDefault(""),
+    basemapUrl: parseAsString.withDefault(""),
     // Keyframe/360 animation state (animDuration, animLoopMode, animSmoothCamera,
     // animPlaying, animPlaying360, animPose1, animPose2Delta) lives in its own nuqs
     // hook inside CameraUtilities.tsx, not in this shared bag.
@@ -191,6 +205,55 @@ export function TerrainViewer() {
     maplibregl.addProtocol('cog', cogProtocol)
     maplibregl.addProtocol('float32dem', float32demProtocol)
     maplibregl.addProtocol('slope', slopeProtocol)
+  }, [])
+
+  // Applies a `?project=` preset (lib/projects.json) and/or terrainUrl/basemapUrl
+  // convenience params on first load only — guarded by the ref so it never fights
+  // the user's own subsequent state changes or section toggles.
+  useEffect(() => {
+    if (hasAppliedEmbedConfig.current) return
+    hasAppliedEmbedConfig.current = true
+
+    const projectConfig = getProjectConfig(state.project)
+    setActiveProjectConfig(projectConfig)
+
+    const searchParams = new URLSearchParams(window.location.search)
+    const stateOverrides: Record<string, unknown> = {}
+
+    if (projectConfig?.initialState) {
+      for (const [key, value] of Object.entries(projectConfig.initialState)) {
+        if (!searchParams.has(key)) stateOverrides[key] = value
+      }
+    }
+    if (projectConfig?.initialViewMode && !searchParams.has("viewMode")) {
+      stateOverrides.viewMode = projectConfig.initialViewMode
+    }
+
+    if (state.terrainUrl) {
+      const embedId = "__embed_terrain__"
+      const type: CustomTerrainSource["type"] = state.terrainUrl.includes("{z}") ? "terrarium" : "cog"
+      setCustomTerrainSources((prev) => [
+        ...prev.filter((s) => s.id !== embedId),
+        { id: embedId, name: "Embedded Terrain", url: state.terrainUrl, type },
+      ])
+      if (!searchParams.has("sourceA")) stateOverrides.sourceA = embedId
+    }
+    if (state.basemapUrl) {
+      const embedId = "__embed_basemap__"
+      const type: CustomBasemapSource["type"] = state.basemapUrl.includes("{z}") ? "tms" : "cog"
+      setCustomBasemapSources((prev) => [
+        ...prev.filter((s) => s.id !== embedId),
+        { id: embedId, name: "Embedded Basemap", url: state.basemapUrl, type },
+      ])
+      if (!searchParams.has("basemapSource")) stateOverrides.basemapSource = embedId
+    }
+
+    if (Object.keys(stateOverrides).length > 0) setState(stateOverrides)
+
+    if (projectConfig?.initialSections) {
+      setSectionOpen((prev) => ({ ...prev, ...projectConfig.initialSections }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
 

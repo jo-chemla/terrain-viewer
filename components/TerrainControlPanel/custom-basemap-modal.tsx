@@ -7,8 +7,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { type CustomBasemapSource } from "@/lib/settings-atoms"
 import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
+import { WmsPickerPanel } from "./wms-picker-panel"
 
-type BasemapFormType = "cog" | "tms" | "wms" | "wmts" | "qms" | "tilejson"
+type BasemapFormType = "cog" | "tms" | "wms" | "wmts" | "qms" | "tilejson" | "wms-picker"
 
 export const CustomBasemapModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomBasemapSource | null
@@ -35,7 +36,7 @@ export const CustomBasemapModal: React.FC<{
 
   const handleSave = useCallback(() => {
     if (!name || !url) return
-    onSave({ id: editingSource?.id, name, url, type, description })
+    onSave({ id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description })
     onOpenChange(false)
   }, [name, url, type, description, editingSource, onSave, onOpenChange])
 
@@ -91,6 +92,7 @@ export const CustomBasemapModal: React.FC<{
                 <SelectItem value="cog">COG (Cloud Optimized Geotiff)</SelectItem>
                 <SelectItem value="wms">Raster (WMS / WMTS)</SelectItem>
                 <SelectItem value="tilejson">TileJSON</SelectItem>
+                {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
                 {!editingSource && <SelectItem value="qms">NextGIS QMS (search)</SelectItem>}
               </SelectContent>
             </Select>
@@ -98,6 +100,12 @@ export const CustomBasemapModal: React.FC<{
 
           {type === "qms" ? (
             <NextGisQmsSearchPanel onSave={(source) => { onSave(source); onOpenChange(false) }} />
+          ) : type === "wms-picker" ? (
+            <WmsPickerPanel
+              format="image/png"
+              tileSize={256}
+              onSave={(params) => { onSave({ ...params, type: "wms" }); onOpenChange(false) }}
+            />
           ) : (
             <>
               <div className="space-y-2">

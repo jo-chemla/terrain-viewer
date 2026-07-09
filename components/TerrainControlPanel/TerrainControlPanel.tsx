@@ -6,7 +6,7 @@ import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown } from 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { transparentUiAtom, activeSliderAtom } from "@/lib/settings-atoms"
+import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
 import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
@@ -116,6 +116,8 @@ export function TerrainControlPanel({
 
 
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
+  const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
+  const hideSourcePanels = activeProjectConfig?.hideSourcePanels ?? false
 
   const allFolded = SECTION_KEYS.every((k) => !sectionOpen[k])
 
@@ -224,8 +226,12 @@ export function TerrainControlPanel({
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
         <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
         <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} />
-        <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
-        <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} />
+        {!hideSourcePanels && (
+          <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
+        )}
+        {!hideSourcePanels && (
+          <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} />
+        )}
         <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
         <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
         <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />

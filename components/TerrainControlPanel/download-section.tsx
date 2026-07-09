@@ -2,17 +2,21 @@ import type React from "react"
 import { useState, useCallback } from "react"
 import { useAtom } from "jotai"
 import { Download, Camera, Copy, Loader2, MountainSnow } from "lucide-react"
-import { titilerEndpointAtom, maxResolutionAtom } from "@/lib/settings-atoms"
+import { titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
 import saveAs from "file-saver"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
-import { type SourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot } from "@/lib/controls-utils"
+import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot } from "@/lib/controls-utils"
+import { getClientExportSource, exportElevationClientSide } from "@/lib/client-export"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { mergeContourLines } from "@/lib/merge-contours"
 import { ShareButton } from "./ShareSection"
 import { TooltipButton } from "./controls-components"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Progress } from "@/components/ui/progress"
 
 export const DownloadSection: React.FC<{
   state: any
@@ -24,8 +28,13 @@ export const DownloadSection: React.FC<{
 }> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange }) => {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [maxResolution] = useAtom(maxResolutionAtom)
+  const [useClientExport, setUseClientExport] = useAtom(useClientExportAtom)
+  const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const { getTilesUrl } = useSourceConfig()
   const [isExporting, setIsExporting] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
+  const [exportProgress, setExportProgress] = useState<number | null>(null)
+  const [exportError, setExportError] = useState("")
 
   const getTitilerDownloadUrl = useCallback(() => {
     const sourceConfig = getSourceConfig(state.sourceA)
@@ -91,75 +100,117 @@ export const DownloadSection: React.FC<{
     }
   }, [mapRef, state.viewMode, getMapBounds])
 
+  const saveElevationGeoTiff = useCallback(async (
+    elevationData: Float32Array, width: number, height: number,
+    bbox: { west: number; south: number; east: number; north: number },
+  ) => {
+    const pixelSizeX = (bbox.east - bbox.west) / width
+    const pixelSizeY = (bbox.north - bbox.south) / height
+    const metadata = {
+      GTModelTypeGeoKey: 2,
+      GeographicTypeGeoKey: 4326,
+      GeogCitationGeoKey: "WGS 84",
+      height,
+      width,
+      ModelPixelScale: [pixelSizeX, pixelSizeY, 0],
+      ModelTiepoint: [0, 0, 0, bbox.west, bbox.north, 0],
+      SamplesPerPixel: 1,
+      BitsPerSample: [32],
+      SampleFormat: [3],
+      PlanarConfiguration: 1,
+      PhotometricInterpretation: 1,
+    }
+    const outputArrayBuffer = await writeArrayBuffer(elevationData, metadata)
+    const blob = new Blob([outputArrayBuffer], { type: "image/tiff" })
+    saveAs(blob, `terrain-dtm-${Date.now()}.tif`)
+  }, [])
+
+  const exportDTMClientSide = useCallback(async () => {
+    const clientSource = getClientExportSource(state.sourceA, customTerrainSources, getTilesUrl)
+    if (!clientSource) {
+      setExportError("This source isn't supported for client-side export (only COG, TerrainRGB and Terrarium sources are) — switch off Client-side mode to export via Titiler instead.")
+      return
+    }
+    const bounds = getMapBounds()
+    const result = await exportElevationClientSide({
+      source: clientSource,
+      bbox: [bounds.west, bounds.south, bounds.east, bounds.north],
+      targetResolution: maxResolution,
+      onProgress: setExportProgress,
+    })
+    await saveElevationGeoTiff(result.data, result.width, result.height, {
+      west: result.bbox[0], south: result.bbox[1], east: result.bbox[2], north: result.bbox[3],
+    })
+  }, [state.sourceA, customTerrainSources, getTilesUrl, getMapBounds, maxResolution, saveElevationGeoTiff])
+
+  const exportDTMViaTitiler = useCallback(async () => {
+    const sourceConfig = getSourceConfig(state.sourceA)
+    if (!sourceConfig) {
+      setExportError("Source config not found")
+      return
+    }
+    if (sourceConfig.unsupported) {
+      setExportError("This source type can't be exported via Titiler (no tile pyramid to mosaic) — try Client-side mode for COG/TerrainRGB/Terrarium sources instead.")
+      return
+    }
+
+    const url = getTitilerDownloadUrl()
+    const response = await fetch(url)
+    if (!response.ok) {
+      window.open(url, "_blank")
+      return
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
+    const tiff = await fromArrayBuffer(arrayBuffer)
+    const image = await tiff.getImage()
+    const rasters = await image.readRasters()
+
+    const width = image.getWidth()
+    const height = image.getHeight()
+    const encoding = sourceConfig.encoding
+
+    const elevationData = new Float32Array(width * height)
+    const r = rasters[0] as any
+    const g = rasters[1] as any
+    const b = rasters[2] as any
+
+    for (let i = 0; i < width * height; i++) {
+      if (encoding === "terrainrgb") {
+        elevationData[i] = -10000 + (r[i] * 256 * 256 + g[i] * 256 + b[i]) * 0.1
+      } else {
+        elevationData[i] = r[i] * 256 + g[i] + b[i] / 256 - 32768
+      }
+    }
+
+    await saveElevationGeoTiff(elevationData, width, height, getMapBounds())
+  }, [getTitilerDownloadUrl, getSourceConfig, state.sourceA, getMapBounds, saveElevationGeoTiff])
+
   const exportDTM = useCallback(async () => {
     if (isExporting) return
-    
+
     setIsExporting(true)
+    setExportError("")
+    setExportProgress(useClientExport ? 0 : null)
     try {
-      const url = getTitilerDownloadUrl()
-      const response = await fetch(url)
-      if (!response.ok) {
-        window.open(url, "_blank")
-        return
+      if (useClientExport) {
+        await exportDTMClientSide()
+      } else {
+        await exportDTMViaTitiler()
       }
-
-      const arrayBuffer = await response.arrayBuffer()
-      const tiff = await fromArrayBuffer(arrayBuffer)
-      const image = await tiff.getImage()
-      const rasters = await image.readRasters()
-
-      const width = image.getWidth()
-      const height = image.getHeight()
-      const sourceConfig = getSourceConfig(state.sourceA)
-      if (!sourceConfig) {
-        console.error("Source config not found")
-        return
-      }
-      const encoding = sourceConfig.encoding
-
-      const elevationData = new Float32Array(width * height)
-      const r = rasters[0] as any
-      const g = rasters[1] as any
-      const b = rasters[2] as any
-
-      for (let i = 0; i < width * height; i++) {
-        if (encoding === "terrainrgb") {
-          elevationData[i] = -10000 + (r[i] * 256 * 256 + g[i] * 256 + b[i]) * 0.1
-        } else {
-          elevationData[i] = r[i] * 256 + g[i] + b[i] / 256 - 32768
-        }
-      }
-
-      const bounds = getMapBounds()
-      const pixelSizeX = (bounds.east - bounds.west) / width
-      const pixelSizeY = (bounds.north - bounds.south) / height
-
-      const metadata = {
-        GTModelTypeGeoKey: 2,
-        GeographicTypeGeoKey: 4326,
-        GeogCitationGeoKey: "WGS 84",
-        height,
-        width,
-        ModelPixelScale: [pixelSizeX, pixelSizeY, 0],
-        ModelTiepoint: [0, 0, 0, bounds.west, bounds.north, 0],
-        SamplesPerPixel: 1,
-        BitsPerSample: [32],
-        SampleFormat: [3],
-        PlanarConfiguration: 1,
-        PhotometricInterpretation: 1,
-      }
-
-      const outputArrayBuffer = await writeArrayBuffer(elevationData, metadata)
-      const blob = new Blob([outputArrayBuffer], { type: "image/tiff" })
-      saveAs(blob, `terrain-dtm-${Date.now()}.tif`)
     } catch (error) {
       console.error("Failed to export DTM:", error)
-      const url = getTitilerDownloadUrl()
-      window.open(url, "_blank")
+      if (useClientExport) {
+        setExportError(error instanceof Error ? error.message : "Client-side export failed")
+      } else {
+        const url = getTitilerDownloadUrl()
+        window.open(url, "_blank")
+      }
     } finally {
       setIsExporting(false)
+      setExportProgress(null)
     }
-  }, [getTitilerDownloadUrl, getSourceConfig, state.sourceA, getMapBounds, isExporting])
+  }, [isExporting, useClientExport, exportDTMClientSide, exportDTMViaTitiler, getTitilerDownloadUrl])
 
   // Moved here from ContourOptionsSection — contour export is a download action like
   // the others in this section, not a contour-rendering option.
@@ -192,6 +243,23 @@ export const DownloadSection: React.FC<{
             className="flex-1 bg-transparent"
           />
         </div>
+        <div className="flex items-center justify-between gap-2 px-1">
+          <Label htmlFor="use-client-export" className="text-xs font-normal text-muted-foreground">
+            Client-side export (browser range-reads, no Titiler size limit)
+          </Label>
+          <Switch
+            id="use-client-export"
+            checked={useClientExport}
+            onCheckedChange={setUseClientExport}
+            disabled={isExporting}
+          />
+        </div>
+        {exportProgress !== null && (
+          <Progress value={exportProgress * 100} className="h-1" />
+        )}
+        {exportError && (
+          <p className="text-xs text-red-500">{exportError}</p>
+        )}
         <div className="flex gap-2">
           <TooltipButton
             icon={MountainSnow}

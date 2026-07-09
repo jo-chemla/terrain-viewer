@@ -1,5 +1,6 @@
 import { atomWithStorage } from "jotai/utils"
 import { atom } from "jotai"
+import type { ProjectConfig } from "./project-config"
 
 export const mapboxKeyAtom = atomWithStorage("mapboxKey", "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw")
 export const googleKeyAtom = atomWithStorage("googleKey", "AIzaSyAo6DIOnhYdywBidl4clsPZPkQkXfq6QhI")
@@ -9,6 +10,15 @@ export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://t
 export const maxResolutionAtom = atomWithStorage("maxResolution", 1024)
 
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)
+// DTM export mode: client-side (browser range-reads/tile-mosaic, no titiler, no
+// server-side size limit) vs the original titiler-based export. Defaults to titiler
+// (off) so existing behavior is unchanged until a user opts in — see lib/client-export.ts.
+export const useClientExportAtom = atomWithStorage("useClientExport", false)
+// Not persisted (plain atom): the currently active `?project=` preset, if any — set
+// once by TerrainViewer on mount from lib/projects.json, read by GeneralSettings (to
+// filter the View Mode toggle via disableViewModes) and TerrainControlPanel (to hide
+// source-picker sections via hideSourcePanels). null outside of a project embed.
+export const activeProjectConfigAtom = atom<ProjectConfig | null>(null)
 export const colorRampTypeAtom = atomWithStorage('colorRampType', 'classic')
 export const licenseFilterAtom = atomWithStorage('licenseFilter', 'open-distribute' )
 export const highResTerrainAtom = atomWithStorage("highResTerrain", false)
