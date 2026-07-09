@@ -16,6 +16,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         // }}
         processUrlSearchParams={(search) => {
           const priorityOrder = [
+            "project",
             "viewMode", "zoom", "lat", "lng", "pitch", "bearing",
             "sourceA", "splitScreen", "sourceB",
             "showHillshade", "showColorRelief", "showRasterBasemap", "showContours", "showBackground",

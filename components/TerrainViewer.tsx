@@ -100,11 +100,11 @@ export function TerrainViewer() {
     // Embed/project convenience params: `project` looks up a named preset in
     // lib/projects.json (see lib/project-config.ts); terrainUrl/basemapUrl let an
     // embedder point straight at a raw tile/COG URL without registering a custom
-    // source first — see the embed-config effect below. Defined first in this
-    // object for readability, though note nuqs does NOT serialize the URL in this
-    // object's key order (it extends whatever's already in location.search plus
-    // queued-update insertion order) — verified live that `project=` still doesn't
-    // consistently land first in the resulting query string.
+    // source first — see the embed-config effect below. Note this object's key
+    // order does NOT control the resulting URL's param order (nuqs extends
+    // whatever's already in location.search plus queued-update insertion order) —
+    // `project` is put first in the actual URL via src/main.tsx's
+    // processUrlSearchParams instead.
     project: parseAsString.withDefault(""),
     terrainUrl: parseAsString.withDefault(""),
     basemapUrl: parseAsString.withDefault(""),

@@ -10,6 +10,7 @@ export const VisualizationModesSection: React.FC<{
 }> = ({ state, setState, isOpen, onOpenChange }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const hideContours = activeProjectConfig?.hiddenSections?.includes("contour") ?? false
+  const hideSlopeAndMore = activeProjectConfig?.hiddenSections?.includes("slopeAndMore") ?? false
 
   return (
     <Section title="Visualization Modes" isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -18,14 +19,16 @@ export const VisualizationModesSection: React.FC<{
       )}
       <CheckboxWithSlider id="hillshade" checked={state.showHillshade} onCheckedChange={(checked) => setState({ showHillshade: checked })} label="Hillshade" sliderValue={state.hillshadeOpacity} onSliderChange={(value) => setState({ hillshadeOpacity: value })} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
-      <CheckboxWithSlider
-        id="slope-and-more"
-        checked={state.showSlopeAndMore}
-        onCheckedChange={(checked) => setState({ showSlopeAndMore: checked })}
-        label="Slope and More"
-        sliderValue={state.slopeAndMoreOpacity}
-        onSliderChange={(value) => setState({ slopeAndMoreOpacity: value })}
-      />
+      {!hideSlopeAndMore && (
+        <CheckboxWithSlider
+          id="slope-and-more"
+          checked={state.showSlopeAndMore}
+          onCheckedChange={(checked) => setState({ showSlopeAndMore: checked })}
+          label="Slope and More"
+          sliderValue={state.slopeAndMoreOpacity}
+          onSliderChange={(value) => setState({ slopeAndMoreOpacity: value })}
+        />
+      )}
       <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} />
       {/* Fog/sky only affects maplibre's 3D/globe rendering pipeline — meaningless
           (and was rendering a dead control) in flat 2D. */}

@@ -291,7 +291,9 @@ export function TerrainControlPanel({
         )}
         <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
         <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
-        <SlopeAndMoreOptionsSection state={state} setState={setState} isOpen={sectionOpen.slopeAndMore} onOpenChange={toggle("slopeAndMore")} />
+        {!hiddenSections.includes("slopeAndMore") && (
+          <SlopeAndMoreOptionsSection state={state} setState={setState} isOpen={sectionOpen.slopeAndMore} onOpenChange={toggle("slopeAndMore")} />
+        )}
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
         <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
         <ElevationPickerSection state={state} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
