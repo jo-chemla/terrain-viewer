@@ -20,6 +20,7 @@
 
 import { useRef, useState, useCallback, useEffect, useMemo, type RefObject } from "react"
 import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, createParser } from "nuqs"
+import { CanvasSource, Mp4OutputFormat, Output, QUALITY_HIGH, StreamTarget } from "mediabunny"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -422,8 +423,60 @@ function reviveMapInteractions(map: any) {
   map.getCanvas().dispatchEvent(new MouseEvent("mousemove", { bubbles: true }))
 }
 
-// ─── Video export functions (unchanged) ───────────────────────────────────────
+// ─── Video export functions ─────────────────────────────────────────────────
 // Import these from a separate file in production, kept inline for brevity.
+//
+// MediaBunny (npm package, already a dependency) muxes canvas frames straight into
+// a real MP4 (H.264) via WebCodecs under the hood — no format-conversion step, no
+// codec-support roulette across browsers the way MediaRecorder's mimeType probing
+// needs. Falls back to the MediaRecorder/WebM path below if MediaBunny throws
+// (e.g. a browser without the WebCodecs VideoEncoder), so export still succeeds
+// either way, just as a heavier .webm file instead of .mp4.
+async function exportVideoMediaBunny(
+  canvas: HTMLCanvasElement, fps: number, durationMs: number,
+  extraFramesPerStep: number,
+  onProgress: (progress: number, codec: string) => void,
+  recordFrame: (frameIndex: number, totalFrames: number) => Promise<void>
+): Promise<Blob> {
+  const totalFrames = Math.ceil((durationMs / 1000) * fps)
+  const chunks: Uint8Array[] = []
+
+  const output = new Output({
+    format: new Mp4OutputFormat({ fastStart: "fragmented" }),
+    target: new StreamTarget(new WritableStream({
+      write(chunk) { chunks.push(chunk.data) },
+    })),
+  })
+
+  const videoSource = new CanvasSource(canvas, {
+    codec: "avc", // H.264
+    bitrate: QUALITY_HIGH,
+    keyFrameInterval: 1.0,
+  })
+  output.addVideoTrack(videoSource, { frameRate: fps })
+
+  await output.start()
+
+  try {
+    for (let i = 0; i < totalFrames; i++) {
+      await recordFrame(i, totalFrames)
+      for (let f = 0; f < 2 + extraFramesPerStep; f++) await new Promise(r => requestAnimationFrame(r))
+
+      const timestamp = i / fps
+      const duration = 1 / fps
+      await videoSource.add(timestamp, duration)
+
+      onProgress((i + 1) / totalFrames, "Exporting via MediaBunny (MP4/H.264)")
+    }
+
+    await output.finalize()
+    const mimeType = await output.getMimeType()
+    return new Blob(chunks.map((c) => c.buffer as ArrayBuffer), { type: mimeType })
+  } catch (error) {
+    await output.cancel()
+    throw error
+  }
+}
 
 async function exportVideoMediaRecorder(
   canvas: HTMLCanvasElement, fps: number, durationMs: number,
@@ -773,12 +826,26 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
     let prev
     try {
       prev = await resizeCanvasForExport(map, targetW, targetH, p1)
-      const videoBlob = await exportVideoMediaRecorder(
-        canvas, fps, durationMsRef.current, selectedQuality.extraFrames, onProgress, recordFrame
-      )
+
+      // MediaBunny first (real MP4/H.264, no format-conversion step) — falls back to
+      // MediaRecorder/WebM if the browser can't do WebCodecs video encoding.
+      let videoBlob: Blob
+      let extension = "mp4"
+      try {
+        videoBlob = await exportVideoMediaBunny(
+          canvas, fps, durationMsRef.current, selectedQuality.extraFrames, onProgress, recordFrame
+        )
+      } catch (mediaBunnyError) {
+        console.warn("MediaBunny export failed, falling back to MediaRecorder:", mediaBunnyError)
+        videoBlob = await exportVideoMediaRecorder(
+          canvas, fps, durationMsRef.current, selectedQuality.extraFrames, onProgress, recordFrame
+        )
+        extension = "webm"
+      }
+
       const url = URL.createObjectURL(videoBlob)
       const a = document.createElement("a")
-      a.href = url; a.download = `terrain-${Date.now()}.webm`; a.click()
+      a.href = url; a.download = `terrain-${Date.now()}.${extension}`; a.click()
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error("Video export failed:", error)

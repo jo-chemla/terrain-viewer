@@ -296,7 +296,9 @@ export function TerrainControlPanel({
         )}
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
         <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
-        <ElevationPickerSection state={state} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
+        {!hiddenSections.includes("elevationPicker") && (
+          <ElevationPickerSection state={state} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
+        )}
         <AnimationSection
           mapRef={mapRef}
           isOpen={sectionOpen.animation}

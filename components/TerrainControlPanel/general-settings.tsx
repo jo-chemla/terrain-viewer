@@ -15,6 +15,7 @@ export const GeneralSettings: React.FC<{
 }> = ({ state, setState, isOpen, onOpenChange }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const disabledViewModes = activeProjectConfig?.disableViewModes ?? []
+  const hideSplitScreen = activeProjectConfig?.hiddenSections?.includes("splitScreen") ?? false
 
   return (
     <Section title="General Settings" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
@@ -34,13 +35,15 @@ export const GeneralSettings: React.FC<{
           )}
         </ToggleGroup>
       </div>
-      <div className="flex items-center justify-between gap-2">
-        <Label className="text-sm font-medium">Split Screen</Label>
-        <ToggleGroup type="single" value={state.splitScreen ? "on" : "off"} onValueChange={(value) => value && setState({ splitScreen: value === "on" })} className="border rounded-md w-[140px]">
-          <ToggleGroupItem value="off" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">Off</ToggleGroupItem>
-          <ToggleGroupItem value="on" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">On</ToggleGroupItem>
-        </ToggleGroup>
-      </div>
+      {!hideSplitScreen && (
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-sm font-medium">Split Screen</Label>
+          <ToggleGroup type="single" value={state.splitScreen ? "on" : "off"} onValueChange={(value) => value && setState({ splitScreen: value === "on" })} className="border rounded-md w-[140px]">
+            <ToggleGroupItem value="off" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">Off</ToggleGroupItem>
+            <ToggleGroupItem value="on" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">On</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+      )}
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
         <div className="space-y-1 pt-1">
           <div className="flex items-center justify-between">
