@@ -280,6 +280,19 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </div>
           <Separator />
           <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Slope and More Modes</h3>
+            <div className="space-y-1.5 text-xs text-muted-foreground">
+              <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
+              <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
+              <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change (Profile, Plan or Combined)</div>
+              <div><span className="font-semibold text-foreground">TRI (Terrain Ruggedness Index):</span> mean elevation difference to neighbors</div>
+              <div><span className="font-semibold text-foreground">TPI (Topographic Position Index):</span> elevation relative to neighborhood mean</div>
+              <div><span className="font-semibold text-foreground">Roughness:</span> max−min elevation in a neighborhood</div>
+              <div><span className="font-semibold text-foreground">LRM (Local Relief Model):</span> raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree</div>
+            </div>
+          </div>
+          <Separator />
+          <div className="space-y-2">
             <h3 className="text-sm font-semibold">Smart Bounds Zoom</h3>
             <p className="text-xs text-muted-foreground">
               Clicking a source's name (Terrain Source / Basemap Source lists) only flies to its
