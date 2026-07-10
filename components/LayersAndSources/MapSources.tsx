@@ -11,7 +11,9 @@ import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
 import { buildAspectProtocolUrl } from "@/lib/aspect-protocol"
 import { buildTriProtocolUrl } from "@/lib/tri-protocol"
-import { buildCurvatureProtocolUrl } from "@/lib/curvature-protocol"
+import { buildCurvatureProtocolUrl, type CurvatureMode } from "@/lib/curvature-protocol"
+import { buildTpiProtocolUrl } from "@/lib/tpi-protocol"
+import { buildRoughnessProtocolUrl } from "@/lib/roughness-protocol"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -490,16 +492,20 @@ interface NormalDerivedSourceProps {
     maptilerKey: string
     titilerEndpoint: string
     buildUrl: (template: string, encoding: "terrarium" | "mapbox", tileSize: number) => string
+    // Appended to the Source's remount key alongside terrainSource — lets a caller
+    // (e.g. CurvatureSource, whose formula depends on curvatureMode) force a fresh
+    // Source/tile-cache when something other than the terrain source changes.
+    keySuffix?: string
 }
 
-const NormalDerivedSource = memo(({ enabled, sourceId, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, buildUrl }: NormalDerivedSourceProps) => {
+const NormalDerivedSource = memo(({ enabled, sourceId, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, buildUrl, keySuffix = "" }: NormalDerivedSourceProps) => {
     const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
     if (!enabled || !clientUpstream) return null
     const url = buildUrl(clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize)
     return (
         <Source
             id={sourceId}
-            key={`${sourceId}-${terrainSource}`}
+            key={`${sourceId}-${terrainSource}${keySuffix}`}
             type="raster-dem"
             tiles={[url]}
             tileSize={clientUpstream.tileSize}
@@ -519,7 +525,22 @@ export const TriSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" 
 ))
 TriSource.displayName = "TriSource"
 
-export const CurvatureSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
-    <NormalDerivedSource {...props} sourceId="curvatureSource" buildUrl={buildCurvatureProtocolUrl} />
+export const CurvatureSource = memo(({ mode, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { mode: CurvatureMode }) => (
+    <NormalDerivedSource
+        {...props}
+        sourceId="curvatureSource"
+        keySuffix={`-${mode}`}
+        buildUrl={(template, encoding, tileSize) => buildCurvatureProtocolUrl(template, encoding, tileSize, mode)}
+    />
 ))
 CurvatureSource.displayName = "CurvatureSource"
+
+export const TpiSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
+    <NormalDerivedSource {...props} sourceId="tpiSource" buildUrl={buildTpiProtocolUrl} />
+))
+TpiSource.displayName = "TpiSource"
+
+export const RoughnessSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
+    <NormalDerivedSource {...props} sourceId="roughnessSource" buildUrl={buildRoughnessProtocolUrl} />
+))
+RoughnessSource.displayName = "RoughnessSource"

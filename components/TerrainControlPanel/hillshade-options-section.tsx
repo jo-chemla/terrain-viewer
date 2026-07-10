@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
 import {SphericalXYPad} from './XYPad'
-import { isHillshadeXYPadOpenAtom } from "@/lib/settings-atoms"
+import { isHillshadeXYPadOpenAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { useAtom } from "jotai"
 
 export const HillshadeOptionsSection: React.FC<{
@@ -23,6 +23,8 @@ export const HillshadeOptionsSection: React.FC<{
 
   const [isColorsOpen, setIsColorsOpen] = useState(false)
   const [isHillshadeXYPadOpen, setIsHillshadeXYPadOpen] = useAtom(isHillshadeXYPadOpenAtom)
+  const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
+  const hideAdvancedControls = activeProjectConfig?.hiddenSections?.includes("hillshadeAdvanced") ?? false
 
   const supportsIlluminationDirection = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
   const supportsIlluminationAltitude = useMemo(() => ["combined", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
@@ -85,12 +87,12 @@ export const HillshadeOptionsSection: React.FC<{
       )}
       
       {/*Individual 1D Sliders for illumination */}
-      {supportsIlluminationDirection && <SliderControl label="Illumination Direction" value={state.illuminationDir} onChange={(v) => setState({ illuminationDir: v })} min={0} max={360} step={1} suffix="°" />}
-      {supportsIlluminationAltitude && <SliderControl label="Illumination Altitude" value={state.illuminationAlt} onChange={(v) => setState({ illuminationAlt: v })} min={0} max={90} step={1} suffix="°" />}
-      {supportsExaggeration && <SliderControl label="Hillshade Exaggeration" value={state.hillshadeExag} onChange={(v) => setState({ hillshadeExag: v })} min={0} max={1} step={0.01} decimals={2} />}
+      {!hideAdvancedControls && supportsIlluminationDirection && <SliderControl label="Illumination Direction" value={state.illuminationDir} onChange={(v) => setState({ illuminationDir: v })} min={0} max={360} step={1} suffix="°" />}
+      {!hideAdvancedControls && supportsIlluminationAltitude && <SliderControl label="Illumination Altitude" value={state.illuminationAlt} onChange={(v) => setState({ illuminationAlt: v })} min={0} max={90} step={1} suffix="°" />}
+      {!hideAdvancedControls && supportsExaggeration && <SliderControl label="Hillshade Exaggeration" value={state.hillshadeExag} onChange={(v) => setState({ hillshadeExag: v })} min={0} max={1} step={0.01} decimals={2} />}
 
       {/* hillshade colors */}
-      {(supportsShadowColor || supportsHighlightColor || supportsAccentColor) && (
+      {!hideAdvancedControls && (supportsShadowColor || supportsHighlightColor || supportsAccentColor) && (
         <Collapsible open={isColorsOpen} onOpenChange={setIsColorsOpen}>
           <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
             Hillshade Colors<ChevronDown className={`h-4 w-4 transition-transform ${isColorsOpen ? "rotate-180" : ""}`} />

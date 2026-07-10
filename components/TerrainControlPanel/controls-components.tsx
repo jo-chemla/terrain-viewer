@@ -229,16 +229,21 @@ export const TooltipButton: React.FC<TooltipButtonProps> = ({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          className={`cursor-pointer bg-transparent min-w-0 ${className}`}
-          onClick={onClick}
-        >
-          <Icon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" />
-          <span className="truncate text-xs sm:text-sm">{label}</span>
-        </Button>
+        {/* Wrapping span keeps the tooltip working when disabled — a native disabled
+            button doesn't dispatch pointer/hover events, so the trigger would never
+            open if the Button itself were the trigger. */}
+        <span className={className}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            className="cursor-pointer bg-transparent min-w-0 w-full"
+            onClick={onClick}
+          >
+            <Icon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" />
+            <span className="truncate text-xs sm:text-sm">{label}</span>
+          </Button>
+        </span>
       </TooltipTrigger>
       <TooltipContent>
         <p>{tooltip}</p>

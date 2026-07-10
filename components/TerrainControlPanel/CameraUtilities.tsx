@@ -478,6 +478,74 @@ async function exportVideoMediaBunny(
   }
 }
 
+// Raw WebCodecs fallback tier (no muxing library) — used when MediaBunny throws but
+// the browser still supports VideoEncoder/VideoFrame directly. Encodes a bare H.264
+// elementary stream (no real MP4 container/moov box), so playback compatibility is
+// weaker than MediaBunny's proper muxed output; kept only as a middle rung before
+// falling all the way back to MediaRecorder/WebM.
+function getAvcLevel(width: number, height: number): string {
+  const area = width * height
+  if (area <= 414720) return "avc1.42E01E"
+  if (area <= 983040) return "avc1.42E014"
+  if (area <= 2228224) return "avc1.42E01F"
+  if (area <= 8912896) return "avc1.42E028"
+  return "avc1.42E033"
+}
+
+async function exportVideoWebCodecs(
+  canvas: HTMLCanvasElement, fps: number, durationMs: number,
+  extraFramesPerStep: number,
+  onProgress: (progress: number, codec: string) => void,
+  recordFrame: (frameIndex: number, totalFrames: number) => Promise<void>
+): Promise<Blob> {
+  const totalFrames = Math.ceil((durationMs / 1000) * fps)
+  const { width, height } = canvas
+
+  if (!("VideoEncoder" in window)) throw new Error("WebCodecs API not supported")
+
+  const chunks: Uint8Array[] = []
+  const encoder = new VideoEncoder({
+    output: (chunk) => {
+      const data = new Uint8Array(chunk.byteLength)
+      chunk.copyTo(data)
+      chunks.push(data)
+    },
+    error: (e) => { throw e },
+  })
+
+  encoder.configure({
+    codec: getAvcLevel(width, height),
+    width, height,
+    bitrate: 8_000_000,
+    framerate: fps,
+    avc: { format: "avc" },
+  })
+
+  for (let i = 0; i < totalFrames; i++) {
+    await recordFrame(i, totalFrames)
+    for (let f = 0; f < 2 + extraFramesPerStep; f++) await new Promise(r => requestAnimationFrame(r))
+
+    const bitmap = await createImageBitmap(canvas)
+    const frame = new VideoFrame(bitmap, {
+      timestamp: (i / fps) * 1_000_000,
+      duration: (1 / fps) * 1_000_000,
+    })
+    encoder.encode(frame, { keyFrame: i % 30 === 0 })
+    frame.close()
+    bitmap.close()
+    onProgress((i + 1) / totalFrames, "Exporting via WebCodecs (H.264)")
+  }
+
+  await encoder.flush()
+  encoder.close()
+
+  const total = chunks.reduce((s, c) => s + c.byteLength, 0)
+  const data = new Uint8Array(total)
+  let offset = 0
+  for (const c of chunks) { data.set(c, offset); offset += c.byteLength }
+  return new Blob([data.buffer as ArrayBuffer], { type: "video/mp4" })
+}
+
 async function exportVideoMediaRecorder(
   canvas: HTMLCanvasElement, fps: number, durationMs: number,
   extraFramesPerStep: number,
@@ -828,7 +896,8 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
       prev = await resizeCanvasForExport(map, targetW, targetH, p1)
 
       // MediaBunny first (real MP4/H.264, no format-conversion step) — falls back to
-      // MediaRecorder/WebM if the browser can't do WebCodecs video encoding.
+      // raw WebCodecs (still H.264/MP4-ish, no muxing) if MediaBunny itself throws,
+      // then all the way to MediaRecorder/WebM if the browser can't do WebCodecs at all.
       let videoBlob: Blob
       let extension = "mp4"
       try {
@@ -836,11 +905,18 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
           canvas, fps, durationMsRef.current, selectedQuality.extraFrames, onProgress, recordFrame
         )
       } catch (mediaBunnyError) {
-        console.warn("MediaBunny export failed, falling back to MediaRecorder:", mediaBunnyError)
-        videoBlob = await exportVideoMediaRecorder(
-          canvas, fps, durationMsRef.current, selectedQuality.extraFrames, onProgress, recordFrame
-        )
-        extension = "webm"
+        console.warn("MediaBunny export failed, falling back to WebCodecs:", mediaBunnyError)
+        try {
+          videoBlob = await exportVideoWebCodecs(
+            canvas, fps, durationMsRef.current, selectedQuality.extraFrames, onProgress, recordFrame
+          )
+        } catch (webCodecsError) {
+          console.warn("WebCodecs export failed, falling back to MediaRecorder:", webCodecsError)
+          videoBlob = await exportVideoMediaRecorder(
+            canvas, fps, durationMsRef.current, selectedQuality.extraFrames, onProgress, recordFrame
+          )
+          extension = "webm"
+        }
       }
 
       const url = URL.createObjectURL(videoBlob)

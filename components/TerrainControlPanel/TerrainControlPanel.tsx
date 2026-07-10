@@ -235,7 +235,11 @@ export function TerrainControlPanel({
           "right-0 top-0 bottom-0 w-80 rounded-none",
           "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
         )}
-        style={{ 
+        style={{
+          // Reserves the scrollbar's width up front so it doesn't appear/disappear
+          // as content grows past the fold, which used to shift the sticky header's
+          // right-aligned buttons left by the scrollbar's width when it popped in.
+          scrollbarGutter: 'stable',
           height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined
         }}
       >

@@ -13,6 +13,8 @@ export const LAYER_SLOTS = {
   ASPECT: "slot-aspect",
   TRI: "slot-tri",
   CURVATURE: "slot-curvature",
+  TPI: "slot-tpi",
+  ROUGHNESS: "slot-roughness",
   HILLSHADE: "slot-hillshade",
   CONTOURS: "slot-contours",
 } as const
@@ -28,6 +30,8 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.ASPECT}      type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.TRI}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CURVATURE}   type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.TPI}         type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.ROUGHNESS}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.HILLSHADE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
   </>
@@ -265,6 +269,36 @@ export const CurvatureReliefLayer = memo(({ showSlopeAndMore, showCurvature, cur
   )
 })
 CurvatureReliefLayer.displayName = "CurvatureReliefLayer"
+
+export const TpiReliefLayer = memo(({ showSlopeAndMore, showTpi, tpiReliefPaint }: { showSlopeAndMore: boolean; showTpi: boolean; tpiReliefPaint: any }) => {
+  if (!showSlopeAndMore) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.TPI}
+      id="tpi-relief"
+      type="color-relief"
+      source="tpiSource"
+      paint={tpiReliefPaint}
+      layout={{ visibility: showTpi ? "visible" : "none" }}
+    />
+  )
+})
+TpiReliefLayer.displayName = "TpiReliefLayer"
+
+export const RoughnessReliefLayer = memo(({ showSlopeAndMore, showRoughness, roughnessReliefPaint }: { showSlopeAndMore: boolean; showRoughness: boolean; roughnessReliefPaint: any }) => {
+  if (!showSlopeAndMore) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.ROUGHNESS}
+      id="roughness-relief"
+      type="color-relief"
+      source="roughnessSource"
+      paint={roughnessReliefPaint}
+      layout={{ visibility: showRoughness ? "visible" : "none" }}
+    />
+  )
+})
+RoughnessReliefLayer.displayName = "RoughnessReliefLayer"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
