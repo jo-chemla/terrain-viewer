@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MobileSlider, DraftBoundInput } from "./controls-components"
+import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 
@@ -69,12 +69,12 @@ export const SlopeFields: React.FC<{
           <div className="flex items-center gap-2">
             <DraftBoundInput
               value={state.slopeMinDegrees ?? rampBounds.min}
-              onCommit={(v) => setState({ slopeMinDegrees: v })}
+              onCommit={(v) => setState({ slopeMinDegrees: clampMinCommit(v, state.slopeMaxDegrees ?? rampBounds.max) })}
               className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
             />
             <DraftBoundInput
               value={state.slopeMaxDegrees ?? rampBounds.max}
-              onCommit={(v) => setState({ slopeMaxDegrees: v })}
+              onCommit={(v) => setState({ slopeMaxDegrees: clampMaxCommit(v, state.slopeMinDegrees ?? rampBounds.min) })}
               className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
             />
           </div>

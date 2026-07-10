@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MobileSlider, DraftBoundInput } from "./controls-components"
+import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 
@@ -70,12 +70,12 @@ export const TriFields: React.FC<{
           <div className="flex items-center gap-2">
             <DraftBoundInput
               value={state.triMin ?? rampBounds.min}
-              onCommit={(v) => setState({ triMin: v })}
+              onCommit={(v) => setState({ triMin: clampMinCommit(v, state.triMax ?? rampBounds.max) })}
               className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
             />
             <DraftBoundInput
               value={state.triMax ?? rampBounds.max}
-              onCommit={(v) => setState({ triMax: v })}
+              onCommit={(v) => setState({ triMax: clampMaxCommit(v, state.triMin ?? rampBounds.min) })}
               className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
             />
           </div>

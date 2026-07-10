@@ -84,11 +84,21 @@ export async function lrmProtocol(
   ])
   if (!centerTile) throw new Error(`Failed to fetch LRM center tile at ${z}/${x}/${y}`)
 
+  // bilinearSamplePadded (and the ancestor grid it reads) index pixels by position,
+  // i.e. ancestor pixel `i` is assumed to sit at coordinate `i`. But ancestor pixel
+  // `i` is really the box-average of fine pixels [i*scale, (i+1)*scale) — its true
+  // center of mass is at fine-position i*scale + scale/2, i.e. ancestor-coordinate
+  // i + 0.5, not i. Omitting that half-pixel recentering (`+0.5` before dividing,
+  // `-0.5` after) shifts every sample by up to half an *ancestor* pixel toward
+  // larger x/y (south-east) — negligible at k=1 but up to ~scale/2 fine pixels at
+  // k=6, which on steep terrain reads as a strong, aspect-correlated relief bias
+  // rather than genuine local relief (confirmed empirically: this fix takes the
+  // correlation between LRM and local slope gradient from -0.3..-0.6 to ~0).
   const outData = new Uint8ClampedArray(n * n * 4)
   for (let row = 0; row < n; row++) {
-    const ancestorPxY = (yOffsetTiles * n + row) / scale
+    const ancestorPxY = (yOffsetTiles * n + row + 0.5) / scale - 0.5
     for (let col = 0; col < n; col++) {
-      const ancestorPxX = (xOffsetTiles * n + col) / scale
+      const ancestorPxX = (xOffsetTiles * n + col + 0.5) / scale - 0.5
       const coarseElevation = bilinearSamplePadded(ancestorGrid, ancestorPxX, ancestorPxY)
       const fineElevation = centerTile.data[row * centerTile.width + col]
       const lrm = fineElevation - coarseElevation

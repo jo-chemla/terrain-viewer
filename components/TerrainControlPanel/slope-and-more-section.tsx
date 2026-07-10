@@ -19,7 +19,11 @@ export const SlopeAndMoreOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, setState, isOpen, onOpenChange }) => {
+  // Actual tile grid size of the active terrain source (256/512, from its
+  // maplibre source config) — used by LrmFields to display an accurate
+  // meters-equivalent for the smoothing radius, instead of assuming 256.
+  terrainTileSize: number
+}> = ({ state, setState, isOpen, onOpenChange, terrainTileSize }) => {
   if (!state.showSlopeAndMore) return null
 
   return (
@@ -100,7 +104,7 @@ export const SlopeAndMoreOptionsSection: React.FC<{
             sliderValue={state.lrmOpacity}
             onSliderChange={(value) => setState({ lrmOpacity: value })}
           />
-          {state.showLrm && <LrmFields state={state} setState={setState} />}
+          {state.showLrm && <LrmFields state={state} setState={setState} tileSize={terrainTileSize} />}
         </div>
 
         <div className="space-y-2">

@@ -27,9 +27,21 @@ export function remapColorRampStops(
   const rampMin = Math.min(...stops)
   const rampMax = Math.max(...stops)
   if (rampMax === rampMin) return newColors
+  // customMin/customMax can be transiently undefined during initial mount (nuqs
+  // hasn't hydrated URL state yet) — falling back to the ramp's own bounds avoids
+  // NaN stops, which maplibre's style validator rejects as "not strictly ascending".
+  const effectiveMin = Number.isFinite(customMin) ? (customMin as number) : rampMin
+  const effectiveMax = Number.isFinite(customMax) ? (customMax as number) : rampMax
+  // A degenerate (zero-width) custom range collapses every remapped stop to the same
+  // value — maplibre's style validator rejects that as non-ascending, same failure
+  // mode as the undefined-bounds case above. Can be reached directly via a hand-edited
+  // URL (e.g. curvatureMin=20&curvatureMax=20), not just the clamped UI inputs, so the
+  // guard belongs here rather than only where the bounds are set. Fall back to the
+  // ramp's own stops rather than crash.
+  if (effectiveMax === effectiveMin) return newColors
   const remap = (value: number): number => {
     const t = (value - rampMin) / (rampMax - rampMin)
-    return customMin + t * (customMax - customMin)
+    return effectiveMin + t * (effectiveMax - effectiveMin)
   }
   // Apply remap to stops in-place
   let si = 0

@@ -15,7 +15,7 @@ import {
 } from "@/lib/settings-atoms"
 import { colorRamps, extractStops, colorRampsFlat } from "@/lib/color-ramps"
 // import { Section, TooltipIconButton } from "./controls-components"
-import { Section, TooltipIconButton, MobileSlider, SectionIdContext, DraftBoundInput } from "./controls-components"
+import { Section, TooltipIconButton, MobileSlider, SectionIdContext, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
 import { cn } from "@/lib/utils"
 import { getGradientColors } from "@/lib/controls-utils"
 import { useEffect } from "react"
@@ -412,7 +412,7 @@ export const HypsometricTintOptionsSection: React.FC<{
             <div className="flex-1 flex items-center">
               <DraftBoundInput
                 value={state.minElevation}
-                onCommit={(v) => setState({ minElevation: v, customHypsoMinMax: true })}
+                onCommit={(v) => setState({ minElevation: clampMinCommit(v, state.maxElevation), customHypsoMinMax: true })}
                 placeholder="Min"
                 className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               />
@@ -420,7 +420,7 @@ export const HypsometricTintOptionsSection: React.FC<{
             <div className="flex-1 flex items-center">
               <DraftBoundInput
                 value={state.maxElevation}
-                onCommit={(v) => setState({ maxElevation: v, customHypsoMinMax: true })}
+                onCommit={(v) => setState({ maxElevation: clampMaxCommit(v, state.minElevation), customHypsoMinMax: true })}
                 placeholder="Max"
                 className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               />

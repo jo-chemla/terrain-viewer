@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { MobileSlider, DraftBoundInput } from "./controls-components"
+import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 import type { CurvatureMode } from "@/lib/curvature-protocol"
@@ -129,12 +129,12 @@ export const CurvatureFields: React.FC<{
             <div className="flex items-center gap-2">
               <DraftBoundInput
                 value={state.curvatureMin ?? rampBounds.min}
-                onCommit={(v) => setState({ curvatureMin: v })}
+                onCommit={(v) => setState({ curvatureMin: clampMinCommit(v, state.curvatureMax ?? rampBounds.max) })}
                 className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
               />
               <DraftBoundInput
                 value={state.curvatureMax ?? rampBounds.max}
-                onCommit={(v) => setState({ curvatureMax: v })}
+                onCommit={(v) => setState({ curvatureMax: clampMaxCommit(v, state.curvatureMin ?? rampBounds.min) })}
                 className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
               />
             </div>

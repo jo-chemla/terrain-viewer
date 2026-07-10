@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MobileSlider, DraftBoundInput } from "./controls-components"
+import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
@@ -29,7 +29,11 @@ const DEFAULTS = {
 // underneath it.
 export const LrmFields: React.FC<{
   state: any; setState: (updates: any) => void
-}> = ({ state, setState }) => {
+  // Actual tile grid size (256/512) of the active terrain source's maplibre
+  // source config — the LRM protocol fetches tiles at this size, so it's the
+  // correct divisor for turning a pixel radius into a real-world distance.
+  tileSize?: number
+}> = ({ state, setState, tileSize = 256 }) => {
   const rampBounds = useMemo(() => {
     const ramp = colorRampsClassic[state.lrmColorRamp] ?? colorRampsClassic["lrm-diverging"]
     const stops = extractStops(ramp.colors)
@@ -45,11 +49,11 @@ export const LrmFields: React.FC<{
   )
 
   // Approximate ground size of the smoothing neighborhood at the viewport center —
-  // informational only (assumes a standard 256px tile grid; actual source tileSize
-  // may differ slightly), computed with the same Web Mercator formula the protocol
-  // itself uses to turn a pixel radius into a real-world distance.
+  // informational only, computed with the same Web Mercator formula the protocol
+  // itself uses to turn a pixel radius into a real-world distance, using the
+  // active source's actual tile grid size (256 or 512) rather than assuming one.
   const radiusPx = state.lrmRadius ?? DEFAULTS.lrmRadius
-  const radiusMeters = radiusPx * groundResolutionM(state.lat ?? 0, state.zoom ?? 0)
+  const radiusMeters = radiusPx * groundResolutionM(state.lat ?? 0, state.zoom ?? 0, tileSize)
 
   return (
     <div className="space-y-4 pl-6">
@@ -123,12 +127,12 @@ export const LrmFields: React.FC<{
             <div className="flex items-center gap-2">
               <DraftBoundInput
                 value={state.lrmMin ?? rampBounds.min}
-                onCommit={(v) => setState({ lrmMin: v })}
+                onCommit={(v) => setState({ lrmMin: clampMinCommit(v, state.lrmMax ?? rampBounds.max) })}
                 className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
               />
               <DraftBoundInput
                 value={state.lrmMax ?? rampBounds.max}
-                onCommit={(v) => setState({ lrmMax: v })}
+                onCommit={(v) => setState({ lrmMax: clampMaxCommit(v, state.lrmMin ?? rampBounds.min) })}
                 className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
               />
             </div>

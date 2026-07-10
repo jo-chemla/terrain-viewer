@@ -342,3 +342,19 @@ export const DraftBoundInput: React.FC<{
   )
 }
 TooltipIconButton.displayName = "TooltipIconButton"
+
+// ─── Range-bound clamping ─────────────────────────────────────────────────────
+//
+// For a two-input min/max range (DraftBoundInput pair), the paired-slider variant
+// already sorts its two values with Math.min/Math.max on every drag so min can
+// never end up above max. The two independent text inputs commit one bound at a
+// time though, so without this same sort a user typing a min above the current
+// max (or vice versa) produces an inverted range — which color-relief-color
+// consumers (via remapColorRampStops) turn into non-ascending paint stops that
+// maplibre's style validator rejects outright.
+export function clampMinCommit(v: number | undefined, currentMax: number): number | undefined {
+  return v === undefined ? undefined : Math.min(v, currentMax)
+}
+export function clampMaxCommit(v: number | undefined, currentMin: number): number | undefined {
+  return v === undefined ? undefined : Math.max(v, currentMin)
+}

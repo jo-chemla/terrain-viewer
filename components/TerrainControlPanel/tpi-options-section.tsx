@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MobileSlider, DraftBoundInput } from "./controls-components"
+import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 
@@ -85,12 +85,12 @@ export const TpiFields: React.FC<{
             <div className="flex items-center gap-2">
               <DraftBoundInput
                 value={state.tpiMin ?? rampBounds.min}
-                onCommit={(v) => setState({ tpiMin: v })}
+                onCommit={(v) => setState({ tpiMin: clampMinCommit(v, state.tpiMax ?? rampBounds.max) })}
                 className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
               />
               <DraftBoundInput
                 value={state.tpiMax ?? rampBounds.max}
-                onCommit={(v) => setState({ tpiMax: v })}
+                onCommit={(v) => setState({ tpiMax: clampMaxCommit(v, state.tpiMin ?? rampBounds.min) })}
                 className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
               />
             </div>

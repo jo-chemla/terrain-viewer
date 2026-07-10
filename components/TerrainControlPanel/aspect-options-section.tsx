@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MobileSlider, DraftBoundInput } from "./controls-components"
+import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 
@@ -69,12 +69,12 @@ export const AspectFields: React.FC<{
           <div className="flex items-center gap-2">
             <DraftBoundInput
               value={state.aspectMinDegrees ?? rampBounds.min}
-              onCommit={(v) => setState({ aspectMinDegrees: v })}
+              onCommit={(v) => setState({ aspectMinDegrees: clampMinCommit(v, state.aspectMaxDegrees ?? rampBounds.max) })}
               className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
             />
             <DraftBoundInput
               value={state.aspectMaxDegrees ?? rampBounds.max}
-              onCommit={(v) => setState({ aspectMaxDegrees: v })}
+              onCommit={(v) => setState({ aspectMaxDegrees: clampMaxCommit(v, state.aspectMinDegrees ?? rampBounds.min) })}
               className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
             />
           </div>
