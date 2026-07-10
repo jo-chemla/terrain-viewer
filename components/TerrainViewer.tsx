@@ -40,8 +40,9 @@ import { triProtocol } from '@/lib/tri-protocol'
 import { curvatureProtocol } from '@/lib/curvature-protocol'
 import { tpiProtocol } from '@/lib/tpi-protocol'
 import { roughnessProtocol } from '@/lib/roughness-protocol'
+import { lrmProtocol } from '@/lib/lrm-protocol'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, RoughnessSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource } from "./LayersAndSources/MapSources"
 import {
   LayerOrderSlots,
   RasterLayer,
@@ -54,6 +55,7 @@ import {
   TriReliefLayer,
   CurvatureReliefLayer,
   TpiReliefLayer,
+  LrmReliefLayer,
   RoughnessReliefLayer,
   LAYER_SLOTS,
   computeHillshadePaint,
@@ -179,6 +181,14 @@ export function TerrainViewer() {
     tpiMax: parseAsFloat.withDefault(20),
     tpiInvertColorRamp: parseAsBoolean.withDefault(false),
     tpiSymmetric: parseAsBoolean.withDefault(true),
+    showLrm: parseAsBoolean.withDefault(false),
+    lrmOpacity: parseAsFloat.withDefault(1.0),
+    lrmColorRamp: parseAsString.withDefault("lrm-diverging"),
+    lrmMin: parseAsFloat.withDefault(-20),
+    lrmMax: parseAsFloat.withDefault(20),
+    lrmInvertColorRamp: parseAsBoolean.withDefault(false),
+    lrmSymmetric: parseAsBoolean.withDefault(true),
+    lrmRadius: parseAsFloat.withDefault(16),
     showRoughness: parseAsBoolean.withDefault(false),
     roughnessOpacity: parseAsFloat.withDefault(1.0),
     roughnessColorRamp: parseAsString.withDefault("roughness-default"),
@@ -325,6 +335,18 @@ export function TerrainViewer() {
     [ state.tpiColorRamp, state.tpiMin, state.tpiMax, state.tpiOpacity, state.slopeAndMoreOpacity, state.tpiInvertColorRamp ]
   )
 
+  const lrmReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.lrmColorRamp,
+      customHypsoMinMax: true,
+      minElevation: state.lrmMin,
+      maxElevation: state.lrmMax,
+      colorReliefOpacity: state.lrmOpacity * state.slopeAndMoreOpacity,
+      invertColorRamp: state.lrmInvertColorRamp,
+    }),
+    [ state.lrmColorRamp, state.lrmMin, state.lrmMax, state.lrmOpacity, state.slopeAndMoreOpacity, state.lrmInvertColorRamp ]
+  )
+
   const roughnessReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.roughnessColorRamp,
@@ -351,6 +373,7 @@ export function TerrainViewer() {
     maplibregl.addProtocol('tri', triProtocol)
     maplibregl.addProtocol('curvature', curvatureProtocol)
     maplibregl.addProtocol('tpi', tpiProtocol)
+    maplibregl.addProtocol('lrm', lrmProtocol)
     maplibregl.addProtocol('roughness', roughnessProtocol)
   }, [])
 
@@ -923,6 +946,15 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
+          <LrmSource
+            enabled={state.showSlopeAndMore}
+            radius={state.lrmRadius}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
           <RoughnessSource
             enabled={state.showSlopeAndMore}
             terrainSource={source}
@@ -954,6 +986,7 @@ export function TerrainViewer() {
           <TriReliefLayer showSlopeAndMore={state.showSlopeAndMore} showTri={state.showTri} triReliefPaint={triReliefPaint} />
           <CurvatureReliefLayer showSlopeAndMore={state.showSlopeAndMore} showCurvature={state.showCurvature} curvatureReliefPaint={curvatureReliefPaint} />
           <TpiReliefLayer showSlopeAndMore={state.showSlopeAndMore} showTpi={state.showTpi} tpiReliefPaint={tpiReliefPaint} />
+          <LrmReliefLayer showSlopeAndMore={state.showSlopeAndMore} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
           <RoughnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
           <HillshadeLayer
             showHillshade={state.showHillshade}
@@ -1104,13 +1137,13 @@ export function TerrainViewer() {
       state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB, state.overlayBasemapIds,
       state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity, state.showHillshade,
       state.showColorRelief, state.showSlopeAndMore, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
-      state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showRoughness,
+      state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor,
       activeBasemapSourceA, activeBasemapSourceB,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
-      tpiReliefPaint, roughnessReliefPaint,
+      tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,
       skyConfig.skyColor, skyConfig.skyHorizonBlend, skyConfig.horizonColor, skyConfig.horizonFogBlend,

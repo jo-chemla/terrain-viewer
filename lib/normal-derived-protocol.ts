@@ -184,6 +184,13 @@ function tileRowToLatRad(y: number, z: number): number {
 const EARTH_CIRCUMFERENCE_M = 2 * Math.PI * 6378137
 export const RAD_TO_DEG = 180 / Math.PI
 
+/** Web Mercator meters-per-pixel at a given latitude/zoom — same formula the
+ *  protocols use internally, exposed for UI display (e.g. showing a px-based
+ *  radius/window control's real-world size at the viewport center). */
+export function groundResolutionM(latDeg: number, zoom: number, tileSize = 256): number {
+  return (EARTH_CIRCUMFERENCE_M * Math.cos(latDeg / RAD_TO_DEG)) / (tileSize * Math.pow(2, zoom))
+}
+
 // -------------------------
 // Shared 3x3 window passed to each protocol's compute function
 // -------------------------
@@ -203,30 +210,30 @@ export interface ElevationWindow {
   groundResolutionM: number
 }
 
-export interface RunNormalDerivedProtocolParams {
-  url: string
-  urlRegex: RegExp
-  abortController: AbortController
-  cache: Map<string, Promise<DecodedTile | null>>
-  computeValue: (window: ElevationWindow) => number
+export interface PaddedElevationGrid {
+  /** (n+2)x(n+2) elevation grid: the tile's own n x n pixels plus a 1px border
+   *  sampled from its 8 same-zoom neighbors (edge/world-boundary pixels repeat the
+   *  nearest neighbor's edge — see sampleElevation's row/col clamp below). */
+  padded: Float32Array
+  stride: number
+  centerTile: DecodedTile
 }
 
-/** Parses a `{proto}://{encoding}/{tileSize}/{encodedTemplate}/{z}/{x}/{y}` URL (the
- *  same scheme buildSlopeProtocolUrl uses), fetches the center tile + 8 neighbors,
- *  and calls `computeValue` once per output pixel. */
-export async function runNormalDerivedProtocol(
-  params: RunNormalDerivedProtocolParams,
-): Promise<{ data: Uint8Array }> {
-  const { url, urlRegex, abortController, cache, computeValue } = params
-  const match = url.match(urlRegex)
-  if (!match) throw new Error(`Invalid normal-derived protocol URL: ${url}`)
-  const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr] = match
-  const encoding = encodingRaw as UpstreamEncoding
-  const n = parseInt(tileSizeStr, 10)
-  const upstreamTemplate = decodeURIComponent(encodedTemplate)
-  const z = parseInt(zStr, 10)
-  const x = parseInt(xStr, 10)
-  const y = parseInt(yStr, 10)
+/** Fetches a tile's 8 same-zoom neighbors (via the shared decoded-tile cache) and
+ *  stitches all 9 into one padded elevation grid — the piece every normal-derived
+ *  protocol (slope/aspect/TRI/curvature/TPI/roughness) needs at the tile's own zoom,
+ *  and LRM (lib/lrm-protocol.ts) additionally needs one level further, at a lower
+ *  zoom to fetch its already-downsampled ancestor tile as the low-pass component. */
+export async function fetchPaddedElevationGrid(
+  cache: Map<string, Promise<DecodedTile | null>>,
+  upstreamTemplate: string,
+  encoding: UpstreamEncoding,
+  z: number,
+  x: number,
+  y: number,
+  n: number,
+  abortSignal: AbortSignal,
+): Promise<PaddedElevationGrid> {
   const worldSize = 1 << z
 
   const upstreamUrl = (tx: number, ty: number) =>
@@ -238,7 +245,7 @@ export async function runNormalDerivedProtocol(
     if (ty < 0 || ty >= worldSize) continue
     for (let tdx = -1; tdx <= 1; tdx++) {
       const tx = wrapTileX(x + tdx, z)
-      tilePromises.set(`${tdx},${tdy}`, fetchDecodedTile(cache, upstreamUrl(tx, ty), encoding, abortController.signal))
+      tilePromises.set(`${tdx},${tdy}`, fetchDecodedTile(cache, upstreamUrl(tx, ty), encoding, abortSignal))
     }
   }
 
@@ -273,6 +280,59 @@ export async function runNormalDerivedProtocol(
       padded[pr * stride + pc] = sampleElevation(tdx, tdy, srcRow, srcCol)
     }
   }
+
+  return { padded, stride, centerTile }
+}
+
+/** Bilinearly samples a PaddedElevationGrid at a fractional (px, py) given in the
+ *  tile's own *unpadded* pixel space (0..n, y-down) — used by LRM to read the coarse
+ *  ancestor grid at a fine-tile pixel's mapped coordinate without boxy edges. */
+export function bilinearSamplePadded(grid: PaddedElevationGrid, px: number, py: number): number {
+  const { padded, stride } = grid
+  const gx = px + 1
+  const gy = py + 1
+  const x0 = Math.floor(gx)
+  const y0 = Math.floor(gy)
+  const fx = gx - x0
+  const fy = gy - y0
+  const clamp = (v: number) => Math.min(Math.max(v, 0), stride - 1)
+  const x0c = clamp(x0), x1c = clamp(x0 + 1), y0c = clamp(y0), y1c = clamp(y0 + 1)
+  const v00 = padded[y0c * stride + x0c]
+  const v10 = padded[y0c * stride + x1c]
+  const v01 = padded[y1c * stride + x0c]
+  const v11 = padded[y1c * stride + x1c]
+  return v00 * (1 - fx) * (1 - fy) + v10 * fx * (1 - fy) + v01 * (1 - fx) * fy + v11 * fx * fy
+}
+
+export interface RunNormalDerivedProtocolParams {
+  url: string
+  urlRegex: RegExp
+  abortController: AbortController
+  cache: Map<string, Promise<DecodedTile | null>>
+  computeValue: (window: ElevationWindow) => number
+}
+
+/** Parses a `{proto}://{encoding}/{tileSize}/{encodedTemplate}/{z}/{x}/{y}` URL (the
+ *  same scheme buildSlopeProtocolUrl uses), fetches the center tile + 8 neighbors,
+ *  and calls `computeValue` once per output pixel. */
+export async function runNormalDerivedProtocol(
+  params: RunNormalDerivedProtocolParams,
+): Promise<{ data: Uint8Array }> {
+  const { url, urlRegex, abortController, cache, computeValue } = params
+  const match = url.match(urlRegex)
+  if (!match) throw new Error(`Invalid normal-derived protocol URL: ${url}`)
+  const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr] = match
+  const encoding = encodingRaw as UpstreamEncoding
+  const n = parseInt(tileSizeStr, 10)
+  const upstreamTemplate = decodeURIComponent(encodedTemplate)
+  const z = parseInt(zStr, 10)
+  const x = parseInt(xStr, 10)
+  const y = parseInt(yStr, 10)
+  const worldSize = 1 << z
+
+  const { padded, stride } = await fetchPaddedElevationGrid(
+    cache, upstreamTemplate, encoding, z, x, y, n, abortController.signal,
+  )
 
   const groundResolutionM = EARTH_CIRCUMFERENCE_M / (n * worldSize)
   const latCenterRad = tileRowToLatRad(y + 0.5, z)

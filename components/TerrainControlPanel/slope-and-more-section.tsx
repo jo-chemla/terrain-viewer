@@ -5,6 +5,7 @@ import { AspectFields } from "./aspect-options-section"
 import { TriFields } from "./tri-options-section"
 import { CurvatureFields } from "./curvature-options-section"
 import { TpiFields } from "./tpi-options-section"
+import { LrmFields } from "./lrm-options-section"
 import { RoughnessFields } from "./roughness-options-section"
 
 // Merged panel for every normal-derived terrain visualization — same pattern as
@@ -87,6 +88,19 @@ export const SlopeAndMoreOptionsSection: React.FC<{
             onSliderChange={(value) => setState({ tpiOpacity: value })}
           />
           {state.showTpi && <TpiFields state={state} setState={setState} />}
+        </div>
+
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="slope-and-more-lrm"
+            label="Local Relief Model"
+            tooltip="Elevation relative to a smoothed regional trend (wider neighborhood than Topographic Position)."
+            checked={state.showLrm}
+            onCheckedChange={(checked) => setState({ showLrm: checked })}
+            sliderValue={state.lrmOpacity}
+            onSliderChange={(value) => setState({ lrmOpacity: value })}
+          />
+          {state.showLrm && <LrmFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">

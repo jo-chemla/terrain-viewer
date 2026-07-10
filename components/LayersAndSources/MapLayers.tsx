@@ -14,6 +14,7 @@ export const LAYER_SLOTS = {
   TRI: "slot-tri",
   CURVATURE: "slot-curvature",
   TPI: "slot-tpi",
+  LRM: "slot-lrm",
   ROUGHNESS: "slot-roughness",
   HILLSHADE: "slot-hillshade",
   CONTOURS: "slot-contours",
@@ -31,6 +32,7 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.TRI}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CURVATURE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.TPI}         type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.LRM}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.ROUGHNESS}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.HILLSHADE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
@@ -284,6 +286,21 @@ export const TpiReliefLayer = memo(({ showSlopeAndMore, showTpi, tpiReliefPaint 
   )
 })
 TpiReliefLayer.displayName = "TpiReliefLayer"
+
+export const LrmReliefLayer = memo(({ showSlopeAndMore, showLrm, lrmReliefPaint }: { showSlopeAndMore: boolean; showLrm: boolean; lrmReliefPaint: any }) => {
+  if (!showSlopeAndMore) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.LRM}
+      id="lrm-relief"
+      type="color-relief"
+      source="lrmSource"
+      paint={lrmReliefPaint}
+      layout={{ visibility: showLrm ? "visible" : "none" }}
+    />
+  )
+})
+LrmReliefLayer.displayName = "LrmReliefLayer"
 
 export const RoughnessReliefLayer = memo(({ showSlopeAndMore, showRoughness, roughnessReliefPaint }: { showSlopeAndMore: boolean; showRoughness: boolean; roughnessReliefPaint: any }) => {
   if (!showSlopeAndMore) return null

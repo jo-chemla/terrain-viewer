@@ -14,6 +14,7 @@ import { buildTriProtocolUrl } from "@/lib/tri-protocol"
 import { buildCurvatureProtocolUrl, type CurvatureMode } from "@/lib/curvature-protocol"
 import { buildTpiProtocolUrl } from "@/lib/tpi-protocol"
 import { buildRoughnessProtocolUrl } from "@/lib/roughness-protocol"
+import { buildLrmProtocolUrl } from "@/lib/lrm-protocol"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -539,6 +540,21 @@ export const TpiSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" 
     <NormalDerivedSource {...props} sourceId="tpiSource" buildUrl={buildTpiProtocolUrl} />
 ))
 TpiSource.displayName = "TpiSource"
+
+// radius (the "Smoothing Radius" control) changes which pyramid level gets fetched
+// (see radiusToLevels in lib/lrm-protocol.ts) — baked into the tile URL itself, so
+// (like CurvatureSource's mode) it needs a keySuffix to force a fresh Source/tile
+// cache when it changes, instead of maplibre reusing stale tiles keyed by a URL
+// that's about to mean something different.
+export const LrmSource = memo(({ radius, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { radius: number }) => (
+    <NormalDerivedSource
+        {...props}
+        sourceId="lrmSource"
+        keySuffix={`-${radius}`}
+        buildUrl={(template, encoding, tileSize) => buildLrmProtocolUrl(template, encoding, tileSize, radius)}
+    />
+))
+LrmSource.displayName = "LrmSource"
 
 export const RoughnessSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
     <NormalDerivedSource {...props} sourceId="roughnessSource" buildUrl={buildRoughnessProtocolUrl} />

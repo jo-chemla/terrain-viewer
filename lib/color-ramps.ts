@@ -476,6 +476,23 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // Local Relief Model (meters, raw elevation minus a low-pass regional trend) from
+  // lib/lrm-protocol.ts — negative/below-trend (valleys relative to the surrounding
+  // region) to positive/above-trend (ridges/mounds relative to the surrounding
+  // region), diverging around a flat=fully-transparent midpoint, same convention as
+  // tpi-diverging above (which is the same idea at a much smaller, fixed 3x3 scale).
+  "lrm-diverging": {
+    name: "LRM (Diverging)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -20, "rgb(33, 102, 172)",
+      -5, "rgb(146, 197, 222)",
+      0, "rgba(255, 255, 255, 0)",
+      5, "rgb(253, 174, 97)",
+      20, "rgb(178, 24, 43)",
+    ],
+    continuous: true,
+  },
   // Roughness (meters, max-min elevation in a 3x3 neighborhood) from
   // lib/roughness-protocol.ts. Flat ground (0) is fully transparent rather than
   // opaque white, matching tri-default, since it's the same "unrugged ground
