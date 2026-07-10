@@ -460,6 +460,38 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // Topographic Position Index (meters, center minus neighborhood mean) from
+  // lib/tpi-protocol.ts — negative/below-neighborhood (valleys/pits) to positive/
+  // above-neighborhood (ridges/peaks), diverging around a flat=fully-transparent
+  // midpoint rather than opaque white, so mid-slope ground doesn't get tinted at all.
+  "tpi-diverging": {
+    name: "TPI (Diverging)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -20, "rgb(33, 102, 172)",
+      -5, "rgb(146, 197, 222)",
+      0, "rgba(255, 255, 255, 0)",
+      5, "rgb(253, 174, 97)",
+      20, "rgb(178, 24, 43)",
+    ],
+    continuous: true,
+  },
+  // Roughness (meters, max-min elevation in a 3x3 neighborhood) from
+  // lib/roughness-protocol.ts. Flat ground (0) is fully transparent rather than
+  // opaque white, matching tri-default, since it's the same "unrugged ground
+  // shouldn't get tinted" reasoning.
+  "roughness-default": {
+    name: "Roughness",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "rgba(255, 255, 255, 0)",
+      5, "rgb(224, 236, 244)",
+      15, "rgb(158, 188, 218)",
+      30, "rgb(140, 107, 177)",
+      50, "rgb(110, 1, 107)",
+    ],
+    continuous: true,
+  },
   // Discrete ramps
   // None
 }

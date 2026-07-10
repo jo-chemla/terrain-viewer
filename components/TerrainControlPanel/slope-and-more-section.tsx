@@ -4,6 +4,8 @@ import { SlopeFields } from "./slope-options-section"
 import { AspectFields } from "./aspect-options-section"
 import { TriFields } from "./tri-options-section"
 import { CurvatureFields } from "./curvature-options-section"
+import { TpiFields } from "./tpi-options-section"
+import { RoughnessFields } from "./roughness-options-section"
 
 // Merged panel for every normal-derived terrain visualization — same pattern as
 // ContourOptionsSection's "Contours & GeoGrid" (one master viz-mode checkbox in
@@ -26,6 +28,7 @@ export const SlopeAndMoreOptionsSection: React.FC<{
           <CheckboxWithSlider
             id="slope-and-more-slope"
             label="Slope"
+            tooltip="Magnitude of the gradient."
             checked={state.showSlope}
             onCheckedChange={(checked) => setState({ showSlope: checked })}
             sliderValue={state.slopeOpacity}
@@ -38,6 +41,7 @@ export const SlopeAndMoreOptionsSection: React.FC<{
           <CheckboxWithSlider
             id="slope-and-more-curvature"
             label="Curvature"
+            tooltip="Rate of slope change (Profile, Plan or Combined)."
             checked={state.showCurvature}
             onCheckedChange={(checked) => setState({ showCurvature: checked })}
             sliderValue={state.curvatureOpacity}
@@ -50,6 +54,7 @@ export const SlopeAndMoreOptionsSection: React.FC<{
           <CheckboxWithSlider
             id="slope-and-more-aspect"
             label="Aspect"
+            tooltip="Direction of the gradient."
             checked={state.showAspect}
             onCheckedChange={(checked) => setState({ showAspect: checked })}
             sliderValue={state.aspectOpacity}
@@ -62,12 +67,39 @@ export const SlopeAndMoreOptionsSection: React.FC<{
           <CheckboxWithSlider
             id="slope-and-more-tri"
             label="Terrain Ruggedness"
+            tooltip="TRI (Terrain Ruggedness Index): mean elevation difference to neighbors."
             checked={state.showTri}
             onCheckedChange={(checked) => setState({ showTri: checked })}
             sliderValue={state.triOpacity}
             onSliderChange={(value) => setState({ triOpacity: value })}
           />
           {state.showTri && <TriFields state={state} setState={setState} />}
+        </div>
+
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="slope-and-more-tpi"
+            label="Topographic Position"
+            tooltip="Elevation relative to neighborhood mean."
+            checked={state.showTpi}
+            onCheckedChange={(checked) => setState({ showTpi: checked })}
+            sliderValue={state.tpiOpacity}
+            onSliderChange={(value) => setState({ tpiOpacity: value })}
+          />
+          {state.showTpi && <TpiFields state={state} setState={setState} />}
+        </div>
+
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="slope-and-more-roughness"
+            label="Roughness"
+            tooltip="Max − min elevation in a neighborhood."
+            checked={state.showRoughness}
+            onCheckedChange={(checked) => setState({ showRoughness: checked })}
+            sliderValue={state.roughnessOpacity}
+            onSliderChange={(value) => setState({ roughnessOpacity: value })}
+          />
+          {state.showRoughness && <RoughnessFields state={state} setState={setState} />}
         </div>
       </div>
     </Section>

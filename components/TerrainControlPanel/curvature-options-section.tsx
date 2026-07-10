@@ -5,17 +5,38 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { MobileSlider, DraftBoundInput } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
+import type { CurvatureMode } from "@/lib/curvature-protocol"
 
 const DEFAULTS = {
+  curvatureMode: "combined" as CurvatureMode,
   curvatureColorRamp: "curvature-diverging",
   curvatureMin: undefined,
   curvatureMax: undefined,
   curvatureInvertColorRamp: false,
   curvatureSymmetric: true,
 }
+
+const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: string }[] = [
+  {
+    value: "combined",
+    label: "Combined",
+    tooltip: "General curvature — a combined measure of surface bending (the discrete Laplacian, ∇²z) that doesn't separate flow direction from contour direction.",
+  },
+  {
+    value: "profile",
+    label: "Profile",
+    tooltip: "Rate of slope change along the steepest-descent direction, affects flow acceleration.",
+  },
+  {
+    value: "plan",
+    label: "Plan",
+    tooltip: "Rate of aspect change across contours, affects flow convergence/divergence.",
+  },
+]
 
 // Fields-only (no Section wrapper/gate) — embedded inside SlopeAndMoreOptionsSection,
 // which owns the "Curvature" checkbox that conditionally renders this block underneath it.
@@ -74,6 +95,28 @@ export const CurvatureFields: React.FC<{
       </div>
 
       <div className="space-y-2">
+        <Label className="text-sm font-medium">Curvature Type</Label>
+        <div className="flex border rounded-md overflow-hidden">
+          {CURVATURE_MODE_OPTIONS.map((opt, i) => (
+            <Tooltip key={opt.value}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant={(state.curvatureMode ?? "combined") === opt.value ? "default" : "ghost"}
+                  size="sm"
+                  className={`flex-1 rounded-none cursor-pointer h-8 text-xs ${i > 0 ? "border-l" : ""}`}
+                  onClick={() => setState({ curvatureMode: opt.value })}
+                >
+                  {opt.label}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>{opt.tooltip}</p></TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">Curvature Range</Label>
           {symmetric ? (
@@ -128,7 +171,7 @@ export const CurvatureFields: React.FC<{
           className="cursor-pointer"
         />
         <Label htmlFor="curvature-symmetric" className="text-sm font-medium cursor-pointer">
-          Symmetric Range (-V to +V)
+          Symmetric Range
         </Label>
       </div>
 

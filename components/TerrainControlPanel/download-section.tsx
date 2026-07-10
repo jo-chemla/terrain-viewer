@@ -2,7 +2,7 @@ import type React from "react"
 import { useState, useCallback } from "react"
 import { useAtom } from "jotai"
 import { Download, Camera, Copy, Loader2, MountainSnow } from "lucide-react"
-import { titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
+import { titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
 import saveAs from "file-saver"
@@ -28,6 +28,8 @@ export const DownloadSection: React.FC<{
   const [maxResolution] = useAtom(maxResolutionAtom)
   const [useClientExport] = useAtom(useClientExportAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
+  const hideContoursExport = activeProjectConfig?.hiddenSections?.includes("contour") ?? false
   const { getTilesUrl } = useSourceConfig()
   const [isExporting, setIsExporting] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
@@ -226,19 +228,19 @@ export const DownloadSection: React.FC<{
       <div className="space-y-2">
         <div className="flex gap-2">
           <TooltipButton
+            icon={Camera}
+            label="Snapshot"
+            tooltip="Download Snapshot to Disk"
+            onClick={downloadScreenshot}
+            className="flex-1 bg-transparent"
+          />
+          <TooltipButton
             icon={isExporting ? Loader2 : Download}
             label={isExporting ? "Exporting…" : "DEM GeoTiff"}
             tooltip="Export DTM as GeoTIFF"
             onClick={exportDTM}
             disabled={isExporting}
             className={`flex-1 ${isExporting ? "[&_svg]:animate-spin" : ""}`}
-          />
-          <TooltipButton
-            icon={Camera}
-            label="Snapshot"
-            tooltip="Download Snapshot to Disk"
-            onClick={downloadScreenshot}
-            className="flex-1 bg-transparent"
           />
         </div>
         {exportProgress !== null && (
@@ -248,21 +250,23 @@ export const DownloadSection: React.FC<{
           <p className="text-xs text-red-500">{exportError}</p>
         )}
         <div className="flex gap-2">
-          <TooltipButton
-            icon={MountainSnow}
-            label="Contours"
-            tooltip={state.showContoursAndGraticules && state.showContours
-              ? "Export the contour lines currently rendered in the viewport as GeoJSON"
-              : "Enable Contour Lines (Options: Contours & GeoGrid) to export them"}
-            onClick={exportContours}
-            // Matches the actual layer-visibility condition in TerrainViewer.tsx
-            // (showContoursAndGraticules is the "Contours & GeoGrid" viz-mode master
-            // toggle, showContours is the sub-checkbox for the lines specifically) —
-            // checking showContours alone left this enabled even when the whole
-            // contours feature was off, since showContours defaults to true.
-            disabled={!(state.showContoursAndGraticules && state.showContours)}
-            className="flex-1 bg-transparent"
-          />
+          {!hideContoursExport && (
+            <TooltipButton
+              icon={MountainSnow}
+              label="Contours"
+              tooltip={state.showContoursAndGraticules && state.showContours
+                ? "Export the contour lines currently rendered in the viewport as GeoJSON"
+                : "Contours must be activated in visualization mode first."}
+              onClick={exportContours}
+              // Matches the actual layer-visibility condition in TerrainViewer.tsx
+              // (showContoursAndGraticules is the "Contours & GeoGrid" viz-mode master
+              // toggle, showContours is the sub-checkbox for the lines specifically) —
+              // checking showContours alone left this enabled even when the whole
+              // contours feature was off, since showContours defaults to true.
+              disabled={!(state.showContoursAndGraticules && state.showContours)}
+              className="flex-1 bg-transparent"
+            />
+          )}
           <TooltipButton
             icon={isCopying ? Loader2 : Copy}
             label="Copy"
