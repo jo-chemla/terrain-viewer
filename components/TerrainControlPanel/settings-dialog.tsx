@@ -284,11 +284,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             <div className="space-y-1.5 text-xs text-muted-foreground">
               <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
               <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
-              <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change (Profile, Plan or Combined)</div>
+              <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change (Profile, Plan or Combined). Curvature is usually split into profile curvature (rate of slope change along the steepest-descent direction, affects flow acceleration) and plan curvature (rate of aspect change across contours, affects flow convergence/divergence)</div>
               <div><span className="font-semibold text-foreground">TRI (Terrain Ruggedness Index):</span> mean elevation difference to neighbors</div>
               <div><span className="font-semibold text-foreground">TPI (Topographic Position Index):</span> elevation relative to neighborhood mean</div>
               <div><span className="font-semibold text-foreground">Roughness:</span> max−min elevation in a neighborhood</div>
               <div><span className="font-semibold text-foreground">LRM (Local Relief Model):</span> raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree</div>
+              <div className="pt-1 italic">Neighborhood usually refers to a 3×3 kernel centered on the pixel.</div>
             </div>
           </div>
           <Separator />
