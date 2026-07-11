@@ -34,7 +34,7 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
   {
     value: "plan",
     label: "Plan",
-    tooltip: "Rate of aspect change across contours, affects flow convergence/divergence.",
+    tooltip: "Rate of aspect change across contours, affects flow convergence/divergence. Equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|).",
   },
 ]
 
