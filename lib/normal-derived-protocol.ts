@@ -211,9 +211,12 @@ export interface ElevationWindow {
 }
 
 export interface PaddedElevationGrid {
-  /** (n+2)x(n+2) elevation grid: the tile's own n x n pixels plus a 1px border
-   *  sampled from its 8 same-zoom neighbors (edge/world-boundary pixels repeat the
-   *  nearest neighbor's edge — see sampleElevation's row/col clamp below). */
+  /** (n+2*halo)x(n+2*halo) elevation grid: the tile's own n x n pixels plus a
+   *  halo-pixel border sampled from its 8 same-zoom neighbors (edge/world-boundary
+   *  pixels repeat the nearest neighbor's edge — see sampleElevation's row/col
+   *  clamp below). No extra tile fetches are needed for halo > 1 since each
+   *  same-zoom neighbor is already fetched in full — a wider halo just reads
+   *  further into data that's already resolved. */
   padded: Float32Array
   stride: number
   centerTile: DecodedTile
@@ -221,9 +224,12 @@ export interface PaddedElevationGrid {
 
 /** Fetches a tile's 8 same-zoom neighbors (via the shared decoded-tile cache) and
  *  stitches all 9 into one padded elevation grid — the piece every normal-derived
- *  protocol (slope/aspect/TRI/curvature/TPI/roughness) needs at the tile's own zoom,
- *  and LRM (lib/lrm-protocol.ts) additionally needs one level further, at a lower
- *  zoom to fetch its already-downsampled ancestor tile as the low-pass component. */
+ *  protocol (slope/aspect/TRI/curvature/TPI/roughness/blobness) needs at the tile's
+ *  own zoom, and LRM (lib/lrm-protocol.ts) additionally needs one level further, at
+ *  a lower zoom to fetch its already-downsampled ancestor tile as the low-pass
+ *  component. `halo` defaults to 1 (a 3x3 window, what every mode except blobness
+ *  uses) — blobness-protocol.ts passes 2 for the wider 5x5 window its structure
+ *  tensor needs (a 3x3 grid of Horn gradients, each itself needing a 3x3 neighborhood). */
 export async function fetchPaddedElevationGrid(
   cache: Map<string, Promise<DecodedTile | null>>,
   upstreamTemplate: string,
@@ -233,6 +239,7 @@ export async function fetchPaddedElevationGrid(
   y: number,
   n: number,
   abortSignal: AbortSignal,
+  halo = 1,
 ): Promise<PaddedElevationGrid> {
   const worldSize = 1 << z
 
@@ -267,14 +274,14 @@ export async function fetchPaddedElevationGrid(
     return source.data[r * source.width + c]
   }
 
-  const stride = n + 2
+  const stride = n + 2 * halo
   const padded = new Float32Array(stride * stride)
   for (let pr = 0; pr < stride; pr++) {
-    const globalRow = pr - 1
+    const globalRow = pr - halo
     const tdy = globalRow < 0 ? -1 : globalRow >= n ? 1 : 0
     const srcRow = globalRow - tdy * n
     for (let pc = 0; pc < stride; pc++) {
-      const globalCol = pc - 1
+      const globalCol = pc - halo
       const tdx = globalCol < 0 ? -1 : globalCol >= n ? 1 : 0
       const srcCol = globalCol - tdx * n
       padded[pr * stride + pc] = sampleElevation(tdx, tdy, srcRow, srcCol)
@@ -362,6 +369,69 @@ export async function runNormalDerivedProtocol(
       }
 
       const [r, g, b, alpha] = elevationToTerrainrgb(computeValue(window))
+      const idx = (row * n + col) * 4
+      outData[idx] = r
+      outData[idx + 1] = g
+      outData[idx + 2] = b
+      outData[idx + 3] = alpha
+    }
+  }
+
+  const canvas = new OffscreenCanvas(n, n)
+  const ctx = canvas.getContext("2d")!
+  ctx.putImageData(new ImageData(outData, n, n), 0, 0)
+  const blob = await canvas.convertToBlob({ type: "image/png" })
+  return { data: new Uint8Array(await blob.arrayBuffer()) }
+}
+
+export interface RunWindowedProtocolParams {
+  url: string
+  urlRegex: RegExp
+  abortController: AbortController
+  cache: Map<string, Promise<DecodedTile | null>>
+  /** Border width (in pixels) needed around each output pixel — see fetchPaddedElevationGrid. */
+  halo: number
+  /** Called once per output pixel. `sample(dr, dc)` reads the elevation at
+   *  (row+dr, col+dc) relative to the pixel, for |dr|,|dc| <= halo — the
+   *  arbitrary-window equivalent of runNormalDerivedProtocol's fixed ElevationWindow,
+   *  for modes (currently only blobness) whose kernel doesn't fit in a 3x3 window. */
+  computeValue: (sample: (dr: number, dc: number) => number, groundResolutionM: number) => number
+}
+
+/** Same URL scheme and tile-fetch pipeline as runNormalDerivedProtocol, generalized
+ *  to an arbitrary halo instead of always fetching/exposing a fixed 3x3 window. */
+export async function runWindowedProtocol(
+  params: RunWindowedProtocolParams,
+): Promise<{ data: Uint8Array }> {
+  const { url, urlRegex, abortController, cache, halo, computeValue } = params
+  const match = url.match(urlRegex)
+  if (!match) throw new Error(`Invalid normal-derived protocol URL: ${url}`)
+  const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr] = match
+  const encoding = encodingRaw as UpstreamEncoding
+  const n = parseInt(tileSizeStr, 10)
+  const upstreamTemplate = decodeURIComponent(encodedTemplate)
+  const z = parseInt(zStr, 10)
+  const x = parseInt(xStr, 10)
+  const y = parseInt(yStr, 10)
+  const worldSize = 1 << z
+
+  const { padded, stride } = await fetchPaddedElevationGrid(
+    cache, upstreamTemplate, encoding, z, x, y, n, abortController.signal, halo,
+  )
+
+  const groundResolutionM = EARTH_CIRCUMFERENCE_M / (n * worldSize)
+  const latCenterRad = tileRowToLatRad(y + 0.5, z)
+  const scale = Math.cos(latCenterRad)
+  const scaledGroundResolutionM = groundResolutionM * scale
+
+  const outData = new Uint8ClampedArray(n * n * 4)
+  for (let row = 0; row < n; row++) {
+    const pr = row + halo
+    for (let col = 0; col < n; col++) {
+      const pc = col + halo
+      const sample = (dr: number, dc: number) => padded[(pr + dr) * stride + (pc + dc)]
+
+      const [r, g, b, alpha] = elevationToTerrainrgb(computeValue(sample, scaledGroundResolutionM))
       const idx = (row * n + col) * 4
       outData[idx] = r
       outData[idx + 1] = g

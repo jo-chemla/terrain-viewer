@@ -1,11 +1,10 @@
 import type React from "react"
-import { useMemo } from "react"
-import { RotateCcw } from "lucide-react"
+import { useCallback, useMemo } from "react"
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
@@ -22,11 +21,6 @@ const DEFAULTS = {
 
 const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: string }[] = [
   {
-    value: "combined",
-    label: "Combined",
-    tooltip: "General curvature — a combined measure of surface bending (the discrete Laplacian, ∇²z) that doesn't separate flow direction from contour direction.",
-  },
-  {
     value: "profile",
     label: "Profile",
     tooltip: "Rate of slope change along the steepest-descent direction, affects flow acceleration.",
@@ -35,6 +29,16 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
     value: "plan",
     label: "Plan",
     tooltip: "Rate of aspect change across contours, affects flow convergence/divergence. Equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|).",
+  },
+  {
+    value: "det-hessian",
+    label: "Det Hessian",
+    tooltip: "Determinant of the Hessian (fxx·fyy − fxy²) — a blob/saddle detector: positive at bowl/dome-shaped extrema, negative at saddle points, near zero on a straight ridge or uniform slope.",
+  },
+  {
+    value: "combined",
+    label: "Combined",
+    tooltip: "General curvature — a combined measure of surface bending (the discrete Laplacian, ∇²z) that doesn't separate flow direction from contour direction.",
   },
 ]
 
@@ -57,6 +61,12 @@ export const CurvatureFields: React.FC<{
     Math.abs(state.curvatureMin ?? rampBounds.min),
     Math.abs(state.curvatureMax ?? rampBounds.max),
   )
+
+  const cycleCurvatureMode = useCallback((direction: number) => {
+    const currentIndex = CURVATURE_MODE_OPTIONS.findIndex((opt) => opt.value === (state.curvatureMode ?? "combined"))
+    const newIndex = (currentIndex + direction + CURVATURE_MODE_OPTIONS.length) % CURVATURE_MODE_OPTIONS.length
+    setState({ curvatureMode: CURVATURE_MODE_OPTIONS[newIndex].value })
+  }, [state.curvatureMode, setState])
 
   return (
     <div className="space-y-4 pl-6">
@@ -96,24 +106,32 @@ export const CurvatureFields: React.FC<{
 
       <div className="space-y-2">
         <Label className="text-sm font-medium">Curvature Type</Label>
-        <div className="flex border rounded-md overflow-hidden">
-          {CURVATURE_MODE_OPTIONS.map((opt, i) => (
-            <Tooltip key={opt.value}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant={(state.curvatureMode ?? "combined") === opt.value ? "default" : "ghost"}
-                  size="sm"
-                  className={`flex-1 rounded-none cursor-pointer h-8 text-xs ${i > 0 ? "border-l" : ""}`}
-                  onClick={() => setState({ curvatureMode: opt.value })}
-                >
-                  {opt.label}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>{opt.tooltip}</p></TooltipContent>
-            </Tooltip>
-          ))}
+        <div className="flex gap-2">
+          <Select
+            value={state.curvatureMode ?? "combined"}
+            onValueChange={(value) => setState({ curvatureMode: value })}
+          >
+            <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CURVATURE_MODE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex border rounded-md shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => cycleCurvatureMode(-1)} className="rounded-r-none border-r cursor-pointer">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => cycleCurvatureMode(1)} className="rounded-l-none cursor-pointer">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
+        <p className="text-xs text-muted-foreground">
+          {CURVATURE_MODE_OPTIONS.find((opt) => opt.value === (state.curvatureMode ?? "combined"))?.tooltip}
+        </p>
       </div>
 
       <div className="space-y-2">

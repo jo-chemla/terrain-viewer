@@ -7,6 +7,7 @@ import { CurvatureFields } from "./curvature-options-section"
 import { TpiFields } from "./tpi-options-section"
 import { LrmFields } from "./lrm-options-section"
 import { RoughnessFields } from "./roughness-options-section"
+import { BlobnessFields } from "./blobness-options-section"
 
 // Merged panel for every normal-derived terrain visualization — same pattern as
 // ContourOptionsSection's "Contours & GeoGrid" (one master viz-mode checkbox in
@@ -118,6 +119,19 @@ export const SlopeAndMoreOptionsSection: React.FC<{
             onSliderChange={(value) => setState({ roughnessOpacity: value })}
           />
           {state.showRoughness && <RoughnessFields state={state} setState={setState} />}
+        </div>
+
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="slope-and-more-blobness"
+            label="Blobness"
+            tooltip="Structure-tensor measure of how much the gradient direction varies across a small window — high at peaks/pits/saddles, low on a uniform slope or straight ridge."
+            checked={state.showBlobness}
+            onCheckedChange={(checked) => setState({ showBlobness: checked })}
+            sliderValue={state.blobnessOpacity}
+            onSliderChange={(value) => setState({ blobnessOpacity: value })}
+          />
+          {state.showBlobness && <BlobnessFields state={state} setState={setState} />}
         </div>
       </div>
     </Section>

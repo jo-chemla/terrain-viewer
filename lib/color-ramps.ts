@@ -521,6 +521,24 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // Structure-tensor "blobness" (unitless, det(J)/trace(J) rescaled) from
+  // lib/blobness-protocol.ts — large at peaks/pits/saddles/knolls where the
+  // gradient direction varies across the window, near zero on a uniform slope or
+  // straight ridge/valley. Flat/directionally-uniform ground (0) is fully
+  // transparent, same "unrugged ground shouldn't get tinted" reasoning as
+  // tri-default/roughness-default.
+  "blobness-default": {
+    name: "Blobness",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "rgba(255, 255, 255, 0)",
+      5, "rgb(229, 245, 249)",
+      15, "rgb(153, 216, 201)",
+      30, "rgb(44, 162, 95)",
+      50, "rgb(0, 109, 44)",
+    ],
+    continuous: true,
+  },
   // Discrete ramps
   // None
 }

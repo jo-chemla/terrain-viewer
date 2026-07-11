@@ -15,6 +15,7 @@ import { buildCurvatureProtocolUrl, type CurvatureMode } from "@/lib/curvature-p
 import { buildTpiProtocolUrl } from "@/lib/tpi-protocol"
 import { buildRoughnessProtocolUrl } from "@/lib/roughness-protocol"
 import { buildLrmProtocolUrl } from "@/lib/lrm-protocol"
+import { buildBlobnessProtocolUrl } from "@/lib/blobness-protocol"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -560,3 +561,8 @@ export const RoughnessSource = memo((props: Omit<NormalDerivedSourceProps, "sour
     <NormalDerivedSource {...props} sourceId="roughnessSource" buildUrl={buildRoughnessProtocolUrl} />
 ))
 RoughnessSource.displayName = "RoughnessSource"
+
+export const BlobnessSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
+    <NormalDerivedSource {...props} sourceId="blobnessSource" buildUrl={buildBlobnessProtocolUrl} />
+))
+BlobnessSource.displayName = "BlobnessSource"

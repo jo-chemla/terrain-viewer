@@ -41,8 +41,9 @@ import { curvatureProtocol } from '@/lib/curvature-protocol'
 import { tpiProtocol } from '@/lib/tpi-protocol'
 import { roughnessProtocol } from '@/lib/roughness-protocol'
 import { lrmProtocol } from '@/lib/lrm-protocol'
+import { blobnessProtocol } from '@/lib/blobness-protocol'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource } from "./LayersAndSources/MapSources"
 import {
   LayerOrderSlots,
   RasterLayer,
@@ -57,6 +58,7 @@ import {
   TpiReliefLayer,
   LrmReliefLayer,
   RoughnessReliefLayer,
+  BlobnessReliefLayer,
   LAYER_SLOTS,
   computeHillshadePaint,
   computeColorReliefPaint,
@@ -80,7 +82,7 @@ const parseAsFloatPrecise = createParser({
 // causing spurious mid-teardown crashes in ContoursLayer/TerraDraw during dev.
 const VIEW_MODES = ['2d', 'globe', '3d'] as const
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
-const CURVATURE_MODES = ['combined', 'profile', 'plan'] as const
+const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian'] as const
 
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
@@ -195,6 +197,12 @@ export function TerrainViewer() {
     roughnessMin: parseAsFloat.withDefault(0),
     roughnessMax: parseAsFloat.withDefault(50),
     roughnessInvertColorRamp: parseAsBoolean.withDefault(false),
+    showBlobness: parseAsBoolean.withDefault(false),
+    blobnessOpacity: parseAsFloat.withDefault(1.0),
+    blobnessColorRamp: parseAsString.withDefault("blobness-default"),
+    blobnessMin: parseAsFloat.withDefault(0),
+    blobnessMax: parseAsFloat.withDefault(50),
+    blobnessInvertColorRamp: parseAsBoolean.withDefault(false),
     showContoursAndGraticules: parseAsBoolean.withDefault(false),
     showContours: parseAsBoolean.withDefault(true),
     showContourLabels: parseAsBoolean.withDefault(true),
@@ -359,6 +367,18 @@ export function TerrainViewer() {
     [ state.roughnessColorRamp, state.roughnessMin, state.roughnessMax, state.roughnessOpacity, state.slopeAndMoreOpacity, state.roughnessInvertColorRamp ]
   )
 
+  const blobnessReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.blobnessColorRamp,
+      customHypsoMinMax: true,
+      minElevation: state.blobnessMin,
+      maxElevation: state.blobnessMax,
+      colorReliefOpacity: state.blobnessOpacity * state.slopeAndMoreOpacity,
+      invertColorRamp: state.blobnessInvertColorRamp,
+    }),
+    [ state.blobnessColorRamp, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.slopeAndMoreOpacity, state.blobnessInvertColorRamp ]
+  )
+
   // Check MapLibre availability
   useEffect(() => {
     setMapLibreReady(true)
@@ -375,6 +395,7 @@ export function TerrainViewer() {
     maplibregl.addProtocol('tpi', tpiProtocol)
     maplibregl.addProtocol('lrm', lrmProtocol)
     maplibregl.addProtocol('roughness', roughnessProtocol)
+    maplibregl.addProtocol('blobness', blobnessProtocol)
   }, [])
 
   // Applies a `?project=` preset (lib/projects.json) and/or terrainUrl/basemapUrl
@@ -963,6 +984,14 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
+          <BlobnessSource
+            enabled={state.showSlopeAndMore}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
 
           {/* Layers */}
           <LayerOrderSlots />
@@ -988,6 +1017,7 @@ export function TerrainViewer() {
           <TpiReliefLayer showSlopeAndMore={state.showSlopeAndMore} showTpi={state.showTpi} tpiReliefPaint={tpiReliefPaint} />
           <LrmReliefLayer showSlopeAndMore={state.showSlopeAndMore} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
           <RoughnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
+          <BlobnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
           <HillshadeLayer
             showHillshade={state.showHillshade}
             hillshadePaint={hillshadePaint}
@@ -1137,13 +1167,13 @@ export function TerrainViewer() {
       state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB, state.overlayBasemapIds,
       state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity, state.showHillshade,
       state.showColorRelief, state.showSlopeAndMore, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
-      state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness,
+      state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor,
       activeBasemapSourceA, activeBasemapSourceB,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
-      tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint,
+      tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, blobnessReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,
       skyConfig.skyColor, skyConfig.skyHorizonBlend, skyConfig.horizonColor, skyConfig.horizonFogBlend,

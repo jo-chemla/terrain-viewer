@@ -16,6 +16,7 @@ export const LAYER_SLOTS = {
   TPI: "slot-tpi",
   LRM: "slot-lrm",
   ROUGHNESS: "slot-roughness",
+  BLOBNESS: "slot-blobness",
   HILLSHADE: "slot-hillshade",
   CONTOURS: "slot-contours",
 } as const
@@ -34,6 +35,7 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.TPI}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.LRM}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.ROUGHNESS}   type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.BLOBNESS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.HILLSHADE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
   </>
@@ -316,6 +318,21 @@ export const RoughnessReliefLayer = memo(({ showSlopeAndMore, showRoughness, rou
   )
 })
 RoughnessReliefLayer.displayName = "RoughnessReliefLayer"
+
+export const BlobnessReliefLayer = memo(({ showSlopeAndMore, showBlobness, blobnessReliefPaint }: { showSlopeAndMore: boolean; showBlobness: boolean; blobnessReliefPaint: any }) => {
+  if (!showSlopeAndMore) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.BLOBNESS}
+      id="blobness-relief"
+      type="color-relief"
+      source="blobnessSource"
+      paint={blobnessReliefPaint}
+      layout={{ visibility: showBlobness ? "visible" : "none" }}
+    />
+  )
+})
+BlobnessReliefLayer.displayName = "BlobnessReliefLayer"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
