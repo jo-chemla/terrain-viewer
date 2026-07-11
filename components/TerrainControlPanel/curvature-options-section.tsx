@@ -24,30 +24,42 @@ const DEFAULTS = {
 // gradSq^1.5 denominator instead spikes near-flat pixels; Det Hessian's r*t product term
 // is smaller still) — measured empirically against real DEM tiles at a fixed zoom so
 // switching modes lands on a sensible range instead of reusing whichever mode set it last.
-const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: string; defaultMagnitude: number }[] = [
+// sliderMax/sliderStep: the drag range and granularity of the Curvature Range slider
+// itself, not just its starting value — without this, Profile/Det Hessian (typically
+// single-digit magnitudes) would share Plan/Combined's 0-100 track and collapse to a
+// sliver at the low end, making fine adjustment near their actual working range impossible.
+const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: string; defaultMagnitude: number; sliderMax: number; sliderStep: number }[] = [
   {
     value: "profile",
     label: "Profile",
     tooltip: "Rate of slope change along the steepest-descent direction, affects flow acceleration.",
     defaultMagnitude: 5,
+    sliderMax: 20,
+    sliderStep: 0.1,
   },
   {
     value: "plan",
     label: "Plan (Divergence)",
     tooltip: "Rate of aspect change across contours, affects flow convergence/divergence. Equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|).",
     defaultMagnitude: 20,
+    sliderMax: 100,
+    sliderStep: 0.5,
   },
   {
     value: "det-hessian",
     label: "Det Hessian",
     tooltip: "Determinant of the Hessian (fxx·fyy − fxy²) — a blob/saddle detector: positive at bowl/dome-shaped extrema, negative at saddle points, near zero on a straight ridge or uniform slope.",
     defaultMagnitude: 5,
+    sliderMax: 20,
+    sliderStep: 0.1,
   },
   {
     value: "combined",
     label: "Combined",
     tooltip: "General curvature — a combined measure of surface bending (the discrete Laplacian, ∇²z) that doesn't separate flow direction from contour direction.",
     defaultMagnitude: 20,
+    sliderMax: 100,
+    sliderStep: 0.5,
   },
 ]
 
@@ -70,6 +82,10 @@ export const CurvatureFields: React.FC<{
     Math.abs(state.curvatureMin ?? rampBounds.min),
     Math.abs(state.curvatureMax ?? rampBounds.max),
   )
+
+  const activeModeOption = CURVATURE_MODE_OPTIONS.find((opt) => opt.value === (state.curvatureMode ?? "combined"))
+  const sliderMax = activeModeOption?.sliderMax ?? 100
+  const sliderStep = activeModeOption?.sliderStep ?? 1
 
   // Switching curvature mode also resets the range to that mode's calibrated
   // defaultMagnitude, so the color ramp automatically re-scales to a sensible
@@ -183,8 +199,8 @@ export const CurvatureFields: React.FC<{
           <MobileSlider
             sliderId="curvature:range"
             min={0}
-            max={100}
-            step={1}
+            max={sliderMax}
+            step={sliderStep}
             value={[magnitude]}
             onValueChange={([v]) => setState({ curvatureMin: -v, curvatureMax: v })}
             className="w-full cursor-pointer"
@@ -192,9 +208,9 @@ export const CurvatureFields: React.FC<{
         ) : (
           <MobileSlider
             sliderId="curvature:range"
-            min={-100}
-            max={100}
-            step={1}
+            min={-sliderMax}
+            max={sliderMax}
+            step={sliderStep}
             value={[state.curvatureMin ?? rampBounds.min, state.curvatureMax ?? rampBounds.max]}
             onValueChange={([min, max]) => setState({ curvatureMin: Math.min(min, max), curvatureMax: Math.max(min, max) })}
             className="w-full cursor-pointer"
