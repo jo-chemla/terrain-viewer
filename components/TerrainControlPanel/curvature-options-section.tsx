@@ -19,26 +19,35 @@ const DEFAULTS = {
   curvatureSymmetric: true,
 }
 
-const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: string }[] = [
+// defaultMagnitude: each mode's formula has a different typical value scale (Profile's
+// extra (1+gradSq)^1.5 denominator term suppresses it well below Combined/Plan; Plan's
+// gradSq^1.5 denominator instead spikes near-flat pixels; Det Hessian's r*t product term
+// is smaller still) — measured empirically against real DEM tiles at a fixed zoom so
+// switching modes lands on a sensible range instead of reusing whichever mode set it last.
+const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: string; defaultMagnitude: number }[] = [
   {
     value: "profile",
     label: "Profile",
     tooltip: "Rate of slope change along the steepest-descent direction, affects flow acceleration.",
+    defaultMagnitude: 5,
   },
   {
     value: "plan",
     label: "Plan (Divergence)",
     tooltip: "Rate of aspect change across contours, affects flow convergence/divergence. Equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|).",
+    defaultMagnitude: 20,
   },
   {
     value: "det-hessian",
     label: "Det Hessian",
     tooltip: "Determinant of the Hessian (fxx·fyy − fxy²) — a blob/saddle detector: positive at bowl/dome-shaped extrema, negative at saddle points, near zero on a straight ridge or uniform slope.",
+    defaultMagnitude: 5,
   },
   {
     value: "combined",
     label: "Combined",
     tooltip: "General curvature — a combined measure of surface bending (the discrete Laplacian, ∇²z) that doesn't separate flow direction from contour direction.",
+    defaultMagnitude: 20,
   },
 ]
 
@@ -62,14 +71,56 @@ export const CurvatureFields: React.FC<{
     Math.abs(state.curvatureMax ?? rampBounds.max),
   )
 
+  // Switching curvature mode also resets the range to that mode's calibrated
+  // defaultMagnitude, so the color ramp automatically re-scales to a sensible
+  // window instead of staying pinned to whichever mode's range was set last.
+  const applyMode = useCallback((value: string) => {
+    const opt = CURVATURE_MODE_OPTIONS.find((o) => o.value === value)
+    setState({
+      curvatureMode: value,
+      curvatureMin: opt ? -opt.defaultMagnitude : undefined,
+      curvatureMax: opt ? opt.defaultMagnitude : undefined,
+    })
+  }, [setState])
+
   const cycleCurvatureMode = useCallback((direction: number) => {
     const currentIndex = CURVATURE_MODE_OPTIONS.findIndex((opt) => opt.value === (state.curvatureMode ?? "combined"))
     const newIndex = (currentIndex + direction + CURVATURE_MODE_OPTIONS.length) % CURVATURE_MODE_OPTIONS.length
-    setState({ curvatureMode: CURVATURE_MODE_OPTIONS[newIndex].value })
-  }, [state.curvatureMode, setState])
+    applyMode(CURVATURE_MODE_OPTIONS[newIndex].value)
+  }, [state.curvatureMode, applyMode])
 
   return (
     <div className="space-y-4 pl-6">
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">Curvature Type</Label>
+        <div className="flex gap-2">
+          <Select
+            value={state.curvatureMode ?? "combined"}
+            onValueChange={applyMode}
+          >
+            <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CURVATURE_MODE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex border rounded-md shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => cycleCurvatureMode(-1)} className="rounded-r-none border-r cursor-pointer">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => cycleCurvatureMode(1)} className="rounded-l-none cursor-pointer">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {CURVATURE_MODE_OPTIONS.find((opt) => opt.value === (state.curvatureMode ?? "combined"))?.tooltip}
+        </p>
+      </div>
+
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">Color Ramp</Label>
@@ -102,36 +153,6 @@ export const CurvatureFields: React.FC<{
             ))}
           </SelectContent>
         </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-sm font-medium">Curvature Type</Label>
-        <div className="flex gap-2">
-          <Select
-            value={state.curvatureMode ?? "combined"}
-            onValueChange={(value) => setState({ curvatureMode: value })}
-          >
-            <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CURVATURE_MODE_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex border rounded-md shrink-0">
-            <Button variant="ghost" size="icon" onClick={() => cycleCurvatureMode(-1)} className="rounded-r-none border-r cursor-pointer">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => cycleCurvatureMode(1)} className="rounded-l-none cursor-pointer">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {CURVATURE_MODE_OPTIONS.find((opt) => opt.value === (state.curvatureMode ?? "combined"))?.tooltip}
-        </p>
       </div>
 
       <div className="space-y-2">

@@ -284,7 +284,15 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             <div className="space-y-1.5 text-xs text-muted-foreground">
               <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
               <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
-              <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change (Profile, Plan/Divergence, Det Hessian or Combined). Curvature is usually split into profile curvature (rate of slope change along the steepest-descent direction, affects flow acceleration) and plan curvature (rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)); Det Hessian (fxx·fyy − fxy²) is instead a blob/saddle detector, positive at bowl/dome-shaped extrema and negative at saddle points</div>
+              <div>
+                <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change — Profile, Plan/Divergence, Det Hessian or Combined</div>
+                <ul className="list-disc pl-5 pt-1 space-y-1">
+                  <li><span className="font-medium text-foreground">Profile:</span> rate of slope change along the steepest-descent direction, affects flow acceleration</li>
+                  <li><span className="font-medium text-foreground">Plan (Divergence):</span> rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)</li>
+                  <li><span className="font-medium text-foreground">Det Hessian:</span> determinant of the Hessian (fxx·fyy − fxy²) — a blob/saddle detector, positive at bowl/dome-shaped extrema and negative at saddle points</li>
+                  <li><span className="font-medium text-foreground">Combined:</span> discrete Laplacian (∇²z) — general surface bending that doesn't separate flow direction from contour direction</li>
+                </ul>
+              </div>
               <div><span className="font-semibold text-foreground">TRI (Terrain Ruggedness Index):</span> mean elevation difference to neighbors</div>
               <div><span className="font-semibold text-foreground">TPI (Topographic Position Index):</span> elevation relative to neighborhood mean</div>
               <div><span className="font-semibold text-foreground">Roughness:</span> max−min elevation in a neighborhood</div>
