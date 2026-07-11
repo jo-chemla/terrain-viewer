@@ -87,7 +87,7 @@ export const HypsometricTintOptionsSection: React.FC<{
     setColorRampType('classic')
   }, [state.colorRamp, setColorRampType])
 
-  function filterColorRamps(colorRamps_: any, colorRampType_: string, licenseFilter_: string) {
+  function filterColorRamps(colorRamps_: any, colorRampType_: string, licenseFilter_: string): Record<string, any> {
     const ramps = colorRamps_[colorRampType_] || {}
     // classic is hand-curated by this app rather than pulled from an external archive, so it
     // doesn't carry per-ramp license/distribute metadata — skip the license filter for it.
