@@ -22,7 +22,7 @@ export const SlopeFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
   const rampBounds = useMemo(() => {
-    const ramp = colorRampsClassic[state.slopeColorRamp] ?? colorRampsClassic["slope-plantopo"]
+    const ramp = colorRampsClassic[state.slopeColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["slope-plantopo"]
     const stops = extractStops(ramp.colors)
     return { min: Math.min(...stops), max: Math.max(...stops) }
   }, [state.slopeColorRamp])

@@ -23,7 +23,7 @@ export const TriFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
   const rampBounds = useMemo(() => {
-    const ramp = colorRampsClassic[state.triColorRamp] ?? colorRampsClassic["tri-default"]
+    const ramp = colorRampsClassic[state.triColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["tri-default"]
     const stops = extractStops(ramp.colors)
     return { min: Math.min(...stops), max: Math.max(...stops) }
   }, [state.triColorRamp])

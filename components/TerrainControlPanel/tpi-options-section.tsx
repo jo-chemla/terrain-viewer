@@ -23,7 +23,7 @@ export const TpiFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
   const rampBounds = useMemo(() => {
-    const ramp = colorRampsClassic[state.tpiColorRamp] ?? colorRampsClassic["tpi-diverging"]
+    const ramp = colorRampsClassic[state.tpiColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["tpi-diverging"]
     const stops = extractStops(ramp.colors)
     return { min: Math.min(...stops), max: Math.max(...stops) }
   }, [state.tpiColorRamp])

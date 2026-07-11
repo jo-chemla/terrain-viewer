@@ -23,7 +23,7 @@ export const BlobnessFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
   const rampBounds = useMemo(() => {
-    const ramp = colorRampsClassic[state.blobnessColorRamp] ?? colorRampsClassic["blobness-default"]
+    const ramp = colorRampsClassic[state.blobnessColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["blobness-default"]
     const stops = extractStops(ramp.colors)
     return { min: Math.min(...stops), max: Math.max(...stops) }
   }, [state.blobnessColorRamp])

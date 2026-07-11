@@ -22,7 +22,7 @@ export const AspectFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
   const rampBounds = useMemo(() => {
-    const ramp = colorRampsClassic[state.aspectColorRamp] ?? colorRampsClassic["aspect-compass"]
+    const ramp = colorRampsClassic[state.aspectColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["aspect-compass"]
     const stops = extractStops(ramp.colors)
     return { min: Math.min(...stops), max: Math.max(...stops) }
   }, [state.aspectColorRamp])

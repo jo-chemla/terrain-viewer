@@ -35,7 +35,7 @@ export const LrmFields: React.FC<{
   tileSize?: number
 }> = ({ state, setState, tileSize = 256 }) => {
   const rampBounds = useMemo(() => {
-    const ramp = colorRampsClassic[state.lrmColorRamp] ?? colorRampsClassic["lrm-diverging"]
+    const ramp = colorRampsClassic[state.lrmColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["lrm-diverging"]
     const stops = extractStops(ramp.colors)
     return { min: Math.min(...stops), max: Math.max(...stops) }
   }, [state.lrmColorRamp])

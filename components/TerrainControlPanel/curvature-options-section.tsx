@@ -28,7 +28,11 @@ const DEFAULTS = {
 // itself, not just its starting value — without this, Profile/Det Hessian (typically
 // single-digit magnitudes) would share Plan/Combined's 0-100 track and collapse to a
 // sliver at the low end, making fine adjustment near their actual working range impossible.
-const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: string; defaultMagnitude: number; sliderMax: number; sliderStep: number }[] = [
+// defaultSymmetric: Det Hessian's sign means something qualitatively different (bowl/dome
+// extremum vs. saddle) than the other three's concave/convex split, so an asymmetric range
+// showing more of the positive (extremum) side by default reads better than a mirrored one —
+// the other three stay symmetric since valley/ridge is naturally a mirrored distinction.
+const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: string; defaultMagnitude: number; sliderMax: number; sliderStep: number; defaultSymmetric: boolean }[] = [
   {
     value: "profile",
     label: "Profile",
@@ -36,6 +40,7 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
     defaultMagnitude: 5,
     sliderMax: 20,
     sliderStep: 0.1,
+    defaultSymmetric: true,
   },
   {
     value: "plan",
@@ -44,6 +49,7 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
     defaultMagnitude: 20,
     sliderMax: 100,
     sliderStep: 0.5,
+    defaultSymmetric: true,
   },
   {
     value: "det-hessian",
@@ -52,6 +58,7 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
     defaultMagnitude: 5,
     sliderMax: 20,
     sliderStep: 0.1,
+    defaultSymmetric: false,
   },
   {
     value: "combined",
@@ -60,6 +67,7 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
     defaultMagnitude: 20,
     sliderMax: 100,
     sliderStep: 0.5,
+    defaultSymmetric: true,
   },
 ]
 
@@ -69,23 +77,25 @@ export const CurvatureFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
   const rampBounds = useMemo(() => {
-    const ramp = colorRampsClassic[state.curvatureColorRamp] ?? colorRampsClassic["curvature-diverging"]
+    const ramp = colorRampsClassic[state.curvatureColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["curvature-diverging"]
     const stops = extractStops(ramp.colors)
     return { min: Math.min(...stops), max: Math.max(...stops) }
   }, [state.curvatureColorRamp])
 
+  const activeModeOption = CURVATURE_MODE_OPTIONS.find((opt) => opt.value === (state.curvatureMode ?? "combined"))
+  const sliderMax = activeModeOption?.sliderMax ?? 100
+  const sliderStep = activeModeOption?.sliderStep ?? 1
+
   // Curvature is diverging around 0 (convex ridges vs. concave valleys) — a symmetric
-  // -V..+V range is the natural default, so a single "magnitude" control replaces the
-  // usual independent min/max pair unless the user unchecks it below.
-  const symmetric = state.curvatureSymmetric ?? true
+  // -V..+V range is the natural default for most modes, so a single "magnitude" control
+  // replaces the usual independent min/max pair unless the user unchecks it below. Each
+  // mode's defaultSymmetric only applies before the user has touched this state; once set,
+  // curvatureSymmetric persists like any other explicit choice (only applyMode overwrites it).
+  const symmetric = state.curvatureSymmetric ?? activeModeOption?.defaultSymmetric ?? true
   const magnitude = Math.max(
     Math.abs(state.curvatureMin ?? rampBounds.min),
     Math.abs(state.curvatureMax ?? rampBounds.max),
   )
-
-  const activeModeOption = CURVATURE_MODE_OPTIONS.find((opt) => opt.value === (state.curvatureMode ?? "combined"))
-  const sliderMax = activeModeOption?.sliderMax ?? 100
-  const sliderStep = activeModeOption?.sliderStep ?? 1
 
   // Switching curvature mode also resets the range to that mode's calibrated
   // defaultMagnitude, so the color ramp automatically re-scales to a sensible
@@ -96,6 +106,7 @@ export const CurvatureFields: React.FC<{
       curvatureMode: value,
       curvatureMin: opt ? -opt.defaultMagnitude : undefined,
       curvatureMax: opt ? opt.defaultMagnitude : undefined,
+      curvatureSymmetric: opt ? opt.defaultSymmetric : true,
     })
   }, [setState])
 

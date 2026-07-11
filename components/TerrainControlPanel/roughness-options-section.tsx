@@ -23,7 +23,7 @@ export const RoughnessFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
   const rampBounds = useMemo(() => {
-    const ramp = colorRampsClassic[state.roughnessColorRamp] ?? colorRampsClassic["roughness-default"]
+    const ramp = colorRampsClassic[state.roughnessColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["roughness-default"]
     const stops = extractStops(ramp.colors)
     return { min: Math.min(...stops), max: Math.max(...stops) }
   }, [state.roughnessColorRamp])
