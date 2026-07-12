@@ -16,9 +16,10 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  activeProjectConfigAtom,
+  activeProjectConfigAtom, useCogProtocolVsTitilerAtom,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
+import { MAX_BOUNDS_MODES, unionBounds, bufferBounds, resolveCustomSourceBounds, type LngLatBoundsTuple } from "@/lib/max-bounds"
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { getProjectConfig } from "@/lib/project-config"
 import { useTheme } from "@/lib/controls-utils"
@@ -99,6 +100,7 @@ export function TerrainViewer() {
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
+  const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [highResTerrain] = useAtom(highResTerrainAtom)
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
@@ -253,6 +255,17 @@ export function TerrainViewer() {
     // animPlaying, animPlaying360, animPose1, animPose2Delta) lives in its own nuqs
     // hook inside CameraUtilities.tsx, not in this shared bag.
     invertColorRamp: parseAsBoolean.withDefault(false),
+    // Max map bounds (Settings > Map Bounds) — constrains pan/zoom rather than a
+    // one-shot camera fly like the smart-zoom/fit-to-bounds features above.
+    // "terrain"/"raster"/"union" are resolved asynchronously from the active
+    // source(s) (see the maxBounds effect below and lib/max-bounds.ts);
+    // "custom" uses the four WSNE fields directly.
+    maxBoundsMode: parseAsStringLiteral(MAX_BOUNDS_MODES).withDefault("none"),
+    maxBoundsBuffer: parseAsFloat.withDefault(0),
+    maxBoundsWest: parseAsFloat.withDefault(-180),
+    maxBoundsSouth: parseAsFloat.withDefault(-85),
+    maxBoundsEast: parseAsFloat.withDefault(180),
+    maxBoundsNorth: parseAsFloat.withDefault(85),
   },
   {
     history: 'replace', // push to remember past interactions, or replace to avoid cluttering history
@@ -818,6 +831,51 @@ export function TerrainViewer() {
       return candidates.length > 0 ? Math.min(...candidates) : 0
   }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
 
+  // Resolves the "Map Bounds" setting into an actual LngLatBoundsLike, async since
+  // "terrain"/"raster"/"union" need a COG/tilejson metadata fetch (see
+  // lib/max-bounds.ts) — same fallback chain as the Terrain Source panel's own
+  // "Fit to bounds" button, just constraining pan/zoom instead of one-shot flying
+  // the camera. Re-resolves whenever the active source or mode/buffer changes;
+  // stale in-flight resolutions are dropped via the `cancelled` flag.
+  const [resolvedMaxBounds, setResolvedMaxBounds] = useState<LngLatBoundsTuple | null>(null)
+
+  useEffect(() => {
+    if (state.maxBoundsMode === "none") {
+      setResolvedMaxBounds(null)
+      return
+    }
+    if (state.maxBoundsMode === "custom") {
+      setResolvedMaxBounds([state.maxBoundsWest, state.maxBoundsSouth, state.maxBoundsEast, state.maxBoundsNorth])
+      return
+    }
+
+    let cancelled = false
+    const terrainSourceObj = customTerrainSources.find((s) => s.id === state.sourceA)
+    const basemapSourceObj = customBasemapSources.find((s) => s.id === activeBasemapSourceA)
+    const resolveOpts = { useCogProtocolVsTitiler, titilerEndpoint }
+
+    ;(async () => {
+      let bounds: LngLatBoundsTuple | null = null
+      if (state.maxBoundsMode === "terrain") {
+        bounds = await resolveCustomSourceBounds(terrainSourceObj, resolveOpts)
+      } else if (state.maxBoundsMode === "raster") {
+        bounds = await resolveCustomSourceBounds(basemapSourceObj, resolveOpts)
+      } else if (state.maxBoundsMode === "union") {
+        const [terrainBounds, rasterBounds] = await Promise.all([
+          resolveCustomSourceBounds(terrainSourceObj, resolveOpts),
+          resolveCustomSourceBounds(basemapSourceObj, resolveOpts),
+        ])
+        bounds = unionBounds(terrainBounds, rasterBounds)
+      }
+      if (!cancelled) setResolvedMaxBounds(bounds ? bufferBounds(bounds, state.maxBoundsBuffer) : null)
+    })()
+
+    return () => { cancelled = true }
+  }, [
+    state.maxBoundsMode, state.maxBoundsBuffer, state.maxBoundsWest, state.maxBoundsSouth, state.maxBoundsEast, state.maxBoundsNorth,
+    state.sourceA, activeBasemapSourceA, customTerrainSources, customBasemapSources, useCogProtocolVsTitiler, titilerEndpoint,
+  ])
+
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
       const isPrimary = mapId === "map-a"
@@ -895,6 +953,7 @@ export function TerrainViewer() {
           // maxZoom={22}
           minZoom={effectiveMinZoom}
           maxZoom={effectiveMaxZoom}
+          maxBounds={resolvedMaxBounds ?? undefined}
 
         >
           {/* Sources */}
@@ -1180,7 +1239,7 @@ export function TerrainViewer() {
       skyConfig.fogColor, skyConfig.fogGroundBlend, skyConfig.matchThemeColors, skyConfig.backgroundLayerActive,
       activeProjectConfig,
       themeColor,
-      effectiveMinZoom, effectiveMaxZoom, setZoomRangeBasemap
+      effectiveMinZoom, effectiveMaxZoom, setZoomRangeBasemap, resolvedMaxBounds
     ],
   )
 

@@ -59,7 +59,9 @@
       "lat": -0.1472,
       "lng": 0.2672,
       "zoom": 11.6,
-      "pitch": 0
+      "pitch": 0,
+      "maxBoundsMode": "union",
+      "maxBoundsBuffer": 0.02
     },
     "initialSidebarOpen": false,
     "initialSections": {

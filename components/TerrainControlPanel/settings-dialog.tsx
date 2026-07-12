@@ -9,11 +9,13 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
   maxResolutionAtom, useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
 } from "@/lib/settings-atoms"
+import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
 import { TooltipIconButton } from "./controls-components"
@@ -310,6 +312,70 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               world-covering basemap or a partially-overlapping COG preserves your camera viewport
               instead of yanking your context away.
             </p>
+          </div>
+          <Separator />
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold">Map Bounds</h3>
+            <p className="text-xs text-muted-foreground">
+              Constrains panning/zooming to a bounding box, instead of the one-shot camera
+              fly-to above. "Terrain"/"Raster"/"Union" are resolved automatically from the
+              active source(s) (COG/tilejson metadata) and update if you switch sources.
+            </p>
+            <div className="space-y-1">
+              <Label>Mode</Label>
+              <Select value={state.maxBoundsMode} onValueChange={(value) => setState({ maxBoundsMode: value as MaxBoundsMode })}>
+                <SelectTrigger className="w-full cursor-pointer">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MAX_BOUNDS_MODES.map((mode) => (
+                    <SelectItem key={mode} value={mode}>
+                      {{
+                        none: "None",
+                        terrain: "Terrain Source Bounds",
+                        raster: "Raster Basemap Bounds",
+                        union: "Union (Terrain + Raster)",
+                        custom: "Custom (WSNE)",
+                      }[mode]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {state.maxBoundsMode !== "none" && (
+              <div className="space-y-1">
+                <Label htmlFor="max-bounds-buffer">Buffer (degrees)</Label>
+                <Input
+                  id="max-bounds-buffer"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={state.maxBoundsBuffer}
+                  onChange={(e) => setState({ maxBoundsBuffer: Number.parseFloat(e.target.value) || 0 })}
+                  className="cursor-text"
+                />
+              </div>
+            )}
+            {state.maxBoundsMode === "custom" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="max-bounds-west">West</Label>
+                  <Input id="max-bounds-west" type="number" value={state.maxBoundsWest} onChange={(e) => setState({ maxBoundsWest: Number.parseFloat(e.target.value) || 0 })} className="cursor-text" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="max-bounds-south">South</Label>
+                  <Input id="max-bounds-south" type="number" value={state.maxBoundsSouth} onChange={(e) => setState({ maxBoundsSouth: Number.parseFloat(e.target.value) || 0 })} className="cursor-text" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="max-bounds-east">East</Label>
+                  <Input id="max-bounds-east" type="number" value={state.maxBoundsEast} onChange={(e) => setState({ maxBoundsEast: Number.parseFloat(e.target.value) || 0 })} className="cursor-text" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="max-bounds-north">North</Label>
+                  <Input id="max-bounds-north" type="number" value={state.maxBoundsNorth} onChange={(e) => setState({ maxBoundsNorth: Number.parseFloat(e.target.value) || 0 })} className="cursor-text" />
+                </div>
+              </div>
+            )}
           </div>
           <Separator />
           <div className="space-y-3">
