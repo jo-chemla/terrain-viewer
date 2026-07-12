@@ -52,7 +52,7 @@ function computeSecondDerivatives(w: ElevationWindow): { p: number; q: number; r
   return { p, q, r, t, s }
 }
 
-function computeProfileAndPlan(w: ElevationWindow): { profile: number; plan: number } {
+export function computeProfileAndPlan(w: ElevationWindow): { profile: number; plan: number } {
   const { p, q, r, t, s } = computeSecondDerivatives(w)
 
   const gradSq = p * p + q * q
@@ -64,7 +64,7 @@ function computeProfileAndPlan(w: ElevationWindow): { profile: number; plan: num
 }
 
 // det(H) = fxx*fyy - fxy^2, scaled to roughly match the other modes' ×100 magnitude.
-function computeDetHessian(w: ElevationWindow): number {
+export function computeDetHessian(w: ElevationWindow): number {
   const { r, t, s } = computeSecondDerivatives(w)
   return (r * t - s * s) * 10000
 }

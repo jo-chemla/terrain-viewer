@@ -17,6 +17,7 @@ export const VisualizationModesSection: React.FC<{
       {!hideContours && (
         <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} />
       )}
+      <CheckboxWithSlider id="tells" checked={state.showTells} onCheckedChange={(checked) => setState({ showTells: checked })} label="Tells (Mound Candidates)" hideSlider={true} />
       <CheckboxWithSlider id="hillshade" checked={state.showHillshade} onCheckedChange={(checked) => setState({ showHillshade: checked })} label="Hillshade" sliderValue={state.hillshadeOpacity} onSliderChange={(value) => setState({ hillshadeOpacity: value })} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
       {!hideSlopeAndMore && (

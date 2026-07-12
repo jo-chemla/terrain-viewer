@@ -43,8 +43,9 @@ import { tpiProtocol } from '@/lib/tpi-protocol'
 import { roughnessProtocol } from '@/lib/roughness-protocol'
 import { lrmProtocol } from '@/lib/lrm-protocol'
 import { blobnessProtocol } from '@/lib/blobness-protocol'
+import { tellsProtocol } from '@/lib/tells-protocol'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, TellsSource } from "./LayersAndSources/MapSources"
 import {
   LayerOrderSlots,
   RasterLayer,
@@ -60,6 +61,7 @@ import {
   LrmReliefLayer,
   RoughnessReliefLayer,
   BlobnessReliefLayer,
+  TellsMarkersLayer,
   LAYER_SLOTS,
   computeHillshadePaint,
   computeColorReliefPaint,
@@ -205,6 +207,12 @@ export function TerrainViewer() {
     blobnessMin: parseAsFloat.withDefault(0),
     blobnessMax: parseAsFloat.withDefault(50),
     blobnessInvertColorRamp: parseAsBoolean.withDefault(false),
+    showTells: parseAsBoolean.withDefault(false),
+    tellSize: parseAsFloat.withDefault(100),
+    tellMinRelief: parseAsFloat.withDefault(0.3),
+    tellBlobnessMin: parseAsFloat.withDefault(5),
+    tellPlanMin: parseAsFloat.withDefault(0),
+    tellDetHessianMin: parseAsFloat.withDefault(0),
     showContoursAndGraticules: parseAsBoolean.withDefault(false),
     showContours: parseAsBoolean.withDefault(true),
     showContourLabels: parseAsBoolean.withDefault(true),
@@ -392,6 +400,17 @@ export function TerrainViewer() {
     [ state.blobnessColorRamp, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.slopeAndMoreOpacity, state.blobnessInvertColorRamp ]
   )
 
+  const tellsOptions = useMemo(
+    () => ({
+      tellSizeMeters: state.tellSize,
+      minReliefMeters: state.tellMinRelief,
+      blobnessMin: state.tellBlobnessMin,
+      planMin: state.tellPlanMin,
+      detHessianMin: state.tellDetHessianMin,
+    }),
+    [ state.tellSize, state.tellMinRelief, state.tellBlobnessMin, state.tellPlanMin, state.tellDetHessianMin ]
+  )
+
   // Check MapLibre availability
   useEffect(() => {
     setMapLibreReady(true)
@@ -409,6 +428,7 @@ export function TerrainViewer() {
     maplibregl.addProtocol('lrm', lrmProtocol)
     maplibregl.addProtocol('roughness', roughnessProtocol)
     maplibregl.addProtocol('blobness', blobnessProtocol)
+    maplibregl.addProtocol('tells', tellsProtocol)
   }, [])
 
   // Applies a `?project=` preset (lib/projects.json) and/or terrainUrl/basemapUrl
@@ -1051,6 +1071,17 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
+          {isPrimary && (
+            <TellsSource
+              enabled={state.showTells}
+              terrainSource={state.sourceA}
+              customTerrainSources={customTerrainSources}
+              mapboxKey={mapboxKey}
+              maptilerKey={maptilerKey}
+              titilerEndpoint={titilerEndpoint}
+              tellsOptions={tellsOptions}
+            />
+          )}
 
           {/* Layers */}
           <LayerOrderSlots />
@@ -1077,6 +1108,7 @@ export function TerrainViewer() {
           <LrmReliefLayer showSlopeAndMore={state.showSlopeAndMore} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
           <RoughnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
           <BlobnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
+          {isPrimary && <TellsMarkersLayer showTells={state.showTells} />}
           <HillshadeLayer
             showHillshade={state.showHillshade}
             hillshadePaint={hillshadePaint}
@@ -1227,6 +1259,7 @@ export function TerrainViewer() {
       state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity, state.showHillshade,
       state.showColorRelief, state.showSlopeAndMore, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
+      state.showTells, tellsOptions,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor,

@@ -16,6 +16,7 @@ import { buildTpiProtocolUrl } from "@/lib/tpi-protocol"
 import { buildRoughnessProtocolUrl } from "@/lib/roughness-protocol"
 import { buildLrmProtocolUrl } from "@/lib/lrm-protocol"
 import { buildBlobnessProtocolUrl } from "@/lib/blobness-protocol"
+import { buildTellsProtocolUrl, type TellsOptions } from "@/lib/tells-protocol"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -566,3 +567,36 @@ export const BlobnessSource = memo((props: Omit<NormalDerivedSourceProps, "sourc
     <NormalDerivedSource {...props} sourceId="blobnessSource" buildUrl={buildBlobnessProtocolUrl} />
 ))
 BlobnessSource.displayName = "BlobnessSource"
+
+// ─── Tells (archaeological mound candidate) source ─────────────────────────────
+//
+// Unlike the raster-dem NormalDerivedSource sources above, tells:// returns an MVT
+// vector tile (point features), so this needs its own `type: "vector"` Source
+// rather than delegating to NormalDerivedSource. Still reuses the exact same
+// useClientDemUpstream resolution — the protocol just needs an upstream DEM tile
+// template/encoding/tileSize like every other terrain-derivative here.
+export interface TellsSourceProps {
+    enabled: boolean
+    terrainSource: TerrainSource | string
+    customTerrainSources: CustomTerrainSource[]
+    mapboxKey: string
+    maptilerKey: string
+    titilerEndpoint: string
+    tellsOptions: TellsOptions
+}
+
+export const TellsSource = memo(({ enabled, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, tellsOptions }: TellsSourceProps) => {
+    const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
+    if (!enabled || !clientUpstream) return null
+    const url = buildTellsProtocolUrl(clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize, tellsOptions)
+    return (
+        <Source
+            id="tellsSource"
+            key={`tellsSource-${terrainSource}-${tellsOptions.tellSizeMeters}-${tellsOptions.minReliefMeters}-${tellsOptions.blobnessMin}-${tellsOptions.planMin}-${tellsOptions.detHessianMin}`}
+            type="vector"
+            tiles={[url]}
+            maxzoom={15}
+        />
+    )
+})
+TellsSource.displayName = "TellsSource"

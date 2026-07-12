@@ -176,7 +176,7 @@ function wrapTileX(x: number, z: number): number {
   return ((x % size) + size) % size
 }
 
-function tileRowToLatRad(y: number, z: number): number {
+export function tileRowToLatRad(y: number, z: number): number {
   const n = Math.PI - (2 * Math.PI * y) / (1 << z)
   return Math.atan(Math.sinh(n))
 }

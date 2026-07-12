@@ -53,7 +53,7 @@ function hornGradientAt(
 // visual range.
 const BLOBNESS_SCALE = 100 / 64
 
-function computeBlobness(sample: (dr: number, dc: number) => number, groundResolutionM: number): number {
+export function computeBlobness(sample: (dr: number, dc: number) => number, groundResolutionM: number): number {
   const invGroundResolutionM = 1 / groundResolutionM
   let sumGxGx = 0, sumGyGy = 0, sumGxGy = 0
   for (let dr = -1; dr <= 1; dr++) {

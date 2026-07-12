@@ -19,6 +19,7 @@ export const LAYER_SLOTS = {
   BLOBNESS: "slot-blobness",
   HILLSHADE: "slot-hillshade",
   CONTOURS: "slot-contours",
+  TELLS: "slot-tells",
 } as const
 
 // Rendered once, always present, zero visual impact
@@ -38,6 +39,7 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.BLOBNESS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.HILLSHADE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.TELLS}       type="background" paint={{ "background-opacity": 0 }} />
   </>
 )
 
@@ -333,6 +335,38 @@ export const BlobnessReliefLayer = memo(({ showSlopeAndMore, showBlobness, blobn
   )
 })
 BlobnessReliefLayer.displayName = "BlobnessReliefLayer"
+
+// ─── Tells (mound candidate) markers ────────────────────────────────────────
+// Point features from the tells:// MVT source (see TellsSource in MapSources.tsx
+// and lib/tells-protocol.ts) — a circle marker per surviving candidate, colored by
+// its "a" (DoG relief) property so stronger candidates stand out. Unlike the
+// color-relief layers above this isn't gated on showSlopeAndMore — it's a
+// standalone top-level feature (see visualization-modes-section.tsx).
+export const TellsMarkersLayer = memo(({ showTells }: { showTells: boolean }) => {
+  if (!showTells) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.TELLS}
+      id="tells-markers"
+      type="circle"
+      source="tellsSource"
+      source-layer="tells"
+      paint={{
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2, 16, 6],
+        "circle-color": [
+          "interpolate", ["linear"], ["get", "a"],
+          0, "#ffe066",
+          2, "#ff8c00",
+          5, "#e8290b",
+        ],
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 1,
+        "circle-opacity": 0.85,
+      }}
+    />
+  )
+})
+TellsMarkersLayer.displayName = "TellsMarkersLayer"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
