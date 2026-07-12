@@ -16,7 +16,7 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  activeProjectConfigAtom, useCogProtocolVsTitilerAtom,
+  activeProjectConfigAtom, useCogProtocolVsTitilerAtom, tellsBetaEnabledAtom,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
 import { MAX_BOUNDS_MODES, unionBounds, bufferBounds, resolveCustomSourceBounds, type LngLatBoundsTuple } from "@/lib/max-bounds"
@@ -104,6 +104,7 @@ export function TerrainViewer() {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [highResTerrain] = useAtom(highResTerrainAtom)
+  const [tellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
   const [, setSectionOpen] = useAtom(sectionOpenAtom)
@@ -1073,7 +1074,7 @@ export function TerrainViewer() {
           />
           {isPrimary && (
             <TellsSource
-              enabled={state.showTells}
+              enabled={state.showTells && tellsBetaEnabled}
               terrainSource={state.sourceA}
               customTerrainSources={customTerrainSources}
               mapboxKey={mapboxKey}
@@ -1108,7 +1109,7 @@ export function TerrainViewer() {
           <LrmReliefLayer showSlopeAndMore={state.showSlopeAndMore} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
           <RoughnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
           <BlobnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
-          {isPrimary && <TellsMarkersLayer showTells={state.showTells} />}
+          {isPrimary && <TellsMarkersLayer showTells={state.showTells && tellsBetaEnabled} />}
           <HillshadeLayer
             showHillshade={state.showHillshade}
             hillshadePaint={hillshadePaint}

@@ -1,4 +1,6 @@
 import type React from "react"
+import { useAtom } from "jotai"
+import { tellsBetaEnabledAtom } from "@/lib/settings-atoms"
 import { Section, SliderControl } from "./controls-components"
 
 // Standalone top-level feature (like Contours), not a Slope-and-More sub-mode —
@@ -11,7 +13,8 @@ export const TellsOptionsSection: React.FC<{
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, isOpen, onOpenChange }) => {
-  if (!state.showTells) return null
+  const [tellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
+  if (!state.showTells || !tellsBetaEnabled) return null
 
   return (
     <Section title="Options: Tells (Mound Candidates)" isOpen={isOpen} onOpenChange={onOpenChange}>

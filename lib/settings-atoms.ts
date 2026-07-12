@@ -22,6 +22,9 @@ export const activeProjectConfigAtom = atom<ProjectConfig | null>(null)
 export const colorRampTypeAtom = atomWithStorage('colorRampType', 'classic')
 export const licenseFilterAtom = atomWithStorage('licenseFilter', 'open-distribute' )
 export const highResTerrainAtom = atomWithStorage("highResTerrain", false)
+// Tells (mound-candidate) detection is experimental — opt-in via Settings so it
+// doesn't clutter Visualization Modes for everyone by default.
+export const tellsBetaEnabledAtom = atomWithStorage("tellsBetaEnabled", false)
 
 type SkyConfig = {
   skyColor: string
