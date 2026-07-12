@@ -33,6 +33,14 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
     ? `${gdalCommand}\n\n# GDAL has no native ${config.encoding} decoder — decode raw elevation (Float32 meters):\ngdal_calc.py -A output.tif --A_band=1 -B output.tif --B_band=2 -C output.tif --C_band=3 \\\n  --outfile=output_altitude.tif --type=Float32 \\\n  --calc="${decodeFormula}"`
     : gdalCommand
 
+  // gdaldem natively covers Hillshade, Slope, Aspect, Elevation Hypso (color-relief),
+  // TRI, TPI and Roughness — same math as this app's client-side Slope-and-More modes.
+  // LRM, Blobness, and the Plan/Det-Hessian/Combined curvature variants have no gdaldem
+  // equivalent (they're custom implementations inspired by the RVT QGIS plugin), so
+  // they're intentionally left out here.
+  const demInputFile = decodeFormula ? "output_altitude.tif" : "output.tif"
+  const gdalDemCommand = `# Run against the DEM exported above (${demInputFile}). Covers the Slope-and-More\n# modes gdaldem supports natively — LRM, Blobness, and the Plan/Det-Hessian/Combined\n# curvature variants have no gdaldem equivalent (custom, RVT-inspired implementations).\ngdaldem hillshade ${demInputFile} hillshade.tif\ngdaldem slope ${demInputFile} slope.tif\ngdaldem aspect ${demInputFile} aspect.tif\ngdaldem color-relief ${demInputFile} ramp.txt color-relief.tif\ngdaldem TRI ${demInputFile} tri.tif\ngdaldem TPI ${demInputFile} tpi.tif\ngdaldem roughness ${demInputFile} roughness.tif`
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -78,8 +86,8 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
             <div className="flex items-center justify-between mb-1">
               <span className="font-semibold">GDAL & TMS Access:</span>
             </div>
-            <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={fullGdalCommand} onTabChange={setActiveGdalTab} />
-            {activeGdalTab === "cmd" && (
+            <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={fullGdalCommand} gdalDemCommand={gdalDemCommand} onTabChange={setActiveGdalTab} />
+            {(activeGdalTab === "cmd" || activeGdalTab === "gdaldem") && (
               <p className="text-xs text-muted-foreground mt-1">
                 Need GDAL?{" "}
                 <a href="https://qgis.org/" target="_blank" rel="noopener noreferrer" className="underline">QGIS</a>

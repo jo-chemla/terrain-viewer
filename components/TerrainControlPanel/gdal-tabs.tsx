@@ -17,14 +17,16 @@ export const GdalTabs: React.FC<{
   tileUrl: string
   wmsXml: string
   gdalCommand: string
+  gdalDemCommand: string
   onTabChange?: (tab: string) => void
-}> = ({ tileUrl, wmsXml, gdalCommand, onTabChange }) => {
+}> = ({ tileUrl, wmsXml, gdalCommand, gdalDemCommand, onTabChange }) => {
   const [activeTab, setActiveTab] = useState("url")
 
   const handleCopy = () => {
     if (activeTab === "url") copyToClipboard(tileUrl)
     else if (activeTab === "xml") copyToClipboard(wmsXml)
-    else copyToClipboard(gdalCommand)
+    else if (activeTab === "cmd") copyToClipboard(gdalCommand)
+    else copyToClipboard(gdalDemCommand)
   }
 
   return (
@@ -55,6 +57,12 @@ export const GdalTabs: React.FC<{
             >
               gdal_translate
             </TabsTrigger>
+            <TabsTrigger
+              value="gdaldem"
+              className="px-3 py-1 text-xs font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground cursor-pointer rounded-md"
+            >
+              gdaldem
+            </TabsTrigger>
           </TabsList>
 
           <Tooltip>
@@ -74,7 +82,9 @@ export const GdalTabs: React.FC<{
                   ? "Copy TMS URL template"
                   : activeTab === "xml"
                     ? "Copy GDAL_WMS XML"
-                    : "Copy gdal_translate command"
+                    : activeTab === "cmd"
+                      ? "Copy gdal_translate command"
+                      : "Copy gdaldem commands"
               }</p>
             </TooltipContent>
           </Tooltip>
@@ -132,6 +142,24 @@ export const GdalTabs: React.FC<{
               wrapLongLines
             >
               {gdalCommand}
+            </SyntaxHighlighter>
+          </TabsContent>
+
+          <TabsContent value="gdaldem" className="p-3 pt-2 text-xs font-mono">
+            <SyntaxHighlighter
+              language="bash"
+              style={atomOneDark}
+              customStyle={{
+                background: "transparent",
+                fontSize: "0.75rem",
+                margin: 0,
+                padding: 0,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+              wrapLongLines
+            >
+              {gdalDemCommand}
             </SyntaxHighlighter>
           </TabsContent>
         </div>

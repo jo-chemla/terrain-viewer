@@ -283,6 +283,10 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           <Separator />
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">Slope and More Modes</h3>
+            <p className="text-xs text-muted-foreground">
+              Most of these modes are supported by — and inspired by — <span className="font-semibold text-foreground">gdaldem</span>{" "}
+              and the <span className="font-semibold text-foreground">RVT (Relief Visualization Toolbox)</span> QGIS plugin.
+            </p>
             <div className="space-y-1.5 text-xs text-muted-foreground">
               <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
               <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
@@ -302,6 +306,19 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <div><span className="font-semibold text-foreground">LRM (Local Relief Model):</span> raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree</div>
               <div className="pt-1 italic">Neighborhood usually refers to a 3×3 kernel centered on the pixel.</div>
             </div>
+          </div>
+          <Separator />
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Tells (Mound Candidates) Detection</h3>
+            <p className="text-xs text-muted-foreground">
+              Computes a <span className="font-semibold text-foreground">Difference-of-Gaussians of the LRM</span>{" "}
+              (DoG-of-LRM) as the primary bump signal, keeps only its local maxima
+              (non-maximum suppression scaled to the configured tell size), then vetoes
+              candidates that fail any of three shape filters: <span className="font-semibold text-foreground">Blobness</span>{" "}
+              (structure-tensor peak/pit detector), <span className="font-semibold text-foreground">Plan Curvature / Divergence</span>{" "}
+              (rejects saddles and ridges where flow diverges outward across contours), and{" "}
+              <span className="font-semibold text-foreground">Det-Hessian</span> (rejects saddle points, keeps bowl/dome shapes).
+            </p>
           </div>
           <Separator />
           <div className="space-y-2">
