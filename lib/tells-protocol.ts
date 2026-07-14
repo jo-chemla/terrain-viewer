@@ -212,6 +212,7 @@ export async function tellsProtocol(
     }
   }
   candidates.sort((p, q2) => q2.a - p.a)
+  const rawCandidateCount = candidates.length
   candidates.length = Math.min(candidates.length, MAX_CANDIDATES)
 
   // ── Greedy point-wise non-max suppression by tell-size-derived radius ────────
@@ -234,6 +235,7 @@ export async function tellsProtocol(
   const invGroundRes = 1 / groundResM
   const geojsonFeatures: { type: 1; geometry: [number, number]; tags: Record<string, number> }[] = []
   const extent = 4096
+  let rejectedByBlobness = 0, rejectedByPlan = 0, rejectedByDetHessian = 0
 
   for (const cand of accepted) {
     const pr = cand.row + nativeHalo
@@ -241,7 +243,7 @@ export async function tellsProtocol(
     const sample = (dr: number, dc: number) => nativeGrid.padded[(pr + dr) * nativeStride + (pc + dc)]
 
     const blobness = computeBlobness(sample, groundResM)
-    if (blobness < opts.blobnessMin) continue
+    if (blobness < opts.blobnessMin) { rejectedByBlobness++; continue }
 
     const window: ElevationWindow = {
       a0: sample(-1, -1), a1: sample(-1, 0), a2: sample(-1, 1),
@@ -251,10 +253,10 @@ export async function tellsProtocol(
     }
     const { plan } = computeProfileAndPlan(window)
     const planClipped = Math.max(0, plan)
-    if (planClipped <= opts.planMin) continue
+    if (planClipped <= opts.planMin) { rejectedByPlan++; continue }
 
     const detHessian = computeDetHessian(window)
-    if (detHessian <= opts.detHessianMin) continue
+    if (detHessian <= opts.detHessianMin) { rejectedByDetHessian++; continue }
 
     const tx = Math.round(((cand.col + 0.5) / n) * extent)
     const ty = Math.round(((cand.row + 0.5) / n) * extent)
@@ -269,6 +271,16 @@ export async function tellsProtocol(
       },
     })
   }
+
+  // eslint-disable-next-line no-console -- opt-in diagnostic for the "why are there
+  // zero tell points" report; cheap (one line per tile fetch) and only fires while
+  // the beta feature is actually in use, so left in rather than stripped for prod.
+  console.debug(
+    `[tells] z${z}/${x}/${y} groundResM=${groundResM.toFixed(2)} kSmall=${kSmall} kLarge=${kLarge} ` +
+    `rawCandidates=${rawCandidateCount} afterNMS=${accepted.length} accepted=${geojsonFeatures.length} ` +
+    `rejected{blobness=${rejectedByBlobness} plan=${rejectedByPlan} detHessian=${rejectedByDetHessian}} ` +
+    `opts=${JSON.stringify(opts)}`,
+  )
 
   const buffer = (vtpbf as any).fromGeojsonVt({ tells: { features: geojsonFeatures } }, { version: 2, extent })
   return { data: new Uint8Array(buffer) }

@@ -20,7 +20,6 @@ import { HypsometricTintOptionsSection } from "./hypsometric-tint-options-sectio
 import { SlopeAndMoreOptionsSection } from "./slope-and-more-section"
 import { RasterBasemapSection } from "./raster-basemap-section"
 import { ContourOptionsSection } from "./contour-options-section"
-import { TellsOptionsSection } from "./tells-options-section"
 import { BackgroundOptionsSection } from "./background-options-section"
 import { FooterSection } from "./footer-section"
 import { TooltipIconButton } from "./controls-components"
@@ -44,7 +43,6 @@ const SECTION_KEYS = [
   "slopeAndMore",
   "rasterBasemap",
   "contour",
-  "tells",
   "background",
   "drawing",
   "elevationPicker",
@@ -64,7 +62,6 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   slopeAndMore: false,
   rasterBasemap: false,
   contour: false,
-  tells: false,
   background: false,
   drawing: false,
   elevationPicker: false,
@@ -296,7 +293,6 @@ export function TerrainControlPanel({
         {!hiddenSections.includes("contour") && (
           <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
         )}
-        <TellsOptionsSection state={state} setState={setState} isOpen={sectionOpen.tells} onOpenChange={toggle("tells")} />
         <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
         <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
         {!hiddenSections.includes("slopeAndMore") && (

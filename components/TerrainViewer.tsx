@@ -1074,7 +1074,7 @@ export function TerrainViewer() {
           />
           {isPrimary && (
             <TellsSource
-              enabled={state.showTells && tellsBetaEnabled}
+              enabled={state.showSlopeAndMore && state.showTells && tellsBetaEnabled}
               terrainSource={state.sourceA}
               customTerrainSources={customTerrainSources}
               mapboxKey={mapboxKey}
@@ -1109,7 +1109,7 @@ export function TerrainViewer() {
           <LrmReliefLayer showSlopeAndMore={state.showSlopeAndMore} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
           <RoughnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
           <BlobnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
-          {isPrimary && <TellsMarkersLayer showTells={state.showTells && tellsBetaEnabled} />}
+          {isPrimary && <TellsMarkersLayer showTells={state.showSlopeAndMore && state.showTells && tellsBetaEnabled} />}
           <HillshadeLayer
             showHillshade={state.showHillshade}
             hillshadePaint={hillshadePaint}

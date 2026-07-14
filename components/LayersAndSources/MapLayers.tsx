@@ -338,10 +338,11 @@ BlobnessReliefLayer.displayName = "BlobnessReliefLayer"
 
 // ─── Tells (mound candidate) markers ────────────────────────────────────────
 // Point features from the tells:// MVT source (see TellsSource in MapSources.tsx
-// and lib/tells-protocol.ts) — a circle marker per surviving candidate, colored by
-// its "a" (DoG relief) property so stronger candidates stand out. Unlike the
-// color-relief layers above this isn't gated on showSlopeAndMore — it's a
-// standalone top-level feature (see visualization-modes-section.tsx).
+// and lib/tells-protocol.ts) — one pill marker per surviving candidate. Styled to
+// match the elevation-picker's on-map dot markers (solid fill, white border) —
+// see ElevationPickerSection.tsx's 14px/2px-white-border DOM markers — just as a
+// purple circle here instead, since these are plain MapLibre circle-paint markers
+// rather than DOM elements.
 export const TellsMarkersLayer = memo(({ showTells }: { showTells: boolean }) => {
   if (!showTells) return null
   return (
@@ -352,16 +353,11 @@ export const TellsMarkersLayer = memo(({ showTells }: { showTells: boolean }) =>
       source="tellsSource"
       source-layer="tells"
       paint={{
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2, 16, 6],
-        "circle-color": [
-          "interpolate", ["linear"], ["get", "a"],
-          0, "#ffe066",
-          2, "#ff8c00",
-          5, "#e8290b",
-        ],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 16, 7],
+        "circle-color": "#a855f7",
         "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 1,
-        "circle-opacity": 0.85,
+        "circle-stroke-width": 2,
+        "circle-opacity": 1,
       }}
     />
   )

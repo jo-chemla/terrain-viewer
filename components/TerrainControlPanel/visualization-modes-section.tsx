@@ -1,6 +1,6 @@
 import type React from "react"
 import { useAtom } from "jotai"
-import { activeProjectConfigAtom, tellsBetaEnabledAtom } from "@/lib/settings-atoms"
+import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { Section, CheckboxWithSlider } from "./controls-components"
 
 export const VisualizationModesSection: React.FC<{
@@ -9,7 +9,6 @@ export const VisualizationModesSection: React.FC<{
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, isOpen, onOpenChange }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
-  const [tellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
   const hideContours = activeProjectConfig?.hiddenSections?.includes("contour") ?? false
   const hideSlopeAndMore = activeProjectConfig?.hiddenSections?.includes("slopeAndMore") ?? false
 
@@ -17,9 +16,6 @@ export const VisualizationModesSection: React.FC<{
     <Section title="Visualization Modes" isOpen={isOpen} onOpenChange={onOpenChange}>
       {!hideContours && (
         <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} />
-      )}
-      {tellsBetaEnabled && (
-        <CheckboxWithSlider id="tells" checked={state.showTells} onCheckedChange={(checked) => setState({ showTells: checked })} label="Tells (Mound Candidates)" hideSlider={true} />
       )}
       <CheckboxWithSlider id="hillshade" checked={state.showHillshade} onCheckedChange={(checked) => setState({ showHillshade: checked })} label="Hillshade" sliderValue={state.hillshadeOpacity} onSliderChange={(value) => setState({ hillshadeOpacity: value })} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
