@@ -1,6 +1,4 @@
 import type React from "react"
-import { useAtom } from "jotai"
-import { tellsBetaEnabledAtom } from "@/lib/settings-atoms"
 import { Section, CheckboxWithSlider } from "./controls-components"
 import { SlopeFields } from "./slope-options-section"
 import { AspectFields } from "./aspect-options-section"
@@ -10,7 +8,6 @@ import { TpiFields } from "./tpi-options-section"
 import { LrmFields } from "./lrm-options-section"
 import { RoughnessFields } from "./roughness-options-section"
 import { BlobnessFields } from "./blobness-options-section"
-import { TellsFields } from "./tells-options-section"
 
 // Merged panel for every normal-derived terrain visualization — same pattern as
 // ContourOptionsSection's "Contours & GeoGrid" (one master viz-mode checkbox in
@@ -28,7 +25,6 @@ export const SlopeAndMoreOptionsSection: React.FC<{
   // meters-equivalent for the smoothing radius, instead of assuming 256.
   terrainTileSize: number
 }> = ({ state, setState, isOpen, onOpenChange, terrainTileSize }) => {
-  const [tellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
   if (!state.showSlopeAndMore) return null
 
   return (
@@ -137,20 +133,6 @@ export const SlopeAndMoreOptionsSection: React.FC<{
           />
           {state.showBlobness && <BlobnessFields state={state} setState={setState} />}
         </div>
-
-        {tellsBetaEnabled && (
-          <div className="space-y-2">
-            <CheckboxWithSlider
-              id="slope-and-more-tells"
-              label="Tells (Mound Candidates)"
-              tooltip="Experimental archaeological mound detector: local maxima of a Difference-of-Gaussians relief signal, filtered by blobness/curvature to reject ridges and saddles."
-              checked={state.showTells}
-              onCheckedChange={(checked) => setState({ showTells: checked })}
-              hideSlider
-            />
-            {state.showTells && <TellsFields state={state} setState={setState} />}
-          </div>
-        )}
       </div>
     </Section>
   )

@@ -16,8 +16,11 @@
 //    LRM(k) = z − lowpass(k) makes the raw-elevation term cancel either way; the
 //    lowpass-difference form is used directly here so local *maxima* (not minima)
 //    are the candidates, matching the non-max-suppression pass below. kSmall is
-//    always clamped >= 1 pyramid level (never raw z) to avoid amplifying per-pixel
-//    GLO-30 stripe/quantization noise on the fine scale.
+//    fixed at 1 pyramid level (the finest denoise-only scale, never raw z, to avoid
+//    amplifying per-pixel GLO-30 stripe/quantization noise) rather than derived from
+//    tellSizeMeters — so A is effectively just the same LRM(kLarge) signal already
+//    on screen, and growing Tell Size (the NMS merge radius below) can never also
+//    shrink A's amplitude and erase a visibly obvious LRM peak.
 //  - D: structure-tensor "blobness" (lib/blobness-protocol.ts) — high for round,
 //    dome-like bumps, near-zero for elongated ridges/scarps. Used only as a veto:
 //    an A-maximum sitting on a ridge rather than a rounded mound is rejected.
@@ -60,9 +63,19 @@ import { computeBlobness } from "./blobness-protocol"
 const TELLS_PATH_RE = /^tells:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)(?:\?(.*))?$/
 
 export interface TellsOptions {
-  /** Real-world diameter (meters) of the mound size to search for — sets both the
-   *  DoG kSmall/kLarge scale pair and the non-max-suppression search radius. */
+  /** Real-world diameter (meters) of the mound size to search for — sets only the
+   *  non-max-suppression merge radius (half this value): nearby local maxima of A
+   *  within one mound-radius of each other collapse to the single strongest one.
+   *  Deliberately does NOT affect the DoG kSmall scale (see A's header comment) —
+   *  raising this should only ever merge nearby detections into fewer points, never
+   *  shrink A's amplitude and suppress a real peak down to zero candidates. */
   tellSizeMeters: number
+  /** Smoothing radius (in the same native-pixel units, and using the same
+   *  radiusToLevels conversion, as the LRM layer's own "Smoothing Radius" control)
+   *  used for kLarge, the DoG's regional-trend/background scale. Exposed directly
+   *  so it can be set to match — or deliberately diverge from — whatever radius
+   *  the LRM layer is currently displaying. */
+  radiusPx: number
   /** Minimum A (DoG) value, in meters of relief, for a local maximum to even be
    *  considered a candidate — filters out flat-ground noise before any of the
    *  D/C/F veto filters run. */
@@ -70,20 +83,42 @@ export interface TellsOptions {
   /** Veto: reject candidates whose structure-tensor blobness (D) is below this —
    *  i.e. require a round, dome-like bump rather than an elongated ridge/scarp. */
   blobnessMin: number
-  /** Veto: reject candidates whose plan curvature (C), clipped to positive, is at
-   *  or below this — i.e. require a genuinely convex, outward-diverging summit. */
+  /** Veto: reject candidates whose plan curvature (C) is at or above -this (i.e.
+   *  whose outward convexity, -plan clipped to positive, is at or below this) —
+   *  i.e. require a genuinely convex, outward-diverging summit. Sign note: per
+   *  curvature-protocol.ts's convention (positive=concave/valley, negative=
+   *  convex/ridge), any point on the flank of a real mound — elevation
+   *  decreasing outward from a peak — has plan <= 0 by construction (see that
+   *  file's computeProfileAndPlan: for a radially-symmetric bump, plan is
+   *  proportional to f'(x)/x, negative whenever f decreases outward). So the
+   *  veto must threshold on -plan, not plan itself, or every real candidate is
+   *  rejected the instant this is set above 0. */
   planMin: number
   /** Veto: reject candidates whose determinant-of-Hessian (F) is at or below this —
    *  i.e. require a true dome/bowl extremum rather than a saddle. */
   detHessianMin: number
+  /** Which elevation grid the D/C/F veto filters sample: "fine" reads the raw,
+   *  native-resolution grid (nativeGrid) at the candidate's own pixel; "coarse"
+   *  bilinearly resamples the same ancestorSmall grid A's own kSmall lowpass
+   *  already used, at the candidate's position. A is a local maximum of a
+   *  DoG-of-lowpass signal, so it never sees per-pixel native noise — computing
+   *  the vetoes on raw pixels instead means their much larger second-derivative
+   *  sensitivity picks up noise the primary detector never had to deal with,
+   *  which is what makes any veto threshold above the smallest values reject
+   *  almost every candidate. "coarse" samples the same already-smoothed data A
+   *  itself is built from, so the veto values stay well-behaved at the same
+   *  positions A already found. Defaults to "coarse". */
+  vetoResolution: "fine" | "coarse"
 }
 
 export const TELLS_DEFAULTS: TellsOptions = {
   tellSizeMeters: 100,
-  minReliefMeters: 0.3,
-  blobnessMin: 5,
+  radiusPx: 4,
+  minReliefMeters: 1.5,
+  blobnessMin: 0,
   planMin: 0,
   detHessianMin: 0,
+  vetoResolution: "coarse",
 }
 
 export function buildTellsProtocolUrl(
@@ -93,10 +128,12 @@ export function buildTellsProtocolUrl(
   const base = buildProtocolUrl("tells", upstreamTileTemplate, encoding, tileSize)
   const params = new URLSearchParams({
     tellSize: String(o.tellSizeMeters),
+    radius: String(o.radiusPx),
     minRelief: String(o.minReliefMeters),
     blobnessMin: String(o.blobnessMin),
     planMin: String(o.planMin),
     detHessMin: String(o.detHessianMin),
+    vetoRes: o.vetoResolution,
   })
   return `${base}?${params.toString()}`
 }
@@ -154,29 +191,37 @@ export async function tellsProtocol(
   const q = new URLSearchParams(query ?? "")
   const opts: TellsOptions = {
     tellSizeMeters: q.has("tellSize") ? Number(q.get("tellSize")) : TELLS_DEFAULTS.tellSizeMeters,
+    radiusPx: q.has("radius") ? Number(q.get("radius")) : TELLS_DEFAULTS.radiusPx,
     minReliefMeters: q.has("minRelief") ? Number(q.get("minRelief")) : TELLS_DEFAULTS.minReliefMeters,
     blobnessMin: q.has("blobnessMin") ? Number(q.get("blobnessMin")) : TELLS_DEFAULTS.blobnessMin,
     planMin: q.has("planMin") ? Number(q.get("planMin")) : TELLS_DEFAULTS.planMin,
     detHessianMin: q.has("detHessMin") ? Number(q.get("detHessMin")) : TELLS_DEFAULTS.detHessianMin,
+    vetoResolution: q.get("vetoRes") === "fine" ? "fine" : TELLS_DEFAULTS.vetoResolution,
   }
 
   const latDeg = tileRowToLatRad(y + 0.5, z) * RAD_TO_DEG
   const groundResM = groundResolutionM(latDeg, z, n)
   const pxForMeters = (m: number) => m / groundResM
 
-  // DoG scale pair bracketing the target mound size — kSmall a quarter-tell-size
-  // low-pass, kLarge a double-tell-size one (radiusToLevels itself clamps to
-  // pyramid levels [1, 6], so kSmall is always >= 1, never raw elevation).
-  const kSmallRaw = radiusToLevels(pxForMeters(opts.tellSizeMeters * 0.25))
-  const kLargeRaw = radiusToLevels(pxForMeters(opts.tellSizeMeters * 2))
-  const kSmall = kSmallRaw
+  // DoG scale pair: kSmall fixed at the finest pyramid level (denoise floor only,
+  // deliberately independent of tellSizeMeters — see TellsOptions.tellSizeMeters
+  // and A's header comment for why), kLarge taken directly from opts.radiusPx via
+  // the same radiusToLevels conversion the LRM layer itself uses on its own
+  // "Smoothing Radius" control — so this can be dialed to match (or deliberately
+  // diverge from) whatever radius LRM is showing.
+  const kSmall = 1
+  const kLargeRaw = radiusToLevels(opts.radiusPx)
   const kLarge = Math.min(6, Math.max(kSmall + 1, kLargeRaw))
 
   const nativeHalo = 2 // enough for blobness's 5x5 window and curvature's 3x3 one
+  // Only fetched for "fine" veto resolution — "coarse" (the default) reuses
+  // ancestorSmall instead, so this fetch is skipped entirely in the common case.
   const [ancestorSmall, ancestorLarge, nativeGrid] = await Promise.all([
     fetchAncestorScale(upstreamTemplate, encoding, n, z, x, y, kSmall, signal),
     fetchAncestorScale(upstreamTemplate, encoding, n, z, x, y, kLarge, signal),
-    fetchPaddedElevationGrid(sharedTileCache, upstreamTemplate, encoding, z, x, y, n, signal, nativeHalo),
+    opts.vetoResolution === "fine"
+      ? fetchPaddedElevationGrid(sharedTileCache, upstreamTemplate, encoding, z, x, y, n, signal, nativeHalo)
+      : Promise.resolve(null),
   ])
 
   // ── A: DoG(LRM) over a 1px-haloed grid (n+2 x n+2) — just enough margin for the
@@ -233,14 +278,26 @@ export async function tellsProtocol(
   // reject (AND, not a weighted score). ────────────────────────────────────────
   const nativeStride = n + 2 * nativeHalo
   const invGroundRes = 1 / groundResM
-  const geojsonFeatures: { type: 1; geometry: [number, number]; tags: Record<string, number> }[] = []
+  const geojsonFeatures: { type: 1; geometry: [[number, number]]; tags: Record<string, number> }[] = []
   const extent = 4096
   let rejectedByBlobness = 0, rejectedByPlan = 0, rejectedByDetHessian = 0
 
   for (const cand of accepted) {
+    // "fine": raw native-resolution pixels — exact same per-pixel GLO-30 stripe/
+    // quantization noise the primary detector (A) was deliberately built to avoid
+    // (see kSmall's comment above), which is why D/C/F's second-derivative-based
+    // formulas are far noisier here and any veto threshold above ~0 rejects nearly
+    // everything. "coarse": bilinearly resample ancestorSmall — the same kSmall
+    // lowpass grid A's own "mound survives here" term is built from — at the
+    // candidate's position, so the veto quantities see the same denoised mound
+    // shape A found, not amplified raw-pixel noise (ancestorLarge, the DoG's
+    // *background* term, is deliberately not used here: at that scale the mound
+    // itself has already been smoothed away, which would make every veto reject).
     const pr = cand.row + nativeHalo
     const pc = cand.col + nativeHalo
-    const sample = (dr: number, dc: number) => nativeGrid.padded[(pr + dr) * nativeStride + (pc + dc)]
+    const sample = opts.vetoResolution === "fine"
+      ? (dr: number, dc: number) => nativeGrid!.padded[(pr + dr) * nativeStride + (pc + dc)]
+      : (dr: number, dc: number) => lowpassAt(ancestorSmall, n, cand.row + dr, cand.col + dc)
 
     const blobness = computeBlobness(sample, groundResM)
     if (blobness < opts.blobnessMin) { rejectedByBlobness++; continue }
@@ -251,22 +308,25 @@ export async function tellsProtocol(
       a6: sample(1, -1), a7: sample(1, 0), a8: sample(1, 1),
       invEwresXscale: invGroundRes, invNsresYscale: invGroundRes, groundResolutionM: groundResM,
     }
+    // See planMin's doc comment: a real mound's flank has plan <= 0 by
+    // construction (positive=concave/valley, negative=convex/ridge convention),
+    // so the veto quantity is outward convexity = -plan, clipped to positive.
     const { plan } = computeProfileAndPlan(window)
-    const planClipped = Math.max(0, plan)
-    if (planClipped <= opts.planMin) { rejectedByPlan++; continue }
+    const planConvexity = Math.max(0, -plan)
+    if (planConvexity < opts.planMin) { rejectedByPlan++; continue }
 
     const detHessian = computeDetHessian(window)
-    if (detHessian <= opts.detHessianMin) { rejectedByDetHessian++; continue }
+    if (detHessian < opts.detHessianMin) { rejectedByDetHessian++; continue }
 
     const tx = Math.round(((cand.col + 0.5) / n) * extent)
     const ty = Math.round(((cand.row + 0.5) / n) * extent)
     geojsonFeatures.push({
       type: 1,
-      geometry: [tx, ty],
+      geometry: [[tx, ty]],
       tags: {
         a: Math.round(cand.a * 100) / 100,
         blobness: Math.round(blobness * 100) / 100,
-        plan: Math.round(planClipped * 100) / 100,
+        plan: Math.round(planConvexity * 100) / 100,
         detHessian: Math.round(detHessian * 100) / 100,
       },
     })
@@ -275,13 +335,14 @@ export async function tellsProtocol(
   // eslint-disable-next-line no-console -- opt-in diagnostic for the "why are there
   // zero tell points" report; cheap (one line per tile fetch) and only fires while
   // the beta feature is actually in use, so left in rather than stripped for prod.
-  console.debug(
+  // console.log (not .debug) so it shows under Chrome DevTools' default "Info"
+  // filter without the user having to manually enable the Verbose level.
+  console.log(
     `[tells] z${z}/${x}/${y} groundResM=${groundResM.toFixed(2)} kSmall=${kSmall} kLarge=${kLarge} ` +
     `rawCandidates=${rawCandidateCount} afterNMS=${accepted.length} accepted=${geojsonFeatures.length} ` +
     `rejected{blobness=${rejectedByBlobness} plan=${rejectedByPlan} detHessian=${rejectedByDetHessian}} ` +
     `opts=${JSON.stringify(opts)}`,
   )
-
   const buffer = (vtpbf as any).fromGeojsonVt({ tells: { features: geojsonFeatures } }, { version: 2, extent })
   return { data: new Uint8Array(buffer) }
 }

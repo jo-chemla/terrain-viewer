@@ -18,6 +18,7 @@ import { VisualizationModesSection } from "./visualization-modes-section"
 import { HillshadeOptionsSection } from "./hillshade-options-section"
 import { HypsometricTintOptionsSection } from "./hypsometric-tint-options-section"
 import { SlopeAndMoreOptionsSection } from "./slope-and-more-section"
+import { DetectorMoundsSection } from "./detector-mounds-section"
 import { RasterBasemapSection } from "./raster-basemap-section"
 import { ContourOptionsSection } from "./contour-options-section"
 import { BackgroundOptionsSection } from "./background-options-section"
@@ -41,6 +42,7 @@ const SECTION_KEYS = [
   "hillshade",
   "hypsometricTint",
   "slopeAndMore",
+  "tellsDetector",
   "rasterBasemap",
   "contour",
   "background",
@@ -60,6 +62,7 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   hillshade: false,
   hypsometricTint: false,
   slopeAndMore: false,
+  tellsDetector: false,
   rasterBasemap: false,
   contour: false,
   background: false,
@@ -302,6 +305,16 @@ export function TerrainControlPanel({
             isOpen={sectionOpen.slopeAndMore}
             onOpenChange={toggle("slopeAndMore")}
             terrainTileSize={getSourceConfig(state.sourceA)?.tileSize ?? 256}
+          />
+        )}
+        {!hiddenSections.includes("slopeAndMore") && (
+          <DetectorMoundsSection
+            state={state}
+            setState={setState}
+            isOpen={sectionOpen.tellsDetector}
+            onOpenChange={toggle("tellsDetector")}
+            terrainTileSize={getSourceConfig(state.sourceA)?.tileSize ?? 256}
+            mapRef={mapRef}
           />
         )}
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />

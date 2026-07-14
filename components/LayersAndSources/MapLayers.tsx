@@ -1,5 +1,6 @@
-import { memo } from "react"
+import { memo, useEffect, useRef, type RefObject } from "react"
 import { Layer, type MapRef } from "react-map-gl/maplibre"
+import maplibregl, { type MapMouseEvent } from "maplibre-gl"
 import { useAtom } from "jotai"
 import { highResTerrainAtom } from "@/lib/settings-atoms"
 import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
@@ -338,13 +339,97 @@ BlobnessReliefLayer.displayName = "BlobnessReliefLayer"
 
 // ─── Tells (mound candidate) markers ────────────────────────────────────────
 // Point features from the tells:// MVT source (see TellsSource in MapSources.tsx
-// and lib/tells-protocol.ts) — one pill marker per surviving candidate. Styled to
-// match the elevation-picker's on-map dot markers (solid fill, white border) —
-// see ElevationPickerSection.tsx's 14px/2px-white-border DOM markers — just as a
-// purple circle here instead, since these are plain MapLibre circle-paint markers
-// rather than DOM elements.
-export const TellsMarkersLayer = memo(({ showTells }: { showTells: boolean }) => {
-  if (!showTells) return null
+// and lib/tells-protocol.ts) — one marker per surviving candidate. `enabled` is
+// the mount gate (mirrors the Relief-layer master/per-mode split elsewhere in this
+// file: showSlopeAndMore && tellsBetaEnabled); `style` — including "hidden" — only
+// ever toggles layout.visibility/paint, so cycling styles never unmounts this
+// Layer or the vector source underneath it, meaning hiding the markers can't
+// force maplibre to re-fetch/recompute tells:// tiles on reactivation.
+export type TellsMarkerStyle =
+  | "hidden" | "purple" | "outline"
+  | "byBlobness" | "byPlan" | "byDetHessian" | "byLrm"
+
+const TELLS_CIRCLE_RADIUS = ["interpolate", ["linear"], ["zoom"], 10, 3, 16, 7] as const
+// "outline" (red-stroke, no-fill) markers are drawn 2x the radius of every other
+// style, purely as a visual distinguisher when both styles' underlying candidate
+// sets overlap on screen.
+const TELLS_CIRCLE_RADIUS_OUTLINE = ["interpolate", ["linear"], ["zoom"], 10, 6, 16, 14] as const
+
+// Color-by-attribute ramps for the tells markers, keyed by TellsMarkerStyle.
+// These intentionally reuse the same color families as the equivalent
+// Slope-and-More visualization (see lib/color-ramps.ts's blobness-default,
+// tri-default, curvature-diverging, lrm-diverging), but with the numeric domain
+// rescaled down to the tells veto's own "coarse" (lowpass-smoothed) value ranges,
+// empirically calibrated in tells-options-section.tsx's slider ranges (blobness/
+// det-Hessian ~0-0.5, plan convexity ~0-100). Reusing Slope-and-More's literal
+// domain numbers (calibrated against raw/native-resolution pixel formulas) would
+// make every tells marker fall in the ramp's first, near-zero stop — which is
+// exactly the "all points are blue" bug this replaces.
+const TELLS_COLOR_BY_PAINT: Record<string, any> = {
+  // Matches lib/color-ramps.ts's "blobness-default" palette (white->teal->green).
+  byBlobness: [
+    "interpolate", ["linear"], ["get", "blobness"],
+    0, "rgba(255, 255, 255, 0)",
+    0.05, "rgb(229, 245, 249)",
+    0.15, "rgb(153, 216, 201)",
+    0.3, "rgb(44, 162, 95)",
+    0.5, "rgb(0, 109, 44)",
+  ],
+  // Matches "curvature-diverging"'s convex/ridge (red) half — plan is already
+  // stored as outward convexity (-plan clipped positive, see tells-protocol.ts),
+  // so only the single-direction "more convex" ramp applies here.
+  byPlan: [
+    "interpolate", ["linear"], ["get", "plan"],
+    0, "rgba(255, 255, 255, 0)",
+    25, "rgb(244, 165, 130)",
+    100, "rgb(178, 24, 43)",
+  ],
+  // Matches "tri-default"'s palette (white->yellow->orange->red).
+  byDetHessian: [
+    "interpolate", ["linear"], ["get", "detHessian"],
+    0, "rgba(255, 255, 255, 0)",
+    0.05, "rgb(255, 247, 188)",
+    0.15, "rgb(254, 196, 79)",
+    0.3, "rgb(217, 95, 14)",
+    0.5, "rgb(153, 0, 0)",
+  ],
+  // Matches "lrm-diverging"'s positive (above-background) half — the tells `a`
+  // tag is itself a meters-based DoG relief quantity in the same units, so this
+  // domain is reused literally rather than rescaled.
+  byLrm: [
+    "interpolate", ["linear"], ["get", "a"],
+    0, "rgba(255, 255, 255, 0)",
+    5, "rgb(253, 174, 97)",
+    20, "rgb(178, 24, 43)",
+  ],
+}
+
+export const TellsMarkersLayer = memo(({ enabled, style }: { enabled: boolean; style: TellsMarkerStyle }) => {
+  if (!enabled) return null
+  const colorByPaint = TELLS_COLOR_BY_PAINT[style]
+  const paint =
+    style === "outline"
+      ? {
+          "circle-radius": TELLS_CIRCLE_RADIUS_OUTLINE,
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-color": "#ef4444",
+          "circle-stroke-width": 2,
+        }
+      : colorByPaint
+      ? {
+          "circle-radius": TELLS_CIRCLE_RADIUS,
+          "circle-color": colorByPaint,
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 2,
+          "circle-opacity": 1,
+        }
+      : {
+          "circle-radius": TELLS_CIRCLE_RADIUS,
+          "circle-color": "#a855f7",
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 2,
+          "circle-opacity": 1,
+        }
   return (
     <Layer
       beforeId={LAYER_SLOTS.TELLS}
@@ -352,17 +437,90 @@ export const TellsMarkersLayer = memo(({ showTells }: { showTells: boolean }) =>
       type="circle"
       source="tellsSource"
       source-layer="tells"
-      paint={{
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 16, 7],
-        "circle-color": "#a855f7",
-        "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 2,
-        "circle-opacity": 1,
-      }}
+      layout={{ visibility: style === "hidden" ? "none" : "visible" }}
+      paint={paint as any}
     />
   )
 })
+
+// MapLibre only fetches a vector source's tiles if some *visible* layer in the
+// style references it — a Source with no layer (or only layout.visibility:none
+// layers) never loads, regardless of the source's own mount state. Confirmed
+// empirically: a visibility:none loader layer left tellsSourceUnfiltered's tiles
+// permanently unrequested. tellsSourceUnfiltered (see TellsSource's "unfiltered"
+// variant in MapSources.tsx) exists purely for the Export button's
+// querySourceFeatures call, so this stays layout-visible but paints fully
+// transparent/zero-radius to have no visual effect on the map.
+export const TellsUnfilteredLoaderLayer = memo(({ enabled }: { enabled: boolean }) => {
+  if (!enabled) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.TELLS}
+      id="tells-markers-unfiltered-loader"
+      type="circle"
+      source="tellsSourceUnfiltered"
+      source-layer="tells"
+      paint={{ "circle-radius": 0, "circle-opacity": 0, "circle-stroke-width": 0 }}
+    />
+  )
+})
+TellsUnfilteredLoaderLayer.displayName = "TellsUnfilteredLoaderLayer"
 TellsMarkersLayer.displayName = "TellsMarkersLayer"
+
+// Click-to-inspect popup for a Tells marker — surfaces the same A/D/C/F values
+// tells-protocol.ts already computes per-candidate (see its `tags` object) but
+// which otherwise never leave the vector tile. Layer-scoped listeners are guarded
+// by an explicit getLayer() check rather than relying on maplibre's own delegated
+// binding, since TellsMarkersLayer only mounts once showSlopeAndMore/tellsBetaEnabled
+// are both on and querying a not-yet-mounted layer throws rather than silently
+// no-op-ing. A "hidden" style still passes this guard (the layer stays mounted)
+// but layout.visibility:"none" makes queryRenderedFeatures return nothing anyway.
+export const TellsInspectPopup = memo(({ mapRef, active }: { mapRef: RefObject<MapRef>; active: boolean }) => {
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map || !active) return
+
+    const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "220px" })
+
+    const handleClick = (e: MapMouseEvent) => {
+      if (!map.getLayer("tells-markers")) return
+      const [feature] = map.queryRenderedFeatures(e.point, { layers: ["tells-markers"] })
+      if (!feature) return
+      const tags = feature.properties as Record<string, number>
+      popup
+        .setLngLat(e.lngLat)
+        .setHTML(
+          `<div style="font-size:12px;line-height:1.6">` +
+          `<div style="font-weight:600;margin-bottom:2px">Tell candidate</div>` +
+          `<div>DoG relief (A): <b>${tags.a} m</b></div>` +
+          `<div>Blobness (D): <b>${tags.blobness}</b></div>` +
+          `<div>Plan curvature (C): <b>${tags.plan}</b></div>` +
+          `<div>Det-Hessian (F): <b>${tags.detHessian}</b></div>` +
+          `</div>`,
+        )
+        .addTo(map)
+    }
+    // Plain "mousemove" + a manual getLayer() guard, rather than maplibre's
+    // layer-scoped on("mouseenter"/"mouseleave", layerId, ...) overload — that
+    // overload queries the named layer internally on every map pointer move, which
+    // throws (rather than no-op-ing) if the layer isn't mounted yet.
+    const handleMove = (e: MapMouseEvent) => {
+      const hit = map.getLayer("tells-markers") && map.queryRenderedFeatures(e.point, { layers: ["tells-markers"] }).length > 0
+      map.getCanvas().style.cursor = hit ? "pointer" : ""
+    }
+
+    map.on("click", handleClick)
+    map.on("mousemove", handleMove)
+    return () => {
+      map.off("click", handleClick)
+      map.off("mousemove", handleMove)
+      map.getCanvas().style.cursor = ""
+      popup.remove()
+    }
+  }, [mapRef, active])
+  return null
+})
+TellsInspectPopup.displayName = "TellsInspectPopup"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)

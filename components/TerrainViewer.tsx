@@ -62,6 +62,8 @@ import {
   RoughnessReliefLayer,
   BlobnessReliefLayer,
   TellsMarkersLayer,
+  TellsUnfilteredLoaderLayer,
+  TellsInspectPopup,
   LAYER_SLOTS,
   computeHillshadePaint,
   computeColorReliefPaint,
@@ -86,6 +88,8 @@ const parseAsFloatPrecise = createParser({
 const VIEW_MODES = ['2d', 'globe', '3d'] as const
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian'] as const
+const TELLS_STYLES = ['hidden', 'purple', 'outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
+const TELL_VETO_RESOLUTIONS = ['fine', 'coarse'] as const
 
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
@@ -105,6 +109,12 @@ export function TerrainViewer() {
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [highResTerrain] = useAtom(highResTerrainAtom)
   const [tellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
+  // Latches true the first time Tells is shown in any non-hidden style, and then
+  // stays true — this is TellsSource's mount gate instead of tellsStyle itself, so
+  // cycling back to "hidden" never unmounts the vector source / discards its
+  // already-fetched tiles the way tying the source's `enabled` directly to the
+  // style would.
+  const [tellsEverActivated, setTellsEverActivated] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
   const [, setSectionOpen] = useAtom(sectionOpenAtom)
@@ -208,12 +218,14 @@ export function TerrainViewer() {
     blobnessMin: parseAsFloat.withDefault(0),
     blobnessMax: parseAsFloat.withDefault(50),
     blobnessInvertColorRamp: parseAsBoolean.withDefault(false),
-    showTells: parseAsBoolean.withDefault(false),
+    tellsStyle: parseAsStringLiteral(TELLS_STYLES).withDefault("hidden"),
     tellSize: parseAsFloat.withDefault(100),
-    tellMinRelief: parseAsFloat.withDefault(0.3),
-    tellBlobnessMin: parseAsFloat.withDefault(5),
+    tellRadius: parseAsFloat.withDefault(4),
+    tellMinRelief: parseAsFloat.withDefault(1.5),
+    tellBlobnessMin: parseAsFloat.withDefault(0),
     tellPlanMin: parseAsFloat.withDefault(0),
     tellDetHessianMin: parseAsFloat.withDefault(0),
+    tellVetoResolution: parseAsStringLiteral(TELL_VETO_RESOLUTIONS).withDefault("coarse"),
     showContoursAndGraticules: parseAsBoolean.withDefault(false),
     showContours: parseAsBoolean.withDefault(true),
     showContourLabels: parseAsBoolean.withDefault(true),
@@ -404,12 +416,19 @@ export function TerrainViewer() {
   const tellsOptions = useMemo(
     () => ({
       tellSizeMeters: state.tellSize,
+      radiusPx: state.tellRadius,
       minReliefMeters: state.tellMinRelief,
       blobnessMin: state.tellBlobnessMin,
       planMin: state.tellPlanMin,
       detHessianMin: state.tellDetHessianMin,
+      vetoResolution: state.tellVetoResolution,
     }),
-    [ state.tellSize, state.tellMinRelief, state.tellBlobnessMin, state.tellPlanMin, state.tellDetHessianMin ]
+    [ state.tellSize, state.tellRadius, state.tellMinRelief, state.tellBlobnessMin, state.tellPlanMin, state.tellDetHessianMin, state.tellVetoResolution ]
+  )
+
+  useEffect(() => {
+    if (state.tellsStyle !== "hidden") setTellsEverActivated(true)
+  }, [state.tellsStyle]
   )
 
   // Check MapLibre availability
@@ -1074,13 +1093,25 @@ export function TerrainViewer() {
           />
           {isPrimary && (
             <TellsSource
-              enabled={state.showSlopeAndMore && state.showTells && tellsBetaEnabled}
+              enabled={tellsBetaEnabled && tellsEverActivated}
               terrainSource={state.sourceA}
               customTerrainSources={customTerrainSources}
               mapboxKey={mapboxKey}
               maptilerKey={maptilerKey}
               titilerEndpoint={titilerEndpoint}
               tellsOptions={tellsOptions}
+            />
+          )}
+          {isPrimary && (
+            <TellsSource
+              enabled={tellsBetaEnabled && tellsEverActivated}
+              terrainSource={state.sourceA}
+              customTerrainSources={customTerrainSources}
+              mapboxKey={mapboxKey}
+              maptilerKey={maptilerKey}
+              titilerEndpoint={titilerEndpoint}
+              tellsOptions={tellsOptions}
+              variant="unfiltered"
             />
           )}
 
@@ -1109,7 +1140,14 @@ export function TerrainViewer() {
           <LrmReliefLayer showSlopeAndMore={state.showSlopeAndMore} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
           <RoughnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
           <BlobnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
-          {isPrimary && <TellsMarkersLayer showTells={state.showSlopeAndMore && state.showTells && tellsBetaEnabled} />}
+          {isPrimary && <TellsMarkersLayer enabled={tellsBetaEnabled} style={state.tellsStyle} />}
+          {isPrimary && <TellsUnfilteredLoaderLayer enabled={tellsBetaEnabled && tellsEverActivated} />}
+          {isPrimary && (
+            <TellsInspectPopup
+              mapRef={mapARef as any}
+              active={mapALoaded && tellsBetaEnabled}
+            />
+          )}
           <HillshadeLayer
             showHillshade={state.showHillshade}
             hillshadePaint={hillshadePaint}
@@ -1260,7 +1298,7 @@ export function TerrainViewer() {
       state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity, state.showHillshade,
       state.showColorRelief, state.showSlopeAndMore, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
-      state.showTells, tellsOptions,
+      state.tellsStyle, tellsOptions,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor,

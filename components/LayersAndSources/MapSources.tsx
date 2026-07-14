@@ -583,16 +583,29 @@ export interface TellsSourceProps {
     maptilerKey: string
     titilerEndpoint: string
     tellsOptions: TellsOptions
+    // "unfiltered" mounts a second, parallel source (id "tellsSourceUnfiltered")
+    // with every veto threshold forced to 0 — same tellSize/radius/minRelief, so
+    // its candidates are a superset of the filtered source's. Exists only so the
+    // Export button (tells-options-section.tsx) can query an unfiltered
+    // candidate set on demand: the tells:// protocol bakes veto filtering into
+    // the tile content itself (see buildTellsProtocolUrl), so querySourceFeatures
+    // on the regular "tellsSource" can never see rejected candidates without a
+    // second differently-configured source like this one.
+    variant?: "filtered" | "unfiltered"
 }
 
-export const TellsSource = memo(({ enabled, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, tellsOptions }: TellsSourceProps) => {
+export const TellsSource = memo(({ enabled, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, tellsOptions, variant = "filtered" }: TellsSourceProps) => {
     const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
     if (!enabled || !clientUpstream) return null
-    const url = buildTellsProtocolUrl(clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize, tellsOptions)
+    const effectiveOptions = variant === "unfiltered"
+        ? { ...tellsOptions, blobnessMin: 0, planMin: 0, detHessianMin: 0 }
+        : tellsOptions
+    const sourceId = variant === "unfiltered" ? "tellsSourceUnfiltered" : "tellsSource"
+    const url = buildTellsProtocolUrl(clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize, effectiveOptions)
     return (
         <Source
-            id="tellsSource"
-            key={`tellsSource-${terrainSource}-${tellsOptions.tellSizeMeters}-${tellsOptions.minReliefMeters}-${tellsOptions.blobnessMin}-${tellsOptions.planMin}-${tellsOptions.detHessianMin}`}
+            id={sourceId}
+            key={`${sourceId}-${terrainSource}-${effectiveOptions.tellSizeMeters}-${effectiveOptions.radiusPx}-${effectiveOptions.minReliefMeters}-${effectiveOptions.blobnessMin}-${effectiveOptions.planMin}-${effectiveOptions.detHessianMin}-${effectiveOptions.vetoResolution}`}
             type="vector"
             tiles={[url]}
             maxzoom={15}
