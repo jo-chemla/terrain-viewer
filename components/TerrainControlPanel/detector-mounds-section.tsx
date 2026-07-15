@@ -1,19 +1,20 @@
 import type React from "react"
-import { useCallback } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, CycleButtonGroup } from "./controls-components"
 import { TellsFields } from "./tells-options-section"
 
+// "hidden" is deliberately NOT an option here — visibility is the topmost
+// checkbox below (and the Tells toggle in Visualization Modes), not a style.
 const TELLS_STYLE_OPTIONS = [
-  { value: "hidden", label: "Hidden" },
-  { value: "purple", label: "Purple Fill" },
-  { value: "outline", label: "Red Outline" },
-  { value: "byBlobness", label: "Color by Blobness" },
-  { value: "byPlan", label: "Color by Plan Curvature" },
-  { value: "byDetHessian", label: "Color by Det-Hessian" },
+  { value: "outline", label: "Outline" },
   { value: "byLrm", label: "Color by LRM Relief" },
+  { value: "byPlan", label: "Color by Plan Curvature" },
+  { value: "byBlobness", label: "Color by Blobness" },
+  { value: "byDetHessian", label: "Color by Det-Hessian" },
 ]
 const TELLS_STYLE_KEYS = TELLS_STYLE_OPTIONS.map(({ value }) => value)
 
@@ -41,24 +42,58 @@ export const DetectorMoundsSection: React.FC<{
     const newIndex = (currentIndex + direction + TELLS_STYLE_KEYS.length) % TELLS_STYLE_KEYS.length
     setState({ tellsStyle: TELLS_STYLE_KEYS[newIndex] })
   }, [state.tellsStyle, setState])
+
+  // Same last-visible-style memory as the Tells toggle in VisualizationModesSection:
+  // "hidden" is a checkbox state here, not a dropdown entry, so unchecking and
+  // re-checking restores whatever style was last shown.
+  const lastVisibleTellsStyle = useRef("outline")
+  useEffect(() => {
+    if (state.tellsStyle !== "hidden") lastVisibleTellsStyle.current = state.tellsStyle
+  }, [state.tellsStyle])
+
   if (!state.tellsBeta) return null
+  const isShown = state.tellsStyle !== "hidden"
+  // While hidden, the dropdown still displays (and edits re-activate) the
+  // remembered style rather than showing an empty select.
+  const displayedStyle = isShown ? state.tellsStyle : lastVisibleTellsStyle.current
 
   return (
     <Section title="Detector: Mound Candidates" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Label className="text-sm cursor-default">Tells (Mound Candidates)</Label>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Experimental archaeological mound detector: local maxima of a Difference-of-Gaussians relief signal, filtered by blobness/curvature to reject ridges and saddles. Cycle Hidden / Purple Fill / Red Outline / Color-by-Blobness / Color-by-Plan / Color-by-Det-Hessian / Color-by-LRM — hiding never discards already-computed detections, so reactivating is instant.</p>
-          </TooltipContent>
-        </Tooltip>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="tells-show-markers"
+            checked={isShown}
+            onCheckedChange={(checked) => setState({ tellsStyle: checked === true ? lastVisibleTellsStyle.current : "hidden" })}
+          />
+          <Label htmlFor="tells-show-markers" className="text-sm cursor-pointer">
+            Show mound candidates
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Experimental archaeological mound detector: local maxima of a Difference-
+          of-Gaussians relief signal, filtered by blobness/curvature to reject
+          ridges and saddles.
+        </p>
         <CycleButtonGroup
-          value={state.tellsStyle}
+          value={displayedStyle}
           options={TELLS_STYLE_OPTIONS}
           onChange={(v) => setState({ tellsStyle: v })}
           onCycle={cycleTellsStyle}
+          middle={displayedStyle === "outline" ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <input
+                  type="color"
+                  aria-label="Outline color"
+                  value={state.tellsOutlineColor}
+                  onChange={(e) => setState({ tellsOutlineColor: e.target.value })}
+                  className="h-8 w-9 shrink-0 cursor-pointer rounded border bg-transparent p-0.5"
+                />
+              </TooltipTrigger>
+              <TooltipContent><p>Outline color — red by default; white or black read better over some ramps.</p></TooltipContent>
+            </Tooltip>
+          ) : undefined}
         />
         <TellsFields state={state} setState={setState} tileSize={terrainTileSize} mapRef={mapRef} />
       </div>

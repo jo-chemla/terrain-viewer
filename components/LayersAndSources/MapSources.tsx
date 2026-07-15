@@ -1,9 +1,10 @@
 import { memo, useMemo, useState, useEffect } from "react"
 import { Source } from "react-map-gl/maplibre"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
+import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction, getCogMetadata, type CogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { elevationToTerrainrgb, elevationToTerrarium } from "@/lib/elevation-encoding"
@@ -84,7 +85,11 @@ const rasterBasemaps: Record<string, { url: string; tileSize: number; maxzoom: n
     osm:       { url: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", tileSize: 256, maxzoom: 19 },
     googlesat: { url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 20 },
     google:    { url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 20 },
-    esri:      { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", tileSize: 256, maxzoom: 19 },
+    // maxzoom 18, not the service's nominal 19: plenty of regions have no z19
+    // imagery and Esri serves "Map Data Not Yet Available" placeholder tiles
+    // there instead of 404s — capping at 18 makes maplibre overzoom real z18
+    // pixels instead of fetching placeholders.
+    esri:      { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", tileSize: 256, maxzoom: 18 },
     mapbox:    { url: "https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token={API_KEY}", tileSize: 256, maxzoom: 22 },
     bing:      { url: "https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1", tileSize: 256, maxzoom: 19 },
 }
@@ -123,12 +128,25 @@ export const TerrainSources = memo(({
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const [highResTerrain] = useAtom(highResTerrainAtom)
+    // Unused directly — read so this component re-renders when a local COG file
+    // is (re-)picked (see custom-source-details.tsx's "Re-select file…" flow).
+    useAtomValue(localFileVersionAtom)
 
     const customSource = customTerrainSources.find((s) => s.id === source)
-    const isCogProtocol = customSource?.type === 'cog' && useCogProtocol
+    // A local file can only ever stream via the in-browser geomatico protocol —
+    // there's no titiler server that could reach the user's disk — so it ignores
+    // the useCogProtocolVsTitiler toggle entirely, unlike a remote "cog" source.
+    const isCogLocal = customSource?.type === 'cog-local'
+    const isCogProtocol = (customSource?.type === 'cog' && useCogProtocol) || isCogLocal
     const isTilejson = customSource?.type === 'tilejson'
+    // For a local file, this session's blob: URL if the file has been picked (or
+    // re-picked after a reload), else null — same "not ready yet" shape as a COG
+    // still fetching its metadata below.
+    const resolvedCogUrl = isCogLocal
+        ? (customSource ? resolveLocalFileUrl(localFileId(customSource.url)) : null)
+        : (customSource?.url ?? null)
 
-    const metadata = useCogMetadata(isCogProtocol ? customSource.url : null)
+    const metadata = useCogMetadata(isCogProtocol ? resolvedCogUrl : null)
     const tilejsonMetadata = useTilejsonMetadata(isTilejson ? customSource.url : null)
     const { minzoom, maxzoom: detectedMaxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
     // A custom source's explicit maxzoom (e.g. WMS sources without COG metadata to auto-detect from)
@@ -142,29 +160,31 @@ export const TerrainSources = memo(({
 
     // Register color function for COG protocol
     useEffect(() => {
-        if (!isCogProtocol) return
+        if (!isCogProtocol || !resolvedCogUrl) return
         const scale = metadata?.scale ?? 1
         const offset = metadata?.offset ?? 0
         const noData = metadata?.noData
         setColorFunction(
-            customSource.url,
+            resolvedCogUrl,
             highResTerrain
                 ? makeTerrariumColorFunction(scale, offset, noData)
                 : makeTerrainrgbColorFunction(scale, offset, noData)
         )
-    }, [isCogProtocol, customSource?.url, highResTerrain, metadata?.scale, metadata?.offset])
+    }, [isCogProtocol, resolvedCogUrl, highResTerrain, metadata?.scale, metadata?.offset])
 
     const sourceConfig: RasterDEMSourceSpecification | null | undefined = useMemo(() => {
         if (customSource) {
-            // For COG protocol, wait for metadata before rendering; same for tilejson,
-            // whose "encoding" field (when present) is fetched instead of asked upfront.
+            // For COG protocol, wait for metadata before rendering (this also covers a
+            // local file not (re-)picked yet this session — resolvedCogUrl is null,
+            // so useCogMetadata above never resolves); same for tilejson, whose
+            // "encoding" field (when present) is fetched instead of asked upfront.
             if (isCogProtocol && !metadata) return null
             if (isTilejson && !tilejsonMetadata) return null
 
             const built = buildRasterTileSource({
-                url: customSource.url,
-                type: customSource.type,
-                useCogProtocol,
+                url: isCogLocal ? resolvedCogUrl! : customSource.url,
+                type: isCogLocal ? 'cog' : customSource.type,
+                useCogProtocol: isCogLocal ? true : useCogProtocol,
                 titilerEndpoint,
                 isDem: true,
             })
@@ -197,14 +217,19 @@ export const TerrainSources = memo(({
             ...base.sourceConfig,
             tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
         }
-    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, isTilejson, tilejsonMetadata, mapboxKey, maptilerKey, metadata])
+    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, isCogLocal, resolvedCogUrl, isTilejson, tilejsonMetadata, mapboxKey, maptilerKey, metadata])
 
     if (!sourceConfig) return null
 
     return (
         <>
-            <Source id="terrainSource"  key={`terrain-${source}-${highResTerrain}`}  {...sourceConfig} />
-            <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}`} {...sourceConfig} />
+            {/* resolvedCogUrl in the key: re-picking a different file for the same
+                "cog-local" source (id unchanged) must remount the Source rather than
+                have maplibre patch tiles in place against a stale pyramid/cache keyed
+                by the old blob: URL — same reasoning as LrmSource/CurvatureSource
+                keying on radius/mode below. */}
+            <Source id="terrainSource"  key={`terrain-${source}-${highResTerrain}-${resolvedCogUrl}`}  {...sourceConfig} />
+            <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}-${resolvedCogUrl}`} {...sourceConfig} />
         </>
     )
 })
@@ -375,6 +400,8 @@ const useClientDemUpstream = (
 ) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const [highResTerrain] = useAtom(highResTerrainAtom)
+    // Unused directly — read so this re-renders when a local COG file is (re-)picked.
+    const localFileVersion = useAtomValue(localFileVersionAtom)
     const customSource = customTerrainSources.find((s) => s.id === terrainSource)
     const isTilejson = customSource?.type === "tilejson"
     const tilejsonMetadata = useTilejsonMetadata(isTilejson ? customSource!.url : null)
@@ -400,6 +427,20 @@ const useClientDemUpstream = (
         }
         if (customSource.type === "vrt" && useCogProtocol) return null // titiler-only — see custom-terrain-source-modal.tsx
         if (customSource.type === "stac" || customSource.type === "mosaicjson") return null
+
+        if (customSource.type === "cog-local") {
+            // Always the geomatico protocol — no titiler server could reach the
+            // user's disk — same `cog://<url>/{z}/{x}/{y}` shape the "cog" case
+            // below builds, just pointed at this session's blob: object URL
+            // instead of a remote https:// one.
+            const resolvedUrl = resolveLocalFileUrl(localFileId(customSource.url))
+            if (!resolvedUrl) return null // not (re-)picked yet this session
+            return {
+                template: `cog://${resolvedUrl}/{z}/{x}/{y}`,
+                encoding: (highResTerrain ? "terrarium" : "mapbox") as "terrarium" | "mapbox",
+                tileSize: 256,
+            }
+        }
 
         if (customSource.type === "wms-raw" && useCogProtocol) {
             // No titiler in the picture — buildRasterTileSource's float32dem:// output
@@ -433,7 +474,7 @@ const useClientDemUpstream = (
         }
         return { template: built.tiles[0], encoding, tileSize: 256 }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, highResTerrain, tilejsonMetadata])
+    }, [customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, highResTerrain, tilejsonMetadata, localFileVersion])
 }
 
 export const SlopeSource = memo(({
@@ -457,7 +498,10 @@ export const SlopeSource = memo(({
         return (
             <Source
                 id="slopeSource"
-                key={`slope-client-${terrainSource}`}
+                // clientUpstream.template in the key: re-picking a different file for
+                // the same "cog-local" source (id unchanged) must remount rather than
+                // patch tiles against a stale pyramid keyed by the old blob: URL.
+                key={`slope-client-${terrainSource}-${clientUpstream.template}`}
                 type="raster-dem"
                 tiles={[url]}
                 tileSize={clientUpstream.tileSize}
@@ -508,7 +552,8 @@ const NormalDerivedSource = memo(({ enabled, sourceId, terrainSource, customTerr
     return (
         <Source
             id={sourceId}
-            key={`${sourceId}-${terrainSource}${keySuffix}`}
+            // clientUpstream.template: same re-pick staleness reasoning as SlopeSource above.
+            key={`${sourceId}-${terrainSource}${keySuffix}-${clientUpstream.template}`}
             type="raster-dem"
             tiles={[url]}
             tileSize={clientUpstream.tileSize}
@@ -605,7 +650,7 @@ export const TellsSource = memo(({ enabled, terrainSource, customTerrainSources,
     return (
         <Source
             id={sourceId}
-            key={`${sourceId}-${terrainSource}-${effectiveOptions.tellSizeMeters}-${effectiveOptions.radiusPx}-${effectiveOptions.minReliefMeters}-${effectiveOptions.blobnessMin}-${effectiveOptions.planMin}-${effectiveOptions.detHessianMin}-${effectiveOptions.vetoResolution}`}
+            key={`${sourceId}-${terrainSource}-${clientUpstream.template}-${effectiveOptions.tellSizeMeters}-${effectiveOptions.radiusPx}-${effectiveOptions.minReliefMeters}-${effectiveOptions.blobnessMin}-${effectiveOptions.planMin}-${effectiveOptions.detHessianMin}-${effectiveOptions.measureScale}-${effectiveOptions.vetoResolution}`}
             type="vector"
             tiles={[url]}
             maxzoom={15}

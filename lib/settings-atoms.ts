@@ -11,9 +11,9 @@ export const maxResolutionAtom = atomWithStorage("maxResolution", 1024)
 
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)
 // DTM export mode: client-side (browser range-reads/tile-mosaic, no titiler, no
-// server-side size limit) vs the original titiler-based export. Defaults to titiler
-// (off) so existing behavior is unchanged until a user opts in — see lib/client-export.ts.
-export const useClientExportAtom = atomWithStorage("useClientExport", false)
+// server-side size limit) vs the original titiler-based export — see lib/client-export.ts.
+// On by default (was opt-in until field use showed it's the better path).
+export const useClientExportAtom = atomWithStorage("useClientExport", true)
 // Not persisted (plain atom): the currently active `?project=` preset, if any — set
 // once by TerrainViewer on mount from lib/projects.json, read by GeneralSettings (to
 // filter the View Mode toggle via disableViewModes) and TerrainControlPanel (to hide
@@ -21,7 +21,11 @@ export const useClientExportAtom = atomWithStorage("useClientExport", false)
 export const activeProjectConfigAtom = atom<ProjectConfig | null>(null)
 export const colorRampTypeAtom = atomWithStorage('colorRampType', 'classic')
 export const licenseFilterAtom = atomWithStorage('licenseFilter', 'open-distribute' )
-export const highResTerrainAtom = atomWithStorage("highResTerrain", false)
+export const highResTerrainAtom = atomWithStorage("highResTerrain", true)
+// Gates lib/tile-result-cache.ts — the LRU of finished viz-mode tile bytes that
+// makes re-toggling a mode instant instead of recomputing every visible tile.
+// On by default; off reclaims the memory (up to ~96MB) and reverts to recompute.
+export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
 
 type SkyConfig = {
   skyColor: string
@@ -48,8 +52,11 @@ export const skyConfigAtom = atom<SkyConfig>({
 export interface CustomTerrainSource {
   id: string
   name: string
+  /** For type "cog-local", this is a `local://<id>` placeholder (see
+   *  lib/local-file-store.ts) rather than a real URL — the actual File only
+   *  lives in-memory for the current session. */
   url: string
-  type: "cog" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson' | 'wms-raw' | 'tilejson'
+  type: "cog" | "cog-local" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson' | 'wms-raw' | 'tilejson'
   description?: string
   /** Overrides the auto-detected (or fallback 0-20) zoom range — useful for WMS
    *  sources where COG metadata detection doesn't apply. */

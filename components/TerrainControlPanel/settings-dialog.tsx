@@ -12,8 +12,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
-  maxResolutionAtom, useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
-  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
+  useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
+  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom,
 } from "@/lib/settings-atoms"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { useTheme } from "@/lib/controls-utils"
@@ -31,13 +31,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [maptilerKey, setMaptilerKey] = useAtom(maptilerKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
-  const [maxResolution, setMaxResolution] = useAtom(maxResolutionAtom)
   const [batchEditMode, setBatchEditMode] = useState(false)
   const [batchApiKeys, setBatchApiKeys] = useState("")
   const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [isTransparentUi, setTransparentUi] = useAtom(transparentUiAtom)
   const [highResTerrain, setHighResTerrain] = useAtom(highResTerrainAtom)
   const [useClientExport, setUseClientExport] = useAtom(useClientExportAtom)
+  const [cacheVizTiles, setCacheVizTiles] = useAtom(cacheVizTilesAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [projectId, setProjectId] = useState("")
@@ -258,19 +258,27 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 />
               </div>
             )}
+
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="cache-viz-tiles">Cache Computed Viz-Mode Tiles</Label>
+                <span className="text-xs text-muted-foreground">
+                  Keeps finished Slope-and-More / detector tiles in memory (up to ~96MB) so re-toggling a mode is instant instead of recomputing
+                </span>
+              </div>
+              <Switch
+                id="cache-viz-tiles"
+                checked={cacheVizTiles}
+                className="cursor-pointer"
+                onCheckedChange={setCacheVizTiles}
+              />
+            </div>
           </div>
 
-          <div className="flex gap-2">
-            <div className="flex-1 space-y-1">
-              <Label htmlFor="titiler-endpoint">Titiler Endpoint</Label>
-              <Input id="titiler-endpoint" type="text" placeholder="https://titiler.xyz" value={titilerEndpoint} onChange={(e) => setTitilerEndpoint(e.target.value)} className="cursor-text" />
-            </div>
-            <div className="flex-1 space-y-1">
-              <Label htmlFor="max-resolution">Max Download Resolution (px)</Label>
-              <Input id="max-resolution" type="number" placeholder="4096" value={maxResolution} onChange={(e) => setMaxResolution(Number.parseFloat(e.target.value))} className="cursor-text" />
-            </div>
+          <div className="space-y-1">
+            <Label htmlFor="titiler-endpoint">Titiler Endpoint</Label>
+            <Input id="titiler-endpoint" type="text" placeholder="https://titiler.xyz" value={titilerEndpoint} onChange={(e) => setTitilerEndpoint(e.target.value)} className="cursor-text" />
           </div>
-          <p className="text-xs text-muted-foreground">The max resolution limit for GeoTIFF DEM download via Titiler is usually 2k to 4k.</p>
 
           <Separator />
           <div className="space-y-3">

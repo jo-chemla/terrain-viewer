@@ -14,6 +14,7 @@ import { fetchTileMosaic, pickZoomForResolution } from "./tile-mosaic"
 import { terrainSources } from "./terrain-sources"
 import type { TerrainSource } from "./terrain-types"
 import type { CustomTerrainSource } from "./settings-atoms"
+import { resolveLocalFileUrl, localFileId } from "./local-file-store"
 
 export type ClientExportableType = "cog" | "terrainrgb" | "terrarium"
 
@@ -24,13 +25,15 @@ export interface ClientExportSource {
   maxzoom: number
 }
 
-export function isClientExportSupported(type: string | undefined): type is ClientExportableType {
-  return type === "cog" || type === "terrainrgb" || type === "terrarium"
+export function isClientExportSupported(type: string | undefined): type is ClientExportableType | "cog-local" {
+  return type === "cog" || type === "cog-local" || type === "terrainrgb" || type === "terrarium"
 }
 
 /** Resolves a sourceA key (built-in or custom) into the raw, un-wrapped tile/COG URL
  *  this module needs — i.e. never a `cog://` or titiler-proxied URL, since both the
- *  range-read and the tile-mosaic paths fetch the origin server directly. */
+ *  range-read and the tile-mosaic paths fetch the origin server directly. Returns
+ *  null for a "cog-local" source that hasn't been (re-)picked this session, same
+ *  "not ready" shape as an unsupported type. */
 export function getClientExportSource(
   sourceKey: string,
   customTerrainSources: CustomTerrainSource[],
@@ -49,6 +52,11 @@ export function getClientExportSource(
 
   const custom = customTerrainSources.find((s) => s.id === sourceKey)
   if (!custom || !isClientExportSupported(custom.type)) return null
+  if (custom.type === "cog-local") {
+    const resolvedUrl = resolveLocalFileUrl(localFileId(custom.url))
+    if (!resolvedUrl) return null
+    return { type: "cog", url: resolvedUrl, tileSize: 256, maxzoom: custom.maxzoom || 22 }
+  }
   return {
     type: custom.type,
     url: custom.url,

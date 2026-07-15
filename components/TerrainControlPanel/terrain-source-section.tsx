@@ -13,6 +13,7 @@ import {
   type CustomTerrainSource
 } from "@/lib/settings-atoms"
 import { terrainSources } from "@/lib/terrain-sources"
+import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import type { MapRef } from "react-map-gl/maplibre"
 import saveAs from "file-saver"
@@ -100,6 +101,20 @@ export const TerrainSourceSection: React.FC<{
       }
       return
     }
+    if (source.type === 'cog-local') {
+      // Always the geomatico protocol, and always this session's blob: URL —
+      // titiler can't be pointed at the user's disk, and getCogMetadata needs a
+      // real fetchable URL, not the persisted `local://<id>` placeholder.
+      const resolvedUrl = resolveLocalFileUrl(localFileId(source.url))
+      if (!resolvedUrl) return // not (re-)picked yet this session
+      try {
+        const metadata = await getCogMetadata(resolvedUrl)
+        if (metadata.bbox) attemptFitBounds(metadata.bbox, force)
+      } catch (error) {
+        console.error("Failed to fetch local COG bounds:", error)
+      }
+      return
+    }
     if (!['cog', 'vrt'].includes(source.type)) return
     try {
       if (useCogProtocolVsTitiler) {
@@ -150,7 +165,7 @@ export const TerrainSourceSection: React.FC<{
 
   return (
     <>
-      <Section title="Terrain Source" isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Section title="Source: Terrain" isOpen={isOpen} onOpenChange={onOpenChange}>
         {state.splitScreen ? (
           <>
             {Object.entries(terrainSources).map(([key, config]) => (

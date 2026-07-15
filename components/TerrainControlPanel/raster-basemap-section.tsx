@@ -42,7 +42,7 @@ export const RasterBasemapSection: React.FC<{
   if (!state.showRasterBasemap) return null
 
   return (
-    <Section title="Basemap Source" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Source: Basemap" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <Label className="text-sm font-medium">Source</Label>

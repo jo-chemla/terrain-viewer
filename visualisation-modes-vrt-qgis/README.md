@@ -50,6 +50,11 @@ All of `PixelFunctionLanguage="Python"` modes require GDAL built with the Python
 plugin and `GDAL_VRT_ENABLE_PYTHON=YES` set in the environment (Python pixel functions
 are disabled by default for security reasons since GDAL 3.x).
 
+To set this in QGIS Options (recommended): Settings → Options → System → Environment
+section → check **Use custom variables** → add `Apply: Overwrite`,
+`Variable: GDAL_VRT_ENABLE_PYTHON`, `Value: YES` → restart QGIS (these are only
+applied at startup).
+
 ## What's a faithful port vs. an approximation
 
 - **Slope, Aspect, TRI, TPI, Roughness, all 4 Curvature modes**: verified live against

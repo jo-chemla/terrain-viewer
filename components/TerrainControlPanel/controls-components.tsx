@@ -188,7 +188,10 @@ export const CheckboxWithSlider: React.FC<{
 export const CycleButtonGroup: React.FC<{
   value: string; options: { value: string; label: string | JSX.Element }[]
   onChange: (value: string) => void; onCycle: (direction: number) => void
-}> = ({ value, options, onChange, onCycle }) => (
+  /** Optional extra control (e.g. a color swatch) slotted between the select
+   *  and the chevron pair. */
+  middle?: React.ReactNode
+}> = ({ value, options, onChange, onCycle, middle }) => (
   <div className="flex gap-2">
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="flex-1 h-8 cursor-pointer"><SelectValue /></SelectTrigger>
@@ -196,6 +199,7 @@ export const CycleButtonGroup: React.FC<{
         {options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
       </SelectContent>
     </Select>
+    {middle}
     <div className="flex border rounded-md shrink-0 h-8">
       <Button variant="ghost" size="icon" onClick={() => onCycle(-1)} className="rounded-r-none border-r cursor-pointer h-7 w-7">
         <ChevronLeft className="h-4 w-4" />

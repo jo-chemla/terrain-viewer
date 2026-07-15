@@ -97,6 +97,17 @@ export interface TellsOptions {
   /** Veto: reject candidates whose determinant-of-Hessian (F) is at or below this —
    *  i.e. require a true dome/bowl extremum rather than a saddle. */
   detHessianMin: number
+  /** When true, each accepted candidate additionally gets a `scaleM` tag: the
+   *  mound's estimated diameter in meters, measured by marching 8 rays outward
+   *  from the peak through the already-computed DoG grid (A) until the value
+   *  drops below half the peak — the median crossing distance is the mound's
+   *  half-prominence radius. Purely in-memory over data the detector already
+   *  built (no extra tile fetches), but off by default since it's extra
+   *  per-candidate work with no effect on detection itself. Two caveats: rays
+   *  clip at the tile edge (candidates near borders measure from fewer rays),
+   *  and the measurable maximum is bounded by the kLarge background scale —
+   *  anything wider was already subtracted out of A. */
+  measureScale: boolean
   /** Which elevation grid the D/C/F veto filters sample: "fine" reads the raw,
    *  native-resolution grid (nativeGrid) at the candidate's own pixel; "coarse"
    *  bilinearly resamples the same ancestorSmall grid A's own kSmall lowpass
@@ -118,6 +129,7 @@ export const TELLS_DEFAULTS: TellsOptions = {
   blobnessMin: 0,
   planMin: 0,
   detHessianMin: 0,
+  measureScale: false,
   vetoResolution: "coarse",
 }
 
@@ -133,6 +145,7 @@ export function buildTellsProtocolUrl(
     blobnessMin: String(o.blobnessMin),
     planMin: String(o.planMin),
     detHessMin: String(o.detHessianMin),
+    measureScale: o.measureScale ? "1" : "0",
     vetoRes: o.vetoResolution,
   })
   return `${base}?${params.toString()}`
@@ -173,6 +186,46 @@ function lowpassAt(a: AncestorScale, n: number, row: number, col: number): numbe
 
 interface Candidate { row: number; col: number; a: number }
 
+const RAY_DIRS: [number, number][] = [
+  [-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1],
+]
+
+/** Half-prominence radius (in native pixels) of a candidate mound, by marching
+ *  8 rays outward from its peak through the already-computed DoG grid until the
+ *  value drops below half the peak, linearly interpolating the crossing for a
+ *  sub-pixel distance. Rays that hit the grid edge before crossing are censored
+ *  (dropped) rather than counted at their clipped length, which would bias the
+ *  estimate low near tile borders; the median of the surviving crossings is
+ *  robust to the one or two rays that wander along a connecting ridge. Returns
+ *  null if no ray crossed (candidate hard against a corner). */
+function measureHalfMaxRadiusPx(
+  aGrid: Float32Array, strideA: number, haloA: number, cand: Candidate,
+): number | null {
+  const halfMax = cand.a / 2
+  const pr = cand.row + haloA
+  const pc = cand.col + haloA
+  const crossings: number[] = []
+  for (const [dr, dc] of RAY_DIRS) {
+    const stepLen = Math.hypot(dr, dc)
+    let prev = cand.a
+    for (let s = 1; ; s++) {
+      const r = pr + dr * s
+      const c = pc + dc * s
+      if (r < 0 || r >= strideA || c < 0 || c >= strideA) break
+      const v = aGrid[r * strideA + c]
+      if (v < halfMax) {
+        crossings.push((s - 1 + (prev - halfMax) / (prev - v)) * stepLen)
+        break
+      }
+      prev = v
+    }
+  }
+  if (crossings.length === 0) return null
+  crossings.sort((p, q) => p - q)
+  const mid = crossings.length >> 1
+  return crossings.length % 2 ? crossings[mid] : (crossings[mid - 1] + crossings[mid]) / 2
+}
+
 export async function tellsProtocol(
   params: { url: string },
   abortController: AbortController,
@@ -196,6 +249,7 @@ export async function tellsProtocol(
     blobnessMin: q.has("blobnessMin") ? Number(q.get("blobnessMin")) : TELLS_DEFAULTS.blobnessMin,
     planMin: q.has("planMin") ? Number(q.get("planMin")) : TELLS_DEFAULTS.planMin,
     detHessianMin: q.has("detHessMin") ? Number(q.get("detHessMin")) : TELLS_DEFAULTS.detHessianMin,
+    measureScale: q.get("measureScale") === "1",
     vetoResolution: q.get("vetoRes") === "fine" ? "fine" : TELLS_DEFAULTS.vetoResolution,
   }
 
@@ -320,15 +374,24 @@ export async function tellsProtocol(
 
     const tx = Math.round(((cand.col + 0.5) / n) * extent)
     const ty = Math.round(((cand.row + 0.5) / n) * extent)
+    const tags: Record<string, number> = {
+      a: Math.round(cand.a * 100) / 100,
+      blobness: Math.round(blobness * 100) / 100,
+      plan: Math.round(planConvexity * 100) / 100,
+      // 3 decimals (not 2 like the others): the veto slider steps by 0.001, and
+      // real candidate values cluster well below 0.05 — 2-decimal rounding would
+      // show most of them as 0.00, uncomparable against the threshold.
+      detHessian: Math.round(detHessian * 1000) / 1000,
+    }
+    if (opts.measureScale) {
+      const halfMaxRadiusPx = measureHalfMaxRadiusPx(aGrid, strideA, haloA, cand)
+      // Diameter, not radius — same real-world quantity the Tell Size control is in.
+      if (halfMaxRadiusPx !== null) tags.scaleM = Math.round(2 * halfMaxRadiusPx * groundResM)
+    }
     geojsonFeatures.push({
       type: 1,
       geometry: [[tx, ty]],
-      tags: {
-        a: Math.round(cand.a * 100) / 100,
-        blobness: Math.round(blobness * 100) / 100,
-        plan: Math.round(planConvexity * 100) / 100,
-        detHessian: Math.round(detHessian * 100) / 100,
-      },
+      tags,
     })
   }
 

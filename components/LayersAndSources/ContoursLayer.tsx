@@ -55,10 +55,25 @@ export const contourLabelsLayerDef = (
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function removeLayers(map: maplibregl.Map) {
-  if (map.getLayer("contour-labels")) map.removeLayer("contour-labels")
-  if (map.getLayer("contour-lines")) map.removeLayer("contour-lines")
-  if (map.getSource("contour-source")) map.removeSource("contour-source")
+function removeLayers(map: maplibregl.Map | undefined | null) {
+  // `map` itself can be a live (non-null) object whose internal `.style` has
+  // already been torn down by `map.remove()` — react-map-gl's own Map cleanup
+  // runs in the same unmount pass as this component's, and effect cleanup
+  // order across sibling/parent components isn't guaranteed, so this can race
+  // in either direction (most visible when switching rapidly between BYOD
+  // sources, e.g. testing several local COG files back to back). getLayer/
+  // getSource dereference map.style internally and throw "Cannot read
+  // properties of undefined" rather than returning null in that state, so a
+  // truthy `map` check alone isn't enough — swallow the race instead of
+  // crashing the whole map tree over an unmount that's already in progress.
+  if (!map) return
+  try {
+    if (map.getLayer("contour-labels")) map.removeLayer("contour-labels")
+    if (map.getLayer("contour-lines")) map.removeLayer("contour-lines")
+    if (map.getSource("contour-source")) map.removeSource("contour-source")
+  } catch {
+    // Map already torn down — nothing left to clean up.
+  }
 }
 
 function buildTileUrl(
@@ -71,6 +86,16 @@ function buildTileUrl(
   const customSource = customTerrainSources.find((s) => s.id === sourceId)
 
   if (customSource) {
+    if (customSource.type === "cog-local") {
+      // maplibre-contour's DemSource does its own raw fetch(url) for every tile
+      // (see defaultGetTile in maplibre-contour) — it never goes through
+      // maplibregl.addProtocol, so it can't resolve a `local://<id>` placeholder
+      // (or even a real blob: URL, which a worker thread can't dereference back
+      // to this tab's in-memory File anyway). No titiler fallback is possible
+      // either — titiler can't reach the user's disk. Contours simply isn't
+      // supported for local COG sources (documented in the README).
+      return null
+    }
     if (customSource.type === "cog") {
       return {
         tileUrl: `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`,
@@ -238,7 +263,13 @@ export function ContoursLayer({
         mapboxKey,
         maptilerKey,
       )
-      if (!resolved) return
+      if (!resolved) {
+        // Unsupported source type (e.g. "cog-local") — permanent, not transient,
+        // so don't burn through the retry budget polling for a style/tile-URL
+        // state that will never resolve.
+        initAttemptsRef.current = MAX_INIT_ATTEMPTS
+        return
+      }
 
       try {
         const DemSource =

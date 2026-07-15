@@ -11,14 +11,15 @@ import Map, {
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
-import { COLOR_RAMP_IDS } from "@/lib/color-ramps"
+import { COLOR_RAMP_IDS, computePropertyRampExpression } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  activeProjectConfigAtom, useCogProtocolVsTitilerAtom,
+  activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
+import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
 import { MAX_BOUNDS_MODES, unionBounds, bufferBounds, resolveCustomSourceBounds, type LngLatBoundsTuple } from "@/lib/max-bounds"
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { getProjectConfig } from "@/lib/project-config"
@@ -88,7 +89,7 @@ const parseAsFloatPrecise = createParser({
 const VIEW_MODES = ['2d', 'globe', '3d'] as const
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian'] as const
-const TELLS_STYLES = ['hidden', 'purple', 'outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
+const TELLS_STYLES = ['hidden', 'outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
 const TELL_VETO_RESOLUTIONS = ['fine', 'coarse'] as const
 
 export function TerrainViewer() {
@@ -220,13 +221,18 @@ export function TerrainViewer() {
     // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
     // clutter Visualization Modes for everyone by default.
     tellsBeta: parseAsBoolean.withDefault(false),
-    tellsStyle: parseAsStringLiteral(TELLS_STYLES).withDefault("hidden"),
+    tellsStyle: parseAsStringLiteral(TELLS_STYLES).withDefault("outline"),
+    tellsOutlineColor: parseAsColor().withDefault("#ef4444"),
+    // Only meaningful with tellMeasureScale on: draw each marker at 4x its
+    // measured diameter (real-world meters, zoom-scaled) instead of fixed px.
+    tellsScaleMarkers: parseAsBoolean.withDefault(false),
     tellSize: parseAsFloat.withDefault(100),
     tellRadius: parseAsFloat.withDefault(4),
     tellMinRelief: parseAsFloat.withDefault(1.5),
     tellBlobnessMin: parseAsFloat.withDefault(0),
     tellPlanMin: parseAsFloat.withDefault(0),
     tellDetHessianMin: parseAsFloat.withDefault(0),
+    tellMeasureScale: parseAsBoolean.withDefault(false),
     tellVetoResolution: parseAsStringLiteral(TELL_VETO_RESOLUTIONS).withDefault("coarse"),
     showContoursAndGraticules: parseAsBoolean.withDefault(false),
     showContours: parseAsBoolean.withDefault(true),
@@ -415,6 +421,29 @@ export function TerrainViewer() {
     [ state.blobnessColorRamp, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.slopeAndMoreOpacity, state.blobnessInvertColorRamp ]
   )
 
+  // circle-color expressions for the tells color-by marker styles, built from
+  // the SAME ramp/range/invert state as the corresponding Slope-and-More layer
+  // (byPlan and byDetHessian both follow the Curvature controls, byLrm follows
+  // LRM, byBlobness follows Blobness) so tuning a mode's ramp re-colors the
+  // markers identically instead of drifting against a hardcoded palette.
+  const tellsColorByPaints = useMemo(
+    () => ({
+      byBlobness: computePropertyRampExpression(state.blobnessColorRamp, state.blobnessMin, state.blobnessMax, state.blobnessInvertColorRamp, "blobness"),
+      // byPlan runs the curvature ramp INVERTED relative to the layer's own
+      // setting: the tells "plan" tag is positive outward convexity, while the
+      // curvature layer's convention is negative=convex — without the flip, the
+      // most mound-like candidates land on the ramp's valley-colored end.
+      byPlan: computePropertyRampExpression(state.curvatureColorRamp, state.curvatureMin, state.curvatureMax, !state.curvatureInvertColorRamp, "plan"),
+      byDetHessian: computePropertyRampExpression(state.curvatureColorRamp, state.curvatureMin, state.curvatureMax, state.curvatureInvertColorRamp, "detHessian"),
+      byLrm: computePropertyRampExpression(state.lrmColorRamp, state.lrmMin, state.lrmMax, state.lrmInvertColorRamp, "a"),
+    }),
+    [
+      state.blobnessColorRamp, state.blobnessMin, state.blobnessMax, state.blobnessInvertColorRamp,
+      state.curvatureColorRamp, state.curvatureMin, state.curvatureMax, state.curvatureInvertColorRamp,
+      state.lrmColorRamp, state.lrmMin, state.lrmMax, state.lrmInvertColorRamp,
+    ]
+  )
+
   const tellsOptions = useMemo(
     () => ({
       tellSizeMeters: state.tellSize,
@@ -423,9 +452,10 @@ export function TerrainViewer() {
       blobnessMin: state.tellBlobnessMin,
       planMin: state.tellPlanMin,
       detHessianMin: state.tellDetHessianMin,
+      measureScale: state.tellMeasureScale,
       vetoResolution: state.tellVetoResolution,
     }),
-    [ state.tellSize, state.tellRadius, state.tellMinRelief, state.tellBlobnessMin, state.tellPlanMin, state.tellDetHessianMin, state.tellVetoResolution ]
+    [ state.tellSize, state.tellRadius, state.tellMinRelief, state.tellBlobnessMin, state.tellPlanMin, state.tellDetHessianMin, state.tellMeasureScale, state.tellVetoResolution ]
   )
 
   useEffect(() => {
@@ -438,20 +468,30 @@ export function TerrainViewer() {
     setMapLibreReady(true)
   }, [])
 
-  // Register the COG protocol
+  // Register the COG protocol. All in-house derived protocols go through
+  // withTileResultCache so hiding/re-showing a mode (which makes maplibre drop
+  // and re-request its tiles) replays finished bytes instead of recomputing —
+  // cog is the external geomatico handler with its own fetch semantics, left bare.
   useEffect(() => {
     maplibregl.addProtocol('cog', cogProtocol)
-    maplibregl.addProtocol('float32dem', float32demProtocol)
-    maplibregl.addProtocol('slope', slopeProtocol)
-    maplibregl.addProtocol('aspect', aspectProtocol)
-    maplibregl.addProtocol('tri', triProtocol)
-    maplibregl.addProtocol('curvature', curvatureProtocol)
-    maplibregl.addProtocol('tpi', tpiProtocol)
-    maplibregl.addProtocol('lrm', lrmProtocol)
-    maplibregl.addProtocol('roughness', roughnessProtocol)
-    maplibregl.addProtocol('blobness', blobnessProtocol)
-    maplibregl.addProtocol('tells', tellsProtocol)
+    maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
+    maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
+    maplibregl.addProtocol('aspect', withTileResultCache(aspectProtocol))
+    maplibregl.addProtocol('tri', withTileResultCache(triProtocol))
+    maplibregl.addProtocol('curvature', withTileResultCache(curvatureProtocol))
+    maplibregl.addProtocol('tpi', withTileResultCache(tpiProtocol))
+    maplibregl.addProtocol('lrm', withTileResultCache(lrmProtocol))
+    maplibregl.addProtocol('roughness', withTileResultCache(roughnessProtocol))
+    maplibregl.addProtocol('blobness', withTileResultCache(blobnessProtocol))
+    maplibregl.addProtocol('tells', withTileResultCache(tellsProtocol))
   }, [])
+
+  // Keep the module-level cache flag in sync with the persisted Settings switch
+  // (protocol handlers run outside React, so they can't read the atom directly).
+  const [cacheVizTiles] = useAtom(cacheVizTilesAtom)
+  useEffect(() => {
+    setTileResultCacheEnabled(cacheVizTiles)
+  }, [cacheVizTiles])
 
   // Applies a `?project=` preset (lib/projects.json) and/or terrainUrl/basemapUrl
   // convenience params on first load only — guarded by the ref so it never fights
@@ -873,6 +913,36 @@ export function TerrainViewer() {
       return candidates.length > 0 ? Math.min(...candidates) : 0
   }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
 
+  // <Map minZoom/maxZoom> are left as fixed constants (see the JSX below) rather
+  // than driven declaratively from effectiveMinZoom/effectiveMaxZoom: react-map-
+  // gl's _updateSettings applies a changed (min, max) pair as two separate calls
+  // — map.setMinZoom(newMin) before map.setMaxZoom(newMax) — each validated
+  // against the map's CURRENT (not-yet-updated) other bound. Switching from one
+  // narrow custom-source zoom range to another whose minzoom exceeds the
+  // previous maxzoom (e.g. a BYOD source capped at z14 to a local COG whose
+  // native resolution starts at z15) throws "minZoom must be between -2 and the
+  // current maxZoom" — the new minZoom is valid against the new maxZoom, just
+  // not yet against the old one. A two-phase "widen then narrow on next tick"
+  // React-state workaround was tried here and still raced under rapid source
+  // switching (zoomRangeA/zoomRangeBasemap can each retrigger independently).
+  // Applying both bounds imperatively — querying the map's actual live current
+  // maxZoom right before choosing which setter to call first — sidesteps the
+  // ordering assumption entirely instead of trying to out-time it.
+  const applySafeZoomBounds = useCallback((map: maplibregl.Map, minZoom: number, maxZoom: number) => {
+    if (minZoom > map.getMaxZoom()) {
+      map.setMaxZoom(maxZoom)
+      map.setMinZoom(minZoom)
+    } else {
+      map.setMinZoom(minZoom)
+      map.setMaxZoom(maxZoom)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (mapALoaded && mapARef.current) applySafeZoomBounds(mapARef.current.getMap(), effectiveMinZoom, effectiveMaxZoom)
+    if (mapBLoaded && mapBRef.current) applySafeZoomBounds(mapBRef.current.getMap(), effectiveMinZoom, effectiveMaxZoom)
+  }, [effectiveMinZoom, effectiveMaxZoom, mapALoaded, mapBLoaded, applySafeZoomBounds])
+
   // Resolves the "Map Bounds" setting into an actual LngLatBoundsLike, async since
   // "terrain"/"raster"/"union" need a COG/tilejson metadata fetch (see
   // lib/max-bounds.ts) — same fallback chain as the Terrain Source panel's own
@@ -993,8 +1063,10 @@ export function TerrainViewer() {
           // pixelRatio={1.}  // supersample (default is 1×)
           pixelRatio={window.devicePixelRatio}  // supersample (default is 1×)
           // maxZoom={22}
-          minZoom={effectiveMinZoom}
-          maxZoom={effectiveMaxZoom}
+          // Fixed constants — see applySafeZoomBounds above for why the real
+          // effectiveMinZoom/effectiveMaxZoom are applied imperatively instead.
+          minZoom={-2}
+          maxZoom={22}
           maxBounds={resolvedMaxBounds ?? undefined}
 
         >
@@ -1142,7 +1214,16 @@ export function TerrainViewer() {
           <LrmReliefLayer showSlopeAndMore={state.showSlopeAndMore} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
           <RoughnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
           <BlobnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
-          {isPrimary && <TellsMarkersLayer enabled={state.tellsBeta} style={state.tellsStyle} />}
+          {isPrimary && (
+            <TellsMarkersLayer
+              enabled={state.tellsBeta}
+              style={state.tellsStyle}
+              outlineColor={state.tellsOutlineColor}
+              sizeByMeasuredScale={state.tellMeasureScale && state.tellsScaleMarkers}
+              latDeg={state.lat}
+              colorByPaints={tellsColorByPaints}
+            />
+          )}
           {isPrimary && <TellsUnfilteredLoaderLayer enabled={state.tellsBeta && tellsEverActivated} />}
           {isPrimary && (
             <TellsInspectPopup
@@ -1300,7 +1381,11 @@ export function TerrainViewer() {
       state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity, state.showHillshade,
       state.showColorRelief, state.showSlopeAndMore, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
-      state.tellsStyle, tellsOptions,
+      // tellsBeta/tellsEverActivated gate the tells layer+source mounts: leaving
+      // them out of these deps was the "toggle it on but nothing shows until I
+      // pan or edit a slider" desync — the memoized JSX simply never re-rendered.
+      state.tellsStyle, tellsOptions, state.tellsBeta, tellsEverActivated,
+      tellsColorByPaints, state.tellsOutlineColor, state.tellsScaleMarkers, state.tellMeasureScale,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor,
@@ -1313,7 +1398,7 @@ export function TerrainViewer() {
       skyConfig.fogColor, skyConfig.fogGroundBlend, skyConfig.matchThemeColors, skyConfig.backgroundLayerActive,
       activeProjectConfig,
       themeColor,
-      effectiveMinZoom, effectiveMaxZoom, setZoomRangeBasemap, resolvedMaxBounds
+      setZoomRangeBasemap, resolvedMaxBounds
     ],
   )
 

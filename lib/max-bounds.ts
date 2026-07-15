@@ -5,6 +5,7 @@
 // `maxBounds` rather than one-shot flying the camera.
 import { getCogMetadata } from "@geomatico/maplibre-cog-protocol"
 import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
+import { resolveLocalFileUrl, localFileId } from "./local-file-store"
 
 export type MaxBoundsMode = "none" | "terrain" | "raster" | "union" | "custom"
 export const MAX_BOUNDS_MODES = ["none", "terrain", "raster", "union", "custom"] as const
@@ -49,6 +50,18 @@ export async function resolveCustomSourceBounds(
       if (data.bounds) return data.bounds as LngLatBoundsTuple
     } catch (error) {
       console.error("Failed to fetch TileJSON bounds for max-bounds:", error)
+    }
+    return null
+  }
+
+  if (source.type === "cog-local") {
+    const resolvedUrl = resolveLocalFileUrl(localFileId(source.url))
+    if (!resolvedUrl) return null // not (re-)picked yet this session
+    try {
+      const metadata = await getCogMetadata(resolvedUrl)
+      if (metadata?.bbox) return metadata.bbox as LngLatBoundsTuple
+    } catch (error) {
+      console.error("Failed to fetch local COG bounds for max-bounds:", error)
     }
     return null
   }

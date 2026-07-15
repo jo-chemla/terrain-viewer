@@ -1,4 +1,5 @@
 import type React from "react"
+import { Separator } from "@/components/ui/separator"
 import { Section, CheckboxWithSlider } from "./controls-components"
 import { SlopeFields } from "./slope-options-section"
 import { AspectFields } from "./aspect-options-section"
@@ -29,7 +30,26 @@ export const SlopeAndMoreOptionsSection: React.FC<{
 
   return (
     <Section title="Options: Slope and More" isOpen={isOpen} onOpenChange={onOpenChange}>
+      {/* Sub-modes grouped by what they measure, separated by rules:
+          1. Local Relief Model (multi-scale residual, the odd one out)
+          2. First/second-derivative modes: Slope, Curvature, Aspect
+          3. Neighborhood-statistics modes: TRI, Roughness, TPI, Blobness */}
       <div className="space-y-4">
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="slope-and-more-lrm"
+            label="Local Relief Model"
+            tooltip="Elevation relative to a smoothed regional trend (wider neighborhood than Topographic Position)."
+            checked={state.showLrm}
+            onCheckedChange={(checked) => setState({ showLrm: checked })}
+            sliderValue={state.lrmOpacity}
+            onSliderChange={(value) => setState({ lrmOpacity: value })}
+          />
+          {state.showLrm && <LrmFields state={state} setState={setState} tileSize={terrainTileSize} />}
+        </div>
+
+        <Separator />
+
         <div className="space-y-2">
           <CheckboxWithSlider
             id="slope-and-more-slope"
@@ -47,7 +67,7 @@ export const SlopeAndMoreOptionsSection: React.FC<{
           <CheckboxWithSlider
             id="slope-and-more-curvature"
             label="Curvature"
-            tooltip="Rate of slope change (Profile, Plan or Combined)."
+            tooltip="Rate of slope change (Profile, Plan, Combined or det-Hessian)."
             checked={state.showCurvature}
             onCheckedChange={(checked) => setState({ showCurvature: checked })}
             sliderValue={state.curvatureOpacity}
@@ -69,18 +89,7 @@ export const SlopeAndMoreOptionsSection: React.FC<{
           {state.showAspect && <AspectFields state={state} setState={setState} />}
         </div>
 
-        <div className="space-y-2">
-          <CheckboxWithSlider
-            id="slope-and-more-tri"
-            label="Terrain Ruggedness"
-            tooltip="TRI (Terrain Ruggedness Index): mean elevation difference to neighbors."
-            checked={state.showTri}
-            onCheckedChange={(checked) => setState({ showTri: checked })}
-            sliderValue={state.triOpacity}
-            onSliderChange={(value) => setState({ triOpacity: value })}
-          />
-          {state.showTri && <TriFields state={state} setState={setState} />}
-        </div>
+        <Separator />
 
         <div className="space-y-2">
           <CheckboxWithSlider
@@ -97,15 +106,15 @@ export const SlopeAndMoreOptionsSection: React.FC<{
 
         <div className="space-y-2">
           <CheckboxWithSlider
-            id="slope-and-more-lrm"
-            label="Local Relief Model"
-            tooltip="Elevation relative to a smoothed regional trend (wider neighborhood than Topographic Position)."
-            checked={state.showLrm}
-            onCheckedChange={(checked) => setState({ showLrm: checked })}
-            sliderValue={state.lrmOpacity}
-            onSliderChange={(value) => setState({ lrmOpacity: value })}
+            id="slope-and-more-tri"
+            label="Terrain Ruggedness"
+            tooltip="TRI (Terrain Ruggedness Index): mean elevation difference to neighbors."
+            checked={state.showTri}
+            onCheckedChange={(checked) => setState({ showTri: checked })}
+            sliderValue={state.triOpacity}
+            onSliderChange={(value) => setState({ triOpacity: value })}
           />
-          {state.showLrm && <LrmFields state={state} setState={setState} tileSize={terrainTileSize} />}
+          {state.showTri && <TriFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">

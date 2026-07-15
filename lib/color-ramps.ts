@@ -580,5 +580,25 @@ export const colorRampsFlat = Object.assign({}, ...Object.values(colorRamps));
 // const colors = chromajsScaleToMaplibre(palette, domain)
 // console.log({cpt, palette, domain, colors})
 
-export const COLOR_RAMP_IDS = Object.keys(colorRampsFlat) 
+export const COLOR_RAMP_IDS = Object.keys(colorRampsFlat)
 export type ColorRampId = keyof typeof colorRampsFlat
+
+/** Data-driven (feature-property) variant of the color-relief ramp remap: the
+ *  same ramp/min/max/invert treatment computeColorReliefPaint applies, but with
+ *  the ["elevation"] input swapped for ["get", property] so the identical ramp
+ *  state can drive e.g. the tells markers' circle-color. Returns undefined when
+ *  the ramp id is unknown (caller falls back to a flat color). */
+export function computePropertyRampExpression(
+  colorRamp: string | undefined,
+  min: number | undefined,
+  max: number | undefined,
+  invertColorRamp: boolean,
+  property: string,
+): any[] | undefined {
+  const ramp = colorRamp ? (colorRampsFlat as Record<string, { colors: any[] }>)[colorRamp] : undefined
+  if (!ramp) return undefined
+  const expr = [...remapColorRampStops(ramp.colors, min, max, invertColorRamp)]
+  if (expr[0] === "interpolate") expr[2] = ["get", property]
+  else if (expr[0] === "step") expr[1] = ["get", property]
+  return expr
+}

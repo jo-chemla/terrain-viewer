@@ -346,87 +346,85 @@ BlobnessReliefLayer.displayName = "BlobnessReliefLayer"
 // Layer or the vector source underneath it, meaning hiding the markers can't
 // force maplibre to re-fetch/recompute tells:// tiles on reactivation.
 export type TellsMarkerStyle =
-  | "hidden" | "purple" | "outline"
+  | "hidden" | "outline"
   | "byBlobness" | "byPlan" | "byDetHessian" | "byLrm"
 
-const TELLS_CIRCLE_RADIUS = ["interpolate", ["linear"], ["zoom"], 10, 3, 16, 7] as const
-// "outline" (red-stroke, no-fill) markers are drawn 2x the radius of every other
-// style, purely as a visual distinguisher when both styles' underlying candidate
-// sets overlap on screen.
-const TELLS_CIRCLE_RADIUS_OUTLINE = ["interpolate", ["linear"], ["zoom"], 10, 6, 16, 14] as const
+// "outline" (stroke-only, no-fill) markers — sized up (2x their original radius)
+// after field feedback that they were hard to spot over busy relief.
+const TELLS_CIRCLE_RADIUS_OUTLINE = ["interpolate", ["linear"], ["zoom"], 10, 12, 16, 28] as const
+// Color-by-attribute markers (byBlobness/byPlan/byDetHessian/byLrm) use a black
+// stroke so the color ramp itself stays legible at normal zoom levels.
+const TELLS_CIRCLE_RADIUS_COLOR_BY = ["interpolate", ["linear"], ["zoom"], 10, 12, 16, 28] as const
 
-// Color-by-attribute ramps for the tells markers, keyed by TellsMarkerStyle.
-// These intentionally reuse the same color families as the equivalent
-// Slope-and-More visualization (see lib/color-ramps.ts's blobness-default,
-// tri-default, curvature-diverging, lrm-diverging), but with the numeric domain
-// rescaled down to the tells veto's own "coarse" (lowpass-smoothed) value ranges,
-// empirically calibrated in tells-options-section.tsx's slider ranges (blobness/
-// det-Hessian ~0-0.5, plan convexity ~0-100). Reusing Slope-and-More's literal
-// domain numbers (calibrated against raw/native-resolution pixel formulas) would
-// make every tells marker fall in the ramp's first, near-zero stop — which is
-// exactly the "all points are blue" bug this replaces.
-const TELLS_COLOR_BY_PAINT: Record<string, any> = {
-  // Matches lib/color-ramps.ts's "blobness-default" palette (white->teal->green).
-  byBlobness: [
-    "interpolate", ["linear"], ["get", "blobness"],
-    0, "rgba(255, 255, 255, 0)",
-    0.05, "rgb(229, 245, 249)",
-    0.15, "rgb(153, 216, 201)",
-    0.3, "rgb(44, 162, 95)",
-    0.5, "rgb(0, 109, 44)",
-  ],
-  // Matches "curvature-diverging"'s convex/ridge (red) half — plan is already
-  // stored as outward convexity (-plan clipped positive, see tells-protocol.ts),
-  // so only the single-direction "more convex" ramp applies here.
-  byPlan: [
-    "interpolate", ["linear"], ["get", "plan"],
-    0, "rgba(255, 255, 255, 0)",
-    25, "rgb(244, 165, 130)",
-    100, "rgb(178, 24, 43)",
-  ],
-  // Matches "tri-default"'s palette (white->yellow->orange->red).
-  byDetHessian: [
-    "interpolate", ["linear"], ["get", "detHessian"],
-    0, "rgba(255, 255, 255, 0)",
-    0.05, "rgb(255, 247, 188)",
-    0.15, "rgb(254, 196, 79)",
-    0.3, "rgb(217, 95, 14)",
-    0.5, "rgb(153, 0, 0)",
-  ],
-  // Matches "lrm-diverging"'s positive (above-background) half — the tells `a`
-  // tag is itself a meters-based DoG relief quantity in the same units, so this
-  // domain is reused literally rather than rescaled.
-  byLrm: [
-    "interpolate", ["linear"], ["get", "a"],
-    0, "rgba(255, 255, 255, 0)",
-    5, "rgb(253, 174, 97)",
-    20, "rgb(178, 24, 43)",
-  ],
+// Web-Mercator meters-per-pixel at the equator for zoom 0 (256px tiles) — the
+// constant behind the measured-scale marker radius below.
+const MERCATOR_M_PER_PX_Z0 = 156543.03392
+
+/** Circle radius that tracks each candidate's measured real-world size: marker
+ *  diameter = 8x the scaleM tag (the mound's half-max-ray-marched diameter in
+ *  meters, see tells-protocol.ts), converted meters->screen px for the current
+ *  latitude. The ["exponential", 2] zoom curve between z0 and z24 is exactly
+ *  the 2^z factor of the Mercator ground-resolution formula, so the circle
+ *  stays glued to the same ground footprint while zooming. Features without a
+ *  scaleM tag (tiles computed before the measure option was enabled, or
+ *  candidates whose rays all clipped) fall back to a 50m nominal diameter. */
+function tellsMeasuredScaleRadius(latDeg: number) {
+  const mPerPxZ0 = MERCATOR_M_PER_PX_Z0 * Math.cos((latDeg * Math.PI) / 180)
+  const radiusM = ["*", ["coalesce", ["get", "scaleM"], 50], 8 / 2] // x8 style factor, diameter -> radius
+  return [
+    "interpolate", ["exponential", 2], ["zoom"],
+    0, ["/", radiusM, mPerPxZ0],
+    24, ["/", radiusM, mPerPxZ0 / Math.pow(2, 24)],
+  ]
 }
 
-export const TellsMarkersLayer = memo(({ enabled, style }: { enabled: boolean; style: TellsMarkerStyle }) => {
+export const TellsMarkersLayer = memo(({ enabled, style, outlineColor, sizeByMeasuredScale, latDeg, colorByPaints }: {
+  enabled: boolean
+  style: TellsMarkerStyle
+  /** Stroke color for the "outline" style (see the tellsOutlineColor nuqs param). */
+  outlineColor: string
+  /** When true (measure-scale + its size-markers style option both on), marker
+   *  size tracks each candidate's own measured diameter instead of fixed px. */
+  sizeByMeasuredScale: boolean
+  /** Map-center latitude for the meters->px conversion above — close enough for
+   *  region-scale viewports; markers are never compared across hemispheres. */
+  latDeg: number
+  /** circle-color expressions for the color-by styles, built in TerrainViewer
+   *  from the SAME ramp/min-max/invert state as the corresponding Slope-and-More
+   *  layer (computePropertyRampExpression), so both visualizations always agree. */
+  colorByPaints: Partial<Record<TellsMarkerStyle, any[] | undefined>>
+}) => {
   if (!enabled) return null
-  const colorByPaint = TELLS_COLOR_BY_PAINT[style]
+  const colorByPaint = colorByPaints[style]
+  const radius = sizeByMeasuredScale
+    ? tellsMeasuredScaleRadius(latDeg)
+    : style === "outline" ? TELLS_CIRCLE_RADIUS_OUTLINE : TELLS_CIRCLE_RADIUS_COLOR_BY
+  // "hidden" keeps the layer layout-visible and paints it fully transparent
+  // instead of flipping layout.visibility — same trick as the unfiltered loader
+  // layer below, for the same reason: a visibility:none layer releases the
+  // source's tiles, and re-showing then needed a map move before circles came
+  // back. Transparent paint keeps tiles resident, so re-show is instant.
   const paint =
-    style === "outline"
+    style === "hidden"
       ? {
-          "circle-radius": TELLS_CIRCLE_RADIUS_OUTLINE,
+          "circle-radius": 0,
           "circle-color": "rgba(0,0,0,0)",
-          "circle-stroke-color": "#ef4444",
-          "circle-stroke-width": 2,
+          "circle-stroke-color": outlineColor,
+          "circle-stroke-width": 0,
+          "circle-opacity": 0,
         }
-      : colorByPaint
+      : style === "outline" || !colorByPaint
       ? {
-          "circle-radius": TELLS_CIRCLE_RADIUS,
-          "circle-color": colorByPaint,
-          "circle-stroke-color": "#ffffff",
+          "circle-radius": radius,
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-color": outlineColor,
           "circle-stroke-width": 2,
-          "circle-opacity": 1,
+          "circle-opacity": 0,
         }
       : {
-          "circle-radius": TELLS_CIRCLE_RADIUS,
-          "circle-color": "#a855f7",
-          "circle-stroke-color": "#ffffff",
+          "circle-radius": radius,
+          "circle-color": colorByPaint,
+          "circle-stroke-color": "#000000",
           "circle-stroke-width": 2,
           "circle-opacity": 1,
         }
@@ -437,7 +435,7 @@ export const TellsMarkersLayer = memo(({ enabled, style }: { enabled: boolean; s
       type="circle"
       source="tellsSource"
       source-layer="tells"
-      layout={{ visibility: style === "hidden" ? "none" : "visible" }}
+      layout={{ visibility: "visible" }}
       paint={paint as any}
     />
   )
@@ -480,12 +478,15 @@ export const TellsInspectPopup = memo(({ mapRef, active }: { mapRef: RefObject<M
     const map = mapRef.current?.getMap()
     if (!map || !active) return
 
-    const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "220px" })
+    // closeOnClick: false + manual remove below — with closeOnClick, maplibre's
+    // own map-click close handler runs after this one, so clicking a *second*
+    // candidate closed the popup this handler had just repositioned/opened.
+    const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, maxWidth: "220px" })
 
     const handleClick = (e: MapMouseEvent) => {
       if (!map.getLayer("tells-markers")) return
       const [feature] = map.queryRenderedFeatures(e.point, { layers: ["tells-markers"] })
-      if (!feature) return
+      if (!feature) { popup.remove(); return }
       const tags = feature.properties as Record<string, number>
       popup
         .setLngLat(e.lngLat)
@@ -496,6 +497,7 @@ export const TellsInspectPopup = memo(({ mapRef, active }: { mapRef: RefObject<M
           `<div>Blobness (D): <b>${tags.blobness}</b></div>` +
           `<div>Plan curvature (C): <b>${tags.plan}</b></div>` +
           `<div>Det-Hessian (F): <b>${tags.detHessian}</b></div>` +
+          (tags.scaleM != null ? `<div>Scale ≈ <b>${tags.scaleM} m</b></div>` : "") +
           `</div>`,
         )
         .addTo(map)

@@ -29,6 +29,7 @@ import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
 import {AnimationSection} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
 import { cn } from "@/lib/utils"
 
 // --- Persisted state ---
@@ -102,6 +103,9 @@ export function TerrainControlPanel({
   }, [setState])
   const { draw } = useTerraDraw(mapRef, mapLoaded)
   const isMobile = useIsMobile()
+  // Space re-toggles the last-clicked viz-mode checkbox even after a map drag
+  // steals focus onto the maplibre canvas (wheel-zoom never did) — see the hook.
+  useSpaceToggleContext()
   const [activeSlider] = useAtom(activeSliderAtom)
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
 

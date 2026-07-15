@@ -16,7 +16,7 @@ A comprehensive terrain visualization and downloading tool, built on top of MapL
   - Hypsometric Tint (color encoded elevation) with customizable color ramps, see [Hypsometric Tint PR #5913](https://github.com/maplibre/maplibre-gl-js/pull/5913) and additional hypsos in [CPT City Color Ramps](http://seaviewsensing.com/pub/cpt-city/)
   - Contour Lines with configurable intervals via [Contour Lines Discussion](https://github.com/maplibre/maplibre-style-spec/issues/583) which resulted in the [onthegomap/maplibre-contour](https://github.com/onthegomap/maplibre-contour) plugin
   - Raster basemap on which the terrain viz modes are overlaid
-- **Bring Your Own Data**: Add terrain sources XYZ terrainrgb/terrarium or COG (wip, via titiler) 
+- **Bring Your Own Data**: Add terrain sources XYZ terrainrgb/terrarium or COG (wip, via titiler), including a COG file straight off your own disk — see [Local (offline) COG terrain sources](#local-offline-cog-terrain-sources)
 - **View Modes**: 2D, 3D, and Globe projections
 - **Split Screen**: Compare two terrain sources side-by-side
 - **Download**: Export terrain as GeoTIFF via Titiler or screenshot canvas, and copy source URL for QGIS integration/gdal download (terrarium/terrainrgb encoding) + procedures
@@ -40,6 +40,30 @@ Open [http://localhost:5173](http://localhost:5173) to view the app.
 
 ## Procedure for non-geo relief visualization (frescoes etc)
 See the [guide](./Non-Geo-Relief-Visualization.md) for producing a COG, with required set of parameters, for correct version, with no artifacts.
+
+## Local (offline) COG terrain sources
+
+Two ways to use a COG that lives on your own disk as a BYOD terrain source, without uploading it anywhere:
+
+### Local COG file (built into the app)
+
+The "Add New Terrain Dataset" dialog has a **Local COG file (this browser only)** type: pick a `.tif`/`.tiff` and the app streams it straight off disk via a `blob:` object URL, through the same `@geomatico/maplibre-cog-protocol` `cog://` reader used for remote COGs — HTTP Range semantics work the same way against a `blob:` URL as against a real server (confirmed 206/Content-Range responses in this app's target Chromium build), so no server is involved at all.
+
+Trade-offs:
+- The file is never uploaded, but it's also never persisted — only kept in memory for the current browser tab. After a reload (or in a new tab), the source shows up with a **Re-select file…** prompt instead of rendering, and you pick the same file again to resume. This can't be worked around without the (more invasive) File System Access API, which isn't wired up here.
+- Works for the primary terrain source, its derivative visualizations (Slope, Aspect, Curvature, TRI/TPI/Roughness/LRM, Tells), the Elevation Picker, and client-side GeoTIFF export.
+- Contour Lines still requires titiler (it fetches tiles through `maplibre-contour`'s own DEM-source machinery, independent of the `cog://` protocol) — a local file can't feed it, same as it can't reach titiler over the network.
+- Safari/Firefox `blob:` Range-fetch support is less consistently tested than Chromium's — if candidates hit issues there, the localhost option below is the fallback.
+
+### Localhost static file server (works today, zero app changes)
+
+Browsers treat `http://localhost` as a "potentially trustworthy" origin, exempt from mixed-content blocking — so this HTTPS app can `fetch()` a plain `http://localhost:PORT/your.tif` COG even without a certificate. Serve the directory containing your COG with any static file server that supports Range requests, e.g.:
+
+```bash
+npx serve --cors -p 8080 .
+```
+
+Then add it as a normal **COG** BYOD source with URL `http://localhost:8080/your-file.tif`. Unlike the built-in local-file picker, this survives reloads (the URL is a real, stable address) and works in any browser, at the cost of needing a terminal command running alongside the app.
 
 ## Slope and More Modes
 

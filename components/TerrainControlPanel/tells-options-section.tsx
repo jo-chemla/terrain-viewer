@@ -54,12 +54,6 @@ export const TellsFields: React.FC<{
 
   return (
     <div className="space-y-4 pl-6">
-      <p className="text-xs text-muted-foreground">
-        Experimental archaeological mound detector: local maxima of a Difference-
-        of-Gaussians relief signal, filtered by blobness/curvature to reject
-        ridges and saddles.
-      </p>
-
       <SliderControl
         label={`Tell Size: ${state.tellSize}m`}
         value={state.tellSize}
@@ -111,7 +105,10 @@ export const TellsFields: React.FC<{
           while plan curvature (a ×100-scaled quantity, unlike the other two)
           spans roughly 0-75. The old 0-20/0-30 ranges were ~100x too coarse —
           any nonzero step past the first one or two ticks exceeded every real
-          candidate's value and rejected the entire population. */}
+          candidate's value and rejected the entire population. Det-Hessian got
+          a further 10x range shrink (0-0.05) after field use showed real values
+          cluster near the very bottom of the 0-0.4 span, making the first slider
+          ticks of the wider range already reject nearly everything. */}
       <SliderControl
         label={`Blobness Veto Min: ${state.tellBlobnessMin.toFixed(2)}`}
         value={state.tellBlobnessMin}
@@ -127,10 +124,10 @@ export const TellsFields: React.FC<{
         hideValue
       />
       <SliderControl
-        label={`Det-Hessian Veto Min: ${state.tellDetHessianMin.toFixed(2)}`}
+        label={`Det-Hessian Veto Min: ${state.tellDetHessianMin.toFixed(3)}`}
         value={state.tellDetHessianMin}
         onChange={(v) => setState({ tellDetHessianMin: v })}
-        min={0} max={0.5} step={0.01}
+        min={0} max={0.05} step={0.001}
         hideValue
       />
 
@@ -143,6 +140,36 @@ export const TellsFields: React.FC<{
         <Label htmlFor="tells-veto-resolution" className="text-sm cursor-pointer">
           Compute vetoes at fine (native) resolution instead of coarse
         </Label>
+      </div>
+
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="tells-measure-scale"
+            checked={state.tellMeasureScale === true}
+            onCheckedChange={(checked) => setState({ tellMeasureScale: checked === true })}
+          />
+          <Label htmlFor="tells-measure-scale" className="text-sm cursor-pointer">
+            Measure mound scale (half-max ray marching)
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground pl-6">
+          Adds an estimated diameter to each detection (click a marker, or see
+          the scaleM field in GeoJSON exports) by marching rays outward from the
+          peak until relief drops to half — no extra tile fetches.
+        </p>
+        {state.tellMeasureScale === true && (
+          <div className="flex items-center gap-2 pl-6">
+            <Checkbox
+              id="tells-scale-markers"
+              checked={state.tellsScaleMarkers === true}
+              onCheckedChange={(checked) => setState({ tellsScaleMarkers: checked === true })}
+            />
+            <Label htmlFor="tells-scale-markers" className="text-sm cursor-pointer">
+              Size markers to 8× the measured scale
+            </Label>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

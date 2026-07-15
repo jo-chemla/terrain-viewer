@@ -15,6 +15,8 @@ import { mergeContourLines } from "@/lib/merge-contours"
 import { ShareButton } from "./ShareSection"
 import { TooltipButton } from "./controls-components"
 import { Progress } from "@/components/ui/progress"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 
 export const DownloadSection: React.FC<{
   state: any
@@ -25,7 +27,7 @@ export const DownloadSection: React.FC<{
   onOpenChange: (open: boolean) => void
 }> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange }) => {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
-  const [maxResolution] = useAtom(maxResolutionAtom)
+  const [maxResolution, setMaxResolution] = useAtom(maxResolutionAtom)
   const [useClientExport] = useAtom(useClientExportAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
@@ -276,6 +278,19 @@ export const DownloadSection: React.FC<{
             className={`flex-1 bg-transparent ${isCopying ? "[&_svg]:animate-spin" : ""}`}
           />
           <ShareButton mapRef={mapRef} />
+        </div>
+        {/* Lived in the Settings modal — moved next to the export buttons it
+            actually parameterizes (DEM GeoTIFF size cap, both export paths). */}
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <Label htmlFor="max-resolution" className="text-sm">Max Download Resolution (px)</Label>
+          <Input
+            id="max-resolution"
+            type="number"
+            placeholder="4096"
+            value={maxResolution}
+            onChange={(e) => setMaxResolution(Number.parseFloat(e.target.value))}
+            className="cursor-text h-7 w-24 text-right"
+          />
         </div>
       </div>
     </Section>

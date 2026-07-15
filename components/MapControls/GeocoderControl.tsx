@@ -76,9 +76,51 @@ export default function GeocoderControl({
         maplibregl: mapLib,
       });
 
+      // ── Enter commits the top suggestion ─────────────────────────────────
+      // Out of the box (showResultsWhileTyping + no getSuggestions API), Enter
+      // does nothing useful: the library's own keydown handler just calls
+      // _fitBoundsForMarkers(), a no-op here since showResultMarkers is off.
+      // Programmatic selection goes through the same path the library itself
+      // uses for a clicked suggestion: set _typeahead.selected then invoke
+      // _onChange(), which runs the full flyTo + "result" event flow.
+      let selectFirstOnResults = false;
+      const selectFirst = () => {
+        const g = ctrl as any;
+        const first = g._typeahead?.data?.[0];
+        if (!first || g._typeahead.selected) return false;
+        g._typeahead.selected = first;
+        if (g._inputEl) g._inputEl.value = first.place_name ?? first.text ?? g._inputEl.value;
+        g._onChange();
+        g._typeahead.clear?.();
+        return true;
+      };
+      // Document-level capture (the input doesn't exist until onAdd, and capture
+      // on an ancestor is guaranteed to run before the library's own handlers).
+      // Never removed: this control lives for the whole app session.
+      document.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key !== "Enter") return;
+        const t = e.target as HTMLElement | null;
+        if (!t?.classList?.contains("maplibregl-ctrl-geocoder--input")) return;
+        const g = ctrl as any;
+        // If the user arrow-highlighted a specific suggestion, defer to the
+        // typeahead's own Enter handling instead of overriding with the first.
+        const active = g._typeahead?.list?.active;
+        if (typeof active === "number" && active > 0) return;
+        // Suggestions already listed -> commit the top one now; otherwise the
+        // user out-typed the debounced search -> commit on the next results.
+        if (!selectFirst()) selectFirstOnResults = true;
+      }, true);
+
       ctrl.on("loading", onLoading);
-      ctrl.on("results", onResults);
+      ctrl.on("results", (evt: object) => {
+        onResults(evt);
+        if (selectFirstOnResults) {
+          selectFirstOnResults = false;
+          selectFirst();
+        }
+      });
       ctrl.on("result", evt => {
+        selectFirstOnResults = false; // a manual pick supersedes a pending auto-select
         onResult(evt);
 
         const { result } = evt;

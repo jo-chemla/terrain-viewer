@@ -1,12 +1,13 @@
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
-import { useAtom } from "jotai"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { useAtom, useSetAtom } from "jotai"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { type CustomTerrainSource, useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
+import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName } from "@/lib/local-file-store"
 import { WmsPickerPanel } from "./wms-picker-panel"
 
 type TerrainFormType = CustomTerrainSource["type"] | "wms-picker"
@@ -20,7 +21,10 @@ export const CustomTerrainSourceModal: React.FC<{
   const [type, setType] = useState<TerrainFormType>("cog")
   const [description, setDescription] = useState("")
   const [maxzoom, setMaxzoom] = useState("")
+  const [localFileName, setLocalFileName] = useState<string | null>(null)
   const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
+  const registerLocalFile = useSetAtom(registerLocalFileAtom)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (editingSource) {
@@ -29,14 +33,30 @@ export const CustomTerrainSourceModal: React.FC<{
       setType(editingSource.type)
       setDescription(editingSource.description || "")
       setMaxzoom(editingSource.maxzoom === undefined ? "" : String(editingSource.maxzoom))
+      // Re-opening the modal on an existing "cog-local" source: the File itself
+      // only lives in-memory for the session it was picked in, so after a reload
+      // this is null until the user picks the file again via the button below.
+      setLocalFileName(editingSource.type === "cog-local" ? getLocalFileName(localFileId(editingSource.url)) : null)
     } else {
       setName("")
       setUrl("")
       setType("cog")
       setDescription("")
       setMaxzoom("")
+      setLocalFileName(null)
     }
   }, [editingSource, isOpen])
+
+  const handleLocalFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = "" // allow re-picking the same filename later without a no-op change event
+    if (!file) return
+    const id = crypto.randomUUID()
+    registerLocalFile({ id, file })
+    setUrl(makeLocalFileUrl(id))
+    setLocalFileName(file.name)
+    if (!name) setName(file.name.replace(/\.(tif|tiff)$/i, ""))
+  }, [name, registerLocalFile])
 
   const handleSave = useCallback(() => {
     if (!name || !url) return
@@ -76,6 +96,12 @@ export const CustomTerrainSourceModal: React.FC<{
               <SelectTrigger id="source-type" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="cog">COG (Cloud Optimized GeoTIFF)</SelectItem>
+                {/* Streams straight off the user's disk via a blob: object URL — no
+                    upload, no companion server. Only ever readable via the geomatico
+                    cog:// protocol (there's no titiler server that could reach a local
+                    file), and the picked file only lives in this browser tab's memory —
+                    it isn't saved, so it needs re-picking after a reload. */}
+                <SelectItem value="cog-local">Local COG file (this browser only)</SelectItem>
                 <SelectItem value="terrarium">TMS (Terrarium)</SelectItem>
                 <SelectItem value="terrainrgb">TMS (TerrainRGB)</SelectItem>
                 {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
@@ -103,10 +129,36 @@ export const CustomTerrainSourceModal: React.FC<{
                 <Label htmlFor="source-name">Name *</Label>
                 <Input id="source-name" type="text" placeholder="My Custom Terrain" value={name} onChange={(e) => setName(e.target.value)} className="cursor-text" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="source-url">URL *</Label>
-                <Input id="source-url" type="text" placeholder={url_placeholder} value={url} onChange={(e) => setUrl(e.target.value)} className="cursor-text" />
-              </div>
+              {type === "cog-local" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="source-local-file">COG file *</Label>
+                  <input
+                    ref={fileInputRef}
+                    id="source-local-file"
+                    type="file"
+                    accept=".tif,.tiff,image/tiff"
+                    className="hidden"
+                    onChange={handleLocalFileChange}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="cursor-pointer">
+                      Choose file…
+                    </Button>
+                    <span className="text-sm text-muted-foreground truncate min-w-0">
+                      {localFileName ?? "No file selected"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Read directly from disk, never uploaded — but only kept in this
+                    browser tab's memory, so it needs re-picking after a page reload.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="source-url">URL *</Label>
+                  <Input id="source-url" type="text" placeholder={url_placeholder} value={url} onChange={(e) => setUrl(e.target.value)} className="cursor-text" />
+                </div>
+              )}
               {showMaxzoomField && (
                 <div className="space-y-2">
                   <Label htmlFor="source-maxzoom">Max Zoom (optional)</Label>
