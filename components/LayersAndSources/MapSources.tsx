@@ -113,9 +113,16 @@ const MAX_SAFE_COG_ZOOM = 22
 function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number; maxzoom: number } {
     if (!metadata?.images?.length) return { minzoom: 0, maxzoom: 20 }
     const zooms = metadata.images.filter(img => !img.isMask).map(img => img.zoom)
+    // Both bounds are clamped into the SAME [0, MAX_SAFE_COG_ZOOM] range (not just
+    // maxzoom from above) — a single-resolution-level COG (common for a local,
+    // un-tiled export) has minzoom === maxzoom === that one estimate, so clamping
+    // only maxzoom downward while leaving an over-22 minzoom unclamped produced
+    // an inverted minzoom > maxzoom range, which maplibre's setMinZoom/setMaxZoom
+    // then rejected outright ("minZoom must be between -2 and the current maxZoom").
+    const clamp = (z: number) => Math.max(0, Math.min(MAX_SAFE_COG_ZOOM, Math.round(z)))
     return {
-        minzoom: Math.max(0, Math.round(Math.min(...zooms))),
-        maxzoom: Math.min(MAX_SAFE_COG_ZOOM, Math.round(Math.max(...zooms))),
+        minzoom: clamp(Math.min(...zooms)),
+        maxzoom: clamp(Math.max(...zooms)),
     }
 }
 

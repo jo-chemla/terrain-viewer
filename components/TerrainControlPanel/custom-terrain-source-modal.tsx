@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { type CustomTerrainSource, useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
-import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName } from "@/lib/local-file-store"
+import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
 import { WmsPickerPanel } from "./wms-picker-panel"
 
 type TerrainFormType = CustomTerrainSource["type"] | "wms-picker"
@@ -22,9 +22,14 @@ export const CustomTerrainSourceModal: React.FC<{
   const [description, setDescription] = useState("")
   const [maxzoom, setMaxzoom] = useState("")
   const [localFileName, setLocalFileName] = useState<string | null>(null)
+  const [localFileWarning, setLocalFileWarning] = useState<string | null>(null)
   const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Guards against an in-flight validateLocalCogFile from a previous pick
+  // resolving after (and clobbering the warning for) a newer one — a plain
+  // event handler has no useEffect-style cleanup to cancel it with.
+  const latestFileIdRef = useRef(0)
 
   useEffect(() => {
     if (editingSource) {
@@ -37,6 +42,7 @@ export const CustomTerrainSourceModal: React.FC<{
       // only lives in-memory for the session it was picked in, so after a reload
       // this is null until the user picks the file again via the button below.
       setLocalFileName(editingSource.type === "cog-local" ? getLocalFileName(localFileId(editingSource.url)) : null)
+      setLocalFileWarning(null)
     } else {
       setName("")
       setUrl("")
@@ -44,6 +50,7 @@ export const CustomTerrainSourceModal: React.FC<{
       setDescription("")
       setMaxzoom("")
       setLocalFileName(null)
+      setLocalFileWarning(null)
     }
   }, [editingSource, isOpen])
 
@@ -55,7 +62,26 @@ export const CustomTerrainSourceModal: React.FC<{
     registerLocalFile({ id, file })
     setUrl(makeLocalFileUrl(id))
     setLocalFileName(file.name)
+    setLocalFileWarning(null)
     if (!name) setName(file.name.replace(/\.(tif|tiff)$/i, ""))
+
+    const thisFileId = ++latestFileIdRef.current
+    validateLocalCogFile(file).then((result) => {
+      if (latestFileIdRef.current !== thisFileId || !result) return
+      if (!result.isTiled) {
+        setLocalFileWarning(
+          "This file is strip-organized, not internally tiled — it isn't a real Cloud-Optimized GeoTIFF, and streaming it in the browser can be very slow or crash on anything but tiny files. Re-export it with GDAL, e.g. gdal_translate -of COG src.tif out_cog.tif.",
+        )
+      } else if (result.epsg !== null && result.epsg !== 3857) {
+        setLocalFileWarning(
+          `This file is in EPSG:${result.epsg}, not Web Mercator (EPSG:3857) — the in-browser COG reader assumes 3857 and doesn't reproject, so its detected bounds/zoom range (and "Fit to bounds") will be wrong. Reproject it first, e.g. gdalwarp -t_srs EPSG:3857 -of COG src.tif out_3857.tif.`,
+        )
+      } else if (!result.hasOverviews) {
+        setLocalFileWarning(
+          "This file has no overviews (only one resolution level) — it'll work, but zoomed-out views will be slower to render since every zoom reads from the same full-resolution data.",
+        )
+      }
+    })
   }, [name, registerLocalFile])
 
   const handleSave = useCallback(() => {
@@ -132,6 +158,11 @@ export const CustomTerrainSourceModal: React.FC<{
               {type === "cog-local" ? (
                 <div className="space-y-2">
                   <Label htmlFor="source-local-file">COG file *</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Must be a real COG (Cloud-Optimized GeoTIFF, internally tiled, with
+                    overviews) in CRS EPSG:3857 (Web Mercator) — the in-browser reader
+                    doesn't reproject, so any other CRS will show wrong bounds/zoom.
+                  </p>
                   <input
                     ref={fileInputRef}
                     id="source-local-file"
@@ -152,6 +183,9 @@ export const CustomTerrainSourceModal: React.FC<{
                     Read directly from disk, never uploaded — but only kept in this
                     browser tab's memory, so it needs re-picking after a page reload.
                   </p>
+                  {localFileWarning && (
+                    <p className="text-xs text-amber-600 dark:text-amber-500">{localFileWarning}</p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2">

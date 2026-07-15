@@ -55,3 +55,53 @@ export function resolveLocalFileUrl(id: string): string | null {
 export function getLocalFileName(id: string): string | null {
   return files.get(id)?.name ?? null
 }
+
+export interface LocalCogValidation {
+  isTiled: boolean
+  hasOverviews: boolean
+  /** EPSG code of the COG's own CRS, when readable from its GeoKeys. */
+  epsg: number | null
+}
+
+// A handful of real user-picked files (a Copernicus DSM export, several
+// in-house DEM/REM exports) turned out to be plain strip-organized GeoTIFFs —
+// GDAL's default when a file isn't explicitly written with `-of COG` / `-co
+// TILED=YES` — despite being named/treated as COGs. Reading a window from a
+// strip TIFF forces the client-side reader to decode far more of the file
+// than one tile needs (a strip spans the full image width, and there's no
+// overview to fall back to at a coarser zoom), repeatedly, on every pan/zoom
+// — which is what surfaced as "RangeError: Array buffer allocation failed"
+// deep inside geotiff.js's resampler rather than as a clear error here.
+//
+// Separately, @geomatico/maplibre-cog-protocol's math (lib/read/math.js)
+// hardcodes every COG as already being in Web Mercator (EPSG:3857) — it feeds
+// the raw pixel resolution straight into a mercator-meters zoom formula, and
+// inverse-mercator-projects the raw bounding box coordinates as if they were
+// already mercator meters, with no reprojection step at all. A geographic
+// (EPSG:4326, degrees) source gets its degree-sized pixels misread as
+// meter-sized ones, producing a wildly inflated "native zoom" (confirmed:
+// mixing units this way is what fed z=27+ into the setTerrain crash fixed
+// earlier); a different projected CRS (e.g. a UTM zone) has the right units
+// but the wrong origin, so the computed bbox lands nowhere near the real
+// data and "fit to bounds" flies to the wrong place. Only a source already
+// warped to EPSG:3857 (e.g. `gdalwarp -t_srs EPSG:3857`) has correct bounds/
+// zoom through this library — titiler-streamed COGs don't have this problem
+// since rio-tiler reprojects server-side.
+/** Best-effort structural + CRS check on a picked local file, so the BYOD
+ *  modal can warn before either problem above turns into a cryptic crash or
+ *  silently-wrong bounds. Never throws — a failure here (e.g. a corrupt file)
+ *  shouldn't block adding the source; the real error will surface when the
+ *  source is actually used. */
+export async function validateLocalCogFile(file: File): Promise<LocalCogValidation | null> {
+  try {
+    const { fromBlob } = await import("geotiff")
+    const tiff = await fromBlob(file)
+    const image = await tiff.getImage()
+    const imageCount = await tiff.getImageCount()
+    const geoKeys = image.geoKeys as { ProjectedCSTypeGeoKey?: number; GeographicTypeGeoKey?: number } | undefined
+    const epsg = geoKeys?.ProjectedCSTypeGeoKey ?? geoKeys?.GeographicTypeGeoKey ?? null
+    return { isTiled: image.isTiled, hasOverviews: imageCount > 1, epsg }
+  } catch {
+    return null
+  }
+}
