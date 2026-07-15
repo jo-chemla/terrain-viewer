@@ -98,10 +98,25 @@ const rasterBasemaps: Record<string, { url: string; tileSize: number; maxzoom: n
 // Helpers
 // -------------------------
 
+// geomatico's zoomFromResolution (log2(earthCircumference / (256 * resolutionM)))
+// is uncapped — a real sub-meter/cm-resolution COG (a drone DSM/ortho export is
+// the common case for a *local* file) can estimate a "native" zoom well past
+// MapLibre's hard z25 tile-coordinate limit. Requesting DEM tiles that deep for
+// `map.setTerrain()`'s elevation sampling throws "z=27 outside of bounds...",
+// which was also cascading into "Attempting to run(), but is already running"
+// errors (an uncaught exception mid-render left maplibre's render loop in a
+// broken state for the next frame). Clamp to 22 — the ceiling this app already
+// treats as its practical max elsewhere (see e.g. client-export.ts's cog
+// maxzoom fallback) and comfortably clear of the z25 hard limit.
+const MAX_SAFE_COG_ZOOM = 22
+
 function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number; maxzoom: number } {
     if (!metadata?.images?.length) return { minzoom: 0, maxzoom: 20 }
     const zooms = metadata.images.filter(img => !img.isMask).map(img => img.zoom)
-    return { minzoom: Math.round(Math.min(...zooms)), maxzoom: Math.round(Math.max(...zooms)) }
+    return {
+        minzoom: Math.max(0, Math.round(Math.min(...zooms))),
+        maxzoom: Math.min(MAX_SAFE_COG_ZOOM, Math.round(Math.max(...zooms))),
+    }
 }
 
 export function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKey: string): string {
