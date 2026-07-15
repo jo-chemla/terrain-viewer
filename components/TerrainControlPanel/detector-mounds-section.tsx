@@ -1,8 +1,6 @@
 import type React from "react"
 import { useCallback } from "react"
-import { useAtom } from "jotai"
 import type { MapRef } from "react-map-gl/maplibre"
-import { tellsBetaEnabledAtom } from "@/lib/settings-atoms"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, CycleButtonGroup } from "./controls-components"
@@ -23,8 +21,9 @@ const TELLS_STYLE_KEYS = TELLS_STYLE_OPTIONS.map(({ value }) => value)
 // of SlopeAndMoreOptionsSection (which it used to live inside of as a sub-mode)
 // since it isn't a terrain-derivative visualization like the others in that
 // section, but its own detector with a distinct settings surface (size, veto
-// thresholds, resolution, export). Gated behind tellsBetaEnabledAtom, same as
-// before — renders nothing at all unless that beta flag is on.
+// thresholds, resolution, export). Gated behind state.tellsBeta (a nuqs param,
+// so a project/embed URL can turn it on directly) — renders nothing at all
+// unless that beta flag is on.
 export const DetectorMoundsSection: React.FC<{
   state: any; setState: (updates: any) => void
   isOpen: boolean
@@ -37,13 +36,12 @@ export const DetectorMoundsSection: React.FC<{
   // already-loaded vector tiles straight from the live map instance.
   mapRef?: React.RefObject<MapRef>
 }> = ({ state, setState, isOpen, onOpenChange, terrainTileSize, mapRef }) => {
-  const [tellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
   const cycleTellsStyle = useCallback((direction: number) => {
     const currentIndex = TELLS_STYLE_KEYS.indexOf(state.tellsStyle)
     const newIndex = (currentIndex + direction + TELLS_STYLE_KEYS.length) % TELLS_STYLE_KEYS.length
     setState({ tellsStyle: TELLS_STYLE_KEYS[newIndex] })
   }, [state.tellsStyle, setState])
-  if (!tellsBetaEnabled) return null
+  if (!state.tellsBeta) return null
 
   return (
     <Section title="Detector: Mound Candidates" isOpen={isOpen} onOpenChange={onOpenChange}>

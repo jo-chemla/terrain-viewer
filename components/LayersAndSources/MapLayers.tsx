@@ -341,7 +341,7 @@ BlobnessReliefLayer.displayName = "BlobnessReliefLayer"
 // Point features from the tells:// MVT source (see TellsSource in MapSources.tsx
 // and lib/tells-protocol.ts) — one marker per surviving candidate. `enabled` is
 // the mount gate (mirrors the Relief-layer master/per-mode split elsewhere in this
-// file: showSlopeAndMore && tellsBetaEnabled); `style` — including "hidden" — only
+// file: showSlopeAndMore && state.tellsBeta); `style` — including "hidden" — only
 // ever toggles layout.visibility/paint, so cycling styles never unmounts this
 // Layer or the vector source underneath it, meaning hiding the markers can't
 // force maplibre to re-fetch/recompute tells:// tiles on reactivation.
@@ -471,7 +471,7 @@ TellsMarkersLayer.displayName = "TellsMarkersLayer"
 // tells-protocol.ts already computes per-candidate (see its `tags` object) but
 // which otherwise never leave the vector tile. Layer-scoped listeners are guarded
 // by an explicit getLayer() check rather than relying on maplibre's own delegated
-// binding, since TellsMarkersLayer only mounts once showSlopeAndMore/tellsBetaEnabled
+// binding, since TellsMarkersLayer only mounts once showSlopeAndMore/state.tellsBeta
 // are both on and querying a not-yet-mounted layer throws rather than silently
 // no-op-ing. A "hidden" style still passes this guard (the layer stays mounted)
 // but layout.visibility:"none" makes queryRenderedFeatures return nothing anyway.

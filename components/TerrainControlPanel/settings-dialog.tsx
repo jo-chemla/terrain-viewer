@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
   maxResolutionAtom, useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
-  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, tellsBetaEnabledAtom,
+  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
 } from "@/lib/settings-atoms"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { useTheme } from "@/lib/controls-utils"
@@ -37,7 +37,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [isTransparentUi, setTransparentUi] = useAtom(transparentUiAtom)
   const [highResTerrain, setHighResTerrain] = useAtom(highResTerrainAtom)
-  const [tellsBetaEnabled, setTellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
   const [useClientExport, setUseClientExport] = useAtom(useClientExportAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
@@ -316,9 +315,9 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 <Label htmlFor="tells-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
                 <Switch
                   id="tells-beta"
-                  checked={tellsBetaEnabled}
+                  checked={state.tellsBeta}
                   className="cursor-pointer"
-                  onCheckedChange={setTellsBetaEnabled}
+                  onCheckedChange={(checked) => setState({ tellsBeta: checked })}
                 />
               </div>
             </div>

@@ -16,7 +16,7 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  activeProjectConfigAtom, useCogProtocolVsTitilerAtom, tellsBetaEnabledAtom,
+  activeProjectConfigAtom, useCogProtocolVsTitilerAtom,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
 import { MAX_BOUNDS_MODES, unionBounds, bufferBounds, resolveCustomSourceBounds, type LngLatBoundsTuple } from "@/lib/max-bounds"
@@ -108,7 +108,6 @@ export function TerrainViewer() {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [highResTerrain] = useAtom(highResTerrainAtom)
-  const [tellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
   // Latches true the first time Tells is shown in any non-hidden style, and then
   // stays true — this is TellsSource's mount gate instead of tellsStyle itself, so
   // cycling back to "hidden" never unmounts the vector source / discards its
@@ -218,6 +217,9 @@ export function TerrainViewer() {
     blobnessMin: parseAsFloat.withDefault(0),
     blobnessMax: parseAsFloat.withDefault(50),
     blobnessInvertColorRamp: parseAsBoolean.withDefault(false),
+    // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
+    // clutter Visualization Modes for everyone by default.
+    tellsBeta: parseAsBoolean.withDefault(false),
     tellsStyle: parseAsStringLiteral(TELLS_STYLES).withDefault("hidden"),
     tellSize: parseAsFloat.withDefault(100),
     tellRadius: parseAsFloat.withDefault(4),
@@ -1093,7 +1095,7 @@ export function TerrainViewer() {
           />
           {isPrimary && (
             <TellsSource
-              enabled={tellsBetaEnabled && tellsEverActivated}
+              enabled={state.tellsBeta && tellsEverActivated}
               terrainSource={state.sourceA}
               customTerrainSources={customTerrainSources}
               mapboxKey={mapboxKey}
@@ -1104,7 +1106,7 @@ export function TerrainViewer() {
           )}
           {isPrimary && (
             <TellsSource
-              enabled={tellsBetaEnabled && tellsEverActivated}
+              enabled={state.tellsBeta && tellsEverActivated}
               terrainSource={state.sourceA}
               customTerrainSources={customTerrainSources}
               mapboxKey={mapboxKey}
@@ -1140,12 +1142,12 @@ export function TerrainViewer() {
           <LrmReliefLayer showSlopeAndMore={state.showSlopeAndMore} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
           <RoughnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
           <BlobnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
-          {isPrimary && <TellsMarkersLayer enabled={tellsBetaEnabled} style={state.tellsStyle} />}
-          {isPrimary && <TellsUnfilteredLoaderLayer enabled={tellsBetaEnabled && tellsEverActivated} />}
+          {isPrimary && <TellsMarkersLayer enabled={state.tellsBeta} style={state.tellsStyle} />}
+          {isPrimary && <TellsUnfilteredLoaderLayer enabled={state.tellsBeta && tellsEverActivated} />}
           {isPrimary && (
             <TellsInspectPopup
               mapRef={mapARef as any}
-              active={mapALoaded && tellsBetaEnabled}
+              active={mapALoaded && state.tellsBeta}
             />
           )}
           <HillshadeLayer
