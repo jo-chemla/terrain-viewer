@@ -1,0 +1,22 @@
+<GDAL_WMS>
+  <Service name="TMS">
+    <ServerUrl>https://tiles.mapterhorn.com/${z}/${x}/${y}.webp</ServerUrl>
+  </Service>
+  <DataWindow>
+    <UpperLeftX>-20037508.34</UpperLeftX>
+    <UpperLeftY>20037508.34</UpperLeftY>
+    <LowerRightX>20037508.34</LowerRightX>
+    <LowerRightY>-20037508.34</LowerRightY>
+    <TileLevel>18</TileLevel>
+    <TileCountX>1</TileCountX>
+    <TileCountY>1</TileCountY>
+    <YOrigin>top</YOrigin>
+  </DataWindow>
+  <Projection>EPSG:3857</Projection>
+  <BlockSizeX>512</BlockSizeX>
+  <BlockSizeY>512</BlockSizeY>
+  <BandsCount>3</BandsCount>
+  <DataType>Byte</DataType>
+  <ZeroBlockHttpCodes>204,404</ZeroBlockHttpCodes>
+  <MaxConnections>4</MaxConnections>
+</GDAL_WMS>

@@ -1,0 +1,40 @@
+<VRTDataset rasterXSize="134217728" rasterYSize="134217728">
+  <!--
+    Terrain Ruggedness Index (Riley et al. 2006), meters. Port of lib/tri-protocol.ts:
+    root-mean-square elevation difference between the center cell and its 8 neighbors.
+    Unlike slope/aspect, TRI is scale-free (a pure elevation-difference RMS), so it
+    needs no ground-resolution correction — same as the app.
+  -->
+  <SRS>EPSG:3857</SRS>
+  <GeoTransform> -20037508.34, 0.2985821417, 0, 20037508.34, 0, -0.2985821417</GeoTransform>
+  <VRTRasterBand dataType="Float32" band="1" subClass="VRTDerivedRasterBand">
+    <Description>Terrain Ruggedness Index (meters)</Description>
+    <PixelFunctionType>tri</PixelFunctionType>
+    <PixelFunctionLanguage>Python</PixelFunctionLanguage>
+    <BufferRadius>1</BufferRadius>
+    <SourceTransferType>Float32</SourceTransferType>
+    <PixelFunctionCode><![CDATA[
+import numpy as np
+
+def tri(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    r = buf_radius
+    z = in_ar[0].astype(np.float64)
+
+    a0 = z[0:-2, 0:-2]; a1 = z[0:-2, 1:-1]; a2 = z[0:-2, 2:]
+    a3 = z[1:-1, 0:-2]; a4 = z[1:-1, 1:-1]; a5 = z[1:-1, 2:]
+    a6 = z[2:,   0:-2]; a7 = z[2:,   1:-1]; a8 = z[2:,   2:]
+
+    d0 = a0 - a4; d1 = a1 - a4; d2 = a2 - a4
+    d3 = a3 - a4;               d5 = a5 - a4
+    d6 = a6 - a4; d7 = a7 - a4; d8 = a8 - a4
+
+    sum_sq = d0*d0 + d1*d1 + d2*d2 + d3*d3 + d5*d5 + d6*d6 + d7*d7 + d8*d8
+    out_ar[r:-r, r:-r] = np.sqrt(sum_sq)
+]]>
+    </PixelFunctionCode>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">elevation.vrt</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>

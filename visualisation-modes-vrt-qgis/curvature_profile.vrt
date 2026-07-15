@@ -1,0 +1,60 @@
+<VRTDataset rasterXSize="134217728" rasterYSize="134217728">
+  <!--
+    Curvature - Profile mode (curvature along the slope-gradient direction, controls
+    downslope acceleration/deceleration). Port of computeProfileAndPlan() in
+    lib/curvature-protocol.ts, using Zevenbergen & Thorne (1987) second-order partials:
+      p = (a5-a3)/(2L),  q = (a7-a1)/(2L)
+      r = (a5-2*a4+a3)/L^2,  t = (a7-2*a4+a1)/L^2,  s = (a2-a0-a8+a6)/(4L^2)
+      gradSq = p^2+q^2 ; if gradSq < 1e-12 -> 0 (flat ground, undefined direction)
+      profile = 100 * (r*p^2 + 2*s*p*q + t*q^2) / (gradSq * (1+gradSq)^1.5)
+
+    NOTE: the second-derivative variable named "r" in Zevenbergen & Thorne collides
+    with BufferRadius's conventional "r" name in this codebase's other VRTs — renamed
+    to "rr" below to avoid shadowing.
+  -->
+  <SRS>EPSG:3857</SRS>
+  <GeoTransform> -20037508.34, 0.2985821417, 0, 20037508.34, 0, -0.2985821417</GeoTransform>
+  <VRTRasterBand dataType="Float32" band="1" subClass="VRTDerivedRasterBand">
+    <Description>Curvature - Profile</Description>
+    <PixelFunctionType>curvature_profile</PixelFunctionType>
+    <PixelFunctionLanguage>Python</PixelFunctionLanguage>
+    <BufferRadius>1</BufferRadius>
+    <SourceTransferType>Float32</SourceTransferType>
+    <PixelFunctionCode><![CDATA[
+import numpy as np
+from math import atan, exp, pi, cos
+
+R_EARTH = 6378137.0
+
+def _ground_resolution(gt, yoff, ysize):
+    y_center = gt[3] + gt[5] * (yoff + ysize / 2.0)
+    lat = 2.0 * atan(exp(y_center / R_EARTH)) - pi / 2.0
+    return abs(gt[1]) * cos(lat)
+
+def curvature_profile(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    br = buf_radius
+    z = in_ar[0].astype(np.float64)
+    L = _ground_resolution(gt, yoff, ysize)
+
+    a0 = z[0:-2, 0:-2]; a1 = z[0:-2, 1:-1]; a2 = z[0:-2, 2:]
+    a3 = z[1:-1, 0:-2]; a4 = z[1:-1, 1:-1]; a5 = z[1:-1, 2:]
+    a6 = z[2:,   0:-2]; a7 = z[2:,   1:-1]; a8 = z[2:,   2:]
+
+    p = (a5 - a3) / (2.0 * L)
+    q = (a7 - a1) / (2.0 * L)
+    rr = (a5 - 2.0 * a4 + a3) / (L * L)
+    t = (a7 - 2.0 * a4 + a1) / (L * L)
+    s = (a2 - a0 - a8 + a6) / (4.0 * L * L)
+
+    grad_sq = p * p + q * q
+    with np.errstate(divide="ignore", invalid="ignore"):
+        profile = 100.0 * (rr * p * p + 2.0 * s * p * q + t * q * q) / (grad_sq * np.power(1.0 + grad_sq, 1.5))
+    out_ar[br:-br, br:-br] = np.where(grad_sq < 1e-12, 0.0, profile)
+]]>
+    </PixelFunctionCode>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">elevation.vrt</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>

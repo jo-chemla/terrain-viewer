@@ -1,0 +1,73 @@
+<VRTDataset rasterXSize="134217728" rasterYSize="134217728">
+  <!--
+    Blobness (structure-tensor "blob-like-ness" score). Vectorized re-derivation of
+    lib/blobness-protocol.ts's per-tile algorithm, NOT a byte-for-byte transcription
+    (the app loops over an explicit 3x3 sub-grid of sample points per output pixel;
+    this VRT gets the same result via whole-array slicing, which is equivalent for a
+    fixed sub-grid offset pattern but has not been numerically diffed against the app
+    pixel-by-pixel — treat as a good-faith port, spot-check before relying on it).
+
+    Algorithm: compute Horn gx/gy at every pixel of the 5x5-padded window (one level
+    of 3x3 convolution), giving a 1-pixel-padded gx/gy field; square/cross those
+    (gx^2, gy^2, gx*gy) and average each over its own 3x3 neighborhood (a second level
+    of 3x3 convolution) to get the structure tensor J = [[Ixx, Ixy], [Ixy, Iyy]] at
+    the output pixel; then
+      blobness = (det(J) / trace(J)) * (100/64)   [0 if trace < 1e-9]
+    The 100/64 factor corrects for the Horn kernel's built-in 8x gradient inflation,
+    which compounds to 64x in the degree-4 determinant term (same as the app).
+  -->
+  <SRS>EPSG:3857</SRS>
+  <GeoTransform> -20037508.34, 0.2985821417, 0, 20037508.34, 0, -0.2985821417</GeoTransform>
+  <VRTRasterBand dataType="Float32" band="1" subClass="VRTDerivedRasterBand">
+    <Description>Blobness</Description>
+    <PixelFunctionType>blobness</PixelFunctionType>
+    <PixelFunctionLanguage>Python</PixelFunctionLanguage>
+    <BufferRadius>2</BufferRadius>
+    <SourceTransferType>Float32</SourceTransferType>
+    <PixelFunctionCode><![CDATA[
+import numpy as np
+from math import atan, exp, pi, cos
+
+R_EARTH = 6378137.0
+
+def _ground_resolution(gt, yoff, ysize):
+    y_center = gt[3] + gt[5] * (yoff + ysize / 2.0)
+    lat = 2.0 * atan(exp(y_center / R_EARTH)) - pi / 2.0
+    return abs(gt[1]) * cos(lat)
+
+def _avg3x3(m):
+    return (
+        m[0:-2, 0:-2] + m[0:-2, 1:-1] + m[0:-2, 2:] +
+        m[1:-1, 0:-2] + m[1:-1, 1:-1] + m[1:-1, 2:] +
+        m[2:,   0:-2] + m[2:,   1:-1] + m[2:,   2:]
+    ) / 9.0
+
+def blobness(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    br = buf_radius  # 2
+    z = in_ar[0].astype(np.float64)
+    L = _ground_resolution(gt, yoff, ysize)
+
+    a0 = z[0:-2, 0:-2]; a1 = z[0:-2, 1:-1]; a2 = z[0:-2, 2:]
+    a3 = z[1:-1, 0:-2];                     a5 = z[1:-1, 2:]
+    a6 = z[2:,   0:-2]; a7 = z[2:,   1:-1]; a8 = z[2:,   2:]
+
+    gx = ((a0 + 2 * a3 + a6) - (a2 + 2 * a5 + a8)) / (8.0 * L)  # shape (ysize+2, xsize+2)
+    gy = ((a6 + 2 * a7 + a8) - (a0 + 2 * a1 + a2)) / (8.0 * L)
+
+    Ixx = _avg3x3(gx * gx)
+    Iyy = _avg3x3(gy * gy)
+    Ixy = _avg3x3(gx * gy)
+
+    trace = Ixx + Iyy
+    det = Ixx * Iyy - Ixy * Ixy
+    with np.errstate(divide="ignore", invalid="ignore"):
+        blob = (det / trace) * (100.0 / 64.0)
+    out_ar[br:-br, br:-br] = np.where(trace < 1e-9, 0.0, blob)
+]]>
+    </PixelFunctionCode>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">elevation.vrt</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>

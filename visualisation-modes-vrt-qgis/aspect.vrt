@@ -1,0 +1,51 @@
+<VRTDataset rasterXSize="134217728" rasterYSize="134217728">
+  <!--
+    Aspect (compass bearing, degrees, 0=N/90=E/180=S/270=W). Port of lib/aspect-protocol.ts,
+    which reuses the same Horn gx/gy as slope.vrt but converts to a compass bearing:
+      mathDeg = atan2(dy, -dx) * RAD_TO_DEG
+      compassDeg = wrap0to360(90 - mathDeg)
+      flat ground (dx==0 and dy==0) -> 0 (North), matching the app's fallback.
+  -->
+  <SRS>EPSG:3857</SRS>
+  <GeoTransform> -20037508.34, 0.2985821417, 0, 20037508.34, 0, -0.2985821417</GeoTransform>
+  <VRTRasterBand dataType="Float32" band="1" subClass="VRTDerivedRasterBand">
+    <Description>Aspect (compass degrees)</Description>
+    <PixelFunctionType>aspect</PixelFunctionType>
+    <PixelFunctionLanguage>Python</PixelFunctionLanguage>
+    <BufferRadius>1</BufferRadius>
+    <SourceTransferType>Float32</SourceTransferType>
+    <PixelFunctionCode><![CDATA[
+import numpy as np
+from math import atan, exp, pi, cos
+
+R_EARTH = 6378137.0
+
+def _ground_resolution(gt, yoff, ysize):
+    y_center = gt[3] + gt[5] * (yoff + ysize / 2.0)
+    lat = 2.0 * atan(exp(y_center / R_EARTH)) - pi / 2.0
+    return abs(gt[1]) * cos(lat)
+
+def aspect(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    r = buf_radius
+    z = in_ar[0].astype(np.float64)
+    L = _ground_resolution(gt, yoff, ysize)
+
+    a0 = z[0:-2, 0:-2]; a1 = z[0:-2, 1:-1]; a2 = z[0:-2, 2:]
+    a3 = z[1:-1, 0:-2];                     a5 = z[1:-1, 2:]
+    a6 = z[2:,   0:-2]; a7 = z[2:,   1:-1]; a8 = z[2:,   2:]
+
+    dx = ((a0 + 2 * a3 + a6) - (a2 + 2 * a5 + a8)) / L
+    dy = ((a6 + 2 * a7 + a8) - (a0 + 2 * a1 + a2)) / L
+
+    math_deg = np.degrees(np.arctan2(dy, -dx))
+    compass_deg = np.mod(90.0 - math_deg, 360.0)
+    flat = (dx == 0) & (dy == 0)
+    out_ar[r:-r, r:-r] = np.where(flat, 0.0, compass_deg)
+]]>
+    </PixelFunctionCode>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">elevation.vrt</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>

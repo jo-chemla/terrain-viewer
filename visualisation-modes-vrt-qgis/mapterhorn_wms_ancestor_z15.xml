@@ -1,0 +1,26 @@
+<GDAL_WMS>
+  <!-- Same Mapterhorn TMS source as mapterhorn_wms.xml, but pinned to z15 — the real
+       pyramid ancestor level for LRM at radiusToLevels(radiusPx)=3 (z18-3=z15), i.e.
+       an ~8x coarser relief baseline. To change the LRM smoothing radius, change this
+       TileLevel (and the matching elevation_ancestor.vrt raster size) to 18-k. -->
+  <Service name="TMS">
+    <ServerUrl>https://tiles.mapterhorn.com/${z}/${x}/${y}.webp</ServerUrl>
+  </Service>
+  <DataWindow>
+    <UpperLeftX>-20037508.34</UpperLeftX>
+    <UpperLeftY>20037508.34</UpperLeftY>
+    <LowerRightX>20037508.34</LowerRightX>
+    <LowerRightY>-20037508.34</LowerRightY>
+    <TileLevel>15</TileLevel>
+    <TileCountX>1</TileCountX>
+    <TileCountY>1</TileCountY>
+    <YOrigin>top</YOrigin>
+  </DataWindow>
+  <Projection>EPSG:3857</Projection>
+  <BlockSizeX>512</BlockSizeX>
+  <BlockSizeY>512</BlockSizeY>
+  <BandsCount>3</BandsCount>
+  <DataType>Byte</DataType>
+  <ZeroBlockHttpCodes>204,404</ZeroBlockHttpCodes>
+  <MaxConnections>4</MaxConnections>
+</GDAL_WMS>

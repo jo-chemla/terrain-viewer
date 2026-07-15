@@ -1,0 +1,45 @@
+<VRTDataset rasterXSize="134217728" rasterYSize="134217728">
+  <!--
+    Curvature - Combined mode. Port of computeCombined() in lib/curvature-protocol.ts:
+    discrete Laplacian over the 4-connected neighbors, scaled x100.
+      laplacian = (a1+a3+a5+a7 - 4*a4) / L^2
+      combined  = laplacian * 100
+  -->
+  <SRS>EPSG:3857</SRS>
+  <GeoTransform> -20037508.34, 0.2985821417, 0, 20037508.34, 0, -0.2985821417</GeoTransform>
+  <VRTRasterBand dataType="Float32" band="1" subClass="VRTDerivedRasterBand">
+    <Description>Curvature - Combined (Laplacian x100)</Description>
+    <PixelFunctionType>curvature_combined</PixelFunctionType>
+    <PixelFunctionLanguage>Python</PixelFunctionLanguage>
+    <BufferRadius>1</BufferRadius>
+    <SourceTransferType>Float32</SourceTransferType>
+    <PixelFunctionCode><![CDATA[
+import numpy as np
+from math import atan, exp, pi, cos
+
+R_EARTH = 6378137.0
+
+def _ground_resolution(gt, yoff, ysize):
+    y_center = gt[3] + gt[5] * (yoff + ysize / 2.0)
+    lat = 2.0 * atan(exp(y_center / R_EARTH)) - pi / 2.0
+    return abs(gt[1]) * cos(lat)
+
+def curvature_combined(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    r = buf_radius
+    z = in_ar[0].astype(np.float64)
+    L = _ground_resolution(gt, yoff, ysize)
+
+    a1 = z[0:-2, 1:-1]
+    a3 = z[1:-1, 0:-2]; a4 = z[1:-1, 1:-1]; a5 = z[1:-1, 2:]
+    a7 = z[2:,   1:-1]
+
+    laplacian = (a1 + a3 + a5 + a7 - 4.0 * a4) / (L * L)
+    out_ar[r:-r, r:-r] = laplacian * 100.0
+]]>
+    </PixelFunctionCode>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">elevation.vrt</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>

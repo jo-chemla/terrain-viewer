@@ -1,0 +1,52 @@
+<VRTDataset rasterXSize="134217728" rasterYSize="134217728">
+  <!--
+    Curvature - Det-Hessian mode (sign/magnitude of the Hessian determinant:
+    positive = bowl/dome (elliptic), negative = saddle (hyperbolic)). Port of
+    computeDetHessian() in lib/curvature-protocol.ts, reusing the same rr/t/s
+    second-order partials as curvature_profile.vrt / curvature_plan.vrt:
+      detHessian = (rr*t - s^2) * 10000
+    (no flat-ground guard in the app's version — well-defined everywhere.)
+  -->
+  <SRS>EPSG:3857</SRS>
+  <GeoTransform> -20037508.34, 0.2985821417, 0, 20037508.34, 0, -0.2985821417</GeoTransform>
+  <VRTRasterBand dataType="Float32" band="1" subClass="VRTDerivedRasterBand">
+    <Description>Curvature - Det-Hessian</Description>
+    <PixelFunctionType>curvature_det_hessian</PixelFunctionType>
+    <PixelFunctionLanguage>Python</PixelFunctionLanguage>
+    <BufferRadius>1</BufferRadius>
+    <SourceTransferType>Float32</SourceTransferType>
+    <PixelFunctionCode><![CDATA[
+import numpy as np
+from math import atan, exp, pi, cos
+
+R_EARTH = 6378137.0
+
+def _ground_resolution(gt, yoff, ysize):
+    y_center = gt[3] + gt[5] * (yoff + ysize / 2.0)
+    lat = 2.0 * atan(exp(y_center / R_EARTH)) - pi / 2.0
+    return abs(gt[1]) * cos(lat)
+
+def curvature_det_hessian(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    br = buf_radius
+    z = in_ar[0].astype(np.float64)
+    L = _ground_resolution(gt, yoff, ysize)
+
+    a0 = z[0:-2, 0:-2];             a2 = z[0:-2, 2:]
+    a1 = z[0:-2, 1:-1]
+    a3 = z[1:-1, 0:-2]; a4 = z[1:-1, 1:-1]; a5 = z[1:-1, 2:]
+    a6 = z[2:,   0:-2];             a8 = z[2:,   2:]
+    a7 = z[2:,   1:-1]
+
+    rr = (a5 - 2.0 * a4 + a3) / (L * L)
+    t = (a7 - 2.0 * a4 + a1) / (L * L)
+    s = (a2 - a0 - a8 + a6) / (4.0 * L * L)
+
+    out_ar[br:-br, br:-br] = (rr * t - s * s) * 10000.0
+]]>
+    </PixelFunctionCode>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">elevation.vrt</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>

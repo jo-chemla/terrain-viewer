@@ -1,0 +1,40 @@
+<VRTDataset rasterXSize="134217728" rasterYSize="134217728">
+  <!--
+    Local Relief Model (meters) = fine elevation - bilinear-upsampled ancestor
+    elevation, at a fixed smoothing radius corresponding to k=3 pyramid levels
+    (z18 fine minus z15 ancestor, an ~8x coarser relief baseline — matches
+    radiusToLevels(radiusPx)=3 in lib/lrm-protocol.ts). To change the smoothing
+    radius, swap elevation_ancestor_z15.vrt / mapterhorn_wms_ancestor_z15.xml for a
+    different TileLevel=18-k pair and rescale this file's second SrcRect to the new
+    ancestor's raster size.
+
+    Unlike every other VRT in this pack, this ONE mode needs no Python at all: GDAL's
+    built-in (native C++) "diff" pixel function computes source1 - source2 directly,
+    verified empirically (10 - 3 = 7, i.e. first-minus-second order) against a live
+    GDAL 3.13 install. The "ancestor at native resolution, bilinear-upsampled" step
+    that lib/lrm-protocol.ts does manually is handled here for free by the VRT engine
+    itself: mapping the ancestor's small SrcRect onto this file's much larger DstRect
+    with resampling="bilinear" is exactly a bilinear upsample, and because both
+    elevation.vrt and elevation_ancestor_z15.vrt share the same real-world geographic
+    extent (the whole Web Mercator world), no manual pixel-offset recentering
+    arithmetic is needed the way the app's runtime tile-fetch code requires.
+  -->
+  <SRS>EPSG:3857</SRS>
+  <GeoTransform> -20037508.34, 0.2985821417, 0, 20037508.34, 0, -0.2985821417</GeoTransform>
+  <VRTRasterBand dataType="Float32" band="1" subClass="VRTDerivedRasterBand">
+    <Description>Local Relief Model (meters, k=3 / z18-z15)</Description>
+    <PixelFunctionType>diff</PixelFunctionType>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">elevation.vrt</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SrcRect xOff="0" yOff="0" xSize="134217728" ySize="134217728"/>
+      <DstRect xOff="0" yOff="0" xSize="134217728" ySize="134217728"/>
+    </SimpleSource>
+    <SimpleSource resampling="bilinear">
+      <SourceFilename relativeToVRT="1">elevation_ancestor_z15.vrt</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SrcRect xOff="0" yOff="0" xSize="16777216" ySize="16777216"/>
+      <DstRect xOff="0" yOff="0" xSize="134217728" ySize="134217728"/>
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>
