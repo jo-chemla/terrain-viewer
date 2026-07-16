@@ -425,6 +425,16 @@ export type SlopeSourceMode = "plantopo" | "client"
 //    template + declared encoding, same as the primary source's own manifest read.
 //  - stac / mosaicjson: not yet supported here — returns null (same as before), so
 //    those layers simply don't render.
+interface ClientDemUpstream {
+    template: string
+    encoding: "terrarium" | "mapbox"
+    tileSize: number
+    // Left undefined where the source has no fixed native pyramid to clamp
+    // against (e.g. WMS, which serves whatever resolution is requested).
+    minzoom?: number
+    maxzoom?: number
+}
+
 const useClientDemUpstream = (
     terrainSource: TerrainSource | string,
     customTerrainSources: CustomTerrainSource[],
@@ -440,7 +450,21 @@ const useClientDemUpstream = (
     const isTilejson = customSource?.type === "tilejson"
     const tilejsonMetadata = useTilejsonMetadata(isTilejson ? customSource!.url : null)
 
-    return useMemo(() => {
+    // Same COG-metadata-derived zoom clamp the primary terrain Source gets (see
+    // TerrainSources above) — without it, a COG's fixed native pyramid has no
+    // ceiling here, so overzooming past it doesn't fall back to a lower-zoom
+    // parent tile the way maplibre's own raster-dem handling does; it instead
+    // asks the geomatico protocol for a tile beyond the data it has, which can
+    // render as a blank/degenerate tile instead of a harmless overzoom blur.
+    const isCogLocal = customSource?.type === "cog-local"
+    const isCogRemote = customSource?.type === "cog" && useCogProtocol
+    const cogUrlForMetadata = isCogLocal
+        ? resolveLocalFileUrl(localFileId(customSource!.url))
+        : isCogRemote ? customSource!.url : null
+    const cogMetadata = useCogMetadata(cogUrlForMetadata)
+    const cogZoomRange = useMemo(() => zoomRangeFromMetadata(cogMetadata), [cogMetadata])
+
+    return useMemo<ClientDemUpstream | null>(() => {
         if (!customSource) {
             const builtin = (terrainSources as any)[terrainSource as TerrainSource]
             if (!builtin || builtin.encoding === "3dtiles") return null
@@ -448,6 +472,7 @@ const useClientDemUpstream = (
                 template: builtinTileUrl(terrainSource as TerrainSource, mapboxKey, maptilerKey),
                 encoding: builtin.sourceConfig.encoding === "terrarium" ? "terrarium" as const : "mapbox" as const,
                 tileSize: builtin.sourceConfig.tileSize,
+                maxzoom: builtin.sourceConfig.maxzoom,
             }
         }
 
@@ -457,6 +482,8 @@ const useClientDemUpstream = (
                 template: tilejsonMetadata.tiles[0],
                 encoding: (tilejsonMetadata.encoding === "terrarium" ? "terrarium" : tilejsonMetadata.encoding === "mapbox" ? "mapbox" : (customSource.encoding ?? "mapbox")) as "terrarium" | "mapbox",
                 tileSize: 256,
+                minzoom: tilejsonMetadata.minzoom,
+                maxzoom: tilejsonMetadata.maxzoom,
             }
         }
         if (customSource.type === "vrt" && useCogProtocol) return null // titiler-only — see custom-terrain-source-modal.tsx
@@ -469,10 +496,13 @@ const useClientDemUpstream = (
             // instead of a remote https:// one.
             const resolvedUrl = resolveLocalFileUrl(localFileId(customSource.url))
             if (!resolvedUrl) return null // not (re-)picked yet this session
+            if (!cogMetadata) return null // wait for real metadata, same as the primary terrain Source
             return {
                 template: `cog://${resolvedUrl}/{z}/{x}/{y}`,
                 encoding: (highResTerrain ? "terrarium" : "mapbox") as "terrarium" | "mapbox",
                 tileSize: 256,
+                minzoom: cogZoomRange.minzoom,
+                maxzoom: cogZoomRange.maxzoom,
             }
         }
 
@@ -480,13 +510,19 @@ const useClientDemUpstream = (
             // No titiler in the picture — buildRasterTileSource's float32dem:// output
             // is a single GetMap template (its own {bbox-epsg-3857} placeholder, not
             // a per-tile one), so wrap it for per-tile bbox substitution instead of
-            // using the built url/encoding directly.
+            // using the built url/encoding directly. WMS serves whatever resolution
+            // is requested rather than a fixed pyramid, so there's no native zoom
+            // ceiling to clamp against here.
             return {
                 template: `float32dem-bbox://${encodeURIComponent(customSource.url.replace(/^https?:\/\//, ""))}/{z}/{x}/{y}`,
                 encoding: "terrarium" as const,
                 tileSize: 512,
             }
         }
+
+        // Remote "cog" streamed directly via the in-browser geomatico protocol has
+        // the exact same fixed-pyramid limitation as cog-local above.
+        if (isCogRemote && !cogMetadata) return null
 
         const built = buildRasterTileSource({
             url: customSource.url,
@@ -504,11 +540,14 @@ const useClientDemUpstream = (
         if ("url" in built) {
             // cog:// (geomatico mode) — append the z/x/y placeholders maplibre would
             // otherwise supply itself via a tilejson round-trip we bypass here.
-            return { template: `${built.url}/{z}/{x}/{y}`, encoding, tileSize: 256 }
+            return {
+                template: `${built.url}/{z}/{x}/{y}`, encoding, tileSize: 256,
+                ...(isCogRemote ? { minzoom: cogZoomRange.minzoom, maxzoom: cogZoomRange.maxzoom } : {}),
+            }
         }
         return { template: built.tiles[0], encoding, tileSize: 256 }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, highResTerrain, tilejsonMetadata, localFileVersion])
+    }, [customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogRemote])
 }
 
 export const SlopeSource = memo(({
@@ -540,6 +579,8 @@ export const SlopeSource = memo(({
                 tiles={[url]}
                 tileSize={clientUpstream.tileSize}
                 encoding="mapbox"
+                minzoom={clientUpstream.minzoom}
+                maxzoom={clientUpstream.maxzoom}
             />
         )
     }
@@ -592,6 +633,8 @@ const NormalDerivedSource = memo(({ enabled, sourceId, terrainSource, customTerr
             tiles={[url]}
             tileSize={clientUpstream.tileSize}
             encoding="mapbox"
+            minzoom={clientUpstream.minzoom}
+            maxzoom={clientUpstream.maxzoom}
         />
     )
 })
