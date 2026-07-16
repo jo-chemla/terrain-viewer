@@ -14,7 +14,7 @@
 import type { Map as MapLibreMap } from "maplibre-gl"
 import { terrainrgbToElevation, terrariumToElevation } from "./elevation-encoding"
 import { fetchTileMosaic } from "./tile-mosaic"
-import { exportCogWindow, type ClientExportSource } from "./client-export"
+import { sampleCogPointElevation, type ClientExportSource } from "./client-export"
 
 /** Divides out the terrain's exaggeration multiplier so the returned value is a
  *  true elevation in meters, matching what the 2D tile-sampling path returns. */
@@ -37,12 +37,7 @@ export async function sampleClientElevationAtPoint(
   lat: number,
 ): Promise<number | null> {
   if (source.type === "cog") {
-    // A literal zero-size bbox trips up geotiff.js's windowed read — pad by a
-    // sub-meter epsilon so it still resolves to (effectively) this exact pixel.
-    const eps = 1e-6
-    const result = await exportCogWindow(source.url, [lng - eps, lat - eps, lng + eps, lat + eps], 1, 1)
-    const value = result.data[0]
-    return Number.isFinite(value) ? value : null
+    return sampleCogPointElevation(source.url, lng, lat)
   }
 
   const eps = 1e-9

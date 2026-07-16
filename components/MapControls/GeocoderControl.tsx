@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useControl, Marker, MarkerProps, ControlPosition } from 'react-map-gl/maplibre';
 import MaplibreGeocoder, {
   MaplibreGeocoderApi,
-  MaplibreGeocoderOptions
+  MaplibreGeocoderOptions,
+  CarmenGeojsonFeature
 } from '@maplibre/maplibre-gl-geocoder';
 
 type GeocoderControlProps = Omit<MaplibreGeocoderOptions, 'maplibregl' | 'marker'> & {
@@ -22,8 +23,11 @@ type GeocoderControlProps = Omit<MaplibreGeocoderOptions, 'maplibregl' | 'marker
 // Open-data geocoder (Photon / komoot, OSM-based, no key) — see riverrem-ui.
 const geocoderApi: MaplibreGeocoderApi = {
   forwardGeocode: async config => {
-    const features = [];
-    try {
+    const features: CarmenGeojsonFeature[] = [];
+    // query can also be a [lng, lat] pair per MaplibreGeocoderApiConfig (used by
+    // reverse-geocode flows) — this API object only implements forward (text)
+    // search, so a non-string query has nothing to send Photon.
+    if (typeof config.query === 'string') try {
       const request = `https://photon.komoot.io/api/?limit=5&q=${encodeURIComponent(config.query)}`;
       const response = await fetch(request);
       const geojson = await response.json();
@@ -32,9 +36,14 @@ const geocoderApi: MaplibreGeocoderApi = {
         const center = feature.geometry.coordinates;
         const label = [p.name, p.city, p.state, p.country].filter(Boolean).join(", ");
         const point = {
-          type: 'Feature',
+          // Photon has no single stable id field across result types — osm_id is
+          // only unique per osm_type, and neither is guaranteed present — so this
+          // just needs to be unique within one result list (the geocoder uses it
+          // for its own internal result tracking, not anything user-visible).
+          id: `${p.osm_type ?? "photon"}-${p.osm_id ?? features.length}`,
+          type: 'Feature' as const,
           geometry: {
-            type: 'Point',
+            type: 'Point' as const,
             coordinates: center
           },
           place_name: label || p.name || "?",
@@ -50,6 +59,7 @@ const geocoderApi: MaplibreGeocoderApi = {
     }
 
     return {
+      type: 'FeatureCollection' as const,
       features
     };
   }
@@ -73,7 +83,13 @@ export default function GeocoderControl({
         // Always suppress the library's own built-in pin marker — this wrapper
         // renders its own (small dot, see the `marker` prop) via markerEl below.
         marker: false,
-        maplibregl: mapLib,
+        // react-map-gl's `mapLib` is deliberately typed as a minimal Mapbox/
+        // MapLibre-compatible interface (see @vis.gl/react-maplibre's own "only
+        // loosely typed for compatibility" doc comment) so it can hand back
+        // either library — the geocoder instead wants the full maplibre-gl
+        // module namespace, which is what `mapLib` actually IS at runtime here
+        // (this app only ever renders via react-map-gl/maplibre, never mapbox).
+        maplibregl: mapLib as unknown as typeof import('maplibre-gl'),
       });
 
       // ── Enter commits the top suggestion ─────────────────────────────────

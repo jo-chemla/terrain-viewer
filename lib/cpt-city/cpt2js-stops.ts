@@ -3,7 +3,18 @@
 // -----------------
 
 import chroma from 'chroma-js'
-import type { InterpolationMode, Scale, Palette, PaletteColor, PaletteEntry, PaletteArray, ParseOptions } from 'chroma-js';
+import type { Scale } from 'chroma-js';
+// chroma-js's own InterpolationMode is nested inside its ambient `chroma` namespace,
+// not re-exportable as a flat named import — mirrored here (identical literal union,
+// so it stays structurally interchangeable with chroma-js's own methods) rather than
+// fighting the namespace/module export mismatch. Palette/ParseOptions never existed
+// as chroma-js exports at all; PaletteColor/PaletteEntry/PaletteArray are this
+// module's own types, declared further down (see the "PARSE-TEXT.TS" section).
+export type InterpolationMode = "hcl" | "hsi" | "hsl" | "hsv" | "lab" | "lch" | "lrgb" | "oklab" | "oklch" | "rgb";
+export type Palette = string | PaletteArray;
+export interface ParseOptions {
+  bounds?: [number, number];
+}
 const DEFAULT_MODE: InterpolationMode = 'rgb';
 
 function parseValue(value_: string | number, bounds: [number, number]): number | null | undefined {

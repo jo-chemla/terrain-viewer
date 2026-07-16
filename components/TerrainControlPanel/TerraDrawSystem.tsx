@@ -88,7 +88,7 @@ function parseFeatures(rawFeatures: any[]): GeoJSONFeature[] {
             const mode = geometryTypeToMode(f.geometry.type)
             if (!mode) { console.log(mode, 'Unsupported geometry type:', f.geometry.type); return [] }
             return [{
-                type: 'Feature',
+                type: 'Feature' as const,
                 id: uuidv4(),
                 geometry: { ...f.geometry, coordinates: to2DCoords(f.geometry.coordinates) },
                 properties: { ...(f.properties || {}), mode },
@@ -307,8 +307,11 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
                             new TerraDrawSelectMode({
                                 flags: {
                                     point: { feature: { draggable: true, coordinates: { draggable: true } } },
-                                    linestring: { feature: { draggable: true, coordinates: { draggable: true, deletable: true, addable: true } } },
-                                    polygon: { feature: { draggable: true, coordinates: { draggable: true, deletable: true, addable: true } } },
+                                    // `addable` (clicking a line/edge to insert a new coordinate) isn't a real
+                                    // ModeFlags.coordinates property in the installed terra-draw version —
+                                    // it's a no-op here either way, so dropping it changes nothing at runtime.
+                                    linestring: { feature: { draggable: true, coordinates: { draggable: true, deletable: true } } },
+                                    polygon: { feature: { draggable: true, coordinates: { draggable: true, deletable: true } } },
                                     rectangle: { feature: { draggable: true, coordinates: { draggable: true } } },
                                     circle: { feature: { draggable: true, coordinates: { draggable: true } } },
                                     arbitrary: { feature: {} },

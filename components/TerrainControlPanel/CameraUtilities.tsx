@@ -264,9 +264,6 @@ export const fovEngine = new RafEngine()
 
 
 
-// Re-export for external use
-export type { AppSnapshot, CameraPose }
-
 // ─── nuqs custom parser for poses ─────────────────────────────────────────────
 
 const parseAsSnapshot = createParser({

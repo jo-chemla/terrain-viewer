@@ -136,7 +136,7 @@ function buildTileUrl(
   }
 }
 
-function buildThresholds(minor, major) {
+function buildThresholds(minor: number, major: number) {
   return {
     // low zoom: only major contours (level 0)
     2:  [major],

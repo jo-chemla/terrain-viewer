@@ -15,7 +15,6 @@ import {
   SiX,
   SiBluesky,
   SiMastodon,
-  SiLinkedin,
   SiThreads,
   SiReddit,
 } from "react-icons/si"

@@ -6,7 +6,12 @@ import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
 import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
-import { setColorFunction, getCogMetadata, type CogMetadata } from '@geomatico/maplibre-cog-protocol'
+import { setColorFunction, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
+
+// The package exports getCogMetadata but not its return type — derive it instead
+// of hand-duplicating the shape (images[].zoom/.isMask, scale, offset, noData),
+// so a future geomatico upgrade can't silently drift out of sync with a stale copy.
+type CogMetadata = Awaited<ReturnType<typeof getCogMetadata>>
 import { elevationToTerrainrgb, elevationToTerrarium } from "@/lib/elevation-encoding"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
@@ -158,7 +163,7 @@ export const TerrainSources = memo(({
     maptilerKey: string
     customTerrainSources: any[]
     titilerEndpoint: string
-    onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom?: boolean }) => void
+    onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom: boolean }) => void
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const [highResTerrain] = useAtom(highResTerrainAtom)
@@ -281,7 +286,7 @@ export const RasterBasemapSource = memo(({
     mapboxKey: string
     customBasemapSources: any[]
     titilerEndpoint: string
-    onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom?: boolean }) => void
+    onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom: boolean }) => void
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
 

@@ -75,7 +75,7 @@ function fixDomain(domain: number[]) {
 }
 
 function chromajsScaleToMaplibre(paletteScale: Scale) {
-  const colors = paletteScale.colors()
+  const colors = paletteScale.colors(undefined)
   const domain = paletteScale.domain()
   const domainFixed = fixDomain(domain)
   return [
@@ -88,7 +88,7 @@ function chromajsScaleToMaplibre(paletteScale: Scale) {
 
 // Check if a color ramp is continuous or discrete
 function isPaletteContinuous(paletteScale: Scale): boolean {
-  const colors = paletteScale.colors();
+  const colors = paletteScale.colors(undefined);
   const domain = paletteScale.domain();
   const nColors = colors.length  
   if (nColors <= 2) return true

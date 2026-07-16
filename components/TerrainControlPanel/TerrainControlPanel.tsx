@@ -81,7 +81,10 @@ export const sidebarScrollAtom = atomWithStorage("sidebarScroll", 0)
 
 interface TerrainControlPanelProps {
   state: any
-  setState: (updates: any) => void
+  // Second param mirrors nuqs's own setter signature (the real value always
+  // passed in from TerrainViewer.tsx's useQueryStates) — `shallow: false` is
+  // how AnimationSection's scrub-complete makes a frame's values shareable.
+  setState: (updates: any, options?: { shallow?: boolean }) => void
   getMapBounds: () => Bounds
   mapRef: React.RefObject<MapRef>
   mapLoaded: boolean

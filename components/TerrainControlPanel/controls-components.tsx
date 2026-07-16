@@ -33,17 +33,22 @@ export const MobileSlider = forwardRef<
   const [, setActiveSlider] = useAtom(activeSliderAtom)
   const id = sliderId ?? (props as any)["aria-label"] ?? "slider"
 
+  // Radix's own Slider prop types are internally inconsistent here — its ref
+  // element type (ElementRef<typeof Slider>) is HTMLSpanElement, but its
+  // onPointerDown/Up/Cancel props expect PointerEvent<HTMLDivElement>. Same
+  // underlying DOM PointerEvent either way; the cast below only papers over
+  // that upstream generic-parameter mismatch, not an actual type difference.
   const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (transparentUi) setActiveSlider(id)
-    onPointerDown?.(e)
+    onPointerDown?.(e as unknown as React.PointerEvent<HTMLDivElement>)
   }
   const handlePointerUp = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (transparentUi) setActiveSlider(null)
-    onPointerUp?.(e)
+    onPointerUp?.(e as unknown as React.PointerEvent<HTMLDivElement>)
   }
   const handlePointerCancel = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (transparentUi) setActiveSlider(null)
-    onPointerCancel?.(e)
+    onPointerCancel?.(e as unknown as React.PointerEvent<HTMLDivElement>)
   }
 
   return (
@@ -296,7 +301,7 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
   size = "icon",
 }, ref) => {
   return (
-    <Tooltip delayDuration={0} skipDelayDuration={300}>
+    <Tooltip delayDuration={0}>
       <TooltipTrigger asChild>
         <Button
           ref={ref}  // ← forward to the actual button

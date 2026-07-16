@@ -55,7 +55,11 @@ export const useSourceConfig = () => {
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
 
-  const getTilesUrl = useCallback((key: TerrainSource): string => {
+  // Widened from TerrainSource to string: callers (TerrainSourceSection et al.)
+  // pass arbitrary custom-source ids through here too, and the lookup below is
+  // already defensive against a key that isn't a real builtin (`if (!source)
+  // return ""`) — the narrower annotation didn't reflect that.
+  const getTilesUrl = useCallback((key: string): string => {
     const source = (terrainSources as any)[key]
     if (!source) return ""
     let tileUrl = source.sourceConfig.tiles[0] || ""

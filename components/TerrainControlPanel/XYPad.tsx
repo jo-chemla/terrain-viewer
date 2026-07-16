@@ -242,8 +242,8 @@ export function SphericalXYPad({
           <line
             x1={centerX + minElevationRadius * Math.cos(constraintLineAngle)}
             y1={centerY - minElevationRadius * Math.sin(constraintLineAngle)}
-            x2={centerX + maxR * outerRadius * Math.cos(constraintLineAngle)}
-            y2={centerY - maxR * outerRadius * Math.sin(constraintLineAngle)}
+            x2={centerX + maxElevationRadius * Math.cos(constraintLineAngle)}
+            y2={centerY - maxElevationRadius * Math.sin(constraintLineAngle)}
             stroke="var(--primary)"
             strokeOpacity="0.5"
             strokeWidth="2"

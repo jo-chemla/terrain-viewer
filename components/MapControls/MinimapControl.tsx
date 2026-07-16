@@ -123,7 +123,7 @@ function MinimapInternal({
     if (typeof style === 'string') {
       return style;
     }
-    return style || {
+    const fallbackStyle: StyleSpecification = {
       version: 8,
       sources: {
         'basemap': {
@@ -140,6 +140,7 @@ function MinimapInternal({
         }
       ]
     };
+    return style || fallbackStyle;
   }, []); // Only create once
 
   const updateGeometries = useCallback(() => {

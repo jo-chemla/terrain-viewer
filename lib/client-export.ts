@@ -79,6 +79,23 @@ function lonLatToWebMercator(lon: number, lat: number): [number, number] {
   return [x, y]
 }
 
+/** Converts a WGS84 lng/lat bbox into the COG's own CRS units (degrees if the
+ *  raster is geographic, Web Mercator meters otherwise) — shared by both the
+ *  bulk export window read below and the single-point sample in
+ *  lib/elevation-query.ts. */
+function reprojectBboxToRasterCrs(
+  image: { getBoundingBox: () => number[] },
+  bbox: [number, number, number, number],
+): [number, number, number, number] {
+  const rasterBbox = image.getBoundingBox() as [number, number, number, number]
+  const isGeographic = rasterBbox.every((v, i) => Math.abs(v) <= (i % 2 === 0 ? 180 : 90))
+  const [west, south, east, north] = bbox
+  if (isGeographic) return [west, south, east, north]
+  const [minX, minY] = lonLatToWebMercator(west, south)
+  const [maxX, maxY] = lonLatToWebMercator(east, north)
+  return [minX, minY, maxX, maxY]
+}
+
 export async function exportCogWindow(
   url: string,
   bbox: [number, number, number, number],
@@ -91,20 +108,46 @@ export async function exportCogWindow(
 
   // COGs store raw altitude per pixel already — no terrainrgb/terrarium decoding
   // needed, just a windowed read at the requested bbox/resolution.
-  const rasterBbox = image.getBoundingBox() as [number, number, number, number]
-  const isGeographic = rasterBbox.every((v, i) => Math.abs(v) <= (i % 2 === 0 ? 180 : 90))
-  const [west, south, east, north] = bbox
-  const reqBbox: [number, number, number, number] = isGeographic
-    ? [west, south, east, north]
-    : (() => {
-        const [minX, minY] = lonLatToWebMercator(west, south)
-        const [maxX, maxY] = lonLatToWebMercator(east, north)
-        return [minX, minY, maxX, maxY]
-      })()
-
+  const reqBbox = reprojectBboxToRasterCrs(image, bbox)
   const rasters = await image.readRasters({ bbox: reqBbox, width, height, resampleMethod: "bilinear" })
   const data = Float32Array.from(rasters[0] as ArrayLike<number>)
   return { data, width, height, bbox }
+}
+
+/** Single-pixel elevation lookup for the Elevation Picker (2D mode) — deliberately
+ *  NOT built on exportCogWindow's `bbox`-mode read above. geotiff.js's `bbox` path
+ *  has to compare the requested area against every IFD (including every overview
+ *  level) to pick a matching resolution and compute the corresponding pixel
+ *  window itself; against a real multi-overview COG (confirmed against a 1.5GB,
+ *  7-level, 26679x13150 file) that comparison sent it down a pathological slow
+ *  path — over 50 SECONDS to decode a single point, freezing the tab solid,
+ *  versus ~70ms reading the exact same pixel through an explicit `window`.
+ *  A single point always wants the base (full) resolution regardless (there's no
+ *  "target resolution" to match an overview against), so this reads the base
+ *  image directly and computes the pixel offset itself from its own geotransform,
+ *  skipping geotiff.js's bbox-to-window resolution entirely. */
+export async function sampleCogPointElevation(url: string, lng: number, lat: number): Promise<number | null> {
+  const { fromUrl } = await import("geotiff")
+  const tiff = await fromUrl(url)
+  const image = await tiff.getImage(0)
+  const [reqX, reqY] = reprojectBboxToRasterCrs(image, [lng, lat, lng, lat])
+
+  const rasterBbox = image.getBoundingBox() as [number, number, number, number]
+  const [minX, minY, maxX, maxY] = rasterBbox
+  const imgWidth = image.getWidth()
+  const imgHeight = image.getHeight()
+  const pixelScaleX = (maxX - minX) / imgWidth
+  const pixelScaleY = (maxY - minY) / imgHeight
+  if (!(pixelScaleX > 0) || !(pixelScaleY > 0)) return null
+
+  const px = Math.floor((reqX - minX) / pixelScaleX)
+  // Row 0 is the raster's NORTH (max Y) edge — pixel rows increase southward.
+  const py = Math.floor((maxY - reqY) / pixelScaleY)
+  if (px < 0 || px >= imgWidth || py < 0 || py >= imgHeight) return null
+
+  const rasters = await image.readRasters({ window: [px, py, px + 1, py + 1], resampleMethod: "nearest" })
+  const value = (rasters[0] as ArrayLike<number>)[0]
+  return Number.isFinite(value) ? value : null
 }
 
 export interface ExportElevationClientSideParams {
