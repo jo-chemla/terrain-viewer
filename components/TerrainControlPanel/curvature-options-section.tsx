@@ -20,22 +20,19 @@ const DEFAULTS = {
 }
 
 // defaultMagnitude: each mode's formula has a different typical value scale (Profile's
-// extra (1+gradSq)^1.5 denominator term suppresses it well below Combined/Plan; Plan's
-// gradSq^1.5 denominator instead spikes near-flat pixels; Det Hessian's r*t product term
-// is smaller still) — measured empirically against real DEM tiles at a fixed zoom so
-// switching modes lands on a sensible range instead of reusing whichever mode set it last.
+// extra (1+gradSq)^1.5 denominator term suppresses it well below Mean/Combined/Plan;
+// Plan's gradSq^1.5 denominator instead spikes near-flat pixels; Det Hessian's ×10000
+// scale in computeDetHessian runs much smaller than the others once normalized) —
+// measured empirically against real DEM tiles at a fixed zoom so switching modes
+// lands on a sensible range instead of reusing whichever mode set it last.
 // sliderMax/sliderStep: the drag range and granularity of the Curvature Range slider
-// itself, not just its starting value — without this, Profile/Det Hessian (typically
-// single-digit magnitudes) would share Plan/Combined's 0-100 track and collapse to a
-// sliver at the low end, making fine adjustment near their actual working range impossible.
-// defaultSymmetric: Det Hessian's sign means something qualitatively different (bowl/dome
-// extremum vs. saddle) than the other three's concave/convex split, so an asymmetric range
-// showing more of the positive (extremum) side by default reads better than a mirrored one —
-// the other three stay symmetric since valley/ridge is naturally a mirrored distinction.
+// itself, not just its starting value — without this, Profile (typically single-digit
+// magnitudes) would share Plan/Mean-Combined's 0-100 track and collapse to a sliver at
+// the low end, making fine adjustment near its actual working range impossible.
 const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: string; defaultMagnitude: number; sliderMax: number; sliderStep: number; defaultSymmetric: boolean }[] = [
   {
     value: "profile",
-    label: "Profile",
+    label: "Profile (Flow Acceleration)",
     tooltip: "Rate of slope change along the steepest-descent direction, affects flow acceleration.",
     defaultMagnitude: 5,
     sliderMax: 20,
@@ -44,7 +41,7 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
   },
   {
     value: "plan",
-    label: "Plan (Divergence)",
+    label: "Plan (Convergence/Divergence)",
     tooltip: "Rate of aspect change across contours, affects flow convergence/divergence. Equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|).",
     defaultMagnitude: 20,
     sliderMax: 100,
@@ -52,26 +49,26 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
     defaultSymmetric: true,
   },
   {
-    value: "det-hessian",
-    label: "Det Hessian",
-    tooltip: "Determinant of the Hessian (fxx·fyy − fxy²) — a blob/saddle detector: positive at bowl/dome-shaped extrema, negative at saddle points, near zero on a straight ridge or uniform slope.",
-    defaultMagnitude: 5,
-    sliderMax: 20,
-    sliderStep: 0.1,
-    defaultSymmetric: false,
-  },
-  {
     value: "combined",
-    label: "Combined",
-    tooltip: "General curvature — a combined measure of surface bending (the discrete Laplacian, ∇²z) that doesn't separate flow direction from contour direction.",
+    label: "Mean/Combined",
+    tooltip: "General curvature — mean curvature H = (κ₁+κ₂)/2 in the small-slope approximation (the discrete Laplacian, ∇²z) — surface bending that doesn't separate flow direction from contour direction.",
     defaultMagnitude: 20,
     sliderMax: 100,
     sliderStep: 0.5,
     defaultSymmetric: true,
   },
+  {
+    value: "det-hessian",
+    label: "Gaussian Curvature (Det Hessian)",
+    tooltip: "Determinant of the Hessian (fxx·fyy − fxy²) — Gaussian curvature K = κ₁·κ₂, a blob/saddle detector: positive at bowl/dome-shaped extrema, negative at saddle points.",
+    defaultMagnitude: 1,
+    sliderMax: 1,
+    sliderStep: 0.02,
+    defaultSymmetric: true,
+  },
 ]
 
-// Fields-only (no Section wrapper/gate) — embedded inside SlopeAndMoreOptionsSection,
+// Fields-only (no Section wrapper/gate) — embedded inside TerrainAnalysisOptionsSection,
 // which owns the "Curvature" checkbox that conditionally renders this block underneath it.
 export const CurvatureFields: React.FC<{
   state: any; setState: (updates: any) => void

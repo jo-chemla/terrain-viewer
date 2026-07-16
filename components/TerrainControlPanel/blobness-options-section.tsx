@@ -16,7 +16,7 @@ const DEFAULTS = {
   blobnessInvertColorRamp: false,
 }
 
-// Fields-only (no Section wrapper/gate) — embedded inside SlopeAndMoreOptionsSection,
+// Fields-only (no Section wrapper/gate) — embedded inside TerrainAnalysisOptionsSection,
 // which owns the "Blobness" checkbox that conditionally renders this block
 // underneath it.
 export const BlobnessFields: React.FC<{

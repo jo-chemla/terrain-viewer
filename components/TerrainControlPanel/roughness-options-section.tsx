@@ -16,7 +16,7 @@ const DEFAULTS = {
   roughnessInvertColorRamp: false,
 }
 
-// Fields-only (no Section wrapper/gate) — embedded inside SlopeAndMoreOptionsSection,
+// Fields-only (no Section wrapper/gate) — embedded inside TerrainAnalysisOptionsSection,
 // which owns the "Roughness" checkbox that conditionally renders this block
 // underneath it.
 export const RoughnessFields: React.FC<{

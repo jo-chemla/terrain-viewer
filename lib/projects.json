@@ -39,9 +39,9 @@
   "dura": {
     "id": "dura",
     "name": "Dura Frescoes Viewer",
-    "description": "Dura Europos Synagogue COG terrain + basemap (W-0.5mm), fixed 2D view over the site, hillshade on (hypsometric tint off), raster basemap at 20% opacity, contours/Slope-and-More/split-screen/elevation-picker off and hidden, 2D/3D view modes only (no globe), sidebar closed by default, source pickers hidden, Visualization Modes and Hillshade Options sections open, map controls disabled.",
+    "description": "Dura Europos Synagogue COG terrain + basemap (W-0.5mm), fixed 2D view over the site, hillshade on (hypsometric tint off), raster basemap at 20% opacity, contours/Terrain-Analysis/Relief-Visualization/split-screen/elevation-picker off and hidden, 2D/3D view modes only (no globe), sidebar closed by default, source pickers hidden, Visualization Modes and Hillshade Options sections open, map controls disabled.",
     "hideSourcePanels": true,
-    "hiddenSections": ["contour", "slopeAndMore", "splitScreen", "elevationPicker", "hillshadeAdvanced"],
+    "hiddenSections": ["contour", "terrainAnalysis", "reliefVisualization", "splitScreen", "elevationPicker", "hillshadeAdvanced"],
     "disableViewModes": ["globe"],
     "hideMapControls": ["geocoder", "zoom", "geolocate", "minimap", "scale"],
     "initialState": {
@@ -50,7 +50,8 @@
       "basemapSourceA": "dura-w-05mm",
       "basemapPerView": false,
       "showContoursAndGraticules": false,
-      "showSlopeAndMore": false,
+      "showTerrainAnalysis": false,
+      "showReliefVisualization": false,
       "showHillshade": true,
       "showColorRelief": false,
       "showRasterBasemap": true,

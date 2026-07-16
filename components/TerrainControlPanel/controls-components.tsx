@@ -130,6 +130,21 @@ export const Section: React.FC<{
   )
 }
 
+// ─── MacroSeparator ────────────────────────────────────────────────────────────
+// A bolder, higher-contrast divider dropped between macro groups of sections
+// (Sources / Options / Tools, etc) — every Section already renders its own thin
+// Separator after itself, so this is an extra, more visible line layered on top
+// of that rhythm specifically at the handful of spots that mark a bigger jump.
+// Which Section ends up immediately before a MacroSeparator varies at runtime
+// (many sections conditionally render nothing), so rather than threading a
+// "the section before me is skipped" computation through every optional
+// section, a plain sibling-based CSS rule (see index.css) hides whichever
+// ordinary Separator ends up directly adjacent to one of these — regardless
+// of which section that turns out to be.
+export const MacroSeparator: React.FC = () => (
+  <Separator className="macro-separator data-[orientation=horizontal]:h-[2px] bg-foreground/20 rounded-full" />
+)
+
 // ─── SliderControl ────────────────────────────────────────────────────────────
 
 export const SliderControl: React.FC<{

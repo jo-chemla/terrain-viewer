@@ -17,7 +17,7 @@ const DEFAULTS = {
   tpiSymmetric: true,
 }
 
-// Fields-only (no Section wrapper/gate) — embedded inside SlopeAndMoreOptionsSection,
+// Fields-only (no Section wrapper/gate) — embedded inside TerrainAnalysisOptionsSection,
 // which owns the "TPI" checkbox that conditionally renders this block underneath it.
 export const TpiFields: React.FC<{
   state: any; setState: (updates: any) => void

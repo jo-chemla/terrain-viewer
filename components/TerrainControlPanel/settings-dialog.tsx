@@ -134,6 +134,14 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </div>
           </div>
           <Separator />
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Keyboard Shortcuts</h3>
+            <div className="space-y-1.5 text-xs text-muted-foreground">
+              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Shift</kbd> <span className="mx-1">(tap alone, either side)</span> — toggle the Raster Basemap on/off, without opening the sidebar.</div>
+              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Space</kbd> — re-toggle whichever visualization-mode checkbox you last clicked, even after a map drag has moved keyboard focus onto the map canvas.</div>
+            </div>
+          </div>
+          <Separator />
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">API Keys</h3>
@@ -299,12 +307,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
               <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
               <div>
-                <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change — Profile, Plan/Divergence, Det Hessian or Combined</div>
+                <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change — Profile, Plan, Mean/Combined, or Gaussian (Det Hessian)</div>
                 <ul className="list-disc pl-5 pt-1 space-y-1">
-                  <li><span className="font-medium text-foreground">Profile:</span> rate of slope change along the steepest-descent direction, affects flow acceleration</li>
-                  <li><span className="font-medium text-foreground">Plan (Divergence):</span> rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)</li>
-                  <li><span className="font-medium text-foreground">Det Hessian:</span> determinant of the Hessian (fxx·fyy − fxy²) — a blob/saddle detector, positive at bowl/dome-shaped extrema and negative at saddle points</li>
-                  <li><span className="font-medium text-foreground">Combined:</span> discrete Laplacian (∇²z) — general surface bending that doesn't separate flow direction from contour direction</li>
+                  <li><span className="font-medium text-foreground">Profile (Flow Acceleration):</span> rate of slope change along the steepest-descent direction, affects flow acceleration</li>
+                  <li><span className="font-medium text-foreground">Plan (Convergence/Divergence):</span> rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)</li>
+                  <li><span className="font-medium text-foreground">Mean/Combined:</span> discrete Laplacian (∇²z) — mean curvature H = (κ₁+κ₂)/2, general surface bending that doesn't separate flow direction from contour direction</li>
+                  <li><span className="font-medium text-foreground">Gaussian Curvature (Det Hessian):</span> determinant of the Hessian (fxx·fyy − fxy²) — Gaussian curvature K = κ₁·κ₂, a blob/saddle detector, positive at bowl/dome-shaped extrema and negative at saddle points</li>
                 </ul>
               </div>
               <div><span className="font-semibold text-foreground">TRI (Terrain Ruggedness Index):</span> mean elevation difference to neighbors</div>

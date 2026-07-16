@@ -25,7 +25,8 @@ export const DownloadSection: React.FC<{
   mapRef: React.RefObject<MapRef>
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange }) => {
+  withSeparator?: boolean
+}> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange, withSeparator }) => {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [maxResolution, setMaxResolution] = useAtom(maxResolutionAtom)
   const [useClientExport] = useAtom(useClientExportAtom)
@@ -226,7 +227,7 @@ export const DownloadSection: React.FC<{
   }, [mapRef])
 
   return (
-    <Section title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
       <div className="space-y-2">
         <div className="flex gap-2">
           <TooltipButton

@@ -16,7 +16,7 @@ const DEFAULTS = {
   slopeInvertColorRamp: false,
 }
 
-// Fields-only (no Section wrapper/gate) — embedded inside SlopeAndMoreOptionsSection,
+// Fields-only (no Section wrapper/gate) — embedded inside TerrainAnalysisOptionsSection,
 // which owns the "Slope" checkbox that conditionally renders this block underneath it.
 export const SlopeFields: React.FC<{
   state: any; setState: (updates: any) => void

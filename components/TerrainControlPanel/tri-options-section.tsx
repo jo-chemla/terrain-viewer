@@ -16,7 +16,7 @@ const DEFAULTS = {
   triInvertColorRamp: false,
 }
 
-// Fields-only (no Section wrapper/gate) — embedded inside SlopeAndMoreOptionsSection,
+// Fields-only (no Section wrapper/gate) — embedded inside TerrainAnalysisOptionsSection,
 // which owns the "Terrain Ruggedness" checkbox that conditionally renders this block
 // underneath it.
 export const TriFields: React.FC<{

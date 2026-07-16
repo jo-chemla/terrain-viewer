@@ -302,3 +302,13 @@
 .elevation-picker-active .maplibregl-canvas {
   cursor: crosshair !important;
 }
+
+/* Control panel: whichever Section happens to render last before a bold
+   MacroSeparator (see controls-components.tsx) would otherwise show its own
+   ordinary thin separator right on top of it — which section that is varies
+   at runtime since most are conditionally rendered. Hiding it via adjacency
+   instead of threading a "the section after me is present" flag through
+   every optional section keeps this correct regardless of which one it is. */
+[data-slot="separator"]:has(+ .macro-separator) {
+  display: none;
+}

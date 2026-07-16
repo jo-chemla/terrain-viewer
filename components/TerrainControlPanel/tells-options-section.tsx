@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
 import { radiusToLevels } from "@/lib/lrm-protocol"
+import { TELLS_MEASURED_SCALE_MULTIPLIER } from "@/components/LayersAndSources/MapLayers"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { SliderControl, MobileSlider, DraftBoundInput } from "./controls-components"
 
@@ -166,9 +167,15 @@ export const TellsFields: React.FC<{
               onCheckedChange={(checked) => setState({ tellsScaleMarkers: checked === true })}
             />
             <Label htmlFor="tells-scale-markers" className="text-sm cursor-pointer">
-              Size markers to 8× the measured scale
+              Size markers to {TELLS_MEASURED_SCALE_MULTIPLIER}× the measured scale
             </Label>
           </div>
+        )}
+        {state.tellMeasureScale === true && state.tellsScaleMarkers === true && (
+          <p className="text-xs text-muted-foreground pl-6">
+            Drawn at {TELLS_MEASURED_SCALE_MULTIPLIER}× the mound's real diameter — true-to-scale markers
+            are usually too small to see or click at normal zoom levels.
+          </p>
         )}
       </div>
 

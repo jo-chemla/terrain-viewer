@@ -17,19 +17,21 @@ import { DownloadSection } from "./download-section"
 import { VisualizationModesSection } from "./visualization-modes-section"
 import { HillshadeOptionsSection } from "./hillshade-options-section"
 import { HypsometricTintOptionsSection } from "./hypsometric-tint-options-section"
-import { SlopeAndMoreOptionsSection } from "./slope-and-more-section"
+import { TerrainAnalysisOptionsSection } from "./terrain-analysis-section"
+import { ReliefVisualizationOptionsSection } from "./relief-visualization-section"
 import { DetectorMoundsSection } from "./detector-mounds-section"
 import { RasterBasemapSection } from "./raster-basemap-section"
 import { ContourOptionsSection } from "./contour-options-section"
 import { BackgroundOptionsSection } from "./background-options-section"
 import { FooterSection } from "./footer-section"
-import { TooltipIconButton } from "./controls-components"
+import { TooltipIconButton, MacroSeparator } from "./controls-components"
 
 import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
 import {AnimationSection} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
+import { useShiftTapToggle } from '@/lib/use-shift-tap-toggle'
 import { cn } from "@/lib/utils"
 
 // --- Persisted state ---
@@ -42,7 +44,8 @@ const SECTION_KEYS = [
   "visualizationModes",
   "hillshade",
   "hypsometricTint",
-  "slopeAndMore",
+  "terrainAnalysis",
+  "reliefVisualization",
   "tellsDetector",
   "rasterBasemap",
   "contour",
@@ -62,7 +65,8 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   terrainSource: false,
   hillshade: false,
   hypsometricTint: false,
-  slopeAndMore: false,
+  terrainAnalysis: false,
+  reliefVisualization: false,
   tellsDetector: false,
   rasterBasemap: false,
   contour: false,
@@ -106,6 +110,12 @@ export function TerrainControlPanel({
   // Space re-toggles the last-clicked viz-mode checkbox even after a map drag
   // steals focus onto the maplibre canvas (wheel-zoom never did) — see the hook.
   useSpaceToggleContext()
+  // Tapping either Shift key alone toggles the raster basemap — a quick way
+  // to peek at (or hide) satellite/street imagery under whatever terrain
+  // visualization is active without reaching for the sidebar. (Alt was tried
+  // first but the browser's own Alt-alone menu-bar-focus behavior conflicts
+  // with it.)
+  useShiftTapToggle(() => setState({ showRasterBasemap: !state.showRasterBasemap }))
   const [activeSlider] = useAtom(activeSliderAtom)
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
 
@@ -290,28 +300,40 @@ export function TerrainControlPanel({
 
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
         <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
-        <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} />
+        <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} withSeparator={false} />
+        <MacroSeparator />
         {!hideSourcePanels && (
           <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
         )}
         {!hideSourcePanels && (
-          <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} />
+          <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
         )}
+        <MacroSeparator />
         {!hiddenSections.includes("contour") && (
           <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
         )}
         <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
         <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
-        {!hiddenSections.includes("slopeAndMore") && (
-          <SlopeAndMoreOptionsSection
+        {!hiddenSections.includes("reliefVisualization") && (
+          <ReliefVisualizationOptionsSection
             state={state}
             setState={setState}
-            isOpen={sectionOpen.slopeAndMore}
-            onOpenChange={toggle("slopeAndMore")}
+            isOpen={sectionOpen.reliefVisualization}
+            onOpenChange={toggle("reliefVisualization")}
             terrainTileSize={getSourceConfig(state.sourceA)?.tileSize ?? 256}
           />
         )}
-        {!hiddenSections.includes("slopeAndMore") && (
+        {!hiddenSections.includes("terrainAnalysis") && (
+          <TerrainAnalysisOptionsSection
+            state={state}
+            setState={setState}
+            isOpen={sectionOpen.terrainAnalysis}
+            onOpenChange={toggle("terrainAnalysis")}
+            withSeparator={!state.tellsBeta}
+          />
+        )}
+        {!hiddenSections.includes("terrainAnalysis") && state.tellsBeta && <MacroSeparator />}
+        {!hiddenSections.includes("terrainAnalysis") && (
           <DetectorMoundsSection
             state={state}
             setState={setState}
@@ -321,7 +343,9 @@ export function TerrainControlPanel({
             mapRef={mapRef}
           />
         )}
+        {!hiddenSections.includes("terrainAnalysis") && state.tellsBeta && <MacroSeparator />}
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
+        <MacroSeparator />
         <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
         {!hiddenSections.includes("elevationPicker") && (
           <ElevationPickerSection state={state} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
@@ -334,6 +358,7 @@ export function TerrainControlPanel({
           setAppState={setAppState}
           setAppStateSafe={setAppState}
         />
+        <MacroSeparator />
         <FooterSection />
       </Card>
       </div>

@@ -22,7 +22,7 @@ const DEFAULTS = {
   svfRadius: 8,
 }
 
-// Fields-only (no Section wrapper/gate) — embedded inside SlopeAndMoreOptionsSection,
+// Fields-only (no Section wrapper/gate) — embedded inside ReliefVisualizationOptionsSection,
 // which owns the "Sky View Factor" checkbox that conditionally renders this block
 // underneath it.
 export const SvfFields: React.FC<{

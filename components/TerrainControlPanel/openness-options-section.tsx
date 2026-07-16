@@ -26,7 +26,7 @@ const DEFAULTS = {
   opennessRadius: 8,
 }
 
-// Fields-only (no Section wrapper/gate) — embedded inside SlopeAndMoreOptionsSection,
+// Fields-only (no Section wrapper/gate) — embedded inside ReliefVisualizationOptionsSection,
 // which owns the "Openness" checkbox that conditionally renders this block underneath
 // it. Structurally the LRM options block (radius + diverging symmetric range) plus a
 // Curvature-style mode selector, since Openness combines both: a configurable search

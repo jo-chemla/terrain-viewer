@@ -19,9 +19,9 @@ const TELLS_STYLE_OPTIONS = [
 const TELLS_STYLE_KEYS = TELLS_STYLE_OPTIONS.map(({ value }) => value)
 
 // Standalone panel for the experimental archaeological mound detector — split out
-// of SlopeAndMoreOptionsSection (which it used to live inside of as a sub-mode)
-// since it isn't a terrain-derivative visualization like the others in that
-// section, but its own detector with a distinct settings surface (size, veto
+// of what's now TerrainAnalysisOptionsSection (which it used to live inside of as
+// a sub-mode) since it isn't a terrain-derivative visualization like the others in
+// that section, but its own detector with a distinct settings surface (size, veto
 // thresholds, resolution, export). Gated behind state.tellsBeta (a nuqs param,
 // so a project/embed URL can turn it on directly) — renders nothing at all
 // unless that beta flag is on.
@@ -58,7 +58,7 @@ export const DetectorMoundsSection: React.FC<{
   const displayedStyle = isShown ? state.tellsStyle : lastVisibleTellsStyle.current
 
   return (
-    <Section title="Detector: Mound Candidates" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Detector: Mound Candidates" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={false}>
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Checkbox

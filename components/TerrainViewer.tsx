@@ -161,14 +161,20 @@ export function TerrainViewer() {
     hillshadeOpacity: parseAsFloat.withDefault(1.0),
     showColorRelief: parseAsBoolean.withDefault(false),
     colorReliefOpacity: parseAsFloat.withDefault(0.35),
-    // Master toggle for the merged "Slope and More" viz mode (see
-    // slope-and-more-section.tsx) — mirrors showContoursAndGraticules. Slope is the
-    // only sub-mode on by default; aspect/TRI/curvature default off, matching the
-    // old standalone-Slope-toggle behavior the first time this is turned on.
-    showSlopeAndMore: parseAsBoolean.withDefault(false),
-    // Master opacity for the whole "Slope and More" viz mode — composites (multiplies)
-    // with each sub-mode's own opacity below, rather than replacing it.
-    slopeAndMoreOpacity: parseAsFloat.withDefault(1.0),
+    // Master toggles for what used to be one merged "Slope and More" viz mode,
+    // now split into Terrain Analysis (surface derivatives + neighborhood
+    // statistics: Slope/Aspect/Curvature/Det Hessian/Blobness/TPI/TRI/Roughness —
+    // see terrain-analysis-section.tsx) and Relief Visualization (multi-scale
+    // relief/visibility: LRM/SVF/Openness — see relief-visualization-section.tsx).
+    // Each mirrors showContoursAndGraticules's master-toggle pattern. Slope is the
+    // only Terrain Analysis sub-mode on by default; the rest default off, matching
+    // the old standalone-Slope-toggle behavior the first time this is turned on.
+    showTerrainAnalysis: parseAsBoolean.withDefault(false),
+    // Master opacity for Terrain Analysis — composites (multiplies) with each
+    // sub-mode's own opacity below, rather than replacing it.
+    terrainAnalysisOpacity: parseAsFloat.withDefault(1.0),
+    showReliefVisualization: parseAsBoolean.withDefault(false),
+    reliefVisualizationOpacity: parseAsFloat.withDefault(1.0),
     showSlope: parseAsBoolean.withDefault(true),
     slopeOpacity: parseAsFloat.withDefault(1.0),
     slopeColorRamp: parseAsString.withDefault("slope-plantopo"),
@@ -246,14 +252,14 @@ export function TerrainViewer() {
     tellsOutlineColor: parseAsColor().withDefault("#ef4444"),
     // Only meaningful with tellMeasureScale on: draw each marker at 4x its
     // measured diameter (real-world meters, zoom-scaled) instead of fixed px.
-    tellsScaleMarkers: parseAsBoolean.withDefault(false),
+    tellsScaleMarkers: parseAsBoolean.withDefault(true),
     tellSize: parseAsFloat.withDefault(100),
     tellRadius: parseAsFloat.withDefault(4),
     tellMinRelief: parseAsFloat.withDefault(1.5),
     tellBlobnessMin: parseAsFloat.withDefault(0),
     tellPlanMin: parseAsFloat.withDefault(0),
     tellDetHessianMin: parseAsFloat.withDefault(0),
-    tellMeasureScale: parseAsBoolean.withDefault(false),
+    tellMeasureScale: parseAsBoolean.withDefault(true),
     tellVetoResolution: parseAsStringLiteral(TELL_VETO_RESOLUTIONS).withDefault("coarse"),
     showContoursAndGraticules: parseAsBoolean.withDefault(false),
     showContours: parseAsBoolean.withDefault(true),
@@ -343,7 +349,7 @@ export function TerrainViewer() {
   // color-relief layer doesn't care whether "elevation" means meters or slope degrees —
   // just fed its own (differently-named) state fields, always remapped to its own min/max
   // range since a 0-8000m elevation ramp's stops would be meaningless applied verbatim to
-  // a 0-55° slope domain. Opacity composites (multiplies) with the "Slope and More"
+  // a 0-55° slope domain. Opacity composites (multiplies) with the "Terrain Analysis"
   // master opacity rather than replacing it — see VisualizationModesSection.
   const slopeReliefPaint = useMemo(
     () => computeColorReliefPaint({
@@ -351,10 +357,10 @@ export function TerrainViewer() {
       customHypsoMinMax: true,
       minElevation: state.slopeMinDegrees,
       maxElevation: state.slopeMaxDegrees,
-      colorReliefOpacity: state.slopeOpacity * state.slopeAndMoreOpacity,
+      colorReliefOpacity: state.slopeOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.slopeInvertColorRamp,
     }),
-    [ state.slopeColorRamp, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.slopeAndMoreOpacity, state.slopeInvertColorRamp ]
+    [ state.slopeColorRamp, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.terrainAnalysisOpacity, state.slopeInvertColorRamp ]
   )
 
   // Aspect/TRI/curvature: same trick as slope above, just with their own state fields.
@@ -364,10 +370,10 @@ export function TerrainViewer() {
       customHypsoMinMax: true,
       minElevation: state.aspectMinDegrees,
       maxElevation: state.aspectMaxDegrees,
-      colorReliefOpacity: state.aspectOpacity * state.slopeAndMoreOpacity,
+      colorReliefOpacity: state.aspectOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.aspectInvertColorRamp,
     }),
-    [ state.aspectColorRamp, state.aspectMinDegrees, state.aspectMaxDegrees, state.aspectOpacity, state.slopeAndMoreOpacity, state.aspectInvertColorRamp ]
+    [ state.aspectColorRamp, state.aspectMinDegrees, state.aspectMaxDegrees, state.aspectOpacity, state.terrainAnalysisOpacity, state.aspectInvertColorRamp ]
   )
 
   const triReliefPaint = useMemo(
@@ -376,10 +382,10 @@ export function TerrainViewer() {
       customHypsoMinMax: true,
       minElevation: state.triMin,
       maxElevation: state.triMax,
-      colorReliefOpacity: state.triOpacity * state.slopeAndMoreOpacity,
+      colorReliefOpacity: state.triOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.triInvertColorRamp,
     }),
-    [ state.triColorRamp, state.triMin, state.triMax, state.triOpacity, state.slopeAndMoreOpacity, state.triInvertColorRamp ]
+    [ state.triColorRamp, state.triMin, state.triMax, state.triOpacity, state.terrainAnalysisOpacity, state.triInvertColorRamp ]
   )
 
   const curvatureReliefPaint = useMemo(
@@ -388,10 +394,10 @@ export function TerrainViewer() {
       customHypsoMinMax: true,
       minElevation: state.curvatureMin,
       maxElevation: state.curvatureMax,
-      colorReliefOpacity: state.curvatureOpacity * state.slopeAndMoreOpacity,
+      colorReliefOpacity: state.curvatureOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.curvatureInvertColorRamp,
     }),
-    [ state.curvatureColorRamp, state.curvatureMin, state.curvatureMax, state.curvatureOpacity, state.slopeAndMoreOpacity, state.curvatureInvertColorRamp ]
+    [ state.curvatureColorRamp, state.curvatureMin, state.curvatureMax, state.curvatureOpacity, state.terrainAnalysisOpacity, state.curvatureInvertColorRamp ]
   )
 
   const tpiReliefPaint = useMemo(
@@ -400,10 +406,10 @@ export function TerrainViewer() {
       customHypsoMinMax: true,
       minElevation: state.tpiMin,
       maxElevation: state.tpiMax,
-      colorReliefOpacity: state.tpiOpacity * state.slopeAndMoreOpacity,
+      colorReliefOpacity: state.tpiOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.tpiInvertColorRamp,
     }),
-    [ state.tpiColorRamp, state.tpiMin, state.tpiMax, state.tpiOpacity, state.slopeAndMoreOpacity, state.tpiInvertColorRamp ]
+    [ state.tpiColorRamp, state.tpiMin, state.tpiMax, state.tpiOpacity, state.terrainAnalysisOpacity, state.tpiInvertColorRamp ]
   )
 
   const lrmReliefPaint = useMemo(
@@ -412,10 +418,10 @@ export function TerrainViewer() {
       customHypsoMinMax: true,
       minElevation: state.lrmMin,
       maxElevation: state.lrmMax,
-      colorReliefOpacity: state.lrmOpacity * state.slopeAndMoreOpacity,
+      colorReliefOpacity: state.lrmOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.lrmInvertColorRamp,
     }),
-    [ state.lrmColorRamp, state.lrmMin, state.lrmMax, state.lrmOpacity, state.slopeAndMoreOpacity, state.lrmInvertColorRamp ]
+    [ state.lrmColorRamp, state.lrmMin, state.lrmMax, state.lrmOpacity, state.reliefVisualizationOpacity, state.lrmInvertColorRamp ]
   )
 
   const roughnessReliefPaint = useMemo(
@@ -424,10 +430,10 @@ export function TerrainViewer() {
       customHypsoMinMax: true,
       minElevation: state.roughnessMin,
       maxElevation: state.roughnessMax,
-      colorReliefOpacity: state.roughnessOpacity * state.slopeAndMoreOpacity,
+      colorReliefOpacity: state.roughnessOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.roughnessInvertColorRamp,
     }),
-    [ state.roughnessColorRamp, state.roughnessMin, state.roughnessMax, state.roughnessOpacity, state.slopeAndMoreOpacity, state.roughnessInvertColorRamp ]
+    [ state.roughnessColorRamp, state.roughnessMin, state.roughnessMax, state.roughnessOpacity, state.terrainAnalysisOpacity, state.roughnessInvertColorRamp ]
   )
 
   const blobnessReliefPaint = useMemo(
@@ -436,10 +442,10 @@ export function TerrainViewer() {
       customHypsoMinMax: true,
       minElevation: state.blobnessMin,
       maxElevation: state.blobnessMax,
-      colorReliefOpacity: state.blobnessOpacity * state.slopeAndMoreOpacity,
+      colorReliefOpacity: state.blobnessOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.blobnessInvertColorRamp,
     }),
-    [ state.blobnessColorRamp, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.slopeAndMoreOpacity, state.blobnessInvertColorRamp ]
+    [ state.blobnessColorRamp, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.terrainAnalysisOpacity, state.blobnessInvertColorRamp ]
   )
 
   const svfReliefPaint = useMemo(
@@ -448,10 +454,10 @@ export function TerrainViewer() {
       customHypsoMinMax: true,
       minElevation: state.svfMin,
       maxElevation: state.svfMax,
-      colorReliefOpacity: state.svfOpacity * state.slopeAndMoreOpacity,
+      colorReliefOpacity: state.svfOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.svfInvertColorRamp,
     }),
-    [ state.svfColorRamp, state.svfMin, state.svfMax, state.svfOpacity, state.slopeAndMoreOpacity, state.svfInvertColorRamp ]
+    [ state.svfColorRamp, state.svfMin, state.svfMax, state.svfOpacity, state.reliefVisualizationOpacity, state.svfInvertColorRamp ]
   )
 
   const opennessReliefPaint = useMemo(
@@ -460,10 +466,10 @@ export function TerrainViewer() {
       customHypsoMinMax: true,
       minElevation: state.opennessMin,
       maxElevation: state.opennessMax,
-      colorReliefOpacity: state.opennessOpacity * state.slopeAndMoreOpacity,
+      colorReliefOpacity: state.opennessOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.opennessInvertColorRamp,
     }),
-    [ state.opennessColorRamp, state.opennessMin, state.opennessMax, state.opennessOpacity, state.slopeAndMoreOpacity, state.opennessInvertColorRamp ]
+    [ state.opennessColorRamp, state.opennessMin, state.opennessMax, state.opennessOpacity, state.reliefVisualizationOpacity, state.opennessInvertColorRamp ]
   )
 
   // circle-color expressions for the tells color-by marker styles, built from
@@ -1140,13 +1146,15 @@ export function TerrainViewer() {
               titilerEndpoint={titilerEndpoint}
             />
           )}
-          {/* Mounted whenever the "Slope and More" master is on — regardless of which
+          {/* Mounted whenever their group's master is on — regardless of which
               specific sub-mode checkbox is checked — so toggling an individual
               sub-mode off and back on doesn't tear down maplibre's tile cache for it.
               SlopeReliefLayer etc (below) control per-mode visibility via
-              layout.visibility instead of unmounting, for the same reason. */}
+              layout.visibility instead of unmounting, for the same reason. Slope/
+              Aspect/TRI/Curvature/Det Hessian/TPI/Roughness/Blobness gate on
+              showTerrainAnalysis; LRM/SVF/Openness gate on showReliefVisualization. */}
           <SlopeSource
-            enabled={state.showSlopeAndMore}
+            enabled={state.showTerrainAnalysis}
             sourceMode={state.slopeSourceMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
@@ -1155,7 +1163,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <AspectSource
-            enabled={state.showSlopeAndMore}
+            enabled={state.showTerrainAnalysis}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -1163,7 +1171,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <TriSource
-            enabled={state.showSlopeAndMore}
+            enabled={state.showTerrainAnalysis}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -1171,7 +1179,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <CurvatureSource
-            enabled={state.showSlopeAndMore}
+            enabled={state.showTerrainAnalysis}
             mode={state.curvatureMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
@@ -1180,7 +1188,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <TpiSource
-            enabled={state.showSlopeAndMore}
+            enabled={state.showTerrainAnalysis}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -1188,7 +1196,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <LrmSource
-            enabled={state.showSlopeAndMore}
+            enabled={state.showReliefVisualization}
             radius={state.lrmRadius}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
@@ -1197,7 +1205,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <RoughnessSource
-            enabled={state.showSlopeAndMore}
+            enabled={state.showTerrainAnalysis}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -1205,7 +1213,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <BlobnessSource
-            enabled={state.showSlopeAndMore}
+            enabled={state.showTerrainAnalysis}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -1213,7 +1221,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <SvfSource
-            enabled={state.showSlopeAndMore}
+            enabled={state.showReliefVisualization}
             radius={state.svfRadius}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
@@ -1222,7 +1230,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <OpennessSource
-            enabled={state.showSlopeAndMore}
+            enabled={state.showReliefVisualization}
             radius={state.opennessRadius}
             mode={state.opennessMode}
             terrainSource={source}
@@ -1272,16 +1280,16 @@ export function TerrainViewer() {
             showColorRelief={state.showColorRelief}
             colorReliefPaint={colorReliefPaint}
           />
-          <SlopeReliefLayer showSlopeAndMore={state.showSlopeAndMore} showSlope={state.showSlope} slopeReliefPaint={slopeReliefPaint} />
-          <AspectReliefLayer showSlopeAndMore={state.showSlopeAndMore} showAspect={state.showAspect} aspectReliefPaint={aspectReliefPaint} />
-          <TriReliefLayer showSlopeAndMore={state.showSlopeAndMore} showTri={state.showTri} triReliefPaint={triReliefPaint} />
-          <CurvatureReliefLayer showSlopeAndMore={state.showSlopeAndMore} showCurvature={state.showCurvature} curvatureReliefPaint={curvatureReliefPaint} />
-          <TpiReliefLayer showSlopeAndMore={state.showSlopeAndMore} showTpi={state.showTpi} tpiReliefPaint={tpiReliefPaint} />
-          <LrmReliefLayer showSlopeAndMore={state.showSlopeAndMore} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
-          <RoughnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
-          <BlobnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
-          <SvfReliefLayer showSlopeAndMore={state.showSlopeAndMore} showSvf={state.showSvf} svfReliefPaint={svfReliefPaint} />
-          <OpennessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showOpenness={state.showOpenness} opennessReliefPaint={opennessReliefPaint} />
+          <SlopeReliefLayer enabled={state.showTerrainAnalysis} showSlope={state.showSlope} slopeReliefPaint={slopeReliefPaint} />
+          <AspectReliefLayer enabled={state.showTerrainAnalysis} showAspect={state.showAspect} aspectReliefPaint={aspectReliefPaint} />
+          <TriReliefLayer enabled={state.showTerrainAnalysis} showTri={state.showTri} triReliefPaint={triReliefPaint} />
+          <CurvatureReliefLayer enabled={state.showTerrainAnalysis} showCurvature={state.showCurvature} curvatureReliefPaint={curvatureReliefPaint} />
+          <TpiReliefLayer enabled={state.showTerrainAnalysis} showTpi={state.showTpi} tpiReliefPaint={tpiReliefPaint} />
+          <LrmReliefLayer enabled={state.showReliefVisualization} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
+          <RoughnessReliefLayer enabled={state.showTerrainAnalysis} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
+          <BlobnessReliefLayer enabled={state.showTerrainAnalysis} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
+          <SvfReliefLayer enabled={state.showReliefVisualization} showSvf={state.showSvf} svfReliefPaint={svfReliefPaint} />
+          <OpennessReliefLayer enabled={state.showReliefVisualization} showOpenness={state.showOpenness} opennessReliefPaint={opennessReliefPaint} />
           {isPrimary && (
             <TellsMarkersLayer
               enabled={state.tellsBeta}
@@ -1370,6 +1378,10 @@ export function TerrainViewer() {
                 <GeolocateControl position="top-left" />
               )}
 
+              {!activeProjectConfig?.hideMapControls?.includes("scale") && (
+                <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
+              )}
+
               {/* Minimap — no parentMap prop: it picks up the parent map via react-map-gl's
                   useMap() context, which is available as soon as the Map mounts rather than
                   waiting for mapALoaded (the 'load' event). Gating on mapALoaded needlessly
@@ -1434,10 +1446,6 @@ export function TerrainViewer() {
                 />
               )}
 
-              {!activeProjectConfig?.hideMapControls?.includes("scale") && (
-                <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
-              )}
-
             </>
           )}
         </Map>
@@ -1447,7 +1455,7 @@ export function TerrainViewer() {
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
       state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB, state.overlayBasemapIds,
       state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity, state.showHillshade,
-      state.showColorRelief, state.showSlopeAndMore, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
+      state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
       state.showSvf, state.svfRadius, state.showOpenness, state.opennessRadius, state.opennessMode,
       // tellsBeta/tellsEverActivated gate the tells layer+source mounts: leaving

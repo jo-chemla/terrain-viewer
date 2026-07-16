@@ -520,17 +520,19 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
             const newFeatures = parseFeatures(raw)
             if (newFeatures.length === 0) return
 
+            // Accumulate on top of whatever's already drawn/imported instead of
+            // wiping it — importing a second file (or re-importing after a manual
+            // edit) used to draw.clear() first, silently discarding prior features.
             if (draw) {
                 try {
-                    draw.clear()
                     draw.addFeatures(newFeatures)
-                    setFeatures(newFeatures)
+                    setFeatures((prev) => [...prev, ...newFeatures])
                 } catch (err) {
                     console.error('Error adding features:', err)
-                    setFeatures(newFeatures)
+                    setFeatures((prev) => [...prev, ...newFeatures])
                 }
             } else {
-                setFeatures(newFeatures)
+                setFeatures((prev) => [...prev, ...newFeatures])
             }
 
             // Reset visibility & opacity on import

@@ -23,7 +23,8 @@ export const RasterBasemapSection: React.FC<{
   state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef>;
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, setState, mapRef, isOpen, onOpenChange }) => {
+  withSeparator?: boolean
+}> = ({ state, setState, mapRef, isOpen, onOpenChange, withSeparator }) => {
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
 
   const basemapSourceOptions = useMemo(() => [
@@ -42,7 +43,7 @@ export const RasterBasemapSection: React.FC<{
   if (!state.showRasterBasemap) return null
 
   return (
-    <Section title="Source: Basemap" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Source: Basemap" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <Label className="text-sm font-medium">Source</Label>

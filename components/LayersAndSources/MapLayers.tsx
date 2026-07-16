@@ -211,14 +211,15 @@ ColorReliefLayer.displayName = "ColorReliefLayer"
 // (same function the hypsometric tint above uses) — a color-relief layer's paint
 // doesn't care whether "elevation" means meters or degrees of slope, so the same
 // classic-ramp machinery works unchanged. See slope-options-section.tsx.
-// `showSlopeAndMore` (the master) gates mounting — matches SlopeSource in
-// MapSources.tsx, which only exists while the master is on, so this layer can't
-// reference a "slopeSource" that isn't there. `showSlope` (the sub-mode checkbox)
-// only toggles layout.visibility, not mounting — switching sub-modes on/off while
-// the master stays on keeps maplibre's tile cache warm instead of forcing a slow
-// re-fetch/re-decode the next time this sub-mode is re-checked.
-export const SlopeReliefLayer = memo(({ showSlopeAndMore, showSlope, slopeReliefPaint }: { showSlopeAndMore: boolean; showSlope: boolean; slopeReliefPaint: any }) => {
-  if (!showSlopeAndMore) return null
+// `enabled` (the group master — Terrain Analysis for this layer) gates
+// mounting — matches SlopeSource in MapSources.tsx, which only exists while
+// the master is on, so this layer can't reference a "slopeSource" that isn't
+// there. `showSlope` (the sub-mode checkbox) only toggles layout.visibility,
+// not mounting — switching sub-modes on/off while the master stays on keeps
+// maplibre's tile cache warm instead of forcing a slow re-fetch/re-decode the
+// next time this sub-mode is re-checked.
+export const SlopeReliefLayer = memo(({ enabled, showSlope, slopeReliefPaint }: { enabled: boolean; showSlope: boolean; slopeReliefPaint: any }) => {
+  if (!enabled) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.SLOPE}
@@ -236,8 +237,8 @@ SlopeReliefLayer.displayName = "SlopeReliefLayer"
 // Same color-relief-over-a-reinterpreted-DEM trick as SlopeReliefLayer above, one
 // per normal-derived attribute (see AspectSource/TriSource/CurvatureSource in
 // MapSources.tsx for how each source gets its values).
-export const AspectReliefLayer = memo(({ showSlopeAndMore, showAspect, aspectReliefPaint }: { showSlopeAndMore: boolean; showAspect: boolean; aspectReliefPaint: any }) => {
-  if (!showSlopeAndMore) return null
+export const AspectReliefLayer = memo(({ enabled, showAspect, aspectReliefPaint }: { enabled: boolean; showAspect: boolean; aspectReliefPaint: any }) => {
+  if (!enabled) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.ASPECT}
@@ -251,8 +252,8 @@ export const AspectReliefLayer = memo(({ showSlopeAndMore, showAspect, aspectRel
 })
 AspectReliefLayer.displayName = "AspectReliefLayer"
 
-export const TriReliefLayer = memo(({ showSlopeAndMore, showTri, triReliefPaint }: { showSlopeAndMore: boolean; showTri: boolean; triReliefPaint: any }) => {
-  if (!showSlopeAndMore) return null
+export const TriReliefLayer = memo(({ enabled, showTri, triReliefPaint }: { enabled: boolean; showTri: boolean; triReliefPaint: any }) => {
+  if (!enabled) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.TRI}
@@ -266,8 +267,8 @@ export const TriReliefLayer = memo(({ showSlopeAndMore, showTri, triReliefPaint 
 })
 TriReliefLayer.displayName = "TriReliefLayer"
 
-export const CurvatureReliefLayer = memo(({ showSlopeAndMore, showCurvature, curvatureReliefPaint }: { showSlopeAndMore: boolean; showCurvature: boolean; curvatureReliefPaint: any }) => {
-  if (!showSlopeAndMore) return null
+export const CurvatureReliefLayer = memo(({ enabled, showCurvature, curvatureReliefPaint }: { enabled: boolean; showCurvature: boolean; curvatureReliefPaint: any }) => {
+  if (!enabled) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.CURVATURE}
@@ -281,8 +282,8 @@ export const CurvatureReliefLayer = memo(({ showSlopeAndMore, showCurvature, cur
 })
 CurvatureReliefLayer.displayName = "CurvatureReliefLayer"
 
-export const TpiReliefLayer = memo(({ showSlopeAndMore, showTpi, tpiReliefPaint }: { showSlopeAndMore: boolean; showTpi: boolean; tpiReliefPaint: any }) => {
-  if (!showSlopeAndMore) return null
+export const TpiReliefLayer = memo(({ enabled, showTpi, tpiReliefPaint }: { enabled: boolean; showTpi: boolean; tpiReliefPaint: any }) => {
+  if (!enabled) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.TPI}
@@ -296,8 +297,8 @@ export const TpiReliefLayer = memo(({ showSlopeAndMore, showTpi, tpiReliefPaint 
 })
 TpiReliefLayer.displayName = "TpiReliefLayer"
 
-export const LrmReliefLayer = memo(({ showSlopeAndMore, showLrm, lrmReliefPaint }: { showSlopeAndMore: boolean; showLrm: boolean; lrmReliefPaint: any }) => {
-  if (!showSlopeAndMore) return null
+export const LrmReliefLayer = memo(({ enabled, showLrm, lrmReliefPaint }: { enabled: boolean; showLrm: boolean; lrmReliefPaint: any }) => {
+  if (!enabled) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.LRM}
@@ -311,8 +312,8 @@ export const LrmReliefLayer = memo(({ showSlopeAndMore, showLrm, lrmReliefPaint 
 })
 LrmReliefLayer.displayName = "LrmReliefLayer"
 
-export const RoughnessReliefLayer = memo(({ showSlopeAndMore, showRoughness, roughnessReliefPaint }: { showSlopeAndMore: boolean; showRoughness: boolean; roughnessReliefPaint: any }) => {
-  if (!showSlopeAndMore) return null
+export const RoughnessReliefLayer = memo(({ enabled, showRoughness, roughnessReliefPaint }: { enabled: boolean; showRoughness: boolean; roughnessReliefPaint: any }) => {
+  if (!enabled) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.ROUGHNESS}
@@ -326,8 +327,8 @@ export const RoughnessReliefLayer = memo(({ showSlopeAndMore, showRoughness, rou
 })
 RoughnessReliefLayer.displayName = "RoughnessReliefLayer"
 
-export const BlobnessReliefLayer = memo(({ showSlopeAndMore, showBlobness, blobnessReliefPaint }: { showSlopeAndMore: boolean; showBlobness: boolean; blobnessReliefPaint: any }) => {
-  if (!showSlopeAndMore) return null
+export const BlobnessReliefLayer = memo(({ enabled, showBlobness, blobnessReliefPaint }: { enabled: boolean; showBlobness: boolean; blobnessReliefPaint: any }) => {
+  if (!enabled) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.BLOBNESS}
@@ -341,8 +342,8 @@ export const BlobnessReliefLayer = memo(({ showSlopeAndMore, showBlobness, blobn
 })
 BlobnessReliefLayer.displayName = "BlobnessReliefLayer"
 
-export const SvfReliefLayer = memo(({ showSlopeAndMore, showSvf, svfReliefPaint }: { showSlopeAndMore: boolean; showSvf: boolean; svfReliefPaint: any }) => {
-  if (!showSlopeAndMore) return null
+export const SvfReliefLayer = memo(({ enabled, showSvf, svfReliefPaint }: { enabled: boolean; showSvf: boolean; svfReliefPaint: any }) => {
+  if (!enabled) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.SVF}
@@ -356,8 +357,8 @@ export const SvfReliefLayer = memo(({ showSlopeAndMore, showSvf, svfReliefPaint 
 })
 SvfReliefLayer.displayName = "SvfReliefLayer"
 
-export const OpennessReliefLayer = memo(({ showSlopeAndMore, showOpenness, opennessReliefPaint }: { showSlopeAndMore: boolean; showOpenness: boolean; opennessReliefPaint: any }) => {
-  if (!showSlopeAndMore) return null
+export const OpennessReliefLayer = memo(({ enabled, showOpenness, opennessReliefPaint }: { enabled: boolean; showOpenness: boolean; opennessReliefPaint: any }) => {
+  if (!enabled) return null
   return (
     <Layer
       beforeId={LAYER_SLOTS.OPENNESS}
@@ -375,7 +376,7 @@ OpennessReliefLayer.displayName = "OpennessReliefLayer"
 // Point features from the tells:// MVT source (see TellsSource in MapSources.tsx
 // and lib/tells-protocol.ts) — one marker per surviving candidate. `enabled` is
 // the mount gate (mirrors the Relief-layer master/per-mode split elsewhere in this
-// file: showSlopeAndMore && state.tellsBeta); `style` — including "hidden" — only
+// file: showTerrainAnalysis && state.tellsBeta); `style` — including "hidden" — only
 // ever toggles layout.visibility/paint, so cycling styles never unmounts this
 // Layer or the vector source underneath it, meaning hiding the markers can't
 // force maplibre to re-fetch/recompute tells:// tiles on reactivation.
@@ -394,17 +395,25 @@ const TELLS_CIRCLE_RADIUS_COLOR_BY = ["interpolate", ["linear"], ["zoom"], 10, 1
 // constant behind the measured-scale marker radius below.
 const MERCATOR_M_PER_PX_Z0 = 156543.03392
 
+// Drawn diameter = this many times the mound's real measured diameter — real
+// size alone renders as an unclickable speck at most zoom levels, so markers
+// are deliberately drawn oversized. Kept as one named constant so the exact
+// factor stays in sync between the paint expression and the UI copy that
+// states it (tells-options-section.tsx's "Size markers to Nx..." label).
+export const TELLS_MEASURED_SCALE_MULTIPLIER = 4
+
 /** Circle radius that tracks each candidate's measured real-world size: marker
- *  diameter = 8x the scaleM tag (the mound's half-max-ray-marched diameter in
- *  meters, see tells-protocol.ts), converted meters->screen px for the current
- *  latitude. The ["exponential", 2] zoom curve between z0 and z24 is exactly
- *  the 2^z factor of the Mercator ground-resolution formula, so the circle
- *  stays glued to the same ground footprint while zooming. Features without a
- *  scaleM tag (tiles computed before the measure option was enabled, or
- *  candidates whose rays all clipped) fall back to a 50m nominal diameter. */
+ *  diameter = TELLS_MEASURED_SCALE_MULTIPLIER x the scaleM tag (the mound's
+ *  half-max-ray-marched diameter in meters, see tells-protocol.ts), converted
+ *  meters->screen px for the current latitude. The ["exponential", 2] zoom
+ *  curve between z0 and z24 is exactly the 2^z factor of the Mercator
+ *  ground-resolution formula, so the circle stays glued to the same ground
+ *  footprint while zooming. Features without a scaleM tag (tiles computed
+ *  before the measure option was enabled, or candidates whose rays all
+ *  clipped) fall back to a 50m nominal diameter. */
 function tellsMeasuredScaleRadius(latDeg: number) {
   const mPerPxZ0 = MERCATOR_M_PER_PX_Z0 * Math.cos((latDeg * Math.PI) / 180)
-  const radiusM = ["*", ["coalesce", ["get", "scaleM"], 50], 8 / 2] // x8 style factor, diameter -> radius
+  const radiusM = ["*", ["coalesce", ["get", "scaleM"], 50], TELLS_MEASURED_SCALE_MULTIPLIER / 2] // diameter -> radius
   return [
     "interpolate", ["exponential", 2], ["zoom"],
     0, ["/", radiusM, mPerPxZ0],
@@ -503,7 +512,7 @@ TellsMarkersLayer.displayName = "TellsMarkersLayer"
 // tells-protocol.ts already computes per-candidate (see its `tags` object) but
 // which otherwise never leave the vector tile. Layer-scoped listeners are guarded
 // by an explicit getLayer() check rather than relying on maplibre's own delegated
-// binding, since TellsMarkersLayer only mounts once showSlopeAndMore/state.tellsBeta
+// binding, since TellsMarkersLayer only mounts once showTerrainAnalysis/state.tellsBeta
 // are both on and querying a not-yet-mounted layer throws rather than silently
 // no-op-ing. A "hidden" style still passes this guard (the layer stays mounted)
 // but layout.visibility:"none" makes queryRenderedFeatures return nothing anyway.

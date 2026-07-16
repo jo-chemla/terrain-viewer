@@ -24,7 +24,7 @@ const DEFAULTS = {
   lrmRadius: 16,
 }
 
-// Fields-only (no Section wrapper/gate) — embedded inside SlopeAndMoreOptionsSection,
+// Fields-only (no Section wrapper/gate) — embedded inside ReliefVisualizationOptionsSection,
 // which owns the "Local Relief Model" checkbox that conditionally renders this block
 // underneath it.
 export const LrmFields: React.FC<{

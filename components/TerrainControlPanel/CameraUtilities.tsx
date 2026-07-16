@@ -1129,7 +1129,7 @@ export function AnimationSection({
   appState, setAppState, setAppStateSafe,
 }: AnimationSectionProps) {
   return (
-    <Section title="Tools: Animation" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Tools: Animation" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={false}>
       <CameraButtons
         mapRef={mapRef}
         appState={appState}
