@@ -83,6 +83,24 @@ Most of these modes are supported by — and inspired by — `gdaldem` and the R
 - **Roughness**: max−min elevation in a neighborhood
 - **Blobness**: structure-tensor measure of how much the gradient direction varies across a small window (det/trace of the smoothed gradient outer-product matrix) — high at peaks, pits, saddles and knolls, near zero on a uniform slope or straight ridge/valley
 - **LRM (Local Relief Model)**: raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree
+- **Sky View Factor (SVF)**: fraction of the sky hemisphere visible from each point, from a ray-marched horizon angle in 8 directions — low in enclosed pits/canyons, high on open summits/ridges
+- **Openness**: mean angular distance from zenith to the horizon across the same 8 directions — reads above flat (90°) on ridges/summits (Positive mode) or in valleys/pits (Negative mode)
+
+#### How LRM is computed
+
+- **Fine layer**: the center tile's own per-pixel elevation at native zoom, decoded directly (no 3×3 neighbor fetch needed — unlike Slope/Curvature, LRM doesn't need a gradient).
+- **Coarse layer**: pick `k` (levels up the pyramid, exposed as the "Smoothing Radius" control via `k = round(log2(radiusPx))`), fetch the ancestor tile at `z-k` plus its 8 same-zoom neighbors, decode, and stitch into a padded elevation grid — the same 3×3-stitch logic the other neighborhood-based modes use, just parameterized to run at `z-k` instead of `z`.
+- **Bilinear upsample**: for each output pixel, map its full-res tile-pixel coordinate into the ancestor tile's fractional pixel coordinate (scale = `2^k`) and bilinearly sample the padded coarse grid — this is what avoids the "boxy" hard edges a naive nearest-neighbor pyramid lookup would give.
+- **Combine**: `LRM = fine[pixel] - bilinear(coarseGrid, mappedCoord)`, re-encoded via the standard terrain-rgb elevation encoding.
+
+#### Sky View Factor and Openness
+
+Visibility-analysis modes, both built on the same "horizon angle" ray march (see `lib/horizon-angle.ts`): march outward from each pixel in 8 compass directions up to a configurable "Search Radius" (same-zoom pixels), and in each direction find the steepest elevation angle to any point along the ray — the horizon angle in that direction.
+
+- **Sky View Factor (SVF)**: fraction of the sky hemisphere visible from a point (0 = fully enclosed, e.g. the bottom of a narrow pit; 1 = fully open, e.g. a summit) — the standard proxy for ambient/diffuse illumination in relief visualization (RVT's "Sky-View Factor" mode). Uses the common simplified estimator `SVF ≈ 1 - mean(sin(max(0, horizonAngle)))` across the 8 directions, scaled ×100.
+- **Openness** (Yokoyama, Merry & Pike, 2002): mean angular distance from zenith to the horizon across the 8 directions, using the *unclamped* (signed) horizon angle — unlike SVF, this isn't capped at "fully open": a summit with nothing higher anywhere nearby reads *above* 90°, a flat plain reads exactly 90°, and a valley/pit reads below 90°. **Positive** mode uses the terrain as-is (highlights ridges/summits); **Negative** mode computes the identical formula on the terrain flipped upside down (elevation × -1), which highlights enclosed valleys/pits the same way Positive highlights ridges. Displayed re-centered on 0 (subtracting the 90° flat-ground reference) to match the diverging-ramp convention TPI/LRM already use.
+
+Deliberately the *simplest* viable version of both — not the literature's full accuracy: fixed 8 directions (not RVT's usual 16-32), integer-pixel ray steps (no bilinear sampling along the ray), and SVF's simplified mean-of-sines estimator rather than a per-sector solid-angle-weighted integral. A later pass can raise direction count, switch to bilinear ray sampling, or adopt a more precise SVF integral without changing the overall approach.
 
 ### Tells (Mound Candidate) Detection — Beta
 

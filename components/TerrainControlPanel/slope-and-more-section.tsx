@@ -9,6 +9,8 @@ import { TpiFields } from "./tpi-options-section"
 import { LrmFields } from "./lrm-options-section"
 import { RoughnessFields } from "./roughness-options-section"
 import { BlobnessFields } from "./blobness-options-section"
+import { SvfFields } from "./svf-options-section"
+import { OpennessFields } from "./openness-options-section"
 
 // Merged panel for every normal-derived terrain visualization — same pattern as
 // ContourOptionsSection's "Contours & GeoGrid" (one master viz-mode checkbox in
@@ -141,6 +143,44 @@ export const SlopeAndMoreOptionsSection: React.FC<{
             onSliderChange={(value) => setState({ blobnessOpacity: value })}
           />
           {state.showBlobness && <BlobnessFields state={state} setState={setState} />}
+        </div>
+
+        <Separator />
+
+        {/* Visibility-analysis modes: Sky View Factor, Openness — both built on the
+            same "horizon angle in several directions" ray march (see
+            lib/horizon-angle.ts), a simplest-first pass (8 directions, integer-pixel
+            steps) rather than the literature's full anisotropic accuracy. Each pixel
+            costs ~8x the ray-march work of a fixed 3x3/5x5 mode, so a full tile can
+            take noticeably longer to compute than Slope/Curvature/Blobness — the
+            trailing hourglass and "Slow - " tooltip prefix flag that up front. The
+            computation itself no longer blocks the UI while it runs (see
+            YIELD_EVERY_ROWS in lib/normal-derived-protocol.ts), just takes a beat to
+            actually paint. */}
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="slope-and-more-svf"
+            label="Sky View Factor ⏳"
+            tooltip="Slow - Fraction of the sky hemisphere visible from each point — low in enclosed pits/canyons, high on open summits/ridges."
+            checked={state.showSvf}
+            onCheckedChange={(checked) => setState({ showSvf: checked })}
+            sliderValue={state.svfOpacity}
+            onSliderChange={(value) => setState({ svfOpacity: value })}
+          />
+          {state.showSvf && <SvfFields state={state} setState={setState} tileSize={terrainTileSize} />}
+        </div>
+
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="slope-and-more-openness"
+            label="Openness ⏳"
+            tooltip="Slow - Mean angular distance from zenith to the horizon across several directions — reads above flat (90°) on ridges/summits (Positive mode) or in valleys/pits (Negative mode)."
+            checked={state.showOpenness}
+            onCheckedChange={(checked) => setState({ showOpenness: checked })}
+            sliderValue={state.opennessOpacity}
+            onSliderChange={(value) => setState({ opennessOpacity: value })}
+          />
+          {state.showOpenness && <OpennessFields state={state} setState={setState} tileSize={terrainTileSize} />}
         </div>
       </div>
     </Section>

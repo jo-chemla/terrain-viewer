@@ -398,6 +398,20 @@ export interface RunWindowedProtocolParams {
   computeValue: (sample: (dr: number, dc: number) => number, groundResolutionM: number) => number
 }
 
+// Hands control back to the browser's main-thread event loop (a macrotask, not
+// just a microtask — a plain `await Promise.resolve()` wouldn't let a queued
+// click/input event run first). addProtocol handlers execute on the main
+// thread, not a worker, so a large enough halo (SVF/Openness's ray-marched
+// search radius, an order of magnitude more per-pixel work than every other
+// mode's fixed 3x3/5x5 window) can block the thread long enough that a
+// checkbox click sits queued behind the whole tile's computation instead of
+// registering immediately. Yielding every YIELD_EVERY_ROWS rows interleaves
+// this work with the rest of the event loop without changing its total cost.
+const YIELD_EVERY_ROWS = 16
+function yieldToMainThread(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 /** Same URL scheme and tile-fetch pipeline as runNormalDerivedProtocol, generalized
  *  to an arbitrary halo instead of always fetching/exposing a fixed 3x3 window. */
 export async function runWindowedProtocol(
@@ -426,6 +440,10 @@ export async function runWindowedProtocol(
 
   const outData = new Uint8ClampedArray(n * n * 4)
   for (let row = 0; row < n; row++) {
+    if (row > 0 && row % YIELD_EVERY_ROWS === 0) {
+      if (abortController.signal.aborted) throw new Error("Aborted")
+      await yieldToMainThread()
+    }
     const pr = row + halo
     for (let col = 0; col < n; col++) {
       const pc = col + halo

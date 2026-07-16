@@ -17,6 +17,8 @@ import { buildTpiProtocolUrl } from "@/lib/tpi-protocol"
 import { buildRoughnessProtocolUrl } from "@/lib/roughness-protocol"
 import { buildLrmProtocolUrl } from "@/lib/lrm-protocol"
 import { buildBlobnessProtocolUrl } from "@/lib/blobness-protocol"
+import { buildSvfProtocolUrl } from "@/lib/svf-protocol"
+import { buildOpennessProtocolUrl, type OpennessMode } from "@/lib/openness-protocol"
 import { buildTellsProtocolUrl, type TellsOptions } from "@/lib/tells-protocol"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
@@ -119,7 +121,17 @@ function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number;
     // only maxzoom downward while leaving an over-22 minzoom unclamped produced
     // an inverted minzoom > maxzoom range, which maplibre's setMinZoom/setMaxZoom
     // then rejected outright ("minZoom must be between -2 and the current maxZoom").
-    const clamp = (z: number) => Math.max(0, Math.min(MAX_SAFE_COG_ZOOM, Math.round(z)))
+    //
+    // maxzoom specifically floors rather than rounds: zoomFromResolution gives a
+    // fractional estimate (e.g. z13.7), and rounding that UP to 14 tells maplibre
+    // "this source has clean z14 detail" when the real native resolution is closer
+    // to z13 — the protocol then has to upsample past what the data actually
+    // supports at every z14 request, which shows up as visible tile-grid/pixel-
+    // border artifacts (confirmed against a real custom COG source) rather than
+    // the harmless uniform blur of overzooming past a correctly-conservative
+    // maxzoom. minzoom isn't as sensitive (it only governs how far out the same
+    // pyramid is queried) but floors too for consistency.
+    const clamp = (z: number) => Math.max(0, Math.min(MAX_SAFE_COG_ZOOM, Math.floor(z)))
     return {
         minzoom: clamp(Math.min(...zooms)),
         maxzoom: clamp(Math.max(...zooms)),
@@ -634,6 +646,29 @@ export const BlobnessSource = memo((props: Omit<NormalDerivedSourceProps, "sourc
     <NormalDerivedSource {...props} sourceId="blobnessSource" buildUrl={buildBlobnessProtocolUrl} />
 ))
 BlobnessSource.displayName = "BlobnessSource"
+
+// radius (the "Search Radius" control) is a literal same-zoom pixel count baked
+// into the tile URL (unlike LrmSource's radius, which maps to a pyramid level) —
+// same keySuffix reasoning as LrmSource/CurvatureSource above.
+export const SvfSource = memo(({ radius, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { radius: number }) => (
+    <NormalDerivedSource
+        {...props}
+        sourceId="svfSource"
+        keySuffix={`-${radius}`}
+        buildUrl={(template, encoding, tileSize) => buildSvfProtocolUrl(template, encoding, tileSize, radius)}
+    />
+))
+SvfSource.displayName = "SvfSource"
+
+export const OpennessSource = memo(({ radius, mode, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { radius: number; mode: OpennessMode }) => (
+    <NormalDerivedSource
+        {...props}
+        sourceId="opennessSource"
+        keySuffix={`-${radius}-${mode}`}
+        buildUrl={(template, encoding, tileSize) => buildOpennessProtocolUrl(template, encoding, tileSize, radius, mode)}
+    />
+))
+OpennessSource.displayName = "OpennessSource"
 
 // ─── Tells (archaeological mound candidate) source ─────────────────────────────
 //

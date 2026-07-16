@@ -18,6 +18,8 @@ export const LAYER_SLOTS = {
   LRM: "slot-lrm",
   ROUGHNESS: "slot-roughness",
   BLOBNESS: "slot-blobness",
+  SVF: "slot-svf",
+  OPENNESS: "slot-openness",
   HILLSHADE: "slot-hillshade",
   CONTOURS: "slot-contours",
   TELLS: "slot-tells",
@@ -38,6 +40,8 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.LRM}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.ROUGHNESS}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.BLOBNESS}    type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.SVF}         type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.OPENNESS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.HILLSHADE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.TELLS}       type="background" paint={{ "background-opacity": 0 }} />
@@ -336,6 +340,36 @@ export const BlobnessReliefLayer = memo(({ showSlopeAndMore, showBlobness, blobn
   )
 })
 BlobnessReliefLayer.displayName = "BlobnessReliefLayer"
+
+export const SvfReliefLayer = memo(({ showSlopeAndMore, showSvf, svfReliefPaint }: { showSlopeAndMore: boolean; showSvf: boolean; svfReliefPaint: any }) => {
+  if (!showSlopeAndMore) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.SVF}
+      id="svf-relief"
+      type="color-relief"
+      source="svfSource"
+      paint={svfReliefPaint}
+      layout={{ visibility: showSvf ? "visible" : "none" }}
+    />
+  )
+})
+SvfReliefLayer.displayName = "SvfReliefLayer"
+
+export const OpennessReliefLayer = memo(({ showSlopeAndMore, showOpenness, opennessReliefPaint }: { showSlopeAndMore: boolean; showOpenness: boolean; opennessReliefPaint: any }) => {
+  if (!showSlopeAndMore) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.OPENNESS}
+      id="openness-relief"
+      type="color-relief"
+      source="opennessSource"
+      paint={opennessReliefPaint}
+      layout={{ visibility: showOpenness ? "visible" : "none" }}
+    />
+  )
+})
+OpennessReliefLayer.displayName = "OpennessReliefLayer"
 
 // ─── Tells (mound candidate) markers ────────────────────────────────────────
 // Point features from the tells:// MVT source (see TellsSource in MapSources.tsx

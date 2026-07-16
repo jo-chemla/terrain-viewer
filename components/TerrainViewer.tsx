@@ -44,9 +44,11 @@ import { tpiProtocol } from '@/lib/tpi-protocol'
 import { roughnessProtocol } from '@/lib/roughness-protocol'
 import { lrmProtocol } from '@/lib/lrm-protocol'
 import { blobnessProtocol } from '@/lib/blobness-protocol'
+import { svfProtocol } from '@/lib/svf-protocol'
+import { opennessProtocol } from '@/lib/openness-protocol'
 import { tellsProtocol } from '@/lib/tells-protocol'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, TellsSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, SvfSource, OpennessSource, TellsSource } from "./LayersAndSources/MapSources"
 import {
   LayerOrderSlots,
   RasterLayer,
@@ -62,6 +64,8 @@ import {
   LrmReliefLayer,
   RoughnessReliefLayer,
   BlobnessReliefLayer,
+  SvfReliefLayer,
+  OpennessReliefLayer,
   TellsMarkersLayer,
   TellsUnfilteredLoaderLayer,
   TellsInspectPopup,
@@ -89,6 +93,7 @@ const parseAsFloatPrecise = createParser({
 const VIEW_MODES = ['2d', 'globe', '3d'] as const
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian'] as const
+const OPENNESS_MODES = ['positive', 'negative'] as const
 const TELLS_STYLES = ['hidden', 'outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
 const TELL_VETO_RESOLUTIONS = ['fine', 'coarse'] as const
 
@@ -218,6 +223,22 @@ export function TerrainViewer() {
     blobnessMin: parseAsFloat.withDefault(0),
     blobnessMax: parseAsFloat.withDefault(50),
     blobnessInvertColorRamp: parseAsBoolean.withDefault(false),
+    showSvf: parseAsBoolean.withDefault(false),
+    svfOpacity: parseAsFloat.withDefault(1.0),
+    svfColorRamp: parseAsString.withDefault("svf-default"),
+    svfMin: parseAsFloat.withDefault(0),
+    svfMax: parseAsFloat.withDefault(100),
+    svfInvertColorRamp: parseAsBoolean.withDefault(false),
+    svfRadius: parseAsFloat.withDefault(8),
+    showOpenness: parseAsBoolean.withDefault(false),
+    opennessOpacity: parseAsFloat.withDefault(1.0),
+    opennessColorRamp: parseAsString.withDefault("openness-default"),
+    opennessMin: parseAsFloat.withDefault(-15),
+    opennessMax: parseAsFloat.withDefault(15),
+    opennessInvertColorRamp: parseAsBoolean.withDefault(false),
+    opennessSymmetric: parseAsBoolean.withDefault(true),
+    opennessRadius: parseAsFloat.withDefault(8),
+    opennessMode: parseAsStringLiteral(OPENNESS_MODES).withDefault("positive"),
     // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
     // clutter Visualization Modes for everyone by default.
     tellsBeta: parseAsBoolean.withDefault(false),
@@ -421,6 +442,30 @@ export function TerrainViewer() {
     [ state.blobnessColorRamp, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.slopeAndMoreOpacity, state.blobnessInvertColorRamp ]
   )
 
+  const svfReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.svfColorRamp,
+      customHypsoMinMax: true,
+      minElevation: state.svfMin,
+      maxElevation: state.svfMax,
+      colorReliefOpacity: state.svfOpacity * state.slopeAndMoreOpacity,
+      invertColorRamp: state.svfInvertColorRamp,
+    }),
+    [ state.svfColorRamp, state.svfMin, state.svfMax, state.svfOpacity, state.slopeAndMoreOpacity, state.svfInvertColorRamp ]
+  )
+
+  const opennessReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.opennessColorRamp,
+      customHypsoMinMax: true,
+      minElevation: state.opennessMin,
+      maxElevation: state.opennessMax,
+      colorReliefOpacity: state.opennessOpacity * state.slopeAndMoreOpacity,
+      invertColorRamp: state.opennessInvertColorRamp,
+    }),
+    [ state.opennessColorRamp, state.opennessMin, state.opennessMax, state.opennessOpacity, state.slopeAndMoreOpacity, state.opennessInvertColorRamp ]
+  )
+
   // circle-color expressions for the tells color-by marker styles, built from
   // the SAME ramp/range/invert state as the corresponding Slope-and-More layer
   // (byPlan and byDetHessian both follow the Curvature controls, byLrm follows
@@ -483,6 +528,8 @@ export function TerrainViewer() {
     maplibregl.addProtocol('lrm', withTileResultCache(lrmProtocol))
     maplibregl.addProtocol('roughness', withTileResultCache(roughnessProtocol))
     maplibregl.addProtocol('blobness', withTileResultCache(blobnessProtocol))
+    maplibregl.addProtocol('svf', withTileResultCache(svfProtocol))
+    maplibregl.addProtocol('openness', withTileResultCache(opennessProtocol))
     maplibregl.addProtocol('tells', withTileResultCache(tellsProtocol))
   }, [])
 
@@ -1165,6 +1212,25 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
+          <SvfSource
+            enabled={state.showSlopeAndMore}
+            radius={state.svfRadius}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
+          <OpennessSource
+            enabled={state.showSlopeAndMore}
+            radius={state.opennessRadius}
+            mode={state.opennessMode}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
           {isPrimary && (
             <TellsSource
               enabled={state.tellsBeta && tellsEverActivated}
@@ -1214,6 +1280,8 @@ export function TerrainViewer() {
           <LrmReliefLayer showSlopeAndMore={state.showSlopeAndMore} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
           <RoughnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
           <BlobnessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
+          <SvfReliefLayer showSlopeAndMore={state.showSlopeAndMore} showSvf={state.showSvf} svfReliefPaint={svfReliefPaint} />
+          <OpennessReliefLayer showSlopeAndMore={state.showSlopeAndMore} showOpenness={state.showOpenness} opennessReliefPaint={opennessReliefPaint} />
           {isPrimary && (
             <TellsMarkersLayer
               enabled={state.tellsBeta}
@@ -1381,6 +1449,7 @@ export function TerrainViewer() {
       state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity, state.showHillshade,
       state.showColorRelief, state.showSlopeAndMore, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
+      state.showSvf, state.svfRadius, state.showOpenness, state.opennessRadius, state.opennessMode,
       // tellsBeta/tellsEverActivated gate the tells layer+source mounts: leaving
       // them out of these deps was the "toggle it on but nothing shows until I
       // pan or edit a slider" desync — the memoized JSX simply never re-rendered.
@@ -1391,7 +1460,7 @@ export function TerrainViewer() {
       state.sourceA, state.contourMinor, state.contourMajor,
       activeBasemapSourceA, activeBasemapSourceB,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
-      tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, blobnessReliefPaint,
+      tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, blobnessReliefPaint, svfReliefPaint, opennessReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,
       skyConfig.skyColor, skyConfig.skyHorizonBlend, skyConfig.horizonColor, skyConfig.horizonFogBlend,

@@ -539,6 +539,55 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // Sky View Factor (0-100, fraction of sky hemisphere visible ×100) from
+  // lib/svf-protocol.ts. Unlike TRI/Roughness/Blobness, every pixel has a
+  // meaningful value here (there's no "flat = boring" case to hide) — same
+  // always-opaque, dark-to-light convention as a grayscale ambient-occlusion
+  // pass: 0 (fully enclosed, e.g. a narrow pit) to 100 (fully open, e.g. a summit).
+  "svf-default": {
+    name: "Sky View Factor",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "rgb(20, 20, 35)",
+      40, "rgb(70, 75, 110)",
+      70, "rgb(150, 160, 190)",
+      90, "rgb(220, 225, 235)",
+      100, "rgb(255, 255, 255)",
+    ],
+    continuous: true,
+  },
+  // Openness (positive or negative, degrees, re-centered so 0 = flat ground) from
+  // lib/openness-protocol.ts. Grayscale, always-opaque — the conventional RVT/
+  // literature display for Openness (and SVF): dark = enclosed (valley/pit-like),
+  // light = open (ridge/summit-like), mid-gray at 0 (flat ground) — same spirit
+  // as svf-default's ambient-occlusion-style shading rather than a diverging
+  // "tinted overlay on top of the terrain" look.
+  "openness-default": {
+    name: "Openness",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -15, "rgb(15, 15, 15)",
+      -5, "rgb(90, 90, 90)",
+      0, "rgb(160, 160, 160)",
+      5, "rgb(210, 210, 210)",
+      15, "rgb(255, 255, 255)",
+    ],
+    continuous: true,
+  },
+  // Diverging alternative to openness-default, kept selectable for anyone who
+  // prefers a tinted overlay (transparent at flat) over the grayscale look.
+  "openness-diverging": {
+    name: "Openness (Diverging)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -15, "rgb(33, 102, 172)",
+      -4, "rgb(146, 197, 222)",
+      0, "rgba(255, 255, 255, 0)",
+      4, "rgb(253, 174, 97)",
+      15, "rgb(178, 24, 43)",
+    ],
+    continuous: true,
+  },
   // Discrete ramps
   // None
 }
