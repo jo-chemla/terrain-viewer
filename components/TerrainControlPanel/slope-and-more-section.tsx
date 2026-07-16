@@ -1,4 +1,5 @@
 import type React from "react"
+import { Hourglass } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { Section, CheckboxWithSlider } from "./controls-components"
 import { SlopeFields } from "./slope-options-section"
@@ -11,6 +12,17 @@ import { RoughnessFields } from "./roughness-options-section"
 import { BlobnessFields } from "./blobness-options-section"
 import { SvfFields } from "./svf-options-section"
 import { OpennessFields } from "./openness-options-section"
+
+// A plain "⏳" emoji renders as a colored glyph regardless of the surrounding
+// text color — this inline SVG icon inherits currentColor like every other
+// lucide icon in the app instead, so it reads as a monochrome hint rather than
+// a stray sticker next to the label.
+const SlowModeLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span className="inline-flex items-center gap-1">
+    {children}
+    <Hourglass className="h-3 w-3 shrink-0" />
+  </span>
+)
 
 // Merged panel for every normal-derived terrain visualization — same pattern as
 // ContourOptionsSection's "Contours & GeoGrid" (one master viz-mode checkbox in
@@ -160,7 +172,7 @@ export const SlopeAndMoreOptionsSection: React.FC<{
         <div className="space-y-2">
           <CheckboxWithSlider
             id="slope-and-more-svf"
-            label="Sky View Factor ⏳"
+            label={<SlowModeLabel>Sky View Factor</SlowModeLabel>}
             tooltip="Slow - Fraction of the sky hemisphere visible from each point — low in enclosed pits/canyons, high on open summits/ridges."
             checked={state.showSvf}
             onCheckedChange={(checked) => setState({ showSvf: checked })}
@@ -173,7 +185,7 @@ export const SlopeAndMoreOptionsSection: React.FC<{
         <div className="space-y-2">
           <CheckboxWithSlider
             id="slope-and-more-openness"
-            label="Openness ⏳"
+            label={<SlowModeLabel>Openness</SlowModeLabel>}
             tooltip="Slow - Mean angular distance from zenith to the horizon across several directions — reads above flat (90°) on ridges/summits (Positive mode) or in valleys/pits (Negative mode)."
             checked={state.showOpenness}
             onCheckedChange={(checked) => setState({ showOpenness: checked })}

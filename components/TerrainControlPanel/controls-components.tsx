@@ -156,7 +156,10 @@ export const SliderControl: React.FC<{
 // ─── CheckboxWithSlider ───────────────────────────────────────────────────────
 
 export const CheckboxWithSlider: React.FC<{
-  id: string; label: string; checked: boolean; onCheckedChange: (checked: boolean) => void
+  // ReactNode (not just string) so a mode that's slow to compute can append an
+  // inline icon (e.g. SVF/Openness's hourglass) that inherits the label's own
+  // text color, instead of a colored emoji glyph.
+  id: string; label: React.ReactNode; checked: boolean; onCheckedChange: (checked: boolean) => void
   sliderValue?: number; onSliderChange?: (value: number) => void; hideSlider?: boolean; disabled?: boolean
   tooltip?: string
 }> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false, tooltip }) => {
