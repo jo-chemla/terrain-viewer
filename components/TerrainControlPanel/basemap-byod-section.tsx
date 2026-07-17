@@ -44,6 +44,15 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     }
   }, [customBasemapSources, setCustomBasemapSources, setState])
 
+  // Applies the Edit Basemap modal's opacity slider straight to the atom as
+  // it drags — the modal itself only calls this while an existing source is
+  // being edited (see its own comment), and reverts to the pre-edit value if
+  // the dialog closes without Save.
+  const handleLiveOpacityChange = useCallback((opacity: number) => {
+    if (!editingBasemap) return
+    setCustomBasemapSources(customBasemapSources.map((s) => s.id === editingBasemap.id ? { ...s, opacity } : s))
+  }, [editingBasemap, customBasemapSources, setCustomBasemapSources])
+
   const handleDeleteCustomBasemap = useCallback((id: string) => {
     setCustomBasemapSources(customBasemapSources.filter((s) => s.id !== id))
     if (state.basemapSource === id) setState({ basemapSource: "osm" })
@@ -252,7 +261,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         </CollapsibleContent>
 
       </Collapsible>
-      <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} />
+      <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} onLiveOpacityChange={handleLiveOpacityChange} />
       <BasemapBatchEditModal
         isOpen={isBatchEditModalOpen}
         onOpenChange={setIsBatchEditModalOpen}

@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -16,15 +16,34 @@ type BasemapFormType = "cog" | "tms" | "wms" | "wmts" | "qms" | "tilejson" | "wm
 export const CustomBasemapModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomBasemapSource | null
   onSave: (source: Omit<CustomBasemapSource, "id"> & { id?: string }) => void
-}> = ({ isOpen, onOpenChange, editingSource, onSave }) => {
+  // Applies opacity straight to the live source (bypassing onSave) as the
+  // slider drags, so you can see the blend against the map while adjusting it
+  // instead of only after committing — unlike every other field here (name,
+  // url, type, role...), which stay purely local state until Save/Add is
+  // clicked. Only meaningful while editing an existing (already-rendered)
+  // source; there's nothing on the map yet for a brand-new one to preview
+  // against, so this is omitted for the "Add New Basemap" flow.
+  onLiveOpacityChange?: (opacity: number) => void
+}> = ({ isOpen, onOpenChange, editingSource, onSave, onLiveOpacityChange }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
   const [type, setType] = useState<BasemapFormType>("tms")
   const [description, setDescription] = useState("")
   const [role, setRole] = useState<CustomBasemapSource["role"]>("basemap")
   const [opacity, setOpacity] = useState(100)
+  // The opacity editingSource had when the modal opened — restored on Cancel/
+  // close-without-saving so a live-previewed drag doesn't stick if abandoned.
+  const originalOpacityRef = useRef(100)
+  const savedRef = useRef(false)
 
   useEffect(() => {
+    // Only (re-)initialize on the open transition — this effect also depends
+    // on isOpen so switching which source is being edited while the dialog
+    // opens still picks up fresh values, but running it again on CLOSE would
+    // reset savedRef.current to false right after handleSave had just set it
+    // to true, making the close-revert effect below think Save was never
+    // clicked and stomp the just-saved opacity back to its original value.
+    if (!isOpen) return
     if (editingSource) {
       setName(editingSource.name)
       setUrl(editingSource.url)
@@ -32,6 +51,7 @@ export const CustomBasemapModal: React.FC<{
       setDescription(editingSource.description || "")
       setRole(editingSource.role ?? "basemap")
       setOpacity(editingSource.opacity ?? 100)
+      originalOpacityRef.current = editingSource.opacity ?? 100
     } else {
       setName("")
       setUrl("")
@@ -40,10 +60,29 @@ export const CustomBasemapModal: React.FC<{
       setRole("basemap")
       setOpacity(100)
     }
+    savedRef.current = false
   }, [editingSource, isOpen])
+
+  // Roll back a live-previewed opacity if the dialog closes without Save —
+  // fires on the isOpen:true->false transition, whichever way it closes
+  // (Cancel, the X button, Escape, or an outside click all funnel through
+  // Dialog's onOpenChange).
+  useEffect(() => {
+    if (isOpen) return
+    if (!savedRef.current && editingSource && onLiveOpacityChange) {
+      onLiveOpacityChange(originalOpacityRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
+
+  const handleOpacityChange = useCallback((value: number) => {
+    setOpacity(value)
+    if (editingSource) onLiveOpacityChange?.(value)
+  }, [editingSource, onLiveOpacityChange])
 
   const handleSave = useCallback(() => {
     if (!name || !url) return
+    savedRef.current = true
     onSave({ id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role, opacity })
     onOpenChange(false)
   }, [name, url, type, description, role, opacity, editingSource, onSave, onOpenChange])
@@ -203,7 +242,7 @@ export const CustomBasemapModal: React.FC<{
                   max={100}
                   step={1}
                   value={[opacity]}
-                  onValueChange={([value]) => setOpacity(value)}
+                  onValueChange={([value]) => handleOpacityChange(value)}
                   className="cursor-pointer"
                 />
               </div>
