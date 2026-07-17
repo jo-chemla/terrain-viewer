@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Toggle } from "@/components/ui/toggle"
+import { Marker, MarkerContent } from "@/components/ui/marker"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { LucideIcon } from "lucide-react"
 import { atom, useAtom } from "jotai"
@@ -201,9 +202,23 @@ export const AdvancedModeToggle: React.FC<{ advanced: boolean; onToggle: () => v
 // section, a plain sibling-based CSS rule (see index.css) hides whichever
 // ordinary Separator ends up directly adjacent to one of these — regardless
 // of which section that turns out to be.
-export const MacroSeparator: React.FC = () => (
-  <Separator className="macro-separator data-[orientation=horizontal]:h-[2px] bg-foreground/20 rounded-full" />
-)
+export const MacroSeparator: React.FC<{ label?: string }> = ({ label }) => {
+  if (label) {
+    return (
+      <Marker
+        variant="separator"
+        className="macro-separator py-1 before:h-[2px] before:bg-foreground/20 after:h-[2px] after:bg-foreground/20"
+      >
+        <MarkerContent className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </MarkerContent>
+      </Marker>
+    )
+  }
+  return (
+    <Separator className="macro-separator data-[orientation=horizontal]:h-[2px] bg-foreground/20 rounded-full" />
+  )
+}
 
 // ─── SliderControl ────────────────────────────────────────────────────────────
 

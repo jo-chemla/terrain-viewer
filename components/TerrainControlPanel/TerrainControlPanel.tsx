@@ -329,14 +329,14 @@ export function TerrainControlPanel({
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
         <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
         <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} withSeparator={false} />
-        <MacroSeparator />
+        <MacroSeparator label="Sources" />
         {!hideSourcePanels && (
           <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
         )}
         {!hideSourcePanels && (
           <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
         )}
-        <MacroSeparator />
+        <MacroSeparator label="Options" />
         {!hiddenSections.includes("contour") && (
           <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
         )}
@@ -360,7 +360,7 @@ export function TerrainControlPanel({
             withSeparator={!state.tellsBeta}
           />
         )}
-        {!hiddenSections.includes("terrainAnalysis") && state.tellsBeta && <MacroSeparator />}
+        {!hiddenSections.includes("terrainAnalysis") && state.tellsBeta && <MacroSeparator label="Detectors" />}
         {!hiddenSections.includes("terrainAnalysis") && (
           <DetectorMoundsSection
             state={state}
@@ -373,7 +373,7 @@ export function TerrainControlPanel({
         )}
         {!hiddenSections.includes("terrainAnalysis") && state.tellsBeta && <MacroSeparator />}
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
-        <MacroSeparator />
+        <MacroSeparator label="Tools" />
         <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
         {!hiddenSections.includes("elevationPicker") && (
           <ElevationPickerSection state={state} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
