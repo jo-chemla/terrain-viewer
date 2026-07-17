@@ -1,18 +1,18 @@
 import type React from "react"
-import { useMemo } from "react"
 import { RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
-import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
+import { MobileSlider, DraftBoundInput } from "./controls-components"
+import { colorRampsClassic } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 
 const DEFAULTS = {
   aspectColorRamp: "aspect-compass",
   aspectMinDegrees: undefined,
   aspectMaxDegrees: undefined,
+  aspectShiftDegrees: undefined,
   aspectInvertColorRamp: false,
 }
 
@@ -21,11 +21,7 @@ const DEFAULTS = {
 export const AspectFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
-  const rampBounds = useMemo(() => {
-    const ramp = colorRampsClassic[state.aspectColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["aspect-compass"]
-    const stops = extractStops(ramp.colors)
-    return { min: Math.min(...stops), max: Math.max(...stops) }
-  }, [state.aspectColorRamp])
+  const shiftDegrees = state.aspectShiftDegrees ?? 0
 
   return (
     <div className="space-y-4 pl-6">
@@ -65,27 +61,20 @@ export const AspectFields: React.FC<{
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Aspect Range (°)</Label>
-          <div className="flex items-center gap-2">
-            <DraftBoundInput
-              value={state.aspectMinDegrees ?? rampBounds.min}
-              onCommit={(v) => setState({ aspectMinDegrees: clampMinCommit(v, state.aspectMaxDegrees ?? rampBounds.max) })}
-              className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-            />
-            <DraftBoundInput
-              value={state.aspectMaxDegrees ?? rampBounds.max}
-              onCommit={(v) => setState({ aspectMaxDegrees: clampMaxCommit(v, state.aspectMinDegrees ?? rampBounds.min) })}
-              className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-            />
-          </div>
+          <Label className="text-sm font-medium">Aspect Shift (°)</Label>
+          <DraftBoundInput
+            value={shiftDegrees}
+            onCommit={(v) => setState({ aspectShiftDegrees: ((Math.round(v ?? 0) % 360) + 360) % 360 })}
+            className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+          />
         </div>
         <MobileSlider
-          sliderId="aspect:range"
+          sliderId="aspect:shift"
           min={0}
           max={360}
           step={1}
-          value={[state.aspectMinDegrees ?? rampBounds.min, state.aspectMaxDegrees ?? rampBounds.max]}
-          onValueChange={([min, max]) => setState({ aspectMinDegrees: Math.min(min, max), aspectMaxDegrees: Math.max(min, max) })}
+          value={[shiftDegrees]}
+          onValueChange={([v]) => setState({ aspectShiftDegrees: v })}
           className="w-full cursor-pointer"
         />
       </div>

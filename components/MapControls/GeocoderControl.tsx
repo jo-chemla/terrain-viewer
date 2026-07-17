@@ -104,6 +104,11 @@ export default function GeocoderControl({
         const g = ctrl as any;
         const first = g._typeahead?.data?.[0];
         if (!first || g._typeahead.selected) return false;
+        // Visually highlight item 0 in the dropdown (the same ".active" class
+        // arrow-key navigation applies via List.prototype.move) before
+        // committing — without this, Enter used to fly the map straight away
+        // with no indication in the list of which result was picked.
+        g._typeahead.list?.move?.(0);
         g._typeahead.selected = first;
         if (g._inputEl) g._inputEl.value = first.place_name ?? first.text ?? g._inputEl.value;
         g._onChange();
@@ -157,6 +162,12 @@ export default function GeocoderControl({
       });
 
       ctrl.on("error", onError);
+      // The library's own "Clear" (X) button removes ITS built-in marker
+      // (which we suppress via `marker: false` above, since this wrapper draws
+      // its own instead) but has no idea this wrapper's separate `markerEl`
+      // state exists — without this, clearing the input left the previous
+      // result's marker/pill sitting on the map. It does emit "clear" though.
+      ctrl.on("clear", () => setMarkerEl(null));
       return ctrl;
     },
     {

@@ -1,5 +1,6 @@
 import type React from "react"
 import { useState, useMemo, useCallback, useEffect, useRef  } from "react"
+import { useQueryStates } from "nuqs"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home } from "lucide-react"
@@ -27,7 +28,7 @@ import { FooterSection } from "./footer-section"
 import { TooltipIconButton, MacroSeparator } from "./controls-components"
 
 import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
-import {AnimationSection} from "./CameraUtilities"
+import {AnimationSection, parseAsSnapshot} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
@@ -101,6 +102,16 @@ export function TerrainControlPanel({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
   const { theme } = useTheme()
+
+  // animPose1Delta/animPose2Delta live in AnimationSection's own useQueryStates
+  // (CameraUtilities.tsx), not in the shared `state` bag above — Object.keys(state)
+  // in handleGoHome below never touches them. nuqs supports multiple independent
+  // useQueryStates hooks targeting the same URL keys (they all stay in sync), so
+  // this second declaration is just for Home to be able to null them out too.
+  const [, setAnimPoseParams] = useQueryStates({
+    animPose1Delta: parseAsSnapshot.withDefault(null as any),
+    animPose2Delta: parseAsSnapshot.withDefault(null as any),
+  }, { shallow: true })
 
   // AnimationSection's "complete" mode interpolates numeric leaves of this app state;
   // shallow defaults true so per-frame animation writes don't spam browser history —
@@ -187,6 +198,7 @@ export function TerrainControlPanel({
     }
     for (const key of CAMERA_KEYS) delete resets[key]
     setState(resets)
+    setAnimPoseParams({ animPose1Delta: null, animPose2Delta: null })
     mapRef.current?.getMap()?.jumpTo({
       center: [camera.lng, camera.lat],
       zoom: camera.zoom,
@@ -247,26 +259,39 @@ export function TerrainControlPanel({
           onPointerDown={() => setIsSidebarOpen(false)}
         />
       )}
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className={cn(
-          "absolute z-50 overflow-y-auto",
-          "right-0 top-0 bottom-0 w-80 rounded-none",
-          "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
-        )}
-        style={{
-          // Reserves the scrollbar's width up front so it doesn't appear/disappear
-          // as content grows past the fold, which used to shift the sticky header's
-          // right-aligned buttons left by the scrollbar's width when it popped in.
-          scrollbarGutter: 'stable',
-          height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined
-        }}
-      >
-        <Card 
+      {/* Outer wrapper owns the rounded corners + clips to them (overflow-hidden);
+          the actual scrolling pane is the plain, unrounded div nested inside.
+          Putting overflow-y-auto directly on a rounded element used to let the
+          native scrollbar track sit flush against the inner edge, squaring off
+          the top/bottom-right corners exactly where the scrollbar appeared. */}
+      <div className={cn(
+        "absolute z-50 overflow-hidden",
+        "right-0 top-0 bottom-0 w-80 rounded-none",
+        "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
+      )}>
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="h-full overflow-y-auto"
+          style={{
+            // Reserves the scrollbar's width up front so it doesn't appear/disappear
+            // as content grows past the fold, which used to shift the sticky header's
+            // right-aligned buttons left by the scrollbar's width when it popped in.
+            scrollbarGutter: 'stable',
+            height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined
+          }}
+        >
+        <Card
           className={cn(
             "p-4 pt-0 gap-2 space-y-2 backdrop-blur-[2px] text-base min-h-full",
             "w-full rounded-none",
+            // Card's own border needs to actually curve at the corners — the
+            // outer wrapper's overflow-hidden clip alone only rounds the
+            // background/content; Card's straight (unrounded) border would
+            // still render as a rectangle and get abruptly cut off by that
+            // clip rather than following a smooth curve, which is what looked
+            // like a "square corner" when everything's collapsed and the
+            // border is the only thing visible near the corner.
             "sm:rounded-xl",
             transparentUi && activeSlider
               ? "bg-background/20"
@@ -364,6 +389,7 @@ export function TerrainControlPanel({
         <MacroSeparator />
         <FooterSection />
       </Card>
+        </div>
       </div>
     </TooltipProvider>
   )

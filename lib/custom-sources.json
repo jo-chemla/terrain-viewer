@@ -156,6 +156,23 @@
             "type": "tms",
             "role": "overlay",
             "description": "CORS-open, no API key needed via this proxy endpoint — but the ?date= param is a fixed radar-frame timestamp captured at add-time, so this will show an increasingly stale frame; re-grab a fresh `date` value from openweathermap.org/weathermap periodically"
+        },
+        {
+            "id": "esa-worldcover-2021-map-tms",
+            "name": "Global - ESA WorldCover 10m Land Cover (2021, colored map)",
+            "url": "https://mapproxy.terrascope.be/mapproxy/wmts/esa-worldcover-map-10m-2021-v2_map/webmercator/{z}/{x}/{y}.png",
+            "type": "tms",
+            "maxzoom": 16,
+            "description": "Pre-colored global land cover map (tree cover, cropland, built-up, water, etc. per the official ESA WorldCover legend), served as standard XYZ tiles by Terrascope's mapproxy — CORS-open, no API key. CC BY 4.0, see https://esa-worldcover.org"
+        },
+        {
+            "id": "nasa-gibs-merra2-wind-speed",
+            "name": "Global - NASA GIBS Surface Wind Speed (MERRA-2, monthly)",
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MERRA2_Surface_Wind_Speed_Monthly/default/default/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png",
+            "type": "tms",
+            "maxzoom": 6,
+            "role": "overlay",
+            "description": "Global surface wind speed (not direction), monthly-averaged from NASA's MERRA-2 reanalysis, served as standard WMTS-as-XYZ tiles by NASA GIBS — no API key. The 'default/default' time segment always resolves to GIBS's current default month, so this never goes stale like a fixed-timestamp overlay. Coarse (max zoom 6, ~a few hundred km/px) since it's a monthly global composite, not a live forecast — no open, no-key GFS-derived live wind-direction raster tile service was found (Windy/OpenWeatherMap's wind layers require a paid key; MapTiler's is a proprietary particle-field renderer, not tiles)."
         }
     ]
 }

@@ -266,7 +266,12 @@ export const fovEngine = new RafEngine()
 
 // ─── nuqs custom parser for poses ─────────────────────────────────────────────
 
-const parseAsSnapshot = createParser({
+// Exported so other components (e.g. TerrainControlPanel's Home button) can
+// declare their own useQueryStates for animPose1Delta/animPose2Delta — nuqs
+// supports multiple independent hook instances targeting the same URL key,
+// all staying in sync, which is exactly what a "reset from elsewhere" caller
+// needs without threading a callback/ref through this component.
+export const parseAsSnapshot = createParser({
   parse: (v: string) => decodeSnapshot(v),
   serialize: (v: AppSnapshot) => encodeSnapshot(v),
 })

@@ -69,6 +69,7 @@ import {
   TellsMarkersLayer,
   TellsUnfilteredLoaderLayer,
   TellsInspectPopup,
+  TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT,
   LAYER_SLOTS,
   computeHillshadePaint,
   computeColorReliefPaint,
@@ -187,6 +188,7 @@ export function TerrainViewer() {
     aspectColorRamp: parseAsString.withDefault("aspect-compass"),
     aspectMinDegrees: parseAsFloat.withDefault(0),
     aspectMaxDegrees: parseAsFloat.withDefault(360),
+    aspectShiftDegrees: parseAsFloat.withDefault(0),
     aspectInvertColorRamp: parseAsBoolean.withDefault(false),
     showTri: parseAsBoolean.withDefault(false),
     triOpacity: parseAsFloat.withDefault(1.0),
@@ -242,7 +244,7 @@ export function TerrainViewer() {
     opennessMin: parseAsFloat.withDefault(-15),
     opennessMax: parseAsFloat.withDefault(15),
     opennessInvertColorRamp: parseAsBoolean.withDefault(false),
-    opennessSymmetric: parseAsBoolean.withDefault(true),
+    opennessSymmetric: parseAsBoolean.withDefault(false),
     opennessRadius: parseAsFloat.withDefault(8),
     opennessMode: parseAsStringLiteral(OPENNESS_MODES).withDefault("positive"),
     // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
@@ -250,9 +252,11 @@ export function TerrainViewer() {
     tellsBeta: parseAsBoolean.withDefault(false),
     tellsStyle: parseAsStringLiteral(TELLS_STYLES).withDefault("outline"),
     tellsOutlineColor: parseAsColor().withDefault("#ef4444"),
-    // Only meaningful with tellMeasureScale on: draw each marker at 4x its
-    // measured diameter (real-world meters, zoom-scaled) instead of fixed px.
+    // Only meaningful with tellMeasureScale on: draw each marker at
+    // tellsScaleMultiplier x its measured diameter (real-world meters,
+    // zoom-scaled) instead of fixed px.
     tellsScaleMarkers: parseAsBoolean.withDefault(true),
+    tellsScaleMultiplier: parseAsFloat.withDefault(TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT),
     tellSize: parseAsFloat.withDefault(100),
     tellRadius: parseAsFloat.withDefault(4),
     tellMinRelief: parseAsFloat.withDefault(1.5),
@@ -372,8 +376,9 @@ export function TerrainViewer() {
       maxElevation: state.aspectMaxDegrees,
       colorReliefOpacity: state.aspectOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.aspectInvertColorRamp,
+      shiftDegrees: state.aspectShiftDegrees,
     }),
-    [ state.aspectColorRamp, state.aspectMinDegrees, state.aspectMaxDegrees, state.aspectOpacity, state.terrainAnalysisOpacity, state.aspectInvertColorRamp ]
+    [ state.aspectColorRamp, state.aspectMinDegrees, state.aspectMaxDegrees, state.aspectOpacity, state.terrainAnalysisOpacity, state.aspectInvertColorRamp, state.aspectShiftDegrees ]
   )
 
   const triReliefPaint = useMemo(
@@ -1296,6 +1301,7 @@ export function TerrainViewer() {
               style={state.tellsStyle}
               outlineColor={state.tellsOutlineColor}
               sizeByMeasuredScale={state.tellMeasureScale && state.tellsScaleMarkers}
+              scaleMultiplier={state.tellsScaleMultiplier}
               latDeg={state.lat}
               colorByPaints={tellsColorByPaints}
             />
@@ -1462,7 +1468,7 @@ export function TerrainViewer() {
       // them out of these deps was the "toggle it on but nothing shows until I
       // pan or edit a slider" desync — the memoized JSX simply never re-rendered.
       state.tellsStyle, tellsOptions, state.tellsBeta, tellsEverActivated,
-      tellsColorByPaints, state.tellsOutlineColor, state.tellsScaleMarkers, state.tellMeasureScale,
+      tellsColorByPaints, state.tellsOutlineColor, state.tellsScaleMarkers, state.tellsScaleMultiplier, state.tellMeasureScale,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor,

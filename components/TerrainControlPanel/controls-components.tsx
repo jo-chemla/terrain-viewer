@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useEffect, forwardRef, createContext, useContext, useId } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Toggle } from "@/components/ui/toggle"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { LucideIcon } from "lucide-react"
 import { atom, useAtom } from "jotai"
@@ -102,8 +103,17 @@ export const Section: React.FC<{
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   withSeparator?: boolean
+  // Extra control (e.g. AdvancedModeToggle) rendered in the header row, right
+  // before the chevron — sits at the SAME right edge as every section's own
+  // expand/collapse chevron, for free, instead of being positioned inside
+  // CollapsibleContent with ad-hoc margins trying to fake that alignment.
+  // Radix supports multiple CollapsibleTrigger instances sharing one
+  // Collapsible (both just call the same onOpenToggle), so splitting the
+  // header into a title-trigger and a chevron-trigger with this slot between
+  // them doesn't change the "click anywhere in the header to expand" feel.
+  headerExtra?: React.ReactNode
   children: React.ReactNode
-}> = ({ title, isOpen, onOpenChange, withSeparator = true, children }) => {
+}> = ({ title, isOpen, onOpenChange, withSeparator = true, headerExtra, children }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   const autoId = useId()
   const isMine = activeSlider !== null && activeSlider.startsWith(autoId + ":")
@@ -112,13 +122,20 @@ export const Section: React.FC<{
   return (
     <>
       <Collapsible open={isOpen} onOpenChange={onOpenChange}>
-        <CollapsibleTrigger className={cn(
-          "flex items-center justify-between w-full py-1 text-base font-medium text-left cursor-pointer transition-opacity duration-150",
+        <div className={cn(
+          "flex items-center justify-between w-full py-1 transition-opacity duration-150",
           dim && "opacity-20"
         )}>
-          <span className="text-left">{title}</span>
-          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-        </CollapsibleTrigger>
+          <CollapsibleTrigger className="flex-1 min-w-0 text-base font-medium text-left cursor-pointer">
+            <span className="text-left">{title}</span>
+          </CollapsibleTrigger>
+          <div className="flex items-center gap-2 shrink-0">
+            {headerExtra}
+            <CollapsibleTrigger className="cursor-pointer">
+              <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            </CollapsibleTrigger>
+          </div>
+        </div>
         <SectionIdContext.Provider value={autoId}>
           <CollapsibleContent className={cn(
             "space-y-2 pt-1 transition-opacity duration-150",
@@ -134,6 +151,44 @@ export const Section: React.FC<{
     </>
   )
 }
+
+// ─── AdvancedModeToggle ────────────────────────────────────────────────────────
+//
+// Basic/Advanced switch for a Terrain Analysis / Relief Visualization section
+// (one atom per section — see terrainAnalysisAdvancedAtom/
+// reliefVisualizationAdvancedAtom in settings-atoms.ts, folding one doesn't
+// affect the other): Basic collapses every sub-mode to just its
+// checkbox/title/opacity slider, same as the everything-off look; Advanced
+// (default) shows each sub-mode's full options block (color ramp, range
+// sliders, etc.) as before. Deliberately does NOT swap between two different
+// icons — a shadcn Toggle (radix pressed/unpressed styling) instead keeps the
+// same "collapse" glyph always and communicates state via the button's own
+// pressed look (data-[state=on]:bg-accent), pressed meaning "currently
+// collapsed to basic" — more explicit than an icon-swap once you already know
+// what the icon means.
+export const AdvancedModeToggle: React.FC<{ advanced: boolean; onToggle: () => void }> = ({ advanced, onToggle }) => (
+  <Tooltip delayDuration={0}>
+    {/* TooltipTrigger asChild merges its own data-state (tooltip open/closed)
+        onto its direct child — Toggle needs data-state (pressed on/off) for
+        its own styling, so it can't be that direct child or the two collide
+        and the tooltip's wins. A plain wrapping span (same trick TooltipButton
+        above uses) keeps them on separate elements. */}
+    <TooltipTrigger asChild>
+      <span>
+        <Toggle
+          pressed={!advanced}
+          onPressedChange={() => onToggle()}
+          size="sm"
+          aria-label={advanced ? "Collapse to basic — hide sub-mode options" : "Expand to advanced — show sub-mode options"}
+          className="cursor-pointer"
+        >
+          <ChevronsDownUp className="h-4 w-4" />
+        </Toggle>
+      </span>
+    </TooltipTrigger>
+    <TooltipContent><p>{advanced ? "Collapse to basic (hide sub-mode options)" : "Expand to advanced (show sub-mode options)"}</p></TooltipContent>
+  </Tooltip>
+)
 
 // ─── MacroSeparator ────────────────────────────────────────────────────────────
 // A bolder, higher-contrast divider dropped between macro groups of sections

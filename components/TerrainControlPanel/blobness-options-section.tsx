@@ -83,7 +83,7 @@ export const BlobnessFields: React.FC<{
         <MobileSlider
           sliderId="blobness:range"
           min={0}
-          max={4}
+          max={10}
           step={0.02}
           value={[state.blobnessMin ?? rampBounds.min, state.blobnessMax ?? rampBounds.max]}
           onValueChange={([min, max]) => setState({ blobnessMin: Math.min(min, max), blobnessMax: Math.max(min, max) })}

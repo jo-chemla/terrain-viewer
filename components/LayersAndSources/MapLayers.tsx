@@ -3,7 +3,7 @@ import { Layer, type MapRef } from "react-map-gl/maplibre"
 import maplibregl, { type MapMouseEvent } from "maplibre-gl"
 import { useAtom } from "jotai"
 import { highResTerrainAtom } from "@/lib/settings-atoms"
-import { colorRampsFlat, remapColorRampStops } from "@/lib/color-ramps"
+import { colorRampsFlat, remapColorRampStops, shiftCyclicRampStops } from "@/lib/color-ramps"
 
 export const LAYER_SLOTS = {
   BACKGROUND: "slot-background",
@@ -397,31 +397,46 @@ const MERCATOR_M_PER_PX_Z0 = 156543.03392
 
 // Drawn diameter = this many times the mound's real measured diameter — real
 // size alone renders as an unclickable speck at most zoom levels, so markers
-// are deliberately drawn oversized. Kept as one named constant so the exact
-// factor stays in sync between the paint expression and the UI copy that
-// states it (tells-options-section.tsx's "Size markers to Nx..." label).
-export const TELLS_MEASURED_SCALE_MULTIPLIER = 4
+// are deliberately drawn oversized. User-adjustable via the tellsScaleMultiplier
+// nuqs state (tells-options-section.tsx's "Size markers to Nx..." control);
+// this is only the fallback default for that state.
+export const TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT = 10
+
+// Reference zoom for the interpolation below — deliberately NOT 24 (the style
+// spec's nominal max). MapLibre's "exponential" interpolate is evaluated in
+// GLSL float32 on the GPU: the two stops end up ~2^refZoom apart, and float32
+// only has ~7 significant decimal digits, so a 2^24 (~16.7M) spread pushes the
+// ratio math right up against precision loss — at some zooms the computed
+// radius stops tracking meters and starts looking like a fixed screen size.
+// 2^18 (~262K) leaves comfortable headroom while still covering every zoom
+// this app's sources actually reach (tells vector tiles cap at maxzoom 15).
+const TELLS_RADIUS_REF_ZOOM = 18
 
 /** Circle radius that tracks each candidate's measured real-world size: marker
- *  diameter = TELLS_MEASURED_SCALE_MULTIPLIER x the scaleM tag (the mound's
- *  half-max-ray-marched diameter in meters, see tells-protocol.ts), converted
- *  meters->screen px for the current latitude. The ["exponential", 2] zoom
- *  curve between z0 and z24 is exactly the 2^z factor of the Mercator
+ *  diameter = scaleMultiplier x the scaleM tag (the mound's half-max-ray-marched
+ *  diameter in meters, see tells-protocol.ts), converted meters->screen px for
+ *  the current latitude. The ["exponential", 2] zoom curve between z0 and
+ *  TELLS_RADIUS_REF_ZOOM is exactly the 2^z factor of the Mercator
  *  ground-resolution formula, so the circle stays glued to the same ground
  *  footprint while zooming. Features without a scaleM tag (tiles computed
  *  before the measure option was enabled, or candidates whose rays all
  *  clipped) fall back to a 50m nominal diameter. */
-function tellsMeasuredScaleRadius(latDeg: number) {
-  const mPerPxZ0 = MERCATOR_M_PER_PX_Z0 * Math.cos((latDeg * Math.PI) / 180)
-  const radiusM = ["*", ["coalesce", ["get", "scaleM"], 50], TELLS_MEASURED_SCALE_MULTIPLIER / 2] // diameter -> radius
+function tellsMeasuredScaleRadius(latDeg: number, scaleMultiplier: number) {
+  // Guard against a transient non-finite latitude (e.g. URL state not yet
+  // hydrated) propagating NaN into the whole expression — MapLibre silently
+  // discards an invalid paint expression, which looks exactly like "radius
+  // stuck at some fixed screen size" from the outside.
+  const safeLatDeg = Number.isFinite(latDeg) ? latDeg : 0
+  const mPerPxZ0 = MERCATOR_M_PER_PX_Z0 * Math.cos((safeLatDeg * Math.PI) / 180)
+  const radiusM = ["*", ["coalesce", ["get", "scaleM"], 50], scaleMultiplier / 2] // diameter -> radius
   return [
     "interpolate", ["exponential", 2], ["zoom"],
     0, ["/", radiusM, mPerPxZ0],
-    24, ["/", radiusM, mPerPxZ0 / Math.pow(2, 24)],
+    TELLS_RADIUS_REF_ZOOM, ["/", radiusM, mPerPxZ0 / Math.pow(2, TELLS_RADIUS_REF_ZOOM)],
   ]
 }
 
-export const TellsMarkersLayer = memo(({ enabled, style, outlineColor, sizeByMeasuredScale, latDeg, colorByPaints }: {
+export const TellsMarkersLayer = memo(({ enabled, style, outlineColor, sizeByMeasuredScale, scaleMultiplier, latDeg, colorByPaints }: {
   enabled: boolean
   style: TellsMarkerStyle
   /** Stroke color for the "outline" style (see the tellsOutlineColor nuqs param). */
@@ -429,6 +444,9 @@ export const TellsMarkersLayer = memo(({ enabled, style, outlineColor, sizeByMea
   /** When true (measure-scale + its size-markers style option both on), marker
    *  size tracks each candidate's own measured diameter instead of fixed px. */
   sizeByMeasuredScale: boolean
+  /** User-adjustable multiplier for sizeByMeasuredScale (see tellsScaleMultiplier
+   *  nuqs state, 1-40x, tells-options-section.tsx). */
+  scaleMultiplier: number
   /** Map-center latitude for the meters->px conversion above — close enough for
    *  region-scale viewports; markers are never compared across hemispheres. */
   latDeg: number
@@ -440,7 +458,7 @@ export const TellsMarkersLayer = memo(({ enabled, style, outlineColor, sizeByMea
   if (!enabled) return null
   const colorByPaint = colorByPaints[style]
   const radius = sizeByMeasuredScale
-    ? tellsMeasuredScaleRadius(latDeg)
+    ? tellsMeasuredScaleRadius(latDeg, scaleMultiplier)
     : style === "outline" ? TELLS_CIRCLE_RADIUS_OUTLINE : TELLS_CIRCLE_RADIUS_COLOR_BY
   // "hidden" keeps the layer layout-visible and paints it fully transparent
   // instead of flipping layout.visibility — same trick as the unfiltered loader
@@ -659,6 +677,10 @@ export type ColorReliefConfig = {
   maxElevation?: number
   colorReliefOpacity?: number
   invertColorRamp?: boolean
+  // Circularly rotates the ramp around [minElevation, maxElevation] instead of
+  // rescaling it — only meaningful for a wraparound domain like Aspect's compass
+  // degrees. See shiftCyclicRampStops in lib/color-ramps.ts.
+  shiftDegrees?: number
 }
 
 export const computeColorReliefPaint = ({
@@ -668,13 +690,18 @@ export const computeColorReliefPaint = ({
   maxElevation = 8100,
   colorReliefOpacity = 1.0,
   invertColorRamp = false,
+  shiftDegrees = 0,
 }: ColorReliefConfig) => {
   const ramp = colorRamp ? colorRampsFlat[colorRamp] : undefined
   if (!ramp) return {}
 
-  const colors = customHypsoMinMax
+  let colors = customHypsoMinMax
     ? remapColorRampStops(ramp.colors, minElevation, maxElevation, invertColorRamp)
     : ramp.colors
+
+  if (shiftDegrees) {
+    colors = shiftCyclicRampStops(colors, shiftDegrees, minElevation ?? 0, maxElevation ?? 360)
+  }
 
   return {
     "color-relief-opacity": colorReliefOpacity,

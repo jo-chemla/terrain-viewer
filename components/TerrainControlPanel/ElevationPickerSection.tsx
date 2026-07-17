@@ -5,6 +5,7 @@ import maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import type { MapRef } from "react-map-gl/maplibre"
 import type { TerraDraw } from "terra-draw"
+import { distance as turfDistance } from "@turf/turf"
 import { Section } from "./controls-components"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -156,8 +157,23 @@ export const ElevationPickerSection: React.FC<{
     return `${p.elevation.toFixed(1)} m`
   }
 
+  // 6 decimal places in degrees ≈ 11cm at the equator — plenty for the "10cm
+  // precision" ask; 4326 is just the lng/lat degrees this app already works in
+  // (no reprojection needed).
+  const formatLatLng = (p: PickedPoint) => `${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`
+
+  const formatDistance = (meters: number) =>
+    meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${meters.toFixed(1)} m`
+
   const delta = points.length === 2 && points[0].elevation !== null && points[1].elevation !== null
     ? points[1].elevation - points[0].elevation
+    : null
+
+  // Horizontal (great-circle) distance between the two picks — independent of
+  // elevation, so it's available as soon as both clicks land, unlike Δ
+  // Elevation above which waits on both async elevation lookups to resolve.
+  const horizontalDistanceM = points.length === 2
+    ? turfDistance([points[0].lng, points[0].lat], [points[1].lng, points[1].lat], { units: "meters" })
     : null
 
   return (
@@ -195,9 +211,18 @@ export const ElevationPickerSection: React.FC<{
                 />
                 Point {idx + 1}
               </span>
-              <span className="font-mono text-xs text-right">{formatElevation(p)}</span>
+              <span className="flex items-center gap-2">
+                <span className="font-mono text-xs text-muted-foreground">{formatLatLng(p)}</span>
+                <span className="font-mono text-xs text-right">{formatElevation(p)}</span>
+              </span>
             </div>
           ))}
+          {horizontalDistanceM !== null && (
+            <div className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-muted text-sm font-medium">
+              <span>Distance</span>
+              <span className="font-mono">{formatDistance(horizontalDistanceM)}</span>
+            </div>
+          )}
           {delta !== null && (
             <div className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-muted text-sm font-medium">
               <span>Δ Elevation</span>

@@ -83,7 +83,7 @@ export const RoughnessFields: React.FC<{
         <MobileSlider
           sliderId="roughness:range"
           min={0}
-          max={200}
+          max={500}
           step={1}
           value={[state.roughnessMin ?? rampBounds.min, state.roughnessMax ?? rampBounds.max]}
           onValueChange={([min, max]) => setState({ roughnessMin: Math.min(min, max), roughnessMax: Math.max(min, max) })}

@@ -22,7 +22,7 @@ const DEFAULTS = {
   opennessMin: undefined,
   opennessMax: undefined,
   opennessInvertColorRamp: false,
-  opennessSymmetric: true,
+  opennessSymmetric: false,
   opennessRadius: 8,
 }
 
@@ -157,7 +157,7 @@ export const OpennessFields: React.FC<{
           <MobileSlider
             sliderId="openness:range"
             min={0}
-            max={45}
+            max={100}
             step={0.5}
             value={[magnitude]}
             onValueChange={([v]) => setState({ opennessMin: -v, opennessMax: v })}
@@ -166,8 +166,8 @@ export const OpennessFields: React.FC<{
         ) : (
           <MobileSlider
             sliderId="openness:range"
-            min={-45}
-            max={45}
+            min={-100}
+            max={100}
             step={0.5}
             value={[state.opennessMin ?? rampBounds.min, state.opennessMax ?? rampBounds.max]}
             onValueChange={([min, max]) => setState({ opennessMin: Math.min(min, max), opennessMax: Math.max(min, max) })}

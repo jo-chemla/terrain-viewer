@@ -26,6 +26,16 @@ export const highResTerrainAtom = atomWithStorage("highResTerrain", true)
 // makes re-toggling a mode instant instead of recomputing every visible tile.
 // On by default; off reclaims the memory (up to ~96MB) and reverts to recompute.
 export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
+// Basic/Advanced toggle, one per section (Terrain Analysis / Relief
+// Visualization — terrain-analysis-section.tsx / relief-visualization-section.tsx):
+// in "basic" mode each sub-mode collapses to just its checkbox/title/opacity
+// slider (its *Fields options block — color ramp, range sliders, etc. — stays
+// hidden), matching the everything-off look. Defaults to advanced (true) so
+// nothing already-visible disappears for existing users the first time this
+// ships. Independent per section (not a single shared atom), so folding one
+// doesn't affect the other.
+export const terrainAnalysisAdvancedAtom = atomWithStorage("terrainAnalysisAdvanced", true)
+export const reliefVisualizationAdvancedAtom = atomWithStorage("reliefVisualizationAdvanced", true)
 
 type SkyConfig = {
   skyColor: string

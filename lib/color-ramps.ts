@@ -64,6 +64,84 @@ export function remapColorRampStops(
   return newColors
 }
 
+function parseRgbColor(color: string): [number, number, number, number] {
+  const match = color.match(/rgba?\(([^)]+)\)/)
+  if (!match) return [0, 0, 0, 1]
+  const parts = match[1].split(",").map((s) => parseFloat(s.trim()))
+  return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0, parts[3] ?? 1]
+}
+
+function formatRgbColor([r, g, b, a]: number[]): string {
+  const rr = Math.round(r), gg = Math.round(g), bb = Math.round(b)
+  return a >= 1 ? `rgb(${rr}, ${gg}, ${bb})` : `rgba(${rr}, ${gg}, ${bb}, ${+a.toFixed(4)})`
+}
+
+function lerpRgbColor(c1: number[], c2: number[], t: number): number[] {
+  return c1.map((v, i) => v + (c2[i] - v) * t)
+}
+
+// Circularly rotates a ramp whose domain wraps around (e.g. aspect degrees, where
+// domainMin and domainMax represent the same physical value, like 0°/360° north) —
+// unlike remapColorRampStops (which rescales the domain), this re-derives the color
+// at each raw value v as the ORIGINAL ramp's color at (v + shiftAmount) mod period,
+// so the ramp visually "rotates" around the circle instead of stretching/compressing.
+// Used for Aspect's shift control (see aspect-options-section.tsx): a shift of k°
+// rotates which compass direction gets which hue, wrapping seamlessly at the seam.
+export function shiftCyclicRampStops(
+  colors: any[],
+  shiftAmount: number,
+  domainMin: number = 0,
+  domainMax: number = 360,
+) {
+  const period = domainMax - domainMin
+  if (!period || !shiftAmount) return colors
+  const stops = extractStops(colors)
+  const cols = stops.map((_, i) => parseRgbColor(colors[4 + i * 2]))
+  const n = stops.length
+  if (n < 2) return colors
+
+  const k = ((shiftAmount % period) + period) % period
+  // Tile each original vertex 3x (one period earlier/at/later) after subtracting the
+  // shift, so the wraparound seam is always covered no matter where it falls once sorted.
+  const candidates: { pos: number; color: number[] }[] = []
+  for (let i = 0; i < n; i++) {
+    const basePos = stops[i] - k
+    for (const tile of [-period, 0, period]) {
+      candidates.push({ pos: basePos + tile, color: cols[i] })
+    }
+  }
+  candidates.sort((a, b) => a.pos - b.pos)
+
+  const colorAt = (pos: number): number[] => {
+    for (let i = 0; i < candidates.length - 1; i++) {
+      if (pos >= candidates[i].pos && pos <= candidates[i + 1].pos) {
+        const span = candidates[i + 1].pos - candidates[i].pos
+        const t = span === 0 ? 0 : (pos - candidates[i].pos) / span
+        return lerpRgbColor(candidates[i].color, candidates[i + 1].color, t)
+      }
+    }
+    return candidates[0].color
+  }
+
+  const boundaryStart = { pos: domainMin, color: colorAt(domainMin) }
+  const boundaryEnd = { pos: domainMax, color: colorAt(domainMax) }
+  const inRange = candidates.filter((c) => c.pos > domainMin && c.pos < domainMax)
+  const points = [boundaryStart, ...inRange, boundaryEnd]
+
+  // De-dup near-identical positions (float noise from the tiling above).
+  const seen = new Set<number>()
+  const deduped = points.filter((p) => {
+    const key = Math.round(p.pos * 1000)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  const newColors: any[] = ["interpolate", ["linear"], ["elevation"]]
+  for (const p of deduped) newColors.push(p.pos, formatRgbColor(p.color))
+  return newColors
+}
+
 function fixDomain(domain: number[]) {
   const domainFixed = [...domain];
   for (let i = 1; i < domain.length - 1; i++) {
@@ -74,8 +152,18 @@ function fixDomain(domain: number[]) {
   return domainFixed;
 }
 
+// chroma-js's own runtime (scale.js) branches on `arguments.length === 0` to
+// return the ORIGINAL stop colors unchanged — its own bundled @types declare
+// the first param as required (not optional), so tsc rejects a bare `.colors()`
+// call even though that's the only call shape that returns the original stops.
+// Passing `.colors(undefined)` satisfies tsc but changes `arguments.length` to 1,
+// which falls through to a totally different "resample from position" code path
+// (wrong colors/order for non-uniform stops) — cast away the arity instead so the
+// call truly has zero arguments at runtime.
+const scaleOriginalColors = (paletteScale: Scale): string[] => (paletteScale.colors as unknown as () => string[])()
+
 function chromajsScaleToMaplibre(paletteScale: Scale) {
-  const colors = paletteScale.colors(undefined)
+  const colors = scaleOriginalColors(paletteScale)
   const domain = paletteScale.domain()
   const domainFixed = fixDomain(domain)
   return [
@@ -88,7 +176,7 @@ function chromajsScaleToMaplibre(paletteScale: Scale) {
 
 // Check if a color ramp is continuous or discrete
 function isPaletteContinuous(paletteScale: Scale): boolean {
-  const colors = paletteScale.colors(undefined);
+  const colors = scaleOriginalColors(paletteScale);
   const domain = paletteScale.domain();
   const nColors = colors.length  
   if (nColors <= 2) return true
@@ -556,6 +644,21 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // Same as svf-default, but the fully-open (100, white) end fades to alpha 0
+  // instead of opaque white — open/unremarkable ground disappears entirely and
+  // shows the basemap/hillshade underneath, rather than washing it out white.
+  "svf-transparent": {
+    name: "Sky View Factor (Transparent)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "rgb(20, 20, 35)",
+      40, "rgb(70, 75, 110)",
+      70, "rgb(150, 160, 190)",
+      90, "rgb(220, 225, 235)",
+      100, "rgba(255, 255, 255, 0)",
+    ],
+    continuous: true,
+  },
   // Openness (positive or negative, degrees, re-centered so 0 = flat ground) from
   // lib/openness-protocol.ts. Grayscale, always-opaque — the conventional RVT/
   // literature display for Openness (and SVF): dark = enclosed (valley/pit-like),
@@ -571,6 +674,20 @@ export const colorRampsClassic = {
       0, "rgb(160, 160, 160)",
       5, "rgb(210, 210, 210)",
       15, "rgb(255, 255, 255)",
+    ],
+    continuous: true,
+  },
+  // Same as openness-default, but the most-open (15, white) end fades to alpha 0
+  // instead of opaque white — same reasoning as svf-transparent above.
+  "openness-transparent": {
+    name: "Openness (Transparent)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -15, "rgb(15, 15, 15)",
+      -5, "rgb(90, 90, 90)",
+      0, "rgb(160, 160, 160)",
+      5, "rgb(210, 210, 210)",
+      15, "rgba(255, 255, 255, 0)",
     ],
     continuous: true,
   },

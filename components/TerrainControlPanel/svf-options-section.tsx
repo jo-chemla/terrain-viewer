@@ -122,7 +122,7 @@ export const SvfFields: React.FC<{
         <MobileSlider
           sliderId="svf:range"
           min={0}
-          max={100}
+          max={200}
           step={1}
           value={[state.svfMin ?? rampBounds.min, state.svfMax ?? rampBounds.max]}
           onValueChange={([min, max]) => setState({ svfMin: Math.min(min, max), svfMax: Math.max(min, max) })}

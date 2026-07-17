@@ -83,7 +83,7 @@ export const TriFields: React.FC<{
         <MobileSlider
           sliderId="tri:range"
           min={0}
-          max={200}
+          max={500}
           step={1}
           value={[state.triMin ?? rampBounds.min, state.triMax ?? rampBounds.max]}
           onValueChange={([min, max]) => setState({ triMin: Math.min(min, max), triMax: Math.max(min, max) })}

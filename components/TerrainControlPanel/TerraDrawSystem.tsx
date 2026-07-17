@@ -282,11 +282,20 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
         
         const map = mapRef.current?.getMap()
         // console.log('[TerraDraw] map instance:', !!map, 'isStyleLoaded:', map?.isStyleLoaded())
-        
+
         if (!map || !mapsLoaded) {
             console.log('[TerraDraw] bailing out — map:', !!map, 'mapsLoaded:', mapsLoaded)
             return
         }
+
+        // Guards the 'change' listener below against firing after this effect generation
+        // has been torn down (e.g. this effect re-running because mapsLoaded/mapRef
+        // changed, recreating a new TerraDraw instance while the old one's `stop()` hasn't
+        // actually detached its own 'change' listener yet). Without this, a stale listener
+        // from a superseded instance can call setFeatures(oldSnapshot) after a newer
+        // instance already accumulated more features (e.g. from an import), making the
+        // "Features: N" counter silently drop back down even though nothing was deleted.
+        let isCurrent = true
 
         const createDraw = () => {
             // console.log('[TerraDraw] createDraw called — stopping existing:', !!drawRef.current)
@@ -332,6 +341,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
                     // "Features: N" and Export both silently ignored anything drawn on the map
                     // (only imported features, which call setFeatures directly, ever showed up).
                     newDraw.on('change', () => {
+                        if (!isCurrent) return
                         try { setFeatures(newDraw.getSnapshot() as GeoJSONFeature[]) } catch { }
                     })
 
@@ -396,6 +406,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
         }
 
         return () => {
+            isCurrent = false
             map.off('styledata', handleStyleData)
             map.off('sourcedata', handleStyleData)
             map.off('render', handleStyleData)
@@ -528,8 +539,15 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
             // edit) used to draw.clear() first, silently discarding prior features.
             if (draw) {
                 try {
+                    // draw.addFeatures() synchronously fires terra-draw's own 'change'
+                    // event (see terra-draw's Store.load -> _onChange, called before
+                    // addFeatures returns), which the 'change' listener in useTerraDraw
+                    // already handles by calling setFeatures(newDraw.getSnapshot()) —
+                    // an authoritative full resync that already includes newFeatures.
+                    // A second setFeatures(prev => [...prev, ...newFeatures]) here would
+                    // double-add every imported feature on top of that resync, since
+                    // both run synchronously in the same call stack.
                     draw.addFeatures(newFeatures)
-                    setFeatures((prev) => [...prev, ...newFeatures])
                 } catch (err) {
                     console.error('Error adding features:', err)
                     setFeatures((prev) => [...prev, ...newFeatures])
@@ -808,10 +826,8 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
     }
 
     const clearDrawings = () => {
-        if (confirm('Clear all drawings?')) {
-            draw?.clear()
-            setFeatures([])
-        }
+        draw?.clear()
+        setFeatures([])
     }
 
     return (

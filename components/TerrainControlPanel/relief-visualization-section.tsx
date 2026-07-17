@@ -1,9 +1,15 @@
 import type React from "react"
+import { useAtom } from "jotai"
 import { Hourglass } from "lucide-react"
-import { Section, CheckboxWithSlider } from "./controls-components"
+import { Section, CheckboxWithSlider, AdvancedModeToggle } from "./controls-components"
+import { reliefVisualizationAdvancedAtom } from "@/lib/settings-atoms"
 import { LrmFields } from "./lrm-options-section"
 import { SvfFields } from "./svf-options-section"
 import { OpennessFields } from "./openness-options-section"
+
+const GroupHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{children}</p>
+)
 
 // A plain "⏳" emoji renders as a colored glyph regardless of the surrounding
 // text color — this inline SVG icon inherits currentColor like every other
@@ -31,11 +37,22 @@ export const ReliefVisualizationOptionsSection: React.FC<{
   // of assuming 256.
   terrainTileSize: number
 }> = ({ state, setState, isOpen, onOpenChange, terrainTileSize }) => {
+  const [advanced, setAdvanced] = useAtom(reliefVisualizationAdvancedAtom)
   if (!state.showReliefVisualization) return null
 
   return (
-    <Section title="Options: Relief Visualization" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section
+      title="Options: Relief Visualization"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      headerExtra={<AdvancedModeToggle advanced={advanced} onToggle={() => setAdvanced(!advanced)} />}
+    >
       <div className="space-y-4">
+        {/* One heading covering all three modes (LRM/SVF/Openness) — unlike
+            TerrainAnalysisOptionsSection's two separate groups, these don't
+            split into their own basic/advanced-toggled sub-groups. */}
+        <GroupHeading>Altitude / Light</GroupHeading>
+
         <div className="space-y-2">
           <CheckboxWithSlider
             id="relief-visualization-lrm"
@@ -46,7 +63,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             sliderValue={state.lrmOpacity}
             onSliderChange={(value) => setState({ lrmOpacity: value })}
           />
-          {state.showLrm && <LrmFields state={state} setState={setState} tileSize={terrainTileSize} />}
+          {state.showLrm && advanced && <LrmFields state={state} setState={setState} tileSize={terrainTileSize} />}
         </div>
 
         {/* Visibility-analysis modes: Sky View Factor, Openness — both built on the
@@ -69,7 +86,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             sliderValue={state.svfOpacity}
             onSliderChange={(value) => setState({ svfOpacity: value })}
           />
-          {state.showSvf && <SvfFields state={state} setState={setState} tileSize={terrainTileSize} />}
+          {state.showSvf && advanced && <SvfFields state={state} setState={setState} tileSize={terrainTileSize} />}
         </div>
 
         <div className="space-y-2">
@@ -82,7 +99,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             sliderValue={state.opennessOpacity}
             onSliderChange={(value) => setState({ opennessOpacity: value })}
           />
-          {state.showOpenness && <OpennessFields state={state} setState={setState} tileSize={terrainTileSize} />}
+          {state.showOpenness && advanced && <OpennessFields state={state} setState={setState} tileSize={terrainTileSize} />}
         </div>
       </div>
     </Section>

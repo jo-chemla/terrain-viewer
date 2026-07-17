@@ -1,6 +1,8 @@
 import type React from "react"
+import { useAtom } from "jotai"
 import { Separator } from "@/components/ui/separator"
-import { Section, CheckboxWithSlider } from "./controls-components"
+import { Section, CheckboxWithSlider, AdvancedModeToggle } from "./controls-components"
+import { terrainAnalysisAdvancedAtom } from "@/lib/settings-atoms"
 import { SlopeFields } from "./slope-options-section"
 import { AspectFields } from "./aspect-options-section"
 import { TriFields } from "./tri-options-section"
@@ -26,10 +28,17 @@ export const TerrainAnalysisOptionsSection: React.FC<{
   onOpenChange: (open: boolean) => void
   withSeparator?: boolean
 }> = ({ state, setState, isOpen, onOpenChange, withSeparator }) => {
+  const [advanced, setAdvanced] = useAtom(terrainAnalysisAdvancedAtom)
   if (!state.showTerrainAnalysis) return null
 
   return (
-    <Section title="Options: Terrain Analysis" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
+    <Section
+      title="Options: Terrain Analysis"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      withSeparator={withSeparator}
+      headerExtra={<AdvancedModeToggle advanced={advanced} onToggle={() => setAdvanced(!advanced)} />}
+    >
       <div className="space-y-4">
         <GroupHeading>Surface derivatives</GroupHeading>
 
@@ -43,7 +52,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.slopeOpacity}
             onSliderChange={(value) => setState({ slopeOpacity: value })}
           />
-          {state.showSlope && <SlopeFields state={state} setState={setState} />}
+          {state.showSlope && advanced && <SlopeFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
@@ -56,7 +65,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.aspectOpacity}
             onSliderChange={(value) => setState({ aspectOpacity: value })}
           />
-          {state.showAspect && <AspectFields state={state} setState={setState} />}
+          {state.showAspect && advanced && <AspectFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
@@ -69,7 +78,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.curvatureOpacity}
             onSliderChange={(value) => setState({ curvatureOpacity: value })}
           />
-          {state.showCurvature && <CurvatureFields state={state} setState={setState} />}
+          {state.showCurvature && advanced && <CurvatureFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
@@ -82,7 +91,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.blobnessOpacity}
             onSliderChange={(value) => setState({ blobnessOpacity: value })}
           />
-          {state.showBlobness && <BlobnessFields state={state} setState={setState} />}
+          {state.showBlobness && advanced && <BlobnessFields state={state} setState={setState} />}
         </div>
 
         <Separator />
@@ -98,7 +107,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.tpiOpacity}
             onSliderChange={(value) => setState({ tpiOpacity: value })}
           />
-          {state.showTpi && <TpiFields state={state} setState={setState} />}
+          {state.showTpi && advanced && <TpiFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
@@ -111,7 +120,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.triOpacity}
             onSliderChange={(value) => setState({ triOpacity: value })}
           />
-          {state.showTri && <TriFields state={state} setState={setState} />}
+          {state.showTri && advanced && <TriFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
@@ -124,7 +133,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.roughnessOpacity}
             onSliderChange={(value) => setState({ roughnessOpacity: value })}
           />
-          {state.showRoughness && <RoughnessFields state={state} setState={setState} />}
+          {state.showRoughness && advanced && <RoughnessFields state={state} setState={setState} />}
         </div>
       </div>
     </Section>
