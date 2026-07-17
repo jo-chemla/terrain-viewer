@@ -130,7 +130,7 @@ export const Section: React.FC<{
           <CollapsibleTrigger className="flex-1 min-w-0 text-base font-medium text-left cursor-pointer">
             <span className="text-left">{title}</span>
           </CollapsibleTrigger>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             {headerExtra}
             <CollapsibleTrigger className="cursor-pointer">
               <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -189,6 +189,45 @@ export const AdvancedModeToggle: React.FC<{ advanced: boolean; onToggle: () => v
     </TooltipTrigger>
     <TooltipContent><p>{advanced ? "Collapse to basic (hide sub-mode options)" : "Expand to advanced (show sub-mode options)"}</p></TooltipContent>
   </Tooltip>
+)
+
+// ─── SourceAbToggle ────────────────────────────────────────────────────────────
+// Split-screen's per-source-row "use this for A / use this for B" pair. Two
+// independent Toggle buttons rather than one Radix ToggleGroup(type="single")
+// — a single-select group can only ever show ONE of A/B pressed at a time,
+// which silently broke picking the SAME source for both sides: sourceA and
+// sourceB could genuinely both equal this row's key, but the group's single
+// `value` prop (whichever ternary checked first) could only ever display one
+// of them as pressed. Each button here reads its own on/off state directly
+// from sourceA/sourceB, so both can show pressed together. Clicking a button
+// that's already pressed is a no-op (onPressedChange only fires the select
+// callback when turning ON) — sourceA/sourceB always need some active source,
+// there's no "off" state to toggle into.
+export const SourceAbToggle: React.FC<{
+  aActive: boolean
+  bActive: boolean
+  onSelectA: () => void
+  onSelectB: () => void
+  disabled?: boolean
+}> = ({ aActive, bActive, onSelectA, onSelectB, disabled }) => (
+  <div className="flex border rounded-md shrink-0 overflow-hidden">
+    <Toggle
+      pressed={aActive}
+      onPressedChange={(pressed) => { if (pressed) onSelectA() }}
+      disabled={disabled}
+      className="px-3 rounded-none cursor-pointer data-[state=on]:font-bold"
+    >
+      A
+    </Toggle>
+    <Toggle
+      pressed={bActive}
+      onPressedChange={(pressed) => { if (pressed) onSelectB() }}
+      disabled={disabled}
+      className="px-3 rounded-none border-l cursor-pointer data-[state=on]:font-bold"
+    >
+      B
+    </Toggle>
+  </div>
 )
 
 // ─── MacroSeparator ────────────────────────────────────────────────────────────

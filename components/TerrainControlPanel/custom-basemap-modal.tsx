@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -21,6 +22,7 @@ export const CustomBasemapModal: React.FC<{
   const [type, setType] = useState<BasemapFormType>("tms")
   const [description, setDescription] = useState("")
   const [role, setRole] = useState<CustomBasemapSource["role"]>("basemap")
+  const [opacity, setOpacity] = useState(100)
 
   useEffect(() => {
     if (editingSource) {
@@ -29,20 +31,22 @@ export const CustomBasemapModal: React.FC<{
       setType(editingSource.type)
       setDescription(editingSource.description || "")
       setRole(editingSource.role ?? "basemap")
+      setOpacity(editingSource.opacity ?? 100)
     } else {
       setName("")
       setUrl("")
       setType("tms")
       setDescription("")
       setRole("basemap")
+      setOpacity(100)
     }
   }, [editingSource, isOpen])
 
   const handleSave = useCallback(() => {
     if (!name || !url) return
-    onSave({ id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role })
+    onSave({ id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role, opacity })
     onOpenChange(false)
-  }, [name, url, type, description, role, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, role, opacity, editingSource, onSave, onOpenChange])
 
   const url_placeholder = type === "cog" ?
     "https://example.com/basemap.cog.tiff" :
@@ -181,6 +185,26 @@ export const CustomBasemapModal: React.FC<{
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="cursor-text"
+                />
+              </div>
+              {/* Named "Style" (rather than folded into the fields above) so it
+                  reads as a display preference belonging to this saved source —
+                  not a live per-session slider like the main Raster Basemap
+                  Opacity control, which still applies on top of this one. */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Style</p>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="basemap-opacity" className="text-sm">Opacity</Label>
+                  <span className="text-sm text-muted-foreground">{opacity}%</span>
+                </div>
+                <Slider
+                  id="basemap-opacity"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={[opacity]}
+                  onValueChange={([value]) => setOpacity(value)}
+                  className="cursor-pointer"
                 />
               </div>
               <div className="flex justify-end gap-2">

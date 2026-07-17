@@ -33,6 +33,7 @@ import { ElevationPickerSection } from "./ElevationPickerSection"
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
 import { useShiftTapToggle } from '@/lib/use-shift-tap-toggle'
+import { useCtrlTapToggle } from '@/lib/use-ctrl-tap-toggle'
 import { cn } from "@/lib/utils"
 
 // --- Persisted state ---
@@ -130,18 +131,62 @@ export function TerrainControlPanel({
   // first but the browser's own Alt-alone menu-bar-focus behavior conflicts
   // with it.)
   useShiftTapToggle(() => setState({ showRasterBasemap: !state.showRasterBasemap }))
+  // Tapping either Ctrl key alone hides every overlay visualization mode down
+  // to just the plain basemap imagery, and restores every mode's previous
+  // on/off state on the next tap — a quick "what's actually under here"
+  // toggle, complementary to Shift's "peek at the basemap underneath"
+  // (which leaves the other modes running). Saved state lives in a ref, not
+  // component state, since it's a one-shot stash/restore rather than
+  // something any UI needs to read.
+  const savedVizModesRef = useRef<Record<string, unknown> | null>(null)
+  useCtrlTapToggle(() => {
+    if (savedVizModesRef.current) {
+      setState(savedVizModesRef.current)
+      savedVizModesRef.current = null
+    } else {
+      savedVizModesRef.current = {
+        showContoursAndGraticules: state.showContoursAndGraticules,
+        showHillshade: state.showHillshade,
+        showRasterBasemap: state.showRasterBasemap,
+        showColorRelief: state.showColorRelief,
+        showReliefVisualization: state.showReliefVisualization,
+        showTerrainAnalysis: state.showTerrainAnalysis,
+        showBackground: state.showBackground,
+        tellsStyle: state.tellsStyle,
+      }
+      setState({
+        showContoursAndGraticules: false,
+        showHillshade: false,
+        showRasterBasemap: true,
+        showColorRelief: false,
+        showReliefVisualization: false,
+        showTerrainAnalysis: false,
+        showBackground: false,
+        tellsStyle: "hidden",
+      })
+    }
+  })
   const [activeSlider] = useAtom(activeSliderAtom)
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
 
   // Add scroll position management
   const [scrollPosition, setScrollPosition] = useAtom(sidebarScrollAtom)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  // Restore scroll position when sidebar opens
+  // Restore scroll position when the sidebar opens — deliberately depends only
+  // on isSidebarOpen, not scrollPosition. handleScroll below updates
+  // scrollPosition on every scroll event, so including it here would re-run
+  // this effect (and re-assert scrollTop) on every tick of a live scroll —
+  // during a fast fling, React's render lags the flurry of native scroll
+  // events enough that the value being re-applied is already a tick stale,
+  // which fought the browser's own momentum scrolling and showed up as the
+  // panel visibly jumping/jittering with no further input.
   useEffect(() => {
     if (isSidebarOpen && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = scrollPosition
     }
-  }, [isSidebarOpen, scrollPosition])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSidebarOpen])
+
   // Save scroll position on scroll
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = e.currentTarget.scrollTop
@@ -259,52 +304,33 @@ export function TerrainControlPanel({
           onPointerDown={() => setIsSidebarOpen(false)}
         />
       )}
-      {/* Outer wrapper owns the rounded corners + clips to them (overflow-hidden);
-          the actual scrolling pane is the plain, unrounded div nested inside.
-          Putting overflow-y-auto directly on a rounded element used to let the
-          native scrollbar track sit flush against the inner edge, squaring off
-          the top/bottom-right corners exactly where the scrollbar appeared. */}
-      <div className={cn(
-        "absolute z-50 overflow-hidden",
-        "right-0 top-0 bottom-0 w-80 rounded-none",
-        "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
-      )}>
-        <div
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          className="h-full overflow-y-auto"
-          style={{
-            // Reserves the scrollbar's width up front so it doesn't appear/disappear
-            // as content grows past the fold, which used to shift the sticky header's
-            // right-aligned buttons left by the scrollbar's width when it popped in.
-            scrollbarGutter: 'stable',
-            height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined
-          }}
-        >
-        <Card
-          className={cn(
-            "p-4 pt-0 gap-2 space-y-2 backdrop-blur-[2px] text-base min-h-full",
-            "w-full rounded-none",
-            // Card's own border needs to actually curve at the corners — the
-            // outer wrapper's overflow-hidden clip alone only rounds the
-            // background/content; Card's straight (unrounded) border would
-            // still render as a rectangle and get abruptly cut off by that
-            // clip rather than following a smooth curve, which is what looked
-            // like a "square corner" when everything's collapsed and the
-            // border is the only thing visible near the corner.
-            "sm:rounded-xl",
-            transparentUi && activeSlider
-              ? "bg-background/20"
-              : "bg-background/95",
-            "transition-[background-color] duration-150"
-          )}
-        >
-
-        {/* Sticky header row */}
-        <div className={cn(
-          "sticky top-0 z-10 flex items-center justify-between -mx-4 px-4 -mt-4 pt-4 pb-3 border-b backdrop-blur-[2px] mb-6",
-          transparentUi && activeSlider ? "bg-background/20" : "bg-background/95"
-        )}>
+      {/* The header (title + fold-all/home/settings/close buttons) lives OUTSIDE
+          the scrolling area entirely now, as its own flex sibling — a real,
+          non-scrolling element rather than `sticky`. That's what actually fixes
+          the "button group shifts left/right when the scrollbar pops in/out"
+          issue: previously the header was `sticky` INSIDE the scrolling div, so
+          its own layout width was still computed against that div's content box,
+          which shrank/grew a few pixels whenever a real scrollbar appeared. Now
+          only the plain content div below the header scrolls, and the header's
+          width comes from Card's own (fixed, scrollbar-independent) box.
+          Card owns the rounded corners directly (no separate clipping wrapper
+          needed) — its scrollbar, produced by the nested content div, sits well
+          inside Card's own padding rather than flush against Card's rounded
+          edge, so it never has the old "scrollbar squares off the corner"
+          problem despite Card itself carrying `overflow-hidden`. */}
+      <Card
+        className={cn(
+          "absolute z-50 overflow-hidden flex flex-col p-0 gap-0 backdrop-blur-[2px] text-base",
+          "right-0 top-0 bottom-0 w-80 rounded-none",
+          "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
+          transparentUi && activeSlider
+            ? "bg-background/20"
+            : "bg-background/95",
+          "transition-[background-color] duration-150"
+        )}
+        style={{ height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined }}
+      >
+        <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b">
           <h2 className="text-xl font-semibold">{activeProjectConfig?.name || "Terrain Viewer"}</h2>
           <div className="flex gap-1 items-center">
             <TooltipIconButton
@@ -326,6 +352,14 @@ export function TerrainControlPanel({
           </div>
         </div>
 
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          // min-h-0 is required for a flex child to actually shrink below its
+          // content's natural height — without it, overflow-y-auto here would
+          // never kick in and this div would just keep growing Card taller.
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-4 space-y-2"
+        >
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
         <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
         <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} withSeparator={false} />
@@ -388,9 +422,8 @@ export function TerrainControlPanel({
         />
         <MacroSeparator />
         <FooterSection />
-      </Card>
         </div>
-      </div>
+      </Card>
     </TooltipProvider>
   )
 }

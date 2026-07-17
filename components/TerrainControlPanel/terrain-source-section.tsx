@@ -6,7 +6,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   isByodOpenAtom, customTerrainSourcesAtom,
   titilerEndpointAtom, useCogProtocolVsTitilerAtom,
@@ -17,7 +16,7 @@ import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import type { MapRef } from "react-map-gl/maplibre"
 import saveAs from "file-saver"
-import { Section } from "./controls-components"
+import { Section, SourceAbToggle } from "./controls-components"
 import { type Bounds, templateLink, shouldZoomToBounds } from "@/lib/controls-utils"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
@@ -170,19 +169,13 @@ export const TerrainSourceSection: React.FC<{
           <>
             {Object.entries(terrainSources).map(([key, config]) => (
               <div key={key} className="flex items-center gap-2 min-w-0">
-                <ToggleGroup
-                  type="single"
+                <SourceAbToggle
                   disabled={config.encoding === "3dtiles"}
-                  value={state.sourceA === key ? "a" : state.sourceB === key ? "b" : ""}
-                  onValueChange={(value) => {
-                    if (value === "a") setState({ sourceA: key })
-                    else if (value === "b") setState({ sourceB: key })
-                  }}
-                  className="border rounded-md shrink-0 cursor-pointer"
-                >
-                  <ToggleGroupItem value="a" className="px-3 cursor-pointer data-[state=on]:font-bold" disabled={config.encoding === "3dtiles"}>A</ToggleGroupItem>
-                  <ToggleGroupItem value="b" className="px-3 cursor-pointer data-[state=on]:font-bold" disabled={config.encoding === "3dtiles"}>B</ToggleGroupItem>
-                </ToggleGroup>
+                  aActive={state.sourceA === key}
+                  bActive={state.sourceB === key}
+                  onSelectA={() => setState({ sourceA: key })}
+                  onSelectB={() => setState({ sourceB: key })}
+                />
                 <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
               </div>
             ))}
@@ -233,18 +226,12 @@ export const TerrainSourceSection: React.FC<{
                 {state.splitScreen ? (
                   customTerrainSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
-                      <ToggleGroup
-                        type="single"
-                        value={state.sourceA === source.id ? "a" : state.sourceB === source.id ? "b" : ""}
-                        onValueChange={(value) => {
-                          if (value === "a") setState({ sourceA: source.id })
-                          else if (value === "b") setState({ sourceB: source.id })
-                        }}
-                        className="border rounded-md shrink-0 cursor-pointer"
-                      >
-                        <ToggleGroupItem value="a" className="px-3 cursor-pointer data-[state=on]:font-bold">A</ToggleGroupItem>
-                        <ToggleGroupItem value="b" className="px-3 cursor-pointer data-[state=on]:font-bold">B</ToggleGroupItem>
-                      </ToggleGroup>
+                      <SourceAbToggle
+                        aActive={state.sourceA === source.id}
+                        bActive={state.sourceB === source.id}
+                        onSelectA={() => setState({ sourceA: source.id })}
+                        onSelectB={() => setState({ sourceB: source.id })}
+                      />
                       <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource }} />
                     </div>
                   ))

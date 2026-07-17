@@ -3,12 +3,11 @@ import { useState, useCallback, useRef } from "react"
 import { useAtom } from "jotai"
 import { ChevronDown, Plus, Edit, TestTube } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { TooltipButton } from "./controls-components"
+import { TooltipButton, SourceAbToggle } from "./controls-components"
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
@@ -173,18 +172,12 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                 <div className="space-y-2">
                   {basemapRoleSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
-                      <ToggleGroup
-                        type="single"
-                        value={state.basemapSourceA === source.id ? "a" : state.basemapSourceB === source.id ? "b" : ""}
-                        onValueChange={(value) => {
-                          if (value === "a") setState({ basemapSourceA: source.id })
-                          else if (value === "b") setState({ basemapSourceB: source.id })
-                        }}
-                        className="border rounded-md shrink-0 cursor-pointer"
-                      >
-                        <ToggleGroupItem value="a" className="px-3 cursor-pointer data-[state=on]:font-bold">A</ToggleGroupItem>
-                        <ToggleGroupItem value="b" className="px-3 cursor-pointer data-[state=on]:font-bold">B</ToggleGroupItem>
-                      </ToggleGroup>
+                      <SourceAbToggle
+                        aActive={state.basemapSourceA === source.id}
+                        bActive={state.basemapSourceB === source.id}
+                        onSelectA={() => setState({ basemapSourceA: source.id })}
+                        onSelectB={() => setState({ basemapSourceB: source.id })}
+                      />
                       <CustomSourceDetails
                         source={source}
                         handleFitToBounds={handleFitToBounds}

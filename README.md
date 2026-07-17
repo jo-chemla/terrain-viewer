@@ -97,7 +97,7 @@ Most of these modes are supported by — and inspired by — `gdaldem` and the R
 
 Visibility-analysis modes, both built on the same "horizon angle" ray march (see `lib/horizon-angle.ts`): march outward from each pixel in 8 compass directions up to a configurable "Search Radius" (same-zoom pixels), and in each direction find the steepest elevation angle to any point along the ray — the horizon angle in that direction.
 
-- **Sky View Factor (SVF)**: fraction of the sky hemisphere visible from a point (0 = fully enclosed, e.g. the bottom of a narrow pit; 1 = fully open, e.g. a summit) — the standard proxy for ambient/diffuse illumination in relief visualization (RVT's "Sky-View Factor" mode). Uses the common simplified estimator `SVF ≈ 1 - mean(sin(max(0, horizonAngle)))` across the 8 directions, scaled ×100.
+- **Sky View Factor (SVF)**: fraction of the sky hemisphere visible from a point (0 = fully enclosed, e.g. the bottom of a narrow pit; 1 = fully open, e.g. a summit) — the standard proxy for ambient/diffuse illumination in relief visualization (RVT's "Sky-View Factor" mode), from [Zakšek, Oštir & Kokalj, 2011](https://www.mdpi.com/2072-4292/3/2/398). Uses the common simplified estimator `SVF ≈ 1 - mean(sin(max(0, horizonAngle)))` across the 8 directions, scaled ×100.
 - **Openness** (Yokoyama, Merry & Pike, 2002): mean angular distance from zenith to the horizon across the 8 directions, using the *unclamped* (signed) horizon angle — unlike SVF, this isn't capped at "fully open": a summit with nothing higher anywhere nearby reads *above* 90°, a flat plain reads exactly 90°, and a valley/pit reads below 90°. **Positive** mode uses the terrain as-is (highlights ridges/summits); **Negative** mode computes the identical formula on the terrain flipped upside down (elevation × -1), which highlights enclosed valleys/pits the same way Positive highlights ridges. Displayed re-centered on 0 (subtracting the 90° flat-ground reference) to match the diverging-ramp convention TPI/LRM already use.
 
 Deliberately the *simplest* viable version of both — not the literature's full accuracy: fixed 8 directions (not RVT's usual 16-32), integer-pixel ray steps (no bilinear sampling along the ray), and SVF's simplified mean-of-sines estimator rather than a per-sector solid-angle-weighted integral. A later pass can raise direction count, switch to bilinear ray sampling, or adopt a more precise SVF integral without changing the overall approach.
@@ -116,6 +116,30 @@ Options considered, not yet implemented:
 1. **Leave as a known/documented limitation** — it's a third-party library constraint, not an app bug.
 2. **Patch the vendored library** (would need `patch-package`, not currently set up in this repo) to force `resampleMethod: 'bilinear'` — the underlying `geotiff.js` resampler only supports `'nearest'` or `'bilinear'` (no true box/average filter), so this reduces aliasing but still isn't a real low-pass.
 3. **Bypass the library for ancestor-tile fetches** — call the underlying `geotiff` package directly for `cog://` ancestor reads in `lib/normal-derived-protocol.ts`, requesting at native resolution and doing a proper box-average downsample ourselves. More correct, but touches a shared code path used by every terrain-derivative protocol, not just Tells.
+
+#### Known limitation: DEM resolution ceiling for small mounds
+
+Curvature/blobness-based detection is only as good as the underlying DEM's real (not just nominal) resolution. Mapterhorn's global coverage, and most other freely-available global tilesets, are built from Copernicus GLO-30 — TanDEM-X-derived (infilled with SRTM/ASTER/ALOS), ~30 m posting. A 3×3–5×5 derivative kernel there has an effective footprint of 90–150 m. Mound-type sites in Bronze/Iron-Age arid-zone settlement landscapes (e.g. the Balkh/Helmand/Sistan basins) commonly run 50–300 m across and 3–20 m tall — the smaller half of that range is close to or below what a curvature operator can reliably resolve at 30 m, and TanDEM-X's own correlated stripe/mosaic-seam noise has spatial-frequency content that can masquerade as small domes. Realistically this pipeline reliably catches the larger mega-tells and misses or false-positives on smaller ones — a real ceiling to flag before investing further in this detector, and a good reason to prefer a finer-resolution source (LidarHD, a local high-res COG, etc.) wherever one is available for the area of interest.
+
+#### Related literature
+
+- [Zakšek, K., Oštir, K., Kokalj, Ž., 2011. Sky-View Factor as a Relief Visualization Technique. Remote Sensing 3(2): 398-415.](https://www.mdpi.com/2072-4292/3/2/398)
+- [Kokalj, Ž., 2025. Standardizing visualization in ancient Maya lidar research: techniques, challenges and recommendations. Archaeological Prospection.](https://dx.doi.org/10.1002/arp.70002)
+- [Remote Sensing 2026, 18(13), 2255](https://www.mdpi.com/2072-4292/18/13/2255)
+- Dorison, A. & Michelin, Y. *Forgotten Landscapes on Lava Flows in France and Western Mexico*
+
+Mound/tell detection specifically — related approaches and how they compare to this project's curvature/blobness pipeline:
+
+| Study | Region | Data source | Method | Notes |
+|---|---|---|---|---|
+| [Menze & Ur, PNAS 2012](https://www.pnas.org/doi/10.1073/pnas.1115472109) | NE Syria (Fragile Crescent) | ASTER multispectral time series, 15 m | Random Forest on multi-temporal "anthrosol" spectral signature | ~14,000 sites; spectral, not terrain |
+| [Tapete, Traviglia, Delpozzo & Cigna, RS 2021](https://www.mdpi.com/2072-4292/13/16/3106) | Near/Middle East tell landscapes | COSMO-SkyMed SAR-derived DEM + imagery, 3 m | Regional systematic mound mapping + looting-pit detection | Closest DEM-based analog at usable resolution for tells |
+| [Trier et al., PNAS 2020](https://www.pnas.org/doi/10.1073/pnas.2005583117) | Cholistan, Pakistan (Indus) | Multisensor/multitemporal SAR + multispectral | ML classifier → mound probability field | Same arid mounded-settlement morphology as Afghanistan; not DEM-curvature |
+| [Kokalj & Hesse, 2017 / RVT toolbox](https://github.com/EarthObservation/RVT) | General (methodology) | Any LiDAR/DEM | Hillshade-from-multiple-directions, sky-view factor, local relief, openness, slope | The standard "combine several derivative visualizations" reference; [repo](https://github.com/EarthObservation/RVT_py) |
+| [Gallwey et al., RS 2018](https://doi.org/10.3390/rs10020225) | Carnac/Morbihan, France | Airborne LiDAR | Multi-scale Topographic Position (micro/meso/macro) + Random Forest | Methodologically closest to what this project proposes — literally multi-scale TPI extrema + ML, κ=0.98 |
+| [PMC7070870, "Geomorphometric Methods for Burial Mound Recognition"](https://ncbi.nlm.nih.gov/pmc/articles/PMC7070870) | Europe (general) | High-res LiDAR DEM | Curvature/geomorphometric feature extraction for mound recognition | Direct precedent for curvature-based (not spectral) mound extraction |
+| [Pistola, Orrù, Marchetti, Roccetti & Gordin, PLOS ONE 2025](https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0330419) | Abu Ghraib, Mesopotamia (Iraq) | Declassified CORONA imagery | CNN retrained on historical imagery for vanished/destroyed sites | Most recent (2025); imagery not DEM, but same region family |
+| [Rajani (Kandahar survey), PLOS ONE 2021](https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0259228) | Kandahar, Afghanistan | Public satellite imagery (visual survey) | Manual identification, not automated | Only Afghanistan-specific study found — not curvature/ML-based |
 
 ## Technologies
 

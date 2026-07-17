@@ -162,6 +162,7 @@
             "name": "Global - ESA WorldCover 10m Land Cover (2021, colored map)",
             "url": "https://mapproxy.terrascope.be/mapproxy/wmts/esa-worldcover-map-10m-2021-v2_map/webmercator/{z}/{x}/{y}.png",
             "type": "tms",
+            "role": "overlay",
             "maxzoom": 16,
             "description": "Pre-colored global land cover map (tree cover, cropland, built-up, water, etc. per the official ESA WorldCover legend), served as standard XYZ tiles by Terrascope's mapproxy — CORS-open, no API key. CC BY 4.0, see https://esa-worldcover.org"
         },

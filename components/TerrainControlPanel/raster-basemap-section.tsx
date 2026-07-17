@@ -4,10 +4,9 @@ import { useAtom } from "jotai"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
-import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
+import { Section, CycleButtonGroup, SliderControl, SourceAbToggle } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
 
 export const BUILTIN_BASEMAP_OPTIONS = [
@@ -73,18 +72,12 @@ export const RasterBasemapSection: React.FC<{
             <div className="space-y-2">
               {BUILTIN_BASEMAP_OPTIONS.map(({ value, label }) => (
                 <div key={value} className="flex items-center gap-2 min-w-0">
-                  <ToggleGroup
-                    type="single"
-                    value={state.basemapSourceA === value ? "a" : state.basemapSourceB === value ? "b" : ""}
-                    onValueChange={(v) => {
-                      if (v === "a") setState({ basemapSourceA: value })
-                      else if (v === "b") setState({ basemapSourceB: value })
-                    }}
-                    className="border rounded-md shrink-0 cursor-pointer"
-                  >
-                    <ToggleGroupItem value="a" className="px-3 cursor-pointer data-[state=on]:font-bold">A</ToggleGroupItem>
-                    <ToggleGroupItem value="b" className="px-3 cursor-pointer data-[state=on]:font-bold">B</ToggleGroupItem>
-                  </ToggleGroup>
+                  <SourceAbToggle
+                    aActive={state.basemapSourceA === value}
+                    bActive={state.basemapSourceB === value}
+                    onSelectA={() => setState({ basemapSourceA: value })}
+                    onSelectB={() => setState({ basemapSourceB: value })}
+                  />
                   <Label className="flex-1 text-sm truncate min-w-0">{label}</Label>
                 </div>
               ))}

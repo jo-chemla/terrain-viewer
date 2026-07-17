@@ -108,6 +108,10 @@ export interface CustomBasemapSource {
    *  raster-basemap-section.tsx) — only meaningful outside the simplified single-select
    *  basemap mode. Defaults to 'basemap' for sources created before this field existed. */
   role?: "basemap" | "overlay"
+  /** 0-100 — lets an overlay (or a basemap) render partially see-through
+   *  instead of fully opaque. Defaults to 100 for sources created before this
+   *  field existed. */
+  opacity?: number
 }
 
 export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [], undefined, { getOnInit: true })

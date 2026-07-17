@@ -326,7 +326,15 @@ export const RasterBasemapSource = memo(({
             key={`raster-${basemapSource}`}
             type="raster"
             tileSize={256}
-            maxzoom={19}
+            // zoomRange.maxzoom (not a hardcoded 19) — buildRasterTileSource's
+            // returned sourceProps never carries a custom source's own maxzoom
+            // (only the built-in-basemap branch above adds one), so a hardcoded
+            // 19 here silently overrode any narrower maxzoom a custom source
+            // declared (e.g. a WMTS layer only published up to z6), causing
+            // requests past its real tile pyramid. zoomRange already computes
+            // the correct value for both the custom and built-in cases.
+            minzoom={zoomRange.minzoom}
+            maxzoom={zoomRange.maxzoom}
             {...sourceProps}
         />
     )
@@ -367,7 +375,12 @@ export const OverlayBasemapSources = memo(({
                         id={`overlay-basemap-source-${id}`}
                         type="raster"
                         tileSize={256}
-                        maxzoom={19}
+                        // See the matching comment on RasterBasemapSource — a
+                        // hardcoded 19 here overrode this source's own (possibly
+                        // narrower) maxzoom, since buildRasterTileSource never
+                        // includes one for a plain custom source.
+                        minzoom={source.minzoom ?? 0}
+                        maxzoom={source.maxzoom ?? 19}
                         {...sourceProps}
                     />
                 )
@@ -637,7 +650,14 @@ const NormalDerivedSource = memo(({ enabled, sourceId, terrainSource, customTerr
             type="raster-dem"
             tiles={[url]}
             tileSize={clientUpstream.tileSize}
-            encoding="mapbox"
+            // Terrarium, not mapbox/terrain-rgb — these tiles hold curvature/TRI/TPI/
+            // roughness/openness/blobness/LRM values (see normal-derived-protocol.ts),
+            // not real elevation, and Terrain-RGB's fixed 0.1 step was coarse enough
+            // relative to their typical (often ×100-scaled, near-zero) range to show as
+            // visible banding — Terrarium's 1/256 (~0.0039) step fixes that. Must match
+            // whatever elevationTo* function normal-derived-protocol.ts/lrm-protocol.ts
+            // actually encoded these tiles with.
+            encoding="terrarium"
             minzoom={clientUpstream.minzoom}
             maxzoom={clientUpstream.maxzoom}
         />

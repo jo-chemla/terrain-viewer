@@ -23,7 +23,7 @@
 // pays for the coarse fetch once, unlike a same-zoom box blur which can't share any
 // work between neighboring output tiles.
 
-import { elevationToTerrainrgb } from "./elevation-encoding"
+import { elevationToTerrarium } from "./elevation-encoding"
 import {
   sharedTileCache, fetchDecodedTile, fetchPaddedElevationGrid, bilinearSamplePadded,
   buildProtocolUrl, type UpstreamEncoding,
@@ -103,7 +103,7 @@ export async function lrmProtocol(
       const fineElevation = centerTile.data[row * centerTile.width + col]
       const lrm = fineElevation - coarseElevation
 
-      const [r, g, b, alpha] = elevationToTerrainrgb(lrm)
+      const [r, g, b, alpha] = elevationToTerrarium(lrm)
       const idx = (row * n + col) * 4
       outData[idx] = r
       outData[idx + 1] = g

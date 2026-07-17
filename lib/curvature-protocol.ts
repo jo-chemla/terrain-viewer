@@ -69,6 +69,19 @@ export function computeDetHessian(w: ElevationWindow): number {
   return (r * t - s * s) * 10000
 }
 
+// Curvature's own compute* functions already land in a small, near-zero-heavy
+// range (roughly -20..20 for real terrain, by design — see computeDetHessian's
+// comment). Wired straight into elevationToTerrarium's native ~0.0039 step
+// (see normal-derived-protocol.ts), that still leaves under 10,000 distinct
+// levels across the whole ramp, and far fewer within the near-zero band where
+// most real terrain actually falls — the likely source of the visible
+// banding/discretization on some sources. This extra factor multiplies the
+// value going into the wire encoding only, undone by dividing back out
+// wherever the raw ["elevation"] is read for display (curvatureReliefPaint's
+// min/max in TerrainViewer.tsx) — the slider/ramp UI and its stored min/max
+// stay in ordinary curvature units throughout, unaffected.
+export const CURVATURE_ENCODE_SCALE = 1000
+
 export async function curvatureProtocol(
   params: { url: string },
   abortController: AbortController,
@@ -82,10 +95,14 @@ export async function curvatureProtocol(
     abortController,
     cache: sharedTileCache,
     computeValue: (w) => {
-      if (mode === "combined") return computeCombined(w)
-      if (mode === "det-hessian") return computeDetHessian(w)
-      const { profile, plan } = computeProfileAndPlan(w)
-      return mode === "profile" ? profile : plan
+      let value: number
+      if (mode === "combined") value = computeCombined(w)
+      else if (mode === "det-hessian") value = computeDetHessian(w)
+      else {
+        const { profile, plan } = computeProfileAndPlan(w)
+        value = mode === "profile" ? profile : plan
+      }
+      return value * CURVATURE_ENCODE_SCALE
     },
   })
 }

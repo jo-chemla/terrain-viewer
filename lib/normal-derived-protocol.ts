@@ -1,4 +1,4 @@
-import { elevationToTerrainrgb } from "./elevation-encoding"
+import { elevationToTerrarium } from "./elevation-encoding"
 import { cogProtocol } from "@geomatico/maplibre-cog-protocol"
 import { float32demProtocol } from "./float32dem-protocol"
 
@@ -10,11 +10,16 @@ import { float32demProtocol } from "./float32dem-protocol"
 // untouched — it predates this file and is proven in production, not worth the
 // regression risk of migrating it onto a shared abstraction after the fact.
 //
-// Every derived attribute is re-packed through the same terrainrgb encoding this
-// app already uses for elevation (see slope-protocol.ts's header comment for why),
-// so it drops into the existing color-relief layer/ramp machinery unchanged — the
-// paint layer never needs to know whether "elevation" means meters, degrees, or a
-// ruggedness index.
+// Every derived attribute is re-packed as a Terrarium-encoded pseudo-elevation (see
+// NormalDerivedSource's matching encoding="terrarium" in MapSources.tsx) so it drops
+// into the existing color-relief layer/ramp machinery unchanged — the paint layer
+// never needs to know whether "elevation" means meters, degrees, or a ruggedness
+// index. Terrarium's 1/256 (~0.0039) step is used instead of Terrain-RGB's fixed
+// 0.1 (what slope-protocol.ts still uses, and what real elevation itself uses) —
+// these are curvature/TRI/TPI/roughness/openness/blobness/LRM values, most of which
+// are already scaled ×100 or smaller in magnitude, so a 0.1-wide step can eat a
+// large fraction of their real dynamic range and show up as visible banding, most
+// noticeably on curvature's near-zero (~flat ground) band.
 
 export type UpstreamEncoding = "terrarium" | "mapbox"
 
@@ -368,7 +373,7 @@ export async function runNormalDerivedProtocol(
         groundResolutionM: scaledGroundResolutionM,
       }
 
-      const [r, g, b, alpha] = elevationToTerrainrgb(computeValue(window))
+      const [r, g, b, alpha] = elevationToTerrarium(computeValue(window))
       const idx = (row * n + col) * 4
       outData[idx] = r
       outData[idx + 1] = g
@@ -449,7 +454,7 @@ export async function runWindowedProtocol(
       const pc = col + halo
       const sample = (dr: number, dc: number) => padded[(pr + dr) * stride + (pc + dc)]
 
-      const [r, g, b, alpha] = elevationToTerrainrgb(computeValue(sample, scaledGroundResolutionM))
+      const [r, g, b, alpha] = elevationToTerrarium(computeValue(sample, scaledGroundResolutionM))
       const idx = (row * n + col) * 4
       outData[idx] = r
       outData[idx + 1] = g

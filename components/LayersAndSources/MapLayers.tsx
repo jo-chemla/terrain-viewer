@@ -79,22 +79,31 @@ RasterLayer.displayName = "RasterLayer"
 
 // Overlay Layers — one raster layer per active 'overlay'-role custom basemap
 // source (see OverlayBasemapSources in MapSources.tsx), stacked between the
-// basemap and every terrain-derived visualization. Opacity is just the viz-mode
-// "Raster Basemap" master slider (100% × it) — there's no per-overlay solo slider,
-// unlike the single/split basemap layer (see RasterLayer), which additionally
-// composites with its own Basemap Opacity slider.
-export const OverlayBasemapLayers = memo(({ overlayIds, opacity }: { overlayIds: string[]; opacity: number }) => (
+// basemap and every terrain-derived visualization. Final opacity is the viz-mode
+// "Raster Basemap" master slider times each source's own Style opacity (set in
+// the Edit Basemap modal, 100 if unset) — the master slider alone used to be
+// the only control, which meant an overlay could only ever be fully opaque or
+// track the primary basemap's slider, with no way to blend a specific overlay
+// (e.g. a land-cover map) more subtly against what's under it.
+export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSources }: {
+  overlayIds: string[]
+  opacity: number
+  customBasemapSources: { id: string; opacity?: number }[]
+}) => (
   <>
-    {overlayIds.map((id) => (
-      <Layer
-        key={`overlay-layer-${id}`}
-        beforeId={LAYER_SLOTS.OVERLAYS}
-        id={`overlay-basemap-${id}`}
-        type="raster"
-        source={`overlay-basemap-source-${id}`}
-        paint={{ "raster-opacity": opacity, "raster-resampling": "linear" }}
-      />
-    ))}
+    {overlayIds.map((id) => {
+      const sourceOpacity = (customBasemapSources.find((s) => s.id === id)?.opacity ?? 100) / 100
+      return (
+        <Layer
+          key={`overlay-layer-${id}`}
+          beforeId={LAYER_SLOTS.OVERLAYS}
+          id={`overlay-basemap-${id}`}
+          type="raster"
+          source={`overlay-basemap-source-${id}`}
+          paint={{ "raster-opacity": opacity * sourceOpacity, "raster-resampling": "linear" }}
+        />
+      )
+    })}
   </>
 ))
 OverlayBasemapLayers.displayName = "OverlayBasemapLayers"

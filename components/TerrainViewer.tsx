@@ -39,7 +39,7 @@ import { float32demProtocol } from '@/lib/float32dem-protocol'
 import { slopeProtocol } from '@/lib/slope-protocol'
 import { aspectProtocol } from '@/lib/aspect-protocol'
 import { triProtocol } from '@/lib/tri-protocol'
-import { curvatureProtocol } from '@/lib/curvature-protocol'
+import { curvatureProtocol, CURVATURE_ENCODE_SCALE } from '@/lib/curvature-protocol'
 import { tpiProtocol } from '@/lib/tpi-protocol'
 import { roughnessProtocol } from '@/lib/roughness-protocol'
 import { lrmProtocol } from '@/lib/lrm-protocol'
@@ -397,8 +397,13 @@ export function TerrainViewer() {
     () => computeColorReliefPaint({
       colorRamp: state.curvatureColorRamp,
       customHypsoMinMax: true,
-      minElevation: state.curvatureMin,
-      maxElevation: state.curvatureMax,
+      // The curvature:// protocol wire-encodes its value ×CURVATURE_ENCODE_SCALE
+      // for finer Terrarium quantization (see curvature-protocol.ts) — the raw
+      // ["elevation"] this color-relief layer reads back is scaled the same
+      // way, so the ramp's min/max need the same factor to line up. The
+      // slider/state itself (curvatureMin/Max) stays in ordinary curvature units.
+      minElevation: state.curvatureMin * CURVATURE_ENCODE_SCALE,
+      maxElevation: state.curvatureMax * CURVATURE_ENCODE_SCALE,
       colorReliefOpacity: state.curvatureOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.curvatureInvertColorRamp,
     }),
@@ -1279,7 +1284,7 @@ export function TerrainViewer() {
             rasterBasemapOpacity={state.rasterBasemapOpacity * state.basemapSourceOpacity}
           />
           {state.basemapPerView && state.showRasterBasemap && (
-            <OverlayBasemapLayers overlayIds={state.overlayBasemapIds} opacity={state.rasterBasemapOpacity} />
+            <OverlayBasemapLayers overlayIds={state.overlayBasemapIds} opacity={state.rasterBasemapOpacity} customBasemapSources={customBasemapSources} />
           )}
           <ColorReliefLayer
             showColorRelief={state.showColorRelief}

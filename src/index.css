@@ -16,7 +16,10 @@
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  /* A touch darker than the stock 0.97 (same as --muted) — that was only ~3%
+     off the page background, so a toggled-on control (e.g. AdvancedModeToggle)
+     read as barely-there in light mode. */
+  --accent: oklch(0.93 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
@@ -216,8 +219,12 @@
   margin-bottom: 0px !important;
 }
 
-/* Fix button-group highlighted color in dark theme */
-.dark [data-state="on"] {
+/* Fix button-group highlighted color in dark theme — scoped to actual
+   ToggleGroupItem buttons (data-slot="toggle-group-item"), not the broader
+   [data-state="on"] which also matches a standalone Toggle (e.g.
+   AdvancedModeToggle in controls-components.tsx) and stomped its own
+   dark-mode on-state color with this rule's !important. */
+.dark [data-slot="toggle-group-item"][data-state="on"] {
   background-color: oklch(0.145 0 0) !important;
   color: oklch(0.985 0 0) !important;
 }
