@@ -15,6 +15,9 @@ import {LAYER_SLOTS} from "./MapLayers"
 export const contourLinesLayerDef = (
   showContours: boolean,
   theme: string,
+  // Multiplies both major (1px) and minor (0.5px) widths, keeping their ratio —
+  // 1 is today's default, 2/4 make both proportionally bolder.
+  weight: number = 1,
 ): LayerSpecification => ({
   id: "contour-lines",
   type: "line",
@@ -23,7 +26,7 @@ export const contourLinesLayerDef = (
   paint: {
     "line-color":
       theme === "light" ? "rgba(0,0,0, 50%)" : "rgba(255,255,255, 50%)",
-    "line-width": ["match", ["get", "level"], 1, 1, 0.5],
+    "line-width": ["match", ["get", "level"], 1, weight, 0.5 * weight],
   },
   layout: {
     visibility: showContours ? "visible" : "none",
@@ -181,6 +184,7 @@ export interface ContoursLayerProps {
   sourceId: string
   contourMinor: number
   contourMajor: number
+  contourWeight: number
   /** Passed through to tile URL resolution */
   mapboxKey: string
   maptilerKey: string
@@ -201,6 +205,7 @@ export function ContoursLayer({
   sourceId,
   contourMinor,
   contourMajor,
+  contourWeight,
   mapboxKey,
   maptilerKey,
   customTerrainSources,
@@ -336,7 +341,7 @@ export function ContoursLayer({
 
     // Re-add layers imperatively so they exist before the declarative <Layer>
     // elements re-mount (avoids a flash where source exists but layers don't).
-    map.addLayer(contourLinesLayerDef(showContours, theme) as any)
+    map.addLayer(contourLinesLayerDef(showContours, theme, contourWeight) as any)
     map.addLayer(contourLabelsLayerDef(showContours && showContourLabels, theme) as any)
   }, [contourMinor, contourMajor]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -364,7 +369,7 @@ export function ContoursLayer({
     <>
       <Layer
         beforeId={LAYER_SLOTS.CONTOURS}
-        {...contourLinesLayerDef(showContours, theme)}
+        {...contourLinesLayerDef(showContours, theme, contourWeight)}
         key={"contour-lines-" + theme}
       />
       <Layer

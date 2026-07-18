@@ -1,6 +1,11 @@
 import type React from "react"
 import type { MapRef } from "react-map-gl/maplibre"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Section, SliderControl, CheckboxWithSlider } from "./controls-components"
+
+const WEIGHT_TOGGLE_ITEM_CLASS = "cursor-pointer px-2 text-xs data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
 
 // ── Contour snap tables ────────────────────────────────────────────────────
 const MINOR_INTERVALS = [0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]
@@ -52,13 +57,28 @@ export const ContourOptionsSection: React.FC<{
           <h4 className="text-xs font-semibold tracking-wider text-muted-foreground">
             Contour Lines (only for TMS terrain, not BYOD COG)
           </h4>
-          <CheckboxWithSlider
-            id="showContours"
-            label="Show Contour Lines"
-            checked={state.showContours}
-            onCheckedChange={(checked) => setState({ showContours: checked })}
-            hideSlider
-          />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="showContours"
+                checked={state.showContours}
+                onCheckedChange={(checked) => setState({ showContours: checked })}
+                className="cursor-pointer"
+              />
+              <Label htmlFor="showContours" className="text-sm cursor-pointer">Show Contour Lines</Label>
+            </div>
+            <ToggleGroup
+              type="single"
+              value={String(Number(state.contourWeight) || 1)}
+              onValueChange={(value) => value && setState({ contourWeight: Number(value) })}
+              disabled={!state.showContours}
+              className="border rounded-md"
+            >
+              <ToggleGroupItem value="1" className={WEIGHT_TOGGLE_ITEM_CLASS}>1×</ToggleGroupItem>
+              <ToggleGroupItem value="2" className={WEIGHT_TOGGLE_ITEM_CLASS}>2×</ToggleGroupItem>
+              <ToggleGroupItem value="4" className={WEIGHT_TOGGLE_ITEM_CLASS}>4×</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
           {state.showContours && (
             <>
               <CheckboxWithSlider

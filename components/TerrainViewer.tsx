@@ -302,6 +302,9 @@ export function TerrainViewer() {
     hillshadeExag: parseAsFloat.withDefault(1.0),
     contourMinor: parseAsFloat.withDefault(50),
     contourMajor: parseAsFloat.withDefault(200),
+    // Multiplies both major and minor contour line-width — default (1) keeps
+    // today's major-vs-minor ratio, 2/4 make both proportionally bolder.
+    contourWeight: parseAsFloat.withDefault(1),
     customHypsoMinMax: parseAsBoolean.withDefault(false),
     minElevation: parseAsFloat.withDefault(0),
     maxElevation: parseAsFloat.withDefault(8100),
@@ -1331,6 +1334,7 @@ export function TerrainViewer() {
               sourceId={state.sourceA}
               contourMinor={state.contourMinor}
               contourMajor={state.contourMajor}
+              contourWeight={state.contourWeight}
               mapboxKey={mapboxKey}
               maptilerKey={maptilerKey}
               customTerrainSources={customTerrainSources}
@@ -1476,7 +1480,7 @@ export function TerrainViewer() {
       tellsColorByPaints, state.tellsOutlineColor, state.tellsScaleMarkers, state.tellsScaleMultiplier, state.tellMeasureScale,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
-      state.sourceA, state.contourMinor, state.contourMajor,
+      state.sourceA, state.contourMinor, state.contourMajor, state.contourWeight,
       activeBasemapSourceA, activeBasemapSourceB,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, blobnessReliefPaint, svfReliefPaint, opennessReliefPaint,
