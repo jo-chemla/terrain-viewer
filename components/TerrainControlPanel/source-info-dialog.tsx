@@ -60,13 +60,17 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
   const supportsIlluminationAltitude = ["combined", "basic"].includes(hillshadeMethod)
   const hillshadeFlags = [
     HILLSHADE_ALG_FLAG[hillshadeMethod],
-    supportsIlluminationDirection ? `-az ${state?.illuminationDir ?? 315}` : null,
-    supportsIlluminationAltitude ? `-alt ${state?.illuminationAlt ?? 45}` : null,
+    supportsIlluminationDirection ? `-az ${Number(state?.illuminationDir ?? 315).toFixed(1)}` : null,
+    supportsIlluminationAltitude ? `-alt ${Number(state?.illuminationAlt ?? 45).toFixed(1)}` : null,
   ].filter(Boolean).join(" ")
 
   const demInputFile = decodeFormula ? "output_altitude.tif" : "output.tif"
   const hillshadeLine = `gdaldem hillshade ${demInputFile} hillshade.tif${hillshadeFlags ? " " + hillshadeFlags : ""}`
-  const gdalDemCommand = `# Run against the DEM exported above (${demInputFile}). Covers the Slope-and-More\n# modes gdaldem supports natively — LRM, Blobness, and the Plan/Det-Hessian/Combined\n# curvature variants have no gdaldem equivalent (custom, RVT-inspired implementations).\n${hillshadeLine}\ngdaldem slope ${demInputFile} slope.tif\ngdaldem aspect ${demInputFile} aspect.tif\ngdaldem color-relief ${demInputFile} ramp.txt color-relief.tif\ngdaldem TRI ${demInputFile} tri.tif\ngdaldem TPI ${demInputFile} tpi.tif\ngdaldem roughness ${demInputFile} roughness.tif`
+  // <color_text_file> is a placeholder, not a real filename — gdaldem color-relief
+  // needs a text file of "elevation R G B [A]" rows (its own -q/-of flags don't
+  // generate one), and this app doesn't currently export the active color ramp in
+  // that format, so there's nothing real to point at yet.
+  const gdalDemCommand = `# Run against the DEM exported above (${demInputFile}). Covers the Slope-and-More\n# modes gdaldem supports natively — LRM, Blobness, and the Plan/Det-Hessian/Combined\n# curvature variants have no gdaldem equivalent (custom, RVT-inspired implementations).\n${hillshadeLine}\ngdaldem slope ${demInputFile} slope.tif\ngdaldem aspect ${demInputFile} aspect.tif\ngdaldem color-relief ${demInputFile} <color_text_file> color-relief.tif\ngdaldem TRI ${demInputFile} tri.tif\ngdaldem TPI ${demInputFile} tpi.tif\ngdaldem roughness ${demInputFile} roughness.tif`
 
   return (
     <Dialog>
