@@ -293,7 +293,7 @@ export const HypsometricTintOptionsSection: React.FC<{
           {/* grid-cols-N hard-codes N equal-width columns, which breaks as soon as a category
               gets added (labels start clipping/wrapping) — a horizontally-scrollable flex row
               scales to any number of categories instead. */}
-          <TabsList className="flex w-full overflow-x-auto justify-start gap-1 [&>*]:shrink-0">
+          <TabsList className="flex h-12 w-full overflow-x-auto justify-start gap-1 [&>*]:shrink-0">
             <TabsTrigger value="classic" className="cursor-pointer">Classic</TabsTrigger>
             <TabsTrigger value="topqgs" className="cursor-pointer">Top Qgs</TabsTrigger>
             <TabsTrigger value="topo" className="cursor-pointer">Topo</TabsTrigger>

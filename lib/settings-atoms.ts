@@ -7,7 +7,7 @@ export const googleKeyAtom = atomWithStorage("googleKey", "AIzaSyAo6DIOnhYdywBid
 export const mapzenKeyAtom = atomWithStorage("mapzenKey", "mapzen-xxxxxxx")
 export const maptilerKeyAtom = atomWithStorage("maptilerKey", "FbPGGTCFE8IRiPECxIrp")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
-export const maxResolutionAtom = atomWithStorage("maxResolution", 1024)
+export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
 
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)
 // DTM export mode: client-side (browser range-reads/tile-mosaic, no titiler, no
@@ -117,6 +117,12 @@ export interface CustomBasemapSource {
 export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [], undefined, { getOnInit: true })
 export const isBasemapByodOpenAtom = atomWithStorage("isBasemapByodOpen", true)
 export const isHillshadeXYPadOpenAtom = atomWithStorage("isHillshadeXYPadOpen", true)
+// Pins Visualization Modes open through "Fold all sections" (TerrainControlPanel.tsx)
+// — that's the master on/off switchboard for every viz layer, so folding it away
+// along with everything else hides the controls someone's most likely to want
+// still-visible right after a bulk fold. Defaults on; still individually
+// collapsible via its own chevron regardless of the pin.
+export const vizModePinnedAtom = atomWithStorage("vizModePinned", true)
 
 export const transparentUiAtom = atomWithStorage("isTransparentUi", true)
 export const activeSliderAtom = atom<string | null>(null)

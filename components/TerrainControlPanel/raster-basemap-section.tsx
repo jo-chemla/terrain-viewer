@@ -48,19 +48,23 @@ export const RasterBasemapSection: React.FC<{
     <Section title="Basemap" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
       <Collapsible open={isWorldwideOpen} onOpenChange={setIsWorldwideOpen}>
         <div className="flex items-center justify-between gap-2">
-          <CollapsibleTrigger className="flex items-center gap-1.5 cursor-pointer">
+          <CollapsibleTrigger className="flex-1 min-w-0 text-left cursor-pointer">
             <GroupHeading>Worldwide Defaults</GroupHeading>
-            <ChevronDown className={`h-4 w-4 transition-transform ${isWorldwideOpen ? "rotate-180" : ""}`} />
           </CollapsibleTrigger>
-          <div className="flex items-center gap-2 cursor-pointer">
-            <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Simple</Label>
-            <Switch
-              id="basemap-per-view"
-              checked={state.basemapPerView || false}
-              onCheckedChange={(checked) => setState({ basemapPerView: checked })}
-              className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent"
-            />
-            <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Split</Label>
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2 cursor-pointer">
+              <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Simple</Label>
+              <Switch
+                id="basemap-per-view"
+                checked={state.basemapPerView || false}
+                onCheckedChange={(checked) => setState({ basemapPerView: checked })}
+                className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+              />
+              <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Split</Label>
+            </div>
+            <CollapsibleTrigger className="cursor-pointer">
+              <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isWorldwideOpen ? "rotate-180" : ""}`} />
+            </CollapsibleTrigger>
           </div>
         </div>
 

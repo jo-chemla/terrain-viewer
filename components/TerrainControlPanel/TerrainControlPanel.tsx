@@ -7,7 +7,7 @@ import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home }
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
+import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
 import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
@@ -80,6 +80,18 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
 
 export const sectionOpenAtom = atomWithStorage<SectionOpenState>("sectionOpen", DEFAULT_OPEN_STATE)
 export const sidebarScrollAtom = atomWithStorage("sidebarScroll", 0)
+
+// Fold state for the labeled macro-group separators (Sources/Options/Detectors/
+// Tools) — each one collapses every section rendered between it and the next
+// separator. Independent of per-section sectionOpenAtom (folding a group just
+// hides its sections; each section's own open/closed state is preserved
+// underneath and reappears as-is when the group is expanded again).
+const MACRO_GROUP_KEYS = ["Sources", "Options", "Detectors", "Tools"] as const
+type MacroGroupKey = (typeof MACRO_GROUP_KEYS)[number]
+type MacroGroupOpenState = Record<MacroGroupKey, boolean>
+export const macroGroupOpenAtom = atomWithStorage<MacroGroupOpenState>("macroGroupOpen", {
+  Sources: true, Options: true, Detectors: true, Tools: true,
+})
 
 interface TerrainControlPanelProps {
   state: any
@@ -193,15 +205,24 @@ export function TerrainControlPanel({
 
 
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
+  const [macroGroupOpen, setMacroGroupOpen] = useAtom(macroGroupOpenAtom)
+  const toggleMacroGroup = (key: MacroGroupKey) => setMacroGroupOpen((prev) => ({ ...prev, [key]: !prev[key] }))
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
+  const [vizModePinned] = useAtom(vizModePinnedAtom)
   const hideSourcePanels = activeProjectConfig?.hideSourcePanels ?? false
   const hiddenSections = activeProjectConfig?.hiddenSections ?? []
 
-  const allFolded = SECTION_KEYS.every((k) => !sectionOpen[k])
+  // A pinned section (currently just Visualization Modes, via its own pin
+  // toggle) is excluded from the "is everything folded" check and left
+  // untouched when folding — it only ever closes via its own chevron.
+  const isPinned = (k: SectionKey) => k === "visualizationModes" && vizModePinned
+  const allFolded = SECTION_KEYS.every((k) => isPinned(k) || !sectionOpen[k])
 
   const handleFoldExpandAll = () => {
     const next = allFolded
-    setSectionOpen(Object.fromEntries(SECTION_KEYS.map((k) => [k, next])) as SectionOpenState)
+    setSectionOpen((prev) => Object.fromEntries(SECTION_KEYS.map((k) =>
+      [k, isPinned(k) && !next ? prev[k] : next]
+    )) as SectionOpenState)
   }
 
   // With a project active, clears every other URL param back to default, then
@@ -361,39 +382,49 @@ export function TerrainControlPanel({
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
         <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
         <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} withSeparator={false} />
-        <MacroSeparator label="Sources" />
-        {!hideSourcePanels && (
-          <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
+        <MacroSeparator label="Sources" isOpen={macroGroupOpen.Sources} onToggle={() => toggleMacroGroup("Sources")} />
+        {macroGroupOpen.Sources && (
+          <>
+            {!hideSourcePanels && (
+              <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
+            )}
+            {!hideSourcePanels && (
+              <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
+            )}
+          </>
         )}
-        {!hideSourcePanels && (
-          <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
+        <MacroSeparator label="Options" isOpen={macroGroupOpen.Options} onToggle={() => toggleMacroGroup("Options")} />
+        {macroGroupOpen.Options && (
+          <>
+            {!hiddenSections.includes("contour") && (
+              <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
+            )}
+            <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
+            <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
+            {!hiddenSections.includes("reliefVisualization") && (
+              <ReliefVisualizationOptionsSection
+                state={state}
+                setState={setState}
+                isOpen={sectionOpen.reliefVisualization}
+                onOpenChange={toggle("reliefVisualization")}
+                terrainTileSize={getSourceConfig(state.sourceA)?.tileSize ?? 256}
+              />
+            )}
+            {!hiddenSections.includes("terrainAnalysis") && (
+              <TerrainAnalysisOptionsSection
+                state={state}
+                setState={setState}
+                isOpen={sectionOpen.terrainAnalysis}
+                onOpenChange={toggle("terrainAnalysis")}
+                withSeparator={!state.tellsBeta}
+              />
+            )}
+          </>
         )}
-        <MacroSeparator label="Options" />
-        {!hiddenSections.includes("contour") && (
-          <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
+        {!hiddenSections.includes("terrainAnalysis") && state.tellsBeta && (
+          <MacroSeparator label="Detectors" isOpen={macroGroupOpen.Detectors} onToggle={() => toggleMacroGroup("Detectors")} />
         )}
-        <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
-        <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
-        {!hiddenSections.includes("reliefVisualization") && (
-          <ReliefVisualizationOptionsSection
-            state={state}
-            setState={setState}
-            isOpen={sectionOpen.reliefVisualization}
-            onOpenChange={toggle("reliefVisualization")}
-            terrainTileSize={getSourceConfig(state.sourceA)?.tileSize ?? 256}
-          />
-        )}
-        {!hiddenSections.includes("terrainAnalysis") && (
-          <TerrainAnalysisOptionsSection
-            state={state}
-            setState={setState}
-            isOpen={sectionOpen.terrainAnalysis}
-            onOpenChange={toggle("terrainAnalysis")}
-            withSeparator={!state.tellsBeta}
-          />
-        )}
-        {!hiddenSections.includes("terrainAnalysis") && state.tellsBeta && <MacroSeparator label="Detectors" />}
-        {!hiddenSections.includes("terrainAnalysis") && (
+        {!hiddenSections.includes("terrainAnalysis") && macroGroupOpen.Detectors && (
           <DetectorMoundsSection
             state={state}
             setState={setState}
@@ -405,19 +436,23 @@ export function TerrainControlPanel({
         )}
         {!hiddenSections.includes("terrainAnalysis") && state.tellsBeta && <MacroSeparator />}
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
-        <MacroSeparator label="Tools" />
-        <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
-        {!hiddenSections.includes("elevationPicker") && (
-          <ElevationPickerSection state={state} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
+        <MacroSeparator label="Tools" isOpen={macroGroupOpen.Tools} onToggle={() => toggleMacroGroup("Tools")} />
+        {macroGroupOpen.Tools && (
+          <>
+            <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
+            {!hiddenSections.includes("elevationPicker") && (
+              <ElevationPickerSection state={state} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
+            )}
+            <AnimationSection
+              mapRef={mapRef}
+              isOpen={sectionOpen.animation}
+              onOpenChange={toggle("animation")}
+              appState={state}
+              setAppState={setAppState}
+              setAppStateSafe={setAppState}
+            />
+          </>
         )}
-        <AnimationSection
-          mapRef={mapRef}
-          isOpen={sectionOpen.animation}
-          onOpenChange={toggle("animation")}
-          appState={state}
-          setAppState={setAppState}
-          setAppStateSafe={setAppState}
-        />
         <MacroSeparator />
         <FooterSection />
         </div>

@@ -1,8 +1,10 @@
 import type React from "react"
 import type { MapRef } from "react-map-gl/maplibre"
+import { Info } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, SliderControl, CheckboxWithSlider, GroupHeading } from "./controls-components"
 
 const WEIGHT_TOGGLE_ITEM_CLASS = "cursor-pointer px-2 text-xs data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
@@ -54,7 +56,15 @@ export const ContourOptionsSection: React.FC<{
 
         <div className="space-y-2">
           {/* ── Contour Lines ──────────────────────────────────────────── */}
-          <GroupHeading>Contours (only for TMS terrain, not BYOD COG)</GroupHeading>
+          <div className="flex items-center gap-1">
+            <GroupHeading>Contours</GroupHeading>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent><p>Only for TMS terrain, not BYOD COG</p></TooltipContent>
+            </Tooltip>
+          </div>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Checkbox
@@ -108,7 +118,7 @@ export const ContourOptionsSection: React.FC<{
 
         <div className="space-y-2">
           {/* ── Graticules ─────────────────────────────────────────────── */}
-          <GroupHeading>Graticules</GroupHeading>
+          <GroupHeading>Geogrid / Graticule</GroupHeading>
           <CheckboxWithSlider
             id="showGraticules"
             label="Show GeoGrid / Graticules"

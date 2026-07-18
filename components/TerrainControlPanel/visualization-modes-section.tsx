@@ -1,8 +1,9 @@
 import type React from "react"
 import { useEffect, useRef } from "react"
 import { useAtom } from "jotai"
-import { activeProjectConfigAtom } from "@/lib/settings-atoms"
-import { Section, CheckboxWithSlider } from "./controls-components"
+import { Pin, PinOff } from "lucide-react"
+import { activeProjectConfigAtom, vizModePinnedAtom } from "@/lib/settings-atoms"
+import { Section, CheckboxWithSlider, TooltipIconButton } from "./controls-components"
 
 export const VisualizationModesSection: React.FC<{
   state: any; setState: (updates: any) => void
@@ -10,6 +11,7 @@ export const VisualizationModesSection: React.FC<{
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, isOpen, onOpenChange }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
+  const [vizModePinned, setVizModePinned] = useAtom(vizModePinnedAtom)
   const hideContours = activeProjectConfig?.hiddenSections?.includes("contour") ?? false
   const hideTerrainAnalysis = activeProjectConfig?.hiddenSections?.includes("terrainAnalysis") ?? false
   const hideReliefVisualization = activeProjectConfig?.hiddenSections?.includes("reliefVisualization") ?? false
@@ -24,7 +26,19 @@ export const VisualizationModesSection: React.FC<{
   }, [state.tellsStyle])
 
   return (
-    <Section title="Visualization Modes" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section
+      title="Visualization Modes"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      headerExtra={
+        <TooltipIconButton
+          icon={vizModePinned ? Pin : PinOff}
+          tooltip={vizModePinned ? "Pinned open — stays expanded when folding all sections" : "Not pinned — folds along with everything else"}
+          onClick={() => setVizModePinned(!vizModePinned)}
+          className="h-6 w-6"
+        />
+      }
+    >
       {!hideContours && (
         <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} />
       )}

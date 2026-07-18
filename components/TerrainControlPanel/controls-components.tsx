@@ -252,15 +252,33 @@ export const SourceAbToggle: React.FC<{
 // section, a plain sibling-based CSS rule (see index.css) hides whichever
 // ordinary Separator ends up directly adjacent to one of these — regardless
 // of which section that turns out to be.
-export const MacroSeparator: React.FC<{ label?: string }> = ({ label }) => {
+// isOpen/onToggle turn a labeled separator into a fold control for everything
+// between it and the next one (see macroGroupOpenAtom in TerrainControlPanel.tsx)
+// — chevrons flank the label on both sides, per the user's requested
+// "--- ^ options ^ ---" look. Omitting onToggle keeps a labeled separator
+// purely decorative (unused today, but keeps the component backward-compatible).
+export const MacroSeparator: React.FC<{ label?: string; isOpen?: boolean; onToggle?: () => void }> = ({ label, isOpen, onToggle }) => {
   if (label) {
+    const foldable = onToggle !== undefined
     return (
       <Marker
         variant="separator"
-        className="macro-separator py-1 before:h-[2px] before:bg-foreground/20 after:h-[2px] after:bg-foreground/20"
+        className={cn(
+          "macro-separator py-1 before:h-[2px] before:bg-foreground/20 after:h-[2px] after:bg-foreground/20",
+          foldable && "cursor-pointer"
+        )}
+        onClick={onToggle}
+        role={foldable ? "button" : undefined}
+        tabIndex={foldable ? 0 : undefined}
       >
-        <MarkerContent className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
+        <MarkerContent className="text-xs font-semibold uppercase tracking-wide text-muted-foreground group-hover/marker:text-foreground transition-colors">
+          {foldable ? (
+            <span className="inline-flex items-center gap-1.5">
+              <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+              {label}
+              <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            </span>
+          ) : label}
         </MarkerContent>
       </Marker>
     )

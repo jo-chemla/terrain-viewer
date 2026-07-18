@@ -53,7 +53,7 @@ export const TellsFields: React.FC<{
   }, [mapRef, exportUnfiltered])
 
   return (
-    <div className="space-y-4 pl-6">
+    <div className="space-y-4">
       <SliderControl
         label={`Tell Size: ${state.tellSize}m`}
         value={state.tellSize}
