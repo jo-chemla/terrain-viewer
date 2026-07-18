@@ -1,7 +1,7 @@
 import type React from "react"
 import { useRef } from "react"
 import { useAtom, useSetAtom, useAtomValue } from "jotai"
-import { MapPin, Edit, Trash2, Upload } from "lucide-react"
+import { MapPin, Edit, Trash2, Upload, HardDrive } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -54,7 +54,7 @@ export const CustomSourceDetails: React.FC<{
               <Upload className="h-4 w-4 mr-1 shrink-0" /> {source.name} — re-select file…
             </Button>
           </TooltipTrigger>
-          <TooltipContent><p>Local COG files aren't saved — pick "{source.name}" again to use it this session</p></TooltipContent>
+          <TooltipContent><p>This browser couldn't restore "{source.name}" locally (unsupported browser, storage limit, or it was cleared) — pick it again to use it this session</p></TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -78,6 +78,18 @@ export const CustomSourceDetails: React.FC<{
 
   return (
     <>
+    {/* Local COGs still look exactly like any other working source once picked
+        (or restored from OPFS) — this badge is the only remaining hint that
+        it's a browser-local file (like a QGIS scratch/memory layer) rather
+        than a portable, shareable URL anyone else could open. */}
+    {source.type === "cog-local" && (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="shrink-0"><HardDrive className="h-3.5 w-3.5 text-muted-foreground" /></span>
+        </TooltipTrigger>
+        <TooltipContent><p>Local file — lives only in this browser's storage, not a shareable URL</p></TooltipContent>
+      </Tooltip>
+    )}
     <Tooltip>
       <TooltipTrigger asChild>
         <Label

@@ -180,8 +180,9 @@ export const CustomTerrainSourceModal: React.FC<{
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Read directly from disk, never uploaded — but only kept in this
-                    browser tab's memory, so it needs re-picking after a page reload.
+                    Read directly from disk, never uploaded. This browser remembers it
+                    locally between sessions (via OPFS) when that's supported and there's
+                    room — otherwise you'll be asked to re-pick it next time.
                   </p>
                   {localFileWarning && (
                     <p className="text-xs text-amber-600 dark:text-amber-500">{localFileWarning}</p>

@@ -13,12 +13,13 @@ import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/Te
 import GeocoderControl from "./MapControls/GeocoderControl"
 import { COLOR_RAMP_IDS, computePropertyRampExpression } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
-import { useAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom,
   activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
+import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
 import { MAX_BOUNDS_MODES, unionBounds, bufferBounds, resolveCustomSourceBounds, type LngLatBoundsTuple } from "@/lib/max-bounds"
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
@@ -113,6 +114,25 @@ export function TerrainViewer() {
   const [maptilerKey] = useAtom(maptilerKeyAtom)
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
+  const bumpLocalFileVersion = useSetAtom(localFileVersionAtom)
+  // One-shot, on mount: repopulate this session's in-memory local-file-store
+  // (see its header comment) from OPFS for every "cog-local" source already
+  // in customTerrainSourcesAtom, so a persisted local COG is usable again
+  // without the "Re-select file…" prompt. Only needs to run once — sources
+  // added *after* mount get their File registered live by the normal pick
+  // flow (custom-terrain-source-modal.tsx), not through this path.
+  useEffect(() => {
+    const ids = customTerrainSources
+      .filter((s) => s.type === "cog-local")
+      .map((s) => localFileId(s.url))
+    if (ids.length === 0) return
+    let cancelled = false
+    hydrateAllPersistedCogs(ids, () => {
+      if (!cancelled) bumpLocalFileVersion((v) => v + 1)
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [highResTerrain] = useAtom(highResTerrainAtom)

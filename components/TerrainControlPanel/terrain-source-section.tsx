@@ -13,6 +13,7 @@ import {
 } from "@/lib/settings-atoms"
 import { terrainSources } from "@/lib/terrain-sources"
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
+import { deletePersistedCogFile } from "@/lib/opfs-file-store"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import type { MapRef } from "react-map-gl/maplibre"
 import saveAs from "file-saver"
@@ -60,9 +61,15 @@ export const TerrainSourceSection: React.FC<{
   }, [customTerrainSources, setCustomTerrainSources, setState])
 
   const handleDeleteCustomSource = useCallback((id: string) => {
+    const deleted = customTerrainSources.find((s) => s.id === id)
     setCustomTerrainSources(customTerrainSources.filter((s) => s.id !== id))
     if (state.sourceA === id) setState({ sourceA: "aws" })
     if (state.sourceB === id) setState({ sourceB: "mapterhorn" })
+    // Reclaim its OPFS-persisted bytes too (see opfs-file-store.ts) — otherwise
+    // a deleted-then-forgotten local COG would keep counting against quota.
+    if (deleted?.type === "cog-local") {
+      deletePersistedCogFile(localFileId(deleted.url))
+    }
   }, [customTerrainSources, setCustomTerrainSources, state, setState])
 
   // `force` skips the smart-zoom heuristic and always moves the camera — used by
