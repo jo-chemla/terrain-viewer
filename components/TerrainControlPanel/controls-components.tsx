@@ -210,7 +210,7 @@ export const AdvancedModeToggle: React.FC<{ advanced: boolean; onToggle: () => v
 // TerrainControlPanel.tsx). Reusing that pattern instead of a plain icon Button
 // is deliberate: a ghost Button has no persistent on/off look, which read as a
 // harsh, always-black icon with no indication of pinned state.
-export const PinToggle: React.FC<{ pinned: boolean; onToggle: () => void }> = ({ pinned, onToggle }) => (
+export const PinToggle: React.FC<{ pinned: boolean; onToggle: () => void; wiggleNonce?: number }> = ({ pinned, onToggle, wiggleNonce = 0 }) => (
   <Tooltip delayDuration={0}>
     <TooltipTrigger asChild>
       <span>
@@ -221,7 +221,9 @@ export const PinToggle: React.FC<{ pinned: boolean; onToggle: () => void }> = ({
           aria-label={pinned ? "Unpin — folds along with everything else" : "Pin open — stays expanded when folding all sections"}
           className="cursor-pointer"
         >
-          <Pin className="h-4 w-4" />
+          {/* key bump remounts the icon so the shake restarts on every blocked
+              attempt, not just the first (see .animate-pin-wiggle in index.css) */}
+          <Pin key={wiggleNonce} className={cn("h-4 w-4", wiggleNonce > 0 && "animate-pin-wiggle")} />
         </Toggle>
       </span>
     </TooltipTrigger>

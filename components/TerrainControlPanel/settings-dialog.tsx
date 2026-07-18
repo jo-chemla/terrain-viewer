@@ -140,6 +140,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Shift</kbd> <span className="mx-1">(tap alone, either side)</span> — toggle the Raster Basemap on/off, without opening the sidebar.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd> <span className="mx-1">(tap alone, either side)</span> — hide every visualization mode down to just the plain basemap; tap again to restore whichever modes were on.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Space</kbd> — re-toggle whichever visualization-mode checkbox you last clicked, even after a map drag has moved keyboard focus onto the map canvas.</div>
+              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">L</kbd> <span className="mx-1">(hold)</span> + drag — set the Hillshade illumination direction/altitude directly on the map instead of panning it; release L or the mouse to exit.</div>
             </div>
           </div>
           <Separator />

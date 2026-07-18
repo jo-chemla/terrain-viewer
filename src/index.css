@@ -320,6 +320,23 @@
   cursor: crosshair !important;
 }
 
+/* Nudge for a blocked action — e.g. clicking a pinned section's own collapse
+   chevron (see PinToggle/VisualizationModesSection): the click is a no-op, and
+   this quick shake on the pin icon itself is the only feedback that it did
+   something (rather than silently failing) — "unpin me first". Re-triggered
+   via a remount (key bump), not a class toggle, so rapid repeat clicks each
+   restart the animation instead of only the first one playing. */
+@keyframes pin-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-18deg); }
+  40% { transform: rotate(14deg); }
+  60% { transform: rotate(-10deg); }
+  80% { transform: rotate(6deg); }
+}
+.animate-pin-wiggle {
+  animation: pin-wiggle 0.35s ease-in-out;
+}
+
 /* Control panel: whichever Section happens to render last before a bold
    MacroSeparator (see controls-components.tsx) would otherwise show its own
    ordinary thin separator right on top of it — which section that is varies

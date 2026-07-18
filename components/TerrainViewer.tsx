@@ -31,6 +31,7 @@ import customSourcesData from "@/lib/custom-sources.json"
 const SAMPLE_TERRAIN_SOURCES = customSourcesData["SAMPLE_TERRAIN_SOURCES"] as CustomTerrainSource[]
 const SAMPLE_BASEMAP_SOURCES = customSourcesData["SAMPLE_BASEMAPS_SOURCES"] as CustomBasemapSource[]
 import { MinimapControl } from "./MapControls/MinimapControl";
+import { LightControlOverlay } from "./MapControls/LightControlOverlay";
 import { useIsMobile } from '@/hooks/use-mobile'
 
 import maplibregl from 'maplibre-gl'
@@ -1511,6 +1512,7 @@ export function TerrainViewer() {
           <div className="flex-1">{renderMap(state.sourceB, "map-b")}</div>
         )}
       </div>
+      <LightControlOverlay state={state} setState={setState} mapRef={mapARef as any} />
       <TerrainControlPanel
         state={state}
         setState={setState}

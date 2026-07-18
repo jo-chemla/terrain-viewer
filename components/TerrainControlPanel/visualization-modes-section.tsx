@@ -1,5 +1,5 @@
 import type React from "react"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useAtom } from "jotai"
 import { activeProjectConfigAtom, vizModePinnedAtom } from "@/lib/settings-atoms"
 import { Section, CheckboxWithSlider, PinToggle } from "./controls-components"
@@ -11,6 +11,17 @@ export const VisualizationModesSection: React.FC<{
 }> = ({ state, setState, isOpen, onOpenChange }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const [vizModePinned, setVizModePinned] = useAtom(vizModePinnedAtom)
+  // EXPERIMENTAL: while pinned, this section's own chevron can't collapse it
+  // either (not just "Fold all sections") — clicking it is a no-op that shakes
+  // the pin icon instead, forcing an explicit unpin first.
+  const [wiggleNonce, setWiggleNonce] = useState(0)
+  const handleOpenChange = (open: boolean) => {
+    if (!open && vizModePinned) {
+      setWiggleNonce((n) => n + 1)
+      return
+    }
+    onOpenChange(open)
+  }
   const hideContours = activeProjectConfig?.hiddenSections?.includes("contour") ?? false
   const hideTerrainAnalysis = activeProjectConfig?.hiddenSections?.includes("terrainAnalysis") ?? false
   const hideReliefVisualization = activeProjectConfig?.hiddenSections?.includes("reliefVisualization") ?? false
@@ -28,8 +39,8 @@ export const VisualizationModesSection: React.FC<{
     <Section
       title="Visualization Modes"
       isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      headerExtra={<PinToggle pinned={vizModePinned} onToggle={() => setVizModePinned(!vizModePinned)} />}
+      onOpenChange={handleOpenChange}
+      headerExtra={<PinToggle pinned={vizModePinned} onToggle={() => setVizModePinned(!vizModePinned)} wiggleNonce={wiggleNonce} />}
     >
       {!hideContours && (
         <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} />
