@@ -124,7 +124,7 @@ export const Section: React.FC<{
     <>
       <Collapsible open={isOpen} onOpenChange={onOpenChange}>
         <div className={cn(
-          "flex items-center justify-between w-full py-1 transition-opacity duration-150",
+          "flex items-center justify-between w-full py-2 transition-opacity duration-150",
           dim && "opacity-20"
         )}>
           <CollapsibleTrigger className="flex-1 min-w-0 text-base font-medium text-left cursor-pointer">

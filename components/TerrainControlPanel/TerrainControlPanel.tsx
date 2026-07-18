@@ -89,7 +89,6 @@ interface TerrainControlPanelProps {
   setState: (updates: any, options?: { shallow?: boolean }) => void
   getMapBounds: () => Bounds
   mapRef: React.RefObject<MapRef>
-  mapLoaded: boolean
 }
 
 export function TerrainControlPanel({
@@ -97,7 +96,6 @@ export function TerrainControlPanel({
   setState,
   getMapBounds,
   mapRef,
-  mapLoaded,
 }: TerrainControlPanelProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -120,7 +118,7 @@ export function TerrainControlPanel({
   const setAppState = useCallback((updates: Record<string, unknown>, shallow = true) => {
     setState(updates, { shallow })
   }, [setState])
-  const { draw } = useTerraDraw(mapRef, mapLoaded)
+  const { draw } = useTerraDraw(mapRef)
   const isMobile = useIsMobile()
   // Space re-toggles the last-clicked viz-mode checkbox even after a map drag
   // steals focus onto the maplibre canvas (wheel-zoom never did) — see the hook.

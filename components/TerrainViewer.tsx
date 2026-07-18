@@ -1512,7 +1512,6 @@ export function TerrainViewer() {
         setState={setState}
         getMapBounds={getMapBounds}
         mapRef={mapARef as any}
-        mapLoaded={mapALoaded}
       />
     </div>
   )

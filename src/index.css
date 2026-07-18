@@ -310,6 +310,16 @@
   cursor: crosshair !important;
 }
 
+/* TerraDraw drawing modes: same reasoning as .elevation-picker-active above —
+   terra-draw's own modes already default their cursor to crosshair on start()
+   (see terra-draw's per-mode `cursors.start`), but maplibre's drag-pan handler
+   keeps re-setting the canvas cursor during interaction and stomps it. Applied
+   while any mode other than "select" is active (see TerraDrawControls.tsx). */
+.terradraw-drawing-active .maplibregl-canvas-container,
+.terradraw-drawing-active .maplibregl-canvas {
+  cursor: crosshair !important;
+}
+
 /* Control panel: whichever Section happens to render last before a bold
    MacroSeparator (see controls-components.tsx) would otherwise show its own
    ordinary thin separator right on top of it — which section that is varies

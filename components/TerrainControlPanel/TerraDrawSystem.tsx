@@ -6,11 +6,17 @@ import {
     TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawCircleMode, TerraDrawSelectMode
 } from 'terra-draw'
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
-import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle } from 'lucide-react'
+import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
+import { Toggle } from '@/components/ui/toggle'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { HexAlphaColorPicker, HexColorInput } from 'react-colorful'
 import bbox from '@turf/bbox'
 import { v4 as uuidv4 } from 'uuid'
 import { Section, CheckboxWithSlider } from './controls-components'
@@ -61,6 +67,57 @@ export interface GeoJSONFeature {
 
 export const drawingFeaturesAtom = atom<GeoJSONFeature[]>([])
 
+// --- LAYERS ---
+
+export interface DrawLayer {
+    id: string
+    name: string
+    /** 8-digit hex (#rrggbbaa) — alpha lives in the color itself (picked via
+     *  HexAlphaColorPicker) rather than a separate opacity slider. */
+    strokeColor: string
+    fillColor: string
+    /** Outline/stroke width in px, 0.5–5, shared across every mode's outline-ish property. */
+    strokeWidth: number
+}
+
+// Cycled through when a new layer is added, so successive layers are visually
+// distinct from each other by default without the user having to pick a color.
+const LAYER_COLOR_PALETTE = ['#3b82f6ff', '#ef4444ff', '#22c55eff', '#f59e0bff', '#a855f7ff', '#06b6d4ff']
+
+// Terra Draw's color styling props want a plain 6-digit hex plus a separate
+// 0-1 opacity number (see HexColorStyling in common.d.ts) — they don't accept
+// an 8-digit hex with alpha baked in. So the 8-digit hex is only the UI's
+// storage format; this splits it back into what terra-draw actually wants.
+function splitHexAlpha(hex: string): { color: string; opacity: number } {
+    const color = hex.length >= 7 ? hex.slice(0, 7) : hex
+    const alphaHex = hex.length >= 9 ? hex.slice(7, 9) : 'ff'
+    const parsed = parseInt(alphaHex, 16)
+    return { color, opacity: Number.isFinite(parsed) ? parsed / 255 : 1 }
+}
+
+// Darkens the RGB part of an (possibly 8-digit, alpha-carrying) hex color by
+// `amount` (0-1), keeping the alpha channel untouched.
+function darkenHex(hex: string, amount: number): string {
+    const { color, opacity } = splitHexAlpha(hex)
+    const factor = 1 - amount
+    const toHex = (n: number) => Math.round(Math.max(0, Math.min(255, n)) * factor).toString(16).padStart(2, '0')
+    const r = parseInt(color.slice(1, 3), 16)
+    const g = parseInt(color.slice(3, 5), 16)
+    const b = parseInt(color.slice(5, 7), 16)
+    const alphaHex = Math.round(opacity * 255).toString(16).padStart(2, '0')
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}${alphaHex}`
+}
+
+function makeLayer(index: number, name: string): DrawLayer {
+    const fillColor = LAYER_COLOR_PALETTE[index % LAYER_COLOR_PALETTE.length]
+    return { id: uuidv4(), name, fillColor, strokeColor: darkenHex(fillColor, 0.2), strokeWidth: 2 }
+}
+
+const DEFAULT_LAYER = makeLayer(0, 'Layer 1')
+
+export const drawingLayersAtom = atom<DrawLayer[]>([DEFAULT_LAYER])
+export const activeLayerIdAtom = atom<string>(DEFAULT_LAYER.id)
+
 // --- HELPERS ---
 
 function to2DCoords(coords: any): any {
@@ -80,7 +137,7 @@ function geometryTypeToMode(geometryType: string): string | null {
     }
 }
 
-function parseFeatures(rawFeatures: any[]): GeoJSONFeature[] {
+function parseFeatures(rawFeatures: any[], defaultLayerId: string): GeoJSONFeature[] {
     const flattened = flattenFeatures(rawFeatures)  // <-- add this
     const output = flattened
         .filter((f) => f?.geometry)
@@ -91,7 +148,10 @@ function parseFeatures(rawFeatures: any[]): GeoJSONFeature[] {
                 type: 'Feature' as const,
                 id: uuidv4(),
                 geometry: { ...f.geometry, coordinates: to2DCoords(f.geometry.coordinates) },
-                properties: { ...(f.properties || {}), mode },
+                // defaultLayerId goes first so a re-imported export (which already
+                // carries its own layerId in properties) keeps its original layer
+                // instead of being reassigned to whichever layer is active now.
+                properties: { layerId: defaultLayerId, ...(f.properties || {}), mode },
             }]
         })
 
@@ -155,6 +215,63 @@ function reprojectCoords(coords: any, fromProj: string): any {
 
 function reprojectGeometry(geometry: any, fromProj: string): any {
     return { ...geometry, coordinates: reprojectCoords(geometry.coordinates, fromProj) }
+}
+
+// --- LAYER STYLING HELPERS ---
+
+// Terra Draw styling props accept a function of the feature being rendered
+// (see HexColorStyling in terra-draw's common.d.ts), so per-layer color is
+// just a lookup from feature.properties.layerId into the current layers list.
+// Features predating this layerId property (or with a stale/unknown id) fall
+// back to the first layer rather than a hardcoded default.
+function resolveLayer(layers: DrawLayer[], feature: any): DrawLayer {
+    return layers.find((l) => l.id === feature?.properties?.layerId) ?? layers[0] ?? DEFAULT_LAYER
+}
+
+// Terra Draw's HexColorStyling type demands a `#${string}` template literal
+// return type, which is more rigor than a user-editable color value can
+// statically guarantee — these are typed `any` so the styles objects below
+// satisfy each mode's styling interface without a wall of casts.
+//
+// fillColor is the "marker fill" — a point/marker's own dot, a polygon's
+// interior, a drawn circle's interior, AND a linestring's only color (a line
+// has no separate fill, and is visually closer to a filled stroke than an
+// outline). strokeColor is the outline drawn around fill shapes (points,
+// polygons, circles) — lines don't have one. strokeWidth is the thickness of
+// that outline, and doubles as the linestring's own width.
+function buildModeStyles(layersRef: { current: DrawLayer[] }) {
+    const fillOf = (feature: any): any => splitHexAlpha(resolveLayer(layersRef.current, feature).fillColor).color
+    const fillOpacityOf = (feature: any): any => splitHexAlpha(resolveLayer(layersRef.current, feature).fillColor).opacity
+    const strokeOf = (feature: any): any => splitHexAlpha(resolveLayer(layersRef.current, feature).strokeColor).color
+    const strokeOpacityOf = (feature: any): any => splitHexAlpha(resolveLayer(layersRef.current, feature).strokeColor).opacity
+    const strokeWidthOf = (feature: any): any => resolveLayer(layersRef.current, feature).strokeWidth
+
+    return {
+        point: {
+            pointColor: fillOf, pointOpacity: fillOpacityOf,
+            pointOutlineColor: strokeOf, pointOutlineOpacity: strokeOpacityOf, pointOutlineWidth: strokeWidthOf,
+        },
+        linestring: { lineStringColor: fillOf, lineStringOpacity: fillOpacityOf, lineStringWidth: strokeWidthOf },
+        polygon: {
+            fillColor: fillOf, fillOpacity: fillOpacityOf,
+            outlineColor: strokeOf, outlineOpacity: strokeOpacityOf, outlineWidth: strokeWidthOf,
+        },
+        rectangle: {
+            fillColor: fillOf, fillOpacity: fillOpacityOf,
+            outlineColor: strokeOf, outlineOpacity: strokeOpacityOf, outlineWidth: strokeWidthOf,
+        },
+        circle: {
+            fillColor: fillOf, fillOpacity: fillOpacityOf,
+            outlineColor: strokeOf, outlineOpacity: strokeOpacityOf, outlineWidth: strokeWidthOf,
+        },
+        select: {
+            selectedPointColor: fillOf, selectedPointOpacity: fillOpacityOf,
+            selectedPointOutlineColor: strokeOf, selectedPointOutlineOpacity: strokeOpacityOf, selectedPointOutlineWidth: strokeWidthOf,
+            selectedLineStringColor: fillOf, selectedLineStringOpacity: fillOpacityOf, selectedLineStringWidth: strokeWidthOf,
+            selectedPolygonColor: fillOf, selectedPolygonFillOpacity: fillOpacityOf,
+            selectedPolygonOutlineColor: strokeOf, selectedPolygonOutlineOpacity: strokeOpacityOf, selectedPolygonOutlineWidth: strokeWidthOf,
+        },
+    }
 }
 
 // --- HOOK ---
@@ -269,147 +386,194 @@ function reprojectGeometry(geometry: any, fromProj: string): any {
 
 //     return { draw, features, setFeatures }
 // }
-export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
+export function useTerraDraw(mapRef: RefObject<MapRef>) {
     const [draw, setDraw] = useState<TerraDraw | null>(null)
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
+    const [layers] = useAtom(drawingLayersAtom)
+    const [activeLayerId] = useAtom(activeLayerIdAtom)
     const featuresRef = useRef(features)
+    const layersRef = useRef(layers)
+    const activeLayerIdRef = useRef(activeLayerId)
     const drawRef = useRef<TerraDraw | null>(null)
 
     useEffect(() => { featuresRef.current = features }, [features])
+    useEffect(() => { layersRef.current = layers }, [layers])
+    useEffect(() => { activeLayerIdRef.current = activeLayerId }, [activeLayerId])
+
+    // Layer color edits shouldn't tear down and recreate the whole draw instance
+    // (createDraw below is expensive and would drop the active drawing mode) —
+    // just push the freshly-colored style functions into each mode in place.
+    // The functions themselves already read layersRef.current lazily, so this
+    // exists only to trigger terra-draw's re-render, not to change what they read.
+    useEffect(() => {
+        if (!draw) return
+        try {
+            const styles = buildModeStyles(layersRef)
+            draw.updateModeOptions<typeof TerraDrawPointMode>('point', { styles: styles.point })
+            draw.updateModeOptions<typeof TerraDrawLineStringMode>('linestring', { styles: styles.linestring })
+            draw.updateModeOptions<typeof TerraDrawPolygonMode>('polygon', { styles: styles.polygon })
+            draw.updateModeOptions<typeof TerraDrawRectangleMode>('rectangle', { styles: styles.rectangle })
+            draw.updateModeOptions<typeof TerraDrawCircleMode>('circle', { styles: styles.circle })
+            draw.updateModeOptions<typeof TerraDrawSelectMode>('select', { styles: styles.select })
+        } catch (e) { console.error('Error restyling drawing layers:', e) }
+    }, [draw, layers])
 
     useEffect(() => {
-        // console.log('[TerraDraw] effect fired — mapsLoaded:', mapsLoaded, 'mapRef.current:', !!mapRef.current)
-        
-        const map = mapRef.current?.getMap()
-        // console.log('[TerraDraw] map instance:', !!map, 'isStyleLoaded:', map?.isStyleLoaded())
-
-        if (!map || !mapsLoaded) {
-            console.log('[TerraDraw] bailing out — map:', !!map, 'mapsLoaded:', mapsLoaded)
-            return
-        }
-
         // Guards the 'change' listener below against firing after this effect generation
-        // has been torn down (e.g. this effect re-running because mapsLoaded/mapRef
-        // changed, recreating a new TerraDraw instance while the old one's `stop()` hasn't
+        // has been torn down (e.g. this effect re-running because mapRef changed,
+        // recreating a new TerraDraw instance while the old one's `stop()` hasn't
         // actually detached its own 'change' listener yet). Without this, a stale listener
         // from a superseded instance can call setFeatures(oldSnapshot) after a newer
         // instance already accumulated more features (e.g. from an import), making the
         // "Features: N" counter silently drop back down even though nothing was deleted.
         let isCurrent = true
+        // Tracks which map the styledata/sourcedata/render listeners below are
+        // currently attached to, so tryInit() can attach them exactly once.
+        let mapWithListeners: maplibregl.Map | null = null
 
-        const createDraw = () => {
-            // console.log('[TerraDraw] createDraw called — stopping existing:', !!drawRef.current)
+        const handleStyleData = () => {
+            const map = mapRef.current?.getMap()
+            if (!map || !drawRef.current) return
+            try {
+                const styleLayers = map.getStyle()?.layers ?? []
+                const tdLayers = styleLayers.filter((l) => l.id.startsWith('td-'))
+                if (tdLayers.length === 0) return
+                if (!styleLayers[styleLayers.length - 1].id.startsWith('td-')) {
+                    tdLayers.forEach((l) => { try { map.moveLayer(l.id) } catch { } })
+                }
+            } catch { }
+        }
+
+        const createDraw = (map: maplibregl.Map) => {
             if (drawRef.current) {
                 try { drawRef.current.stop() } catch (e) { console.error('Error stopping draw:', e) }
                 drawRef.current = null
                 setDraw(null)
             }
 
-            // console.log('[TerraDraw] scheduling setTimeout...')
-            setTimeout(() => {
-                // console.log('[TerraDraw] inside setTimeout — map still valid:', !!mapRef.current?.getMap())
-                try {
-                    const adapter = new TerraDrawMapLibreGLAdapter({ map, renderBelowLayerId: undefined })
-                    const newDraw = new TerraDraw({
-                        adapter,
-                        modes: [
-                            new TerraDrawSelectMode({
-                                flags: {
-                                    point: { feature: { draggable: true, coordinates: { draggable: true } } },
-                                    // `addable` (clicking a line/edge to insert a new coordinate) isn't a real
-                                    // ModeFlags.coordinates property in the installed terra-draw version —
-                                    // it's a no-op here either way, so dropping it changes nothing at runtime.
-                                    linestring: { feature: { draggable: true, coordinates: { draggable: true, deletable: true } } },
-                                    polygon: { feature: { draggable: true, coordinates: { draggable: true, deletable: true } } },
-                                    rectangle: { feature: { draggable: true, coordinates: { draggable: true } } },
-                                    circle: { feature: { draggable: true, coordinates: { draggable: true } } },
-                                    arbitrary: { feature: {} },
-                                },
-                            }),
-                            new TerraDrawPointMode(),
-                            new TerraDrawLineStringMode(),
-                            new TerraDrawPolygonMode(),
-                            new TerraDrawRectangleMode(),
-                            new TerraDrawCircleMode(),
-                        ],
-                    })
-                    newDraw.start()
-                    newDraw.setMode('select')
-
-                    // Freehand drawing (point/line/polygon tools) only ever updated TerraDraw's
-                    // own internal store — nothing synced it back to drawingFeaturesAtom, so
-                    // "Features: N" and Export both silently ignored anything drawn on the map
-                    // (only imported features, which call setFeatures directly, ever showed up).
-                    newDraw.on('change', () => {
-                        if (!isCurrent) return
-                        try { setFeatures(newDraw.getSnapshot() as GeoJSONFeature[]) } catch { }
-                    })
-
-                    if (featuresRef.current.length > 0) {
-                        setTimeout(() => {
-                            try { newDraw.addFeatures(featuresRef.current) } catch (e) {
-                                console.error('Error restoring features:', e)
-                            }
-                        }, 100)
-                    }
-
-                    drawRef.current = newDraw
-                    setDraw(newDraw)
-                    console.log('[TerraDraw] ✅ draw instance set successfully')
-                } catch (err) {
-                    console.error('[TerraDraw] ❌ Error creating TerraDraw instance:', err)
-                }
-            }, 500)
-        }
-
-        const handleStyleData = () => {
-            if (!map || !drawRef.current) return
             try {
-                const layers = map.getStyle()?.layers ?? []
-                const tdLayers = layers.filter((l) => l.id.startsWith('td-'))
-                if (tdLayers.length === 0) return
-                if (!layers[layers.length - 1].id.startsWith('td-')) {
-                    tdLayers.forEach((l) => { try { map.moveLayer(l.id) } catch { } })
-                }
-            } catch { }
-        }
+                const adapter = new TerraDrawMapLibreGLAdapter({ map, renderBelowLayerId: undefined })
+                const modeStyles = buildModeStyles(layersRef)
+                const newDraw = new TerraDraw({
+                    adapter,
+                    modes: [
+                        new TerraDrawSelectMode({
+                            flags: {
+                                point: { feature: { draggable: true, coordinates: { draggable: true } } },
+                                // `addable` (clicking a line/edge to insert a new coordinate) isn't a real
+                                // ModeFlags.coordinates property in the installed terra-draw version —
+                                // it's a no-op here either way, so dropping it changes nothing at runtime.
+                                linestring: { feature: { draggable: true, coordinates: { draggable: true, deletable: true } } },
+                                polygon: { feature: { draggable: true, coordinates: { draggable: true, deletable: true } } },
+                                rectangle: { feature: { draggable: true, coordinates: { draggable: true } } },
+                                circle: { feature: { draggable: true, coordinates: { draggable: true } } },
+                                arbitrary: { feature: {} },
+                            },
+                            styles: modeStyles.select,
+                        }),
+                        new TerraDrawPointMode({ styles: modeStyles.point }),
+                        new TerraDrawLineStringMode({ styles: modeStyles.linestring }),
+                        new TerraDrawPolygonMode({ styles: modeStyles.polygon }),
+                        new TerraDrawRectangleMode({ styles: modeStyles.rectangle }),
+                        new TerraDrawCircleMode({ styles: modeStyles.circle }),
+                    ],
+                })
+                newDraw.start()
+                newDraw.setMode('select')
 
-        map.on('styledata', handleStyleData)
-        map.on('sourcedata', handleStyleData)
-        map.on('render', handleStyleData)
+                // Freehand drawing (point/line/polygon tools) only ever updated TerraDraw's
+                // own internal store — nothing synced it back to drawingFeaturesAtom, so
+                // "Features: N" and Export both silently ignored anything drawn on the map
+                // (only imported features, which call setFeatures directly, ever showed up).
+                newDraw.on('change', () => {
+                    if (!isCurrent) return
+                    try { setFeatures(newDraw.getSnapshot() as GeoJSONFeature[]) } catch { }
+
+                    // Tag any feature that just entered the store without a layer yet, so it
+                    // renders (and counts) as belonging to whichever layer is active. Deferred
+                    // one tick so this doesn't run reentrantly inside terra-draw's own
+                    // change-dispatch. IMPORTANT: only pass the new `layerId` key here, never
+                    // `...f.properties` — every feature's properties already carries `mode`,
+                    // which terra-draw treats as a reserved property name, so spreading it
+                    // back into updateFeatureProperties() throws "You are trying to update a
+                    // reserved property name: mode" on every single call. That was caught
+                    // silently by the try/catch below, so the tag never actually stuck and
+                    // every drawn feature fell back to layers[0] no matter which layer was
+                    // selected as active — this is what was actually causing "always draws
+                    // into the first layer".
+                    setTimeout(() => {
+                        if (!isCurrent) return
+                        try {
+                            const snapshot = newDraw.getSnapshot() as GeoJSONFeature[]
+                            snapshot.forEach((f) => {
+                                if (f.id == null || f.properties?.layerId != null) return
+                                try {
+                                    newDraw.updateFeatureProperties(f.id as any, { layerId: activeLayerIdRef.current })
+                                } catch (e) { console.error('[TerraDraw] failed to tag feature with layer:', f.id, e) }
+                            })
+                        } catch (e) { console.error('[TerraDraw] failed to read snapshot for layer tagging:', e) }
+                    }, 0)
+                })
+
+                if (featuresRef.current.length > 0) {
+                    setTimeout(() => {
+                        try { newDraw.addFeatures(featuresRef.current) } catch (e) {
+                            console.error('Error restoring features:', e)
+                        }
+                    }, 100)
+                }
+
+                drawRef.current = newDraw
+                setDraw(newDraw)
+                console.log('[TerraDraw] ✅ draw instance set successfully')
+            } catch (err) {
+                console.error('[TerraDraw] ❌ Error creating TerraDraw instance:', err)
+            }
+        }
 
         const tryInit = () => {
-            if (map.isStyleLoaded()) {
-                console.log('[TerraDraw] ✅ style ready — creating draw')
-                requestAnimationFrame(() => createDraw())
-                return true
+            const map = mapRef.current?.getMap()
+            if (!map) return false
+
+            // Attached as soon as the map object exists, independent of the style
+            // being loaded yet — handleStyleData no-ops until drawRef.current is
+            // set, so this is safe early, and only needs doing once per map.
+            if (mapWithListeners !== map) {
+                map.on('styledata', handleStyleData)
+                map.on('sourcedata', handleStyleData)
+                map.on('render', handleStyleData)
+                mapWithListeners = map
             }
-            return false
+
+            if (!map.isStyleLoaded()) return false
+            requestAnimationFrame(() => createDraw(map))
+            return true
         }
 
-        // Relying solely on a future 'styledata' event to re-check readiness is a race:
-        // if the style finishes loading in the gap between the tryInit() call above and
-        // this listener being attached (much more likely with two concurrent maps in
-        // split-screen), no further 'styledata' event ever fires and the listener waits
-        // forever — draw/select still work via the JS instance, but no td-* layers ever
-        // get created, so nothing renders. A bounded poll is a self-healing fallback that
-        // doesn't depend on catching a specific event.
+        // Previously gated on the parent's full map "load" event (fires only once
+        // every tile for the current viewport has rendered — slow with this app's
+        // terrain/DEM/contour sources) before even checking readiness here. All
+        // terra-draw's adapter actually needs is the *style* loaded
+        // (map.isStyleLoaded()), which is available much earlier — this polls for
+        // the map object and its style directly instead of waiting on that slower
+        // signal, which was the dominant delay before the drawing tools UI appeared.
         let pollTimer: ReturnType<typeof setInterval> | null = null
         if (!tryInit()) {
-            console.log('[TerraDraw] style not ready — polling')
             pollTimer = setInterval(() => {
                 if (tryInit() && pollTimer) {
                     clearInterval(pollTimer)
                     pollTimer = null
                 }
-            }, 300)
+            }, 100)
         }
 
         return () => {
             isCurrent = false
-            map.off('styledata', handleStyleData)
-            map.off('sourcedata', handleStyleData)
-            map.off('render', handleStyleData)
+            if (mapWithListeners) {
+                mapWithListeners.off('styledata', handleStyleData)
+                mapWithListeners.off('sourcedata', handleStyleData)
+                mapWithListeners.off('render', handleStyleData)
+            }
             if (pollTimer) clearInterval(pollTimer)
             if (drawRef.current) {
                 try { drawRef.current.stop() } catch { }
@@ -417,14 +581,14 @@ export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
             }
         }
 
-    }, [mapRef, setFeatures, mapsLoaded])
+    }, [mapRef, setFeatures])
 
     return { draw, features, setFeatures }
 }
 
 // --- CONTROLS COMPONENT ---
 
-export function TerraDrawControls({ draw }: { draw: TerraDraw | null }) {
+export function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
     const [activeDrawMode, setActiveDrawMode] = useState<string>('select')
 
     useEffect(() => {
@@ -433,6 +597,18 @@ export function TerraDrawControls({ draw }: { draw: TerraDraw | null }) {
         draw.on('change', update)
         return () => { try { draw.off('change', update) } catch { } }
     }, [draw])
+
+    // Terra Draw's own modes already default to a crosshair cursor on start(),
+    // but maplibre's drag-pan handler keeps re-setting the canvas cursor during
+    // interaction and stomps it — same issue and same fix as the Elevation
+    // Picker's cursor (see .terradraw-drawing-active in src/index.css).
+    useEffect(() => {
+        const map = mapRef.current?.getMap()
+        if (!map) return
+        const container = map.getContainer()
+        container.classList.toggle('terradraw-drawing-active', activeDrawMode !== 'select')
+        return () => { container.classList.remove('terradraw-drawing-active') }
+    }, [activeDrawMode, mapRef])
 
     if (!draw) return <div className="text-sm text-muted-foreground py-2">Initializing drawing tools...</div>
 
@@ -462,6 +638,262 @@ export function TerraDrawControls({ draw }: { draw: TerraDraw | null }) {
                     </Button>
                 ))}
             </div>
+        </div>
+    )
+}
+
+// --- LAYERS COMPONENT ---
+
+// A color swatch that opens a popover with an alpha-aware picker. Native
+// <input type="color"> can't carry an alpha channel at all (browsers strip
+// it), and shadcn/ui doesn't ship a color picker of its own — the common
+// pattern is react-colorful's HexAlphaColorPicker inside a Popover, which is
+// what this pairs with the project's own Popover primitive.
+function ColorAlphaSwatch({
+    color, onChange, title, className,
+}: { color: string; onChange: (hex: string) => void; title: string; className?: string }) {
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    title={title}
+                    className={`h-6 w-6 shrink-0 p-0 m-0 border cursor-pointer ${className ?? ''}`}
+                    style={{
+                        // Two stacked background layers: the layer's own (possibly
+                        // semi-transparent) color on top of a checkerboard, so partial
+                        // alpha is visible on the swatch itself rather than just
+                        // blending invisibly into the sidebar background.
+                        backgroundImage: `linear-gradient(${color}, ${color}), repeating-conic-gradient(#80808080 0% 25%, transparent 0% 50%)`,
+                        backgroundSize: 'auto, 8px 8px',
+                    }}
+                />
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-3 space-y-2">
+                <HexAlphaColorPicker color={color} onChange={onChange} />
+                <HexColorInput
+                    color={color}
+                    onChange={onChange}
+                    alpha
+                    prefixed
+                    className="flex h-8 w-full rounded-md border bg-transparent px-2 text-sm"
+                />
+            </PopoverContent>
+        </Popover>
+    )
+}
+
+export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
+    const [layers, setLayers] = useAtom(drawingLayersAtom)
+    const [activeLayerId, setActiveLayerId] = useAtom(activeLayerIdAtom)
+    const [features, setFeatures] = useAtom(drawingFeaturesAtom)
+    // Multi-layer mode gates the whole feature — off behaves like the app did
+    // before layers existed (a single implicit layer, no add/delete/style UI).
+    // Edit mode gates the per-row styling controls specifically, so day-to-day
+    // use (pick a layer to draw into, zoom to one) isn't cluttered by them.
+    const [multiLayerMode, setMultiLayerMode] = useState(true)
+    const [editMode, setEditMode] = useState(false)
+
+    // Legacy/imported features without a layerId fall back to the first layer,
+    // matching resolveLayer's rendering fallback so the count shown here always
+    // agrees with which layer a given feature actually renders as.
+    const featureCount = (layerId: string) =>
+        features.filter((f) => (f.properties?.layerId ?? layers[0]?.id) === layerId).length
+
+    // With multi-layer mode off there's only ever one layer in use — pin the
+    // active one to the first so drawing/import always lands there even if a
+    // different layer had been selected before switching modes off.
+    useEffect(() => {
+        if (!multiLayerMode && layers.length > 0 && activeLayerId !== layers[0].id) {
+            setActiveLayerId(layers[0].id)
+        }
+    }, [multiLayerMode, layers, activeLayerId, setActiveLayerId])
+
+    const addLayer = () => {
+        const layer = makeLayer(layers.length, `Layer ${layers.length + 1}`)
+        setLayers([...layers, layer])
+        setActiveLayerId(layer.id)
+    }
+
+    const renameLayer = (layerId: string, name: string) => {
+        setLayers(layers.map((l) => (l.id === layerId ? { ...l, name } : l)))
+    }
+
+    const setLayerColor = (layerId: string, key: 'strokeColor' | 'fillColor', value: string) => {
+        setLayers(layers.map((l) => (l.id === layerId ? { ...l, [key]: value } : l)))
+    }
+
+    const setLayerStrokeWidth = (layerId: string, strokeWidth: number) => {
+        setLayers(layers.map((l) => (l.id === layerId ? { ...l, strokeWidth } : l)))
+    }
+
+    const deleteLayer = (layerId: string) => {
+        if (layers.length <= 1) return
+        const idsToDelete = features.filter((f) => f.properties?.layerId === layerId).map((f) => f.id).filter(Boolean) as string[]
+        if (idsToDelete.length > 0) {
+            try { draw?.removeFeatures(idsToDelete) } catch (e) { console.error('Error removing layer features:', e) }
+            setFeatures((prev) => prev.filter((f) => f.properties?.layerId !== layerId))
+        }
+        const remaining = layers.filter((l) => l.id !== layerId)
+        setLayers(remaining)
+        if (activeLayerId === layerId) setActiveLayerId(remaining[0].id)
+    }
+
+    const zoomToLayer = (layerId: string) => {
+        const layerFeatures = features.filter((f) => (f.properties?.layerId ?? layers[0]?.id) === layerId)
+        const map = mapRef.current?.getMap()
+        if (layerFeatures.length === 0 || !map) return
+        try {
+            const bounds = bbox({ type: 'FeatureCollection', features: layerFeatures } as any)
+            if (bounds.length === 4 && !bounds.some((n: number) => Number.isNaN(n))) {
+                map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 40, duration: 800 })
+            }
+        } catch (e) { console.error('Error zooming to layer bounds:', e) }
+    }
+
+    return (
+        <div className="space-y-2">
+            <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Layers</Label>
+                <div className="flex items-center gap-1">
+                    {multiLayerMode && (
+                        <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                                <span>
+                                    <Toggle
+                                        pressed={editMode}
+                                        onPressedChange={setEditMode}
+                                        size="sm"
+                                        aria-label={editMode ? 'Done editing layers' : 'Edit layer names, colors and width'}
+                                        className="cursor-pointer"
+                                    >
+                                        <Edit className="h-4 w-4" />
+                                    </Toggle>
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent><p>{editMode ? 'Done editing' : 'Edit layer names, colors and width'}</p></TooltipContent>
+                        </Tooltip>
+                    )}
+                    <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>
+                            <span>
+                                <Toggle
+                                    pressed={multiLayerMode}
+                                    onPressedChange={setMultiLayerMode}
+                                    size="sm"
+                                    aria-label={multiLayerMode ? 'Switch to a single layer' : 'Enable multiple layers'}
+                                    className="cursor-pointer"
+                                >
+                                    <LayersIcon className="h-4 w-4" />
+                                </Toggle>
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent><p>{multiLayerMode ? 'Multiple layers (click for single layer)' : 'Single layer (click to enable multiple)'}</p></TooltipContent>
+                    </Tooltip>
+                </div>
+            </div>
+
+            {multiLayerMode && (
+                <>
+                    <RadioGroup value={activeLayerId} onValueChange={setActiveLayerId} className="gap-2">
+                        {layers.map((layer) => (
+                            <div key={layer.id} className="flex items-center gap-2 min-w-0">
+                                <RadioGroupItem value={layer.id} id={`draw-layer-${layer.id}`} className="cursor-pointer shrink-0" />
+
+                                {editMode ? (
+                                    <Input
+                                        value={layer.name}
+                                        onChange={(e) => renameLayer(layer.id, e.target.value)}
+                                        className="h-8 flex-1 min-w-0 text-sm"
+                                    />
+                                ) : (
+                                    <Label htmlFor={`draw-layer-${layer.id}`} className="flex-1 text-sm truncate min-w-0 cursor-pointer">
+                                        {layer.name} <span className="text-muted-foreground">({featureCount(layer.id)})</span>
+                                    </Label>
+                                )}
+
+                                {editMode ? (
+                                    // Fill first (it's the dominant color — a marker/polygon/circle's
+                                    // own fill, and now also a line's color), then stroke; the two
+                                    // swatches share a border and sit flush with no gap between them.
+                                    <div className="flex shrink-0">
+                                        <ColorAlphaSwatch
+                                            title="Fill color (marker/polygon/circle fill, line color)"
+                                            color={layer.fillColor}
+                                            onChange={(hex) => setLayerColor(layer.id, 'fillColor', hex)}
+                                            className="rounded-r-none border-r-0"
+                                        />
+                                        <ColorAlphaSwatch
+                                            title="Stroke color (outline)"
+                                            color={layer.strokeColor}
+                                            onChange={(hex) => setLayerColor(layer.id, 'strokeColor', hex)}
+                                            className="rounded-l-none"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div
+                                        className="h-6 w-6 shrink-0 rounded border"
+                                        title={`${layer.name} fill color`}
+                                        style={{
+                                            backgroundImage: `linear-gradient(${layer.fillColor}, ${layer.fillColor}), repeating-conic-gradient(#80808080 0% 25%, transparent 0% 50%)`,
+                                            backgroundSize: 'auto, 6px 6px',
+                                        }}
+                                    />
+                                )}
+
+                                {editMode && (
+                                    <Slider
+                                        value={[layer.strokeWidth]}
+                                        onValueChange={([v]) => setLayerStrokeWidth(layer.id, v)}
+                                        min={0.5}
+                                        max={5}
+                                        step={0.5}
+                                        title={`Stroke width: ${layer.strokeWidth}px`}
+                                        className="w-12 shrink-0"
+                                    />
+                                )}
+
+                                {!editMode && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 shrink-0 cursor-pointer"
+                                                disabled={featureCount(layer.id) === 0}
+                                                onClick={() => zoomToLayer(layer.id)}
+                                            >
+                                                <MapPin className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p>Zoom to layer bounds</p></TooltipContent>
+                                    </Tooltip>
+                                )}
+
+                                {editMode && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 shrink-0 cursor-pointer"
+                                                disabled={layers.length <= 1}
+                                                onClick={() => deleteLayer(layer.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p>{layers.length <= 1 ? "Can't delete the only layer" : 'Delete layer (and its features)'}</p></TooltipContent>
+                                    </Tooltip>
+                                )}
+                            </div>
+                        ))}
+                    </RadioGroup>
+                    <Button variant="outline" size="sm" onClick={addLayer} className="cursor-pointer w-full">
+                        <Plus className="h-4 w-4 mr-1" /> Add Layer
+                    </Button>
+                </>
+            )}
         </div>
     )
 }
@@ -501,6 +933,8 @@ function flattenFeatures(features: any[]): any[] {
 
 export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
+    const [layers, setLayers] = useAtom(drawingLayersAtom)
+    const [, setActiveLayerId] = useAtom(activeLayerIdAtom)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [visible, setVisible] = useState(true)
     const [opacity, setOpacity] = useState(1)
@@ -527,11 +961,19 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
         if (!file) return
         const ext = file.name.split('.').pop()?.toLowerCase()
 
+        // Each import lands in its own new layer named after the file, rather than
+        // whatever layer happened to be selected — that made multi-file imports
+        // (or importing without first remembering to create/pick a layer) dump
+        // everything into one layer by default.
+        const importLayer = makeLayer(layers.length, file.name.replace(/\.[^./]+$/, '') || file.name)
+        setLayers((prev) => [...prev, importLayer])
+        setActiveLayerId(importLayer.id)
+
         const reader = new FileReader()
         const handleGeojson = (geojson: any) => {
             const truncated = turf_truncate(geojson, { precision: 6, coordinates: 2 })
             const raw = truncated.type === 'FeatureCollection' ? truncated.features : [truncated]
-            const newFeatures = parseFeatures(raw)
+            const newFeatures = parseFeatures(raw, importLayer.id)
             if (newFeatures.length === 0) return
 
             // Accumulate on top of whatever's already drawn/imported instead of
@@ -873,7 +1315,8 @@ export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange }: TerraDr
     return (
         <Section title="Tools: Drawing" isOpen={isOpen} onOpenChange={onOpenChange}>
             <TerraDrawActions draw={draw} mapRef={mapRef} />
-            <TerraDrawControls draw={draw} />
+            <TerraDrawControls draw={draw} mapRef={mapRef} />
+            <TerraDrawLayers draw={draw} mapRef={mapRef} />
         </Section>
     )
 }
