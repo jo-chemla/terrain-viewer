@@ -10,7 +10,7 @@ import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { type Bounds } from "@/lib/controls-utils"
 import { GdalTabs } from "./gdal-tabs"
 
-export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds }> = ({ sourceKey, config, getTilesUrl, getMapBounds }) => {
+export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds; state?: any }> = ({ sourceKey, config, getTilesUrl, getMapBounds, state }) => {
   const [maxResolution] = useAtom(maxResolutionAtom)
   const [activeGdalTab, setActiveGdalTab] = useState("url")
 
@@ -37,9 +37,36 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
   // TRI, TPI and Roughness — same math as this app's client-side Slope-and-More modes.
   // LRM, Blobness, and the Plan/Det-Hessian/Combined curvature variants have no gdaldem
   // equivalent (they're custom implementations inspired by the RVT QGIS plugin), so
-  // they're intentionally left out here.
+  // they're intentionally left out here. Slope/Aspect/TRI/TPI/Roughness get no extra
+  // flags: this app only ever varies their color-ramp display, never their underlying
+  // gdaldem-equivalent computation (degrees-slope, compass-aspect, Riley TRI), so the
+  // bare commands already match what's rendered live.
+  //
+  // Hillshade Method DOES change the actual computation, and happens to map onto
+  // gdaldem's own like-named shading flags almost exactly — this app's method names
+  // were chosen to mirror them: "-combined"/"-igor"/"-multidirectional" are real
+  // gdaldem hillshade flags, and each one's illumination-control support here
+  // (supportsIlluminationDirection/Altitude in hillshade-options-section.tsx) matches
+  // what that gdaldem flag actually consumes (-multidirectional ignores -az entirely;
+  // -igor ignores -alt). "standard"/"basic" have no flag of their own — they're
+  // gdaldem's plain classic Lambertian shading (its default, using -az/-alt).
+  const HILLSHADE_ALG_FLAG: Record<string, string> = {
+    combined: "-combined",
+    igor: "-igor",
+    "multidir-colors": "-multidirectional",
+  }
+  const hillshadeMethod = state?.hillshadeMethod ?? "combined"
+  const supportsIlluminationDirection = ["standard", "combined", "igor", "basic"].includes(hillshadeMethod)
+  const supportsIlluminationAltitude = ["combined", "basic"].includes(hillshadeMethod)
+  const hillshadeFlags = [
+    HILLSHADE_ALG_FLAG[hillshadeMethod],
+    supportsIlluminationDirection ? `-az ${state?.illuminationDir ?? 315}` : null,
+    supportsIlluminationAltitude ? `-alt ${state?.illuminationAlt ?? 45}` : null,
+  ].filter(Boolean).join(" ")
+
   const demInputFile = decodeFormula ? "output_altitude.tif" : "output.tif"
-  const gdalDemCommand = `# Run against the DEM exported above (${demInputFile}). Covers the Slope-and-More\n# modes gdaldem supports natively — LRM, Blobness, and the Plan/Det-Hessian/Combined\n# curvature variants have no gdaldem equivalent (custom, RVT-inspired implementations).\ngdaldem hillshade ${demInputFile} hillshade.tif\ngdaldem slope ${demInputFile} slope.tif\ngdaldem aspect ${demInputFile} aspect.tif\ngdaldem color-relief ${demInputFile} ramp.txt color-relief.tif\ngdaldem TRI ${demInputFile} tri.tif\ngdaldem TPI ${demInputFile} tpi.tif\ngdaldem roughness ${demInputFile} roughness.tif`
+  const hillshadeLine = `gdaldem hillshade ${demInputFile} hillshade.tif${hillshadeFlags ? " " + hillshadeFlags : ""}`
+  const gdalDemCommand = `# Run against the DEM exported above (${demInputFile}). Covers the Slope-and-More\n# modes gdaldem supports natively — LRM, Blobness, and the Plan/Det-Hessian/Combined\n# curvature variants have no gdaldem equivalent (custom, RVT-inspired implementations).\n${hillshadeLine}\ngdaldem slope ${demInputFile} slope.tif\ngdaldem aspect ${demInputFile} aspect.tif\ngdaldem color-relief ${demInputFile} ramp.txt color-relief.tif\ngdaldem TRI ${demInputFile} tri.tif\ngdaldem TPI ${demInputFile} tpi.tif\ngdaldem roughness ${demInputFile} roughness.tif`
 
   return (
     <Dialog>

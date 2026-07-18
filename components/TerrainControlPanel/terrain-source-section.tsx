@@ -183,7 +183,7 @@ export const TerrainSourceSection: React.FC<{
                       onSelectA={() => setState({ sourceA: key })}
                       onSelectB={() => setState({ sourceB: key })}
                     />
-                    <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
+                    <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} />
                   </div>
                 ))}
               </>
@@ -192,7 +192,7 @@ export const TerrainSourceSection: React.FC<{
                 {Object.entries(terrainSources).map(([key, config]) => (
                   <div key={key} className="flex items-center gap-2 min-w-0">
                     <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer shrink-0" disabled={config.encoding === "3dtiles"} />
-                    <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
+                    <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} />
                   </div>
                 ))}
               </RadioGroup>

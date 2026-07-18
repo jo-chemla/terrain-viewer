@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useEffect, forwardRef, createContext, useContext, useId } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
@@ -199,6 +199,33 @@ export const AdvancedModeToggle: React.FC<{ advanced: boolean; onToggle: () => v
       </span>
     </TooltipTrigger>
     <TooltipContent><p>{advanced ? "Collapse to basic (hide sub-mode options)" : "Expand to advanced (show sub-mode options)"}</p></TooltipContent>
+  </Tooltip>
+)
+
+// ─── PinToggle ─────────────────────────────────────────────────────────────────
+//
+// Same shape as AdvancedModeToggle just above (Toggle + Tooltip, one icon that
+// never swaps, pressed look communicates state) — pins a section open through
+// "Fold all sections" (see vizModePinnedAtom / handleFoldExpandAll in
+// TerrainControlPanel.tsx). Reusing that pattern instead of a plain icon Button
+// is deliberate: a ghost Button has no persistent on/off look, which read as a
+// harsh, always-black icon with no indication of pinned state.
+export const PinToggle: React.FC<{ pinned: boolean; onToggle: () => void }> = ({ pinned, onToggle }) => (
+  <Tooltip delayDuration={0}>
+    <TooltipTrigger asChild>
+      <span>
+        <Toggle
+          pressed={pinned}
+          onPressedChange={() => onToggle()}
+          size="sm"
+          aria-label={pinned ? "Unpin — folds along with everything else" : "Pin open — stays expanded when folding all sections"}
+          className="cursor-pointer"
+        >
+          <Pin className="h-4 w-4" />
+        </Toggle>
+      </span>
+    </TooltipTrigger>
+    <TooltipContent><p>{pinned ? "Pinned open (stays expanded when folding all sections)" : "Not pinned (folds along with everything else)"}</p></TooltipContent>
   </Tooltip>
 )
 
