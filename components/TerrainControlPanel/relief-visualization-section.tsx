@@ -7,10 +7,6 @@ import { LrmFields } from "./lrm-options-section"
 import { SvfFields } from "./svf-options-section"
 import { OpennessFields } from "./openness-options-section"
 
-const GroupHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{children}</p>
-)
-
 // A plain "⏳" emoji renders as a colored glyph regardless of the surrounding
 // text color — this inline SVG icon inherits currentColor like every other
 // lucide icon in the app instead, so it reads as a monochrome hint rather than
@@ -42,17 +38,12 @@ export const ReliefVisualizationOptionsSection: React.FC<{
 
   return (
     <Section
-      title="Options: Relief Visualization"
+      title="Relief Visualization"
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       headerExtra={<AdvancedModeToggle advanced={advanced} onToggle={() => setAdvanced(!advanced)} />}
     >
       <div className="space-y-4">
-        {/* One heading covering all three modes (LRM/SVF/Openness) — unlike
-            TerrainAnalysisOptionsSection's two separate groups, these don't
-            split into their own basic/advanced-toggled sub-groups. */}
-        <GroupHeading>Altitude / Light</GroupHeading>
-
         <div className="space-y-2">
           <CheckboxWithSlider
             id="relief-visualization-lrm"

@@ -3,7 +3,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Section, SliderControl, CheckboxWithSlider } from "./controls-components"
+import { Section, SliderControl, CheckboxWithSlider, GroupHeading } from "./controls-components"
 
 const WEIGHT_TOGGLE_ITEM_CLASS = "cursor-pointer px-2 text-xs data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
 
@@ -49,14 +49,12 @@ export const ContourOptionsSection: React.FC<{
   const graticuleWidth = Number(state.graticuleWidth) || 1
 
   return (
-    <Section title="Options: Contours & GeoGrid" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Contours & GeoGrid" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-4">
 
-        <>
+        <div className="space-y-2">
           {/* ── Contour Lines ──────────────────────────────────────────── */}
-          <h4 className="text-xs font-semibold tracking-wider text-muted-foreground">
-            Contour Lines (only for TMS terrain, not BYOD COG)
-          </h4>
+          <GroupHeading>Contours (only for TMS terrain, not BYOD COG)</GroupHeading>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Checkbox
@@ -106,53 +104,53 @@ export const ContourOptionsSection: React.FC<{
               />
             </>
           )}
-        </>
+        </div>
 
-        {/* ── Graticules ─────────────────────────────────────────────── */}
-        <h4 className="text-xs font-semibold tracking-wider text-muted-foreground">
-          Graticules
-        </h4>
-        <CheckboxWithSlider
-          id="showGraticules"
-          label="Show GeoGrid / Graticules"
-          checked={state.showGraticules}
-          onCheckedChange={(checked) => setState({ showGraticules: checked })}
-          hideSlider
-        />
-        {state.showGraticules && (
-          <>
-            <CheckboxWithSlider
-              id="showGraticuleLabels"
-              label="Show Geogrid Labels (north-up only)"
-              checked={state.showGraticuleLabels}
-              // disabled
-              onCheckedChange={(checked) => setState({ showGraticuleLabels: checked })}
-              hideSlider
-            />
-            <SliderControl
-              label={`Density: ${densityLabel(DENSITY_VALUES[densityIndex])}`}
-              value={densityIndex}
-              onChange={(i) => setState({ graticuleDensity: DENSITY_VALUES[i] })}
-              min={0} max={DENSITY_VALUES.length - 1} step={1} hideValue
-            />
-            <div className="flex gap-3">
-              {/* <Input
-                type="color"
-                value={state.graticuleColor}
-                onChange={(e) => setState({ graticuleColor: e.target.value })}
-                className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
-              /> */}
-              <div className="grow">
-                <SliderControl
-                  label={`Width: ${graticuleWidth}px`}
-                  value={graticuleWidth}
-                  onChange={(v) => setState({ graticuleWidth: v })}
-                  min={0.1} max={3} step={0.1} hideValue
-                />
+        <div className="space-y-2">
+          {/* ── Graticules ─────────────────────────────────────────────── */}
+          <GroupHeading>Graticules</GroupHeading>
+          <CheckboxWithSlider
+            id="showGraticules"
+            label="Show GeoGrid / Graticules"
+            checked={state.showGraticules}
+            onCheckedChange={(checked) => setState({ showGraticules: checked })}
+            hideSlider
+          />
+          {state.showGraticules && (
+            <>
+              <CheckboxWithSlider
+                id="showGraticuleLabels"
+                label="Show Geogrid Labels (north-up only)"
+                checked={state.showGraticuleLabels}
+                // disabled
+                onCheckedChange={(checked) => setState({ showGraticuleLabels: checked })}
+                hideSlider
+              />
+              <SliderControl
+                label={`Density: ${densityLabel(DENSITY_VALUES[densityIndex])}`}
+                value={densityIndex}
+                onChange={(i) => setState({ graticuleDensity: DENSITY_VALUES[i] })}
+                min={0} max={DENSITY_VALUES.length - 1} step={1} hideValue
+              />
+              <div className="flex gap-3">
+                {/* <Input
+                  type="color"
+                  value={state.graticuleColor}
+                  onChange={(e) => setState({ graticuleColor: e.target.value })}
+                  className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
+                /> */}
+                <div className="grow">
+                  <SliderControl
+                    label={`Width: ${graticuleWidth}px`}
+                    value={graticuleWidth}
+                    onChange={(v) => setState({ graticuleWidth: v })}
+                    min={0.1} max={3} step={0.1} hideValue
+                  />
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
 
       </div>
     </Section>

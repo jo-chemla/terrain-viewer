@@ -19,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { HexAlphaColorPicker, HexColorInput } from 'react-colorful'
 import bbox from '@turf/bbox'
 import { v4 as uuidv4 } from 'uuid'
-import { Section, CheckboxWithSlider } from './controls-components'
+import { Section, CheckboxWithSlider, GroupHeading } from './controls-components'
 import { truncate as turf_truncate } from '@turf/truncate'
 import { downloadGeoJSON } from "@/lib/download-geojson"
 
@@ -623,7 +623,7 @@ export function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; ma
 
     return (
         <div className="space-y-2">
-            <Label className="text-sm font-medium">Drawing Mode</Label>
+            <GroupHeading>Mode</GroupHeading>
             <div className="grid grid-cols-3 gap-2">
                 {modes.map(({ id, label, icon: Icon }) => (
                     <Button
@@ -754,7 +754,7 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Layers</Label>
+                <GroupHeading>Layers</GroupHeading>
                 <div className="flex items-center gap-1">
                     {multiLayerMode && (
                         <Tooltip delayDuration={0}>
@@ -1275,7 +1275,7 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Drawing Tools</Label> 
+                <GroupHeading>Import / Export</GroupHeading>
                 <Label className="text-sm font-medium">Features: {features.length}</Label>
             </div>
 
@@ -1313,7 +1313,7 @@ interface TerraDrawSectionProps {
 
 export function TerraDrawSection({ draw, mapRef, isOpen, onOpenChange }: TerraDrawSectionProps) {
     return (
-        <Section title="Tools: Drawing" isOpen={isOpen} onOpenChange={onOpenChange}>
+        <Section title="Drawing" isOpen={isOpen} onOpenChange={onOpenChange}>
             <TerraDrawActions draw={draw} mapRef={mapRef} />
             <TerraDrawControls draw={draw} mapRef={mapRef} />
             <TerraDrawLayers draw={draw} mapRef={mapRef} />

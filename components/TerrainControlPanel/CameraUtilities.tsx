@@ -32,7 +32,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { Play, Pause, Check, Video, Download } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Section } from "./controls-components"
+import { Section, GroupHeading } from "./controls-components"
 import { atomWithStorage } from "jotai/utils"
 import { useAtom } from "jotai"
 
@@ -945,7 +945,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
   return (
     <>
       {/* ── FOV / Spin ── */}
-      <Label className="text-sm font-medium">Animation & FOV</Label>
+      <GroupHeading>Animation & FOV</GroupHeading>
       <div className="flex gap-2">
         <Button variant="outline" className="flex-[2] bg-transparent cursor-pointer" onClick={() => setVFov(40)}>
           VFOV 40°
@@ -960,7 +960,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
 
       {/* ── Poses ── */}
       <div className="flex items-center justify-between mt-3">
-        <Label className="text-sm font-medium">Animation via Keyframe</Label>
+        <GroupHeading>Keyframes</GroupHeading>
         <div className="flex items-center gap-2 cursor-pointer">
           <TooltipProvider>
             <Tooltip>
@@ -1074,7 +1074,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
       </div>
 
       {/* ── Export ── */}
-      <Label className="text-sm font-medium mt-3">Export Video</Label>
+      <GroupHeading className="mt-3">Export Video</GroupHeading>
       <div className="flex gap-2 items-start">
         <div className="flex flex-col gap-1 flex-[2] min-w-0">
           <Label className="text-xs text-muted-foreground leading-none pb-[2px]">Resolution</Label>
@@ -1131,7 +1131,7 @@ export function AnimationSection({
   appState, setAppState, setAppStateSafe,
 }: AnimationSectionProps) {
   return (
-    <Section title="Tools: Animation" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={false}>
+    <Section title="Animation" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={false}>
       <CameraButtons
         mapRef={mapRef}
         appState={appState}

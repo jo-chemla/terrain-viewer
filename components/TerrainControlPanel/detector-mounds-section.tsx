@@ -58,7 +58,7 @@ export const DetectorMoundsSection: React.FC<{
   const displayedStyle = isShown ? state.tellsStyle : lastVisibleTellsStyle.current
 
   return (
-    <Section title="Detector: Mound Candidates" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={false}>
+    <Section title="Mound Candidates" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={false}>
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Checkbox

@@ -139,7 +139,7 @@ export const Section: React.FC<{
         </div>
         <SectionIdContext.Provider value={autoId}>
           <CollapsibleContent className={cn(
-            "space-y-2 pt-1 transition-opacity duration-150",
+            "space-y-2 pt-1 px-2 transition-opacity duration-150",
             dim && "opacity-20"
           )}>
             {children}
@@ -152,6 +152,17 @@ export const Section: React.FC<{
     </>
   )
 }
+
+// ─── GroupHeading ─────────────────────────────────────────────────────────────
+// Quiet subtitle for a cluster of related controls within a Section — sits
+// between the Section's own title (text-base font-medium) and a control's
+// label (text-sm), so it needs to read as neither. Previously duplicated
+// verbatim in terrain-analysis-section.tsx and relief-visualization-section.tsx;
+// a few other places used a plain text-sm Label or a differently-tracked <h4>
+// for the same role instead, which is the inconsistency this consolidates.
+export const GroupHeading: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+  <p className={cn("text-xs font-semibold text-muted-foreground uppercase tracking-wide", className)}>{children}</p>
+)
 
 // ─── AdvancedModeToggle ────────────────────────────────────────────────────────
 //

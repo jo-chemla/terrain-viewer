@@ -177,7 +177,7 @@ export const ElevationPickerSection: React.FC<{
     : null
 
   return (
-    <Section title="Tools: Elevation Picker" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Elevation Picker" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="flex items-center justify-between gap-2">
         <Label htmlFor="elevation-picker-toggle" className="text-sm font-medium">
           Pick elevation on click

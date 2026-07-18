@@ -4,10 +4,9 @@ import { useAtom } from "jotai"
 import { ChevronDown, Plus, Edit, TestTube } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { TooltipButton, SourceAbToggle } from "./controls-components"
+import { TooltipButton, SourceAbToggle, GroupHeading } from "./controls-components"
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
@@ -147,12 +146,12 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   return (
     <>
       <Collapsible open={isBasemapByodOpen} onOpenChange={setIsBasemapByodOpen} className="mt-2">
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-m font-medium cursor-pointer pl-2.5">
-          Bring Your Own Data
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer">
+          <GroupHeading>Bring Your Own Data</GroupHeading>
           <ChevronDown className={`h-4 w-4 transition-transform ${isBasemapByodOpen ? "rotate-180" : ""}`} />
         </CollapsibleTrigger>
 
-        <CollapsibleContent className="space-y-2 pt-1">
+        <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
           <TooltipProvider>
             <div className="grid grid-cols-3 gap-2">
               <TooltipButton
@@ -176,7 +175,9 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
             </div>
           </TooltipProvider>
           {basemapRoleSources.length > 0 && (
-            state.basemapPerView ? (
+            <>
+            <GroupHeading>Basemap</GroupHeading>
+            {state.basemapPerView ? (
               state.splitScreen ? (
                 <div className="space-y-2">
                   {basemapRoleSources.map((source) => (
@@ -235,11 +236,12 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                   </div>
                 ))}
               </RadioGroup>
-            )
+            )}
+            </>
           )}
           {state.basemapPerView && overlaySources.length > 0 && (
             <div className="space-y-2 pt-2 mt-2 border-t">
-              <Label className="text-sm font-medium">Overlays</Label>
+              <GroupHeading>Overlays</GroupHeading>
               {overlaySources.map((source) => (
                 <div key={source.id} className="flex items-center gap-2 min-w-0">
                   <Checkbox

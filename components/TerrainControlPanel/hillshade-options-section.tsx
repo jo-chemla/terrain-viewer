@@ -22,6 +22,7 @@ export const HillshadeOptionsSection: React.FC<{
   if (!state.showHillshade) return null
 
   const [isColorsOpen, setIsColorsOpen] = useState(false)
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
   const [isHillshadeXYPadOpen, setIsHillshadeXYPadOpen] = useAtom(isHillshadeXYPadOpenAtom)
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const hideAdvancedControls = activeProjectConfig?.hiddenSections?.includes("hillshadeAdvanced") ?? false
@@ -55,7 +56,7 @@ export const HillshadeOptionsSection: React.FC<{
 
 
   return (
-    <Section title="Options: Hillshade" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Hillshade" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
         <Label className="text-sm font-medium">Hillshade Method</Label>
         <CycleButtonGroup value={state.hillshadeMethod} options={hillshadeMethodOptions} onChange={(v) => setState({ hillshadeMethod: v })} onCycle={cycleHillshadeMethod} />
@@ -86,10 +87,22 @@ export const HillshadeOptionsSection: React.FC<{
         </Collapsible>
       )}
       
-      {/*Individual 1D Sliders for illumination */}
-      {!hideAdvancedControls && supportsIlluminationDirection && <SliderControl label="Illumination Direction" value={state.illuminationDir} onChange={(v) => setState({ illuminationDir: v })} min={0} max={360} step={1} suffix="°" />}
-      {!hideAdvancedControls && supportsIlluminationAltitude && <SliderControl label="Illumination Altitude" value={state.illuminationAlt} onChange={(v) => setState({ illuminationAlt: v })} min={0} max={90} step={1} suffix="°" />}
-      {!hideAdvancedControls && supportsExaggeration && <SliderControl label="Hillshade Exaggeration" value={state.hillshadeExag} onChange={(v) => setState({ hillshadeExag: v })} min={0} max={1} step={0.01} decimals={2} />}
+      {/* Individual 1D sliders for illumination — folded by default, since the
+          XY pad above already covers direction+altitude together at a glance;
+          this is for precise numeric entry instead. Same folded-by-default
+          pattern as "Hillshade Colors" below. */}
+      {!hideAdvancedControls && (supportsIlluminationDirection || supportsIlluminationAltitude || supportsExaggeration) && (
+        <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+            Advanced<ChevronDown className={`h-4 w-4 transition-transform ${isAdvancedOpen ? "rotate-180" : ""}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-1 pt-1">
+            {supportsIlluminationDirection && <SliderControl label="Illumination Direction" value={state.illuminationDir} onChange={(v) => setState({ illuminationDir: v })} min={0} max={360} step={1} suffix="°" />}
+            {supportsIlluminationAltitude && <SliderControl label="Illumination Altitude" value={state.illuminationAlt} onChange={(v) => setState({ illuminationAlt: v })} min={0} max={90} step={1} suffix="°" />}
+            {supportsExaggeration && <SliderControl label="Hillshade Exaggeration" value={state.hillshadeExag} onChange={(v) => setState({ hillshadeExag: v })} min={0} max={1} step={0.01} decimals={2} />}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {/* hillshade colors */}
       {!hideAdvancedControls && (supportsShadowColor || supportsHighlightColor || supportsAccentColor) && (

@@ -1,12 +1,14 @@
 import type React from "react"
-import { useMemo, useCallback } from "react"
+import { useMemo, useCallback, useState } from "react"
 import { useAtom } from "jotai"
+import { ChevronDown } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
-import { Section, CycleButtonGroup, SliderControl, SourceAbToggle } from "./controls-components"
+import { Section, CycleButtonGroup, SliderControl, SourceAbToggle, GroupHeading } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
 
 export const BUILTIN_BASEMAP_OPTIONS = [
@@ -25,6 +27,7 @@ export const RasterBasemapSection: React.FC<{
   withSeparator?: boolean
 }> = ({ state, setState, mapRef, isOpen, onOpenChange, withSeparator }) => {
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
+  const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
 
   const basemapSourceOptions = useMemo(() => [
     ...BUILTIN_BASEMAP_OPTIONS,
@@ -42,10 +45,13 @@ export const RasterBasemapSection: React.FC<{
   if (!state.showRasterBasemap) return null
 
   return (
-    <Section title="Source: Basemap" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
-      <div className="space-y-2">
+    <Section title="Basemap" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
+      <Collapsible open={isWorldwideOpen} onOpenChange={setIsWorldwideOpen}>
         <div className="flex items-center justify-between gap-2">
-          <Label className="text-sm font-medium">Source</Label>
+          <CollapsibleTrigger className="flex items-center gap-1.5 cursor-pointer">
+            <GroupHeading>Worldwide Defaults</GroupHeading>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isWorldwideOpen ? "rotate-180" : ""}`} />
+          </CollapsibleTrigger>
           <div className="flex items-center gap-2 cursor-pointer">
             <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Simple</Label>
             <Switch
@@ -58,49 +64,51 @@ export const RasterBasemapSection: React.FC<{
           </div>
         </div>
 
-        <SliderControl
-          label="Basemap Opacity"
-          value={state.basemapSourceOpacity * 100}
-          onChange={(v) => setState({ basemapSourceOpacity: v / 100 })}
-          min={0} max={100} step={5}
-          suffix="%"
-          sliderId="raster-basemap-opacity"
-        />
-
-        {state.basemapPerView ? (
-          state.splitScreen ? (
-            <div className="space-y-2">
-              {BUILTIN_BASEMAP_OPTIONS.map(({ value, label }) => (
-                <div key={value} className="flex items-center gap-2 min-w-0">
-                  <SourceAbToggle
-                    aActive={state.basemapSourceA === value}
-                    bActive={state.basemapSourceB === value}
-                    onSelectA={() => setState({ basemapSourceA: value })}
-                    onSelectB={() => setState({ basemapSourceB: value })}
-                  />
-                  <Label className="flex-1 text-sm truncate min-w-0">{label}</Label>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <RadioGroup value={state.basemapSourceA} onValueChange={(value) => setState({ basemapSourceA: value })} className="gap-2">
-              {BUILTIN_BASEMAP_OPTIONS.map(({ value, label }) => (
-                <div key={value} className="flex items-center gap-2 min-w-0">
-                  <RadioGroupItem value={value} id={`basemap-source-${value}`} className="cursor-pointer shrink-0" />
-                  <Label htmlFor={`basemap-source-${value}`} className="flex-1 text-sm cursor-pointer truncate min-w-0">{label}</Label>
-                </div>
-              ))}
-            </RadioGroup>
-          )
-        ) : (
-          <CycleButtonGroup
-            value={state.basemapSource}
-            options={basemapSourceOptions}
-            onChange={(v) => setState({ basemapSource: v })}
-            onCycle={cycleBasemapSource}
+        <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
+          <SliderControl
+            label="Basemap Opacity"
+            value={state.basemapSourceOpacity * 100}
+            onChange={(v) => setState({ basemapSourceOpacity: v / 100 })}
+            min={0} max={100} step={5}
+            suffix="%"
+            sliderId="raster-basemap-opacity"
           />
-        )}
-      </div>
+
+          {state.basemapPerView ? (
+            state.splitScreen ? (
+              <div className="space-y-2">
+                {BUILTIN_BASEMAP_OPTIONS.map(({ value, label }) => (
+                  <div key={value} className="flex items-center gap-2 min-w-0">
+                    <SourceAbToggle
+                      aActive={state.basemapSourceA === value}
+                      bActive={state.basemapSourceB === value}
+                      onSelectA={() => setState({ basemapSourceA: value })}
+                      onSelectB={() => setState({ basemapSourceB: value })}
+                    />
+                    <Label className="flex-1 text-sm truncate min-w-0">{label}</Label>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <RadioGroup value={state.basemapSourceA} onValueChange={(value) => setState({ basemapSourceA: value })} className="gap-2">
+                {BUILTIN_BASEMAP_OPTIONS.map(({ value, label }) => (
+                  <div key={value} className="flex items-center gap-2 min-w-0">
+                    <RadioGroupItem value={value} id={`basemap-source-${value}`} className="cursor-pointer shrink-0" />
+                    <Label htmlFor={`basemap-source-${value}`} className="flex-1 text-sm cursor-pointer truncate min-w-0">{label}</Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            )
+          ) : (
+            <CycleButtonGroup
+              value={state.basemapSource}
+              options={basemapSourceOptions}
+              onChange={(v) => setState({ basemapSource: v })}
+              onCycle={cycleBasemapSource}
+            />
+          )}
+        </CollapsibleContent>
+      </Collapsible>
       <BasemapByodSection state={state} setState={setState} mapRef={mapRef} />
     </Section>
   )

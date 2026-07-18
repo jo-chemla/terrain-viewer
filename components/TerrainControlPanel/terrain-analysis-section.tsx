@@ -1,7 +1,7 @@
 import type React from "react"
 import { useAtom } from "jotai"
 import { Separator } from "@/components/ui/separator"
-import { Section, CheckboxWithSlider, AdvancedModeToggle } from "./controls-components"
+import { Section, CheckboxWithSlider, AdvancedModeToggle, GroupHeading } from "./controls-components"
 import { terrainAnalysisAdvancedAtom } from "@/lib/settings-atoms"
 import { SlopeFields } from "./slope-options-section"
 import { AspectFields } from "./aspect-options-section"
@@ -10,10 +10,6 @@ import { CurvatureFields } from "./curvature-options-section"
 import { TpiFields } from "./tpi-options-section"
 import { RoughnessFields } from "./roughness-options-section"
 import { BlobnessFields } from "./blobness-options-section"
-
-const GroupHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{children}</p>
-)
 
 // Half of what used to be one merged "Slope and More" panel — the first-/second-
 // order gradient-based modes (Surface derivatives) plus the neighborhood-statistic
@@ -33,7 +29,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
 
   return (
     <Section
-      title="Options: Terrain Analysis"
+      title="Terrain Analysis"
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       withSeparator={withSeparator}

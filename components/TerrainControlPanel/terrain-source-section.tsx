@@ -16,7 +16,7 @@ import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import type { MapRef } from "react-map-gl/maplibre"
 import saveAs from "file-saver"
-import { Section, SourceAbToggle } from "./controls-components"
+import { Section, SourceAbToggle, GroupHeading } from "./controls-components"
 import { type Bounds, templateLink, shouldZoomToBounds } from "@/lib/controls-utils"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
@@ -34,6 +34,7 @@ export const TerrainSourceSection: React.FC<{
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, getTilesUrl, getMapBounds, mapRef, isOpen, onOpenChange }) => {
   const [isByodOpen, setIsByodOpen] = useAtom(isByodOpenAtom)
+  const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false)
@@ -164,40 +165,48 @@ export const TerrainSourceSection: React.FC<{
 
   return (
     <>
-      <Section title="Source: Terrain" isOpen={isOpen} onOpenChange={onOpenChange}>
-        {state.splitScreen ? (
-          <>
-            {Object.entries(terrainSources).map(([key, config]) => (
-              <div key={key} className="flex items-center gap-2 min-w-0">
-                <SourceAbToggle
-                  disabled={config.encoding === "3dtiles"}
-                  aActive={state.sourceA === key}
-                  bActive={state.sourceB === key}
-                  onSelectA={() => setState({ sourceA: key })}
-                  onSelectB={() => setState({ sourceB: key })}
-                />
-                <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
-              </div>
-            ))}
-          </>
-        ) : (
-          <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })} className="gap-2">
-            {Object.entries(terrainSources).map(([key, config]) => (
-              <div key={key} className="flex items-center gap-2 min-w-0">
-                <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer shrink-0" disabled={config.encoding === "3dtiles"} />
-                <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
-              </div>
-            ))}
-          </RadioGroup>
-        )}
+      <Section title="Terrain" isOpen={isOpen} onOpenChange={onOpenChange}>
+        <Collapsible open={isWorldwideOpen} onOpenChange={setIsWorldwideOpen}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer">
+            <GroupHeading>Worldwide Defaults</GroupHeading>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isWorldwideOpen ? "rotate-180" : ""}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
+            {state.splitScreen ? (
+              <>
+                {Object.entries(terrainSources).map(([key, config]) => (
+                  <div key={key} className="flex items-center gap-2 min-w-0">
+                    <SourceAbToggle
+                      disabled={config.encoding === "3dtiles"}
+                      aActive={state.sourceA === key}
+                      bActive={state.sourceB === key}
+                      onSelectA={() => setState({ sourceA: key })}
+                      onSelectB={() => setState({ sourceB: key })}
+                    />
+                    <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
+                  </div>
+                ))}
+              </>
+            ) : (
+              <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })} className="gap-2">
+                {Object.entries(terrainSources).map(([key, config]) => (
+                  <div key={key} className="flex items-center gap-2 min-w-0">
+                    <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer shrink-0" disabled={config.encoding === "3dtiles"} />
+                    <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} />
+                  </div>
+                ))}
+              </RadioGroup>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
 
         <Collapsible open={isByodOpen} onOpenChange={setIsByodOpen} className="mt-4">
-          <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-m font-medium cursor-pointer pl-2.5">
-            Bring Your Own Data
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer">
+            <GroupHeading>Bring Your Own Data</GroupHeading>
             <ChevronDown className={`h-4 w-4 transition-transform ${isByodOpen ? "rotate-180" : ""}`} />
           </CollapsibleTrigger>
 
-          <CollapsibleContent className="space-y-2 pt-1">
+          <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
             <TooltipProvider>
               <div className="grid grid-cols-3 gap-2">
                 <TooltipButton
