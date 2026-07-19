@@ -385,13 +385,13 @@ OpennessReliefLayer.displayName = "OpennessReliefLayer"
 // Point features from the tells:// MVT source (see TellsSource in MapSources.tsx
 // and lib/tells-protocol.ts) — one marker per surviving candidate. `enabled` is
 // the mount gate (mirrors the Relief-layer master/per-mode split elsewhere in this
-// file: showTerrainAnalysis && state.tellsBeta); `style` — including "hidden" — only
-// ever toggles layout.visibility/paint, so cycling styles never unmounts this
-// Layer or the vector source underneath it, meaning hiding the markers can't
-// force maplibre to re-fetch/recompute tells:// tiles on reactivation.
+// file: showTerrainAnalysis && state.tellsBeta); `visible` (showTellsDetector &&
+// tellsMarkersVisible — two independent flags, see TerrainViewer.tsx) only ever
+// toggles paint, never layout.visibility, so hiding the markers this way never
+// unmounts this Layer or the vector source underneath it, and can't force
+// maplibre to re-fetch/recompute tells:// tiles on reactivation.
 export type TellsMarkerStyle =
-  | "hidden" | "outline"
-  | "byBlobness" | "byPlan" | "byDetHessian" | "byLrm"
+  "outline" | "byBlobness" | "byPlan" | "byDetHessian" | "byLrm"
 
 // "outline" (stroke-only, no-fill) markers — sized up (2x their original radius)
 // after field feedback that they were hard to spot over busy relief.
@@ -445,8 +445,14 @@ function tellsMeasuredScaleRadius(latDeg: number, scaleMultiplier: number) {
   ]
 }
 
-export const TellsMarkersLayer = memo(({ enabled, style, outlineColor, sizeByMeasuredScale, scaleMultiplier, latDeg, colorByPaints }: {
+export const TellsMarkersLayer = memo(({ enabled, visible, style, outlineColor, sizeByMeasuredScale, scaleMultiplier, latDeg, colorByPaints }: {
   enabled: boolean
+  /** Whether markers should currently be painted visible — false because the
+   *  detector as a whole is off (showTellsDetector) and/or just its markers
+   *  are toggled off (tellsMarkersVisible, the Mound Candidates section's own
+   *  "Show mound candidates" checkbox) — two independent flags, see
+   *  TerrainViewer.tsx / detector-mounds-section.tsx. */
+  visible: boolean
   style: TellsMarkerStyle
   /** Stroke color for the "outline" style (see the tellsOutlineColor nuqs param). */
   outlineColor: string
@@ -469,13 +475,14 @@ export const TellsMarkersLayer = memo(({ enabled, style, outlineColor, sizeByMea
   const radius = sizeByMeasuredScale
     ? tellsMeasuredScaleRadius(latDeg, scaleMultiplier)
     : style === "outline" ? TELLS_CIRCLE_RADIUS_OUTLINE : TELLS_CIRCLE_RADIUS_COLOR_BY
-  // "hidden" keeps the layer layout-visible and paints it fully transparent
-  // instead of flipping layout.visibility — same trick as the unfiltered loader
-  // layer below, for the same reason: a visibility:none layer releases the
-  // source's tiles, and re-showing then needed a map move before circles came
-  // back. Transparent paint keeps tiles resident, so re-show is instant.
+  // Not currently visible keeps the layer layout-visible and paints it fully
+  // transparent instead of flipping layout.visibility — same trick as the
+  // unfiltered loader layer below, for the same reason: a visibility:none
+  // layer releases the source's tiles, and re-showing then needed a map move
+  // before circles came back. Transparent paint keeps tiles resident, so
+  // re-show (from either independent flag) is instant.
   const paint =
-    style === "hidden"
+    !visible
       ? {
           "circle-radius": 0,
           "circle-color": "rgba(0,0,0,0)",

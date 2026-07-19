@@ -1,5 +1,5 @@
 import type React from "react"
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { useAtom } from "jotai"
 import { activeProjectConfigAtom, vizModePinnedAtom } from "@/lib/settings-atoms"
 import { Section, CheckboxWithSlider, PinToggle } from "./controls-components"
@@ -25,15 +25,6 @@ export const VisualizationModesSection: React.FC<{
   const hideContours = activeProjectConfig?.hiddenSections?.includes("contour") ?? false
   const hideTerrainAnalysis = activeProjectConfig?.hiddenSections?.includes("terrainAnalysis") ?? false
   const hideReliefVisualization = activeProjectConfig?.hiddenSections?.includes("reliefVisualization") ?? false
-
-  // The Tells toggle below maps the multi-valued tellsStyle onto a checkbox:
-  // checked = any non-hidden style. Remember the last visible style (whether it
-  // was picked here or via DetectorMoundsSection's cycle group) so re-checking
-  // restores it instead of always resetting to the outline default.
-  const lastVisibleTellsStyle = useRef("outline")
-  useEffect(() => {
-    if (state.tellsStyle !== "hidden") lastVisibleTellsStyle.current = state.tellsStyle
-  }, [state.tellsStyle])
 
   return (
     <Section
@@ -76,10 +67,10 @@ export const VisualizationModesSection: React.FC<{
       {state.tellsBeta && (
         <CheckboxWithSlider
           id="tells-visibility"
-          checked={state.tellsStyle !== "hidden"}
-          onCheckedChange={(checked) => setState({ tellsStyle: checked ? lastVisibleTellsStyle.current : "hidden" })}
+          checked={state.showTellsDetector}
+          onCheckedChange={(checked) => setState({ showTellsDetector: checked === true })}
           label="Tells (Mound Detector)"
-          tooltip="Show/hide the experimental mound-candidate markers. Marker style and detector settings live in the Detector: Mound Candidates section."
+          tooltip="Turns the experimental mound detector on/off — its own Mound Candidates section (style, thresholds, a separate marker-visibility toggle) appears once this is on."
           hideSlider
         />
       )}

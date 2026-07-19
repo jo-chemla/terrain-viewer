@@ -101,10 +101,18 @@ export interface PersistedCogEntry {
 // lastModified is the write time, not read time), so LRU order is tracked
 // alongside the files themselves, in a small localStorage-backed index
 // rather than a sidecar file inside OPFS — cheaper to read/update than doing
-// extra directory I/O on every hydration.
+// extra directory I/O on every hydration. `size` is recorded at write time
+// (from the known-good source File, not re-derived from OPFS) so a later read
+// can detect a truncated/corrupt entry — see the size-mismatch check in
+// persistCogFile/readPersistedCogFile below.
+interface LruEntry {
+  lastAccessed: number
+  size: number
+}
+
 const LRU_KEY = "opfsCogLru"
 
-function readLru(): Record<string, number> {
+function readLru(): Record<string, LruEntry> {
   try {
     const raw = localStorage.getItem(LRU_KEY)
     return raw ? JSON.parse(raw) : {}
@@ -113,7 +121,7 @@ function readLru(): Record<string, number> {
   }
 }
 
-function writeLru(lru: Record<string, number>) {
+function writeLru(lru: Record<string, LruEntry>) {
   try {
     localStorage.setItem(LRU_KEY, JSON.stringify(lru))
   } catch {
@@ -122,9 +130,9 @@ function writeLru(lru: Record<string, number>) {
   }
 }
 
-function touchLru(id: string) {
+function touchLru(id: string, size?: number) {
   const lru = readLru()
-  lru[id] = Date.now()
+  lru[id] = { lastAccessed: Date.now(), size: size ?? lru[id]?.size ?? 0 }
   writeLru(lru)
 }
 
@@ -162,7 +170,7 @@ async function evictUntilFits(dir: FileSystemDirectoryHandle, neededBytes: numbe
   if (ids.length === 0) return
 
   const lru = readLru()
-  const sized = await Promise.all(ids.map(async (id) => ({ id, size: await getEntrySize(dir, id), lastAccessed: lru[id] ?? 0 })))
+  const sized = await Promise.all(ids.map(async (id) => ({ id, size: await getEntrySize(dir, id), lastAccessed: lru[id]?.lastAccessed ?? 0 })))
   let total = sized.reduce((sum, e) => sum + e.size, 0)
 
   const byOldestFirst = [...sized].sort((a, b) => a.lastAccessed - b.lastAccessed)
@@ -176,6 +184,35 @@ async function evictUntilFits(dir: FileSystemDirectoryHandle, neededBytes: numbe
       // Skip an entry that fails to delete rather than aborting the whole pass.
     }
   }
+}
+
+/** Writes `file` to OPFS under `id` and reads it straight back to confirm
+ *  the persisted copy's size actually matches — a write that throws
+ *  partway through (quota exceeded mid-write, tab closed, browser killed)
+ *  can otherwise leave a truncated or empty file committed as if it had
+ *  succeeded, which then silently corrupts tile reads next session (a range
+ *  request computed against the real COG's byte offsets, served against a
+ *  truncated blob, surfaces deep inside the tile pipeline as a baffling
+ *  416/ERR_REQUEST_RANGE_NOT_SATISFIABLE rather than anything resembling a
+ *  storage error). A mismatch here is treated as a failed persist: the
+ *  broken entry is deleted so a later read cleanly returns null (falling
+ *  through to the existing "Re-select file…" prompt) instead of handing
+ *  back corrupt data. */
+async function writeAndVerify(dir: FileSystemDirectoryHandle, id: string, file: File): Promise<boolean> {
+  const handle = await dir.getFileHandle(id, { create: true })
+  const writable = await handle.createWritable()
+  await writable.write(file)
+  await writable.close()
+
+  const writtenSize = (await handle.getFile()).size
+  if (writtenSize !== file.size) {
+    try { await dir.removeEntry(id) } catch {}
+    dropLru(id)
+    return false
+  }
+
+  touchLru(id, file.size)
+  return true
 }
 
 /** Best-effort write of `file`'s bytes into OPFS under `id`, evicting older
@@ -193,46 +230,46 @@ export async function persistCogFile(id: string, file: File): Promise<boolean> {
       : DEFAULT_MAX_TOTAL_BYTES
 
     await evictUntilFits(dir, file.size, capBytes)
-
-    const handle = await dir.getFileHandle(id, { create: true })
-    const writable = await handle.createWritable()
-    await writable.write(file)
-    await writable.close()
-    touchLru(id)
-    // Opportunistic — failing this just means the write above is subject to
-    // eviction under generic storage pressure, same as any other best-effort
-    // storage in this origin.
-    requestPersistentStorage()
-    return true
+    const ok = await writeAndVerify(dir, id, file)
+    if (ok) {
+      // Opportunistic — failing this just means the write above is subject
+      // to eviction under generic storage pressure, same as any other
+      // best-effort storage in this origin.
+      requestPersistentStorage()
+    }
+    return ok
   } catch {
     // Quota exceeded (still, despite the pre-emptive eviction above — the
     // estimate is only ever a rough gauge) or some other write failure. One
     // retry after a harder eviction pass, then give up quietly.
     try {
       await evictUntilFits(dir, file.size, 0)
-      const handle = await dir.getFileHandle(id, { create: true })
-      const writable = await handle.createWritable()
-      await writable.write(file)
-      await writable.close()
-      touchLru(id)
-      return true
+      return await writeAndVerify(dir, id, file)
     } catch {
       return false
     }
   }
 }
 
-/** Reads back a previously-persisted file, or null if it was never persisted,
- *  OPFS isn't supported, or it was evicted. Reading the resulting File is
- *  lazy (same as the blob: URL path this replaces) — this does not load the
- *  whole COG into memory. */
+/** Reads back a previously-persisted file, or null if it was never
+ *  persisted, OPFS isn't supported, it was evicted, or it's found to be
+ *  truncated/corrupt (see writeAndVerify above) — in which case the broken
+ *  entry is removed so it doesn't keep silently failing every session.
+ *  Reading the resulting File is lazy (same as the blob: URL path this
+ *  replaces) — this does not load the whole COG into memory. */
 export async function readPersistedCogFile(id: string): Promise<File | null> {
   const dir = await getDir()
   if (!dir) return null
   try {
     const handle = await dir.getFileHandle(id)
     const file = await handle.getFile()
-    touchLru(id)
+    const recordedSize = readLru()[id]?.size
+    if (recordedSize !== undefined && file.size !== recordedSize) {
+      try { await dir.removeEntry(id) } catch {}
+      dropLru(id)
+      return null
+    }
+    touchLru(id, file.size)
     return file
   } catch {
     return null
@@ -256,7 +293,7 @@ export async function listPersistedCogs(): Promise<PersistedCogEntry[]> {
   if (!dir) return []
   const ids = await listPersistedIds(dir)
   const lru = readLru()
-  return Promise.all(ids.map(async (id) => ({ id, size: await getEntrySize(dir, id), lastAccessed: lru[id] ?? 0 })))
+  return Promise.all(ids.map(async (id) => ({ id, size: await getEntrySize(dir, id), lastAccessed: lru[id]?.lastAccessed ?? 0 })))
 }
 
 /** Wipes every persisted COG — used by the "Clear persisted local files"

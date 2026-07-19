@@ -162,7 +162,7 @@ export function TerrainControlPanel({
         showReliefVisualization: state.showReliefVisualization,
         showTerrainAnalysis: state.showTerrainAnalysis,
         showBackground: state.showBackground,
-        tellsStyle: state.tellsStyle,
+        showTellsDetector: state.showTellsDetector,
       }
       setState({
         showContoursAndGraticules: false,
@@ -172,7 +172,7 @@ export function TerrainControlPanel({
         showReliefVisualization: false,
         showTerrainAnalysis: false,
         showBackground: false,
-        tellsStyle: "hidden",
+        showTellsDetector: false,
       })
     }
   })
@@ -207,6 +207,19 @@ export function TerrainControlPanel({
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
   const [macroGroupOpen, setMacroGroupOpen] = useAtom(macroGroupOpenAtom)
   const toggleMacroGroup = (key: MacroGroupKey) => setMacroGroupOpen((prev) => ({ ...prev, [key]: !prev[key] }))
+
+  // Mound Candidates (Detectors) only shows in the sidebar while both its
+  // beta flag AND its own Visualization Modes master checkbox
+  // (showTellsDetector) are on — beta alone just unlocks the *option*, it
+  // isn't a reason to already show a whole section of veto-threshold sliders
+  // nobody asked for. showTellsDetector is deliberately a separate flag from
+  // tellsMarkersVisible (the section's own "Show mound candidates" checkbox,
+  // a pure paint-visibility toggle) — toggling markers visibility on/off
+  // must never also collapse the section it lives in or uncheck the
+  // Visualization Modes master switch. Live, not latched: unchecking the Viz
+  // Modes checkbox hides the section again immediately — that's the one
+  // control meant to do that; tellsMarkersVisible never does.
+  const showDetectors = state.tellsBeta && state.showTellsDetector
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const [vizModePinned] = useAtom(vizModePinnedAtom)
   const hideSourcePanels = activeProjectConfig?.hideSourcePanels ?? false
@@ -416,15 +429,15 @@ export function TerrainControlPanel({
                 setState={setState}
                 isOpen={sectionOpen.terrainAnalysis}
                 onOpenChange={toggle("terrainAnalysis")}
-                withSeparator={!state.tellsBeta}
+                withSeparator={!showDetectors}
               />
             )}
           </>
         )}
-        {!hiddenSections.includes("terrainAnalysis") && state.tellsBeta && (
+        {!hiddenSections.includes("terrainAnalysis") && showDetectors && (
           <MacroSeparator label="Detectors" isOpen={macroGroupOpen.Detectors} onToggle={() => toggleMacroGroup("Detectors")} />
         )}
-        {!hiddenSections.includes("terrainAnalysis") && macroGroupOpen.Detectors && (
+        {!hiddenSections.includes("terrainAnalysis") && showDetectors && macroGroupOpen.Detectors && (
           <DetectorMoundsSection
             state={state}
             setState={setState}
@@ -434,7 +447,7 @@ export function TerrainControlPanel({
             mapRef={mapRef}
           />
         )}
-        {!hiddenSections.includes("terrainAnalysis") && state.tellsBeta && <MacroSeparator />}
+        {!hiddenSections.includes("terrainAnalysis") && showDetectors && <MacroSeparator />}
         <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
         <MacroSeparator label="Tools" isOpen={macroGroupOpen.Tools} onToggle={() => toggleMacroGroup("Tools")} />
         {macroGroupOpen.Tools && (

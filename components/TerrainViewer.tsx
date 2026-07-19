@@ -97,7 +97,7 @@ const VIEW_MODES = ['2d', 'globe', '3d'] as const
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian'] as const
 const OPENNESS_MODES = ['positive', 'negative'] as const
-const TELLS_STYLES = ['hidden', 'outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
+const TELLS_STYLES = ['outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
 const TELL_VETO_RESOLUTIONS = ['fine', 'coarse'] as const
 
 export function TerrainViewer() {
@@ -136,11 +136,12 @@ export function TerrainViewer() {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [highResTerrain] = useAtom(highResTerrainAtom)
-  // Latches true the first time Tells is shown in any non-hidden style, and then
-  // stays true — this is TellsSource's mount gate instead of tellsStyle itself, so
-  // cycling back to "hidden" never unmounts the vector source / discards its
-  // already-fetched tiles the way tying the source's `enabled` directly to the
-  // style would.
+  // Latches true the first time the detector is turned on (showTellsDetector),
+  // and then stays true — this is TellsSource's mount gate instead of
+  // showTellsDetector itself, so toggling the detector (or just its markers'
+  // visibility, tellsMarkersVisible — a separate, independent flag) back off
+  // never unmounts the vector source / discards its already-fetched tiles the
+  // way tying the source's `enabled` directly to either flag would.
   const [tellsEverActivated, setTellsEverActivated] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
@@ -271,6 +272,18 @@ export function TerrainViewer() {
     // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
     // clutter Visualization Modes for everyone by default.
     tellsBeta: parseAsBoolean.withDefault(false),
+    // Master on/off (Visualization Modes' "Tells (Mound Detector)" checkbox) —
+    // gates the sidebar's Mound Candidates section as well as the map layer.
+    // Independent from tellsMarkersVisible below: this is "is the detector
+    // active at all", not "are its markers currently painted".
+    showTellsDetector: parseAsBoolean.withDefault(false),
+    // Mound Candidates section's own "Show mound candidates" checkbox — a pure
+    // paint-visibility toggle for markers already being computed, independent
+    // of showTellsDetector so it can't also collapse the section it lives in,
+    // and independent of tellsStyle so switching color-by styles never needs
+    // to remember/restore a "last visible style" the way a single combined
+    // hidden|outline|byLrm|... field used to require.
+    tellsMarkersVisible: parseAsBoolean.withDefault(true),
     tellsStyle: parseAsStringLiteral(TELLS_STYLES).withDefault("outline"),
     tellsOutlineColor: parseAsColor().withDefault("#ef4444"),
     // Only meaningful with tellMeasureScale on: draw each marker at
@@ -544,8 +557,8 @@ export function TerrainViewer() {
   )
 
   useEffect(() => {
-    if (state.tellsStyle !== "hidden") setTellsEverActivated(true)
-  }, [state.tellsStyle]
+    if (state.showTellsDetector) setTellsEverActivated(true)
+  }, [state.showTellsDetector]
   )
 
   // Check MapLibre availability
@@ -1327,6 +1340,7 @@ export function TerrainViewer() {
           {isPrimary && (
             <TellsMarkersLayer
               enabled={state.tellsBeta}
+              visible={state.showTellsDetector && state.tellsMarkersVisible}
               style={state.tellsStyle}
               outlineColor={state.tellsOutlineColor}
               sizeByMeasuredScale={state.tellMeasureScale && state.tellsScaleMarkers}
@@ -1497,7 +1511,7 @@ export function TerrainViewer() {
       // tellsBeta/tellsEverActivated gate the tells layer+source mounts: leaving
       // them out of these deps was the "toggle it on but nothing shows until I
       // pan or edit a slider" desync — the memoized JSX simply never re-rendered.
-      state.tellsStyle, tellsOptions, state.tellsBeta, tellsEverActivated,
+      state.tellsStyle, state.showTellsDetector, state.tellsMarkersVisible, tellsOptions, state.tellsBeta, tellsEverActivated,
       tellsColorByPaints, state.tellsOutlineColor, state.tellsScaleMarkers, state.tellsScaleMultiplier, state.tellMeasureScale,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,

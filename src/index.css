@@ -325,16 +325,31 @@
    this quick shake on the pin icon itself is the only feedback that it did
    something (rather than silently failing) — "unpin me first". Re-triggered
    via a remount (key bump), not a class toggle, so rapid repeat clicks each
-   restart the animation instead of only the first one playing. */
+   restart the animation instead of only the first one playing.
+
+   Two full wiggle cycles baked into ONE 0%-100% keyframe timeline (rather
+   than animation-iteration-count: 2 repeating a single-cycle keyframe) —
+   iteration-count reapplies the top-level easing to every repeat, so with
+   ease-in-out the motion decelerates into, then re-accelerates out of, the
+   loop point (t=0.35s): a visible stutter exactly at the seam. Per-keyframe
+   `animation-timing-function` lets every interior step move at a constant
+   (linear) pace, with easing reserved for the very first and very last
+   segments only — smooth all the way through the middle, soft at both ends. */
 @keyframes pin-wiggle {
-  0%, 100% { transform: rotate(0deg); }
-  20% { transform: rotate(-18deg); }
-  40% { transform: rotate(14deg); }
-  60% { transform: rotate(-10deg); }
-  80% { transform: rotate(6deg); }
+  0% { transform: rotate(0deg); animation-timing-function: ease-in; }
+  10% { transform: rotate(-18deg); animation-timing-function: linear; }
+  20% { transform: rotate(14deg); animation-timing-function: linear; }
+  30% { transform: rotate(-10deg); animation-timing-function: linear; }
+  40% { transform: rotate(6deg); animation-timing-function: linear; }
+  50% { transform: rotate(0deg); animation-timing-function: linear; }
+  60% { transform: rotate(-18deg); animation-timing-function: linear; }
+  70% { transform: rotate(14deg); animation-timing-function: linear; }
+  80% { transform: rotate(-10deg); animation-timing-function: linear; }
+  90% { transform: rotate(6deg); animation-timing-function: ease-out; }
+  100% { transform: rotate(0deg); }
 }
 .animate-pin-wiggle {
-  animation: pin-wiggle 0.35s ease-in-out;
+  animation: pin-wiggle 0.7s;
 }
 
 /* Control panel: whichever Section happens to render last before a bold

@@ -1,5 +1,5 @@
 import type React from "react"
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -43,28 +43,21 @@ export const DetectorMoundsSection: React.FC<{
     setState({ tellsStyle: TELLS_STYLE_KEYS[newIndex] })
   }, [state.tellsStyle, setState])
 
-  // Same last-visible-style memory as the Tells toggle in VisualizationModesSection:
-  // "hidden" is a checkbox state here, not a dropdown entry, so unchecking and
-  // re-checking restores whatever style was last shown.
-  const lastVisibleTellsStyle = useRef("outline")
-  useEffect(() => {
-    if (state.tellsStyle !== "hidden") lastVisibleTellsStyle.current = state.tellsStyle
-  }, [state.tellsStyle])
-
   if (!state.tellsBeta) return null
-  const isShown = state.tellsStyle !== "hidden"
-  // While hidden, the dropdown still displays (and edits re-activate) the
-  // remembered style rather than showing an empty select.
-  const displayedStyle = isShown ? state.tellsStyle : lastVisibleTellsStyle.current
 
   return (
     <Section title="Mound Candidates" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={false}>
       <div className="space-y-2">
         <div className="flex items-center gap-2">
+          {/* Pure paint-visibility toggle (tellsMarkersVisible) — deliberately
+              independent of showTellsDetector (Visualization Modes' master
+              switch, which gates this whole section): unchecking this only
+              hides the already-computed markers, it never also collapses
+              the section or unchecks the Viz Modes checkbox. */}
           <Checkbox
             id="tells-show-markers"
-            checked={isShown}
-            onCheckedChange={(checked) => setState({ tellsStyle: checked === true ? lastVisibleTellsStyle.current : "hidden" })}
+            checked={state.tellsMarkersVisible}
+            onCheckedChange={(checked) => setState({ tellsMarkersVisible: checked === true })}
           />
           <Label htmlFor="tells-show-markers" className="text-sm cursor-pointer">
             Show mound candidates
@@ -76,11 +69,11 @@ export const DetectorMoundsSection: React.FC<{
           ridges and saddles.
         </p>
         <CycleButtonGroup
-          value={displayedStyle}
+          value={state.tellsStyle}
           options={TELLS_STYLE_OPTIONS}
           onChange={(v) => setState({ tellsStyle: v })}
           onCycle={cycleTellsStyle}
-          middle={displayedStyle === "outline" ? (
+          middle={state.tellsStyle === "outline" ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <input
