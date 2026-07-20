@@ -67,6 +67,8 @@ npx serve --cors -p 8080 .
 
 Then add it as a normal **COG** BYOD source with URL `http://localhost:8080/your-file.tif`. Unlike the built-in local-file picker, this survives reloads (the URL is a real, stable address) and works in any browser, at the cost of needing a terminal command running alongside the app.
 
+Watching [vinayakkulkarni/tileserver-rs#1008](https://github.com/vinayakkulkarni/tileserver-rs/issues/1008) (proposed native Terrarium/Mapbox-RGB DEM tile encoding straight from a COG/GeoTIFF source) — if it lands, it'd be a much lighter self-hosted alternative to titiler for this exact "serve a local COG as real terrain-rgb tiles" case, without needing titiler's fuller COG/mosaic/STAC feature set.
+
 ## Slope and More Modes
 
 Most of these modes are supported by — and inspired by — `gdaldem` and the RVT (Relief Visualization Toolbox) QGIS plugin. Neighborhood usually refers to a 3×3 kernel centered on the pixel.
