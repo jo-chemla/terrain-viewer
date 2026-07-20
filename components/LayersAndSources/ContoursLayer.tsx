@@ -8,6 +8,9 @@ import mlcontour from "maplibre-contour"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource } from "@/lib/terrain-types"
 import type { CustomTerrainSource } from "@/lib/settings-atoms"
+import { resolveLocalFileUrl, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
+import { buildCogContourUrl } from "@/lib/cog-contour-protocol"
+import { useAtomValue } from "jotai"
 import {LAYER_SLOTS} from "./MapLayers"
 
 // ─── Layer definitions (moved here from MapLayers.tsx) ───────────────────────
@@ -90,13 +93,14 @@ function buildTileUrl(
 
   if (customSource) {
     if (customSource.type === "cog-local") {
-      // maplibre-contour's DemSource does its own raw fetch(url) for every tile
-      // (see defaultGetTile in maplibre-contour) — it never goes through
-      // maplibregl.addProtocol, so it can't resolve a `local://<id>` placeholder
-      // (or even a real blob: URL, which a worker thread can't dereference back
-      // to this tab's in-memory File anyway). No titiler fallback is possible
-      // either — titiler can't reach the user's disk. Contours simply isn't
-      // supported for local COG sources (documented in the README).
+      // Not handled here — maplibre-contour's DemSource does its own raw
+      // fetch(url) for every tile (see defaultGetTile in maplibre-contour), which
+      // never goes through maplibregl.addProtocol and so can't resolve a
+      // `local://<id>` placeholder (or a blob: URL, which a worker thread can't
+      // dereference back to this tab's in-memory File either way). Instead this
+      // is handled by a separate path (see initCogLocalContourSource below) that
+      // reuses @geomatico/maplibre-cog-protocol's own COG reader directly inside
+      // a dedicated worker — see lib/cog-contour-worker.ts for the full story.
       return null
     }
     if (customSource.type === "cog") {
@@ -173,6 +177,23 @@ function buildContourProtocolUrl(
   })
 }
 
+// Same options as buildContourProtocolUrl above, just routed through the
+// cog-contour:// protocol (lib/cog-contour-protocol.ts) instead of an
+// mlcontour.DemSource instance — see its header comment for why "cog-local"
+// needs its own path entirely.
+function buildCogLocalContourUrl(blobUrl: string, contourMinor: number, contourMajor: number): string {
+  return buildCogContourUrl(blobUrl, {
+    multiplier: 1,
+    thresholds: buildThresholds(contourMinor, contourMajor),
+    contourLayer: "contours",
+    elevationKey: "ele",
+    levelKey: "level",
+    extent: 4096,
+    buffer: 1,
+    overzoom: 1,
+  })
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface ContoursLayerProps {
@@ -235,14 +256,27 @@ export function ContoursLayer({
     }
   }, [mapRef])
 
-  // ── Reset when terrain source changes ──────────────────────────────────────
+  // Whether the currently-initialized source went through the cog-local path
+  // (no DemSource instance — see initCogLocalSource below) — read by the
+  // threshold-update effect to know which URL builder to re-invoke.
+  const isCogLocalRef = useRef(false)
+
+  // A "cog-local" source's File only lives in this session's in-memory
+  // local-file-store once (re-)picked or hydrated from OPFS — re-run init
+  // whenever that happens, rather than waiting out the fixed retry schedule
+  // below, so a slightly-delayed OPFS hydration doesn't need a few seconds to
+  // be reflected here.
+  const localFileVersion = useAtomValue(localFileVersionAtom)
+
+  // ── Reset when terrain source (or a local file's availability) changes ─────
   useEffect(() => {
     initializedRef.current = false
     initAttemptsRef.current = 0
     demSourceRef.current = null
-  }, [sourceId])
+    isCogLocalRef.current = false
+  }, [sourceId, localFileVersion])
 
-  // ── Init: register DemSource + add contour-source to map ───────────────────
+  // ── Init: register DemSource (or the cog-local path) + add contour-source ──
   useEffect(() => {
     if (!mapRef || !mapLoaded) return
     if (initializedRef.current) return
@@ -261,6 +295,33 @@ export function ContoursLayer({
         return
       }
 
+      const customSource = customTerrainSources.find((s) => s.id === sourceId)
+      if (customSource?.type === "cog-local") {
+        const blobUrl = resolveLocalFileUrl(localFileId(customSource.url))
+        if (!blobUrl) {
+          // File hasn't been (re-)picked/hydrated from OPFS yet this session —
+          // transient, not a permanent "unsupported" state, so keep polling
+          // within the normal retry budget (the localFileVersion effect above
+          // also resets this the moment hydration actually completes).
+          setTimeout(tryInit, 1000)
+          return
+        }
+
+        removeLayers(map)
+        const { contourMinor: minor, contourMajor: major } = thresholdsRef.current
+        map.addSource("contour-source", {
+          type: "vector",
+          tiles: [buildCogLocalContourUrl(blobUrl, minor, major)],
+          maxzoom: 15,
+        })
+
+        isCogLocalRef.current = true
+        demSourceRef.current = null
+        initializedRef.current = true
+        forceUpdateRef.current?.()
+        return
+      }
+
       const resolved = buildTileUrl(
         sourceId,
         customTerrainSources,
@@ -269,9 +330,9 @@ export function ContoursLayer({
         maptilerKey,
       )
       if (!resolved) {
-        // Unsupported source type (e.g. "cog-local") — permanent, not transient,
-        // so don't burn through the retry budget polling for a style/tile-URL
-        // state that will never resolve.
+        // Unsupported source type — permanent, not transient, so don't burn
+        // through the retry budget polling for a style/tile-URL state that
+        // will never resolve.
         initAttemptsRef.current = MAX_INIT_ATTEMPTS
         return
       }
@@ -293,6 +354,7 @@ export function ContoursLayer({
 
         dem.setupMaplibre(maplibregl)
         demSourceRef.current = dem
+        isCogLocalRef.current = false
 
         // Clean up any stale layers/source before adding fresh ones
         removeLayers(map)
@@ -323,21 +385,33 @@ export function ContoursLayer({
 
     const timer = setTimeout(tryInit, 1000)
     return () => clearTimeout(timer)
-  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef])
+  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef, localFileVersion])
 
   // ── Update thresholds when contourMinor/contourMajor change ───────────────
   useEffect(() => {
-    if (!mapRef || !initializedRef.current || !demSourceRef.current) return
+    if (!mapRef || !initializedRef.current) return
+    if (!isCogLocalRef.current && !demSourceRef.current) return
     const map = mapRef.getMap()
     if (!map.isStyleLoaded()) return
 
     removeLayers(map)
 
-    map.addSource("contour-source", {
-      type: "vector",
-      tiles: [buildContourProtocolUrl(demSourceRef.current, contourMinor, contourMajor)],
-      maxzoom: 15,
-    })
+    if (isCogLocalRef.current) {
+      const customSource = customTerrainSources.find((s) => s.id === sourceId)
+      const blobUrl = customSource?.type === "cog-local" ? resolveLocalFileUrl(localFileId(customSource.url)) : null
+      if (!blobUrl) return
+      map.addSource("contour-source", {
+        type: "vector",
+        tiles: [buildCogLocalContourUrl(blobUrl, contourMinor, contourMajor)],
+        maxzoom: 15,
+      })
+    } else {
+      map.addSource("contour-source", {
+        type: "vector",
+        tiles: [buildContourProtocolUrl(demSourceRef.current, contourMinor, contourMajor)],
+        maxzoom: 15,
+      })
+    }
 
     // Re-add layers imperatively so they exist before the declarative <Layer>
     // elements re-mount (avoids a flash where source exists but layers don't).

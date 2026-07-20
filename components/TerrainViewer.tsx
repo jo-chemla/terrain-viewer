@@ -37,6 +37,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 
 import maplibregl from 'maplibre-gl'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
+import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
 import { slopeProtocol } from '@/lib/slope-protocol'
 import { aspectProtocol } from '@/lib/aspect-protocol'
@@ -572,6 +573,10 @@ export function TerrainViewer() {
   // cog is the external geomatico handler with its own fetch semantics, left bare.
   useEffect(() => {
     maplibregl.addProtocol('cog', cogProtocol)
+    // Own fetch semantics (delegates to a dedicated Worker) same as 'cog' — see
+    // lib/cog-contour-protocol.ts for why this can't be maplibre-contour's own
+    // DemSource/worker path.
+    maplibregl.addProtocol('cog-contour', cogContourProtocol)
     maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
     maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
     maplibregl.addProtocol('aspect', withTileResultCache(aspectProtocol))
