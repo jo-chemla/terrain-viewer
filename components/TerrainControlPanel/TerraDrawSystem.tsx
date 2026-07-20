@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { atom, useAtom } from 'jotai'
+import { atom, useAtom, useAtomValue } from 'jotai'
+import { atomWithStorage } from 'jotai/utils'
 import type { MapRef } from 'react-map-gl/maplibre'
 import {
     TerraDraw, TerraDrawPointMode, TerraDrawLineStringMode,
@@ -22,6 +23,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { Section, CheckboxWithSlider, GroupHeading } from './controls-components'
 import { truncate as turf_truncate } from '@turf/truncate'
 import { downloadGeoJSON } from "@/lib/download-geojson"
+import { persistVectorLayerFeatures, readPersistedVectorLayerFeatures, deletePersistedVectorLayer } from "@/lib/opfs-vector-store"
 
 import * as toGeoJSON from '@tmcw/togeojson'
 // import { load } from '@loaders.gl/core'
@@ -113,10 +115,54 @@ function makeLayer(index: number, name: string): DrawLayer {
     return { id: uuidv4(), name, fillColor, strokeColor: darkenHex(fillColor, 0.2), strokeWidth: 2 }
 }
 
-const DEFAULT_LAYER = makeLayer(0, 'Layer 1')
+// Fixed (not uuidv4()) on purpose: this is the layer a user draws into before
+// ever touching layer controls (add/rename/recolor/delete) — and none of
+// those actions run just from drawing into the default layer, so
+// drawingLayersAtom's setter (the only thing that writes 'drawingLayers' to
+// localStorage) never fires either. A random id here would get freshly
+// re-rolled on every single page load (this is module-eval-time, not
+// per-session), permanently orphaning whatever geometry got persisted to
+// OPFS under the previous load's id — hydratePersistedVectorLayers below
+// looks up OPFS by *current* layer ids, so a layer id that isn't stable
+// across reloads can never be found again. A fixed id sidesteps needing
+// drawingLayersAtom to have ever been explicitly written at all.
+const DEFAULT_LAYER: DrawLayer = {
+    id: 'default-layer',
+    name: 'Layer 1',
+    fillColor: LAYER_COLOR_PALETTE[0],
+    strokeColor: darkenHex(LAYER_COLOR_PALETTE[0], 0.2),
+    strokeWidth: 2,
+}
 
-export const drawingLayersAtom = atom<DrawLayer[]>([DEFAULT_LAYER])
-export const activeLayerIdAtom = atom<string>(DEFAULT_LAYER.id)
+// Layer metadata (id/name/color/stroke width) is small enough to persist
+// directly in localStorage — this doubles as the list of layer ids whose
+// *geometry* gets hydrated from OPFS on mount (see hydratePersistedVectorLayers
+// below). activeLayerIdAtom is persisted alongside it so the previously-active
+// layer id (read back from drawingLayersAtom) still resolves to a real layer
+// after a reload instead of a freshly re-rolled DEFAULT_LAYER.id every load.
+export const drawingLayersAtom = atomWithStorage<DrawLayer[]>('drawingLayers', [DEFAULT_LAYER])
+export const activeLayerIdAtom = atomWithStorage<string>('activeLayerId', DEFAULT_LAYER.id)
+
+/** User-facing opt-out for OPFS vector-layer persistence — on by default,
+ *  mirrors persistLocalCogsAtom (local-file-store.ts). Turning it off only
+ *  stops *new* writes; existing persisted geometry survives until explicitly
+ *  cleared (settings-dialog.tsx's "Clear persisted vector layers" action). */
+export const persistVectorLayersAtom = atomWithStorage('persistVectorLayers', true)
+
+// Ensures the OPFS->draw.addFeatures() restore in useTerraDraw only ever runs
+// once per page load, not once per TerraDraw-instance-recreation (see the
+// effect's own comment for why a module-level flag rather than a ref).
+let hasHydratedVectorLayers = false
+
+/** Reads every given layer's persisted geometry back from OPFS (skipping
+ *  layers with none persisted), for the one-time hydration pass in
+ *  useTerraDraw below. */
+async function hydratePersistedVectorLayers(layers: DrawLayer[]): Promise<GeoJSONFeature[]> {
+    const perLayer = await Promise.all(
+        layers.map((l) => readPersistedVectorLayerFeatures<GeoJSONFeature>(l.id)),
+    )
+    return perLayer.flatMap((features) => features ?? [])
+}
 
 // --- HELPERS ---
 
@@ -396,9 +442,70 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
     const activeLayerIdRef = useRef(activeLayerId)
     const drawRef = useRef<TerraDraw | null>(null)
 
+    const persistVectorLayers = useAtomValue(persistVectorLayersAtom)
+    // Gates the persist-on-change effect below until the OPFS restore has had
+    // its chance to run (see that effect's own comment for why this matters —
+    // without it, drawingFeaturesAtom's freshly-mounted empty [] can win a
+    // race against the still-pending async restore and get written to OPFS
+    // first, permanently clobbering the very data being restored).
+    const [hasHydrated, setHasHydrated] = useState(false)
+
     useEffect(() => { featuresRef.current = features }, [features])
     useEffect(() => { layersRef.current = layers }, [layers])
     useEffect(() => { activeLayerIdRef.current = activeLayerId }, [activeLayerId])
+
+    // One-shot, whenever a real TerraDraw instance first becomes available:
+    // restore any features persisted to OPFS for the layers already
+    // (synchronously) read back from drawingLayersAtom's localStorage-backed
+    // state. Waiting for `draw` itself (rather than firing this on mount and
+    // just writing into drawingFeaturesAtom) sidesteps a real race — map
+    // style loading and this OPFS read have no ordering guarantee relative to
+    // each other, so only feeding restored features through draw.addFeatures()
+    // (which synchronously fires terra-draw's own 'change' listener, already
+    // resyncing drawingFeaturesAtom — see below) guarantees they land in
+    // terra-draw's actual internal store regardless of timing. Guarded by a
+    // module-level flag (not a ref) so the actual OPFS read + addFeatures call
+    // still only runs once even if `draw` gets recreated later (e.g. a mapRef
+    // swap) — from then on, createDraw's own existing "featuresRef.current.
+    // length > 0" restore path (below) already re-feeds the same, by-then-
+    // hydrated atom into any new instance, so re-running this would just
+    // re-add duplicates. A remount after that point still needs to flip this
+    // hook instance's own (local, not module-level) hasHydrated so ITS persist
+    // effect isn't permanently stuck waiting on a restore that already happened
+    // in an earlier mount.
+    useEffect(() => {
+        if (!draw) return
+        if (hasHydratedVectorLayers) {
+            setHasHydrated(true)
+            return
+        }
+        hasHydratedVectorLayers = true
+        hydratePersistedVectorLayers(layersRef.current).then((restored) => {
+            if (restored.length > 0) {
+                try { draw.addFeatures(restored) } catch (e) { console.error('[TerraDraw] failed to restore persisted vector layers:', e) }
+            }
+            setHasHydrated(true)
+        })
+    }, [draw])
+
+    // Debounced (drawing/dragging fires many rapid feature updates) best-effort
+    // write of every layer's current feature subset to OPFS — covers hand-drawn,
+    // imported, edited, and deleted (via the resulting empty array) geometry
+    // alike, since it's just keyed off whatever `features`/`layers` currently
+    // hold rather than any specific edit action. Withheld until hasHydrated
+    // (see above) so a page load that never finishes restoring (or hasn't yet)
+    // can't overwrite still-good OPFS data with drawingFeaturesAtom's blank
+    // startup value.
+    useEffect(() => {
+        if (!persistVectorLayers || !hasHydrated) return
+        const timer = setTimeout(() => {
+            for (const layer of layers) {
+                const layerFeatures = features.filter((f) => (f.properties?.layerId ?? layers[0]?.id) === layer.id)
+                persistVectorLayerFeatures(layer.id, layerFeatures)
+            }
+        }, 800)
+        return () => clearTimeout(timer)
+    }, [features, layers, persistVectorLayers, hasHydrated])
 
     // Layer color edits shouldn't tear down and recreate the whole draw instance
     // (createDraw below is expensive and would drop the active drawing mode) —
@@ -709,6 +816,16 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
         }
     }, [multiLayerMode, layers, activeLayerId, setActiveLayerId])
 
+    // Both atoms are independently persisted (localStorage) — self-heal if
+    // they're ever out of sync (e.g. activeLayerId points at a layer deleted
+    // in a session that didn't get to run its own setActiveLayerId fallback)
+    // rather than leaving drawing attribution pointed at a non-existent layer.
+    useEffect(() => {
+        if (layers.length > 0 && !layers.some((l) => l.id === activeLayerId)) {
+            setActiveLayerId(layers[0].id)
+        }
+    }, [layers, activeLayerId, setActiveLayerId])
+
     const addLayer = () => {
         const layer = makeLayer(layers.length, `Layer ${layers.length + 1}`)
         setLayers([...layers, layer])
@@ -737,6 +854,7 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
         const remaining = layers.filter((l) => l.id !== layerId)
         setLayers(remaining)
         if (activeLayerId === layerId) setActiveLayerId(remaining[0].id)
+        deletePersistedVectorLayer(layerId)
     }
 
     const zoomToLayer = (layerId: string) => {
@@ -831,13 +949,14 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                         />
                                     </div>
                                 ) : (
-                                    <div
-                                        className="h-6 w-6 shrink-0 rounded border"
+                                    // Editable even outside edit mode — recoloring a layer is common
+                                    // enough (and low-risk enough) that it shouldn't require toggling
+                                    // into the full name/stroke/width editing UI just for this.
+                                    <ColorAlphaSwatch
                                         title={`${layer.name} fill color`}
-                                        style={{
-                                            backgroundImage: `linear-gradient(${layer.fillColor}, ${layer.fillColor}), repeating-conic-gradient(#80808080 0% 25%, transparent 0% 50%)`,
-                                            backgroundSize: 'auto, 6px 6px',
-                                        }}
+                                        color={layer.fillColor}
+                                        onChange={(hex) => setLayerColor(layer.id, 'fillColor', hex)}
+                                        className="rounded"
                                     />
                                 )}
 

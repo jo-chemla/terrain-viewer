@@ -18,6 +18,8 @@ import {
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { persistLocalCogsAtom } from "@/lib/local-file-store"
 import { isOpfsSupported, estimateStorage, listPersistedCogs, clearAllPersistedCogs, formatBytes } from "@/lib/opfs-file-store"
+import { listPersistedVectorLayers, clearAllPersistedVectorLayers } from "@/lib/opfs-vector-store"
+import { persistVectorLayersAtom } from "./TerraDrawSystem"
 import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
 import { TooltipIconButton } from "./controls-components"
@@ -41,8 +43,10 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [useClientExport, setUseClientExport] = useAtom(useClientExportAtom)
   const [cacheVizTiles, setCacheVizTiles] = useAtom(cacheVizTilesAtom)
   const [persistLocalCogs, setPersistLocalCogs] = useAtom(persistLocalCogsAtom)
+  const [persistVectorLayers, setPersistVectorLayers] = useAtom(persistVectorLayersAtom)
   const opfsSupported = isOpfsSupported()
   const [opfsSummary, setOpfsSummary] = useState<{ count: number; bytes: number; quotaBytes: number | null } | null>(null)
+  const [opfsVectorSummary, setOpfsVectorSummary] = useState<{ count: number; bytes: number; quotaBytes: number | null } | null>(null)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [projectId, setProjectId] = useState("")
@@ -92,16 +96,35 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
     })
   }, [opfsSupported])
 
+  const refreshOpfsVectorSummary = useCallback(async () => {
+    if (!opfsSupported) return
+    const [entries, estimate] = await Promise.all([listPersistedVectorLayers(), estimateStorage()])
+    setOpfsVectorSummary({
+      count: entries.length,
+      bytes: entries.reduce((sum, e) => sum + e.size, 0),
+      quotaBytes: estimate.quotaBytes,
+    })
+  }, [opfsSupported])
+
   // Refresh whenever the dialog opens — cheap, and the persisted set can
-  // change any time a local COG is added/deleted elsewhere in the sidebar.
+  // change any time a local COG or drawn/imported vector layer is added/
+  // deleted elsewhere in the sidebar.
   useEffect(() => {
-    if (isOpen) refreshOpfsSummary()
-  }, [isOpen, refreshOpfsSummary])
+    if (isOpen) {
+      refreshOpfsSummary()
+      refreshOpfsVectorSummary()
+    }
+  }, [isOpen, refreshOpfsSummary, refreshOpfsVectorSummary])
 
   const handleClearPersistedCogs = useCallback(async () => {
     await clearAllPersistedCogs()
     refreshOpfsSummary()
   }, [refreshOpfsSummary])
+
+  const handleClearPersistedVectorLayers = useCallback(async () => {
+    await clearAllPersistedVectorLayers()
+    refreshOpfsVectorSummary()
+  }, [refreshOpfsVectorSummary])
 
   const handleBatchToggle = useCallback(() => {
     if (!batchEditMode) {
@@ -317,39 +340,78 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </div>
 
           <Separator />
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Local COG File Persistence</Label>
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="persist-local-cogs">Remember local COG files between sessions</Label>
-                <span className="text-xs text-muted-foreground">
-                  {opfsSupported
-                    ? "Copies picked local COG files into this browser's private storage (OPFS) so you don't need to re-pick them after a reload."
-                    : "Not supported in this browser — local COG files will always need re-picking after a reload."}
-                </span>
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold">Browser Local Storage Persistence</h3>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Local COG Files</Label>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="persist-local-cogs" className="sr-only">Remember local COG files between sessions</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {opfsSupported
+                      ? "Remember local COG files between sessions — copies picked local COG files into this browser's private storage (OPFS) so you don't need to re-pick them after a reload."
+                      : "Not supported in this browser — local COG files will always need re-picking after a reload."}
+                  </span>
+                </div>
+                <Switch
+                  id="persist-local-cogs"
+                  checked={persistLocalCogs}
+                  disabled={!opfsSupported}
+                  className="cursor-pointer"
+                  onCheckedChange={setPersistLocalCogs}
+                />
               </div>
-              <Switch
-                id="persist-local-cogs"
-                checked={persistLocalCogs}
-                disabled={!opfsSupported}
-                className="cursor-pointer"
-                onCheckedChange={setPersistLocalCogs}
-              />
+              {opfsSupported && opfsSummary && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/50 p-2 rounded-md">
+                  <span>
+                    {opfsSummary.count === 0
+                      ? "No local COG files persisted yet"
+                      : `${opfsSummary.count} file${opfsSummary.count === 1 ? "" : "s"} persisted — ${formatBytes(opfsSummary.bytes)}${opfsSummary.quotaBytes ? ` (browser storage quota for this site: ~${formatBytes(opfsSummary.quotaBytes)}, shared with everything else this site stores)` : ""}`}
+                  </span>
+                  {opfsSummary.count > 0 && (
+                    <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer text-muted-foreground hover:text-destructive" onClick={handleClearPersistedCogs}>
+                      <Trash2 className="h-3 w-3 mr-1" /> Clear
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
-            {opfsSupported && opfsSummary && (
-              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/50 p-2 rounded-md">
-                <span>
-                  {opfsSummary.count === 0
-                    ? "No local COG files persisted yet"
-                    : `${opfsSummary.count} file${opfsSummary.count === 1 ? "" : "s"} persisted — ${formatBytes(opfsSummary.bytes)}${opfsSummary.quotaBytes ? ` (browser storage quota for this site: ~${formatBytes(opfsSummary.quotaBytes)}, shared with everything else this site stores)` : ""}`}
-                </span>
-                {opfsSummary.count > 0 && (
-                  <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer text-muted-foreground hover:text-destructive" onClick={handleClearPersistedCogs}>
-                    <Trash2 className="h-3 w-3 mr-1" /> Clear
-                  </Button>
-                )}
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Vector Layers (TerraDraw)</Label>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="persist-vector-layers" className="sr-only">Remember drawn/imported layers between sessions</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {opfsSupported
+                      ? "Remember drawn/imported layers between sessions — copies drawn and imported vector layers (Tools: Drawing) into this browser's private storage (OPFS) so they survive a reload."
+                      : "Not supported in this browser — drawn/imported layers will always be lost on a reload."}
+                  </span>
+                </div>
+                <Switch
+                  id="persist-vector-layers"
+                  checked={persistVectorLayers}
+                  disabled={!opfsSupported}
+                  className="cursor-pointer"
+                  onCheckedChange={setPersistVectorLayers}
+                />
               </div>
-            )}
+              {opfsSupported && opfsVectorSummary && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/50 p-2 rounded-md">
+                  <span>
+                    {opfsVectorSummary.count === 0
+                      ? "No vector layers persisted yet"
+                      : `${opfsVectorSummary.count} layer${opfsVectorSummary.count === 1 ? "" : "s"} persisted — ${formatBytes(opfsVectorSummary.bytes)}${opfsVectorSummary.quotaBytes ? ` (browser storage quota for this site: ~${formatBytes(opfsVectorSummary.quotaBytes)}, shared with everything else this site stores)` : ""}`}
+                  </span>
+                  {opfsVectorSummary.count > 0 && (
+                    <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer text-muted-foreground hover:text-destructive" onClick={handleClearPersistedVectorLayers}>
+                      <Trash2 className="h-3 w-3 mr-1" /> Clear
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <Separator />
