@@ -30,6 +30,7 @@ import { TooltipIconButton, MacroSeparator } from "./controls-components"
 import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
 import {AnimationSection, parseAsSnapshot} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
+import { SourceInfoSection, isProvenanceSource } from "./SourceInfoSection"
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
 import { useShiftTapToggle } from '@/lib/use-shift-tap-toggle'
@@ -54,7 +55,8 @@ const SECTION_KEYS = [
   "background",
   "drawing",
   "elevationPicker",
-  "animation"
+  "animation",
+  "sourceInfo"
 ] as const
 
 type SectionKey = (typeof SECTION_KEYS)[number]
@@ -76,6 +78,7 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   drawing: false,
   elevationPicker: false,
   animation: false,
+  sourceInfo: false,
 }
 
 export const sectionOpenAtom = atomWithStorage<SectionOpenState>("sectionOpen", DEFAULT_OPEN_STATE)
@@ -464,6 +467,9 @@ export function TerrainControlPanel({
               setAppState={setAppState}
               setAppStateSafe={setAppState}
             />
+            {!hiddenSections.includes("sourceInfo") && isProvenanceSource(state.sourceA) && (
+              <SourceInfoSection state={state} mapRef={mapRef} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} />
+            )}
           </>
         )}
         <MacroSeparator />
