@@ -25,8 +25,6 @@ import { buildBlobnessProtocolUrl } from "@/lib/blobness-protocol"
 import { buildSvfProtocolUrl } from "@/lib/svf-protocol"
 import { buildOpennessProtocolUrl, type OpennessMode } from "@/lib/openness-protocol"
 import { buildTellsProtocolUrl, type TellsOptions } from "@/lib/tells-protocol"
-import { buildMatcapProtocolUrl } from "@/lib/matcap-protocol"
-import { buildPhongProtocolUrl } from "@/lib/phong-protocol"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -765,81 +763,14 @@ export const OpennessSource = memo(({ radius, mode, ...props }: Omit<NormalDeriv
 ))
 OpennessSource.displayName = "OpennessSource"
 
-// ─── Matcap / Phong sources ─────────────────────────────────────────────────────
-//
-// Unlike the raster-dem NormalDerivedSource sources above (which re-pack a
-// scalar as pseudo-elevation for maplibre's color-relief paint to interpret),
-// matcap:// and phong:// (lib/matcap-protocol.ts, lib/phong-protocol.ts)
-// already produce final RGB colors per pixel — a plain `type: "raster"`
-// source/layer pair, identical in kind to the raster basemap itself, is all
-// that's needed. That's also exactly why these drape over 3D terrain for
-// free: maplibre's terrain renderer drapes any raster source automatically,
-// the same mechanism the raster basemap already relies on.
-export const MatcapSource = memo(({
-    enabled, matcapUrl, rotationDeg, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
-}: {
-    enabled: boolean
-    matcapUrl: string
-    rotationDeg: number
-    terrainSource: TerrainSource | string
-    customTerrainSources: CustomTerrainSource[]
-    mapboxKey: string
-    maptilerKey: string
-    titilerEndpoint: string
-}) => {
-    const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
-    if (!enabled || !clientUpstream) return null
-    const url = buildMatcapProtocolUrl(matcapUrl, rotationDeg, clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize)
-    return (
-        <Source
-            id="matcapSource"
-            key={`matcapSource-${terrainSource}-${clientUpstream.template}`}
-            type="raster"
-            tiles={[url]}
-            tileSize={clientUpstream.tileSize}
-            // clientUpstream.minzoom is only set for some upstream kinds (e.g. a
-            // COG's real pyramid floor) — a plain `type: "raster"` source's strict
-            // validator rejects an explicit `minzoom: undefined` outright, so this
-            // needs the same `?? 0` fallback RasterBasemapSource's own zoomRange
-            // already uses rather than passing the field through as-is.
-            minzoom={clientUpstream.minzoom ?? 0}
-            maxzoom={clientUpstream.maxzoom}
-        />
-    )
-})
-MatcapSource.displayName = "MatcapSource"
-
-export const PhongSource = memo(({
-    enabled, diffuseStrength, specularStrength, lightDir, lightAlt,
-    terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
-}: {
-    enabled: boolean
-    diffuseStrength: number
-    specularStrength: number
-    lightDir: number
-    lightAlt: number
-    terrainSource: TerrainSource | string
-    customTerrainSources: CustomTerrainSource[]
-    mapboxKey: string
-    maptilerKey: string
-    titilerEndpoint: string
-}) => {
-    const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
-    if (!enabled || !clientUpstream) return null
-    const url = buildPhongProtocolUrl(diffuseStrength, specularStrength, lightDir, lightAlt, clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize)
-    return (
-        <Source
-            id="phongSource"
-            key={`phongSource-${terrainSource}-${clientUpstream.template}`}
-            type="raster"
-            tiles={[url]}
-            tileSize={clientUpstream.tileSize}
-            minzoom={clientUpstream.minzoom ?? 0}
-            maxzoom={clientUpstream.maxzoom}
-        />
-    )
-})
-PhongSource.displayName = "PhongSource"
+// Matcap/Phong have their own hand-written WebGL layers on this branch
+// (lib/matcap-gl-layer.ts, lib/phong-gl-layer.ts, mounted via
+// components/LayersAndSources/MatcapLayer.tsx / PhongLayer.tsx) rather than
+// a Source/Layer pair here — see either layer's module header for why (live
+// shader uniforms for rotation/light-direction/diffuse/specular instead of
+// baking them into a re-fetched raster tile). The raster-tile version of
+// this feature (MatcapSource/PhongSource, matcap://phong:// protocols) lives
+// on main for comparison.
 
 // ─── Tells (archaeological mound candidate) source ─────────────────────────────
 //
