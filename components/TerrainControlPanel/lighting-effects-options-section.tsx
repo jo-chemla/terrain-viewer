@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Section, CheckboxWithSlider, SliderControl } from "./controls-components"
 import { SphericalXYPad } from './XYPad'
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
@@ -175,6 +176,22 @@ export const LightingEffectsOptionsSection: React.FC<{
           />
           {state.showPhong && (
             <div className="space-y-3 pl-1">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-sm font-medium">Light Mode</Label>
+                <ToggleGroup
+                  type="single"
+                  value={state.phongLightRelativeToCamera ? "relative" : "absolute"}
+                  onValueChange={(value) => value && setState({ phongLightRelativeToCamera: value === "relative" })}
+                  className="border rounded-md w-[180px]"
+                >
+                  <ToggleGroupItem value="absolute" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal" title="Light stays fixed to compass directions as you rotate the map — matches maplibre's own hillshade illumination direction.">
+                    Absolute
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="relative" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal" title="Light stays fixed relative to the camera — it appears to follow you as you rotate the map, like a headlamp.">
+                    Camera
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
               <Collapsible open={isLightDirOpen} onOpenChange={setIsLightDirOpen}>
                 <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
                   Light Direction<ChevronDown className={`h-4 w-4 transition-transform ${isLightDirOpen ? "rotate-180" : ""}`} />

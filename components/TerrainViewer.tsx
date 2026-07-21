@@ -227,6 +227,18 @@ export function TerrainViewer() {
     phongOpacity: parseAsFloat.withDefault(1.0),
     phongDiffuseStrength: parseAsFloat.withDefault(0.8),
     phongSpecularStrength: parseAsFloat.withDefault(0.2),
+    // Off (default): illuminationDir is a compass azimuth, fixed to the
+    // world, matching maplibre's own hillshade illumination-direction — the
+    // light doesn't move when you rotate the map. On: the light is fixed
+    // relative to the CAMERA instead — illuminationDir + the map's own
+    // bearing is baked into the phong:// tile as its effective azimuth (see
+    // the PhongSource lightDir prop below), so the light appears to stay
+    // "over your shoulder" as you spin the view. state.bearing only settles
+    // 500ms after a rotate gesture ends (see commitViewState) rather than
+    // updating continuously mid-drag, so this doesn't turn map rotation into
+    // a rapid-fire tile-recompute trigger the way it would if bearing were
+    // live-tracked.
+    phongLightRelativeToCamera: parseAsBoolean.withDefault(false),
     showColorRelief: parseAsBoolean.withDefault(false),
     colorReliefOpacity: parseAsFloat.withDefault(0.35),
     // Master toggles for what used to be one merged "Slope and More" viz mode,
@@ -1368,7 +1380,11 @@ export function TerrainViewer() {
             enabled={state.showLightingEffects && state.showPhong}
             diffuseStrength={state.phongDiffuseStrength}
             specularStrength={state.phongSpecularStrength}
-            lightDir={state.illuminationDir}
+            // Relative mode bakes the map's own (settled, not live-dragged —
+            // see phongLightRelativeToCamera's state comment) bearing into
+            // the tile's effective azimuth, so the light appears fixed to
+            // the camera instead of to compass directions.
+            lightDir={state.phongLightRelativeToCamera ? ((state.illuminationDir + state.bearing) % 360 + 360) % 360 : state.illuminationDir}
             lightAlt={state.illuminationAlt}
             exaggeration={state.exaggeration}
             terrainSource={source}
@@ -1611,7 +1627,7 @@ export function TerrainViewer() {
       // Layers only ever refreshed on a map move because none of their own
       // state was actually in this dependency list.
       state.showMatcap, state.matcapOpacity, state.matcapTextureId, state.matcapRotationDeg,
-      state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength,
+      state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongLightRelativeToCamera,
       state.illuminationDir, state.illuminationAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
