@@ -68,7 +68,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
           <CheckboxWithSlider
             id="terrain-analysis-curvature"
             label="Curvature"
-            tooltip="Rate of slope change — Profile, Plan/Divergence, Mean/Combined, or Gaussian curvature (Det Hessian)."
+            tooltip="Rate of slope change — Profile, Plan/Divergence, Mean/Combined, or Gaussian curvature (Det Hessian). Useful for ridge/valley mapping — try the Diverging or Monochrome color ramp below."
             checked={state.showCurvature}
             onCheckedChange={(checked) => setState({ showCurvature: checked })}
             sliderValue={state.curvatureOpacity}

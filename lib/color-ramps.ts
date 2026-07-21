@@ -560,6 +560,25 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // Same diverging-around-transparent structure as curvature-diverging, but
+  // white/black instead of red/blue — reads cleanly against both a light and
+  // a dark basemap (no hue to clash with), which is exactly what makes this
+  // useful for ridge/valley mapping specifically: white ridges fading to
+  // nothing on flat ground, deepening to black in valleys (or the reverse —
+  // "Invert Color Ramp" below already swaps the two polarities of ANY ramp,
+  // ridges<->valleys included, without needing a second monochrome entry).
+  "curvature-monochrome": {
+    name: "Curvature (Monochrome)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -20, "rgb(255, 255, 255)",
+      -5, "rgba(255, 255, 255, 0.5)",
+      0, "rgba(0, 0, 0, 0)",
+      5, "rgba(0, 0, 0, 0.5)",
+      20, "rgb(0, 0, 0)",
+    ],
+    continuous: true,
+  },
   // Topographic Position Index (meters, center minus neighborhood mean) from
   // lib/tpi-protocol.ts — negative/below-neighborhood (valleys/pits) to positive/
   // above-neighborhood (ridges/peaks), diverging around a flat=fully-transparent
