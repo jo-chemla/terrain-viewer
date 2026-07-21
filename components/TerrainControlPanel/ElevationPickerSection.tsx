@@ -29,6 +29,33 @@ interface PickedPoint {
 
 const MARKER_COLORS = ["#3b82f6", "#ef4444"]
 
+// Perceptual (viridis) ramp for coloring the draped line by elevation, normalized
+// to the line's own min/max so even a short line with little relief still shows a
+// full gradient. line-gradient only accepts ["line-progress"] as input, so the
+// color at each vertex is precomputed here rather than expressed as a data-driven
+// ["get", "elevation"] ramp in the style.
+const ELEV_RAMP: [number, [number, number, number]][] = [
+  [0.0, [68, 1, 84]],
+  [0.25, [59, 82, 139]],
+  [0.5, [33, 145, 140]],
+  [0.75, [94, 201, 98]],
+  [1.0, [253, 231, 37]],
+]
+function elevationColor(t: number): string {
+  const x = Math.min(1, Math.max(0, t))
+  for (let i = 1; i < ELEV_RAMP.length; i++) {
+    if (x <= ELEV_RAMP[i][0]) {
+      const [t0, c0] = ELEV_RAMP[i - 1]
+      const [t1, c1] = ELEV_RAMP[i]
+      const f = (x - t0) / (t1 - t0)
+      const mix = (j: number) => Math.round(c0[j] + (c1[j] - c0[j]) * f)
+      return `rgb(${mix(0)},${mix(1)},${mix(2)})`
+    }
+  }
+  const last = ELEV_RAMP[ELEV_RAMP.length - 1][1]
+  return `rgb(${last[0]},${last[1]},${last[2]})`
+}
+
 export const ElevationPickerSection: React.FC<{
   state: any
   setState: (updates: any) => void
@@ -219,58 +246,82 @@ export const ElevationPickerSection: React.FC<{
     }
   }, [points, mapRef])
 
-  // Draped gradient line between the two picked points. A `line` layer is draped
-  // onto the 3D terrain by maplibre automatically (same as fill layers), so a
-  // densified 2-point segment follows the surface. line-gradient (needs
-  // lineMetrics) runs blue→red along the path to match the endpoint markers.
-  // Managed imperatively (this component lives outside the react-map-gl <Map>
-  // context) and re-added on styledata so a basemap/style swap doesn't drop it.
+  // Draped line between the two picked points, colored BY ELEVATION. A `line`
+  // layer is draped onto the 3D terrain by maplibre automatically (same as fill
+  // layers), so the sampled polyline follows the surface. It reuses the same
+  // along-line elevation samples as the profile and builds a line-gradient (needs
+  // lineMetrics) whose stops are colored by each vertex's elevation, normalized to
+  // the line's own min/max. Falls back to the blue→red endpoint gradient when
+  // there's no elevation data along the line. Managed imperatively (this component
+  // lives outside the react-map-gl <Map> context) and re-added on styledata so a
+  // basemap/style swap doesn't drop it. Keyed on lineKey (not `points`) so it
+  // doesn't re-sample when the two picks' own elevation lookups later resolve.
   useEffect(() => {
     const map = mapRef.current?.getMap()
     if (!map) return
-    const shouldShow = isActive && showLineOnMap && points.length === 2
-    if (!shouldShow) return
-
     const SRC = "elevation-picker-line"
     const LYR = "elevation-picker-line"
-    const [a, b] = points
-    const SEGMENTS = 96
-    const coordinates = Array.from({ length: SEGMENTS }, (_, i) => {
-      const t = i / (SEGMENTS - 1)
-      return [a.lng + (b.lng - a.lng) * t, a.lat + (b.lat - a.lat) * t]
-    })
-    const data = { type: "Feature" as const, geometry: { type: "LineString" as const, coordinates }, properties: {} }
+    if (!(isActive && showLineOnMap && pointsRef.current.length === 2)) return
 
-    const draw = () => {
-      if (!map.isStyleLoaded()) return
-      const existing = map.getSource(SRC) as maplibregl.GeoJSONSource | undefined
-      if (existing) {
-        existing.setData(data as any)
-      } else {
-        map.addSource(SRC, { type: "geojson", lineMetrics: true, data: data as any })
-      }
-      if (!map.getLayer(LYR)) {
-        map.addLayer({
-          id: LYR,
-          type: "line",
-          source: SRC,
-          layout: { "line-cap": "round", "line-join": "round" },
-          paint: {
-            "line-width": 3,
-            "line-gradient": ["interpolate", ["linear"], ["line-progress"], 0, MARKER_COLORS[0], 1, MARKER_COLORS[1]],
-          },
-        })
-      }
-    }
+    let cancelled = false
+    let redraw: () => void = () => {}
 
-    draw()
-    map.on("styledata", draw)
+    ;(async () => {
+      const [pa, pb] = pointsRef.current
+      const samples = await sampleProfile({ lng: pa.lng, lat: pa.lat }, { lng: pb.lng, lat: pb.lat })
+      if (cancelled) return
+
+      const coordinates = samples.map((s) => [s.lng, s.lat])
+      const data = { type: "Feature" as const, geometry: { type: "LineString" as const, coordinates }, properties: {} }
+
+      // Elevation-colored gradient stops (line-progress ≈ i/(N−1) for the evenly
+      // spaced samples), carrying the last valid color across any no-data gaps.
+      const elevs = samples.map((s) => s.elevation).filter((e): e is number => e !== null)
+      let gradient: any
+      if (elevs.length >= 2) {
+        const minE = Math.min(...elevs)
+        const span = Math.max(...elevs) - minE || 1
+        const stops: (number | string)[] = []
+        let lastColor: string | null = null
+        for (let i = 0; i < samples.length; i++) {
+          const e = samples[i].elevation
+          const color: string | null = e === null ? lastColor : elevationColor((e - minE) / span)
+          if (color === null) continue
+          lastColor = color
+          stops.push(i / (samples.length - 1), color)
+        }
+        if (stops.length >= 4) gradient = ["interpolate", ["linear"], ["line-progress"], ...stops]
+      }
+      if (!gradient) gradient = ["interpolate", ["linear"], ["line-progress"], 0, MARKER_COLORS[0], 1, MARKER_COLORS[1]]
+
+      redraw = () => {
+        if (!map.isStyleLoaded()) return
+        const existing = map.getSource(SRC) as maplibregl.GeoJSONSource | undefined
+        if (existing) existing.setData(data as any)
+        else map.addSource(SRC, { type: "geojson", lineMetrics: true, data: data as any })
+        if (!map.getLayer(LYR)) {
+          map.addLayer({
+            id: LYR,
+            type: "line",
+            source: SRC,
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-width": 3, "line-gradient": gradient },
+          })
+        } else {
+          map.setPaintProperty(LYR, "line-gradient", gradient)
+        }
+      }
+      redraw()
+      map.on("styledata", redraw)
+    })()
+
     return () => {
-      map.off("styledata", draw)
+      cancelled = true
+      map.off("styledata", redraw)
       if (map.getLayer(LYR)) map.removeLayer(LYR)
       if (map.getSource(SRC)) map.removeSource(SRC)
     }
-  }, [isActive, showLineOnMap, points, mapRef])
+  }, [isActive, showLineOnMap, lineKey, sampleProfile, mapRef])
 
   const handleToggle = useCallback((checked: boolean) => {
     setIsActive(checked)
