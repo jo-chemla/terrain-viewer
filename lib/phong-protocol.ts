@@ -37,6 +37,33 @@ export function buildPhongProtocolUrl(
 const AMBIENT = 0.35
 const SHININESS = 32
 
+// maplibre's own request layer (util/ajax.ts's makeRequest) calls this
+// function directly and applies WHATEVER it resolves with — it never checks
+// abortController.signal itself, that's entirely this handler's
+// responsibility. That alone isn't the whole story, though: verified via
+// live instrumentation (timestamped logging per call) that when the SOURCE's
+// tiles URL template itself changes (a new light-direction commit), maplibre
+// does NOT abort tile requests still in flight under the OLD template at
+// all — abortController.signal.aborted stays false for them the entire time.
+// They just keep running (a real, sometimes 1-2 second round-trip) and
+// resolve successfully whenever they finish, however much later. Since
+// maplibre's raster tile cache is keyed by z/x/y (not the full URL), an old-
+// template result for a z/x/y that ALSO got a newer-template request can
+// land in that same slot AFTER the newer one already did — repainting it
+// with stale shading. This is the actual "old, new, old, new" flicker; no
+// amount of checking abortController.signal catches it, because that signal
+// genuinely never flips for this case.
+//
+// Fixed with an independent staleness guard: __currentParamsKey tracks the
+// most recent (diffuse, specular, lightDir, lightAlt, exaggeration) tuple
+// seen across ALL phong:// calls, regardless of which tile. Multiple
+// concurrent calls for different z/x/y under the SAME (current) params are
+// legitimate and never flagged stale; a call whose own params have since
+// been superseded by a newer tuple is provably outdated and refused right
+// before it would otherwise resolve, no matter what maplibre's own
+// AbortController says.
+let __currentParamsKey = ""
+
 // Only reached if computePhongPixelsGPU returns null (no WebGL2) — same
 // math, same output layout, just the original per-pixel JS loop.
 function shadePhongCPU(
@@ -106,17 +133,14 @@ export async function phongProtocol(
   const upstreamTemplate = decodeURIComponent(encodedTemplate)
   const z = parseInt(zStr, 10), x = parseInt(xStr, 10), y = parseInt(yStr, 10)
 
+  // This call's own params tuple, captured now — the shared "latest" tracker
+  // may move on to a NEWER tuple while this call is still in flight, but this
+  // constant never changes for the lifetime of this call.
+  const myParamsKey = `${diffuseStr}|${specularStr}|${lightDirStr}|${lightAltStr}|${exaggerationStr}`
+  __currentParamsKey = myParamsKey
+
   const { pixels: normalPixels } = await computeNormalPixels(upstreamTemplate, encoding, z, x, y, n, abortController.signal)
-  // maplibre's own request layer (util/ajax.ts's makeRequest) calls this
-  // function directly and applies WHATEVER it resolves with — it never
-  // checks abortController.signal itself, that's entirely this handler's
-  // responsibility. Without this check, a request maplibre has already
-  // superseded (e.g. a light-direction drag firing a newer phong:// URL for
-  // the same tile) still resolves successfully — and since async completion
-  // order doesn't match request order, that now-stale result can land AFTER
-  // the newer one and get painted over it, then get overtaken again by the
-  // next real result: exactly the "old, new, old, new" flicker this fixes.
-  if (abortController.signal.aborted) throw new DOMException("Aborted", "AbortError")
+  if (abortController.signal.aborted || myParamsKey !== __currentParamsKey) throw new DOMException("Aborted", "AbortError")
 
   // Compass azimuth (clockwise from north) + elevation-above-horizon -> a
   // unit vector in the SAME (nx, ny, nz) space the normal map is encoded in.
@@ -159,7 +183,7 @@ export async function phongProtocol(
   // exact same encoding.)
   const out = computePhongPixelsGPU(normalPixels, n, diffuseStrength, specularStrength, lightVec, exaggeration)
     ?? shadePhongCPU(normalPixels, n, diffuseStrength, specularStrength, lightVec, exaggeration)
-  if (abortController.signal.aborted) throw new DOMException("Aborted", "AbortError")
+  if (abortController.signal.aborted || myParamsKey !== __currentParamsKey) throw new DOMException("Aborted", "AbortError")
 
   const canvas = new OffscreenCanvas(n, n)
   const ctx = canvas.getContext("2d")!
@@ -167,6 +191,6 @@ export async function phongProtocol(
   const blob = await canvas.convertToBlob({ type: "image/png" })
   // Re-check after the async PNG encode too — a fast-fire light-direction
   // drag can supersede this exact request while convertToBlob was pending.
-  if (abortController.signal.aborted) throw new DOMException("Aborted", "AbortError")
+  if (abortController.signal.aborted || myParamsKey !== __currentParamsKey) throw new DOMException("Aborted", "AbortError")
   return { data: new Uint8Array(await blob.arrayBuffer()) }
 }
