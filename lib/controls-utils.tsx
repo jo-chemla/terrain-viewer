@@ -44,7 +44,7 @@ export const useTheme = () => {
     parseAsStringLiteral(["light", "dark"] as const).withDefault("light"),
   )
   const toggleTheme = useCallback(() => setTheme(theme === "light" ? "dark" : "light"), [theme, setTheme])
-  return { theme, toggleTheme }
+  return { theme, toggleTheme, setTheme }
 }
 
 export const useSourceConfig = () => {

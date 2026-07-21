@@ -11,19 +11,20 @@ const color = (key: string, label: string) => ({ key, label, type: "color" as co
 // in the "Shadow" group below, not edited directly (matching tweakcn, whose
 // shadow-control.tsx only ever takes those 6 inputs too).
 export const TOKEN_GROUPS: TokenGroup[] = [
-  { id: "primary", title: "Primary", tokens: [color("primary", "Primary"), color("primary-foreground", "Primary Foreground")] },
-  { id: "secondary", title: "Secondary", tokens: [color("secondary", "Secondary"), color("secondary-foreground", "Secondary Foreground")] },
-  { id: "accent", title: "Accent", tokens: [color("accent", "Accent"), color("accent-foreground", "Accent Foreground")] },
-  { id: "base", title: "Base", tokens: [color("background", "Background"), color("foreground", "Foreground")] },
-  { id: "card", title: "Card", tokens: [color("card", "Card"), color("card-foreground", "Card Foreground")] },
-  { id: "popover", title: "Popover", tokens: [color("popover", "Popover"), color("popover-foreground", "Popover Foreground")] },
-  { id: "muted", title: "Muted", tokens: [color("muted", "Muted"), color("muted-foreground", "Muted Foreground")] },
-  { id: "destructive", title: "Destructive", tokens: [color("destructive", "Destructive"), color("destructive-foreground", "Destructive Foreground")] },
-  { id: "border-input", title: "Border, Input & Ring", tokens: [color("border", "Border"), color("input", "Input"), color("ring", "Ring")] },
-  { id: "chart", title: "Chart Colors", tokens: [1, 2, 3, 4, 5].map((n) => color(`chart-${n}`, `Chart ${n}`)) },
+  { id: "primary", title: "Primary", category: "color", tokens: [color("primary", "Primary"), color("primary-foreground", "Primary Foreground")] },
+  { id: "secondary", title: "Secondary", category: "color", tokens: [color("secondary", "Secondary"), color("secondary-foreground", "Secondary Foreground")] },
+  { id: "accent", title: "Accent", category: "color", tokens: [color("accent", "Accent"), color("accent-foreground", "Accent Foreground")] },
+  { id: "base", title: "Base", category: "color", tokens: [color("background", "Background"), color("foreground", "Foreground")] },
+  { id: "card", title: "Card", category: "color", tokens: [color("card", "Card"), color("card-foreground", "Card Foreground")] },
+  { id: "popover", title: "Popover", category: "color", tokens: [color("popover", "Popover"), color("popover-foreground", "Popover Foreground")] },
+  { id: "muted", title: "Muted", category: "color", tokens: [color("muted", "Muted"), color("muted-foreground", "Muted Foreground")] },
+  { id: "destructive", title: "Destructive", category: "color", tokens: [color("destructive", "Destructive"), color("destructive-foreground", "Destructive Foreground")] },
+  { id: "border-input", title: "Border, Input & Ring", category: "color", tokens: [color("border", "Border"), color("input", "Input"), color("ring", "Ring")] },
+  { id: "chart", title: "Chart Colors", category: "color", tokens: [1, 2, 3, 4, 5].map((n) => color(`chart-${n}`, `Chart ${n}`)) },
   {
     id: "sidebar",
     title: "Sidebar Colors",
+    category: "color",
     tokens: [
       color("sidebar", "Sidebar"),
       color("sidebar-foreground", "Sidebar Foreground"),

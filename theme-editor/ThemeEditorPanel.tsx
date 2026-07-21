@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type React from "react"
 import { createPortal } from "react-dom"
+import { Dice5 } from "lucide-react"
 import { TOKEN_GROUPS, FONT_PRESETS, fontCategoryForKey } from "./token-schema"
 import type { TokenDef } from "./types"
 import { useThemeEditor, parseNum, type UseThemeEditorOptions } from "./useThemeEditor"
@@ -35,14 +36,38 @@ export type ThemeEditorPanelProps = UseThemeEditorOptions & {
    *  other variant is a copy, not independently tuned). Omit to hide the
    *  Save button entirely. */
   onSaveTheme?: (name: string, css: string) => void
+  /** This package has no way to see the host app's own light/dark toggle —
+   *  pass this to keep it in sync when Randomize coin-flips a mode. Called
+   *  with the mode randomize() just generated colors for. */
+  onModeChange?: (isDark: boolean) => void
 }
 
-export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, ...editorOptions }: ThemeEditorPanelProps) {
+const colorGroups = TOKEN_GROUPS.filter((g) => g.category === "color")
+const otherGroups = TOKEN_GROUPS.filter((g) => g.category !== "color")
+
+export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onModeChange, ...editorOptions }: ThemeEditorPanelProps) {
   useInjectedStyles()
   const { values, setValue, themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust, resetAdjust, randomize, basicOptions, setBasicOption } = useThemeEditor(editorOptions)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ primary: true })
+  const [colorsOpen, setColorsOpen] = useState(false)
   const [basicOpen, setBasicOpen] = useState(true)
   const [adjustOpen, setAdjustOpen] = useState(false)
+
+  // Closing the panel without an explicit Copy/Save should behave like
+  // canceling an adjustment layer, not silently leaving every inline
+  // --token override sitting on <html> forever — those permanently outrank
+  // any [data-theme="…"] rule (including one picked from a plain preset
+  // Select afterward), which otherwise reads as "the theme picker stopped
+  // working". reset() is captured in a ref so this only ever fires on the
+  // actual unmount, not whenever reset's identity happens to change.
+  const resetRef = useRef(reset)
+  resetRef.current = reset
+  useEffect(() => () => { resetRef.current() }, [])
+
+  const handleRandomize = () => {
+    const isDark = randomize()
+    onModeChange?.(isDark)
+  }
   const [copied, setCopied] = useState(false)
   const [pos, setPos] = useState(defaultPosition ?? { x: 24, y: 24 })
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
@@ -102,7 +127,7 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, ...edi
       <div className="tec-header" onPointerDown={startDrag}>
         <span className="tec-title">Theme Editor</span>
         <div className="tec-header-actions">
-          <button type="button" className="tec-icon-btn" onClick={randomize} title="Randomize the whole palette">🎲</button>
+          <button type="button" className="tec-icon-btn" onClick={handleRandomize} title="Randomize the whole palette"><Dice5 size={16} /></button>
           <button type="button" className="tec-icon-btn" onClick={onClose} aria-label="Close">✕</button>
         </div>
       </div>
@@ -139,7 +164,39 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, ...edi
             </div>
           )}
         </div>
-        {TOKEN_GROUPS.map((group) => {
+        <div className="tec-group">
+          <button type="button" className="tec-group-header" onClick={() => setColorsOpen((v) => !v)}>
+            <span>Colors</span>
+            <span className={`tec-chevron${colorsOpen ? " tec-chevron--open" : ""}`}>▾</span>
+          </button>
+          {colorsOpen && (
+            <div className="tec-subgroups">
+              {colorGroups.map((group) => {
+                const isOpen = openGroups[group.id] ?? false
+                return (
+                  <div key={group.id} className="tec-subgroup">
+                    <button
+                      type="button"
+                      className="tec-subgroup-header"
+                      onClick={() => setOpenGroups((prev) => ({ ...prev, [group.id]: !isOpen }))}
+                    >
+                      <span>{group.title}</span>
+                      <span className={`tec-chevron${isOpen ? " tec-chevron--open" : ""}`}>▾</span>
+                    </button>
+                    {isOpen && (
+                      <div className="tec-group-body">
+                        {group.tokens.map((token) => (
+                          <TokenRow key={token.key} token={token} value={values[token.key] ?? ""} onChange={(v) => setValue(token.key, v)} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+        {otherGroups.map((group) => {
           const isOpen = openGroups[group.id] ?? false
           return (
             <div key={group.id} className="tec-group">
@@ -307,6 +364,15 @@ const PANEL_CSS = `
 .tec-chevron { transition: transform 120ms ease; display: inline-block; }
 .tec-chevron--open { transform: rotate(180deg); }
 .tec-group-body { padding: 2px 10px 8px; display: flex; flex-direction: column; gap: 8px; }
+.tec-subgroups { padding: 2px 0 4px; }
+.tec-subgroup { border-top: 1px solid var(--border, #f0f0f0); }
+.tec-subgroup-header {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  background: transparent; border: none; cursor: pointer; color: inherit;
+  padding: 6px 10px 6px 20px; font-weight: 500; font-size: 11.5px;
+}
+.tec-subgroup-header:hover { background: var(--accent, #f0f0f0); }
+.tec-subgroup .tec-group-body { padding-left: 20px; }
 .tec-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .tec-row--stacked { flex-direction: column; align-items: stretch; gap: 4px; }
 .tec-row-label { flex: 0 0 auto; min-width: 92px; color: var(--muted-foreground, #666); }

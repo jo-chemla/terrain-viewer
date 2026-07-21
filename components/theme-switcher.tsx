@@ -25,9 +25,19 @@ function extractPrimaryHex(css: string, mode: "light" | "dark"): string | null {
 // a separator.
 export function ColorThemeSelect() {
   const { theme, setTheme } = useTheme();
-  const customThemes = useAtomValue(customThemesAtom);
+  const rawCustomThemes = useAtomValue(customThemesAtom);
   const colorName = theme.replace(/-(light|dark)$/, "");
   const isDark = theme.endsWith("-dark");
+
+  // Defensive filter against any theme saved before the name-collision guard
+  // in settings-dialog.tsx's onSaveTheme existed — a custom entry sharing a
+  // built-in's exact name would otherwise mean two <SelectItem>s with the
+  // same value, and its CSS block would collide with the real preset's own
+  // [data-theme="…"] rule.
+  const customThemes = useMemo(
+    () => rawCustomThemes.filter((t) => !sortedThemes.some((b) => b.name === t.name)),
+    [rawCustomThemes],
+  );
 
   const customSwatch = useMemo(() => {
     const map = new Map<string, string | null>();

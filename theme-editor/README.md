@@ -7,16 +7,28 @@ live via inline CSS custom-property overrides — no rebuild, no CSS-in-JS.
 
 ## Requirements
 
-- React 18+ (the only real peer dependency).
+- React 18+ and `react-dom` (the panel is portaled to `document.body` — see
+  "Why a portal" below).
+- `lucide-react`, for the randomize button's dice icon — already a
+  near-universal dependency in shadcn-based projects; if your app doesn't
+  have it, swap that one `<Dice5 />` import in `ThemeEditorPanel.tsx` for
+  anything else (emoji, your own SVG).
 - A page that already themes itself via shadcn-style CSS custom properties
   (`--background`, `--foreground`, `--primary`, …) on `<html>` or another
   element, switched by an attribute (defaults to `data-theme`, override via
   the `themeAttribute` option if your app uses e.g. a `.dark` class instead —
   see "Targeting a class-based theme" below).
+- Your own CSS actually needs to *read* `--font-sans`/`--font-serif`/
+  `--font-mono`/`--font-heading` somewhere (e.g. `body { font-family:
+  var(--font-sans); }`), the same way it presumably already reads
+  `--background`/`--primary`/etc. Otherwise every font control in here will
+  visibly update the CSS variable but nothing will look different — this
+  bit us in the app this was built for, whose base styles set colors from
+  variables but had never wired up fonts the same way.
 - Nothing else. No Tailwind, no shadcn/ui components, no color library
   (OKLCH↔hex conversion is hand-rolled in `color-math.ts` from Björn
-  Ottosson's published OKLab matrices) — the whole folder is dependency-free
-  aside from React, which is the point: copy this folder into any SPA.
+  Ottosson's published OKLab matrices) — the rest of the folder is
+  dependency-free, which is the point: copy it into any SPA.
 
 ## Install
 
@@ -75,22 +87,58 @@ not a theme store. Wire persistence yourself if you want it (e.g. call
 `copyCss()` yourself and save the result somewhere, or watch `values` and
 write to `localStorage`).
 
+## Why a portal
+
+The panel renders via `createPortal(..., document.body)` rather than inline
+wherever you mount it. `position: fixed` is only relative to the true
+viewport when NO ancestor has a `transform`/`filter`/`will-change`/`contain`
+— a very ordinary thing for an animated sidebar panel to have on itself —
+otherwise it silently rebases to that ancestor's box instead, which is
+exactly what happened mounting this inside a slide-in settings sidebar
+during development. Portaling to `<body>` sidesteps that regardless of where
+you mount the trigger from.
+
+## Closing without committing reverts your edits
+
+Closing the panel (`onClose`) automatically calls `reset()` — every inline
+`--token` override this session made gets removed, same as clicking Reset
+yourself. This is deliberate: those inline overrides always outrank a
+`[data-theme="…"]` stylesheet rule, including a DIFFERENT one a normal preset
+picker sets afterward, so leaving them in place after closing would silently
+break every other theme control in your app until something called reset()
+again. If you want to keep an edit, use Copy CSS or Save (via `onSaveTheme`)
+*before* closing — closing is a cancel, not an implicit commit.
+
 ## API
 
 ```ts
 import { ThemeEditorPanel, useThemeEditor, TOKEN_GROUPS } from "./theme-editor"
 ```
 
-- `<ThemeEditorPanel onClose={...} target={el} themeAttribute="data-theme" defaultPosition={{x,y}} />`
+- `<ThemeEditorPanel onClose={...} target={el} themeAttribute="data-theme" defaultPosition={{x,y}} onSaveTheme={...} onModeChange={...} />`
   — the whole UI. `target`/`themeAttribute` are optional (default to `<html>`
-  / `"data-theme"`).
+  / `"data-theme"`). `onSaveTheme?(name, css)` hooks up your own persistence
+  for the Save button (omit to hide it). `onModeChange?(isDark)` — this
+  package can't see your app's own light/dark toggle, so when Randomize
+  coin-flips a mode, wire this to keep your toggle in sync; prefer setting
+  an ABSOLUTE mode (`setTheme(isDark ? "dark" : "light")`) over a
+  compare-and-toggle — mashing the dice button fires faster than React
+  re-renders, so a toggle based on comparing against your own state can read
+  it stale and drift out of sync with what was actually just randomized.
 - `useThemeEditor({ target?, themeAttribute? })` — the engine without the UI,
   if you want to build your own panel: returns `{ values, setValue,
-  themeName, setThemeName, reset, copyCss, buildCss }`.
-- `TOKEN_GROUPS` — the full token schema (grouped `{ id, title, tokens }[]`)
-  if you want to render your own custom layout.
+  themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust,
+  resetAdjust, randomize, basicOptions, setBasicOption }`. `randomize()`
+  returns the `isDark` it picked.
+- `TOKEN_GROUPS` — the full token schema (grouped `{ id, title, tokens,
+  category }[]` — `category: "color"` marks the 11 groups the panel nests
+  under one outer "Colors" fold; everything else renders top-level) if you
+  want to render your own custom layout.
 - `deriveShadowTiers(base)`, `hexToOklch`/`oklchToHex`/`parseColorToOklch`/
   `formatOklch` — the standalone color/shadow math, usable independently.
+- `STYLE_PRESETS`, `BASE_COLOR_FAMILIES`, `NAMED_HUES`, `MENU_ACCENT_LEVELS`,
+  `buildBasicPalette`, `buildStyleValues` — the Basic-mode data driving the
+  Style/Base Color/Theme/Chart Color/Radius/Menu controls.
 
 ## Targeting a class-based theme instead of an attribute
 

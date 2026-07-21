@@ -40,6 +40,9 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 .dark {
@@ -114,6 +117,15 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* Same self-referential pattern as the color mappings above, but for fonts —
+     this is what makes the tweakcn color-theme picker's font choice (and the
+     theme-editor package's Basic/Typography controls) actually change the
+     app's rendered font instead of just setting an inert custom property.
+     Without these, --font-sans/etc. were being SET by every preset but never
+     READ anywhere, so picking a font visibly did nothing. */
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
 }
 
 @layer base {
@@ -122,6 +134,13 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+  /* --font-heading isn't part of the app's own default :root/.dark palette
+     (only some presets/the theme-editor's Basic mode set it) — falls back to
+     the body font when unset rather than an inert browser default. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading, var(--font-sans));
   }
 }
 

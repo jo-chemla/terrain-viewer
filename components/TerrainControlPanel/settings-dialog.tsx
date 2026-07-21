@@ -27,14 +27,36 @@ import { TooltipIconButton } from "./controls-components"
 import { JsonEditor } from "@/components/ui/json-editor"
 import { ColorThemeSelect } from "@/components/theme-switcher"
 import { ThemeEditorPanel } from "@/theme-editor"
+import { sortedThemes } from "@/lib/themes-config"
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any }> = ({ isOpen, onOpenChange, state, setState }) => {
-  const { theme, toggleTheme } = useTheme()
+  const { theme, toggleTheme, setTheme: setAppTheme } = useTheme()
   const [showThemeEditor, setShowThemeEditor] = useState(false)
   const setCustomThemes = useSetAtom(customThemesAtom)
+  // Auto-suffixes if the name collides with a BUILT-IN preset — otherwise two
+  // [data-theme="cyberpunk-light"] rules (the real preset's + a same-named
+  // custom save) would exist at once, and Radix Select would have two items
+  // sharing one value. Saving over an EXISTING custom theme under the same
+  // name is still a normal upsert (that's the "update" path), just never a
+  // built-in one.
   const handleSaveTheme = useCallback((name: string, css: string) => {
-    setCustomThemes((prev) => [...prev.filter((t) => t.name !== name), { name, css }])
+    const isBuiltInCollision = sortedThemes.some((t) => t.name === name)
+    const safeName = isBuiltInCollision ? `${name}-custom` : name
+    const safeCss = isBuiltInCollision
+      ? css.split(`"${name}-light"`).join(`"${safeName}-light"`).split(`"${name}-dark"`).join(`"${safeName}-dark"`)
+      : css
+    setCustomThemes((prev) => [...prev.filter((t) => t.name !== safeName), { name: safeName, css: safeCss }])
   }, [setCustomThemes])
+  // The theme-editor package has no way to see this app's own light/dark
+  // toggle, so Randomize's coin-flipped mode is synced back here. Sets the
+  // ABSOLUTE target rather than comparing against `theme` and conditionally
+  // toggling — rapid repeated calls (e.g. mashing the dice button) fire
+  // faster than React re-renders, so a comparison against the `theme`
+  // closure can read a stale value and desync from what was actually just
+  // randomized; an idempotent direct set can't drift regardless of timing.
+  const handleModeChange = useCallback((isDark: boolean) => {
+    setAppTheme(isDark ? "dark" : "light")
+  }, [setAppTheme])
   // const theme = state.theme
   // const setTheme = useCallback((v: string) => setState({theme: v}), [setState])
   // const toggleTheme = useCallback(() => setTheme(theme === "light" ? "dark" : "light"), [theme, setTheme])
@@ -636,7 +658,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </div>
         </div>
       </DialogContent>
-      {showThemeEditor && <ThemeEditorPanel onClose={() => setShowThemeEditor(false)} onSaveTheme={handleSaveTheme} />}
+      {showThemeEditor && <ThemeEditorPanel onClose={() => setShowThemeEditor(false)} onSaveTheme={handleSaveTheme} onModeChange={handleModeChange} />}
     </Dialog >
   )
 }

@@ -10,6 +10,15 @@ export function parseNum(value: string): number {
   return m ? parseFloat(m[0]) : 0
 }
 
+// themeName must be the BARE color-preset name — buildCss()'s save flow
+// appends its own "-light"/"-dark" suffix, so a themeName that already had
+// one (reading the raw data-theme attribute verbatim, e.g. "cyberpunk-light")
+// used to produce double-suffixed, unmatchable selectors like
+// "cyberpunk-light-light" on save.
+function bareThemeName(attr: string | null): string {
+  return (attr ?? "custom").replace(/-(light|dark)$/, "")
+}
+
 export type HslAdjust = { hue: number; saturation: number; lightness: number }
 const IDENTITY_ADJUST: HslAdjust = { hue: 0, saturation: 1, lightness: 1 }
 
@@ -42,7 +51,7 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
   }, [target, allKeys])
 
   const [values, setValues] = useState<Record<string, string>>(() => readAll())
-  const [themeName, setThemeName] = useState<string>(() => target?.getAttribute(themeAttribute) ?? "custom")
+  const [themeName, setThemeName] = useState<string>(() => bareThemeName(target?.getAttribute(themeAttribute) ?? null))
   const [adjust, setAdjustState] = useState<HslAdjust>(IDENTITY_ADJUST)
 
   // The palette the HSL sliders shift FROM — distinct from `values` (which
@@ -56,7 +65,7 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
   useEffect(() => {
     if (!target || typeof MutationObserver === "undefined") return
     const observer = new MutationObserver(() => {
-      setThemeName(target.getAttribute(themeAttribute) ?? "custom")
+      setThemeName(bareThemeName(target.getAttribute(themeAttribute)))
       const snapshot = readAll()
       setValues(snapshot)
       baselineRef.current = snapshot
@@ -128,14 +137,19 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
   // Generates a fresh semantically-aware random palette (see randomize.ts)
   // plus random-but-tasteful radius/spacing/letter-spacing/shadow/font
   // values, applies all of it live, and becomes the new HSL-adjust baseline.
-  const randomize = useCallback(() => {
-    if (!target) return
-    const isDark = parseColorToOklch(values.background || "oklch(0.98 0 0)").l < 0.5
+  // Also coin-flips light vs dark (rather than keeping whatever mode is
+  // currently active) — returns the chosen isDark so the caller can sync the
+  // HOST APP's own light/dark toggle to match (this package doesn't know
+  // about that toggle itself, see ThemeEditorPanelProps.onModeChange).
+  const randomize = useCallback((): boolean => {
+    if (!target) return false
+    const isDark = Math.random() < 0.5
     const patch = { ...randomizeColors(isDark), ...randomizeOthers() }
     applyValues(patch)
     baselineRef.current = { ...baselineRef.current, ...patch }
     setAdjustState(IDENTITY_ADJUST)
-  }, [target, values.background, applyValues])
+    return isDark
+  }, [target, applyValues])
 
   const [basicOptions, setBasicOptionsState] = useState<BasicOptions>(DEFAULT_BASIC_OPTIONS)
   const basicOptionsRef = useRef(basicOptions)

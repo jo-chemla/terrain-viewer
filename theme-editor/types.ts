@@ -9,4 +9,9 @@ export type TokenGroup = {
   id: string
   title: string
   tokens: TokenDef[]
+  /** "color" groups (Primary, Secondary, ... Sidebar) render nested inside a
+   *  single outer "Colors" fold in ThemeEditorPanel rather than each getting
+   *  its own top-level one — otherwise "color", non-color groups (Radius &
+   *  Spacing, Typography, Shadow) stay top-level. */
+  category?: "color" | "other"
 }
