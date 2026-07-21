@@ -19,9 +19,16 @@ const DEFAULTS = {
   localDominanceMin: undefined,
   localDominanceMax: undefined,
   localDominanceInvertColorRamp: false,
-  localDominanceMinRadius: 10,
-  localDominanceMaxRadius: 20,
+  localDominanceMinRadius: 8,
+  localDominanceMaxRadius: 32,
 }
+
+// The annulus is sampled one ring per pyramid octave (see
+// lib/local-dominance-protocol.ts), so only powers of two are meaningful — the
+// slider works in log2 space and the radii snap to 2,4,…,64 px.
+const OCTAVE_MIN = 1 // 2px
+const OCTAVE_MAX = 6 // 64px
+const octaveOf = (px: number) => Math.min(OCTAVE_MAX, Math.max(OCTAVE_MIN, Math.round(Math.log2(Math.max(2, px)))))
 
 // Fields-only (no Section wrapper/gate) — embedded inside ReliefVisualizationOptionsSection,
 // which owns the "Local Dominance" checkbox that conditionally renders this block
@@ -39,16 +46,15 @@ export const LocalDominanceFields: React.FC<{
     return { min: Math.min(...stops), max: Math.max(...stops) }
   }, [state.localDominanceColorRamp])
 
-  const minRadius = state.localDominanceMinRadius ?? DEFAULTS.localDominanceMinRadius
-  const maxRadius = state.localDominanceMaxRadius ?? DEFAULTS.localDominanceMaxRadius
+  // Snap to powers of two — that's all the octave sampler uses.
+  const minRadius = 2 ** octaveOf(state.localDominanceMinRadius ?? DEFAULTS.localDominanceMinRadius)
+  const maxRadius = 2 ** octaveOf(state.localDominanceMaxRadius ?? DEFAULTS.localDominanceMaxRadius)
   const resM = groundResolutionM(state.lat ?? 0, state.zoom ?? 0, tileSize)
 
-  // Min/max radii commit together so the inner edge can never cross the outer
-  // one (a maxRadius ≤ minRadius annulus would sample nothing). Clamped to a
-  // 2..48 px window — enough spread for a meaningful "dominance over the region"
-  // read without an unreasonably large per-pixel ray-march.
-  const setRadii = (lo: number, hi: number) =>
-    setState({ localDominanceMinRadius: Math.min(lo, hi), localDominanceMaxRadius: Math.max(lo, hi) })
+  // Commit as octave exponents mapped back to px, min ≤ max (a collapsed annulus
+  // would sample a single ring, which is fine — one octave).
+  const setOctaves = (loExp: number, hiExp: number) =>
+    setState({ localDominanceMinRadius: 2 ** Math.min(loExp, hiExp), localDominanceMaxRadius: 2 ** Math.max(loExp, hiExp) })
 
   return (
     <div className="space-y-4 pl-6">
@@ -88,28 +94,20 @@ export const LocalDominanceFields: React.FC<{
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Radius Annulus (px)</Label>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">≈ {formatMeters(minRadius * resM)}–{formatMeters(maxRadius * resM)}</span>
-            <DraftBoundInput
-              value={minRadius}
-              onCommit={(v) => setRadii(Math.min(48, Math.max(2, Math.round(v ?? DEFAULTS.localDominanceMinRadius))), maxRadius)}
-              className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-            />
-            <DraftBoundInput
-              value={maxRadius}
-              onCommit={(v) => setRadii(minRadius, Math.min(48, Math.max(2, Math.round(v ?? DEFAULTS.localDominanceMaxRadius))))}
-              className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-            />
-          </div>
+          <Label className="text-sm font-medium">Radius Annulus</Label>
+          <span className="text-xs text-muted-foreground">
+            {minRadius}–{maxRadius} px ≈ {formatMeters(minRadius * resM)}–{formatMeters(maxRadius * resM)}
+          </span>
         </div>
+        {/* Slider works in octaves (powers of two): each step doubles the radius
+            and taps one level deeper into the tile pyramid. */}
         <MobileSlider
           sliderId="local-dominance:radius"
-          min={2}
-          max={48}
+          min={OCTAVE_MIN}
+          max={OCTAVE_MAX}
           step={1}
-          value={[minRadius, maxRadius]}
-          onValueChange={([lo, hi]) => setRadii(lo, hi)}
+          value={[octaveOf(minRadius), octaveOf(maxRadius)]}
+          onValueChange={([lo, hi]) => setOctaves(lo, hi)}
           className="w-full cursor-pointer"
         />
       </div>

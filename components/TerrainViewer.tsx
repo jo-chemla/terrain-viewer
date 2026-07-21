@@ -349,8 +349,8 @@ export function TerrainViewer() {
     localDominanceMin: parseAsFloat.withDefault(-5),
     localDominanceMax: parseAsFloat.withDefault(15),
     localDominanceInvertColorRamp: parseAsBoolean.withDefault(false),
-    localDominanceMinRadius: parseAsFloat.withDefault(10),
-    localDominanceMaxRadius: parseAsFloat.withDefault(20),
+    localDominanceMinRadius: parseAsFloat.withDefault(8),
+    localDominanceMaxRadius: parseAsFloat.withDefault(32),
     // Plane Slicer — Tools: Elevation Picker sub-section. Paints one solid color
     // above or below a chosen elevation/LRM-height plane. See PlaneSlicerLayer/
     // computePlaneSlicerPaint in MapLayers.tsx.

@@ -47,6 +47,10 @@ export const ElevationPickerSection: React.FC<{
   const [profilePoints, setProfilePoints] = useState<ProfilePoint[]>([])
   const [profileLoading, setProfileLoading] = useState(false)
   const [poleHeight, setPoleHeight] = useState(0)
+  // Draw the sampled line on the map itself (draped over the terrain), a
+  // blue→red gradient matching the two endpoint markers, so it's clear on the
+  // map where the profile runs.
+  const [showLineOnMap, setShowLineOnMap] = useState(true)
   const { getTilesUrl } = useSourceConfig()
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const markersRef = useRef<maplibregl.Marker[]>([])
@@ -215,6 +219,59 @@ export const ElevationPickerSection: React.FC<{
     }
   }, [points, mapRef])
 
+  // Draped gradient line between the two picked points. A `line` layer is draped
+  // onto the 3D terrain by maplibre automatically (same as fill layers), so a
+  // densified 2-point segment follows the surface. line-gradient (needs
+  // lineMetrics) runs blue→red along the path to match the endpoint markers.
+  // Managed imperatively (this component lives outside the react-map-gl <Map>
+  // context) and re-added on styledata so a basemap/style swap doesn't drop it.
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    const shouldShow = isActive && showLineOnMap && points.length === 2
+    if (!shouldShow) return
+
+    const SRC = "elevation-picker-line"
+    const LYR = "elevation-picker-line"
+    const [a, b] = points
+    const SEGMENTS = 96
+    const coordinates = Array.from({ length: SEGMENTS }, (_, i) => {
+      const t = i / (SEGMENTS - 1)
+      return [a.lng + (b.lng - a.lng) * t, a.lat + (b.lat - a.lat) * t]
+    })
+    const data = { type: "Feature" as const, geometry: { type: "LineString" as const, coordinates }, properties: {} }
+
+    const draw = () => {
+      if (!map.isStyleLoaded()) return
+      const existing = map.getSource(SRC) as maplibregl.GeoJSONSource | undefined
+      if (existing) {
+        existing.setData(data as any)
+      } else {
+        map.addSource(SRC, { type: "geojson", lineMetrics: true, data: data as any })
+      }
+      if (!map.getLayer(LYR)) {
+        map.addLayer({
+          id: LYR,
+          type: "line",
+          source: SRC,
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-width": 3,
+            "line-gradient": ["interpolate", ["linear"], ["line-progress"], 0, MARKER_COLORS[0], 1, MARKER_COLORS[1]],
+          },
+        })
+      }
+    }
+
+    draw()
+    map.on("styledata", draw)
+    return () => {
+      map.off("styledata", draw)
+      if (map.getLayer(LYR)) map.removeLayer(LYR)
+      if (map.getSource(SRC)) map.removeSource(SRC)
+    }
+  }, [isActive, showLineOnMap, points, mapRef])
+
   const handleToggle = useCallback((checked: boolean) => {
     setIsActive(checked)
     if (!checked) { setPoints([]); setProfilePoints([]) }
@@ -303,6 +360,17 @@ export const ElevationPickerSection: React.FC<{
 
           {/* ─── Profile / line of sight ─── */}
           <div className="flex items-center justify-between gap-2 pt-1">
+            <Label htmlFor="elevation-line-toggle" className="text-sm font-medium">
+              Show line on map
+            </Label>
+            <Switch
+              id="elevation-line-toggle"
+              checked={showLineOnMap}
+              onCheckedChange={setShowLineOnMap}
+              className="cursor-pointer"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-2">
             <Label htmlFor="elevation-profile-toggle" className="text-sm font-medium">
               Line profile / sight
             </Label>
