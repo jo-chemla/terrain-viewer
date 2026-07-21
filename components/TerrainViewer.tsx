@@ -79,9 +79,11 @@ import {
   TellsUnfilteredLoaderLayer,
   TellsInspectPopup,
   TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT,
+  PlaneSlicerLayer,
   LAYER_SLOTS,
   computeHillshadePaint,
   computeColorReliefPaint,
+  computePlaneSlicerPaint,
 } from "./LayersAndSources/MapLayers"
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
@@ -104,6 +106,8 @@ const VIEW_MODES = ['2d', 'globe', '3d'] as const
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian'] as const
 const OPENNESS_MODES = ['positive', 'negative'] as const
+const PLANE_SLICER_REFERENCE_MODES = ['absolute', 'lrm'] as const
+const PLANE_SLICER_SIDES = ['above', 'below'] as const
 const TELLS_STYLES = ['outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
 const TELL_VETO_RESOLUTIONS = ['fine', 'coarse'] as const
 
@@ -329,6 +333,15 @@ export function TerrainViewer() {
     opennessSymmetric: parseAsBoolean.withDefault(false),
     opennessRadius: parseAsFloat.withDefault(8),
     opennessMode: parseAsStringLiteral(OPENNESS_MODES).withDefault("positive"),
+    // Plane Slicer — Tools: Elevation Picker sub-section. Paints one solid color
+    // above or below a chosen elevation/LRM-height plane. See PlaneSlicerLayer/
+    // computePlaneSlicerPaint in MapLayers.tsx.
+    showPlaneSlicer: parseAsBoolean.withDefault(false),
+    planeSlicerReferenceMode: parseAsStringLiteral(PLANE_SLICER_REFERENCE_MODES).withDefault("absolute"),
+    planeSlicerValue: parseAsFloat.withDefault(0),
+    planeSlicerSide: parseAsStringLiteral(PLANE_SLICER_SIDES).withDefault("below"),
+    planeSlicerColor: parseAsString.withDefault("#3388ff"),
+    planeSlicerOpacity: parseAsFloat.withDefault(0.6),
     // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
     // clutter Visualization Modes for everyone by default.
     tellsBeta: parseAsBoolean.withDefault(false),
@@ -530,6 +543,16 @@ export function TerrainViewer() {
       invertColorRamp: state.lrmInvertColorRamp,
     }),
     [ state.lrmColorRamp, state.lrmMin, state.lrmMax, state.lrmOpacity, state.reliefVisualizationOpacity, state.lrmInvertColorRamp ]
+  )
+
+  const planeSlicerPaint = useMemo(
+    () => computePlaneSlicerPaint({
+      value: state.planeSlicerValue,
+      side: state.planeSlicerSide,
+      color: state.planeSlicerColor,
+      opacity: state.planeSlicerOpacity,
+    }),
+    [ state.planeSlicerValue, state.planeSlicerSide, state.planeSlicerColor, state.planeSlicerOpacity ]
   )
 
   const roughnessReliefPaint = useMemo(
@@ -1321,7 +1344,11 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <LrmSource
-            enabled={state.showReliefVisualization}
+            // Also mounted for Plane Slicer's LRM reference mode, independent of
+            // Relief Visualization's own master toggle — otherwise a
+            // `source="lrmSource"` on PlaneSlicerLayer could point at a source
+            // id that was never actually added to the map.
+            enabled={state.showReliefVisualization || (state.showPlaneSlicer && state.planeSlicerReferenceMode === "lrm")}
             radius={state.lrmRadius}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
@@ -1448,6 +1475,7 @@ export function TerrainViewer() {
           <BlobnessReliefLayer enabled={state.showTerrainAnalysis} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
           <SvfReliefLayer enabled={state.showReliefVisualization} showSvf={state.showSvf} svfReliefPaint={svfReliefPaint} />
           <OpennessReliefLayer enabled={state.showReliefVisualization} showOpenness={state.showOpenness} opennessReliefPaint={opennessReliefPaint} />
+          <PlaneSlicerLayer enabled={state.showPlaneSlicer} referenceMode={state.planeSlicerReferenceMode} planeSlicerPaint={planeSlicerPaint} />
           {isPrimary && (
             <TellsMarkersLayer
               enabled={state.tellsBeta}
@@ -1636,6 +1664,7 @@ export function TerrainViewer() {
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
       state.showSvf, state.svfRadius, state.showOpenness, state.opennessRadius, state.opennessMode,
+      state.showPlaneSlicer, state.planeSlicerReferenceMode, planeSlicerPaint,
       // tellsBeta/tellsEverActivated gate the tells layer+source mounts: leaving
       // them out of these deps was the "toggle it on but nothing shows until I
       // pan or edit a slider" desync — the memoized JSX simply never re-rendered.

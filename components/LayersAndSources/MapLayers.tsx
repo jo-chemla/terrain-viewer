@@ -25,6 +25,7 @@ export const LAYER_SLOTS = {
   PHONG: "slot-phong",
   CONTOURS: "slot-contours",
   TELLS: "slot-tells",
+  PLANE_SLICER: "slot-plane-slicer",
 } as const
 
 // Rendered once, always present, zero visual impact
@@ -49,6 +50,7 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.PHONG}       type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.TELLS}       type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.PLANE_SLICER}type="background" paint={{ "background-opacity": 0 }} />
   </>
 )
 
@@ -364,6 +366,26 @@ export const LrmReliefLayer = memo(({ enabled, showLrm, lrmReliefPaint }: { enab
   )
 })
 LrmReliefLayer.displayName = "LrmReliefLayer"
+
+// Reuses the real-elevation ("hillshadeSource", same as the hypsometric tint)
+// or LRM ("lrmSource") source depending on referenceMode — no dedicated tile
+// protocol of its own. Rendered above every other analysis layer (its own
+// topmost LAYER_SLOTS.PLANE_SLICER slot) since it's a Tools overlay, not a
+// visualization mode users would layer other analyses on top of.
+export const PlaneSlicerLayer = memo(({ enabled, referenceMode, planeSlicerPaint }: { enabled: boolean; referenceMode: "absolute" | "lrm"; planeSlicerPaint: any }) => {
+  if (!enabled) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.PLANE_SLICER}
+      id="plane-slicer"
+      type="color-relief"
+      source={referenceMode === "lrm" ? "lrmSource" : "hillshadeSource"}
+      paint={planeSlicerPaint}
+      layout={{ visibility: "visible" }}
+    />
+  )
+})
+PlaneSlicerLayer.displayName = "PlaneSlicerLayer"
 
 export const RoughnessReliefLayer = memo(({ enabled, showRoughness, roughnessReliefPaint }: { enabled: boolean; showRoughness: boolean; roughnessReliefPaint: any }) => {
   if (!enabled) return null
@@ -787,6 +809,38 @@ export const computeColorReliefPaint = ({
 
   return {
     "color-relief-opacity": colorReliefOpacity,
+    "color-relief-color": colors,
+  }
+}
+
+export type PlaneSlicerConfig = {
+  value?: number
+  side?: "above" | "below"
+  color?: string
+  opacity?: number
+}
+
+// Half a meter either side of the threshold — imperceptibly thin against
+// both an absolute-elevation domain (meters, up to thousands) and an LRM
+// domain (typically ±tens of meters), but still wide enough to stay a
+// genuine (non-degenerate) ascending "interpolate" pair. color-relief-color
+// only ever evaluates through maplibre's interpolate codepath — see
+// buildCustomRampColors above — so faking a hard cutoff this way is the only
+// option; a "step" expression here would silently render fully transparent.
+const PLANE_SLICER_EPSILON = 0.5
+
+export const computePlaneSlicerPaint = ({
+  value = 0,
+  side = "below",
+  color = "#3388ff",
+  opacity = 0.6,
+}: PlaneSlicerConfig) => {
+  const transparent = "rgba(0, 0, 0, 0)"
+  const colors = side === "below"
+    ? ["interpolate", ["linear"], ["elevation"], value - PLANE_SLICER_EPSILON, color, value + PLANE_SLICER_EPSILON, transparent]
+    : ["interpolate", ["linear"], ["elevation"], value - PLANE_SLICER_EPSILON, transparent, value + PLANE_SLICER_EPSILON, color]
+  return {
+    "color-relief-opacity": opacity,
     "color-relief-color": colors,
   }
 }

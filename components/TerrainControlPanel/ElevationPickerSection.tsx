@@ -14,6 +14,7 @@ import { useSourceConfig } from "@/lib/controls-utils"
 import { customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { getClientExportSource } from "@/lib/client-export"
 import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint } from "@/lib/elevation-query"
+import { PlaneSlicerFields } from "./plane-slicer-fields"
 
 interface PickedPoint {
   lng: number
@@ -26,11 +27,12 @@ const MARKER_COLORS = ["#3b82f6", "#ef4444"]
 
 export const ElevationPickerSection: React.FC<{
   state: any
+  setState: (updates: any) => void
   mapRef: React.RefObject<MapRef>
   draw: TerraDraw | null
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, mapRef, draw, isOpen, onOpenChange }) => {
+}> = ({ state, setState, mapRef, draw, isOpen, onOpenChange }) => {
   const [isActive, setIsActive] = useState(false)
   const [points, setPoints] = useState<PickedPoint[]>([])
   const [drawModeActive, setDrawModeActive] = useState(false)
@@ -236,6 +238,8 @@ export const ElevationPickerSection: React.FC<{
           )}
         </div>
       )}
+
+      <PlaneSlicerFields state={state} setState={setState} />
     </Section>
   )
 }
