@@ -3,6 +3,7 @@ import { useState } from "react"
 import { useAtom } from "jotai"
 import { activeProjectConfigAtom, vizModePinnedAtom } from "@/lib/settings-atoms"
 import { Section, CheckboxWithSlider, PinToggle } from "./controls-components"
+import { Separator } from "@/components/ui/separator"
 
 export const VisualizationModesSection: React.FC<{
   state: any; setState: (updates: any) => void
@@ -50,6 +51,9 @@ export const VisualizationModesSection: React.FC<{
       />
       <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
+      {/* Separates the "basic" modes above (contours/hillshade/basemap/hypso)
+          from the more advanced derived-analysis ones below. */}
+      <Separator />
       {/* What used to be one merged "Slope, LRM and More" toggle is now two —
           Relief Visualization (multi-scale relief/visibility: LRM/SVF/Openness)
           and Terrain Analysis (surface derivatives + neighborhood statistics: Slope/
@@ -75,7 +79,7 @@ export const VisualizationModesSection: React.FC<{
           onSliderChange={(value) => setState({ terrainAnalysisOpacity: value })}
         />
       )}
-      {/* Matcap + Phong, both custom WebGL layers draped over 3D terrain —
+      {/* Matcap + Phong, both raster-tile protocols draped over 3D terrain —
           see Options: Lighting Effects for material/light controls. */}
       <CheckboxWithSlider
         id="lighting-effects"
