@@ -34,6 +34,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    copyPublicDir: true, 
-  }
+    copyPublicDir: true,
+  },
+  // lib/cog-contour-worker.ts (new Worker(..., { type: "module" }) in
+  // lib/cog-contour-protocol.ts) itself imports other modules, so Rollup
+  // needs to code-split its bundle - Vite's default worker output format
+  // ("iife") doesn't support that ("UMD and IIFE output formats are not
+  // supported for code-splitting builds"). "es" does.
+  worker: {
+    format: 'es',
+  },
 })
