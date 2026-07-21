@@ -52,8 +52,11 @@ export const VisualizationModesSection: React.FC<{
       <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
       {/* Separates the "basic" modes above (contours/hillshade/basemap/hypso)
-          from the more advanced derived-analysis ones below. */}
-      <Separator />
+          from the more advanced derived-analysis ones below. Darker than the
+          default --border (which is barely visible) — bg-foreground/NN
+          instead of a hardcoded hex so it stays readable in both themes,
+          same trick controls-components.tsx's MacroSeparator already uses. */}
+      <Separator className="bg-foreground/33" />
       {/* What used to be one merged "Slope, LRM and More" toggle is now two —
           Relief Visualization (multi-scale relief/visibility: LRM/SVF/Openness)
           and Terrain Analysis (surface derivatives + neighborhood statistics: Slope/
