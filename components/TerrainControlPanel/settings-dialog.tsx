@@ -25,9 +25,11 @@ import { PasswordInput } from "./controls-components"
 import { TooltipIconButton } from "./controls-components"
 import { JsonEditor } from "@/components/ui/json-editor"
 import { ColorThemeSelect } from "@/components/theme-switcher"
+import { ThemeEditorPanel } from "@/theme-editor"
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any }> = ({ isOpen, onOpenChange, state, setState }) => {
   const { theme, toggleTheme } = useTheme()
+  const [showThemeEditor, setShowThemeEditor] = useState(false)
   // const theme = state.theme
   // const setTheme = useCallback((v: string) => setState({theme: v}), [setState])
   // const toggleTheme = useCallback(() => setTheme(theme === "light" ? "dark" : "light"), [theme, setTheme])
@@ -619,9 +621,17 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               light/dark still follows the Theme toggle under Appearance above.
             </p>
             <ColorThemeSelect />
+            <Button variant="outline" size="sm" className="w-full cursor-pointer" onClick={() => setShowThemeEditor(true)}>
+              Advanced Theme Editor
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Live-edit every color/radius/shadow/font token (see theme-editor/README.md)
+              and copy the result as a new preset CSS block.
+            </p>
           </div>
         </div>
       </DialogContent>
+      {showThemeEditor && <ThemeEditorPanel onClose={() => setShowThemeEditor(false)} />}
     </Dialog >
   )
 }

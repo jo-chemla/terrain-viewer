@@ -1,0 +1,270 @@
+import { useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
+import { createPortal } from "react-dom"
+import { TOKEN_GROUPS, FONT_PRESETS } from "./token-schema"
+import type { TokenDef } from "./types"
+import { useThemeEditor, parseNum, type UseThemeEditorOptions } from "./useThemeEditor"
+import { hexToOklch, oklchToHex, parseColorToOklch, formatOklch } from "./color-math"
+
+const STYLE_ID = "theme-editor-panel-styles"
+
+// Injected once per page (keyed by id) rather than requiring the host app to
+// import a stylesheet — this is what keeps the package a single droppable
+// .tsx folder. Reads the app's OWN --background/--foreground/etc. tokens for
+// its own chrome (with hard fallbacks, in case those aren't defined yet),
+// so the panel re-themes itself live as you edit — and needs no Tailwind.
+function useInjectedStyles() {
+  useEffect(() => {
+    if (document.getElementById(STYLE_ID)) return
+    const style = document.createElement("style")
+    style.id = STYLE_ID
+    style.textContent = PANEL_CSS
+    document.head.appendChild(style)
+  }, [])
+}
+
+export type ThemeEditorPanelProps = UseThemeEditorOptions & {
+  onClose: () => void
+  /** Initial screen position of the panel's top-left corner. */
+  defaultPosition?: { x: number; y: number }
+}
+
+export function ThemeEditorPanel({ onClose, defaultPosition, ...editorOptions }: ThemeEditorPanelProps) {
+  useInjectedStyles()
+  const { values, setValue, themeName, setThemeName, reset, copyCss } = useThemeEditor(editorOptions)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ base: true })
+  const [copied, setCopied] = useState(false)
+  const [pos, setPos] = useState(defaultPosition ?? { x: 24, y: 24 })
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const d = dragRef.current
+      if (!d) return
+      const panel = panelRef.current
+      const maxX = window.innerWidth - (panel?.offsetWidth ?? 320)
+      const maxY = window.innerHeight - (panel?.offsetHeight ?? 200)
+      setPos({
+        x: Math.min(Math.max(0, d.origX + (e.clientX - d.startX)), Math.max(0, maxX)),
+        y: Math.min(Math.max(0, d.origY + (e.clientY - d.startY)), Math.max(0, maxY)),
+      })
+    }
+    const onUp = () => { dragRef.current = null }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+    return () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+    }
+  }, [])
+
+  const startDrag = (e: React.PointerEvent) => {
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y }
+  }
+
+  const [copyFailed, setCopyFailed] = useState(false)
+  const handleCopy = async () => {
+    const { css, copied: didCopy } = await copyCss()
+    if (!didCopy) console.info("[theme-editor] Clipboard write failed — CSS:\n" + css)
+    setCopied(didCopy)
+    setCopyFailed(!didCopy)
+    setTimeout(() => { setCopied(false); setCopyFailed(false) }, 1500)
+  }
+
+  // Portaled to <body> rather than rendered inline — `position: fixed` is only
+  // relative to the true viewport when NO ancestor has a transform/filter/
+  // will-change/contain (a very common thing for an animated sidebar to have
+  // on its slide-in panel), otherwise it silently rebases to that ancestor's
+  // box instead. Escaping to <body> is what keeps this genuinely drop-in
+  // safe regardless of where the host app happens to mount it from.
+  return createPortal(
+    <div ref={panelRef} className="tec-panel" style={{ left: pos.x, top: pos.y }}>
+      <div className="tec-header" onPointerDown={startDrag}>
+        <span className="tec-title">Theme Editor</span>
+        <button type="button" className="tec-icon-btn" onClick={onClose} aria-label="Close">✕</button>
+      </div>
+
+      <div className="tec-body">
+        {TOKEN_GROUPS.map((group) => {
+          const isOpen = openGroups[group.id] ?? false
+          return (
+            <div key={group.id} className="tec-group">
+              <button
+                type="button"
+                className="tec-group-header"
+                onClick={() => setOpenGroups((prev) => ({ ...prev, [group.id]: !isOpen }))}
+              >
+                <span>{group.title}</span>
+                <span className={`tec-chevron${isOpen ? " tec-chevron--open" : ""}`}>▾</span>
+              </button>
+              {isOpen && (
+                <div className="tec-group-body">
+                  {group.tokens.map((token) => (
+                    <TokenRow key={token.key} token={token} value={values[token.key] ?? ""} onChange={(v) => setValue(token.key, v)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="tec-footer">
+        <input
+          type="text"
+          className="tec-text-input"
+          value={themeName}
+          onChange={(e) => setThemeName(e.target.value)}
+          placeholder="theme-name"
+          title="Preset name used in the exported CSS selector"
+        />
+        <button type="button" className="tec-btn" onClick={reset}>Reset</button>
+        <button type="button" className="tec-btn tec-btn--primary" onClick={handleCopy} title={copyFailed ? "Clipboard write failed — check the console for the CSS" : undefined}>
+          {copied ? "Copied!" : copyFailed ? "Copy failed" : "Copy CSS"}
+        </button>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+function TokenRow({ token, value, onChange }: { token: TokenDef; value: string; onChange: (v: string) => void }) {
+  if (token.type === "color" || token.type === "shadow-color") {
+    return <ColorRow label={token.label} value={value} onChange={onChange} />
+  }
+  if (token.type === "length") {
+    return <SliderRow label={token.label} value={value} unit={token.unit} min={token.min} max={token.max} step={token.step} onChange={onChange} />
+  }
+  if (token.type === "shadow-opacity" || token.type === "shadow-length" || token.type === "shadow-offset") {
+    const unit = token.type === "shadow-opacity" ? "" : "px"
+    return <SliderRow label={token.label} value={value} unit={unit} min={token.min ?? 0} max={token.max ?? 1} step={token.step ?? 0.01} onChange={onChange} />
+  }
+  if (token.type === "font") {
+    return <FontRow label={token.label} value={value} onChange={onChange} />
+  }
+  return null
+}
+
+function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const oklch = useMemo(() => parseColorToOklch(value || "oklch(0.5 0 0)"), [value])
+  const hex = useMemo(() => oklchToHex(oklch), [oklch])
+  return (
+    <div className="tec-row">
+      <label className="tec-row-label">{label}</label>
+      <div className="tec-row-control">
+        <input
+          type="color"
+          className="tec-swatch"
+          value={hex}
+          onChange={(e) => onChange(formatOklch({ ...hexToOklch(e.target.value), alpha: oklch.alpha }))}
+        />
+        <input type="text" className="tec-text-input tec-text-input--mono" value={value} onChange={(e) => onChange(e.target.value)} spellCheck={false} />
+      </div>
+    </div>
+  )
+}
+
+function SliderRow({ label, value, unit, min, max, step, onChange }: { label: string; value: string; unit: string; min: number; max: number; step: number; onChange: (v: string) => void }) {
+  const num = parseNum(value || "0")
+  return (
+    <div className="tec-row">
+      <label className="tec-row-label">{label}</label>
+      <div className="tec-row-control">
+        <input type="range" className="tec-slider" min={min} max={max} step={step} value={num} onChange={(e) => onChange(`${e.target.value}${unit}`)} />
+        <span className="tec-value">{num}{unit}</span>
+      </div>
+    </div>
+  )
+}
+
+function FontRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="tec-row tec-row--stacked">
+      <label className="tec-row-label">{label}</label>
+      <select className="tec-select" value="" onChange={(e) => { if (e.target.value) onChange(FONT_PRESETS[e.target.value]) }}>
+        <option value="">Quick pick…</option>
+        {Object.keys(FONT_PRESETS).map((name) => <option key={name} value={name}>{name}</option>)}
+      </select>
+      <textarea className="tec-textarea" value={value} onChange={(e) => onChange(e.target.value)} rows={2} spellCheck={false} />
+    </div>
+  )
+}
+
+const PANEL_CSS = `
+.tec-panel {
+  position: fixed;
+  z-index: 2147483000;
+  width: 320px;
+  max-height: min(80vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--popover, #fff);
+  color: var(--popover-foreground, #111);
+  border: 1px solid var(--border, #ddd);
+  border-radius: var(--radius, 0.5rem);
+  box-shadow: var(--shadow-lg, 0 10px 30px rgba(0,0,0,0.25));
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  font-size: 13px;
+}
+.tec-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; cursor: grab; user-select: none;
+  border-bottom: 1px solid var(--border, #ddd);
+  border-radius: var(--radius, 0.5rem) var(--radius, 0.5rem) 0 0;
+  background: var(--muted, #f5f5f5); color: var(--muted-foreground, #333);
+  touch-action: none;
+}
+.tec-header:active { cursor: grabbing; }
+.tec-title { font-weight: 600; }
+.tec-icon-btn {
+  background: transparent; border: none; cursor: pointer; color: inherit;
+  font-size: 14px; line-height: 1; padding: 2px 6px; border-radius: 4px;
+}
+.tec-icon-btn:hover { background: var(--accent, #e5e5e5); }
+.tec-body { overflow-y: auto; padding: 4px 0; }
+.tec-group { border-bottom: 1px solid var(--border, #eee); }
+.tec-group-header {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  background: transparent; border: none; cursor: pointer; color: inherit;
+  padding: 8px 10px; font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em;
+}
+.tec-group-header:hover { background: var(--accent, #f0f0f0); }
+.tec-chevron { transition: transform 120ms ease; display: inline-block; }
+.tec-chevron--open { transform: rotate(180deg); }
+.tec-group-body { padding: 2px 10px 8px; display: flex; flex-direction: column; gap: 8px; }
+.tec-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tec-row--stacked { flex-direction: column; align-items: stretch; gap: 4px; }
+.tec-row-label { flex: 0 0 auto; min-width: 92px; color: var(--muted-foreground, #666); }
+.tec-row-control { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.tec-swatch { width: 24px; height: 24px; padding: 0; border: 1px solid var(--border, #ccc); border-radius: 4px; cursor: pointer; background: none; flex: 0 0 auto; }
+.tec-text-input {
+  flex: 1; min-width: 0; padding: 3px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px;
+  background: var(--background, #fff); color: var(--foreground, #111); font-size: 12px;
+}
+.tec-text-input--mono { font-family: var(--font-mono, ui-monospace, monospace); }
+.tec-textarea {
+  width: 100%; box-sizing: border-box; padding: 4px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px;
+  background: var(--background, #fff); color: var(--foreground, #111); font-size: 11px;
+  font-family: var(--font-mono, ui-monospace, monospace); resize: vertical;
+}
+.tec-select {
+  padding: 3px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px;
+  background: var(--background, #fff); color: var(--foreground, #111); font-size: 12px;
+}
+.tec-slider { flex: 1; accent-color: var(--primary, #666); }
+.tec-value { flex: 0 0 auto; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted-foreground, #666); font-size: 11px; }
+.tec-footer {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  border-top: 1px solid var(--border, #ddd);
+  border-radius: 0 0 var(--radius, 0.5rem) var(--radius, 0.5rem);
+}
+.tec-footer .tec-text-input { min-width: 0; }
+.tec-btn {
+  padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border, #ccc);
+  background: var(--secondary, #eee); color: var(--secondary-foreground, #111);
+  cursor: pointer; font-size: 12px; white-space: nowrap; flex: 0 0 auto;
+}
+.tec-btn:hover { filter: brightness(0.95); }
+.tec-btn--primary { background: var(--primary, #333); color: var(--primary-foreground, #fff); border-color: transparent; }
+`
