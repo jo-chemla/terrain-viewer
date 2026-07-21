@@ -29,17 +29,17 @@ interface PickedPoint {
 
 const MARKER_COLORS = ["#3b82f6", "#ef4444"]
 
-// Perceptual (viridis) ramp for coloring the draped line by elevation, normalized
+// Perceptual (magma) ramp for coloring the draped line by elevation, normalized
 // to the line's own min/max so even a short line with little relief still shows a
 // full gradient. line-gradient only accepts ["line-progress"] as input, so the
 // color at each vertex is precomputed here rather than expressed as a data-driven
 // ["get", "elevation"] ramp in the style.
 const ELEV_RAMP: [number, [number, number, number]][] = [
-  [0.0, [68, 1, 84]],
-  [0.25, [59, 82, 139]],
-  [0.5, [33, 145, 140]],
-  [0.75, [94, 201, 98]],
-  [1.0, [253, 231, 37]],
+  [0.0, [0, 0, 4]],
+  [0.25, [81, 18, 124]],
+  [0.5, [183, 55, 121]],
+  [0.75, [252, 137, 97]],
+  [1.0, [252, 253, 191]],
 ]
 function elevationColor(t: number): string {
   const x = Math.min(1, Math.max(0, t))
