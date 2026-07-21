@@ -50,6 +50,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       { key: "font-sans", label: "Sans Font", type: "font" },
       { key: "font-serif", label: "Serif Font", type: "font" },
       { key: "font-mono", label: "Mono Font", type: "font" },
+      { key: "font-heading", label: "Heading Font", type: "font" },
       { key: "letter-spacing", label: "Letter Spacing", type: "length", unit: "em", min: -0.1, max: 0.1, step: 0.005 },
     ],
   },

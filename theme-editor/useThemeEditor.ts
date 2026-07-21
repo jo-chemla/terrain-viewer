@@ -3,6 +3,7 @@ import { TOKEN_GROUPS, SHADOW_BASE_KEYS, COLOR_TOKEN_KEYS } from "./token-schema
 import { deriveShadowTiers, shadowVarName, SHADOW_TIER_KEYS, type ShadowBase } from "./shadow-formula"
 import { parseColorToOklch, formatOklch } from "./color-math"
 import { randomizeColors, randomizeOthers } from "./randomize"
+import { DEFAULT_BASIC_OPTIONS, buildBasicPalette, buildStyleValues, findStyle, type BasicOptions } from "./basic-presets"
 
 export function parseNum(value: string): number {
   const m = value.match(/-?[\d.]+/)
@@ -136,6 +137,28 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
     setAdjustState(IDENTITY_ADJUST)
   }, [target, values.background, applyValues])
 
+  const [basicOptions, setBasicOptionsState] = useState<BasicOptions>(DEFAULT_BASIC_OPTIONS)
+  const basicOptionsRef = useRef(basicOptions)
+  basicOptionsRef.current = basicOptions
+
+  // Derives the full palette + style-bundled font/radius/shadow values from
+  // the small Basic-mode control set (see basic-presets.ts) and applies it
+  // live, same as randomize() — becomes the new HSL-adjust baseline too, so
+  // Adjust sliders shift the derived palette rather than whatever preset was
+  // active before Basic mode was touched. Side effects run here, in the
+  // callback body — NOT inside the setBasicOptionsState updater, which
+  // should stay a pure function of its previous state.
+  const setBasicOption = useCallback((patch: Partial<BasicOptions>) => {
+    const next = { ...basicOptionsRef.current, ...patch }
+    setBasicOptionsState(next)
+    if (!target) return
+    const isDark = parseColorToOklch(values.background || "oklch(0.98 0 0)").l < 0.5
+    const fullPatch = { ...buildBasicPalette(next, isDark), ...buildStyleValues(findStyle(next.style)), radius: `${next.radius}rem` }
+    applyValues(fullPatch)
+    baselineRef.current = { ...baselineRef.current, ...fullPatch }
+    setAdjustState(IDENTITY_ADJUST)
+  }, [target, values.background, applyValues])
+
   const reset = useCallback(() => {
     if (!target) return
     for (const key of allKeys) target.style.removeProperty(`--${key}`)
@@ -190,5 +213,5 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
     return { css, copied: false }
   }, [buildCss, themeName])
 
-  return { values, setValue, themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust, resetAdjust, randomize }
+  return { values, setValue, themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust, resetAdjust, randomize, basicOptions, setBasicOption }
 }

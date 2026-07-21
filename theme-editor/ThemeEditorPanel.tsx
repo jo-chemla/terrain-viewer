@@ -5,6 +5,7 @@ import { TOKEN_GROUPS, FONT_PRESETS, fontCategoryForKey } from "./token-schema"
 import type { TokenDef } from "./types"
 import { useThemeEditor, parseNum, type UseThemeEditorOptions } from "./useThemeEditor"
 import { hexToOklch, oklchToHex, parseColorToOklch, formatOklch } from "./color-math"
+import { STYLE_PRESETS, BASE_COLOR_FAMILIES, NAMED_HUES, MENU_ACCENT_LEVELS, type BasicOptions } from "./basic-presets"
 
 const STYLE_ID = "theme-editor-panel-styles"
 
@@ -38,8 +39,9 @@ export type ThemeEditorPanelProps = UseThemeEditorOptions & {
 
 export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, ...editorOptions }: ThemeEditorPanelProps) {
   useInjectedStyles()
-  const { values, setValue, themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust, resetAdjust, randomize } = useThemeEditor(editorOptions)
+  const { values, setValue, themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust, resetAdjust, randomize, basicOptions, setBasicOption } = useThemeEditor(editorOptions)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ primary: true })
+  const [basicOpen, setBasicOpen] = useState(true)
   const [adjustOpen, setAdjustOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [pos, setPos] = useState(defaultPosition ?? { x: 24, y: 24 })
@@ -106,6 +108,23 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, ...edi
       </div>
 
       <div className="tec-body">
+        <div className="tec-group">
+          <button type="button" className="tec-group-header" onClick={() => setBasicOpen((v) => !v)}>
+            <span>Basic</span>
+            <span className={`tec-chevron${basicOpen ? " tec-chevron--open" : ""}`}>▾</span>
+          </button>
+          {basicOpen && (
+            <div className="tec-group-body">
+              <SelectRow label="Style" value={basicOptions.style} options={STYLE_PRESETS.map((s) => s.name)} onChange={(v) => setBasicOption({ style: v })} />
+              <SelectRow label="Base Color" value={basicOptions.baseColor} options={BASE_COLOR_FAMILIES.map((b) => b.name)} onChange={(v) => setBasicOption({ baseColor: v })} />
+              <SelectRow label="Theme" value={basicOptions.theme} options={NAMED_HUES.map((h) => h.name)} onChange={(v) => setBasicOption({ theme: v })} />
+              <SelectRow label="Chart Color" value={basicOptions.chartColor} options={NAMED_HUES.map((h) => h.name)} onChange={(v) => setBasicOption({ chartColor: v })} />
+              <SliderRow label="Radius" value={`${basicOptions.radius}`} unit="rem" min={0} max={1.5} step={0.05} onChange={(v) => setBasicOption({ radius: parseNum(v) })} />
+              <SelectRow label="Menu" value={basicOptions.menuSolid ? "Solid" : "Default"} options={["Default", "Solid"]} onChange={(v) => setBasicOption({ menuSolid: v === "Solid" })} />
+              <SelectRow label="Menu Accent" value={basicOptions.menuAccent} options={[...MENU_ACCENT_LEVELS]} onChange={(v) => setBasicOption({ menuAccent: v as BasicOptions["menuAccent"] })} />
+            </div>
+          )}
+        </div>
         <div className="tec-group">
           <button type="button" className="tec-group-header" onClick={() => setAdjustOpen((v) => !v)}>
             <span>Adjust (Hue / Saturation / Lightness)</span>
@@ -214,6 +233,19 @@ function SliderRow({ label, value, unit, min, max, step, onChange }: { label: st
       <div className="tec-row-control">
         <input type="range" className="tec-slider" min={min} max={max} step={step} value={num} onChange={(e) => onChange(`${e.target.value}${unit}`)} />
         <span className="tec-value">{num}{unit}</span>
+      </div>
+    </div>
+  )
+}
+
+function SelectRow({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+  return (
+    <div className="tec-row">
+      <label className="tec-row-label">{label}</label>
+      <div className="tec-row-control">
+        <select className="tec-select" style={{ flex: 1 }} value={value} onChange={(e) => onChange(e.target.value)}>
+          {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+        </select>
       </div>
     </div>
   )
