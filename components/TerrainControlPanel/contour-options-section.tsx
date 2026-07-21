@@ -1,11 +1,14 @@
 import type React from "react"
 import type { MapRef } from "react-map-gl/maplibre"
-import { Info } from "lucide-react"
+import { Info, RotateCcw } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, SliderControl, CheckboxWithSlider, GroupHeading } from "./controls-components"
+import { useTheme } from "@/lib/controls-utils"
 
 const WEIGHT_TOGGLE_ITEM_CLASS = "cursor-pointer px-2 text-xs data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
 
@@ -29,8 +32,43 @@ export const ContourOptionsSection: React.FC<{
   onOpenChange: (open: boolean) => void
   mapRef?: React.RefObject<MapRef>
 }> = ({ state, setState, isOpen, onOpenChange, mapRef }) => {
+  // Both colors are theme-adaptive by default (empty state value). The picker
+  // shows that effective default and, once changed, stores an explicit hex that
+  // overrides the theme. autoHex mirrors the layers' own auto fallback (contour
+  // lines → translucent black/white by theme, grid → themeAntiColor): light →
+  // black, dark → white.
+  const { theme } = useTheme()
+  const autoHex = theme === "dark" ? "#ffffff" : "#000000"
 
   if (!state.showContoursAndGraticules) return null
+
+  // Plain render function (not a nested component rendered as <ColorRow/>) so it
+  // doesn't remount on every parent render — that would close the native color
+  // dialog mid-pick.
+  const colorRow = (label: string, stateKey: string) => (
+    <div className="flex items-center justify-between">
+      <Label className="text-sm">{label}</Label>
+      <div className="flex items-center gap-1">
+        {state[stateKey] && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 cursor-pointer"
+            title="Reset to theme default"
+            onClick={() => setState({ [stateKey]: "" })}
+          >
+            <RotateCcw className="h-3 w-3" />
+          </Button>
+        )}
+        <Input
+          type="color"
+          value={state[stateKey] || autoHex}
+          onChange={(e) => setState({ [stateKey]: e.target.value })}
+          className="h-8 w-12 p-1 cursor-pointer border-none shrink-0"
+        />
+      </div>
+    </div>
+  )
 
   // ── Contour derived values ─────────────────────────────────────────────
   const currentMinor = Number(state.contourMinor) || 50
@@ -112,6 +150,7 @@ export const ContourOptionsSection: React.FC<{
                 onChange={(i) => setState({ contourMajor: snappedMinor * MAJOR_MULTIPLIERS[i] })}
                 min={0} max={MAJOR_MULTIPLIERS.length - 1} step={1} hideValue
               />
+              {colorRow("Line Color", "contourColor")}
             </>
           )}
         </div>
@@ -142,22 +181,13 @@ export const ContourOptionsSection: React.FC<{
                 onChange={(i) => setState({ graticuleDensity: DENSITY_VALUES[i] })}
                 min={0} max={DENSITY_VALUES.length - 1} step={1} hideValue
               />
-              <div className="flex gap-3">
-                {/* <Input
-                  type="color"
-                  value={state.graticuleColor}
-                  onChange={(e) => setState({ graticuleColor: e.target.value })}
-                  className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
-                /> */}
-                <div className="grow">
-                  <SliderControl
-                    label={`Width: ${graticuleWidth}px`}
-                    value={graticuleWidth}
-                    onChange={(v) => setState({ graticuleWidth: v })}
-                    min={0.1} max={3} step={0.1} hideValue
-                  />
-                </div>
-              </div>
+              <SliderControl
+                label={`Width: ${graticuleWidth}px`}
+                value={graticuleWidth}
+                onChange={(v) => setState({ graticuleWidth: v })}
+                min={0.1} max={3} step={0.1} hideValue
+              />
+              {colorRow("Grid Color", "graticuleColor")}
             </>
           )}
         </div>

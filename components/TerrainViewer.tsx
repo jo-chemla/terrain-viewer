@@ -437,12 +437,18 @@ export function TerrainViewer() {
     // Multiplies both major and minor contour line-width — default (1) keeps
     // today's major-vs-minor ratio, 2/4 make both proportionally bolder.
     contourWeight: parseAsFloat.withDefault(1),
+    // Contour line / graticule colors — empty string means "auto" (theme-adaptive:
+    // the contour lines fall back to translucent black/white by theme, the grid to
+    // themeAntiColor). A non-empty hex from the color pickers (contour-options-
+    // section.tsx) overrides that and stops adapting to the theme.
+    contourColor: parseAsString.withDefault(""),
     customHypsoMinMax: parseAsBoolean.withDefault(false),
     minElevation: parseAsFloat.withDefault(0),
     maxElevation: parseAsFloat.withDefault(8100),
     hypsoSliderMinBound: parseAsFloat.withDefault(-8000),
     hypsoSliderMaxBound: parseAsFloat.withDefault(5000),
     graticuleWidth: parseAsFloat.withDefault(1.0),
+    graticuleColor: parseAsString.withDefault(""),
     showGraticuleLabels: parseAsBoolean.withDefault(false),
     graticuleDensity: parseAsFloat.withDefault(0),
     minimapMinimized: parseAsBoolean.withDefault(true),
@@ -1567,6 +1573,7 @@ export function TerrainViewer() {
               contourMinor={state.contourMinor}
               contourMajor={state.contourMajor}
               contourWeight={state.contourWeight}
+              contourColor={state.contourColor || undefined}
               mapboxKey={mapboxKey}
               maptilerKey={maptilerKey}
               customTerrainSources={customTerrainSources}
@@ -1580,8 +1587,7 @@ export function TerrainViewer() {
           {isPrimary && state.showGraticules && (
             <GraticuleLayer
               showGraticules={state.showContoursAndGraticules && state.showGraticules}
-              graticuleColor={themeAntiColor}
-              // graticuleColor={effectiveGraticuleColor}
+              graticuleColor={state.graticuleColor || themeAntiColor}
               graticuleWidth={state.graticuleWidth}
               showLabels={state.showGraticuleLabels}
               labelColor={graticuleLabelColor}
@@ -1724,6 +1730,7 @@ export function TerrainViewer() {
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor, state.contourWeight,
+      state.contourColor, state.graticuleColor,
       activeBasemapSourceA, activeBasemapSourceB,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, blobnessReliefPaint, svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,

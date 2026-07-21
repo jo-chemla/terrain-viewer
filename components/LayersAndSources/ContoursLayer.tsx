@@ -21,6 +21,9 @@ export const contourLinesLayerDef = (
   // Multiplies both major (1px) and minor (0.5px) widths, keeping their ratio —
   // 1 is today's default, 2/4 make both proportionally bolder.
   weight: number = 1,
+  // Explicit contour color (from the color picker). Empty/undefined falls back to
+  // the theme-adaptive translucent black/white default.
+  contourColor?: string,
 ): LayerSpecification => ({
   id: "contour-lines",
   type: "line",
@@ -28,7 +31,7 @@ export const contourLinesLayerDef = (
   "source-layer": "contours",
   paint: {
     "line-color":
-      theme === "light" ? "rgba(0,0,0, 50%)" : "rgba(255,255,255, 50%)",
+      contourColor || (theme === "light" ? "rgba(0,0,0, 50%)" : "rgba(255,255,255, 50%)"),
     "line-width": ["match", ["get", "level"], 1, weight, 0.5 * weight],
   },
   layout: {
@@ -206,6 +209,8 @@ export interface ContoursLayerProps {
   contourMinor: number
   contourMajor: number
   contourWeight: number
+  /** Explicit contour line color; empty/undefined = theme-adaptive default. */
+  contourColor?: string
   /** Passed through to tile URL resolution */
   mapboxKey: string
   maptilerKey: string
@@ -227,6 +232,7 @@ export function ContoursLayer({
   contourMinor,
   contourMajor,
   contourWeight,
+  contourColor,
   mapboxKey,
   maptilerKey,
   customTerrainSources,
@@ -448,7 +454,7 @@ export function ContoursLayer({
 
     // Re-add layers imperatively so they exist before the declarative <Layer>
     // elements re-mount (avoids a flash where source exists but layers don't).
-    map.addLayer(contourLinesLayerDef(showContours, theme, contourWeight) as any)
+    map.addLayer(contourLinesLayerDef(showContours, theme, contourWeight, contourColor) as any)
     map.addLayer(contourLabelsLayerDef(showContours && showContourLabels, theme) as any)
   }, [contourMinor, contourMajor]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -476,7 +482,7 @@ export function ContoursLayer({
     <>
       <Layer
         beforeId={LAYER_SLOTS.CONTOURS}
-        {...contourLinesLayerDef(showContours, theme, contourWeight)}
+        {...contourLinesLayerDef(showContours, theme, contourWeight, contourColor)}
         key={"contour-lines-" + theme}
       />
       <Layer

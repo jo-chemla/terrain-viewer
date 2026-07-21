@@ -120,7 +120,14 @@ export function GraticuleLayer({
         if (!propsRef.current.showGraticules) return
 
         gridRef.current = new GeoGrid(buildOptions(map))
-        gridRef.current.add()
+        // geogrid-maplibre-gl's add() inserts its layers beforeId slot-contours;
+        // on a rapid re-init (editing grid color, width or density) that runs
+        // synchronously here, so this try/catch swallows the "Cannot add layer ...
+        // before non-existing layer slot-contours" throw for that path. (The lib
+        // can also add from its OWN deferred styledata handler on fresh load,
+        // which this can't catch — that's a pre-existing, harmless layer-ordering
+        // race the grid recovers from on the next update.)
+        try { gridRef.current.add() } catch { /* slot not ready yet; a later updateGrid re-adds */ }
     }, [showGraticules])
 
     useEffect(() => {
