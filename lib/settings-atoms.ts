@@ -93,8 +93,11 @@ export const isByodOpenAtom = atomWithStorage("isByodOpen", true)
 export interface CustomBasemapSource {
   id: string
   name: string
+  /** For type "cog-local", this is a `local://<id>` placeholder (see
+   *  lib/local-file-store.ts) rather than a real URL — the actual File only
+   *  lives in-memory for the current session. */
   url: string
-  type: "cog" | "tms" | "wms" | "wmts" | "tilejson"
+  type: "cog" | "cog-local" | "tms" | "wms" | "wmts" | "tilejson"
   description?: string
   /** 'tms' for bottom-left-origin tile grids (rare) — see maplibre raster source `scheme`. Defaults to 'xyz'. */
   scheme?: "xyz" | "tms"

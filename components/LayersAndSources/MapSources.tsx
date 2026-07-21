@@ -25,6 +25,8 @@ import { buildBlobnessProtocolUrl } from "@/lib/blobness-protocol"
 import { buildSvfProtocolUrl } from "@/lib/svf-protocol"
 import { buildOpennessProtocolUrl, type OpennessMode } from "@/lib/openness-protocol"
 import { buildTellsProtocolUrl, type TellsOptions } from "@/lib/tells-protocol"
+import { buildMatcapProtocolUrl } from "@/lib/matcap-protocol"
+import { buildPhongProtocolUrl } from "@/lib/phong-protocol"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -289,15 +291,26 @@ export const RasterBasemapSource = memo(({
     onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom: boolean }) => void
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
+    // Unused directly — read so this component re-renders when a local COG file
+    // is (re-)picked (see custom-source-details.tsx's "Re-select file…" flow).
+    useAtomValue(localFileVersionAtom)
 
     const customBasemap = customBasemapSources.find((s) => s.id === basemapSource)
+    // A local file can only ever stream via the in-browser geomatico protocol —
+    // there's no titiler server that could reach the user's disk — same as the
+    // terrain side's TerrainSources component.
+    const isCogLocal = customBasemap?.type === "cog-local"
+    const resolvedCogUrl = isCogLocal
+        ? (customBasemap ? resolveLocalFileUrl(localFileId(customBasemap.url)) : null)
+        : null
 
     const sourceProps = useMemo(() => {
         if (customBasemap) {
+            if (isCogLocal && !resolvedCogUrl) return null // not (re-)picked yet this session
             return buildRasterTileSource({
-                url: customBasemap.url,
-                type: customBasemap.type,
-                useCogProtocol,
+                url: isCogLocal ? resolvedCogUrl! : customBasemap.url,
+                type: isCogLocal ? "cog" : customBasemap.type,
+                useCogProtocol: isCogLocal ? true : useCogProtocol,
                 titilerEndpoint,
                 scheme: customBasemap.scheme,
             })
@@ -308,7 +321,7 @@ export const RasterBasemapSource = memo(({
             ? basemap.url.replace("{API_KEY}", mapboxKey)
             : basemap.url
         return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom }
-    }, [customBasemap, basemapSource, useCogProtocol, titilerEndpoint, mapboxKey])
+    }, [customBasemap, basemapSource, useCogProtocol, titilerEndpoint, mapboxKey, isCogLocal, resolvedCogUrl])
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
@@ -320,10 +333,16 @@ export const RasterBasemapSource = memo(({
         onZoomRangeChange?.(zoomRange)
     }, [zoomRange, onZoomRangeChange])
 
+    if (!sourceProps) return null
+
     return (
         <Source
             id="raster-basemap-source"
-            key={`raster-${basemapSource}`}
+            // resolvedCogUrl in the key: re-picking a different file for the same
+            // "cog-local" source (id unchanged) must remount the Source rather than
+            // have maplibre patch tiles in place against a stale pyramid/cache keyed
+            // by the old blob: URL.
+            key={`raster-${basemapSource}-${resolvedCogUrl}`}
             type="raster"
             tileSize={256}
             // zoomRange.maxzoom (not a hardcoded 19) — buildRasterTileSource's
@@ -356,22 +375,30 @@ export const OverlayBasemapSources = memo(({
     titilerEndpoint: string
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
+    // Unused directly — read so this component re-renders when a local COG file
+    // is (re-)picked (see custom-source-details.tsx's "Re-select file…" flow).
+    useAtomValue(localFileVersionAtom)
 
     return (
         <>
             {overlayIds.map((id) => {
                 const source = customBasemapSources.find((s) => s.id === id)
                 if (!source) return null
+                const isCogLocal = source.type === "cog-local"
+                const resolvedCogUrl = isCogLocal ? resolveLocalFileUrl(localFileId(source.url)) : null
+                if (isCogLocal && !resolvedCogUrl) return null // not (re-)picked yet this session
                 const sourceProps = buildRasterTileSource({
-                    url: source.url,
-                    type: source.type,
-                    useCogProtocol,
+                    url: isCogLocal ? resolvedCogUrl! : source.url,
+                    type: isCogLocal ? "cog" : source.type,
+                    useCogProtocol: isCogLocal ? true : useCogProtocol,
                     titilerEndpoint,
                     scheme: source.scheme,
                 })
                 return (
                     <Source
-                        key={`overlay-${id}`}
+                        // resolvedCogUrl in the key: see the matching comment on
+                        // RasterBasemapSource above.
+                        key={`overlay-${id}-${resolvedCogUrl}`}
                         id={`overlay-basemap-source-${id}`}
                         type="raster"
                         tileSize={256}
@@ -443,7 +470,7 @@ export type SlopeSourceMode = "plantopo" | "client"
 //    template + declared encoding, same as the primary source's own manifest read.
 //  - stac / mosaicjson: not yet supported here — returns null (same as before), so
 //    those layers simply don't render.
-interface ClientDemUpstream {
+export interface ClientDemUpstream {
     template: string
     encoding: "terrarium" | "mapbox"
     tileSize: number
@@ -453,7 +480,7 @@ interface ClientDemUpstream {
     maxzoom?: number
 }
 
-const useClientDemUpstream = (
+export const useClientDemUpstream = (
     terrainSource: TerrainSource | string,
     customTerrainSources: CustomTerrainSource[],
     mapboxKey: string,
@@ -737,6 +764,82 @@ export const OpennessSource = memo(({ radius, mode, ...props }: Omit<NormalDeriv
     />
 ))
 OpennessSource.displayName = "OpennessSource"
+
+// ─── Matcap / Phong sources ─────────────────────────────────────────────────────
+//
+// Unlike the raster-dem NormalDerivedSource sources above (which re-pack a
+// scalar as pseudo-elevation for maplibre's color-relief paint to interpret),
+// matcap:// and phong:// (lib/matcap-protocol.ts, lib/phong-protocol.ts)
+// already produce final RGB colors per pixel — a plain `type: "raster"`
+// source/layer pair, identical in kind to the raster basemap itself, is all
+// that's needed. That's also exactly why these drape over 3D terrain for
+// free: maplibre's terrain renderer drapes any raster source automatically,
+// the same mechanism the raster basemap already relies on.
+export const MatcapSource = memo(({
+    enabled, matcapUrl, rotationDeg, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
+}: {
+    enabled: boolean
+    matcapUrl: string
+    rotationDeg: number
+    terrainSource: TerrainSource | string
+    customTerrainSources: CustomTerrainSource[]
+    mapboxKey: string
+    maptilerKey: string
+    titilerEndpoint: string
+}) => {
+    const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
+    if (!enabled || !clientUpstream) return null
+    const url = buildMatcapProtocolUrl(matcapUrl, rotationDeg, clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize)
+    return (
+        <Source
+            id="matcapSource"
+            key={`matcapSource-${terrainSource}-${clientUpstream.template}`}
+            type="raster"
+            tiles={[url]}
+            tileSize={clientUpstream.tileSize}
+            // clientUpstream.minzoom is only set for some upstream kinds (e.g. a
+            // COG's real pyramid floor) — a plain `type: "raster"` source's strict
+            // validator rejects an explicit `minzoom: undefined` outright, so this
+            // needs the same `?? 0` fallback RasterBasemapSource's own zoomRange
+            // already uses rather than passing the field through as-is.
+            minzoom={clientUpstream.minzoom ?? 0}
+            maxzoom={clientUpstream.maxzoom}
+        />
+    )
+})
+MatcapSource.displayName = "MatcapSource"
+
+export const PhongSource = memo(({
+    enabled, diffuseStrength, specularStrength, lightDir, lightAlt,
+    terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
+}: {
+    enabled: boolean
+    diffuseStrength: number
+    specularStrength: number
+    lightDir: number
+    lightAlt: number
+    terrainSource: TerrainSource | string
+    customTerrainSources: CustomTerrainSource[]
+    mapboxKey: string
+    maptilerKey: string
+    titilerEndpoint: string
+}) => {
+    const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
+    if (!enabled || !clientUpstream) return null
+    const url = buildPhongProtocolUrl(diffuseStrength, specularStrength, lightDir, lightAlt, clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize)
+    return (
+        <Source
+            id="phongSource"
+            key={`phongSource-${terrainSource}-${clientUpstream.template}`}
+            type="raster"
+            tiles={[url]}
+            tileSize={clientUpstream.tileSize}
+            minzoom={clientUpstream.minzoom ?? 0}
+            maxzoom={clientUpstream.maxzoom}
+        />
+    )
+})
+PhongSource.displayName = "PhongSource"
 
 // ─── Tells (archaeological mound candidate) source ─────────────────────────────
 //

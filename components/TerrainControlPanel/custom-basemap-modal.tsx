@@ -1,5 +1,6 @@
 import type React from "react"
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useSetAtom } from "jotai"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -8,10 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { type CustomBasemapSource } from "@/lib/settings-atoms"
+import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
 import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
 import { WmsPickerPanel } from "./wms-picker-panel"
 
-type BasemapFormType = "cog" | "tms" | "wms" | "wmts" | "qms" | "tilejson" | "wms-picker"
+type BasemapFormType = "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "tilejson" | "wms-picker"
 
 export const CustomBasemapModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomBasemapSource | null
@@ -35,6 +37,14 @@ export const CustomBasemapModal: React.FC<{
   // close-without-saving so a live-previewed drag doesn't stick if abandoned.
   const originalOpacityRef = useRef(100)
   const savedRef = useRef(false)
+  const [localFileName, setLocalFileName] = useState<string | null>(null)
+  const [localFileWarning, setLocalFileWarning] = useState<string | null>(null)
+  const registerLocalFile = useSetAtom(registerLocalFileAtom)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  // Guards against an in-flight validateLocalCogFile from a previous pick
+  // resolving after (and clobbering the warning for) a newer one — a plain
+  // event handler has no useEffect-style cleanup to cancel it with.
+  const latestFileIdRef = useRef(0)
 
   useEffect(() => {
     // Only (re-)initialize on the open transition — this effect also depends
@@ -52,6 +62,11 @@ export const CustomBasemapModal: React.FC<{
       setRole(editingSource.role ?? "basemap")
       setOpacity(editingSource.opacity ?? 100)
       originalOpacityRef.current = editingSource.opacity ?? 100
+      // Re-opening the modal on an existing "cog-local" source: the File itself
+      // only lives in-memory for the session it was picked in, so after a reload
+      // this is null until the user picks the file again via the button below.
+      setLocalFileName(editingSource.type === "cog-local" ? getLocalFileName(localFileId(editingSource.url)) : null)
+      setLocalFileWarning(null)
     } else {
       setName("")
       setUrl("")
@@ -59,9 +74,41 @@ export const CustomBasemapModal: React.FC<{
       setDescription("")
       setRole("basemap")
       setOpacity(100)
+      setLocalFileName(null)
+      setLocalFileWarning(null)
     }
     savedRef.current = false
   }, [editingSource, isOpen])
+
+  const handleLocalFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = "" // allow re-picking the same filename later without a no-op change event
+    if (!file) return
+    const id = crypto.randomUUID()
+    registerLocalFile({ id, file })
+    setUrl(makeLocalFileUrl(id))
+    setLocalFileName(file.name)
+    setLocalFileWarning(null)
+    if (!name) setName(file.name.replace(/\.(tif|tiff)$/i, ""))
+
+    const thisFileId = ++latestFileIdRef.current
+    validateLocalCogFile(file).then((result) => {
+      if (latestFileIdRef.current !== thisFileId || !result) return
+      if (!result.isTiled) {
+        setLocalFileWarning(
+          "This file is strip-organized, not internally tiled — it isn't a real Cloud-Optimized GeoTIFF, and streaming it in the browser can be very slow or crash on anything but tiny files. Re-export it with GDAL, e.g. gdal_translate -of COG src.tif out_cog.tif.",
+        )
+      } else if (result.epsg !== null && result.epsg !== 3857) {
+        setLocalFileWarning(
+          `This file is in EPSG:${result.epsg}, not Web Mercator (EPSG:3857) — the in-browser COG reader assumes 3857 and doesn't reproject, so its detected bounds/zoom range (and "Fit to bounds") will be wrong. Reproject it first, e.g. gdalwarp -t_srs EPSG:3857 -of COG src.tif out_3857.tif.`,
+        )
+      } else if (!result.hasOverviews) {
+        setLocalFileWarning(
+          "This file has no overviews (only one resolution level) — it'll work, but zoomed-out views will be slower to render since every zoom reads from the same full-resolution data.",
+        )
+      }
+    })
+  }, [name, registerLocalFile])
 
   // Roll back a live-previewed opacity if the dialog closes without Save —
   // fires on the isOpen:true->false transition, whichever way it closes
@@ -142,6 +189,12 @@ export const CustomBasemapModal: React.FC<{
               <SelectContent>
                 <SelectItem value="tms">TMS/XYZ (Raster Tile)</SelectItem>
                 <SelectItem value="cog">COG (Cloud Optimized Geotiff)</SelectItem>
+                {/* Streams straight off the user's disk via a blob: object URL — no
+                    upload, no companion server. Only ever readable via the geomatico
+                    cog:// protocol, and the picked file only lives in this browser
+                    tab's memory — it isn't saved, so it needs re-picking after a
+                    reload (mirrors "Local COG file" on the Terrain Source side). */}
+                <SelectItem value="cog-local">Local COG file (this browser only)</SelectItem>
                 <SelectItem value="wms">Raster (WMS / WMTS)</SelectItem>
                 <SelectItem value="tilejson">TileJSON (Raster Basemap)</SelectItem>
                 {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
@@ -171,23 +224,58 @@ export const CustomBasemapModal: React.FC<{
                   className="cursor-text"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="basemap-url">
-                  URL * {helper_text && <span className="select-text">(hint: {helper_text})</span>}
-                </Label>
-                <Input
-                  id="basemap-url"
-                  type="text"
-                  placeholder={url_placeholder}
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  onBlur={(e) => {
-                    const normalized = normalizeBboxParam(e.target.value);
-                    setUrl(normalized);
-                  }}
-                  className="cursor-text"
-                />
-              </div>
+              {type === "cog-local" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="basemap-local-file">COG file *</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Must be a real COG (Cloud-Optimized GeoTIFF, internally tiled, with
+                    overviews) in CRS EPSG:3857 (Web Mercator) — the in-browser reader
+                    doesn't reproject, so any other CRS will show wrong bounds/zoom.
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    id="basemap-local-file"
+                    type="file"
+                    accept=".tif,.tiff,image/tiff"
+                    className="hidden"
+                    onChange={handleLocalFileChange}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="cursor-pointer">
+                      Choose file…
+                    </Button>
+                    <span className="text-sm text-muted-foreground truncate min-w-0">
+                      {localFileName ?? "No file selected"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Read directly from disk, never uploaded. This browser remembers it
+                    locally between sessions (via OPFS) when that's supported and there's
+                    room — otherwise you'll be asked to re-pick it next time.
+                  </p>
+                  {localFileWarning && (
+                    <p className="text-xs text-amber-600 dark:text-amber-500">{localFileWarning}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="basemap-url">
+                    URL * {helper_text && <span className="select-text">(hint: {helper_text})</span>}
+                  </Label>
+                  <Input
+                    id="basemap-url"
+                    type="text"
+                    placeholder={url_placeholder}
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    onBlur={(e) => {
+                      const normalized = normalizeBboxParam(e.target.value);
+                      setUrl(normalized);
+                    }}
+                    className="cursor-text"
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Use as</Label>
                 <ToggleGroup

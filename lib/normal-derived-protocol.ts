@@ -412,8 +412,8 @@ export interface RunWindowedProtocolParams {
 // checkbox click sits queued behind the whole tile's computation instead of
 // registering immediately. Yielding every YIELD_EVERY_ROWS rows interleaves
 // this work with the rest of the event loop without changing its total cost.
-const YIELD_EVERY_ROWS = 16
-function yieldToMainThread(): Promise<void> {
+export const YIELD_EVERY_ROWS = 16
+export function yieldToMainThread(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 

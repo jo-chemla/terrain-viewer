@@ -13,6 +13,7 @@ import {
   type CustomBasemapSource
 } from "@/lib/settings-atoms"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
+import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import type { MapRef } from "react-map-gl/maplibre"
 import { CustomBasemapModal } from "./custom-basemap-modal"
 import { BasemapBatchEditModal } from "./basemap-batch-edit-modal"
@@ -95,14 +96,20 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       }
       return
     }
-    if (!['cog'].includes(source.type)) return
+    if (!['cog', 'cog-local'].includes(source.type)) return
+    // A local file can only ever stream via the in-browser geomatico protocol —
+    // there's no titiler server that could reach the user's disk — same as the
+    // terrain side ignoring useCogProtocolVsTitiler for "cog-local" sources.
+    const isCogLocal = source.type === 'cog-local'
+    const cogUrl = isCogLocal ? resolveLocalFileUrl(localFileId(source.url)) : source.url
+    if (!cogUrl) return // not (re-)picked yet this session
     try {
-      if (useCogProtocolVsTitiler) {
-        getCogMetadata(source.url).then(metadata => {
+      if (isCogLocal || useCogProtocolVsTitiler) {
+        getCogMetadata(cogUrl).then(metadata => {
           if (metadata.bbox) attemptFitBounds(metadata.bbox, force)
         })
       } else {
-        const infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
+        const infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(cogUrl)}`
         const response = await fetch(infoUrl)
         const data = await response.json()
         const bbox = data.bbox ?? data.properties.bounds

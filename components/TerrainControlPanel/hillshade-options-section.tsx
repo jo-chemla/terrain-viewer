@@ -1,125 +1,217 @@
 import type React from "react"
-import { useMemo, useCallback, useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
-import {SphericalXYPad} from './XYPad'
-import { isHillshadeXYPadOpenAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
-import { useAtom } from "jotai"
+import { Section, CheckboxWithSlider, SliderControl } from "./controls-components"
+import { SphericalXYPad } from './XYPad'
+import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
 
+const MATCAP_IDS = MATCAP_TEXTURES.map((t) => t.id)
+
+// matcapRotationDeg/illuminationDir/illuminationAlt/phongDiffuseStrength/
+// phongSpecularStrength each feed directly into the matcap:// / phong://
+// tile URL (see lib/matcap-protocol.ts, lib/phong-protocol.ts) — every
+// change re-fetches/recomputes every currently-visible tile. Dragging a
+// slider or the XY pad fires many changes per second, so this debounces the
+// actual `setState` call (which is what rebuilds the tile URL) while
+// tracking a LOCAL value for the control itself, so the slider/pad still
+// feels instantly responsive to drag even though the expensive recompute
+// only happens ~150ms after the user stops moving it.
+// `pending` is null whenever there's no in-flight drag — the displayed value
+// is then just the real prop. While dragging, `pending` holds the optimistic
+// local value and only clears once the prop actually catches up to it (not
+// on a fixed timer and not via an unconditional "resync from props" effect,
+// which risks a render loop if the round-tripped prop is ever a fraction off
+// from what was sent — e.g. float precision through a URL-backed store).
+function useDebouncedState(value: number, setValue: (v: number) => void, delayMs = 150) {
+  const [pending, setPending] = useState<number | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (pending !== null && value === pending) setPending(null)
+  }, [value, pending])
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+  const onChange = useCallback((v: number) => {
+    setPending(v)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setValue(v), delayMs)
+  }, [setValue, delayMs])
+  return [pending !== null ? pending : value, onChange] as const
+}
+
+// Same idea as useDebouncedState above, for the XY pad's (azimuthDeg,
+// elevationDeg) pair together.
+function useDebouncedLightDir(azimuthDeg: number, elevationDeg: number, setValue: (v: { azimuthDeg: number; elevationDeg: number }) => void, delayMs = 150) {
+  type Dir = { azimuthDeg: number; elevationDeg: number }
+  const [pending, setPending] = useState<Dir | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (pending !== null && azimuthDeg === pending.azimuthDeg && elevationDeg === pending.elevationDeg) setPending(null)
+  }, [azimuthDeg, elevationDeg, pending])
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+  const onChange = useCallback((v: Dir) => {
+    setPending(v)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setValue(v), delayMs)
+  }, [setValue, delayMs])
+  return [pending !== null ? pending : { azimuthDeg, elevationDeg }, onChange] as const
+}
+
+// "Lighting Effects" houses two independent shading sub-modes, mirroring
+// Relief Visualization's LRM/SVF/Openness pattern (master checkbox+opacity at
+// the top, each sub-mode its own CheckboxWithSlider + detail fields):
+//  - "Matcap" (lib/matcap-protocol.ts): a material-capture lookup by surface
+//    normal, rendered as a plain draped raster tile.
+//  - "Phong" (lib/phong-protocol.ts): real ambient+diffuse+specular shading
+//    from a compass-fixed light, same raster-tile approach.
+// Both are plain `raster` layers draped over 3D terrain automatically —
+// see either protocol module's header for why that made the old hand-written
+// WebGL layer (and its custom mesh/depth-buffer handling) unnecessary.
 export const HillshadeOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void;
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ 
-  state, 
-  setState, 
-  isOpen, 
+}> = ({
+  state,
+  setState,
+  isOpen,
   onOpenChange,
 }) => {
+  const [isLightDirOpen, setIsLightDirOpen] = useState(true)
+
+  const cycleMatcap = useCallback((direction: number) => {
+    const currentIndex = MATCAP_IDS.indexOf(state.matcapTextureId)
+    const newIndex = (currentIndex + direction + MATCAP_IDS.length) % MATCAP_IDS.length
+    setState({ matcapTextureId: MATCAP_IDS[newIndex] })
+  }, [state.matcapTextureId, setState])
+
+  const [matcapRotationDeg, setMatcapRotationDeg] = useDebouncedState(
+    state.matcapRotationDeg, useCallback((v: number) => setState({ matcapRotationDeg: v }), [setState]),
+  )
+  const [phongDiffuseStrength, setPhongDiffuseStrength] = useDebouncedState(
+    state.phongDiffuseStrength, useCallback((v: number) => setState({ phongDiffuseStrength: v }), [setState]),
+  )
+  const [phongSpecularStrength, setPhongSpecularStrength] = useDebouncedState(
+    state.phongSpecularStrength, useCallback((v: number) => setState({ phongSpecularStrength: v }), [setState]),
+  )
+  const [lightDir, setLightDir] = useDebouncedLightDir(
+    state.illuminationDir, state.illuminationAlt,
+    useCallback((v: { azimuthDeg: number; elevationDeg: number }) => setState({ illuminationDir: v.azimuthDeg, illuminationAlt: v.elevationDeg }), [setState]),
+  )
+
   if (!state.showHillshade) return null
 
-  const [isColorsOpen, setIsColorsOpen] = useState(false)
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
-  const [isHillshadeXYPadOpen, setIsHillshadeXYPadOpen] = useAtom(isHillshadeXYPadOpenAtom)
-  const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
-  const hideAdvancedControls = activeProjectConfig?.hiddenSections?.includes("hillshadeAdvanced") ?? false
-
-  const supportsIlluminationDirection = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
-  const supportsIlluminationAltitude = useMemo(() => ["combined", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
-  const supportsShadowColor = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
-  const supportsHighlightColor = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
-  const supportsAccentColor = useMemo(() => state.hillshadeMethod === "standard", [state.hillshadeMethod])
-  const supportsExaggeration = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
-
-  // Set constraints based on what the current method supports
-  // If direction is not supported, fix it to 315° (northwest)
-  // If altitude is not supported, fix it to 45° (mid-elevation)
-  const fixedIlluminationDirection = !supportsIlluminationDirection ? 315 : null
-  const fixedIlluminationAltitude = !supportsIlluminationAltitude ? 45 : null
-
-  const hillshadeMethodOptions = [
-    { value: "combined", label: "Combined [2d]" }, { value: "standard", label: "Standard [1d]" },
-    { value: "multidir-colors", label: "Aspect (Multidir Colors)" }, { value: "igor", label: "Igor [1d]" },
-    { value: "basic", label: "Basic [2d]" },
-    // { value: "aspect-multidir", label: "Aspect classic (Multidir Colors)" },
-  ]
-  const hillshadeMethodKeys = hillshadeMethodOptions.map(({ value }) => value)
-
-  const cycleHillshadeMethod = useCallback((direction: number) => {
-    const currentIndex = hillshadeMethodKeys.indexOf(state.hillshadeMethod)
-    const newIndex = (currentIndex + direction + hillshadeMethodKeys.length) % hillshadeMethodKeys.length
-    setState({ hillshadeMethod: hillshadeMethodKeys[newIndex] })
-  }, [state.hillshadeMethod, hillshadeMethodKeys, setState])
-
-
   return (
-    <Section title="Hillshade" isOpen={isOpen} onOpenChange={onOpenChange}>
-      <div className="space-y-2">
-        <Label className="text-sm font-medium">Hillshade Method</Label>
-        <CycleButtonGroup value={state.hillshadeMethod} options={hillshadeMethodOptions} onChange={(v) => setState({ hillshadeMethod: v })} onCycle={cycleHillshadeMethod} />
-      </div>
-      {/* XY Pad for illumination azimuth and/or elevation */}
-      {(supportsIlluminationDirection || supportsIlluminationAltitude) && (
-        <Collapsible open={isHillshadeXYPadOpen} onOpenChange={setIsHillshadeXYPadOpen}>
-          <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
-             Illumination Azimuth and Elevation<ChevronDown className={`h-4 w-4 transition-transform ${isHillshadeXYPadOpen ? "rotate-180" : ""}`} />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="flex justify-center pt-1 overflow-visible">
-            <SphericalXYPad
-              width={200}
-              height={200}
-              azimuthRange={[0, 360]}
-              // azimuthRange={[-180, 180]}
-              elevationRange={[1, 90]}
-              sliderId="illumination-xypad"
-              value={{ azimuthDeg: state.illuminationDir, elevationDeg: state.illuminationAlt }}
-              onChange={({ azimuthDeg, elevationDeg }) => {
-                setState({ illuminationDir: azimuthDeg, illuminationAlt: elevationDeg })
-              }}
-              // Constrain based on what the current method supports
-              fixedAzimuth={fixedIlluminationDirection}
-              fixedElevation={fixedIlluminationAltitude}
-            />
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-      
-      {/* Individual 1D sliders for illumination — folded by default, since the
-          XY pad above already covers direction+altitude together at a glance;
-          this is for precise numeric entry instead. Same folded-by-default
-          pattern as "Hillshade Colors" below. */}
-      {!hideAdvancedControls && (supportsIlluminationDirection || supportsIlluminationAltitude || supportsExaggeration) && (
-        <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
-          <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
-            Advanced<ChevronDown className={`h-4 w-4 transition-transform ${isAdvancedOpen ? "rotate-180" : ""}`} />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-1 pt-1">
-            {supportsIlluminationDirection && <SliderControl label="Illumination Direction" value={state.illuminationDir} onChange={(v) => setState({ illuminationDir: v })} min={0} max={360} step={1} suffix="°" />}
-            {supportsIlluminationAltitude && <SliderControl label="Illumination Altitude" value={state.illuminationAlt} onChange={(v) => setState({ illuminationAlt: v })} min={0} max={90} step={1} suffix="°" />}
-            {supportsExaggeration && <SliderControl label="Hillshade Exaggeration" value={state.hillshadeExag} onChange={(v) => setState({ hillshadeExag: v })} min={0} max={1} step={0.01} decimals={2} />}
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
-      {/* hillshade colors */}
-      {!hideAdvancedControls && (supportsShadowColor || supportsHighlightColor || supportsAccentColor) && (
-        <Collapsible open={isColorsOpen} onOpenChange={setIsColorsOpen}>
-          <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
-            Hillshade Colors<ChevronDown className={`h-4 w-4 transition-transform ${isColorsOpen ? "rotate-180" : ""}`} />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-1 pt-1">
-            <div className="grid gap-2" style={{ gridTemplateColumns: supportsAccentColor ? "repeat(3, 1fr)" : "repeat(2, 1fr)" }}>
-              {supportsShadowColor && (<div className="space-y-1"><Label className="text-xs">Shadow</Label><Input type="color" value={state.shadowColor} onChange={(e) => setState({ shadowColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
-              {supportsHighlightColor && (<div className="space-y-1"><Label className="text-xs">Highlight</Label><Input type="color" value={state.highlightColor} onChange={(e) => setState({ highlightColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
-              {supportsAccentColor && (<div className="space-y-1"><Label className="text-xs">Accent</Label><Input type="color" value={state.accentColor} onChange={(e) => setState({ accentColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
+    <Section title="Lighting Effects" isOpen={isOpen} onOpenChange={onOpenChange}>
+      <div className="space-y-4">
+        {/* ─── Matcap sub-mode ─── */}
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="lighting-matcap"
+            label="Matcap"
+            tooltip="Shades the terrain surface from a material-capture image (like a 3D sculpting tool) instead of a directional light."
+            checked={state.showMatcap}
+            onCheckedChange={(checked) => setState({ showMatcap: checked })}
+            sliderValue={state.matcapOpacity}
+            onSliderChange={(value) => setState({ matcapOpacity: value })}
+          />
+          {state.showMatcap && (
+            <div className="space-y-3 pl-1">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Material</Label>
+                <div className="flex gap-2">
+                  <Select value={state.matcapTextureId} onValueChange={(value) => setState({ matcapTextureId: value })}>
+                    <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MATCAP_TEXTURES.map((tex) => (
+                        <SelectItem key={tex.id} value={tex.id}>
+                          <div className="flex items-center gap-2">
+                            <img src={tex.url} alt="" className="w-6 h-6 rounded-full object-cover border shrink-0" />
+                            <span>{tex.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex border rounded-md shrink-0">
+                    <Button variant="ghost" size="icon" onClick={() => cycleMatcap(-1)} className="rounded-r-none border-r cursor-pointer">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => cycleMatcap(1)} className="rounded-l-none cursor-pointer">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <SliderControl
+                label="Sphere Rotation"
+                value={matcapRotationDeg}
+                onChange={setMatcapRotationDeg}
+                min={0} max={360} step={1} suffix="°"
+                sliderId="matcap-rotation"
+              />
             </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+          )}
+        </div>
 
+        {/* ─── Phong sub-mode ─── */}
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="lighting-phong"
+            label="Phong"
+            tooltip="Ambient+diffuse+specular shading against the raster basemap as albedo, with a movable light — a physically-flavored alternative to a matcap material."
+            checked={state.showPhong}
+            onCheckedChange={(checked) => setState({ showPhong: checked })}
+            sliderValue={state.phongOpacity}
+            onSliderChange={(value) => setState({ phongOpacity: value })}
+          />
+          {state.showPhong && (
+            <div className="space-y-3 pl-1">
+              <Collapsible open={isLightDirOpen} onOpenChange={setIsLightDirOpen}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+                  Light Direction<ChevronDown className={`h-4 w-4 transition-transform ${isLightDirOpen ? "rotate-180" : ""}`} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="flex justify-center pt-1 overflow-visible">
+                  <SphericalXYPad
+                    width={200}
+                    height={200}
+                    azimuthRange={[0, 360]}
+                    elevationRange={[0, 90]}
+                    sliderId="phong-light-xypad"
+                    value={lightDir}
+                    onChange={setLightDir}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+              <SliderControl
+                label="Albedo (Raster Basemap Opacity)"
+                value={state.rasterBasemapOpacity}
+                onChange={(v) => setState({ rasterBasemapOpacity: v })}
+                min={0} max={1} step={0.05} decimals={2}
+                sliderId="phong-albedo"
+              />
+              <SliderControl
+                label="Diffuse Strength"
+                value={phongDiffuseStrength}
+                onChange={setPhongDiffuseStrength}
+                min={0} max={1} step={0.05} decimals={2}
+                sliderId="phong-diffuse"
+              />
+              <SliderControl
+                label="Specular Strength"
+                value={phongSpecularStrength}
+                onChange={setPhongSpecularStrength}
+                min={0} max={1} step={0.05} decimals={2}
+                sliderId="phong-specular"
+              />
+            </div>
+          )}
+        </div>
+      </div>
     </Section>
   )
 }

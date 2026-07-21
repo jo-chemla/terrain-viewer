@@ -50,14 +50,19 @@ import { blobnessProtocol } from '@/lib/blobness-protocol'
 import { svfProtocol } from '@/lib/svf-protocol'
 import { opennessProtocol } from '@/lib/openness-protocol'
 import { tellsProtocol } from '@/lib/tells-protocol'
+import { normalsProtocol } from '@/lib/normals-protocol'
+import { matcapProtocol } from '@/lib/matcap-protocol'
+import { phongProtocol } from '@/lib/phong-protocol'
+import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, SvfSource, OpennessSource, TellsSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, SvfSource, OpennessSource, TellsSource, MatcapSource, PhongSource } from "./LayersAndSources/MapSources"
 import {
   LayerOrderSlots,
   RasterLayer,
   OverlayBasemapLayers,
   BackgroundLayer,
-  HillshadeLayer,
+  MatcapRasterLayer,
+  PhongRasterLayer,
   ColorReliefLayer,
   SlopeReliefLayer,
   AspectReliefLayer,
@@ -74,7 +79,6 @@ import {
   TellsInspectPopup,
   TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT,
   LAYER_SLOTS,
-  computeHillshadePaint,
   computeColorReliefPaint,
 } from "./LayersAndSources/MapLayers"
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
@@ -101,6 +105,10 @@ const OPENNESS_MODES = ['positive', 'negative'] as const
 const TELLS_STYLES = ['outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
 const TELL_VETO_RESOLUTIONS = ['fine', 'coarse'] as const
 
+function matcapUrlFor(textureId: string): string {
+  return (MATCAP_TEXTURES.find((t) => t.id === textureId) ?? MATCAP_TEXTURES.find((t) => t.id === DEFAULT_MATCAP_ID)!).url
+}
+
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
   const mapBRef = useRef<MapRef>(null)
@@ -118,12 +126,13 @@ export function TerrainViewer() {
   const bumpLocalFileVersion = useSetAtom(localFileVersionAtom)
   // One-shot, on mount: repopulate this session's in-memory local-file-store
   // (see its header comment) from OPFS for every "cog-local" source already
-  // in customTerrainSourcesAtom, so a persisted local COG is usable again
-  // without the "Re-select file…" prompt. Only needs to run once — sources
-  // added *after* mount get their File registered live by the normal pick
-  // flow (custom-terrain-source-modal.tsx), not through this path.
+  // in customTerrainSourcesAtom or customBasemapSourcesAtom, so a persisted
+  // local COG is usable again without the "Re-select file…" prompt. Only
+  // needs to run once — sources added *after* mount get their File registered
+  // live by the normal pick flow (custom-terrain-source-modal.tsx /
+  // custom-basemap-modal.tsx), not through this path.
   useEffect(() => {
-    const ids = customTerrainSources
+    const ids = [...customTerrainSources, ...customBasemapSources]
       .filter((s) => s.type === "cog-local")
       .map((s) => localFileId(s.url))
     if (ids.length === 0) return
@@ -181,8 +190,33 @@ export function TerrainViewer() {
     overlayBasemapIds: parseAsArrayOf(parseAsString).withDefault([]),
     // colorRamp: parseAsString.withDefault("mby"),
     colorRamp: parseAsStringLiteral(COLOR_RAMP_IDS).withDefault("mby"),
+    // "Lighting Effects" viz mode — master toggle/opacity, housing two
+    // sub-modes: Matcap first, Phong second (see hillshade-options-section.tsx).
+    // Composites (multiplies) with each sub-mode's own opacity below, same
+    // master-vs-submode pattern as Relief Visualization's LRM/SVF/Openness.
     showHillshade: parseAsBoolean.withDefault(true),
     hillshadeOpacity: parseAsFloat.withDefault(1.0),
+    // "Matcap" sub-mode (lib/matcap-protocol.ts) — a plain raster overlay
+    // (draped over 3D terrain the same automatic way the raster basemap is)
+    // that looks up color from a material-capture image using the surface
+    // normal as UV, instead of a directional light.
+    showMatcap: parseAsBoolean.withDefault(false),
+    matcapOpacity: parseAsFloat.withDefault(1.0),
+    matcapTextureId: parseAsString.withDefault(DEFAULT_MATCAP_ID),
+    // "Sphere Rotation" — spins the matcap lookup independently of the map's
+    // own bearing (a raster tile is baked once per z/x/y, so it can't track
+    // live bearing the way a real-time GPU shader could).
+    matcapRotationDeg: parseAsFloat.withDefault(0),
+    // "Phong" sub-mode (lib/phong-protocol.ts) — a plain raster overlay doing
+    // real ambient+diffuse+specular shading from a compass-fixed light
+    // (state.illuminationDir/illuminationAlt below — the same fields the
+    // on-map "hold L, drag" light control uses). Albedo intentionally has no
+    // field of its own — it reuses rasterBasemapOpacity directly, per the
+    // request that spawned this ("Albedo (raster basemap opacity)").
+    showPhong: parseAsBoolean.withDefault(false),
+    phongOpacity: parseAsFloat.withDefault(1.0),
+    phongDiffuseStrength: parseAsFloat.withDefault(0.8),
+    phongSpecularStrength: parseAsFloat.withDefault(0.2),
     showColorRelief: parseAsBoolean.withDefault(false),
     colorReliefOpacity: parseAsFloat.withDefault(0.35),
     // Master toggles for what used to be one merged "Slope and More" viz mode,
@@ -375,12 +409,6 @@ export function TerrainViewer() {
 
 
   const [skyConfig] = useAtom(skyConfigAtom)
-
-  // Compute hillshade paint with useMemo to prevent recalculation
-  const hillshadePaint = useMemo(
-    () => computeHillshadePaint(state),
-    [ state.hillshadeMethod, state.illuminationDir, state.illuminationAlt, state.hillshadeOpacity, state.shadowColor, state.highlightColor, state.hillshadeExag, state.accentColor ]
-  )
 
   const colorReliefPaint = useMemo(
     () => computeColorReliefPaint(state),
@@ -589,6 +617,18 @@ export function TerrainViewer() {
     maplibregl.addProtocol('svf', withTileResultCache(svfProtocol))
     maplibregl.addProtocol('openness', withTileResultCache(opennessProtocol))
     maplibregl.addProtocol('tells', withTileResultCache(tellsProtocol))
+    // Not wrapped in withTileResultCache — this is a debug-only registration,
+    // not consumed by any mounted Source (see its own header comment):
+    // pointing a plain raster Source at `normals://...` visually sanity-
+    // checks a normal map's output independent of matcap:// / phong://'s
+    // own further per-pixel transform of that same normal data.
+    maplibregl.addProtocol('normals', normalsProtocol)
+    // Plain raster protocols, like every derived mode above — see
+    // lib/matcap-protocol.ts / lib/phong-protocol.ts's headers for why these
+    // are CPU-computed raster tiles (draped over 3D terrain automatically,
+    // like the raster basemap) rather than a custom WebGL layer.
+    maplibregl.addProtocol('matcap', withTileResultCache(matcapProtocol))
+    maplibregl.addProtocol('phong', withTileResultCache(phongProtocol))
   }, [])
 
   // Keep the module-level cache flag in sync with the persisted Settings switch
@@ -1247,6 +1287,28 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
+          <MatcapSource
+            enabled={state.showHillshade && state.showMatcap}
+            matcapUrl={matcapUrlFor(state.matcapTextureId)}
+            rotationDeg={state.matcapRotationDeg}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
+          <PhongSource
+            enabled={state.showHillshade && state.showPhong}
+            diffuseStrength={state.phongDiffuseStrength}
+            specularStrength={state.phongSpecularStrength}
+            lightDir={state.illuminationDir}
+            lightAlt={state.illuminationAlt}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
           <LrmSource
             enabled={state.showReliefVisualization}
             radius={state.lrmRadius}
@@ -1361,9 +1423,13 @@ export function TerrainViewer() {
               active={mapALoaded && state.tellsBeta}
             />
           )}
-          <HillshadeLayer
-            showHillshade={state.showHillshade}
-            hillshadePaint={hillshadePaint}
+          <MatcapRasterLayer
+            enabled={state.showHillshade && state.showMatcap}
+            opacity={state.hillshadeOpacity * state.matcapOpacity}
+          />
+          <PhongRasterLayer
+            enabled={state.showHillshade && state.showPhong}
+            opacity={state.hillshadeOpacity * state.phongOpacity}
           />
 
           {/* Contours — self-contained, primary map only */}
@@ -1510,6 +1576,13 @@ export function TerrainViewer() {
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
       state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB, state.overlayBasemapIds,
       state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity, state.showHillshade,
+      // Same "toggle it on but nothing shows until I pan or edit a slider"
+      // desync as the tellsBeta comment below — these plain raster Sources/
+      // Layers only ever refreshed on a map move because none of their own
+      // state was actually in this dependency list.
+      state.showMatcap, state.matcapOpacity, state.matcapTextureId, state.matcapRotationDeg,
+      state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength,
+      state.illuminationDir, state.illuminationAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
       state.showSvf, state.svfRadius, state.showOpenness, state.opennessRadius, state.opennessMode,
@@ -1522,7 +1595,7 @@ export function TerrainViewer() {
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor, state.contourWeight,
       activeBasemapSourceA, activeBasemapSourceB,
-      hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
+      colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, blobnessReliefPaint, svfReliefPaint, opennessReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,

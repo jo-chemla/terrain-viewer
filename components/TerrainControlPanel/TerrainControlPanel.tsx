@@ -415,7 +415,6 @@ export function TerrainControlPanel({
             {!hiddenSections.includes("contour") && (
               <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
             )}
-            <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
             <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
             {!hiddenSections.includes("reliefVisualization") && (
               <ReliefVisualizationOptionsSection
@@ -435,6 +434,10 @@ export function TerrainControlPanel({
                 withSeparator={!showDetectors}
               />
             )}
+            {/* "Lighting Effects" (Matcap + Phong) — positioned after Terrain
+                Analysis and before Background, matching Visualization Modes'
+                own list order. */}
+            <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
           </>
         )}
         {!hiddenSections.includes("terrainAnalysis") && showDetectors && (

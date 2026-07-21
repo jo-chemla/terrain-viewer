@@ -36,7 +36,6 @@ export const VisualizationModesSection: React.FC<{
       {!hideContours && (
         <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} />
       )}
-      <CheckboxWithSlider id="hillshade" checked={state.showHillshade} onCheckedChange={(checked) => setState({ showHillshade: checked })} label="Hillshade" sliderValue={state.hillshadeOpacity} onSliderChange={(value) => setState({ hillshadeOpacity: value })} />
       <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
       {/* What used to be one merged "Slope, LRM and More" toggle is now two —
@@ -64,6 +63,18 @@ export const VisualizationModesSection: React.FC<{
           onSliderChange={(value) => setState({ terrainAnalysisOpacity: value })}
         />
       )}
+      {/* Matcap + Phong, both plain raster overlays draped over 3D terrain
+          automatically — see Options: Lighting Effects for material/light
+          controls. */}
+      <CheckboxWithSlider
+        id="hillshade"
+        checked={state.showHillshade}
+        onCheckedChange={(checked) => setState({ showHillshade: checked })}
+        label="Lighting Effects"
+        tooltip="Matcap and Phong surface shading — see Options: Lighting Effects for both sub-modes."
+        sliderValue={state.hillshadeOpacity}
+        onSliderChange={(value) => setState({ hillshadeOpacity: value })}
+      />
       {state.tellsBeta && (
         <CheckboxWithSlider
           id="tells-visibility"
