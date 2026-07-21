@@ -24,6 +24,7 @@ import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
 import { TooltipIconButton } from "./controls-components"
 import { JsonEditor } from "@/components/ui/json-editor"
+import { ColorThemeSelect } from "@/components/theme-switcher"
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any }> = ({ isOpen, onOpenChange, state, setState }) => {
   const { theme, toggleTheme } = useTheme()
@@ -608,6 +609,16 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 </a>
               </div>
             </div>
+          </div>
+
+          <Separator />
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Color Theme</h3>
+            <p className="text-xs text-muted-foreground">
+              Preset UI color palette (<a href="https://github.com/BankkRoll/tweakcn-theme-picker" target="_blank" rel="noopener noreferrer" className="underline">tweakcn</a>) —
+              light/dark still follows the Theme toggle under Appearance above.
+            </p>
+            <ColorThemeSelect />
           </div>
         </div>
       </DialogContent>
