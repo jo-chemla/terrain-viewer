@@ -36,6 +36,18 @@ export const VisualizationModesSection: React.FC<{
       {!hideContours && (
         <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} />
       )}
+      {/* Native MapLibre hillshade — its own independent viz mode, entirely
+          separate from "Lighting Effects" below. See Options: Hillshade for
+          method/illumination/color controls. */}
+      <CheckboxWithSlider
+        id="hillshade"
+        checked={state.showHillshade}
+        onCheckedChange={(checked) => setState({ showHillshade: checked })}
+        label="Hillshade"
+        tooltip="MapLibre's native hillshade rendering — method (standard/igor/combined/multidirectional/basic), illumination direction/altitude, and colors — see Options: Hillshade."
+        sliderValue={state.hillshadeOpacity}
+        onSliderChange={(value) => setState({ hillshadeOpacity: value })}
+      />
       <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} />
       <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
       {/* What used to be one merged "Slope, LRM and More" toggle is now two —
@@ -63,18 +75,6 @@ export const VisualizationModesSection: React.FC<{
           onSliderChange={(value) => setState({ terrainAnalysisOpacity: value })}
         />
       )}
-      {/* Native MapLibre hillshade — its own independent viz mode, entirely
-          separate from "Lighting Effects" below. See Options: Hillshade for
-          method/illumination/color controls. */}
-      <CheckboxWithSlider
-        id="hillshade"
-        checked={state.showHillshade}
-        onCheckedChange={(checked) => setState({ showHillshade: checked })}
-        label="Hillshade"
-        tooltip="MapLibre's native hillshade rendering — method (standard/igor/combined/multidirectional/basic), illumination direction/altitude, and colors — see Options: Hillshade."
-        sliderValue={state.hillshadeOpacity}
-        onSliderChange={(value) => setState({ hillshadeOpacity: value })}
-      />
       {/* Matcap + Phong, both custom WebGL layers draped over 3D terrain —
           see Options: Lighting Effects for material/light controls. */}
       <CheckboxWithSlider
