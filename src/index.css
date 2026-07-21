@@ -144,6 +144,34 @@
   }
 }
 
+/* Themed scrollbars — otherwise every scrollable panel (sidebar, Settings
+   dialog, Select dropdowns) falls back to the browser's native scrollbar,
+   which is always light-chrome regardless of the active preset/dark-mode.
+   `scrollbar-color` covers Firefox + modern Chromium; the ::-webkit-*
+   pseudo-elements cover Chrome/Safari specifically (scrollbar-color alone
+   doesn't yet style them in every shipping version). Both read the SAME
+   --border/--background tokens every other themed element uses, so this
+   re-colors automatically per preset and per light/dark, no separate
+   dark-mode override needed. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--background);
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
 /* Fix tooltip dark/light theme styling - invert themes */
 /* [data-slot="tooltip-content"] {
   background-color: oklch(0.145 0 0) !important;

@@ -1,0 +1,88 @@
+/* tokyo-night — sourced from themux.vercel.app (github.com/llanesluis/themux, src/lib/presets.ts) */
+
+/* Light mode */
+[data-theme="tokyo-night-light"] {
+  --background: oklch(0.9289 0.0081 278.63);
+  --foreground: oklch(0.3598 0.0529 273.42);
+  --card: oklch(0.8827 0.0098 273.34);
+  --card-foreground: oklch(0.3598 0.0529 273.42);
+  --popover: oklch(0.9289 0.0081 278.63);
+  --popover-foreground: oklch(0.3598 0.0529 273.42);
+  --primary: oklch(0.4659 0.2297 290.14);
+  --primary-foreground: oklch(0.9289 0.0081 278.63);
+  --secondary: oklch(0.5623 0.2132 9.98);
+  --secondary-foreground: oklch(0.9702 0 89.88);
+  --muted: oklch(0.7976 0.0638 264.99);
+  --muted-foreground: oklch(0.4086 0.0546 267.71);
+  --accent: oklch(0.7816 0.0995 19.55);
+  --accent-foreground: oklch(0.296 0.0845 23.83);
+  --destructive: oklch(0.4796 0.0999 9.52);
+  --destructive-foreground: oklch(0.9289 0.0081 278.63);
+  --border: oklch(0.8083 0.0174 271.2);
+  --input: oklch(0.7641 0.0282 269.58);
+  --ring: oklch(0.4659 0.2297 290.14);
+  --chart-1: oklch(0.4762 0.1402 260.22);
+  --chart-2: oklch(0.7953 0.1395 130.14);
+  --chart-3: oklch(0.5231 0.1044 71.02);
+  --chart-4: oklch(0.4925 0.091 222.06);
+  --chart-5: oklch(0.4359 0.1278 296.92);
+  --sidebar: oklch(0.8827 0.0098 273.34);
+  --sidebar-foreground: oklch(0.3598 0.0529 273.42);
+  --sidebar-primary: oklch(0.4659 0.2297 290.14);
+  --sidebar-primary-foreground: oklch(0.9289 0.0081 278.63);
+  --sidebar-accent: oklch(0.7816 0.0995 19.55);
+  --sidebar-accent-foreground: oklch(0.296 0.0845 23.83);
+  --sidebar-border: oklch(0.8083 0.0174 271.2);
+  --sidebar-ring: oklch(0.4659 0.2297 290.14);
+  --radius: 0.25rem;
+  --font-sans: JetBrains Mono, ui-monospace, monospace;
+  --font-serif: IBM Plex Serif, ui-serif, serif;
+  --font-mono: JetBrains Mono, ui-monospace, monospace;
+  --shadow-color: #385f0d;
+  --shadow-opacity: 0.1;
+  --shadow-blur: 6px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 1px;
+  --shadow-offset-y: 1px;
+}
+
+/* Dark mode */
+[data-theme="tokyo-night-dark"] {
+  --background: oklch(0.2263 0.0214 280.49);
+  --foreground: oklch(0.8456 0.0611 274.76);
+  --card: oklch(0.2819 0.0355 274.75);
+  --card-foreground: oklch(0.8456 0.0611 274.76);
+  --popover: oklch(0.3012 0.0324 284.29);
+  --popover-foreground: oklch(0.9067 0 89.88);
+  --primary: oklch(0.5623 0.2132 9.98);
+  --primary-foreground: oklch(0.9702 0 89.88);
+  --secondary: oklch(0.7515 0.1344 299.5);
+  --secondary-foreground: oklch(0.2263 0.0214 280.49);
+  --muted: oklch(0.3287 0.0409 278.16);
+  --muted-foreground: oklch(0.7666 0.0537 275.49);
+  --accent: oklch(0.4359 0.1278 296.92);
+  --accent-foreground: oklch(0.8456 0.0611 274.76);
+  --destructive: oklch(0.7227 0.1589 10.28);
+  --destructive-foreground: oklch(0.2263 0.0214 280.49);
+  --border: oklch(0.2914 0.0427 274.08);
+  --input: oklch(0.399 0.0592 305.44);
+  --ring: oklch(0.6088 0.2236 17.31);
+  --chart-1: oklch(0.7953 0.1395 130.14);
+  --chart-2: oklch(0.787 0.1373 50.56);
+  --chart-3: oklch(0.7839 0.1057 75.43);
+  --chart-4: oklch(0.719 0.1322 264.2);
+  --chart-5: oklch(0.7537 0.1243 213.18);
+  --sidebar: oklch(0.2819 0.0355 274.75);
+  --sidebar-foreground: oklch(0.8456 0.0611 274.76);
+  --sidebar-primary: oklch(0.5623 0.2132 9.98);
+  --sidebar-primary-foreground: oklch(0.9702 0 89.88);
+  --sidebar-accent: oklch(0.4359 0.1278 296.92);
+  --sidebar-accent-foreground: oklch(0.8456 0.0611 274.76);
+  --sidebar-border: oklch(0.3277 0.047 273.6);
+  --sidebar-ring: oklch(0.6088 0.2236 17.31);
+  --radius: 0.25rem;
+  --font-sans: JetBrains Mono, ui-monospace, monospace;
+  --font-serif: IBM Plex Serif, ui-serif, serif;
+  --font-mono: JetBrains Mono, ui-monospace, monospace;
+  --shadow-color: #cfc9c2;
+}

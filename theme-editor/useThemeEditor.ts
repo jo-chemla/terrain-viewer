@@ -3,7 +3,10 @@ import { TOKEN_GROUPS, SHADOW_BASE_KEYS, COLOR_TOKEN_KEYS } from "./token-schema
 import { deriveShadowTiers, shadowVarName, SHADOW_TIER_KEYS, type ShadowBase } from "./shadow-formula"
 import { parseColorToOklch, formatOklch } from "./color-math"
 import { randomizeColors, randomizeOthers } from "./randomize"
-import { DEFAULT_BASIC_OPTIONS, buildBasicPalette, buildStyleValues, findStyle, type BasicOptions } from "./basic-presets"
+import {
+  DEFAULT_BASIC_OPTIONS, buildBasicPalette, buildStyleValues, findStyle, type BasicOptions,
+  STYLE_PRESETS, BASE_COLOR_FAMILIES, NAMED_HUES, MENU_ACCENT_LEVELS,
+} from "./basic-presets"
 
 export function parseNum(value: string): number {
   const m = value.match(/-?[\d.]+/)
@@ -62,10 +65,35 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
   // "the current deliberate palette", not always back to the original preset.
   const baselineRef = useRef<Record<string, string>>(values)
 
+  // Read inside the observer callback below via a ref (not the `themeName`
+  // state directly) — the effect that creates the observer only re-runs when
+  // target/themeAttribute/readAll/allKeys change, so a closure over the state
+  // value itself would go stale the moment themeName updates without the
+  // observer being recreated.
+  const themeNameRef = useRef(themeName)
+  themeNameRef.current = themeName
+
   useEffect(() => {
     if (!target || typeof MutationObserver === "undefined") return
     const observer = new MutationObserver(() => {
-      setThemeName(bareThemeName(target.getAttribute(themeAttribute)))
+      const nextBareName = bareThemeName(target.getAttribute(themeAttribute))
+      // Only clear inline overrides when the PRESET NAME itself actually
+      // changed (a plain preset dropdown, or this panel's own "Load Preset"
+      // picker) — that means "start fresh from this preset," so any inline
+      // --token overrides left over from edits made to the PREVIOUS preset
+      // must go first, or they'd keep outranking the new preset's
+      // [data-theme="…"] stylesheet rule for whichever tokens were touched.
+      // A SAME-name attribute change is just a light/dark flip — notably the
+      // one this panel's OWN Randomize/Shuffle triggers via onModeChange
+      // after already applying a fresh palette — and must NOT clear anything,
+      // or every self-triggered mode flip would immediately wipe the colors
+      // Randomize/Shuffle just set, snapping back to the old preset's stale
+      // stylesheet values a moment later.
+      if (nextBareName !== themeNameRef.current) {
+        for (const key of allKeys) target.style.removeProperty(`--${key}`)
+        for (const tier of SHADOW_TIER_KEYS) target.style.removeProperty(shadowVarName(tier))
+      }
+      setThemeName(nextBareName)
       const snapshot = readAll()
       setValues(snapshot)
       baselineRef.current = snapshot
@@ -73,7 +101,7 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
     })
     observer.observe(target, { attributes: true, attributeFilter: [themeAttribute] })
     return () => observer.disconnect()
-  }, [target, themeAttribute, readAll])
+  }, [target, themeAttribute, readAll, allKeys])
 
   const applyDerivedShadows = useCallback((next: Record<string, string>) => {
     if (!target) return
@@ -155,23 +183,61 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
   const basicOptionsRef = useRef(basicOptions)
   basicOptionsRef.current = basicOptions
 
+  // Which Basic-mode fields shuffleBasic() should leave untouched — same idea
+  // as ui.shadcn.com/create's per-property lock icons next to its own Shuffle
+  // action. All unlocked by default.
+  const [locks, setLocks] = useState<Record<keyof BasicOptions, boolean>>({
+    style: false, baseColor: false, theme: false, chartColor: false, radius: false, menuSolid: false, menuAccent: false,
+  })
+  const toggleLock = useCallback((key: keyof BasicOptions) => {
+    setLocks((prev) => ({ ...prev, [key]: !prev[key] }))
+  }, [])
+
   // Derives the full palette + style-bundled font/radius/shadow values from
   // the small Basic-mode control set (see basic-presets.ts) and applies it
   // live, same as randomize() — becomes the new HSL-adjust baseline too, so
   // Adjust sliders shift the derived palette rather than whatever preset was
   // active before Basic mode was touched. Side effects run here, in the
   // callback body — NOT inside the setBasicOptionsState updater, which
-  // should stay a pure function of its previous state.
-  const setBasicOption = useCallback((patch: Partial<BasicOptions>) => {
+  // should stay a pure function of its previous state. `forcedIsDark` lets
+  // shuffleBasic() below pin an explicit coin-flipped mode instead of the
+  // default heuristic (infer from the CURRENT background) — a single field
+  // edit (e.g. changing just "Theme") should never flip mode on its own, but
+  // a full shuffle needs to decide it fresh rather than inherit whatever the
+  // panel happened to be showing before.
+  const setBasicOption = useCallback((patch: Partial<BasicOptions>, forcedIsDark?: boolean) => {
     const next = { ...basicOptionsRef.current, ...patch }
     setBasicOptionsState(next)
     if (!target) return
-    const isDark = parseColorToOklch(values.background || "oklch(0.98 0 0)").l < 0.5
+    const isDark = forcedIsDark ?? parseColorToOklch(values.background || "oklch(0.98 0 0)").l < 0.5
     const fullPatch = { ...buildBasicPalette(next, isDark), ...buildStyleValues(findStyle(next.style)), radius: `${next.radius}rem` }
     applyValues(fullPatch)
     baselineRef.current = { ...baselineRef.current, ...fullPatch }
     setAdjustState(IDENTITY_ADJUST)
   }, [target, values.background, applyValues])
+
+  // Randomizes only the UNLOCKED Basic-mode fields, leaving locked ones at
+  // their current value — reuses setBasicOption for the actual derivation/
+  // apply step, same as any other Basic-mode edit. Also coin-flips light vs
+  // dark itself (same idea as the old raw randomize() below) and returns the
+  // isDark it picked, so the panel's single remaining shuffle button can keep
+  // the host app's own light/dark toggle in sync — this is now the ONLY
+  // randomize action the panel exposes, so it needs to own that responsibility
+  // rather than leaving mode permanently wherever it last was.
+  const shuffleBasic = useCallback((): boolean => {
+    const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)]
+    const isDark = Math.random() < 0.5
+    const patch: Partial<BasicOptions> = {}
+    if (!locks.style) patch.style = pick(STYLE_PRESETS).name
+    if (!locks.baseColor) patch.baseColor = pick(BASE_COLOR_FAMILIES).name
+    if (!locks.theme) patch.theme = pick(NAMED_HUES).name
+    if (!locks.chartColor) patch.chartColor = pick(NAMED_HUES).name
+    if (!locks.radius) patch.radius = Math.round((Math.random() * 1.5) / 0.05) * 0.05
+    if (!locks.menuSolid) patch.menuSolid = Math.random() < 0.5
+    if (!locks.menuAccent) patch.menuAccent = pick(MENU_ACCENT_LEVELS)
+    setBasicOption(patch, isDark)
+    return isDark
+  }, [locks, setBasicOption])
 
   const reset = useCallback(() => {
     if (!target) return
@@ -227,5 +293,5 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
     return { css, copied: false }
   }, [buildCss, themeName])
 
-  return { values, setValue, themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust, resetAdjust, randomize, basicOptions, setBasicOption }
+  return { values, setValue, themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust, resetAdjust, randomize, basicOptions, setBasicOption, locks, toggleLock, shuffleBasic }
 }

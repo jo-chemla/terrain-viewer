@@ -115,7 +115,7 @@ again. If you want to keep an edit, use Copy CSS or Save (via `onSaveTheme`)
 import { ThemeEditorPanel, useThemeEditor, TOKEN_GROUPS } from "./theme-editor"
 ```
 
-- `<ThemeEditorPanel onClose={...} target={el} themeAttribute="data-theme" defaultPosition={{x,y}} onSaveTheme={...} onModeChange={...} />`
+- `<ThemeEditorPanel onClose={...} target={el} themeAttribute="data-theme" defaultPosition={{x,y}} onSaveTheme={...} onModeChange={...} presetGroups={...} onLoadPreset={...} />`
   — the whole UI. `target`/`themeAttribute` are optional (default to `<html>`
   / `"data-theme"`). `onSaveTheme?(name, css)` hooks up your own persistence
   for the Save button (omit to hide it). `onModeChange?(isDark)` — this
@@ -125,11 +125,24 @@ import { ThemeEditorPanel, useThemeEditor, TOKEN_GROUPS } from "./theme-editor"
   compare-and-toggle — mashing the dice button fires faster than React
   re-renders, so a toggle based on comparing against your own state can read
   it stale and drift out of sync with what was actually just randomized.
+  `presetGroups?: { label, options: { value, label }[] }[]` + `onLoadPreset?
+  (value)` add a "Load Preset" picker to the Basic section — this package has
+  no built-in preset library, so the host app supplies its own named list;
+  `onLoadPreset` should just switch your app's own active theme (e.g. flip
+  whatever sets your `data-theme` attribute) — the panel's own
+  `MutationObserver` on that attribute re-snapshots every token automatically,
+  the same way it already reacts to any other external preset picker. Omit
+  both to hide the picker.
 - `useThemeEditor({ target?, themeAttribute? })` — the engine without the UI,
   if you want to build your own panel: returns `{ values, setValue,
   themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust,
-  resetAdjust, randomize, basicOptions, setBasicOption }`. `randomize()`
-  returns the `isDark` it picked.
+  resetAdjust, randomize, basicOptions, setBasicOption, locks, toggleLock,
+  shuffleBasic }`. `randomize()` returns the `isDark` it picked. `locks:
+  Record<keyof BasicOptions, boolean>` + `toggleLock(key)` mark which
+  Basic-mode fields `shuffleBasic()` should leave untouched — same idea as
+  ui.shadcn.com/create's per-property lock icons next to its own Shuffle
+  action; `shuffleBasic()` picks a fresh random value for every unlocked
+  field and applies the result the same way any other Basic-mode edit does.
 - `TOKEN_GROUPS` — the full token schema (grouped `{ id, title, tokens,
   category }[]` — `category: "color"` marks the 11 groups the panel nests
   under one outer "Colors" fold; everything else renders top-level) if you

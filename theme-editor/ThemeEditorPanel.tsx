@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type React from "react"
 import { createPortal } from "react-dom"
-import { Dice5 } from "lucide-react"
+import { Dice5, Lock, Unlock } from "lucide-react"
 import { TOKEN_GROUPS, FONT_PRESETS, fontCategoryForKey } from "./token-schema"
 import type { TokenDef } from "./types"
 import { useThemeEditor, parseNum, type UseThemeEditorOptions } from "./useThemeEditor"
@@ -40,14 +40,27 @@ export type ThemeEditorPanelProps = UseThemeEditorOptions & {
    *  pass this to keep it in sync when Randomize coin-flips a mode. Called
    *  with the mode randomize() just generated colors for. */
   onModeChange?: (isDark: boolean) => void
+  /** Named presets to offer in the Basic section's "Load Preset" picker,
+   *  grouped under a label (e.g. by source site). This package has no
+   *  built-in notion of a preset library (see README) — the host app
+   *  supplies its own list and, via onLoadPreset, its own loading mechanism.
+   *  Omit to hide the picker entirely. */
+  presetGroups?: { label: string; options: { value: string; label: string }[] }[]
+  /** Called with a presetGroups option's `value` when picked. Typically this
+   *  should just switch the HOST APP's own active theme/preset (e.g. call
+   *  through to whatever sets your `data-theme` attribute) — this package's
+   *  own MutationObserver on that attribute (see useThemeEditor.ts) then
+   *  re-snapshots every token automatically, the same way it already reacts
+   *  to any other external preset picker. */
+  onLoadPreset?: (value: string) => void
 }
 
 const colorGroups = TOKEN_GROUPS.filter((g) => g.category === "color")
 const otherGroups = TOKEN_GROUPS.filter((g) => g.category !== "color")
 
-export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onModeChange, ...editorOptions }: ThemeEditorPanelProps) {
+export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onModeChange, presetGroups, onLoadPreset, ...editorOptions }: ThemeEditorPanelProps) {
   useInjectedStyles()
-  const { values, setValue, themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust, resetAdjust, randomize, basicOptions, setBasicOption } = useThemeEditor(editorOptions)
+  const { values, setValue, themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust, resetAdjust, basicOptions, setBasicOption, locks, toggleLock, shuffleBasic } = useThemeEditor(editorOptions)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ primary: true })
   const [colorsOpen, setColorsOpen] = useState(false)
   const [basicOpen, setBasicOpen] = useState(true)
@@ -64,8 +77,13 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
   resetRef.current = reset
   useEffect(() => () => { resetRef.current() }, [])
 
+  // The panel's ONE randomize action — shuffles every unlocked Basic-mode
+  // field (see the lock toggles next to each Basic row) and coin-flips light/
+  // dark itself, so the host app's own toggle always gets kept in sync via
+  // onModeChange rather than sometimes drifting from whatever this just
+  // generated.
   const handleRandomize = () => {
-    const isDark = randomize()
+    const isDark = shuffleBasic()
     onModeChange?.(isDark)
   }
   const [copied, setCopied] = useState(false)
@@ -127,7 +145,7 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
       <div className="tec-header" onPointerDown={startDrag}>
         <span className="tec-title">Theme Editor</span>
         <div className="tec-header-actions">
-          <button type="button" className="tec-icon-btn" onClick={handleRandomize} title="Randomize the whole palette"><Dice5 size={16} /></button>
+          <button type="button" className="tec-icon-btn" onClick={handleRandomize} title="Shuffle unlocked Basic-mode fields (see lock icons below)"><Dice5 size={16} /></button>
           <button type="button" className="tec-icon-btn" onClick={onClose} aria-label="Close">✕</button>
         </div>
       </div>
@@ -140,13 +158,16 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
           </button>
           {basicOpen && (
             <div className="tec-group-body">
-              <SelectRow label="Style" value={basicOptions.style} options={STYLE_PRESETS.map((s) => s.name)} onChange={(v) => setBasicOption({ style: v })} />
-              <SelectRow label="Base Color" value={basicOptions.baseColor} options={BASE_COLOR_FAMILIES.map((b) => b.name)} onChange={(v) => setBasicOption({ baseColor: v })} />
-              <SelectRow label="Theme" value={basicOptions.theme} options={NAMED_HUES.map((h) => h.name)} onChange={(v) => setBasicOption({ theme: v })} />
-              <SelectRow label="Chart Color" value={basicOptions.chartColor} options={NAMED_HUES.map((h) => h.name)} onChange={(v) => setBasicOption({ chartColor: v })} />
-              <SliderRow label="Radius" value={`${basicOptions.radius}`} unit="rem" min={0} max={1.5} step={0.05} onChange={(v) => setBasicOption({ radius: parseNum(v) })} />
-              <SelectRow label="Menu" value={basicOptions.menuSolid ? "Solid" : "Default"} options={["Default", "Solid"]} onChange={(v) => setBasicOption({ menuSolid: v === "Solid" })} />
-              <SelectRow label="Menu Accent" value={basicOptions.menuAccent} options={[...MENU_ACCENT_LEVELS]} onChange={(v) => setBasicOption({ menuAccent: v as BasicOptions["menuAccent"] })} />
+              {presetGroups && presetGroups.length > 0 && onLoadPreset && (
+                <PresetSelectRow label="Load Preset" groups={presetGroups} onChange={onLoadPreset} />
+              )}
+              <SelectRow label="Style" value={basicOptions.style} options={STYLE_PRESETS.map((s) => s.name)} onChange={(v) => setBasicOption({ style: v })} locked={locks.style} onToggleLock={() => toggleLock("style")} />
+              <SelectRow label="Base Color" value={basicOptions.baseColor} options={BASE_COLOR_FAMILIES.map((b) => b.name)} onChange={(v) => setBasicOption({ baseColor: v })} locked={locks.baseColor} onToggleLock={() => toggleLock("baseColor")} />
+              <SelectRow label="Theme" value={basicOptions.theme} options={NAMED_HUES.map((h) => h.name)} onChange={(v) => setBasicOption({ theme: v })} locked={locks.theme} onToggleLock={() => toggleLock("theme")} />
+              <SelectRow label="Chart Color" value={basicOptions.chartColor} options={NAMED_HUES.map((h) => h.name)} onChange={(v) => setBasicOption({ chartColor: v })} locked={locks.chartColor} onToggleLock={() => toggleLock("chartColor")} />
+              <SliderRow label="Radius" value={`${basicOptions.radius}`} unit="rem" min={0} max={1.5} step={0.05} onChange={(v) => setBasicOption({ radius: parseNum(v) })} locked={locks.radius} onToggleLock={() => toggleLock("radius")} />
+              <SelectRow label="Menu" value={basicOptions.menuSolid ? "Solid" : "Default"} options={["Default", "Solid"]} onChange={(v) => setBasicOption({ menuSolid: v === "Solid" })} locked={locks.menuSolid} onToggleLock={() => toggleLock("menuSolid")} />
+              <SelectRow label="Menu Accent" value={basicOptions.menuAccent} options={[...MENU_ACCENT_LEVELS]} onChange={(v) => setBasicOption({ menuAccent: v as BasicOptions["menuAccent"] })} locked={locks.menuAccent} onToggleLock={() => toggleLock("menuAccent")} />
             </div>
           )}
         </div>
@@ -282,7 +303,24 @@ function ColorRow({ label, value, onChange }: { label: string; value: string; on
   )
 }
 
-function SliderRow({ label, value, unit, min, max, step, onChange }: { label: string; value: string; unit: string; min: number; max: number; step: number; onChange: (v: string) => void }) {
+// Shown next to a Basic-mode row when that field is lockable — mirrors
+// ui.shadcn.com/create's per-property lock icons, which shuffleBasic() reads
+// to decide which fields to leave untouched.
+function LockButton({ locked, onToggle }: { locked: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      className="tec-icon-btn"
+      onClick={onToggle}
+      title={locked ? "Locked — won't change on Shuffle" : "Unlocked — will change on Shuffle"}
+      aria-pressed={locked}
+    >
+      {locked ? <Lock size={13} /> : <Unlock size={13} />}
+    </button>
+  )
+}
+
+function SliderRow({ label, value, unit, min, max, step, onChange, locked, onToggleLock }: { label: string; value: string; unit: string; min: number; max: number; step: number; onChange: (v: string) => void; locked?: boolean; onToggleLock?: () => void }) {
   const num = parseNum(value || "0")
   return (
     <div className="tec-row">
@@ -290,18 +328,47 @@ function SliderRow({ label, value, unit, min, max, step, onChange }: { label: st
       <div className="tec-row-control">
         <input type="range" className="tec-slider" min={min} max={max} step={step} value={num} onChange={(e) => onChange(`${e.target.value}${unit}`)} />
         <span className="tec-value">{num}{unit}</span>
+        {onToggleLock && <LockButton locked={!!locked} onToggle={onToggleLock} />}
       </div>
     </div>
   )
 }
 
-function SelectRow({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+function SelectRow({ label, value, options, onChange, locked, onToggleLock }: { label: string; value: string; options: string[]; onChange: (v: string) => void; locked?: boolean; onToggleLock?: () => void }) {
   return (
     <div className="tec-row">
       <label className="tec-row-label">{label}</label>
       <div className="tec-row-control">
         <select className="tec-select" style={{ flex: 1 }} value={value} onChange={(e) => onChange(e.target.value)}>
           {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+        </select>
+        {onToggleLock && <LockButton locked={!!locked} onToggle={onToggleLock} />}
+      </div>
+    </div>
+  )
+}
+
+// Ephemeral picker, same idea as FontRow's "Quick pick…" — always resets to
+// the blank option after firing, since there's no single persistent "current
+// preset" value to reflect back once loaded (loading one changes dozens of
+// tokens at once, any of which the user may then hand-edit).
+function PresetSelectRow({ label, groups, onChange }: { label: string; groups: { label: string; options: { value: string; label: string }[] }[]; onChange: (v: string) => void }) {
+  return (
+    <div className="tec-row">
+      <label className="tec-row-label">{label}</label>
+      <div className="tec-row-control">
+        <select
+          className="tec-select"
+          style={{ flex: 1 }}
+          value=""
+          onChange={(e) => { if (e.target.value) onChange(e.target.value) }}
+        >
+          <option value="">Quick pick…</option>
+          {groups.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </optgroup>
+          ))}
         </select>
       </div>
     </div>
@@ -337,6 +404,14 @@ const PANEL_CSS = `
   font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
   font-size: 13px;
 }
+/* Browsers don't inherit font-family into form controls by default (button/
+   input/select/textarea use the OS UI font instead) — the main app gets this
+   reset for free from Tailwind's Preflight, but this panel is a standalone
+   stylesheet with no Preflight of its own, so every dropdown/button/input in
+   here silently ignored the chosen --font-sans until this was added. */
+.tec-panel button, .tec-panel input, .tec-panel select, .tec-panel textarea {
+  font-family: inherit;
+}
 .tec-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 10px; cursor: grab; user-select: none;
@@ -353,7 +428,18 @@ const PANEL_CSS = `
   font-size: 14px; line-height: 1; padding: 2px 6px; border-radius: 4px;
 }
 .tec-icon-btn:hover { background: var(--accent, #e5e5e5); }
-.tec-body { overflow-y: auto; padding: 4px 0; }
+.tec-body {
+  overflow-y: auto; padding: 4px 0;
+  /* Themed scrollbar, same reasoning as the host app's own (src/index.css) —
+     this panel is a standalone stylesheet with no Tailwind of its own, so it
+     needs its own copy rather than inheriting the app's rule. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border, #ccc) var(--background, #fff);
+}
+.tec-body::-webkit-scrollbar { width: 10px; }
+.tec-body::-webkit-scrollbar-track { background: var(--background, #fff); }
+.tec-body::-webkit-scrollbar-thumb { background: var(--border, #ccc); border-radius: 8px; }
+.tec-body::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground, #888); }
 .tec-group { border-bottom: 1px solid var(--border, #eee); }
 .tec-group-header {
   width: 100%; display: flex; align-items: center; justify-content: space-between;
@@ -382,12 +468,16 @@ const PANEL_CSS = `
   flex: 1; min-width: 0; padding: 3px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px;
   background: var(--background, #fff); color: var(--foreground, #111); font-size: 12px;
 }
-.tec-text-input--mono { font-family: var(--font-mono, ui-monospace, monospace); }
+/* .tec-panel-prefixed so these beat the ".tec-panel input/textarea { font-family:
+   inherit }" reset above on specificity (two classes > one class + one type)
+   rather than depending on declaration order, which a future reordering could
+   silently break. */
+.tec-panel .tec-text-input--mono { font-family: var(--font-mono, ui-monospace, monospace); }
 .tec-textarea {
   width: 100%; box-sizing: border-box; padding: 4px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px;
   background: var(--background, #fff); color: var(--foreground, #111); font-size: 11px;
-  font-family: var(--font-mono, ui-monospace, monospace); resize: vertical;
 }
+.tec-panel .tec-textarea { font-family: var(--font-mono, ui-monospace, monospace); resize: vertical; }
 .tec-select {
   padding: 3px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px;
   background: var(--background, #fff); color: var(--foreground, #111); font-size: 12px;

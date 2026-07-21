@@ -1,0 +1,79 @@
+/* t3-chat-themux — sourced from themux.vercel.app (github.com/llanesluis/themux, src/lib/presets.ts). Meaningfully different palette from this repo's own t3-chat.css (sourced from tweakcn) — kept as a separate theme rather than merged. */
+
+/* Light mode */
+[data-theme="t3-chat-themux-light"] {
+  --background: oklch(0.9824 0.0101 325.65);
+  --foreground: oklch(0.3257 0.1161 325.04);
+  --card: oklch(0.9718 0.0129 321.89);
+  --card-foreground: oklch(0.3963 0.0251 285.2);
+  --popover: oklch(1 0 89.88);
+  --popover-foreground: oklch(0.3257 0.1161 325.04);
+  --primary: oklch(0.6273 0.2072 358.77);
+  --primary-foreground: oklch(1 0 89.88);
+  --secondary: oklch(0.8696 0.0675 334.9);
+  --secondary-foreground: oklch(0.4448 0.1341 324.8);
+  --muted: oklch(0.8024 0.091 345.89);
+  --muted-foreground: oklch(0.4144 0.1027 347.25);
+  --accent: oklch(0.8696 0.0675 334.9);
+  --accent-foreground: oklch(0.4448 0.1341 324.8);
+  --destructive: oklch(0.5272 0.211 8.56);
+  --destructive-foreground: oklch(1 0 89.88);
+  --border: oklch(0.8568 0.0829 328.91);
+  --input: oklch(0.8517 0.0558 336.6);
+  --ring: oklch(0.5916 0.218 0.58);
+  --chart-1: oklch(0.6038 0.2363 344.47);
+  --chart-2: oklch(0.4445 0.2251 300.62);
+  --chart-3: oklch(0.379 0.0438 226.15);
+  --chart-4: oklch(0.833 0.1185 88.35);
+  --chart-5: oklch(0.7843 0.1256 59);
+  --sidebar: oklch(0.9289 0.0312 322.59);
+  --sidebar-foreground: oklch(0.3963 0.0251 285.2);
+  --sidebar-primary: oklch(0.5291 0.2032 1.69);
+  --sidebar-primary-foreground: oklch(0.9851 0 89.88);
+  --sidebar-accent: oklch(0.9789 0.0013 106.42);
+  --sidebar-accent-foreground: oklch(0.3963 0.0251 285.2);
+  --sidebar-border: oklch(0.8397 0.0926 329.37);
+  --sidebar-ring: oklch(0.5291 0.2032 1.69);
+  --radius: 0.5rem;
+  --font-sans: Figtree, ui-sans-serif, sans-serif;
+  --font-mono: JetBrains Mono, ui-monospace, monospace;
+}
+
+/* Dark mode */
+[data-theme="t3-chat-themux-dark"] {
+  --background: oklch(0.2281 0.0204 307.47);
+  --foreground: oklch(0.9807 0.0041 301.43);
+  --card: oklch(0.1548 0.0132 338.9);
+  --card-foreground: oklch(0.9647 0.0091 341.8);
+  --popover: oklch(0.1548 0.0132 338.9);
+  --popover-foreground: oklch(0.9647 0.0091 341.8);
+  --primary: oklch(0.4607 0.1853 4.1);
+  --primary-foreground: oklch(0.9012 0.0572 343.69);
+  --secondary: oklch(0.3137 0.0306 310.06);
+  --secondary-foreground: oklch(0.8483 0.0382 307.96);
+  --muted: oklch(0.2876 0.0274 310.46);
+  --muted-foreground: oklch(0.8803 0.0308 342.7);
+  --accent: oklch(0.3649 0.0508 308.49);
+  --accent-foreground: oklch(0.9647 0.0091 341.8);
+  --destructive: oklch(0.4587 0.1697 3.82);
+  --destructive-foreground: oklch(1 0 89.88);
+  --border: oklch(0.3137 0.0306 310.06);
+  --input: oklch(0.3387 0.0195 332.83);
+  --ring: oklch(0.5916 0.218 0.58);
+  --chart-1: oklch(0.6038 0.2363 344.47);
+  --chart-2: oklch(0.4445 0.2251 300.62);
+  --chart-3: oklch(0.7227 0.1502 60.58);
+  --chart-4: oklch(0.6193 0.2029 312.74);
+  --chart-5: oklch(0.6118 0.2093 6.14);
+  --sidebar: oklch(0.1995 0.0173 335.27);
+  --sidebar-foreground: oklch(0.9674 0.0013 286.38);
+  --sidebar-primary: oklch(0.4251 0.1711 3.76);
+  --sidebar-primary-foreground: oklch(1 0 89.88);
+  --sidebar-accent: oklch(0.2337 0.0261 338.2);
+  --sidebar-accent-foreground: oklch(0.9674 0.0013 286.38);
+  --sidebar-border: oklch(0.2648 0.022 342.85);
+  --sidebar-ring: oklch(0.4251 0.1711 3.76);
+  --radius: 0.5rem;
+  --font-sans: Figtree, ui-sans-serif, sans-serif;
+  --font-mono: JetBrains Mono, ui-monospace, monospace;
+}

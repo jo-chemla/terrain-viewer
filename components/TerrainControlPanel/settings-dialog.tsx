@@ -25,14 +25,33 @@ import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
 import { TooltipIconButton } from "./controls-components"
 import { JsonEditor } from "@/components/ui/json-editor"
-import { ColorThemeSelect } from "@/components/theme-switcher"
+import { ColorThemeSelect, SOURCE_GROUPS } from "@/components/theme-switcher"
+import { useTheme as useColorTheme } from "@/components/theme-provider"
 import { ThemeEditorPanel } from "@/theme-editor"
 import { sortedThemes } from "@/lib/themes-config"
 
+// Built once at module scope (sortedThemes never changes at runtime) — the
+// Basic section's "Load Preset" picker in the advanced theme editor, grouped
+// the same way as ColorThemeSelect's own dropdown for a consistent picture of
+// where each preset came from.
+const PRESET_GROUPS = SOURCE_GROUPS
+  .map((group) => ({
+    label: group.label,
+    options: sortedThemes.filter((t) => (t.source ?? "tweakcn") === group.key).map((t) => ({ value: t.name, label: t.title })),
+  }))
+  .filter((group) => group.options.length > 0)
+
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any }> = ({ isOpen, onOpenChange, state, setState }) => {
   const { theme, toggleTheme, setTheme: setAppTheme } = useTheme()
+  const { setTheme: setColorTheme } = useColorTheme()
   const [showThemeEditor, setShowThemeEditor] = useState(false)
   const setCustomThemes = useSetAtom(customThemesAtom)
+  // The theme-editor package has no built-in preset library (see README) — this
+  // just hands its "Load Preset" picker off to the same setter ColorThemeSelect
+  // uses. That flips this app's own data-theme attribute, which the editor's
+  // MutationObserver (useThemeEditor.ts) already watches and re-snapshots from,
+  // so no extra plumbing is needed on the editor's side.
+  const handleLoadPreset = useCallback((name: string) => setColorTheme(name), [setColorTheme])
   // Auto-suffixes if the name collides with a BUILT-IN preset — otherwise two
   // [data-theme="cyberpunk-light"] rules (the real preset's + a same-named
   // custom save) would exist at once, and Radix Select would have two items
@@ -658,7 +677,15 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </div>
         </div>
       </DialogContent>
-      {showThemeEditor && <ThemeEditorPanel onClose={() => setShowThemeEditor(false)} onSaveTheme={handleSaveTheme} onModeChange={handleModeChange} />}
+      {showThemeEditor && (
+        <ThemeEditorPanel
+          onClose={() => setShowThemeEditor(false)}
+          onSaveTheme={handleSaveTheme}
+          onModeChange={handleModeChange}
+          presetGroups={PRESET_GROUPS}
+          onLoadPreset={handleLoadPreset}
+        />
+      )}
     </Dialog >
   )
 }

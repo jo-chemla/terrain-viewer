@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useAtomValue } from "jotai";
-import { allThemeValues, DEFAULT_THEME } from "@/lib/themes-config";
+import { allThemeValues, DEFAULT_THEME, themeNames } from "@/lib/themes-config";
 import { useTheme as useAppTheme } from "@/lib/controls-utils";
 import { customThemesAtom } from "@/lib/settings-atoms";
 
@@ -20,6 +20,18 @@ type ThemeProviderState = {
 };
 
 const DEFAULT_COLOR_NAME = DEFAULT_THEME.replace(/-(light|dark)$/, "");
+
+// A handful of preset names legitimately end in "-light"/"-dark" themselves
+// (e.g. "sandstone-light", sourced verbatim from shadcnthemes.app) — stripping
+// a trailing "-light"/"-dark" unconditionally would truncate those down to a
+// nonexistent bare name ("sandstone"), silently falling back to the default
+// theme. Only strip when the raw value ISN'T already a known preset name —
+// that's the one case (a stale "<name>-<mode>" combined string from an older
+// version of this integration) the strip is actually meant to clean up.
+function stripStaleModeSuffix(raw: string): string {
+  if (themeNames.includes(raw)) return raw;
+  return raw.replace(/-(light|dark)$/, "");
+}
 
 const initialState: ThemeProviderState = {
   theme: DEFAULT_THEME,
@@ -68,9 +80,7 @@ export function ThemeProvider({
   const [colorName, setColorName] = useState<string>(() => {
     const stored =
       typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
-    // Strips a stale "-light"/"-dark" suffix in case an earlier version of this
-    // integration stored the full combined string.
-    return (stored || defaultTheme).replace(/-(light|dark)$/, "");
+    return stripStaleModeSuffix(stored || defaultTheme);
   });
 
   const theme = `${colorName}-${appTheme}`;
@@ -81,7 +91,7 @@ export function ThemeProvider({
   }, [theme]);
 
   const setTheme = (colorName: string) => {
-    const bareName = colorName.replace(/-(light|dark)$/, "");
+    const bareName = stripStaleModeSuffix(colorName);
     localStorage.setItem(storageKey, bareName);
     setColorName(bareName);
   };
