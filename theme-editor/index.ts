@@ -1,5 +1,6 @@
 export { ThemeEditorPanel, type ThemeEditorPanelProps } from "./ThemeEditorPanel"
-export { useThemeEditor, type UseThemeEditorOptions } from "./useThemeEditor"
-export { TOKEN_GROUPS, FONT_PRESETS } from "./token-schema"
+export { useThemeEditor, type UseThemeEditorOptions, type HslAdjust } from "./useThemeEditor"
+export { TOKEN_GROUPS, FONT_PRESETS, COLOR_TOKEN_KEYS, fontCategoryForKey } from "./token-schema"
 export { deriveShadowTiers, shadowVarName, SHADOW_TIER_KEYS, type ShadowBase } from "./shadow-formula"
 export { hexToOklch, oklchToHex, parseColorToOklch, formatOklch, type Oklch } from "./color-math"
+export { randomizeColors, randomizeOthers } from "./randomize"

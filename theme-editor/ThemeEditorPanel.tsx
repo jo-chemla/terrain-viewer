@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type React from "react"
 import { createPortal } from "react-dom"
-import { TOKEN_GROUPS, FONT_PRESETS } from "./token-schema"
+import { TOKEN_GROUPS, FONT_PRESETS, fontCategoryForKey } from "./token-schema"
 import type { TokenDef } from "./types"
 import { useThemeEditor, parseNum, type UseThemeEditorOptions } from "./useThemeEditor"
 import { hexToOklch, oklchToHex, parseColorToOklch, formatOklch } from "./color-math"
@@ -27,12 +27,20 @@ export type ThemeEditorPanelProps = UseThemeEditorOptions & {
   onClose: () => void
   /** Initial screen position of the panel's top-left corner. */
   defaultPosition?: { x: number; y: number }
+  /** Persistence is deliberately NOT built into this package (see README) —
+   *  pass this to hook up your own storage. Called with the current preset
+   *  name and a ready-to-use CSS string containing BOTH `-light`/`-dark`
+   *  variants (built from whichever single mode is live right now — the
+   *  other variant is a copy, not independently tuned). Omit to hide the
+   *  Save button entirely. */
+  onSaveTheme?: (name: string, css: string) => void
 }
 
-export function ThemeEditorPanel({ onClose, defaultPosition, ...editorOptions }: ThemeEditorPanelProps) {
+export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, ...editorOptions }: ThemeEditorPanelProps) {
   useInjectedStyles()
-  const { values, setValue, themeName, setThemeName, reset, copyCss } = useThemeEditor(editorOptions)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ base: true })
+  const { values, setValue, themeName, setThemeName, reset, copyCss, buildCss, adjust, setAdjust, resetAdjust, randomize } = useThemeEditor(editorOptions)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ primary: true })
+  const [adjustOpen, setAdjustOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [pos, setPos] = useState(defaultPosition ?? { x: 24, y: 24 })
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
@@ -72,6 +80,15 @@ export function ThemeEditorPanel({ onClose, defaultPosition, ...editorOptions }:
     setTimeout(() => { setCopied(false); setCopyFailed(false) }, 1500)
   }
 
+  const [saved, setSaved] = useState(false)
+  const handleSave = () => {
+    if (!onSaveTheme) return
+    const css = `${buildCss(`${themeName}-light`)}\n\n${buildCss(`${themeName}-dark`)}`
+    onSaveTheme(themeName, css)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1500)
+  }
+
   // Portaled to <body> rather than rendered inline — `position: fixed` is only
   // relative to the true viewport when NO ancestor has a transform/filter/
   // will-change/contain (a very common thing for an animated sidebar to have
@@ -82,10 +99,27 @@ export function ThemeEditorPanel({ onClose, defaultPosition, ...editorOptions }:
     <div ref={panelRef} className="tec-panel" style={{ left: pos.x, top: pos.y }}>
       <div className="tec-header" onPointerDown={startDrag}>
         <span className="tec-title">Theme Editor</span>
-        <button type="button" className="tec-icon-btn" onClick={onClose} aria-label="Close">✕</button>
+        <div className="tec-header-actions">
+          <button type="button" className="tec-icon-btn" onClick={randomize} title="Randomize the whole palette">🎲</button>
+          <button type="button" className="tec-icon-btn" onClick={onClose} aria-label="Close">✕</button>
+        </div>
       </div>
 
       <div className="tec-body">
+        <div className="tec-group">
+          <button type="button" className="tec-group-header" onClick={() => setAdjustOpen((v) => !v)}>
+            <span>Adjust (Hue / Saturation / Lightness)</span>
+            <span className={`tec-chevron${adjustOpen ? " tec-chevron--open" : ""}`}>▾</span>
+          </button>
+          {adjustOpen && (
+            <div className="tec-group-body">
+              <SliderRow label="Hue" value={`${adjust.hue}`} unit="°" min={-180} max={180} step={1} onChange={(v) => setAdjust({ ...adjust, hue: parseNum(v) })} />
+              <SliderRow label="Saturation" value={`${adjust.saturation}`} unit="×" min={0} max={2} step={0.05} onChange={(v) => setAdjust({ ...adjust, saturation: parseNum(v) })} />
+              <SliderRow label="Lightness" value={`${adjust.lightness}`} unit="×" min={0.5} max={1.5} step={0.05} onChange={(v) => setAdjust({ ...adjust, lightness: parseNum(v) })} />
+              <button type="button" className="tec-btn" onClick={resetAdjust}>Reset Adjust</button>
+            </div>
+          )}
+        </div>
         {TOKEN_GROUPS.map((group) => {
           const isOpen = openGroups[group.id] ?? false
           return (
@@ -119,10 +153,17 @@ export function ThemeEditorPanel({ onClose, defaultPosition, ...editorOptions }:
           placeholder="theme-name"
           title="Preset name used in the exported CSS selector"
         />
-        <button type="button" className="tec-btn" onClick={reset}>Reset</button>
-        <button type="button" className="tec-btn tec-btn--primary" onClick={handleCopy} title={copyFailed ? "Clipboard write failed — check the console for the CSS" : undefined}>
-          {copied ? "Copied!" : copyFailed ? "Copy failed" : "Copy CSS"}
-        </button>
+        <div className="tec-footer-row">
+          <button type="button" className="tec-btn" onClick={reset}>Reset</button>
+          <button type="button" className="tec-btn" onClick={handleCopy} title={copyFailed ? "Clipboard write failed — check the console for the CSS" : undefined}>
+            {copied ? "Copied!" : copyFailed ? "Copy failed" : "Copy CSS"}
+          </button>
+          {onSaveTheme && (
+            <button type="button" className="tec-btn tec-btn--primary" onClick={handleSave}>
+              {saved ? "Saved!" : "Save"}
+            </button>
+          )}
+        </div>
       </div>
     </div>,
     document.body,
@@ -141,7 +182,7 @@ function TokenRow({ token, value, onChange }: { token: TokenDef; value: string; 
     return <SliderRow label={token.label} value={value} unit={unit} min={token.min ?? 0} max={token.max ?? 1} step={token.step ?? 0.01} onChange={onChange} />
   }
   if (token.type === "font") {
-    return <FontRow label={token.label} value={value} onChange={onChange} />
+    return <FontRow label={token.label} value={value} onChange={onChange} presets={FONT_PRESETS[fontCategoryForKey(token.key)]} />
   }
   return null
 }
@@ -178,13 +219,13 @@ function SliderRow({ label, value, unit, min, max, step, onChange }: { label: st
   )
 }
 
-function FontRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function FontRow({ label, value, onChange, presets }: { label: string; value: string; onChange: (v: string) => void; presets: Record<string, string> }) {
   return (
     <div className="tec-row tec-row--stacked">
       <label className="tec-row-label">{label}</label>
-      <select className="tec-select" value="" onChange={(e) => { if (e.target.value) onChange(FONT_PRESETS[e.target.value]) }}>
+      <select className="tec-select" value="" onChange={(e) => { if (e.target.value) onChange(presets[e.target.value]) }}>
         <option value="">Quick pick…</option>
-        {Object.keys(FONT_PRESETS).map((name) => <option key={name} value={name}>{name}</option>)}
+        {Object.keys(presets).map((name) => <option key={name} value={name}>{name}</option>)}
       </select>
       <textarea className="tec-textarea" value={value} onChange={(e) => onChange(e.target.value)} rows={2} spellCheck={false} />
     </div>
@@ -217,6 +258,7 @@ const PANEL_CSS = `
 }
 .tec-header:active { cursor: grabbing; }
 .tec-title { font-weight: 600; }
+.tec-header-actions { display: flex; align-items: center; gap: 2px; }
 .tec-icon-btn {
   background: transparent; border: none; cursor: pointer; color: inherit;
   font-size: 14px; line-height: 1; padding: 2px 6px; border-radius: 4px;
@@ -255,11 +297,13 @@ const PANEL_CSS = `
 .tec-slider { flex: 1; accent-color: var(--primary, #666); }
 .tec-value { flex: 0 0 auto; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted-foreground, #666); font-size: 11px; }
 .tec-footer {
-  display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 6px; padding: 8px 10px;
   border-top: 1px solid var(--border, #ddd);
   border-radius: 0 0 var(--radius, 0.5rem) var(--radius, 0.5rem);
 }
 .tec-footer .tec-text-input { min-width: 0; }
+.tec-footer-row { display: flex; align-items: center; gap: 6px; }
+.tec-footer-row .tec-btn { flex: 1; }
 .tec-btn {
   padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border, #ccc);
   background: var(--secondary, #eee); color: var(--secondary-foreground, #111);

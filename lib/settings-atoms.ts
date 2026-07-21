@@ -90,6 +90,18 @@ export interface CustomTerrainSource {
 // (e.g. a manual source switch) forces a fresh recompute.
 export const customTerrainSourcesAtom = atomWithStorage<CustomTerrainSource[]>("customTerrainSources", [], undefined, { getOnInit: true })
 export const isByodOpenAtom = atomWithStorage("isByodOpen", true)
+
+export interface CustomTheme {
+  /** Bare color-preset name, same role as a built-in ThemeConfig's `name` — combined
+   *  with the app's own light/dark toggle by theme-provider.tsx, e.g. "my-theme-dark". */
+  name: string
+  /** Raw CSS text: both `[data-theme="<name>-light"]` and `[data-theme="<name>-dark"]`
+   *  blocks, as produced by theme-editor's buildCss() — saved from whichever single
+   *  mode was live when the user hit Save, so both variants currently render identically
+   *  (a known simplification, not a full separately-tuned light/dark pair). */
+  css: string
+}
+export const customThemesAtom = atomWithStorage<CustomTheme[]>("customThemes", [], undefined, { getOnInit: true })
 export interface CustomBasemapSource {
   id: string
   name: string

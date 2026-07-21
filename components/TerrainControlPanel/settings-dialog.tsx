@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useEffect } from "react"
-import { useAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { Moon, Sun, Settings, ExternalLink, Trash2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom,
+  customThemesAtom,
 } from "@/lib/settings-atoms"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { persistLocalCogsAtom } from "@/lib/local-file-store"
@@ -30,6 +31,10 @@ import { ThemeEditorPanel } from "@/theme-editor"
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any }> = ({ isOpen, onOpenChange, state, setState }) => {
   const { theme, toggleTheme } = useTheme()
   const [showThemeEditor, setShowThemeEditor] = useState(false)
+  const setCustomThemes = useSetAtom(customThemesAtom)
+  const handleSaveTheme = useCallback((name: string, css: string) => {
+    setCustomThemes((prev) => [...prev.filter((t) => t.name !== name), { name, css }])
+  }, [setCustomThemes])
   // const theme = state.theme
   // const setTheme = useCallback((v: string) => setState({theme: v}), [setState])
   // const toggleTheme = useCallback(() => setTheme(theme === "light" ? "dark" : "light"), [theme, setTheme])
@@ -631,7 +636,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </div>
         </div>
       </DialogContent>
-      {showThemeEditor && <ThemeEditorPanel onClose={() => setShowThemeEditor(false)} />}
+      {showThemeEditor && <ThemeEditorPanel onClose={() => setShowThemeEditor(false)} onSaveTheme={handleSaveTheme} />}
     </Dialog >
   )
 }

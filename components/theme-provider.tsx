@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { useAtomValue } from "jotai";
 import { allThemeValues, DEFAULT_THEME } from "@/lib/themes-config";
 import { useTheme as useAppTheme } from "@/lib/controls-utils";
+import { customThemesAtom } from "@/lib/settings-atoms";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -26,6 +28,28 @@ const initialState: ThemeProviderState = {
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
+const CUSTOM_THEMES_STYLE_ID = "custom-themes-style";
+
+// Custom themes saved from the theme-editor package's "Save" button (see
+// settings-dialog.tsx's onSaveTheme) live in localStorage as raw CSS text
+// (customThemesAtom, lib/settings-atoms.ts), not as data this component
+// understands — this just concatenates and injects them as a <style> tag so
+// their `[data-theme="<name>-light"]`/`[data-theme="<name>-dark"]` rules
+// exist in the DOM before ColorThemeSelect (or a reload restoring one from
+// localStorage) ever tries to select one.
+function useInjectCustomThemes() {
+  const customThemes = useAtomValue(customThemesAtom);
+  useEffect(() => {
+    let style = document.getElementById(CUSTOM_THEMES_STYLE_ID) as HTMLStyleElement | null;
+    if (!style) {
+      style = document.createElement("style");
+      style.id = CUSTOM_THEMES_STYLE_ID;
+      document.head.appendChild(style);
+    }
+    style.textContent = customThemes.map((t) => t.css).join("\n\n");
+  }, [customThemes]);
+}
+
 // Only the color preset (e.g. "cyberpunk") is stored/tracked here — the light/dark
 // half of the theme string is always derived live from the app's OWN theme toggle
 // (Settings > Appearance > Theme, useTheme() in controls-utils.tsx) rather than
@@ -40,6 +64,7 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const { theme: appTheme } = useAppTheme();
+  useInjectCustomThemes();
   const [colorName, setColorName] = useState<string>(() => {
     const stored =
       typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
