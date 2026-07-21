@@ -10,11 +10,15 @@ import { Section } from "./controls-components"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { useSourceConfig } from "@/lib/controls-utils"
 import { customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { getClientExportSource } from "@/lib/client-export"
-import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint } from "@/lib/elevation-query"
+import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint, sampleClientElevationProfile, type ProfilePoint } from "@/lib/elevation-query"
+import { ElevationProfileChart, computeLineOfSight } from "./elevation-profile-chart"
 import { PlaneSlicerFields } from "./plane-slicer-fields"
+
+const PROFILE_SAMPLES = 160
 
 interface PickedPoint {
   lng: number
@@ -36,6 +40,13 @@ export const ElevationPickerSection: React.FC<{
   const [isActive, setIsActive] = useState(false)
   const [points, setPoints] = useState<PickedPoint[]>([])
   const [drawModeActive, setDrawModeActive] = useState(false)
+  // Profile / line-of-sight sub-tool: samples the DEM along the line between the
+  // two picked points and charts it, flagging terrain that blocks the direct
+  // sight line (with an optional equal mast/pole height at each end).
+  const [profileMode, setProfileMode] = useState(false)
+  const [profilePoints, setProfilePoints] = useState<ProfilePoint[]>([])
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [poleHeight, setPoleHeight] = useState(0)
   const { getTilesUrl } = useSourceConfig()
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const markersRef = useRef<maplibregl.Marker[]>([])
@@ -89,6 +100,62 @@ export const ElevationPickerSection: React.FC<{
       return { elevation: null, error: err instanceof Error ? err.message : "Elevation lookup failed" }
     }
   }, [])
+
+  // Samples PROFILE_SAMPLES elevations along the segment a→b. Routes exactly like
+  // the single-point sampleElevation above so the profile always agrees with a
+  // manual pick: in 3D/globe MapLibre's already-decoded terrain is the source of
+  // truth (queryTerrainElevation per point — cheap, no fetch); in 2D there's no
+  // terrain object, so one batched mosaic covers the whole line (see
+  // sampleClientElevationProfile).
+  const sampleProfile = useCallback(async (
+    a: { lng: number; lat: number }, b: { lng: number; lat: number },
+  ): Promise<ProfilePoint[]> => {
+    const s = stateRef.current
+    const lerp = (t: number) => ({ lng: a.lng + (b.lng - a.lng) * t, lat: a.lat + (b.lat - a.lat) * t })
+
+    let elevations: (number | null)[]
+    if (s.viewMode === "3d" || s.viewMode === "globe") {
+      const map = mapRef.current?.getMap()
+      elevations = map
+        ? Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
+            const { lng, lat } = lerp(i / (PROFILE_SAMPLES - 1))
+            return queryTerrainElevationAtPoint(map, lng, lat, s.exaggeration || 1)
+          })
+        : new Array(PROFILE_SAMPLES).fill(null)
+    } else {
+      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current)
+      elevations = clientSource
+        ? await sampleClientElevationProfile(clientSource, a, b, PROFILE_SAMPLES)
+        : new Array(PROFILE_SAMPLES).fill(null)
+    }
+
+    return elevations.map((elevation, i) => {
+      const { lng, lat } = lerp(i / (PROFILE_SAMPLES - 1))
+      return { lng, lat, elevation, distanceM: turfDistance([a.lng, a.lat], [lng, lat], { units: "meters" }) }
+    })
+  }, [mapRef])
+
+  // Recompute the profile only when the actual line (endpoint coords) changes —
+  // NOT when the two picks' async elevation lookups later resolve (which mutate
+  // `points` without moving the line), hence keying on the coords rather than
+  // depending on `points` directly. pointsRef gives the effect the live coords
+  // without re-subscribing on every points update.
+  const pointsRef = useRef(points)
+  pointsRef.current = points
+  const lineKey = points.length === 2
+    ? `${points[0].lng},${points[0].lat},${points[1].lng},${points[1].lat}`
+    : ""
+  useEffect(() => {
+    if (!profileMode || pointsRef.current.length !== 2) { setProfilePoints([]); return }
+    const [pa, pb] = pointsRef.current
+    let cancelled = false
+    setProfileLoading(true)
+    sampleProfile({ lng: pa.lng, lat: pa.lat }, { lng: pb.lng, lat: pb.lat })
+      .then((pts) => { if (!cancelled) setProfilePoints(pts) })
+      .catch(() => { if (!cancelled) setProfilePoints([]) })
+      .finally(() => { if (!cancelled) setProfileLoading(false) })
+    return () => { cancelled = true }
+  }, [profileMode, lineKey, sampleProfile])
 
   const handleMapClick = useCallback((e: MapMouseEvent) => {
     const map = mapRef.current?.getMap()
@@ -150,8 +217,10 @@ export const ElevationPickerSection: React.FC<{
 
   const handleToggle = useCallback((checked: boolean) => {
     setIsActive(checked)
-    if (!checked) setPoints([])
+    if (!checked) { setPoints([]); setProfilePoints([]) }
   }, [])
+
+  const lineOfSight = profileMode ? computeLineOfSight(profilePoints, poleHeight) : null
 
   const formatElevation = (p: PickedPoint) => {
     if (p.error) return p.error
@@ -231,6 +300,59 @@ export const ElevationPickerSection: React.FC<{
               <span className="font-mono">{delta >= 0 ? "+" : ""}{delta.toFixed(1)} m</span>
             </div>
           )}
+
+          {/* ─── Profile / line of sight ─── */}
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <Label htmlFor="elevation-profile-toggle" className="text-sm font-medium">
+              Line profile / sight
+            </Label>
+            <Switch
+              id="elevation-profile-toggle"
+              checked={profileMode}
+              onCheckedChange={setProfileMode}
+              className="cursor-pointer"
+            />
+          </div>
+
+          {profileMode && (
+            <div className="space-y-2">
+              {points.length < 2 ? (
+                <p className="text-xs text-muted-foreground">
+                  Pick two points to sample the terrain along the line between them.
+                </p>
+              ) : profileLoading ? (
+                <p className="text-xs text-muted-foreground">Sampling terrain along the line…</p>
+              ) : (
+                <>
+                  <ElevationProfileChart points={profilePoints} poleHeightM={poleHeight} />
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="pole-height" className="text-sm font-medium">Mast height</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        id="pole-height"
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={poleHeight}
+                        onChange={(e) => setPoleHeight(Math.max(0, Number(e.target.value) || 0))}
+                        className="h-7 w-16 px-2 text-xs text-right"
+                      />
+                      <span className="text-xs text-muted-foreground">m</span>
+                    </div>
+                  </div>
+                  {lineOfSight && (
+                    <div className={`flex items-center justify-between gap-2 px-2 py-1 rounded text-sm font-medium ${lineOfSight.clear ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-red-500/15 text-red-700 dark:text-red-400"}`}>
+                      <span>Line of sight</span>
+                      <span className="font-mono">
+                        {lineOfSight.clear ? "Clear" : `Blocked by ${lineOfSight.maxIntrusionM.toFixed(1)} m`}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           {points.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => setPoints([])} className="w-full cursor-pointer">
               Clear points

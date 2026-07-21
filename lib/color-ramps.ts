@@ -790,6 +790,25 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // Local Dominance (degrees, Hesse 2016) from lib/local-dominance-protocol.ts —
+  // mean view-angle down onto the surroundings over a distance annulus. Grayscale,
+  // always-opaque, same ambient-occlusion spirit as openness-default: dark = low
+  // dominance (enclosed/looked-down-upon depressions), light = high dominance
+  // (mounds/ridges that dominate their surroundings). Flat ground sits at a small
+  // positive baseline (from the observer's eye height), not zero — hence the
+  // asymmetric default stops rather than a diverging-around-0 ramp.
+  "local-dominance-default": {
+    name: "Local Dominance",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -5, "rgb(20, 20, 35)",
+      0, "rgb(85, 88, 100)",
+      3, "rgb(150, 152, 160)",
+      8, "rgb(215, 218, 222)",
+      15, "rgb(255, 255, 255)",
+    ],
+    continuous: true,
+  },
   // Diverging alternative to openness-default, kept selectable for anyone who
   // prefers a tinted overlay (transparent at flat) over the grayscale look.
   "openness-diverging": {

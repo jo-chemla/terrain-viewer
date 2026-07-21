@@ -49,13 +49,14 @@ import { lrmProtocol } from '@/lib/lrm-protocol'
 import { blobnessProtocol } from '@/lib/blobness-protocol'
 import { svfProtocol } from '@/lib/svf-protocol'
 import { opennessProtocol } from '@/lib/openness-protocol'
+import { localDominanceProtocol } from '@/lib/local-dominance-protocol'
 import { tellsProtocol } from '@/lib/tells-protocol'
 import { normalsProtocol } from '@/lib/normals-protocol'
 import { matcapProtocol } from '@/lib/matcap-protocol'
 import { phongProtocol } from '@/lib/phong-protocol'
 import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, SvfSource, OpennessSource, TellsSource, MatcapSource, PhongSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource } from "./LayersAndSources/MapSources"
 import {
   LayerOrderSlots,
   RasterLayer,
@@ -75,6 +76,7 @@ import {
   BlobnessReliefLayer,
   SvfReliefLayer,
   OpennessReliefLayer,
+  LocalDominanceReliefLayer,
   TellsMarkersLayer,
   TellsUnfilteredLoaderLayer,
   TellsInspectPopup,
@@ -336,6 +338,19 @@ export function TerrainViewer() {
     opennessSymmetric: parseAsBoolean.withDefault(true),
     opennessRadius: parseAsFloat.withDefault(8),
     opennessMode: parseAsStringLiteral(OPENNESS_MODES).withDefault("positive"),
+    // Local Dominance (Hesse 2016) — Relief Visualization mode, see
+    // lib/local-dominance-protocol.ts. Mean downward view angle onto the terrain
+    // over the [min,max]-radius annulus; grayscale, dark=depression/light=mound.
+    // Range in degrees, defaulting to the local-dominance-default ramp's own
+    // stops (small positive baseline on flat ground, hence the asymmetric range).
+    showLocalDominance: parseAsBoolean.withDefault(false),
+    localDominanceOpacity: parseAsFloat.withDefault(1.0),
+    localDominanceColorRamp: parseAsString.withDefault("local-dominance-default"),
+    localDominanceMin: parseAsFloat.withDefault(-5),
+    localDominanceMax: parseAsFloat.withDefault(15),
+    localDominanceInvertColorRamp: parseAsBoolean.withDefault(false),
+    localDominanceMinRadius: parseAsFloat.withDefault(10),
+    localDominanceMaxRadius: parseAsFloat.withDefault(20),
     // Plane Slicer — Tools: Elevation Picker sub-section. Paints one solid color
     // above or below a chosen elevation/LRM-height plane. See PlaneSlicerLayer/
     // computePlaneSlicerPaint in MapLayers.tsx.
@@ -614,6 +629,18 @@ export function TerrainViewer() {
     [ state.opennessColorRamp, state.opennessMin, state.opennessMax, state.opennessOpacity, state.reliefVisualizationOpacity, state.opennessInvertColorRamp ]
   )
 
+  const localDominanceReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.localDominanceColorRamp,
+      customHypsoMinMax: true,
+      minElevation: state.localDominanceMin,
+      maxElevation: state.localDominanceMax,
+      colorReliefOpacity: state.localDominanceOpacity * state.reliefVisualizationOpacity,
+      invertColorRamp: state.localDominanceInvertColorRamp,
+    }),
+    [ state.localDominanceColorRamp, state.localDominanceMin, state.localDominanceMax, state.localDominanceOpacity, state.reliefVisualizationOpacity, state.localDominanceInvertColorRamp ]
+  )
+
   // circle-color expressions for the tells color-by marker styles, built from
   // the SAME ramp/range/invert state as the corresponding Slope-and-More layer
   // (byPlan and byDetHessian both follow the Curvature controls, byLrm follows
@@ -682,6 +709,7 @@ export function TerrainViewer() {
     maplibregl.addProtocol('blobness', withTileResultCache(blobnessProtocol))
     maplibregl.addProtocol('svf', withTileResultCache(svfProtocol))
     maplibregl.addProtocol('openness', withTileResultCache(opennessProtocol))
+    maplibregl.addProtocol('local-dominance', withTileResultCache(localDominanceProtocol))
     maplibregl.addProtocol('tells', withTileResultCache(tellsProtocol))
     // Not wrapped in withTileResultCache — this is a debug-only registration,
     // not consumed by any mounted Source (see its own header comment):
@@ -1402,6 +1430,16 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
+          <LocalDominanceSource
+            enabled={state.showReliefVisualization}
+            minRadius={state.localDominanceMinRadius}
+            maxRadius={state.localDominanceMaxRadius}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
           <MatcapSource
             enabled={state.showLightingEffects && state.showMatcap}
             matcapUrl={matcapUrlFor(state.matcapTextureId)}
@@ -1486,6 +1524,7 @@ export function TerrainViewer() {
           <BlobnessReliefLayer enabled={state.showTerrainAnalysis} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
           <SvfReliefLayer enabled={state.showReliefVisualization} showSvf={state.showSvf} svfReliefPaint={svfReliefPaint} />
           <OpennessReliefLayer enabled={state.showReliefVisualization} showOpenness={state.showOpenness} opennessReliefPaint={opennessReliefPaint} />
+          <LocalDominanceReliefLayer enabled={state.showReliefVisualization} showLocalDominance={state.showLocalDominance} localDominanceReliefPaint={localDominanceReliefPaint} />
           <PlaneSlicerLayer enabled={state.showPlaneSlicer} referenceMode={state.planeSlicerReferenceMode} planeSlicerPaint={planeSlicerPaint} />
           {isPrimary && (
             <TellsMarkersLayer
@@ -1675,6 +1714,7 @@ export function TerrainViewer() {
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
       state.showSvf, state.svfRadius, state.showOpenness, state.opennessRadius, state.opennessMode,
+      state.showLocalDominance, state.localDominanceMinRadius, state.localDominanceMaxRadius,
       state.showPlaneSlicer, state.planeSlicerReferenceMode, planeSlicerPaint,
       // tellsBeta/tellsEverActivated gate the tells layer+source mounts: leaving
       // them out of these deps was the "toggle it on but nothing shows until I
@@ -1686,7 +1726,7 @@ export function TerrainViewer() {
       state.sourceA, state.contourMinor, state.contourMajor, state.contourWeight,
       activeBasemapSourceA, activeBasemapSourceB,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
-      tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, blobnessReliefPaint, svfReliefPaint, opennessReliefPaint,
+      tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, blobnessReliefPaint, svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,
       skyConfig.skyColor, skyConfig.skyHorizonBlend, skyConfig.horizonColor, skyConfig.horizonFogBlend,

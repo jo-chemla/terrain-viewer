@@ -6,6 +6,7 @@ import { reliefVisualizationAdvancedAtom } from "@/lib/settings-atoms"
 import { LrmFields } from "./lrm-options-section"
 import { SvfFields } from "./svf-options-section"
 import { OpennessFields } from "./openness-options-section"
+import { LocalDominanceFields } from "./local-dominance-options-section"
 
 // A plain "⏳" emoji renders as a colored glyph regardless of the surrounding
 // text color — this inline SVG icon inherits currentColor like every other
@@ -91,6 +92,19 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             onSliderChange={(value) => setState({ opennessOpacity: value })}
           />
           {state.showOpenness && advanced && <OpennessFields state={state} setState={setState} tileSize={terrainTileSize} />}
+        </div>
+
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="relief-visualization-local-dominance"
+            label={<SlowModeLabel>Local Dominance</SlowModeLabel>}
+            tooltip="Slow - Mean downward view angle onto the surrounding terrain over a ring of distances (Hesse 2016) — high on mounds/ridges that look down on their surroundings, low in enclosed depressions. Complements Openness for isolating closed mounds and pits."
+            checked={state.showLocalDominance}
+            onCheckedChange={(checked) => setState({ showLocalDominance: checked })}
+            sliderValue={state.localDominanceOpacity}
+            onSliderChange={(value) => setState({ localDominanceOpacity: value })}
+          />
+          {state.showLocalDominance && advanced && <LocalDominanceFields state={state} setState={setState} tileSize={terrainTileSize} />}
         </div>
       </div>
     </Section>

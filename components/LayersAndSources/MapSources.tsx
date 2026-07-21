@@ -24,6 +24,7 @@ import { buildLrmProtocolUrl } from "@/lib/lrm-protocol"
 import { buildBlobnessProtocolUrl } from "@/lib/blobness-protocol"
 import { buildSvfProtocolUrl } from "@/lib/svf-protocol"
 import { buildOpennessProtocolUrl, type OpennessMode } from "@/lib/openness-protocol"
+import { buildLocalDominanceProtocolUrl } from "@/lib/local-dominance-protocol"
 import { buildTellsProtocolUrl, type TellsOptions } from "@/lib/tells-protocol"
 import { buildMatcapProtocolUrl } from "@/lib/matcap-protocol"
 import { buildPhongProtocolUrl } from "@/lib/phong-protocol"
@@ -764,6 +765,19 @@ export const OpennessSource = memo(({ radius, mode, ...props }: Omit<NormalDeriv
     />
 ))
 OpennessSource.displayName = "OpennessSource"
+
+// minRadius/maxRadius are literal same-zoom pixel counts baked into the tile URL
+// (the [min,max] viewing annulus — see lib/local-dominance-protocol.ts); same
+// keySuffix reasoning as SvfSource/OpennessSource above.
+export const LocalDominanceSource = memo(({ minRadius, maxRadius, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { minRadius: number; maxRadius: number }) => (
+    <NormalDerivedSource
+        {...props}
+        sourceId="localDominanceSource"
+        keySuffix={`-${minRadius}-${maxRadius}`}
+        buildUrl={(template, encoding, tileSize) => buildLocalDominanceProtocolUrl(template, encoding, tileSize, minRadius, maxRadius)}
+    />
+))
+LocalDominanceSource.displayName = "LocalDominanceSource"
 
 // ─── Matcap / Phong sources ─────────────────────────────────────────────────────
 //
