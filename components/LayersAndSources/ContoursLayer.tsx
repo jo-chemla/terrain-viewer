@@ -245,6 +245,39 @@ export function ContoursLayer({
   const thresholdsRef = useRef({ contourMinor, contourMajor })
   thresholdsRef.current = { contourMinor, contourMajor }
 
+  // Whether the shared ordering-slot marker layer (LayerOrderSlots in
+  // MapLayers.tsx) has actually committed to the map style yet. The <Layer>
+  // elements below pass beforeId={LAYER_SLOTS.CONTOURS}, and react-map-gl
+  // mounts <Layer> in JSX/effect order — but that doesn't guarantee
+  // LayerOrderSlots' own sibling effect has run first, so on a fresh load
+  // this raced and threw "Cannot add layer 'contour-lines' before
+  // non-existing layer 'slot-contours'". Same race MatcapLayer.tsx/
+  // PhongLayer.tsx hit with their own imperative addLayer calls, fixed there
+  // with an rAF poll before calling addLayer directly; mirrored here for the
+  // declarative case by simply not rendering the <Layer>s until the
+  // precondition is actually met.
+  const [slotReady, setSlotReady] = useState(false)
+  useEffect(() => {
+    if (!mapRef) return
+    const map = mapRef.getMap()
+    if (!map) return
+    let cancelled = false
+    let rafId: number | null = null
+    const poll = () => {
+      if (cancelled) return
+      if (map.getLayer(LAYER_SLOTS.CONTOURS)) {
+        setSlotReady(true)
+        return
+      }
+      rafId = requestAnimationFrame(poll)
+    }
+    poll()
+    return () => {
+      cancelled = true
+      if (rafId !== null) cancelAnimationFrame(rafId)
+    }
+  }, [mapRef])
+
   useEffect(() => {
     return () => {
       if (!mapRef) return
@@ -437,7 +470,7 @@ export function ContoursLayer({
   forceUpdateRef.current = () => setTick((n) => n + 1)
 
   // ── Render ─────────────────────────────────────────────────────────────────
-  if (!initializedRef.current) return null
+  if (!initializedRef.current || !slotReady) return null
 
   return (
     <>
