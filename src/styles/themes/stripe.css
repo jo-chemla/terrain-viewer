@@ -1,0 +1,128 @@
+/* Stripe Theme - Official Stripe brand colors */
+
+/* Light mode */
+[data-theme="stripe-light"] {
+  --background: oklch(0.98 0.006 240);
+  --foreground: oklch(0.22 0.05 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.05 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.05 250);
+  --primary: oklch(0.55 0.25 285);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.008 240);
+  --secondary-foreground: oklch(0.3 0.04 250);
+  --muted: oklch(0.96 0.006 240);
+  --muted-foreground: oklch(0.45 0.03 250);
+  --accent: oklch(0.82 0.14 200);
+  --accent-foreground: oklch(0.22 0.05 200);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.9 0.008 240);
+  --input: oklch(0.92 0.008 240);
+  --ring: oklch(0.55 0.25 285);
+  --chart-1: oklch(0.55 0.25 285);
+  --chart-2: oklch(0.82 0.14 200);
+  --chart-3: oklch(0.65 0.18 320);
+  --chart-4: oklch(0.7 0.15 150);
+  --chart-5: oklch(0.6 0.2 30);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.22 0.05 250);
+  --sidebar-foreground: oklch(0.95 0.006 240);
+  --sidebar-primary: oklch(0.6 0.22 285);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.3 0.05 250);
+  --sidebar-accent-foreground: oklch(0.95 0.006 240);
+  --sidebar-border: oklch(0.35 0.05 250);
+  --sidebar-ring: oklch(0.6 0.22 285);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", monospace;
+  --shadow-color: hsl(220 60% 20%);
+  --shadow-opacity: 0.08;
+  --shadow-blur: 6px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0;
+  --shadow-offset-y: 2px;
+  --letter-spacing: -0.01em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 0 1px 2px 0px hsl(220 60% 20% / 0.04);
+  --shadow-xs: 0 1px 3px 0px hsl(220 60% 20% / 0.06);
+  --shadow-sm:
+    0 2px 4px 0px hsl(220 60% 20% / 0.08),
+    0 1px 2px -1px hsl(220 60% 20% / 0.08);
+  --shadow:
+    0 2px 4px 0px hsl(220 60% 20% / 0.08),
+    0 1px 2px -1px hsl(220 60% 20% / 0.08);
+  --shadow-md:
+    0 4px 8px 0px hsl(220 60% 20% / 0.1), 0 2px 4px -1px hsl(220 60% 20% / 0.1);
+  --shadow-lg:
+    0 8px 16px 0px hsl(220 60% 20% / 0.1), 0 4px 8px -1px hsl(220 60% 20% / 0.1);
+  --shadow-xl:
+    0 16px 24px 0px hsl(220 60% 20% / 0.12),
+    0 8px 12px -1px hsl(220 60% 20% / 0.12);
+  --shadow-2xl: 0 24px 48px 0px hsl(220 60% 20% / 0.2);
+  --tracking-normal: -0.01em;
+}
+
+/* Dark mode - #0A2540 is Stripe's signature navy background */
+[data-theme="stripe-dark"] {
+  --background: oklch(0.22 0.05 250);
+  --foreground: oklch(0.95 0.006 240);
+  --card: oklch(0.26 0.05 250);
+  --card-foreground: oklch(0.95 0.006 240);
+  --popover: oklch(0.28 0.05 250);
+  --popover-foreground: oklch(0.95 0.006 240);
+  --primary: oklch(0.6 0.23 285);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.3 0.05 250);
+  --secondary-foreground: oklch(0.9 0.006 240);
+  --muted: oklch(0.28 0.04 250);
+  --muted-foreground: oklch(0.65 0.02 240);
+  --accent: oklch(0.82 0.14 200);
+  --accent-foreground: oklch(0.22 0.05 200);
+  --destructive: oklch(0.6 0.2 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.35 0.05 250);
+  --input: oklch(0.3 0.05 250);
+  --ring: oklch(0.6 0.23 285);
+  --chart-1: oklch(0.6 0.23 285);
+  --chart-2: oklch(0.82 0.14 200);
+  --chart-3: oklch(0.7 0.16 320);
+  --chart-4: oklch(0.75 0.14 150);
+  --chart-5: oklch(0.65 0.18 30);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.18 0.05 250);
+  --sidebar-foreground: oklch(0.95 0.006 240);
+  --sidebar-primary: oklch(0.6 0.23 285);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.3 0.05 250);
+  --sidebar-accent-foreground: oklch(0.9 0.006 240);
+  --sidebar-border: oklch(0.35 0.05 250);
+  --sidebar-ring: oklch(0.6 0.23 285);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", monospace;
+  --shadow-color: hsl(0 0% 0%);
+  --shadow-opacity: 0.4;
+  --shadow-blur: 6px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0;
+  --shadow-offset-y: 2px;
+  --letter-spacing: -0.01em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 0 1px 2px 0px hsl(0 0% 0% / 0.2);
+  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.3);
+  --shadow-sm:
+    0 2px 4px 0px hsl(0 0% 0% / 0.4), 0 1px 2px -1px hsl(0 0% 0% / 0.4);
+  --shadow: 0 2px 4px 0px hsl(0 0% 0% / 0.4), 0 1px 2px -1px hsl(0 0% 0% / 0.4);
+  --shadow-md:
+    0 4px 8px 0px hsl(0 0% 0% / 0.4), 0 2px 4px -1px hsl(0 0% 0% / 0.4);
+  --shadow-lg:
+    0 8px 16px 0px hsl(0 0% 0% / 0.4), 0 4px 8px -1px hsl(0 0% 0% / 0.4);
+  --shadow-xl:
+    0 16px 24px 0px hsl(0 0% 0% / 0.4), 0 8px 12px -1px hsl(0 0% 0% / 0.4);
+  --shadow-2xl: 0 24px 48px 0px hsl(0 0% 0% / 0.5);
+}

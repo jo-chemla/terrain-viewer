@@ -1,0 +1,126 @@
+/* Starry Night Theme - Auto-generated from tweakcn */
+
+/* Light mode */
+[data-theme="starry-night-light"] {
+  --background: oklch(0.98 0 258.32);
+  --foreground: oklch(0.26 0.04 268.07);
+  --card: oklch(0.93 0.01 251.56);
+  --card-foreground: oklch(0.26 0.04 268.07);
+  --popover: oklch(0.99 0.03 98.05);
+  --popover-foreground: oklch(0.26 0.04 268.07);
+  --primary: oklch(0.48 0.12 263.38);
+  --primary-foreground: oklch(0.99 0.03 98.05);
+  --secondary: oklch(0.86 0.12 81.01);
+  --secondary-foreground: oklch(0.26 0.04 268.07);
+  --muted: oklch(0.92 0.01 106.56);
+  --muted-foreground: oklch(0.48 0.12 263.38);
+  --accent: oklch(0.69 0.07 234.04);
+  --accent-foreground: oklch(0.99 0.03 98.05);
+  --destructive: oklch(0.26 0.04 322.53);
+  --destructive-foreground: oklch(0.99 0.03 98.05);
+  --border: oklch(0.78 0.02 251.19);
+  --input: oklch(0.69 0.07 234.04);
+  --ring: oklch(0.86 0.12 81.01);
+  --chart-1: oklch(0.48 0.12 263.38);
+  --chart-2: oklch(0.86 0.12 81.01);
+  --chart-3: oklch(0.69 0.07 234.04);
+  --chart-4: oklch(0.78 0.02 251.19);
+  --chart-5: oklch(0.26 0.04 322.53);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.93 0.01 251.56);
+  --sidebar-foreground: oklch(0.26 0.04 268.07);
+  --sidebar-primary: oklch(0.48 0.12 263.38);
+  --sidebar-primary-foreground: oklch(0.99 0.03 98.05);
+  --sidebar-accent: oklch(0.86 0.12 81.01);
+  --sidebar-accent-foreground: oklch(0.26 0.04 268.07);
+  --sidebar-border: oklch(0.78 0.02 251.19);
+  --sidebar-ring: oklch(0.86 0.12 81.01);
+  --font-sans: Libre Baskerville, serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  --shadow-color: hsl(0 0% 0%);
+  --shadow-opacity: 0.1;
+  --shadow-blur: 3px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0;
+  --shadow-offset-y: 1px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+  --tracking-normal: 0em;
+}
+
+/* Dark mode */
+[data-theme="starry-night-dark"] {
+  --background: oklch(0.22 0.02 275.84);
+  --foreground: oklch(0.94 0.01 266.7);
+  --card: oklch(0.27 0.04 281.3);
+  --card-foreground: oklch(0.94 0.01 266.7);
+  --popover: oklch(0.27 0.04 281.3);
+  --popover-foreground: oklch(0.91 0.14 95.11);
+  --primary: oklch(0.48 0.12 263.38);
+  --primary-foreground: oklch(0.91 0.14 95.11);
+  --secondary: oklch(0.91 0.14 95.11);
+  --secondary-foreground: oklch(0.27 0.04 281.3);
+  --muted: oklch(0.27 0.04 281.3);
+  --muted-foreground: oklch(0.62 0.04 262.04);
+  --accent: oklch(0.85 0.05 264.78);
+  --accent-foreground: oklch(0.22 0.02 275.84);
+  --destructive: oklch(0.53 0.12 357.11);
+  --destructive-foreground: oklch(0.91 0.14 95.11);
+  --border: oklch(0.31 0.03 281.77);
+  --input: oklch(0.48 0.12 263.38);
+  --ring: oklch(0.91 0.14 95.11);
+  --chart-1: oklch(0.48 0.12 263.38);
+  --chart-2: oklch(0.91 0.14 95.11);
+  --chart-3: oklch(0.69 0.07 234.04);
+  --chart-4: oklch(0.62 0.04 262.04);
+  --chart-5: oklch(0.53 0.12 357.11);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.27 0.04 281.3);
+  --sidebar-foreground: oklch(0.94 0.01 266.7);
+  --sidebar-primary: oklch(0.48 0.12 263.38);
+  --sidebar-primary-foreground: oklch(0.91 0.14 95.11);
+  --sidebar-accent: oklch(0.91 0.14 95.11);
+  --sidebar-accent-foreground: oklch(0.27 0.04 281.3);
+  --sidebar-border: oklch(0.31 0.03 281.77);
+  --sidebar-ring: oklch(0.91 0.14 95.11);
+  --font-sans: Libre Baskerville, serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  --shadow-color: hsl(0 0% 0%);
+  --shadow-opacity: 0.1;
+  --shadow-blur: 3px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0;
+  --shadow-offset-y: 1px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+}

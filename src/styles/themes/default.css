@@ -1,0 +1,4 @@
+/* The "default" theme = the app's own base tokens (index.css :root/.dark). The
+   tweakcn theme-system's index.css @imports "./default.css" but the registry
+   didn't ship one, so this stub satisfies the import; data-theme="default-*"
+   then simply falls through to the app's existing :root/.dark variables. */

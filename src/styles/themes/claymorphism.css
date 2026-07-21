@@ -1,0 +1,129 @@
+/* Claymorphism Theme - Auto-generated from tweakcn */
+
+/* Light mode */
+[data-theme="claymorphism-light"] {
+  --background: oklch(0.92 0 48.72);
+  --foreground: oklch(0.28 0.04 260.03);
+  --card: oklch(0.97 0 106.42);
+  --card-foreground: oklch(0.28 0.04 260.03);
+  --popover: oklch(0.97 0 106.42);
+  --popover-foreground: oklch(0.28 0.04 260.03);
+  --primary: oklch(0.59 0.2 277.12);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.87 0 56.37);
+  --secondary-foreground: oklch(0.45 0.03 256.8);
+  --muted: oklch(0.92 0 48.72);
+  --muted-foreground: oklch(0.55 0.02 264.36);
+  --accent: oklch(0.94 0.03 321.94);
+  --accent-foreground: oklch(0.37 0.03 259.73);
+  --destructive: oklch(0.64 0.21 25.33);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.87 0 56.37);
+  --input: oklch(0.87 0 56.37);
+  --ring: oklch(0.59 0.2 277.12);
+  --chart-1: oklch(0.59 0.2 277.12);
+  --chart-2: oklch(0.51 0.23 276.97);
+  --chart-3: oklch(0.46 0.21 277.02);
+  --chart-4: oklch(0.4 0.18 277.37);
+  --chart-5: oklch(0.36 0.14 278.7);
+  --radius: 1.25rem;
+  --sidebar: oklch(0.87 0 56.37);
+  --sidebar-foreground: oklch(0.28 0.04 260.03);
+  --sidebar-primary: oklch(0.59 0.2 277.12);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.03 321.94);
+  --sidebar-accent-foreground: oklch(0.37 0.03 259.73);
+  --sidebar-border: oklch(0.87 0 56.37);
+  --sidebar-ring: oklch(0.59 0.2 277.12);
+  --font-sans: Plus Jakarta Sans, sans-serif;
+  --font-serif: Lora, serif;
+  --font-mono: Roboto Mono, monospace;
+  --shadow-color: hsl(240 4% 60%);
+  --shadow-opacity: 0.18;
+  --shadow-blur: 10px;
+  --shadow-spread: 4px;
+  --shadow-offset-x: 2px;
+  --shadow-offset-y: 2px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 2px 2px 10px 4px hsl(240 4% 60% / 0.09);
+  --shadow-xs: 2px 2px 10px 4px hsl(240 4% 60% / 0.09);
+  --shadow-sm:
+    2px 2px 10px 4px hsl(240 4% 60% / 0.18),
+    2px 1px 2px 3px hsl(240 4% 60% / 0.18);
+  --shadow:
+    2px 2px 10px 4px hsl(240 4% 60% / 0.18),
+    2px 1px 2px 3px hsl(240 4% 60% / 0.18);
+  --shadow-md:
+    2px 2px 10px 4px hsl(240 4% 60% / 0.18),
+    2px 2px 4px 3px hsl(240 4% 60% / 0.18);
+  --shadow-lg:
+    2px 2px 10px 4px hsl(240 4% 60% / 0.18),
+    2px 4px 6px 3px hsl(240 4% 60% / 0.18);
+  --shadow-xl:
+    2px 2px 10px 4px hsl(240 4% 60% / 0.18),
+    2px 8px 10px 3px hsl(240 4% 60% / 0.18);
+  --shadow-2xl: 2px 2px 10px 4px hsl(240 4% 60% / 0.45);
+  --tracking-normal: 0em;
+}
+
+/* Dark mode */
+[data-theme="claymorphism-dark"] {
+  --background: oklch(0.22 0.01 67.44);
+  --foreground: oklch(0.93 0.01 255.51);
+  --card: oklch(0.28 0.01 59.34);
+  --card-foreground: oklch(0.93 0.01 255.51);
+  --popover: oklch(0.28 0.01 59.34);
+  --popover-foreground: oklch(0.93 0.01 255.51);
+  --primary: oklch(0.68 0.16 276.93);
+  --primary-foreground: oklch(0.22 0.01 67.44);
+  --secondary: oklch(0.34 0.01 59.42);
+  --secondary-foreground: oklch(0.87 0.01 258.34);
+  --muted: oklch(0.28 0.01 59.34);
+  --muted-foreground: oklch(0.71 0.02 261.32);
+  --accent: oklch(0.39 0.01 59.47);
+  --accent-foreground: oklch(0.87 0.01 258.34);
+  --destructive: oklch(0.64 0.21 25.33);
+  --destructive-foreground: oklch(0.22 0.01 67.44);
+  --border: oklch(0.34 0.01 59.42);
+  --input: oklch(0.34 0.01 59.42);
+  --ring: oklch(0.68 0.16 276.93);
+  --chart-1: oklch(0.68 0.16 276.93);
+  --chart-2: oklch(0.59 0.2 277.12);
+  --chart-3: oklch(0.51 0.23 276.97);
+  --chart-4: oklch(0.46 0.21 277.02);
+  --chart-5: oklch(0.4 0.18 277.37);
+  --radius: 1.25rem;
+  --sidebar: oklch(0.34 0.01 59.42);
+  --sidebar-foreground: oklch(0.93 0.01 255.51);
+  --sidebar-primary: oklch(0.68 0.16 276.93);
+  --sidebar-primary-foreground: oklch(0.22 0.01 67.44);
+  --sidebar-accent: oklch(0.39 0.01 59.47);
+  --sidebar-accent-foreground: oklch(0.87 0.01 258.34);
+  --sidebar-border: oklch(0.34 0.01 59.42);
+  --sidebar-ring: oklch(0.68 0.16 276.93);
+  --font-sans: Plus Jakarta Sans, sans-serif;
+  --font-serif: Lora, serif;
+  --font-mono: Roboto Mono, monospace;
+  --shadow-color: hsl(0 0% 0%);
+  --shadow-opacity: 0.18;
+  --shadow-blur: 10px;
+  --shadow-spread: 4px;
+  --shadow-offset-x: 2px;
+  --shadow-offset-y: 2px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 2px 2px 10px 4px hsl(0 0% 0% / 0.09);
+  --shadow-xs: 2px 2px 10px 4px hsl(0 0% 0% / 0.09);
+  --shadow-sm:
+    2px 2px 10px 4px hsl(0 0% 0% / 0.18), 2px 1px 2px 3px hsl(0 0% 0% / 0.18);
+  --shadow:
+    2px 2px 10px 4px hsl(0 0% 0% / 0.18), 2px 1px 2px 3px hsl(0 0% 0% / 0.18);
+  --shadow-md:
+    2px 2px 10px 4px hsl(0 0% 0% / 0.18), 2px 2px 4px 3px hsl(0 0% 0% / 0.18);
+  --shadow-lg:
+    2px 2px 10px 4px hsl(0 0% 0% / 0.18), 2px 4px 6px 3px hsl(0 0% 0% / 0.18);
+  --shadow-xl:
+    2px 2px 10px 4px hsl(0 0% 0% / 0.18), 2px 8px 10px 3px hsl(0 0% 0% / 0.18);
+  --shadow-2xl: 2px 2px 10px 4px hsl(0 0% 0% / 0.45);
+}

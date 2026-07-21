@@ -1,0 +1,134 @@
+/* Kodama Grove Theme - Auto-generated from tweakcn */
+
+/* Light mode */
+[data-theme="kodama-grove-light"] {
+  --background: oklch(0.88 0.05 91.79);
+  --foreground: oklch(0.43 0.03 59.22);
+  --card: oklch(0.89 0.04 87.57);
+  --card-foreground: oklch(0.43 0.03 59.22);
+  --popover: oklch(0.94 0.03 89.85);
+  --popover-foreground: oklch(0.43 0.03 59.22);
+  --primary: oklch(0.67 0.11 118.91);
+  --primary-foreground: oklch(0.99 0.01 88.64);
+  --secondary: oklch(0.85 0.06 91.15);
+  --secondary-foreground: oklch(0.43 0.03 59.22);
+  --muted: oklch(0.85 0.06 91.15);
+  --muted-foreground: oklch(0.58 0.03 60.93);
+  --accent: oklch(0.84 0.07 90.33);
+  --accent-foreground: oklch(0.43 0.03 59.22);
+  --destructive: oklch(0.71 0.1 29.98);
+  --destructive-foreground: oklch(0.98 0.01 91.48);
+  --border: oklch(0.69 0.04 59.84);
+  --input: oklch(0.84 0.07 90.33);
+  --ring: oklch(0.73 0.06 130.85);
+  --chart-1: oklch(0.73 0.06 130.85);
+  --chart-2: oklch(0.68 0.06 132.45);
+  --chart-3: oklch(0.82 0.03 136.65);
+  --chart-4: oklch(0.59 0.05 137.62);
+  --chart-5: oklch(0.52 0.04 137.19);
+  --radius: 0.425rem;
+  --sidebar: oklch(0.86 0.06 90.52);
+  --sidebar-foreground: oklch(0.43 0.03 59.22);
+  --sidebar-primary: oklch(0.73 0.06 130.85);
+  --sidebar-primary-foreground: oklch(0.99 0.01 88.64);
+  --sidebar-accent: oklch(0.92 0.02 88);
+  --sidebar-accent-foreground: oklch(0.43 0.03 59.22);
+  --sidebar-border: oklch(0.91 0.02 88);
+  --sidebar-ring: oklch(0.73 0.06 130.85);
+  --font-sans: Merriweather, serif;
+  --font-serif: Source Serif 4, serif;
+  --font-mono: JetBrains Mono, monospace;
+  --shadow-color: hsl(88 22% 35% / 0.15);
+  --shadow-opacity: 0.15;
+  --shadow-blur: 2px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 3px;
+  --shadow-offset-y: 3px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 3px 3px 2px 0px hsl(88 22% 35% / 0.07);
+  --shadow-xs: 3px 3px 2px 0px hsl(88 22% 35% / 0.07);
+  --shadow-sm:
+    3px 3px 2px 0px hsl(88 22% 35% / 0.15),
+    3px 1px 2px -1px hsl(88 22% 35% / 0.15);
+  --shadow:
+    3px 3px 2px 0px hsl(88 22% 35% / 0.15),
+    3px 1px 2px -1px hsl(88 22% 35% / 0.15);
+  --shadow-md:
+    3px 3px 2px 0px hsl(88 22% 35% / 0.15),
+    3px 2px 4px -1px hsl(88 22% 35% / 0.15);
+  --shadow-lg:
+    3px 3px 2px 0px hsl(88 22% 35% / 0.15),
+    3px 4px 6px -1px hsl(88 22% 35% / 0.15);
+  --shadow-xl:
+    3px 3px 2px 0px hsl(88 22% 35% / 0.15),
+    3px 8px 10px -1px hsl(88 22% 35% / 0.15);
+  --shadow-2xl: 3px 3px 2px 0px hsl(88 22% 35% / 0.38);
+  --tracking-normal: 0em;
+}
+
+/* Dark mode */
+[data-theme="kodama-grove-dark"] {
+  --background: oklch(0.33 0.02 88.07);
+  --foreground: oklch(0.92 0.02 82.12);
+  --card: oklch(0.36 0.02 82.33);
+  --card-foreground: oklch(0.92 0.02 82.12);
+  --popover: oklch(0.36 0.02 82.33);
+  --popover-foreground: oklch(0.92 0.02 82.12);
+  --primary: oklch(0.68 0.06 132.45);
+  --primary-foreground: oklch(0.27 0.01 61.02);
+  --secondary: oklch(0.44 0.02 84.55);
+  --secondary-foreground: oklch(0.92 0.02 82.12);
+  --muted: oklch(0.39 0.02 82.71);
+  --muted-foreground: oklch(0.71 0.02 73.62);
+  --accent: oklch(0.65 0.07 90.76);
+  --accent-foreground: oklch(0.27 0.01 61.02);
+  --destructive: oklch(0.63 0.08 31.3);
+  --destructive-foreground: oklch(0.94 0.02 84.59);
+  --border: oklch(0.44 0.02 84.55);
+  --input: oklch(0.44 0.02 84.55);
+  --ring: oklch(0.68 0.06 132.45);
+  --chart-1: oklch(0.68 0.06 132.45);
+  --chart-2: oklch(0.73 0.06 130.85);
+  --chart-3: oklch(0.59 0.05 137.62);
+  --chart-4: oklch(0.65 0.07 90.76);
+  --chart-5: oklch(0.52 0.04 137.19);
+  --radius: 0.425rem;
+  --sidebar: oklch(0.33 0.02 88.07);
+  --sidebar-foreground: oklch(0.92 0.02 82.12);
+  --sidebar-primary: oklch(0.68 0.06 132.45);
+  --sidebar-primary-foreground: oklch(0.27 0.01 61.02);
+  --sidebar-accent: oklch(0.65 0.07 90.76);
+  --sidebar-accent-foreground: oklch(0.27 0.01 61.02);
+  --sidebar-border: oklch(0.44 0.02 84.55);
+  --sidebar-ring: oklch(0.68 0.06 132.45);
+  --font-sans: Merriweather, serif;
+  --font-serif: Source Serif 4, serif;
+  --font-mono: JetBrains Mono, monospace;
+  --shadow-color: hsl(88 22% 35% / 0.15);
+  --shadow-opacity: 0.15;
+  --shadow-blur: 2px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 3px;
+  --shadow-offset-y: 3px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 3px 3px 2px 0px hsl(88 22% 35% / 0.07);
+  --shadow-xs: 3px 3px 2px 0px hsl(88 22% 35% / 0.07);
+  --shadow-sm:
+    3px 3px 2px 0px hsl(88 22% 35% / 0.15),
+    3px 1px 2px -1px hsl(88 22% 35% / 0.15);
+  --shadow:
+    3px 3px 2px 0px hsl(88 22% 35% / 0.15),
+    3px 1px 2px -1px hsl(88 22% 35% / 0.15);
+  --shadow-md:
+    3px 3px 2px 0px hsl(88 22% 35% / 0.15),
+    3px 2px 4px -1px hsl(88 22% 35% / 0.15);
+  --shadow-lg:
+    3px 3px 2px 0px hsl(88 22% 35% / 0.15),
+    3px 4px 6px -1px hsl(88 22% 35% / 0.15);
+  --shadow-xl:
+    3px 3px 2px 0px hsl(88 22% 35% / 0.15),
+    3px 8px 10px -1px hsl(88 22% 35% / 0.15);
+  --shadow-2xl: 3px 3px 2px 0px hsl(88 22% 35% / 0.38);
+}

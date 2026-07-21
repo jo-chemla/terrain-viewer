@@ -1,0 +1,126 @@
+/* Kick Theme - Official Kick brand colors */
+
+/* Light mode */
+[data-theme="kick-light"] {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.12 0 0);
+  --card: oklch(0.98 0 0);
+  --card-foreground: oklch(0.12 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.12 0 0);
+  --primary: oklch(0.75 0.28 128);
+  --primary-foreground: oklch(0.12 0 0);
+  --secondary: oklch(0.95 0.003 0);
+  --secondary-foreground: oklch(0.2 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.8 0.25 128);
+  --accent-foreground: oklch(0.12 0 0);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.92 0 0);
+  --ring: oklch(0.75 0.28 128);
+  --chart-1: oklch(0.75 0.28 128);
+  --chart-2: oklch(0.65 0.2 180);
+  --chart-3: oklch(0.7 0.18 220);
+  --chart-4: oklch(0.6 0.15 280);
+  --chart-5: oklch(0.55 0.2 340);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.98 0 0);
+  --sidebar-foreground: oklch(0.12 0 0);
+  --sidebar-primary: oklch(0.75 0.28 128);
+  --sidebar-primary-foreground: oklch(0.12 0 0);
+  --sidebar-accent: oklch(0.95 0.003 0);
+  --sidebar-accent-foreground: oklch(0.2 0 0);
+  --sidebar-border: oklch(0.9 0 0);
+  --sidebar-ring: oklch(0.75 0.28 128);
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", monospace;
+  --shadow-color: hsl(130 80% 15%);
+  --shadow-opacity: 0.08;
+  --shadow-blur: 4px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0;
+  --shadow-offset-y: 2px;
+  --letter-spacing: -0.01em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 0 1px 2px 0px hsl(130 80% 15% / 0.04);
+  --shadow-xs: 0 1px 3px 0px hsl(130 80% 15% / 0.06);
+  --shadow-sm:
+    0 2px 4px 0px hsl(130 80% 15% / 0.08),
+    0 1px 2px -1px hsl(130 80% 15% / 0.08);
+  --shadow:
+    0 2px 4px 0px hsl(130 80% 15% / 0.08),
+    0 1px 2px -1px hsl(130 80% 15% / 0.08);
+  --shadow-md:
+    0 4px 6px 0px hsl(130 80% 15% / 0.1), 0 2px 4px -1px hsl(130 80% 15% / 0.1);
+  --shadow-lg:
+    0 8px 10px 0px hsl(130 80% 15% / 0.1), 0 4px 6px -1px hsl(130 80% 15% / 0.1);
+  --shadow-xl:
+    0 16px 20px 0px hsl(130 80% 15% / 0.12),
+    0 8px 10px -1px hsl(130 80% 15% / 0.12);
+  --shadow-2xl: 0 24px 48px 0px hsl(130 80% 15% / 0.2);
+  --tracking-normal: -0.01em;
+}
+
+/* Dark mode - #0D0D0D is Kick's signature black background */
+[data-theme="kick-dark"] {
+  --background: oklch(0.12 0 0);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.15 0.003 250);
+  --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.17 0.005 250);
+  --popover-foreground: oklch(1 0 0);
+  --primary: oklch(0.85 0.3 128);
+  --primary-foreground: oklch(0.12 0 0);
+  --secondary: oklch(0.2 0.003 250);
+  --secondary-foreground: oklch(0.9 0 0);
+  --muted: oklch(0.18 0.003 250);
+  --muted-foreground: oklch(0.6 0 0);
+  --accent: oklch(0.85 0.3 128);
+  --accent-foreground: oklch(0.12 0 0);
+  --destructive: oklch(0.6 0.2 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.26 0.005 250);
+  --input: oklch(0.2 0.003 250);
+  --ring: oklch(0.85 0.3 128);
+  --chart-1: oklch(0.85 0.3 128);
+  --chart-2: oklch(0.7 0.18 180);
+  --chart-3: oklch(0.75 0.16 220);
+  --chart-4: oklch(0.65 0.14 280);
+  --chart-5: oklch(0.6 0.18 340);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.1 0 0);
+  --sidebar-foreground: oklch(1 0 0);
+  --sidebar-primary: oklch(0.85 0.3 128);
+  --sidebar-primary-foreground: oklch(0.12 0 0);
+  --sidebar-accent: oklch(0.2 0.003 250);
+  --sidebar-accent-foreground: oklch(0.9 0 0);
+  --sidebar-border: oklch(0.26 0.005 250);
+  --sidebar-ring: oklch(0.85 0.3 128);
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", monospace;
+  --shadow-color: hsl(0 0% 0%);
+  --shadow-opacity: 0.5;
+  --shadow-blur: 4px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0;
+  --shadow-offset-y: 2px;
+  --letter-spacing: -0.01em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 0 1px 2px 0px hsl(0 0% 0% / 0.25);
+  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.35);
+  --shadow-sm:
+    0 2px 4px 0px hsl(0 0% 0% / 0.5), 0 1px 2px -1px hsl(0 0% 0% / 0.5);
+  --shadow: 0 2px 4px 0px hsl(0 0% 0% / 0.5), 0 1px 2px -1px hsl(0 0% 0% / 0.5);
+  --shadow-md:
+    0 4px 6px 0px hsl(0 0% 0% / 0.5), 0 2px 4px -1px hsl(0 0% 0% / 0.5);
+  --shadow-lg:
+    0 8px 10px 0px hsl(0 0% 0% / 0.5), 0 4px 6px -1px hsl(0 0% 0% / 0.5);
+  --shadow-xl:
+    0 16px 20px 0px hsl(0 0% 0% / 0.5), 0 8px 10px -1px hsl(0 0% 0% / 0.5);
+  --shadow-2xl: 0 24px 48px 0px hsl(0 0% 0% / 0.6);
+}
