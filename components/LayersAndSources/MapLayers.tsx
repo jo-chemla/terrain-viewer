@@ -3,7 +3,7 @@ import { Layer, type MapRef } from "react-map-gl/maplibre"
 import maplibregl, { type MapMouseEvent } from "maplibre-gl"
 import { useAtom } from "jotai"
 import { highResTerrainAtom } from "@/lib/settings-atoms"
-import { colorRampsFlat, remapColorRampStops, shiftCyclicRampStops } from "@/lib/color-ramps"
+import { colorRampsFlat, remapColorRampStops, shiftCyclicRampStops, buildCustomRampColors, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS, type CustomRampStop } from "@/lib/color-ramps"
 
 export const LAYER_SLOTS = {
   BACKGROUND: "slot-background",
@@ -732,6 +732,10 @@ export const computeHillshadePaint = ({
 
 export type ColorReliefConfig = {
   colorRamp?: string
+  // Only used when colorRamp === "custom" — there's no colorRampsFlat entry
+  // for it, so its expression is built live from these user-authored stops
+  // instead of looked up.
+  customStops?: CustomRampStop[]
   customHypsoMinMax?: boolean
   minElevation?: number
   maxElevation?: number
@@ -745,6 +749,7 @@ export type ColorReliefConfig = {
 
 export const computeColorReliefPaint = ({
   colorRamp,
+  customStops,
   customHypsoMinMax = false,
   minElevation = 0,
   maxElevation = 8100,
@@ -752,6 +757,23 @@ export const computeColorReliefPaint = ({
   invertColorRamp = false,
   shiftDegrees = 0,
 }: ColorReliefConfig) => {
+  if (colorRamp === "custom") {
+    // The user's own explicit (value, color) stops ARE the intended values —
+    // unlike the named ramps below there's no native range to rescale onto,
+    // so customHypsoMinMax/min/maxElevation don't apply here. Invert still
+    // makes sense as a pure polarity swap, done by rescaling onto its own
+    // existing bounds (a no-op stretch).
+    const baseColors = buildCustomRampColors(customStops ?? DEFAULT_SLOPE_CUSTOM_STOPS)
+    const stops = extractStops(baseColors)
+    const colors = invertColorRamp
+      ? remapColorRampStops(baseColors, Math.min(...stops), Math.max(...stops), true)
+      : baseColors
+    return {
+      "color-relief-opacity": colorReliefOpacity,
+      "color-relief-color": colors,
+    }
+  }
+
   const ramp = colorRamp ? colorRampsFlat[colorRamp] : undefined
   if (!ramp) return {}
 

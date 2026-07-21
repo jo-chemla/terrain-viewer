@@ -11,7 +11,7 @@ import Map, {
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
-import { COLOR_RAMP_IDS, computePropertyRampExpression } from "@/lib/color-ramps"
+import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useSetAtom } from "jotai"
 import {
@@ -262,6 +262,9 @@ export function TerrainViewer() {
     slopeMinDegrees: parseAsFloat.withDefault(0),
     slopeMaxDegrees: parseAsFloat.withDefault(55),
     slopeInvertColorRamp: parseAsBoolean.withDefault(false),
+    // Only read when slopeColorRamp === "custom" — see computeColorReliefPaint's
+    // dedicated branch for that ramp id in MapLayers.tsx.
+    slopeCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     showAspect: parseAsBoolean.withDefault(false),
     aspectOpacity: parseAsFloat.withDefault(0.5),
     aspectColorRamp: parseAsString.withDefault("aspect-compass"),
@@ -452,13 +455,14 @@ export function TerrainViewer() {
   const slopeReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.slopeColorRamp,
+      customStops: state.slopeCustomStops,
       customHypsoMinMax: true,
       minElevation: state.slopeMinDegrees,
       maxElevation: state.slopeMaxDegrees,
       colorReliefOpacity: state.slopeOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.slopeInvertColorRamp,
     }),
-    [ state.slopeColorRamp, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.terrainAnalysisOpacity, state.slopeInvertColorRamp ]
+    [ state.slopeColorRamp, state.slopeCustomStops, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.terrainAnalysisOpacity, state.slopeInvertColorRamp ]
   )
 
   // Aspect/TRI/curvature: same trick as slope above, just with their own state fields.

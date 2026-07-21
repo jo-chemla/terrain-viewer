@@ -2,6 +2,7 @@ import {cpt_city_views} from "./cpt-city/cpt-city-views"
 import {colorRampsCet} from "./cpt-city/cet-colormaps"
 import {colorRampsSdr} from "./cpt-city/sdr-colormaps"
 import type { Scale } from 'chroma-js';
+import { createParser } from "nuqs"
 
 // import { parsePalette, colorRampCanvas } from 'cpt2js';
 import {parsePalette} from './cpt-city/cpt2js-stops';
@@ -14,6 +15,52 @@ export function extractStops(colors: any[]): number[] {
   }
   return stops
 }
+
+export interface CustomRampStop { value: number; color: string }
+
+// Rough, widely-cited construction/vehicle-access slope bands (loosely
+// tracking NRCS slope classes) — not an industry-universal standard (that
+// varies a lot by jurisdiction/equipment), which is exactly why this is a
+// user-editable starting point rather than a fixed preset.
+export const DEFAULT_SLOPE_CUSTOM_STOPS: CustomRampStop[] = [
+  { value: 0, color: "#2ecc40" },   // flat, standard vehicle access
+  { value: 10, color: "#ffdc00" }, // moderate, most equipment fine
+  { value: 20, color: "#ff851b" }, // steep, may need specialized equipment/erosion control
+  { value: 35, color: "#ff4136" }, // typically excluded from routine construction access
+]
+
+// Builds a plain "interpolate" color-relief expression directly from
+// user-authored (value, color) stops, same shape every other ramp in this
+// file already has — so it flows through computeColorReliefPaint,
+// remapColorRampStops (invert), extractStops, and the ramp-picker's own
+// gradient-swatch preview unchanged, no special-casing needed downstream.
+export function buildCustomRampColors(stops: CustomRampStop[]): any[] {
+  const sorted = [...stops].sort((a, b) => a.value - b.value)
+  // An interpolate expression needs at least 2 (strictly ascending) stops —
+  // fall back to the default bands rather than let maplibre's style
+  // validator reject a degenerate one-stop (or empty) custom ramp.
+  const usable = sorted.length >= 2 ? sorted : DEFAULT_SLOPE_CUSTOM_STOPS
+  const colors: any[] = ["interpolate", ["linear"], ["elevation"]]
+  for (const stop of usable) colors.push(stop.value, stop.color)
+  return colors
+}
+
+// URL-persisted custom stops — same createParser approach as CameraUtilities.tsx's
+// parseAsSnapshot (plain JSON round-trip, since {value, color}[] has no binary/precision
+// concerns that would justify a denser custom encoding). Falls back to the defaults on
+// any malformed/missing query value rather than throwing.
+export const parseAsCustomRampStops = createParser({
+  parse: (v: string): CustomRampStop[] => {
+    try {
+      const parsed = JSON.parse(v)
+      if (!Array.isArray(parsed)) return DEFAULT_SLOPE_CUSTOM_STOPS
+      return parsed
+    } catch {
+      return DEFAULT_SLOPE_CUSTOM_STOPS
+    }
+  },
+  serialize: (v: CustomRampStop[]) => JSON.stringify(v),
+})
 
 // Utility: Remap stops to custom min/max
 export function remapColorRampStops(
