@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { CheckboxWithSlider, SliderControl } from "./controls-components"
+import { CheckboxWithSlider, MobileSlider, DraftBoundInput } from "./controls-components"
 
 const TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
 
@@ -67,16 +67,28 @@ export const PlaneSlicerFields: React.FC<{
             </ToggleGroup>
           </div>
 
-          <SliderControl
-            label={isLrm ? "Height" : "Altitude"}
-            value={value}
-            onChange={(v) => setState({ [valueField]: v })}
-            min={bounds.min}
-            max={bounds.max}
-            step={1}
-            suffix=" m"
-            sliderId="plane-slicer:value"
-          />
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">{isLrm ? "Height" : "Altitude"}</Label>
+              <div className="flex items-center gap-1">
+                <DraftBoundInput
+                  value={value}
+                  onCommit={(v) => v !== undefined && setState({ [valueField]: Math.min(bounds.max, Math.max(bounds.min, Math.round(v))) })}
+                  className="h-6 py-1 px-1 w-16 text-xs text-right bg-transparent border rounded"
+                />
+                <span className="text-xs text-muted-foreground">m</span>
+              </div>
+            </div>
+            <MobileSlider
+              sliderId="plane-slicer:value"
+              value={[value]}
+              onValueChange={([v]) => setState({ [valueField]: v })}
+              min={bounds.min}
+              max={bounds.max}
+              step={1}
+              className="w-full cursor-pointer"
+            />
+          </div>
 
           <div className="flex items-center justify-between gap-2">
             <Label className="text-sm font-medium">Paint Side</Label>
