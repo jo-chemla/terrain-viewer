@@ -11,15 +11,18 @@
 //
 // Reuses lib/normals-protocol.ts's computeNormalPixels for the per-pixel
 // surface normal (same upstream DEM fetch/decode every other derived mode in
-// this app shares), then does the matcap lookup itself on the CPU: rotate
-// the normal's (x, y) by the user's "Sphere Rotation" slider, use the
-// rotated (x, y) as a UV into the matcap material image, write that pixel.
-//
-// Static/small, so cached once per matcap URL rather than refetched per
-// tile: unlike the DEM tiles a caller picks a handful of materials from a
-// fixed curated list (lib/matcap-textures.ts), not different data per z/x/y.
+// this app shares, cached independent of rotation/exaggeration — dragging
+// the "Sphere Rotation" slider never re-derives it). The matcap lookup
+// itself (rotate the normal's (x, y), use the rotated (x, y) as a UV into
+// the matcap material image) runs on the GPU via gpu-matcap-compute.ts —
+// this is real per-tile recompute work (MapLibre's raster-source model has
+// no live-uniform hook, so every rotation/exaggeration change still costs a
+// full tile round-trip through addProtocol → PNG encode → async decode →
+// texture upload), so accelerating the actual shading math matters. Falls
+// back to an equivalent CPU loop if WebGL2 is ever unavailable.
 import { computeNormalPixels } from "./normals-protocol"
 import { buildProtocolUrl, type UpstreamEncoding } from "./normal-derived-protocol"
+import { computeMatcapPixelsGPU } from "./gpu-matcap-compute"
 
 const MATCAP_URL_RE = /^matcap:\/\/([^/]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
@@ -37,9 +40,9 @@ export function buildMatcapProtocolUrl(
 
 interface MatcapPixels { data: Uint8ClampedArray; width: number; height: number }
 
-// One entry per distinct matcap URL — these are a fixed curated list (see
-// lib/matcap-textures.ts), so this cache never meaningfully grows; no
-// eviction needed the way tile caches elsewhere in this app require.
+// CPU fallback only (GPU path uploads its own WebGL texture directly, see
+// gpu-matcap-compute.ts's getMatcapTexture) — still a fixed curated list
+// (lib/matcap-textures.ts), so this cache never meaningfully grows either.
 const matcapPixelCache = new Map<string, Promise<MatcapPixels>>()
 
 async function loadMatcapPixels(url: string): Promise<MatcapPixels> {
@@ -60,6 +63,46 @@ async function loadMatcapPixels(url: string): Promise<MatcapPixels> {
   return promise
 }
 
+// Only reached if computeMatcapPixelsGPU returns null (no WebGL2) — same
+// math, same output layout, just the original per-pixel JS loop.
+async function shadeMatcapCPU(
+  normalPixels: Uint8ClampedArray, n: number, matcapUrl: string, rotationRad: number, exaggeration: number,
+): Promise<Uint8ClampedArray> {
+  const matcap = await loadMatcapPixels(matcapUrl)
+  const cosR = Math.cos(rotationRad)
+  const sinR = Math.sin(rotationRad)
+  const out = new Uint8ClampedArray(n * n * 4)
+  for (let i = 0; i < n * n; i++) {
+    const idx = i * 4
+    let nx = (normalPixels[idx] / 255) * 2 - 1
+    let ny = (normalPixels[idx + 1] / 255) * 2 - 1
+    const nz = (normalPixels[idx + 2] / 255) * 2 - 1
+
+    if (exaggeration !== 1) {
+      const sx = (nx / nz) * exaggeration
+      const sy = (ny / nz) * exaggeration
+      const len = Math.sqrt(sx * sx + sy * sy + 1) || 1
+      nx = sx / len
+      ny = sy / len
+    }
+
+    const rx = nx * cosR + ny * sinR
+    const ry = -nx * sinR + ny * cosR
+
+    const u = rx * 0.5 + 0.5
+    const v = ry * 0.5 + 0.5
+    const mx = Math.min(matcap.width - 1, Math.max(0, Math.round(u * (matcap.width - 1))))
+    const my = Math.min(matcap.height - 1, Math.max(0, Math.round(v * (matcap.height - 1))))
+    const mIdx = (my * matcap.width + mx) * 4
+
+    out[idx] = matcap.data[mIdx]
+    out[idx + 1] = matcap.data[mIdx + 1]
+    out[idx + 2] = matcap.data[mIdx + 2]
+    out[idx + 3] = 255
+  }
+  return out
+}
+
 export async function matcapProtocol(
   params: { url: string },
   abortController: AbortController,
@@ -75,10 +118,7 @@ export async function matcapProtocol(
   const upstreamTemplate = decodeURIComponent(encodedTemplate)
   const z = parseInt(zStr, 10), x = parseInt(xStr, 10), y = parseInt(yStr, 10)
 
-  const [{ pixels: normalPixels }, matcap] = await Promise.all([
-    computeNormalPixels(upstreamTemplate, encoding, z, x, y, n, abortController.signal),
-    loadMatcapPixels(matcapUrl),
-  ])
+  const { pixels: normalPixels } = await computeNormalPixels(upstreamTemplate, encoding, z, x, y, n, abortController.signal)
   // maplibre's own request layer (util/ajax.ts's makeRequest) calls this
   // function directly and applies WHATEVER it resolves with — it never
   // checks abortController.signal itself, that's entirely this handler's
@@ -90,49 +130,9 @@ export async function matcapProtocol(
   // next real result: exactly the "old, new, old, new" flicker this fixes.
   if (abortController.signal.aborted) throw new DOMException("Aborted", "AbortError")
 
-  const cosR = Math.cos(rotationRad)
-  const sinR = Math.sin(rotationRad)
-  const out = new Uint8ClampedArray(n * n * 4)
-  for (let i = 0; i < n * n; i++) {
-    const idx = i * 4
-    let nx = (normalPixels[idx] / 255) * 2 - 1
-    let ny = (normalPixels[idx + 1] / 255) * 2 - 1
-    const nz = (normalPixels[idx + 2] / 255) * 2 - 1
-
-    // The cached normal encodes the RAW (unexaggerated) surface slope —
-    // reapply the current exaggeration before use, the same way maplibre's
-    // own terrain extrusion is exaggerated, so a taller/steeper-looking
-    // exaggerated surface shades with correspondingly steeper-looking
-    // contrast instead of the flatter contrast its raw slope would give.
-    // Since (nx, ny, nz) = normalize(-dzdx, -dzdy, 1), dividing x,y by z
-    // exactly recovers the original (-dzdx, -dzdy) — z cancels out of that
-    // ratio by construction — letting exaggeration be reapplied and the
-    // normal renormalized from scratch.
-    if (exaggeration !== 1) {
-      const sx = (nx / nz) * exaggeration
-      const sy = (ny / nz) * exaggeration
-      const len = Math.sqrt(sx * sx + sy * sy + 1) || 1
-      nx = sx / len
-      ny = sy / len
-    }
-
-    // Same rotation the old GPU shader applied to the matcap lookup UV — see
-    // this module's header: only the material's apparent orientation
-    // rotates, never the surface geometry itself.
-    const rx = nx * cosR + ny * sinR
-    const ry = -nx * sinR + ny * cosR
-
-    const u = rx * 0.5 + 0.5
-    const v = ry * 0.5 + 0.5
-    const mx = Math.min(matcap.width - 1, Math.max(0, Math.round(u * (matcap.width - 1))))
-    const my = Math.min(matcap.height - 1, Math.max(0, Math.round(v * (matcap.height - 1))))
-    const mIdx = (my * matcap.width + mx) * 4
-
-    out[idx] = matcap.data[mIdx]
-    out[idx + 1] = matcap.data[mIdx + 1]
-    out[idx + 2] = matcap.data[mIdx + 2]
-    out[idx + 3] = 255
-  }
+  const out = (await computeMatcapPixelsGPU(normalPixels, n, matcapUrl, rotationRad, exaggeration))
+    ?? (await shadeMatcapCPU(normalPixels, n, matcapUrl, rotationRad, exaggeration))
+  if (abortController.signal.aborted) throw new DOMException("Aborted", "AbortError")
 
   const canvas = new OffscreenCanvas(n, n)
   const ctx = canvas.getContext("2d")!

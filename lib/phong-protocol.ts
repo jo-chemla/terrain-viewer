@@ -4,7 +4,13 @@
 // MapLayers.tsx's PhongRasterLayer), draped over 3D terrain AND globe the
 // exact same automatic way the raster basemap already is. See
 // lib/matcap-protocol.ts's header for why this is a plain raster tile
-// rather than a custom WebGL layer with its own mesh.
+// rather than a custom WebGL layer with its own mesh, and for why the
+// shading math below runs on the GPU (gpu-phong-compute.ts) rather than a
+// JS loop — every light-direction/strength change still costs a full tile
+// round-trip through addProtocol (MapLibre's raster-source model has no
+// live-uniform hook), so accelerating the actual per-pixel math matters even
+// though it can't eliminate that round-trip. Falls back to an equivalent CPU
+// loop if WebGL2 is ever unavailable.
 //
 // Light direction is compass-fixed (state.illuminationDir/illuminationAlt —
 // the same fields the on-map "hold L, drag" light control and maplibre's own
@@ -16,6 +22,7 @@
 // that same space with no rotation needed.
 import { computeNormalPixels } from "./normals-protocol"
 import { buildProtocolUrl, type UpstreamEncoding } from "./normal-derived-protocol"
+import { computePhongPixelsGPU } from "./gpu-phong-compute"
 
 const PHONG_URL_RE = /^phong:\/\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
@@ -29,6 +36,58 @@ export function buildPhongProtocolUrl(
 
 const AMBIENT = 0.35
 const SHININESS = 32
+
+// Only reached if computePhongPixelsGPU returns null (no WebGL2) — same
+// math, same output layout, just the original per-pixel JS loop.
+function shadePhongCPU(
+  normalPixels: Uint8ClampedArray, n: number,
+  diffuseStrength: number, specularStrength: number, lightDir: [number, number, number], exaggeration: number,
+): Uint8ClampedArray {
+  const [lx, ly, lz] = lightDir
+  const vx = 0, vy = 0, vz = 1
+  let hx = lx + vx, hy = ly + vy, hz = lz + vz
+  const hLen = Math.sqrt(hx * hx + hy * hy + hz * hz) || 1
+  hx /= hLen; hy /= hLen; hz /= hLen
+
+  const out = new Uint8ClampedArray(n * n * 4)
+  for (let i = 0; i < n * n; i++) {
+    const idx = i * 4
+    let nx = (normalPixels[idx] / 255) * 2 - 1
+    let ny = (normalPixels[idx + 1] / 255) * 2 - 1
+    let nz = (normalPixels[idx + 2] / 255) * 2 - 1
+
+    if (exaggeration !== 1) {
+      const sx = (nx / nz) * exaggeration
+      const sy = (ny / nz) * exaggeration
+      const len = Math.sqrt(sx * sx + sy * sy + 1) || 1
+      nx = sx / len
+      ny = sy / len
+      nz = 1 / len
+    }
+
+    const diffuse = diffuseStrength * Math.max(nx * lx + ny * ly + nz * lz, 0)
+    const diffuseIntensity = Math.min(Math.max(AMBIENT + diffuse, 0), 1)
+
+    const specDot = Math.max(nx * hx + ny * hy + nz * hz, 0)
+    const specular = specularStrength * Math.pow(specDot, SHININESS)
+    const total = diffuseIntensity + specular
+
+    if (total <= 1) {
+      const alpha = Math.round((1 - total) * 255)
+      out[idx] = 0
+      out[idx + 1] = 0
+      out[idx + 2] = 0
+      out[idx + 3] = alpha
+    } else {
+      const alpha = Math.round(Math.min(total - 1, 1) * 255)
+      out[idx] = 255
+      out[idx + 1] = 255
+      out[idx + 2] = 255
+      out[idx + 3] = alpha
+    }
+  }
+  return out
+}
 
 export async function phongProtocol(
   params: { url: string },
@@ -78,14 +137,7 @@ export async function phongProtocol(
   const azRad = (lightDir * Math.PI) / 180
   const elRad = (lightAlt * Math.PI) / 180
   const cosEl = Math.cos(elRad)
-  const lx = -Math.sin(azRad) * cosEl
-  const ly = -Math.cos(azRad) * cosEl
-  const lz = Math.sin(elRad)
-  // Viewer looking straight down — same simplification the old GPU shader used.
-  const vx = 0, vy = 0, vz = 1
-  let hx = lx + vx, hy = ly + vy, hz = lz + vz
-  const hLen = Math.sqrt(hx * hx + hy * hy + hz * hz) || 1
-  hx /= hLen; hy /= hLen; hz /= hLen
+  const lightVec: [number, number, number] = [-Math.sin(azRad) * cosEl, -Math.cos(azRad) * cosEl, Math.sin(elRad)]
 
   // A raster layer only composites via standard "over" alpha blending — no
   // multiply *and* screen blend mode exists in the style spec — so this
@@ -103,45 +155,11 @@ export async function phongProtocol(
   // however brightly lit, is never a "highlight") — only specular can push
   // the total past 1 into the highlight regime, so regular sunlit slopes
   // stay in the ordinary shadow/neutral range and only sharp glints whiten.
-  const out = new Uint8ClampedArray(n * n * 4)
-  for (let i = 0; i < n * n; i++) {
-    const idx = i * 4
-    let nx = (normalPixels[idx] / 255) * 2 - 1
-    let ny = (normalPixels[idx + 1] / 255) * 2 - 1
-    let nz = (normalPixels[idx + 2] / 255) * 2 - 1
-
-    // Reapply the current exaggeration to the cached (unexaggerated) normal
-    // — see lib/matcap-protocol.ts's identical comment for the derivation.
-    if (exaggeration !== 1) {
-      const sx = (nx / nz) * exaggeration
-      const sy = (ny / nz) * exaggeration
-      const len = Math.sqrt(sx * sx + sy * sy + 1) || 1
-      nx = sx / len
-      ny = sy / len
-      nz = 1 / len
-    }
-
-    const diffuse = diffuseStrength * Math.max(nx * lx + ny * ly + nz * lz, 0)
-    const diffuseIntensity = Math.min(Math.max(AMBIENT + diffuse, 0), 1)
-
-    const specDot = Math.max(nx * hx + ny * hy + nz * hz, 0)
-    const specular = specularStrength * Math.pow(specDot, SHININESS)
-    const total = diffuseIntensity + specular
-
-    if (total <= 1) {
-      const alpha = Math.round((1 - total) * 255)
-      out[idx] = 0
-      out[idx + 1] = 0
-      out[idx + 2] = 0
-      out[idx + 3] = alpha
-    } else {
-      const alpha = Math.round(Math.min(total - 1, 1) * 255)
-      out[idx] = 255
-      out[idx + 1] = 255
-      out[idx + 2] = 255
-      out[idx + 3] = alpha
-    }
-  }
+  // (See gpu-phong-compute.ts's fragment shader for the GPU version of this
+  // exact same encoding.)
+  const out = computePhongPixelsGPU(normalPixels, n, diffuseStrength, specularStrength, lightVec, exaggeration)
+    ?? shadePhongCPU(normalPixels, n, diffuseStrength, specularStrength, lightVec, exaggeration)
+  if (abortController.signal.aborted) throw new DOMException("Aborted", "AbortError")
 
   const canvas = new OffscreenCanvas(n, n)
   const ctx = canvas.getContext("2d")!
