@@ -48,10 +48,23 @@
 // viewport. The x (east/west) sign was backwards (r ~ -0.89 at due-east
 // light) while y (north/south) was already correct — flipping x alone gives
 // r ~ +0.93 at both due-east and due-north against maplibre's own shader.
+//
+// Projection: positions vertices via maplibre's own `projectTileFor3D` GLSL
+// helper (lib/custom-layer-projection.ts) rather than a hand-rolled flat-
+// mercator matrix multiply — see that module's header for why the old
+// `options.modelViewProjectionMatrix`-based approach rendered nothing at all
+// under globe projection (it's documented as mercator-only).
 import type maplibregl from "maplibre-gl"
 import type { CustomRenderMethodInput } from "maplibre-gl"
 import { NormalTileManager } from "./normal-tile-manager"
 import type { UpstreamEncoding } from "./normal-derived-protocol"
+import {
+  buildProjectionAwareVertexShader,
+  getProjectionUniformLocations,
+  setProjectionUniforms,
+  PROJECTION_AWARE_VERTEX_BODY,
+  type ProjectionUniformLocations,
+} from "./custom-layer-projection"
 
 export interface PhongLayerOptions {
   upstreamTemplate: string
@@ -71,13 +84,14 @@ export interface PhongLayerOptions {
    *  live CustomLayerInterface instance. */
   drapeEnabled: boolean
   /** Same exaggeration factor driving maplibre's own native `setTerrain()`
-   *  call, kept identical so this layer's drape aligns with the real
-   *  extruded terrain beneath it. */
+   *  call — applied both to this mesh's vertex height (matching the real
+   *  extruded terrain beneath it) and, live, to the shading normals
+   *  themselves (see the fragment shader below), so a taller/steeper-looking
+   *  exaggerated surface shades with correspondingly steeper-looking
+   *  lighting instead of the flatter, un-exaggerated contrast it would get
+   *  from the cached normal map's own raw (unexaggerated) slope. */
   exaggeration: number
 }
-
-const EARTH_RADIUS_M = 6371008.8
-const EARTH_CIRCUMFERENCE_M = 2 * Math.PI * EARTH_RADIUS_M
 
 function compileShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
   const shader = gl.createShader(type)!
@@ -104,27 +118,13 @@ function createProgram(gl: WebGL2RenderingContext, vertSrc: string, fragSrc: str
   return program
 }
 
-const VERTEX_SHADER = `#version 300 es
-uniform mat4 u_matrix;
-uniform vec4 u_tileBounds;
-uniform float u_pixelPerMeter;
-in vec2 a_uv;
-in float a_elevation;
-out vec2 v_texCoord;
-void main() {
-    vec2 pos = mix(u_tileBounds.xy, u_tileBounds.zw, a_uv);
-    float worldZ = a_elevation * u_pixelPerMeter;
-    v_texCoord = a_uv;
-    gl_Position = u_matrix * vec4(pos, worldZ, 1.0);
-}
-`
-
 const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 uniform sampler2D u_normalMap;
 uniform float u_opacity;
 uniform float u_diffuseStrength;
 uniform float u_specularStrength;
+uniform float u_exaggeration;
 // Unit light direction, in the SAME un-rotated tile-pixel space the normal
 // map itself is encoded in (see this module's header on the sign).
 uniform vec3 u_lightDir;
@@ -136,7 +136,19 @@ const float SHININESS = 32.0;
 
 void main() {
     vec3 encoded = texture(u_normalMap, v_texCoord).rgb;
-    vec3 n = normalize(encoded * 2.0 - 1.0);
+    vec3 raw = encoded * 2.0 - 1.0;
+
+    // The cached normal map encodes the RAW (unexaggerated) surface slope —
+    // recompute it live against the current exaggeration instead of baking a
+    // fixed exaggeration into the cache (which would force a recompute of
+    // every visible tile whenever the exaggeration slider moves, same
+    // "instant uniform" reasoning as light direction). Since raw was built
+    // as normalize(vec3(-dzdx, -dzdy, 1)), dividing x,y by z exactly recovers
+    // the original (-dzdx, -dzdy) — the z cancels out of that ratio by
+    // construction — letting the exaggeration be re-applied and the normal
+    // re-normalized from scratch.
+    vec2 slope = (raw.xy / raw.z) * u_exaggeration;
+    vec3 n = normalize(vec3(slope, 1.0));
 
     vec3 L = u_lightDir;
     // Viewer looking straight down — a reasonable approximation for this
@@ -166,6 +178,21 @@ void main() {
 }
 `
 
+interface CompiledVariant {
+  program: WebGLProgram
+  projection: ProjectionUniformLocations
+  uTileBounds: WebGLUniformLocation | null
+  uExaggeration: WebGLUniformLocation | null
+  uDrapeEnabled: WebGLUniformLocation | null
+  uOpacity: WebGLUniformLocation | null
+  uDiffuseStrength: WebGLUniformLocation | null
+  uSpecularStrength: WebGLUniformLocation | null
+  uLightDir: WebGLUniformLocation | null
+  uNormalMap: WebGLUniformLocation | null
+  aUv: number
+  aElevation: number
+}
+
 export class PhongGlLayer implements maplibregl.CustomLayerInterface {
   id = "phong-terrain"
   type = "custom" as const
@@ -174,17 +201,11 @@ export class PhongGlLayer implements maplibregl.CustomLayerInterface {
   private opts: PhongLayerOptions
   private map: maplibregl.Map | null = null
   private gl: WebGL2RenderingContext | null = null
-  private program: WebGLProgram | null = null
-  private uMatrix: WebGLUniformLocation | null = null
-  private uTileBounds: WebGLUniformLocation | null = null
-  private uPixelPerMeter: WebGLUniformLocation | null = null
-  private uOpacity: WebGLUniformLocation | null = null
-  private uDiffuseStrength: WebGLUniformLocation | null = null
-  private uSpecularStrength: WebGLUniformLocation | null = null
-  private uLightDir: WebGLUniformLocation | null = null
-  private uNormalMap: WebGLUniformLocation | null = null
-  private aUv = -1
-  private aElevation = -1
+  // Keyed by options.shaderData.variantName ("mercator"/"globe") — the
+  // projection prelude prepended to the vertex shader differs per variant,
+  // so each needs its own compiled+linked program. See
+  // lib/custom-layer-projection.ts's header for why.
+  private variants = new Map<string, CompiledVariant>()
 
   private tiles: NormalTileManager
 
@@ -198,13 +219,12 @@ export class PhongGlLayer implements maplibregl.CustomLayerInterface {
   }
 
   /** Live-updates options without recreating the layer (or its tile cache).
-   *  Everything here (opacity, diffuse/specular strength, light direction)
-   *  is a fragment-shader uniform applied on the next render(), so this
-   *  never touches the tile cache — dragging the light-direction pad is
-   *  just a uniform update + repaint. drapeEnabled is intentionally NOT
-   *  accepted here — switching view modes recreates the whole layer via
-   *  PhongLayer.tsx instead, since renderingMode can't change on a live
-   *  instance. */
+   *  Everything here (opacity, diffuse/specular strength, light direction,
+   *  exaggeration) is a fragment/vertex-shader uniform applied on the next
+   *  render(), so this never touches the tile cache. drapeEnabled is
+   *  intentionally NOT accepted here — switching view modes recreates the
+   *  whole layer via PhongLayer.tsx instead, since renderingMode can't
+   *  change on a live instance. */
   updateOptions(next: Partial<Omit<PhongLayerOptions, "drapeEnabled">>) {
     this.opts = { ...this.opts, ...next }
     this.tiles.updateOptions({
@@ -216,6 +236,31 @@ export class PhongGlLayer implements maplibregl.CustomLayerInterface {
     this.map?.triggerRepaint()
   }
 
+  private getVariant(gl: WebGL2RenderingContext, options: CustomRenderMethodInput): CompiledVariant {
+    const key = options.shaderData.variantName
+    const cached = this.variants.get(key)
+    if (cached) return cached
+
+    const vertSrc = buildProjectionAwareVertexShader(options, PROJECTION_AWARE_VERTEX_BODY)
+    const program = createProgram(gl, vertSrc, FRAGMENT_SHADER)
+    const variant: CompiledVariant = {
+      program,
+      projection: getProjectionUniformLocations(gl, program),
+      uTileBounds: gl.getUniformLocation(program, "u_tileBounds01"),
+      uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
+      uDrapeEnabled: gl.getUniformLocation(program, "u_drapeEnabled"),
+      uOpacity: gl.getUniformLocation(program, "u_opacity"),
+      uDiffuseStrength: gl.getUniformLocation(program, "u_diffuseStrength"),
+      uSpecularStrength: gl.getUniformLocation(program, "u_specularStrength"),
+      uLightDir: gl.getUniformLocation(program, "u_lightDir"),
+      uNormalMap: gl.getUniformLocation(program, "u_normalMap"),
+      aUv: gl.getAttribLocation(program, "a_uv"),
+      aElevation: gl.getAttribLocation(program, "a_elevation"),
+    }
+    this.variants.set(key, variant)
+    return variant
+  }
+
   onAdd(map: maplibregl.Map, gl: WebGLRenderingContext | WebGL2RenderingContext) {
     if (!(gl instanceof WebGL2RenderingContext)) {
       console.error("[PhongGlLayer] WebGL2 context required")
@@ -223,17 +268,8 @@ export class PhongGlLayer implements maplibregl.CustomLayerInterface {
     }
     this.map = map
     this.gl = gl
-    this.program = createProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER)
-    this.uMatrix = gl.getUniformLocation(this.program, "u_matrix")
-    this.uTileBounds = gl.getUniformLocation(this.program, "u_tileBounds")
-    this.uPixelPerMeter = gl.getUniformLocation(this.program, "u_pixelPerMeter")
-    this.uOpacity = gl.getUniformLocation(this.program, "u_opacity")
-    this.uDiffuseStrength = gl.getUniformLocation(this.program, "u_diffuseStrength")
-    this.uSpecularStrength = gl.getUniformLocation(this.program, "u_specularStrength")
-    this.uLightDir = gl.getUniformLocation(this.program, "u_lightDir")
-    this.uNormalMap = gl.getUniformLocation(this.program, "u_normalMap")
-    this.aUv = gl.getAttribLocation(this.program, "a_uv")
-    this.aElevation = gl.getAttribLocation(this.program, "a_elevation")
+    // Programs are compiled lazily in render(), once the current projection's
+    // shaderData is known — see getVariant().
 
     this.tiles.attach(map, gl)
 
@@ -244,14 +280,17 @@ export class PhongGlLayer implements maplibregl.CustomLayerInterface {
   onRemove() {
     this.tiles.detach()
     const gl = this.gl
-    if (gl && this.program) gl.deleteProgram(this.program)
+    if (gl) {
+      for (const variant of this.variants.values()) gl.deleteProgram(variant.program)
+    }
+    this.variants.clear()
     this.map = null
     this.gl = null
   }
 
   render(gl: WebGLRenderingContext | WebGL2RenderingContext, options: CustomRenderMethodInput) {
     if (!(gl instanceof WebGL2RenderingContext)) return
-    if (!this.program || !this.map) return
+    if (!this.map) return
 
     const visible = this.tiles.getVisibleTiles()
     if (visible.length === 0) return
@@ -261,49 +300,46 @@ export class PhongGlLayer implements maplibregl.CustomLayerInterface {
     const indexCount = this.tiles.getIndexCount()
     if (!uvBuffer || !indexBuffer) return
 
-    gl.useProgram(this.program)
-    gl.uniformMatrix4fv(this.uMatrix, false, options.modelViewProjectionMatrix as unknown as Float32Array)
-    gl.uniform1f(this.uOpacity, this.opts.opacity)
-    gl.uniform1f(this.uDiffuseStrength, this.opts.diffuseStrength)
-    gl.uniform1f(this.uSpecularStrength, this.opts.specularStrength)
+    const variant = this.getVariant(gl, options)
+    gl.useProgram(variant.program)
+    setProjectionUniforms(gl, variant.projection, options)
+    gl.uniform1f(variant.uOpacity, this.opts.opacity)
+    gl.uniform1f(variant.uDiffuseStrength, this.opts.diffuseStrength)
+    gl.uniform1f(variant.uSpecularStrength, this.opts.specularStrength)
+    gl.uniform1f(variant.uExaggeration, this.opts.exaggeration)
+    gl.uniform1i(variant.uDrapeEnabled, this.opts.drapeEnabled ? 1 : 0)
 
     const azRad = (this.opts.lightDir * Math.PI) / 180
     const elRad = (this.opts.lightAlt * Math.PI) / 180
     const cosEl = Math.cos(elRad)
-    gl.uniform3f(this.uLightDir, -Math.sin(azRad) * cosEl, -Math.cos(azRad) * cosEl, Math.sin(elRad))
-
-    const worldSize = 512 * Math.pow(2, this.map.getZoom())
-    const latRad = (this.map.getCenter().lat * Math.PI) / 180
-    const pixelPerMeter = this.opts.drapeEnabled
-      ? (worldSize / (EARTH_CIRCUMFERENCE_M * Math.cos(latRad))) * this.opts.exaggeration
-      : 0
-    gl.uniform1f(this.uPixelPerMeter, pixelPerMeter)
+    gl.uniform3f(variant.uLightDir, -Math.sin(azRad) * cosEl, -Math.cos(azRad) * cosEl, Math.sin(elRad))
 
     // See lib/matcap-gl-layer.ts's identical comment: this mesh is
     // numerically coincident with maplibre's own terrain surface, so clear
     // the depth buffer right before drawing (keeping the depth test itself
     // ON) to resolve this mesh's own self-occlusion without competing
-    // against terrain depth it was always going to coincide with anyway.
+    // against pre-existing terrain depth the mesh was always going to
+    // coincide with anyway.
     if (this.opts.drapeEnabled) gl.clear(gl.DEPTH_BUFFER_BIT)
 
     gl.bindBuffer(gl.ARRAY_BUFFER, uvBuffer)
-    gl.enableVertexAttribArray(this.aUv)
-    gl.vertexAttribPointer(this.aUv, 2, gl.FLOAT, false, 0, 0)
+    gl.enableVertexAttribArray(variant.aUv)
+    gl.vertexAttribPointer(variant.aUv, 2, gl.FLOAT, false, 0, 0)
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
 
     for (const entry of visible) {
       const n = 1 << entry.z
-      const x0 = (entry.x / n) * worldSize, x1 = ((entry.x + 1) / n) * worldSize
-      const y0 = (entry.y / n) * worldSize, y1 = ((entry.y + 1) / n) * worldSize
-      gl.uniform4f(this.uTileBounds, x0, y0, x1, y1)
+      const x0 = entry.x / n, x1 = (entry.x + 1) / n
+      const y0 = entry.y / n, y1 = (entry.y + 1) / n
+      gl.uniform4f(variant.uTileBounds, x0, y0, x1, y1)
 
       gl.bindBuffer(gl.ARRAY_BUFFER, entry.elevationBuffer)
-      gl.enableVertexAttribArray(this.aElevation)
-      gl.vertexAttribPointer(this.aElevation, 1, gl.FLOAT, false, 0, 0)
+      gl.enableVertexAttribArray(variant.aElevation)
+      gl.vertexAttribPointer(variant.aElevation, 1, gl.FLOAT, false, 0, 0)
 
       gl.activeTexture(gl.TEXTURE0)
       gl.bindTexture(gl.TEXTURE_2D, entry.texture)
-      gl.uniform1i(this.uNormalMap, 0)
+      gl.uniform1i(variant.uNormalMap, 0)
 
       gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_SHORT, 0)
     }
