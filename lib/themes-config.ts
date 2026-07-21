@@ -4,6 +4,11 @@ export interface ThemeConfig {
   primaryLight: string;
   primaryDark: string;
   fontSans: string;
+  /** Which site this preset was sourced from, for grouping in the picker —
+   *  undefined means "tweakcn" (the original 42 + these additions all came
+   *  from tweakcn.com's own utils/theme-presets.ts, extracted directly
+   *  rather than guessed, same as every other preset already here). */
+  source?: "tweakcn" | "themux" | "shadcnthemes";
 }
 
 export const themes: ThemeConfig[] = [
@@ -307,6 +312,48 @@ export const themes: ThemeConfig[] = [
     primaryLight: "oklch(0.2711 0.1879 264.0520)",
     primaryDark: "oklch(0.2711 0.1879 264.0520)",
     fontSans: "Pixelify Sans, sans-serif",
+  },
+  {
+    name: "violet-bloom",
+    title: "Violet Bloom",
+    primaryLight: "oklch(0.5393 0.2713 286.75)",
+    primaryDark: "oklch(0.6132 0.2294 291.74)",
+    fontSans: "Plus Jakarta Sans, sans-serif",
+  },
+  {
+    name: "amethyst-haze",
+    title: "Amethyst Haze",
+    primaryLight: "oklch(0.6104 0.0767 299.73)",
+    primaryDark: "oklch(0.7058 0.0777 302.05)",
+    fontSans: "Geist, sans-serif",
+  },
+  {
+    name: "notebook",
+    title: "Notebook",
+    primaryLight: "oklch(0.4891 0 89.88)",
+    primaryDark: "oklch(0.7572 0 89.88)",
+    fontSans: "Architects Daughter, sans-serif",
+  },
+  {
+    name: "darkmatter",
+    title: "Darkmatter",
+    primaryLight: "oklch(0.6716 0.1368 48.51)",
+    primaryDark: "oklch(0.7214 0.1337 49.98)",
+    fontSans: "Geist Mono, ui-monospace, monospace",
+  },
+  {
+    name: "soft-pop",
+    title: "Soft Pop",
+    primaryLight: "oklch(0.5106 0.2301 276.97)",
+    primaryDark: "oklch(0.6801 0.1583 276.93)",
+    fontSans: "DM Sans, sans-serif",
+  },
+  {
+    name: "sage-garden",
+    title: "Sage Garden",
+    primaryLight: "oklch(0.6333 0.0309 154.9)",
+    primaryDark: "oklch(0.6333 0.0309 154.9)",
+    fontSans: "Antic, ui-sans-serif, sans-serif, system-ui",
   },
 ];
 

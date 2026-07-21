@@ -1,0 +1,97 @@
+/* sage-garden — sourced from tweakcn.com (utils/theme-presets.ts), converted to oklch() to match this repo's other preset files */
+
+/* Light mode */
+[data-theme="sage-garden-light"] {
+  --background: oklch(0.9761 0.0041 91.45);
+  --foreground: oklch(0.2417 0.0298 269.88);
+  --card: oklch(1 0 89.88);
+  --card-foreground: oklch(0.2417 0.0298 269.88);
+  --popover: oklch(1 0 89.88);
+  --popover-foreground: oklch(0.2417 0.0298 269.88);
+  --primary: oklch(0.6333 0.0309 154.9);
+  --primary-foreground: oklch(1 0 89.88);
+  --secondary: oklch(0.8596 0.0291 119.99);
+  --secondary-foreground: oklch(0.2417 0.0298 269.88);
+  --muted: oklch(0.9251 0.0071 88.65);
+  --muted-foreground: oklch(0.551 0.0234 264.36);
+  --accent: oklch(0.8242 0.0221 136.61);
+  --accent-foreground: oklch(0.2417 0.0298 269.88);
+  --destructive: oklch(0.5624 0.1743 26.14);
+  --destructive-foreground: oklch(1 0 89.88);
+  --border: oklch(0.9251 0.0071 88.65);
+  --input: oklch(1 0 89.88);
+  --ring: oklch(0.6333 0.0309 154.9);
+  --chart-1: oklch(0.6333 0.0309 154.9);
+  --chart-2: oklch(0.7209 0.0489 120.95);
+  --chart-3: oklch(0.6744 0.0427 136.01);
+  --chart-4: oklch(0.551 0.0234 264.36);
+  --chart-5: oklch(0.9251 0.0071 88.65);
+  --sidebar: oklch(0.9845 0.0026 106.45);
+  --sidebar-foreground: oklch(0.2417 0.0298 269.88);
+  --sidebar-primary: oklch(0.6333 0.0309 154.9);
+  --sidebar-primary-foreground: oklch(1 0 89.88);
+  --sidebar-accent: oklch(0.9251 0.0071 88.65);
+  --sidebar-accent-foreground: oklch(0.2417 0.0298 269.88);
+  --sidebar-border: oklch(0.9251 0.0071 88.65);
+  --sidebar-ring: oklch(0.6333 0.0309 154.9);
+  --radius: 0.35rem;
+  --font-sans: Antic, ui-sans-serif, sans-serif, system-ui;
+  --font-serif: Signifier, Georgia, serif;
+  --font-mono: JetBrains Mono, Courier New, monospace;
+  --shadow-color: #1a1f2e;
+  --shadow-opacity: 0.04;
+  --shadow-blur: 2px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0px;
+  --shadow-offset-y: 1px;
+  --letter-spacing: 0em;
+  --spacing: 0.23rem;
+}
+
+/* Dark mode */
+[data-theme="sage-garden-dark"] {
+  --background: oklch(0.1448 0 89.88);
+  --foreground: oklch(0.9702 0 89.88);
+  --card: oklch(0.1822 0 89.88);
+  --card-foreground: oklch(0.9702 0 89.88);
+  --popover: oklch(0.1822 0 89.88);
+  --popover-foreground: oklch(0.9702 0 89.88);
+  --primary: oklch(0.6333 0.0309 154.9);
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.2178 0 89.88);
+  --secondary-foreground: oklch(0.9702 0 89.88);
+  --muted: oklch(0.2178 0 89.88);
+  --muted-foreground: oklch(0.7058 0 89.88);
+  --accent: oklch(0.3709 0.0248 153.98);
+  --accent-foreground: oklch(0.9702 0 89.88);
+  --destructive: oklch(0.6368 0.2078 25.33);
+  --destructive-foreground: oklch(1 0 89.88);
+  --border: oklch(0.285 0 89.88);
+  --input: oklch(0.1822 0 89.88);
+  --ring: oklch(0.6333 0.0309 154.9);
+  --chart-1: oklch(0.6333 0.0309 154.9);
+  --chart-2: oklch(0.7209 0.0489 120.95);
+  --chart-3: oklch(0.6744 0.0427 136.01);
+  --chart-4: oklch(0.551 0.0234 264.36);
+  --chart-5: oklch(0.5096 0.0289 152.35);
+  --sidebar: oklch(0.1684 0 89.88);
+  --sidebar-foreground: oklch(0.9702 0 89.88);
+  --sidebar-primary: oklch(0.6333 0.0309 154.9);
+  --sidebar-primary-foreground: oklch(1 0 89.88);
+  --sidebar-accent: oklch(0.2178 0 89.88);
+  --sidebar-accent-foreground: oklch(0.9702 0 89.88);
+  --sidebar-border: oklch(0.285 0 89.88);
+  --sidebar-ring: oklch(0.6333 0.0309 154.9);
+  --radius: 0.35rem;
+  --font-sans: Antic, ui-sans-serif, sans-serif, system-ui;
+  --font-serif: Signifier, Georgia, serif;
+  --font-mono: JetBrains Mono, Courier New, monospace;
+  --shadow-color: #000000;
+  --shadow-opacity: 0.04;
+  --shadow-blur: 2px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0px;
+  --shadow-offset-y: 1px;
+  --letter-spacing: 0em;
+  --spacing: 0.23rem;
+}

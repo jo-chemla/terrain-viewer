@@ -1,0 +1,97 @@
+/* darkmatter — sourced from tweakcn.com (utils/theme-presets.ts), converted to oklch() to match this repo's other preset files */
+
+/* Light mode */
+[data-theme="darkmatter-light"] {
+  --background: oklch(1 0 89.88);
+  --foreground: oklch(0.2101 0.0318 264.66);
+  --card: oklch(1 0 89.88);
+  --card-foreground: oklch(0.2101 0.0318 264.66);
+  --popover: oklch(1 0 89.88);
+  --popover-foreground: oklch(0.2101 0.0318 264.66);
+  --primary: oklch(0.6716 0.1368 48.51);
+  --primary-foreground: oklch(1 0 89.88);
+  --secondary: oklch(0.536 0.0398 196.03);
+  --secondary-foreground: oklch(1 0 89.88);
+  --muted: oklch(0.967 0.0029 264.54);
+  --muted-foreground: oklch(0.551 0.0234 264.36);
+  --accent: oklch(0.9491 0 89.88);
+  --accent-foreground: oklch(0.2101 0.0318 264.66);
+  --destructive: oklch(0.6368 0.2078 25.33);
+  --destructive-foreground: oklch(0.9851 0 89.88);
+  --border: oklch(0.9276 0.0058 264.53);
+  --input: oklch(0.9276 0.0058 264.53);
+  --ring: oklch(0.6716 0.1368 48.51);
+  --chart-1: oklch(0.594 0.0443 196.02);
+  --chart-2: oklch(0.7214 0.1337 49.98);
+  --chart-3: oklch(0.8721 0.0864 68.55);
+  --chart-4: oklch(0.6268 0 89.88);
+  --chart-5: oklch(0.683 0 89.88);
+  --sidebar: oklch(0.967 0.0029 264.54);
+  --sidebar-foreground: oklch(0.2101 0.0318 264.66);
+  --sidebar-primary: oklch(0.6716 0.1368 48.51);
+  --sidebar-primary-foreground: oklch(1 0 89.88);
+  --sidebar-accent: oklch(1 0 89.88);
+  --sidebar-accent-foreground: oklch(0.2101 0.0318 264.66);
+  --sidebar-border: oklch(0.9276 0.0058 264.53);
+  --sidebar-ring: oklch(0.6716 0.1368 48.51);
+  --radius: 0.75rem;
+  --font-sans: Geist Mono, ui-monospace, monospace;
+  --font-serif: serif;
+  --font-mono: JetBrains Mono, monospace;
+  --shadow-color: #000000;
+  --shadow-opacity: 0.05;
+  --shadow-blur: 4px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0px;
+  --shadow-offset-y: 1px;
+  --letter-spacing: 0rem;
+  --spacing: 0.25rem;
+}
+
+/* Dark mode */
+[data-theme="darkmatter-dark"] {
+  --background: oklch(0.1797 0.0043 308.19);
+  --foreground: oklch(0.8109 0 89.88);
+  --card: oklch(0.1822 0 89.88);
+  --card-foreground: oklch(0.8109 0 89.88);
+  --popover: oklch(0.1797 0.0043 308.19);
+  --popover-foreground: oklch(0.8109 0 89.88);
+  --primary: oklch(0.7214 0.1337 49.98);
+  --primary-foreground: oklch(0.1797 0.0043 308.19);
+  --secondary: oklch(0.594 0.0443 196.02);
+  --secondary-foreground: oklch(0.1797 0.0043 308.19);
+  --muted: oklch(0.252 0 89.88);
+  --muted-foreground: oklch(0.6268 0 89.88);
+  --accent: oklch(0.3211 0 89.88);
+  --accent-foreground: oklch(0.8109 0 89.88);
+  --destructive: oklch(0.594 0.0443 196.02);
+  --destructive-foreground: oklch(0.1797 0.0043 308.19);
+  --border: oklch(0.252 0 89.88);
+  --input: oklch(0.252 0 89.88);
+  --ring: oklch(0.7214 0.1337 49.98);
+  --chart-1: oklch(0.594 0.0443 196.02);
+  --chart-2: oklch(0.7214 0.1337 49.98);
+  --chart-3: oklch(0.8721 0.0864 68.55);
+  --chart-4: oklch(0.6268 0 89.88);
+  --chart-5: oklch(0.683 0 89.88);
+  --sidebar: oklch(0.1822 0 89.88);
+  --sidebar-foreground: oklch(0.8109 0 89.88);
+  --sidebar-primary: oklch(0.7214 0.1337 49.98);
+  --sidebar-primary-foreground: oklch(0.1797 0.0043 308.19);
+  --sidebar-accent: oklch(0.3211 0 89.88);
+  --sidebar-accent-foreground: oklch(0.8109 0 89.88);
+  --sidebar-border: oklch(0.252 0 89.88);
+  --sidebar-ring: oklch(0.7214 0.1337 49.98);
+  --radius: 0.75rem;
+  --font-sans: Geist Mono, ui-monospace, monospace;
+  --font-serif: serif;
+  --font-mono: JetBrains Mono, monospace;
+  --shadow-color: #000000;
+  --shadow-opacity: 0.05;
+  --shadow-blur: 4px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0px;
+  --shadow-offset-y: 1px;
+  --letter-spacing: 0rem;
+  --spacing: 0.25rem;
+}

@@ -1,0 +1,97 @@
+/* notebook — sourced from tweakcn.com (utils/theme-presets.ts), converted to oklch() to match this repo's other preset files */
+
+/* Light mode */
+[data-theme="notebook-light"] {
+  --background: oklch(0.9821 0 89.88);
+  --foreground: oklch(0.3485 0 89.88);
+  --card: oklch(1 0 89.88);
+  --card-foreground: oklch(0.3485 0 89.88);
+  --popover: oklch(1 0 89.88);
+  --popover-foreground: oklch(0.3485 0 89.88);
+  --primary: oklch(0.4891 0 89.88);
+  --primary-foreground: oklch(0.9551 0 89.88);
+  --secondary: oklch(0.9006 0 89.88);
+  --secondary-foreground: oklch(0.3485 0 89.88);
+  --muted: oklch(0.9158 0 89.88);
+  --muted-foreground: oklch(0.4313 0 89.88);
+  --accent: oklch(0.9354 0.0456 94.85);
+  --accent-foreground: oklch(0.4015 0.0436 37.96);
+  --destructive: oklch(0.6627 0.0978 20);
+  --destructive-foreground: oklch(1 0 89.88);
+  --border: oklch(0.5538 0.0025 17.23);
+  --input: oklch(1 0 89.88);
+  --ring: oklch(0.7058 0 89.88);
+  --chart-1: oklch(0.3211 0 89.88);
+  --chart-2: oklch(0.4495 0 89.88);
+  --chart-3: oklch(0.5693 0 89.88);
+  --chart-4: oklch(0.683 0 89.88);
+  --chart-5: oklch(0.7921 0 89.88);
+  --sidebar: oklch(0.9551 0 89.88);
+  --sidebar-foreground: oklch(0.3485 0 89.88);
+  --sidebar-primary: oklch(0.4891 0 89.88);
+  --sidebar-primary-foreground: oklch(0.9551 0 89.88);
+  --sidebar-accent: oklch(0.9354 0.0456 94.85);
+  --sidebar-accent-foreground: oklch(0.4015 0.0436 37.96);
+  --sidebar-border: oklch(0.8078 0 89.88);
+  --sidebar-ring: oklch(0.7058 0 89.88);
+  --radius: 0.625rem;
+  --font-sans: Architects Daughter, sans-serif;
+  --font-serif: "Times New Roman", Times, serif;
+  --font-mono: "Courier New", Courier, monospace;
+  --shadow-color: #000000;
+  --shadow-opacity: 0.03;
+  --shadow-blur: 5px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 1px;
+  --shadow-offset-y: 4px;
+  --letter-spacing: 0.5px;
+  --spacing: 0.25rem;
+}
+
+/* Dark mode */
+[data-theme="notebook-dark"] {
+  --background: oklch(0.2891 0 89.88);
+  --foreground: oklch(0.8945 0 89.88);
+  --card: oklch(0.3211 0 89.88);
+  --card-foreground: oklch(0.8945 0 89.88);
+  --popover: oklch(0.3211 0 89.88);
+  --popover-foreground: oklch(0.8945 0 89.88);
+  --primary: oklch(0.7572 0 89.88);
+  --primary-foreground: oklch(0.2891 0 89.88);
+  --secondary: oklch(0.4676 0 89.88);
+  --secondary-foreground: oklch(0.8078 0 89.88);
+  --muted: oklch(0.3904 0 89.88);
+  --muted-foreground: oklch(0.7058 0 89.88);
+  --accent: oklch(0.9067 0 89.88);
+  --accent-foreground: oklch(0.3211 0 89.88);
+  --destructive: oklch(0.7915 0.0491 18.24);
+  --destructive-foreground: oklch(0.2891 0 89.88);
+  --border: oklch(0.4276 0 89.88);
+  --input: oklch(0.3211 0 89.88);
+  --ring: oklch(0.8078 0 89.88);
+  --chart-1: oklch(0.9521 0 89.88);
+  --chart-2: oklch(0.8576 0 89.88);
+  --chart-3: oklch(0.7572 0 89.88);
+  --chart-4: oklch(0.6534 0 89.88);
+  --chart-5: oklch(0.5452 0 89.88);
+  --sidebar: oklch(0.2478 0 89.88);
+  --sidebar-foreground: oklch(0.8945 0 89.88);
+  --sidebar-primary: oklch(0.7572 0 89.88);
+  --sidebar-primary-foreground: oklch(0.2478 0 89.88);
+  --sidebar-accent: oklch(0.9067 0 89.88);
+  --sidebar-accent-foreground: oklch(0.3211 0 89.88);
+  --sidebar-border: oklch(0.4276 0 89.88);
+  --sidebar-ring: oklch(0.8078 0 89.88);
+  --radius: 0.625rem;
+  --font-sans: Architects Daughter, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: "Fira Code", "Courier New", monospace;
+  --shadow-color: #000000;
+  --shadow-opacity: 0.03;
+  --shadow-blur: 5px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 1px;
+  --shadow-offset-y: 4px;
+  --letter-spacing: 0.5px;
+  --spacing: 0.25rem;
+}

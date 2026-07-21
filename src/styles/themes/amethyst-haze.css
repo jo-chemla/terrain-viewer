@@ -1,0 +1,97 @@
+/* amethyst-haze — sourced from tweakcn.com (utils/theme-presets.ts), converted to oklch() to match this repo's other preset files */
+
+/* Light mode */
+[data-theme="amethyst-haze-light"] {
+  --background: oklch(0.9777 0.0041 301.43);
+  --foreground: oklch(0.3651 0.0325 287.08);
+  --card: oklch(1 0 89.88);
+  --card-foreground: oklch(0.3651 0.0325 287.08);
+  --popover: oklch(1 0 89.88);
+  --popover-foreground: oklch(0.3651 0.0325 287.08);
+  --primary: oklch(0.6104 0.0767 299.73);
+  --primary-foreground: oklch(0.9777 0.0041 301.43);
+  --secondary: oklch(0.8957 0.0265 300.24);
+  --secondary-foreground: oklch(0.3651 0.0325 287.08);
+  --muted: oklch(0.8906 0.0139 299.78);
+  --muted-foreground: oklch(0.5288 0.0375 290.79);
+  --accent: oklch(0.7889 0.0802 359.94);
+  --accent-foreground: oklch(0.3394 0.0441 1.76);
+  --destructive: oklch(0.6332 0.1578 22.67);
+  --destructive-foreground: oklch(0.9777 0.0041 301.43);
+  --border: oklch(0.8447 0.0226 300.14);
+  --input: oklch(0.9329 0.0124 301.28);
+  --ring: oklch(0.6104 0.0767 299.73);
+  --chart-1: oklch(0.6104 0.0767 299.73);
+  --chart-2: oklch(0.7889 0.0802 359.94);
+  --chart-3: oklch(0.7321 0.0749 169.87);
+  --chart-4: oklch(0.854 0.0882 76.83);
+  --chart-5: oklch(0.7857 0.0645 258.08);
+  --sidebar: oklch(0.9554 0.0082 301.35);
+  --sidebar-foreground: oklch(0.3651 0.0325 287.08);
+  --sidebar-primary: oklch(0.6104 0.0767 299.73);
+  --sidebar-primary-foreground: oklch(0.9777 0.0041 301.43);
+  --sidebar-accent: oklch(0.7889 0.0802 359.94);
+  --sidebar-accent-foreground: oklch(0.3394 0.0441 1.76);
+  --sidebar-border: oklch(0.8719 0.0198 302.17);
+  --sidebar-ring: oklch(0.6104 0.0767 299.73);
+  --radius: 0.5rem;
+  --font-sans: Geist, sans-serif;
+  --font-serif: "Lora", Georgia, serif;
+  --font-mono: "Fira Code", "Courier New", monospace;
+  --shadow-color: hsl(0 0% 0%);
+  --shadow-opacity: 0.06;
+  --shadow-blur: 5px;
+  --shadow-spread: 1px;
+  --shadow-offset-x: 1px;
+  --shadow-offset-y: 2px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+}
+
+/* Dark mode */
+[data-theme="amethyst-haze-dark"] {
+  --background: oklch(0.2166 0.0215 292.85);
+  --foreground: oklch(0.9053 0.0245 293.56);
+  --card: oklch(0.2544 0.0301 292.73);
+  --card-foreground: oklch(0.9053 0.0245 293.56);
+  --popover: oklch(0.2544 0.0301 292.73);
+  --popover-foreground: oklch(0.9053 0.0245 293.56);
+  --primary: oklch(0.7058 0.0777 302.05);
+  --primary-foreground: oklch(0.2166 0.0215 292.85);
+  --secondary: oklch(0.4604 0.0472 295.56);
+  --secondary-foreground: oklch(0.9053 0.0245 293.56);
+  --muted: oklch(0.256 0.032 294.84);
+  --muted-foreground: oklch(0.6974 0.0282 300.06);
+  --accent: oklch(0.3181 0.0321 308.61);
+  --accent-foreground: oklch(0.8391 0.0692 2.67);
+  --destructive: oklch(0.6875 0.142 21.46);
+  --destructive-foreground: oklch(0.2166 0.0215 292.85);
+  --border: oklch(0.3063 0.0359 293.34);
+  --input: oklch(0.2847 0.0346 291.27);
+  --ring: oklch(0.7058 0.0777 302.05);
+  --chart-1: oklch(0.7058 0.0777 302.05);
+  --chart-2: oklch(0.8391 0.0692 2.67);
+  --chart-3: oklch(0.7321 0.0749 169.87);
+  --chart-4: oklch(0.854 0.0882 76.83);
+  --chart-5: oklch(0.7857 0.0645 258.08);
+  --sidebar: oklch(0.1985 0.02 293.66);
+  --sidebar-foreground: oklch(0.9053 0.0245 293.56);
+  --sidebar-primary: oklch(0.7058 0.0777 302.05);
+  --sidebar-primary-foreground: oklch(0.2166 0.0215 292.85);
+  --sidebar-accent: oklch(0.3181 0.0321 308.61);
+  --sidebar-accent-foreground: oklch(0.8391 0.0692 2.67);
+  --sidebar-border: oklch(0.2847 0.0346 291.27);
+  --sidebar-ring: oklch(0.7058 0.0777 302.05);
+  --radius: 0.5rem;
+  --font-sans: Geist, sans-serif;
+  --font-serif: "Lora", Georgia, serif;
+  --font-mono: "Fira Code", "Courier New", monospace;
+  --shadow-color: hsl(0 0% 0%);
+  --shadow-opacity: 0.06;
+  --shadow-blur: 5px;
+  --shadow-spread: 1px;
+  --shadow-offset-x: 1px;
+  --shadow-offset-y: 2px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+}
