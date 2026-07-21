@@ -51,17 +51,19 @@ import { svfProtocol } from '@/lib/svf-protocol'
 import { opennessProtocol } from '@/lib/openness-protocol'
 import { tellsProtocol } from '@/lib/tells-protocol'
 import { normalsProtocol } from '@/lib/normals-protocol'
-import { DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
+import { matcapProtocol } from '@/lib/matcap-protocol'
+import { phongProtocol } from '@/lib/phong-protocol'
+import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, SvfSource, OpennessSource, TellsSource } from "./LayersAndSources/MapSources"
-import { MatcapLayer } from "./LayersAndSources/MatcapLayer"
-import { PhongLayer } from "./LayersAndSources/PhongLayer"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, SvfSource, OpennessSource, TellsSource, MatcapSource, PhongSource } from "./LayersAndSources/MapSources"
 import {
   LayerOrderSlots,
   RasterLayer,
   OverlayBasemapLayers,
   BackgroundLayer,
   HillshadeLayer,
+  MatcapRasterLayer,
+  PhongRasterLayer,
   ColorReliefLayer,
   SlopeReliefLayer,
   AspectReliefLayer,
@@ -104,6 +106,10 @@ const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian'] as const
 const OPENNESS_MODES = ['positive', 'negative'] as const
 const TELLS_STYLES = ['outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
 const TELL_VETO_RESOLUTIONS = ['fine', 'coarse'] as const
+
+function matcapUrlFor(textureId: string): string {
+  return (MATCAP_TEXTURES.find((t) => t.id === textureId) ?? MATCAP_TEXTURES.find((t) => t.id === DEFAULT_MATCAP_ID)!).url
+}
 
 export function TerrainViewer() {
   const mapARef = useRef<MapRef>(null)
@@ -630,14 +636,16 @@ export function TerrainViewer() {
     // Not wrapped in withTileResultCache — this is a debug-only registration,
     // not consumed by any mounted Source (see its own header comment):
     // pointing a plain raster Source at `normals://...` visually sanity-
-    // checks a normal map's output independent of the matcap/Phong custom
-    // WebGL layers' own further per-pixel use of that same normal data.
-    // matcap:// / phong:// protocols aren't registered here on this branch —
-    // MatcapLayer/PhongLayer (custom WebGL layers, see their own headers)
-    // call computeNormalPixels directly instead of going through addProtocol
-    // dispatch, the same way lib/cog-contour-protocol.ts's worker does for
-    // its own fetches.
+    // checks a normal map's output independent of matcap:// / phong://'s own
+    // further per-pixel transform of that same normal data.
     maplibregl.addProtocol('normals', normalsProtocol)
+    // Plain raster protocols, like every derived mode above — see
+    // lib/matcap-protocol.ts / lib/phong-protocol.ts's headers for why these
+    // are CPU-computed raster tiles (draped over 3D terrain AND globe
+    // automatically, like the raster basemap) rather than a custom WebGL
+    // layer with its own mesh/projection matrix.
+    maplibregl.addProtocol('matcap', withTileResultCache(matcapProtocol))
+    maplibregl.addProtocol('phong', withTileResultCache(phongProtocol))
   }, [])
 
   // Keep the module-level cache flag in sync with the persisted Settings switch
@@ -1340,6 +1348,35 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
+          <MatcapSource
+            enabled={state.showLightingEffects && state.showMatcap}
+            matcapUrl={matcapUrlFor(state.matcapTextureId)}
+            rotationDeg={state.matcapRotationDeg}
+            // Reapplied live to the cached (unexaggerated) normal map inside
+            // matcapProtocol regardless of view mode — even flat 2D shading
+            // should get correspondingly stronger contrast at higher
+            // exaggeration, same reasoning as MatcapGlLayer's own historical
+            // drapeEnabled/exaggeration split.
+            exaggeration={state.exaggeration}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
+          <PhongSource
+            enabled={state.showLightingEffects && state.showPhong}
+            diffuseStrength={state.phongDiffuseStrength}
+            specularStrength={state.phongSpecularStrength}
+            lightDir={state.illuminationDir}
+            lightAlt={state.illuminationAlt}
+            exaggeration={state.exaggeration}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
           {isPrimary && (
             <TellsSource
               enabled={state.tellsBeta && tellsEverActivated}
@@ -1410,36 +1447,13 @@ export function TerrainViewer() {
               active={mapALoaded && state.tellsBeta}
             />
           )}
-          <MatcapLayer
-            mapRef={isPrimary ? mapARef : mapBRef}
+          <MatcapRasterLayer
             enabled={state.showLightingEffects && state.showMatcap}
-            drapeEnabled={state.viewMode !== "2d"}
-            exaggeration={state.exaggeration}
             opacity={state.lightingEffectsOpacity * state.matcapOpacity}
-            textureId={state.matcapTextureId}
-            rotationDeg={state.matcapRotationDeg}
-            debugNormals={false}
-            terrainSource={source}
-            customTerrainSources={customTerrainSources}
-            mapboxKey={mapboxKey}
-            maptilerKey={maptilerKey}
-            titilerEndpoint={titilerEndpoint}
           />
-          <PhongLayer
-            mapRef={isPrimary ? mapARef : mapBRef}
+          <PhongRasterLayer
             enabled={state.showLightingEffects && state.showPhong}
-            drapeEnabled={state.viewMode !== "2d"}
-            exaggeration={state.exaggeration}
             opacity={state.lightingEffectsOpacity * state.phongOpacity}
-            diffuseStrength={state.phongDiffuseStrength}
-            specularStrength={state.phongSpecularStrength}
-            lightDir={state.illuminationDir}
-            lightAlt={state.illuminationAlt}
-            terrainSource={source}
-            customTerrainSources={customTerrainSources}
-            mapboxKey={mapboxKey}
-            maptilerKey={maptilerKey}
-            titilerEndpoint={titilerEndpoint}
           />
           <HillshadeLayer
             showHillshade={state.showHillshade}

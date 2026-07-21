@@ -21,6 +21,8 @@ export const LAYER_SLOTS = {
   SVF: "slot-svf",
   OPENNESS: "slot-openness",
   HILLSHADE: "slot-hillshade",
+  MATCAP: "slot-matcap",
+  PHONG: "slot-phong",
   CONTOURS: "slot-contours",
   TELLS: "slot-tells",
 } as const
@@ -43,6 +45,8 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.SVF}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.OPENNESS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.HILLSHADE}   type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.MATCAP}      type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.PHONG}       type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.TELLS}       type="background" paint={{ "background-opacity": 0 }} />
   </>
@@ -136,12 +140,10 @@ export const BackgroundLayer = memo(
 )
 BackgroundLayer.displayName = "BackgroundLayer"
 
-// Matcap/Phong have their own hand-written WebGL layers (see
-// components/LayersAndSources/MatcapLayer.tsx / PhongLayer.tsx) rather than a
-// Layer here. Native Hillshade (below) is a separate, independent viz mode —
-// MapLibre's own `type: "hillshade"` paint property, editable down to raw
-// hillshade-method/illumination/color paint values (including hand-tuned
-// multi-directional presets), not a stand-in for Matcap/Phong.
+// Native Hillshade is a separate, independent viz mode from Matcap/Phong
+// (below) — MapLibre's own `type: "hillshade"` paint property, editable down
+// to raw hillshade-method/illumination/color paint values (including
+// hand-tuned multi-directional presets), not a stand-in for Matcap/Phong.
 export const HillshadeLayer = memo(
   ({
     showHillshade,
@@ -177,6 +179,43 @@ export const HillshadeLayer = memo(
   },
 )
 HillshadeLayer.displayName = "HillshadeLayer"
+
+// Matcap / Phong Layers — plain `raster` layers over matcapSource/phongSource
+// (lib/matcap-protocol.ts, lib/phong-protocol.ts via MapSources.tsx), draped
+// over 3D terrain AND globe the same automatic way RasterLayer's
+// raster-basemap-source already is — no custom WebGL layer needed (see those
+// protocols' headers). `enabled` gates the Layer the same way MatcapSource/
+// PhongSource gate their own Source — a Layer referencing a source that
+// isn't currently mounted (because the Source component itself returned
+// null) throws, so both must appear/disappear together rather than the
+// Layer alone being hidden via layout.visibility.
+export const MatcapRasterLayer = memo(({ enabled, opacity }: { enabled: boolean; opacity: number }) => {
+  if (!enabled) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.MATCAP}
+      id="matcap-terrain"
+      type="raster"
+      source="matcapSource"
+      paint={{ "raster-opacity": opacity, "raster-resampling": "linear" }}
+    />
+  )
+})
+MatcapRasterLayer.displayName = "MatcapRasterLayer"
+
+export const PhongRasterLayer = memo(({ enabled, opacity }: { enabled: boolean; opacity: number }) => {
+  if (!enabled) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.PHONG}
+      id="phong-terrain"
+      type="raster"
+      source="phongSource"
+      paint={{ "raster-opacity": opacity, "raster-resampling": "linear" }}
+    />
+  )
+})
+PhongRasterLayer.displayName = "PhongRasterLayer"
 
 // Color Relief Layer — Hypsometric Tint
 export const ColorReliefLayer = memo(

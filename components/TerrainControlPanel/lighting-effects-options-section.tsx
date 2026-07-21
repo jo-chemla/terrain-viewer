@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -11,21 +11,68 @@ import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
 
 const MATCAP_IDS = MATCAP_TEXTURES.map((t) => t.id)
 
+// matcapRotationDeg/illuminationDir/illuminationAlt/phongDiffuseStrength/
+// phongSpecularStrength/exaggeration each feed directly into the matcap:// /
+// phong:// tile URL (see lib/matcap-protocol.ts, lib/phong-protocol.ts) —
+// every change re-fetches/recomputes every currently-visible tile. Dragging
+// a slider or the XY pad fires many changes per second, so this debounces
+// the actual `setState` call (which is what rebuilds the tile URL) while
+// tracking a LOCAL value for the control itself, so the slider/pad still
+// feels instantly responsive to drag even though the expensive recompute
+// only happens ~150ms after the user stops moving it.
+// `pending` is null whenever there's no in-flight drag — the displayed value
+// is then just the real prop. While dragging, `pending` holds the optimistic
+// local value and only clears once the prop actually catches up to it (not
+// on a fixed timer and not via an unconditional "resync from props" effect,
+// which risks a render loop if the round-tripped prop is ever a fraction off
+// from what was sent — e.g. float precision through a URL-backed store).
+function useDebouncedState(value: number, setValue: (v: number) => void, delayMs = 150) {
+  const [pending, setPending] = useState<number | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (pending !== null && value === pending) setPending(null)
+  }, [value, pending])
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+  const onChange = useCallback((v: number) => {
+    setPending(v)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setValue(v), delayMs)
+  }, [setValue, delayMs])
+  return [pending !== null ? pending : value, onChange] as const
+}
+
+// Same idea as useDebouncedState above, for the XY pad's (azimuthDeg,
+// elevationDeg) pair together.
+function useDebouncedLightDir(azimuthDeg: number, elevationDeg: number, setValue: (v: { azimuthDeg: number; elevationDeg: number }) => void, delayMs = 150) {
+  type Dir = { azimuthDeg: number; elevationDeg: number }
+  const [pending, setPending] = useState<Dir | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (pending !== null && azimuthDeg === pending.azimuthDeg && elevationDeg === pending.elevationDeg) setPending(null)
+  }, [azimuthDeg, elevationDeg, pending])
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+  const onChange = useCallback((v: Dir) => {
+    setPending(v)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setValue(v), delayMs)
+  }, [setValue, delayMs])
+  return [pending !== null ? pending : { azimuthDeg, elevationDeg }, onChange] as const
+}
+
 // "Lighting Effects" houses two independent shading sub-modes, mirroring
 // Relief Visualization's LRM/SVF/Openness pattern (master checkbox+opacity at
 // the top, each sub-mode its own CheckboxWithSlider + detail fields):
-//  - "Matcap" (lib/matcap-gl-layer.ts): a material-capture lookup by surface
-//    normal, drawn by a hand-written WebGL layer.
-//  - "Phong" (lib/phong-gl-layer.ts): real ambient+diffuse+specular shading
-//    from a compass-fixed light, same custom-layer approach.
-// Both drape over 3D terrain via their own mesh (see either layer's module
-// header) — unlike a native `type: "hillshade"` paint property (see
-// hillshade-options-section.tsx, an entirely separate viz mode from this
-// one), rotation/light-direction/diffuse/specular are live shader uniforms
-// here, not baked into a re-fetched tile, so no debouncing is needed:
-// dragging any of these controls is exactly as responsive as MapLibre's own
-// hillshade illumination controls, wired directly to setState like every
-// other slider in this app.
+//  - "Matcap" (lib/matcap-protocol.ts): a material-capture lookup by surface
+//    normal, rendered as a plain draped raster tile.
+//  - "Phong" (lib/phong-protocol.ts): real ambient+diffuse+specular shading
+//    from a compass-fixed light, same raster-tile approach.
+// Both are plain `raster` layers draped over 3D terrain AND globe
+// automatically — see either protocol module's header for why that's a
+// prior hand-written WebGL layer (with its own mesh/depth-buffer handling
+// AND its own globe-projection matrix) unnecessary, and the whole reason
+// dragging any of these controls is debounced above: unlike a native
+// `type: "hillshade"` paint property (a pure GPU uniform update), every
+// change here re-fetches/recomputes a raster tile.
 export const LightingEffectsOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void;
   isOpen: boolean
@@ -43,6 +90,20 @@ export const LightingEffectsOptionsSection: React.FC<{
     const newIndex = (currentIndex + direction + MATCAP_IDS.length) % MATCAP_IDS.length
     setState({ matcapTextureId: MATCAP_IDS[newIndex] })
   }, [state.matcapTextureId, setState])
+
+  const [matcapRotationDeg, setMatcapRotationDeg] = useDebouncedState(
+    state.matcapRotationDeg, useCallback((v: number) => setState({ matcapRotationDeg: v }), [setState]),
+  )
+  const [phongDiffuseStrength, setPhongDiffuseStrength] = useDebouncedState(
+    state.phongDiffuseStrength, useCallback((v: number) => setState({ phongDiffuseStrength: v }), [setState]),
+  )
+  const [phongSpecularStrength, setPhongSpecularStrength] = useDebouncedState(
+    state.phongSpecularStrength, useCallback((v: number) => setState({ phongSpecularStrength: v }), [setState]),
+  )
+  const [lightDir, setLightDir] = useDebouncedLightDir(
+    state.illuminationDir, state.illuminationAlt,
+    useCallback((v: { azimuthDeg: number; elevationDeg: number }) => setState({ illuminationDir: v.azimuthDeg, illuminationAlt: v.elevationDeg }), [setState]),
+  )
 
   if (!state.showLightingEffects) return null
 
@@ -92,8 +153,8 @@ export const LightingEffectsOptionsSection: React.FC<{
               </div>
               <SliderControl
                 label="Sphere Rotation"
-                value={state.matcapRotationDeg}
-                onChange={(v) => setState({ matcapRotationDeg: v })}
+                value={matcapRotationDeg}
+                onChange={setMatcapRotationDeg}
                 min={0} max={360} step={1} suffix="°"
                 sliderId="matcap-rotation"
               />
@@ -125,10 +186,8 @@ export const LightingEffectsOptionsSection: React.FC<{
                     azimuthRange={[0, 360]}
                     elevationRange={[0, 90]}
                     sliderId="phong-light-xypad"
-                    value={{ azimuthDeg: state.illuminationDir, elevationDeg: state.illuminationAlt }}
-                    onChange={({ azimuthDeg, elevationDeg }) => {
-                      setState({ illuminationDir: azimuthDeg, illuminationAlt: elevationDeg })
-                    }}
+                    value={lightDir}
+                    onChange={setLightDir}
                   />
                 </CollapsibleContent>
               </Collapsible>
@@ -141,15 +200,15 @@ export const LightingEffectsOptionsSection: React.FC<{
               />
               <SliderControl
                 label="Diffuse Strength"
-                value={state.phongDiffuseStrength}
-                onChange={(v) => setState({ phongDiffuseStrength: v })}
+                value={phongDiffuseStrength}
+                onChange={setPhongDiffuseStrength}
                 min={0} max={1} step={0.05} decimals={2}
                 sliderId="phong-diffuse"
               />
               <SliderControl
                 label="Specular Strength"
-                value={state.phongSpecularStrength}
-                onChange={(v) => setState({ phongSpecularStrength: v })}
+                value={phongSpecularStrength}
+                onChange={setPhongSpecularStrength}
                 min={0} max={1} step={0.05} decimals={2}
                 sliderId="phong-specular"
               />
