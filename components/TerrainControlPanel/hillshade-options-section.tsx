@@ -1,29 +1,24 @@
 import type React from "react"
-import { useState, useCallback } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { useMemo, useCallback, useState } from "react"
+import { ChevronDown } from "lucide-react"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Section, CheckboxWithSlider, SliderControl } from "./controls-components"
+import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
 import { SphericalXYPad } from './XYPad'
-import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
+import { isHillshadeXYPadOpenAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
+import { useAtom } from "jotai"
 
-const MATCAP_IDS = MATCAP_TEXTURES.map((t) => t.id)
-
-// "Lighting Effects" houses two independent shading sub-modes, mirroring
-// Relief Visualization's LRM/SVF/Openness pattern (master checkbox+opacity at
-// the top, each sub-mode its own CheckboxWithSlider + detail fields):
-//  - "Matcap" (lib/matcap-gl-layer.ts): a material-capture lookup by surface
-//    normal, drawn by a hand-written WebGL layer.
-//  - "Phong" (lib/phong-gl-layer.ts): real ambient+diffuse+specular shading
-//    from a compass-fixed light, same custom-layer approach.
-// Both drape over 3D terrain via their own mesh (see either layer's module
-// header) — unlike the raster-tile branch of this feature (main), rotation/
-// light-direction/diffuse/specular are live shader uniforms here, not baked
-// into a re-fetched tile, so no debouncing is needed: dragging any of these
-// controls is exactly as responsive as MapLibre's own hillshade illumination
-// controls, wired directly to setState like every other slider in this app.
+// Native MapLibre `type: "hillshade"` rendering (paint built by
+// computeHillshadePaint in MapLayers.tsx) — an entirely independent viz mode
+// from "Lighting Effects" (Matcap/Phong, see lighting-effects-options-section.tsx),
+// which are hand-written WebGL layers, not this paint property. Hillshade
+// method choices mirror gdaldem's own hillshade flags almost exactly (see the
+// comment above HILLSHADE_ALG_FLAG in source-info-dialog.tsx) — "Aspect
+// (Multidir Colors)" is a hand-tuned 4-direction RGBY illumination preset
+// (computeHillshadePaint's "multidir-colors" branch), not a separate
+// algorithm, useful for spotting subtle relief regardless of its orientation
+// without hunting for one "correct" light angle.
 export const HillshadeOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void;
   isOpen: boolean
@@ -34,127 +29,106 @@ export const HillshadeOptionsSection: React.FC<{
   isOpen,
   onOpenChange,
 }) => {
-  const [isLightDirOpen, setIsLightDirOpen] = useState(true)
+  const [isColorsOpen, setIsColorsOpen] = useState(false)
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
+  const [isHillshadeXYPadOpen, setIsHillshadeXYPadOpen] = useAtom(isHillshadeXYPadOpenAtom)
+  const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
+  const hideAdvancedControls = activeProjectConfig?.hiddenSections?.includes("hillshadeAdvanced") ?? false
 
-  const cycleMatcap = useCallback((direction: number) => {
-    const currentIndex = MATCAP_IDS.indexOf(state.matcapTextureId)
-    const newIndex = (currentIndex + direction + MATCAP_IDS.length) % MATCAP_IDS.length
-    setState({ matcapTextureId: MATCAP_IDS[newIndex] })
-  }, [state.matcapTextureId, setState])
+  const supportsIlluminationDirection = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
+  const supportsIlluminationAltitude = useMemo(() => ["combined", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
+  const supportsShadowColor = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
+  const supportsHighlightColor = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
+  const supportsAccentColor = useMemo(() => state.hillshadeMethod === "standard", [state.hillshadeMethod])
+  const supportsExaggeration = useMemo(() => ["standard", "combined", "igor", "basic"].includes(state.hillshadeMethod), [state.hillshadeMethod])
+
+  // Set constraints based on what the current method supports
+  // If direction is not supported, fix it to 315° (northwest)
+  // If altitude is not supported, fix it to 45° (mid-elevation)
+  const fixedIlluminationDirection = !supportsIlluminationDirection ? 315 : null
+  const fixedIlluminationAltitude = !supportsIlluminationAltitude ? 45 : null
+
+  const hillshadeMethodOptions = [
+    { value: "combined", label: "Combined [2d]" }, { value: "standard", label: "Standard [1d]" },
+    { value: "multidir-colors", label: "Aspect (Multidir Colors)" }, { value: "igor", label: "Igor [1d]" },
+    { value: "basic", label: "Basic [2d]" },
+    // { value: "aspect-multidir", label: "Aspect classic (Multidir Colors)" },
+  ]
+  const hillshadeMethodKeys = hillshadeMethodOptions.map(({ value }) => value)
+
+  const cycleHillshadeMethod = useCallback((direction: number) => {
+    const currentIndex = hillshadeMethodKeys.indexOf(state.hillshadeMethod)
+    const newIndex = (currentIndex + direction + hillshadeMethodKeys.length) % hillshadeMethodKeys.length
+    setState({ hillshadeMethod: hillshadeMethodKeys[newIndex] })
+  }, [state.hillshadeMethod, hillshadeMethodKeys, setState])
 
   if (!state.showHillshade) return null
 
   return (
-    <Section title="Lighting Effects" isOpen={isOpen} onOpenChange={onOpenChange}>
-      <div className="space-y-4">
-        {/* ─── Matcap sub-mode ─── */}
-        <div className="space-y-2">
-          <CheckboxWithSlider
-            id="lighting-matcap"
-            label="Matcap"
-            tooltip="Shades the terrain surface from a material-capture image (like a 3D sculpting tool) instead of a directional light."
-            checked={state.showMatcap}
-            onCheckedChange={(checked) => setState({ showMatcap: checked })}
-            sliderValue={state.matcapOpacity}
-            onSliderChange={(value) => setState({ matcapOpacity: value })}
-          />
-          {state.showMatcap && (
-            <div className="space-y-3 pl-1">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Material</Label>
-                <div className="flex gap-2">
-                  <Select value={state.matcapTextureId} onValueChange={(value) => setState({ matcapTextureId: value })}>
-                    <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MATCAP_TEXTURES.map((tex) => (
-                        <SelectItem key={tex.id} value={tex.id}>
-                          <div className="flex items-center gap-2">
-                            <img src={tex.url} alt="" className="w-6 h-6 rounded-full object-cover border shrink-0" />
-                            <span>{tex.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="flex border rounded-md shrink-0">
-                    <Button variant="ghost" size="icon" onClick={() => cycleMatcap(-1)} className="rounded-r-none border-r cursor-pointer">
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => cycleMatcap(1)} className="rounded-l-none cursor-pointer">
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              <SliderControl
-                label="Sphere Rotation"
-                value={state.matcapRotationDeg}
-                onChange={(v) => setState({ matcapRotationDeg: v })}
-                min={0} max={360} step={1} suffix="°"
-                sliderId="matcap-rotation"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* ─── Phong sub-mode ─── */}
-        <div className="space-y-2">
-          <CheckboxWithSlider
-            id="lighting-phong"
-            label="Phong"
-            tooltip="Ambient+diffuse+specular shading against the raster basemap as albedo, with a movable light — a physically-flavored alternative to a matcap material."
-            checked={state.showPhong}
-            onCheckedChange={(checked) => setState({ showPhong: checked })}
-            sliderValue={state.phongOpacity}
-            onSliderChange={(value) => setState({ phongOpacity: value })}
-          />
-          {state.showPhong && (
-            <div className="space-y-3 pl-1">
-              <Collapsible open={isLightDirOpen} onOpenChange={setIsLightDirOpen}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
-                  Light Direction<ChevronDown className={`h-4 w-4 transition-transform ${isLightDirOpen ? "rotate-180" : ""}`} />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="flex justify-center pt-1 overflow-visible">
-                  <SphericalXYPad
-                    width={200}
-                    height={200}
-                    azimuthRange={[0, 360]}
-                    elevationRange={[0, 90]}
-                    sliderId="phong-light-xypad"
-                    value={{ azimuthDeg: state.illuminationDir, elevationDeg: state.illuminationAlt }}
-                    onChange={({ azimuthDeg, elevationDeg }) => {
-                      setState({ illuminationDir: azimuthDeg, illuminationAlt: elevationDeg })
-                    }}
-                  />
-                </CollapsibleContent>
-              </Collapsible>
-              <SliderControl
-                label="Albedo (Raster Basemap Opacity)"
-                value={state.rasterBasemapOpacity}
-                onChange={(v) => setState({ rasterBasemapOpacity: v })}
-                min={0} max={1} step={0.05} decimals={2}
-                sliderId="phong-albedo"
-              />
-              <SliderControl
-                label="Diffuse Strength"
-                value={state.phongDiffuseStrength}
-                onChange={(v) => setState({ phongDiffuseStrength: v })}
-                min={0} max={1} step={0.05} decimals={2}
-                sliderId="phong-diffuse"
-              />
-              <SliderControl
-                label="Specular Strength"
-                value={state.phongSpecularStrength}
-                onChange={(v) => setState({ phongSpecularStrength: v })}
-                min={0} max={1} step={0.05} decimals={2}
-                sliderId="phong-specular"
-              />
-            </div>
-          )}
-        </div>
+    <Section title="Hillshade" isOpen={isOpen} onOpenChange={onOpenChange}>
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">Hillshade Method</Label>
+        <CycleButtonGroup value={state.hillshadeMethod} options={hillshadeMethodOptions} onChange={(v) => setState({ hillshadeMethod: v })} onCycle={cycleHillshadeMethod} />
       </div>
+      {/* XY Pad for illumination azimuth and/or elevation */}
+      {(supportsIlluminationDirection || supportsIlluminationAltitude) && (
+        <Collapsible open={isHillshadeXYPadOpen} onOpenChange={setIsHillshadeXYPadOpen}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+             Illumination Azimuth and Elevation<ChevronDown className={`h-4 w-4 transition-transform ${isHillshadeXYPadOpen ? "rotate-180" : ""}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="flex justify-center pt-1 overflow-visible">
+            <SphericalXYPad
+              width={200}
+              height={200}
+              azimuthRange={[0, 360]}
+              // azimuthRange={[-180, 180]}
+              elevationRange={[1, 90]}
+              sliderId="illumination-xypad"
+              value={{ azimuthDeg: state.illuminationDir, elevationDeg: state.illuminationAlt }}
+              onChange={({ azimuthDeg, elevationDeg }) => {
+                setState({ illuminationDir: azimuthDeg, illuminationAlt: elevationDeg })
+              }}
+              // Constrain based on what the current method supports
+              fixedAzimuth={fixedIlluminationDirection}
+              fixedElevation={fixedIlluminationAltitude}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* Individual 1D sliders for illumination — folded by default, since the
+          XY pad above already covers direction+altitude together at a glance;
+          this is for precise numeric entry instead. Same folded-by-default
+          pattern as "Hillshade Colors" below. */}
+      {!hideAdvancedControls && (supportsIlluminationDirection || supportsIlluminationAltitude || supportsExaggeration) && (
+        <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+            Advanced<ChevronDown className={`h-4 w-4 transition-transform ${isAdvancedOpen ? "rotate-180" : ""}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-1 pt-1">
+            {supportsIlluminationDirection && <SliderControl label="Illumination Direction" value={state.illuminationDir} onChange={(v) => setState({ illuminationDir: v })} min={0} max={360} step={1} suffix="°" />}
+            {supportsIlluminationAltitude && <SliderControl label="Illumination Altitude" value={state.illuminationAlt} onChange={(v) => setState({ illuminationAlt: v })} min={0} max={90} step={1} suffix="°" />}
+            {supportsExaggeration && <SliderControl label="Hillshade Exaggeration" value={state.hillshadeExag} onChange={(v) => setState({ hillshadeExag: v })} min={0} max={1} step={0.01} decimals={2} />}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* hillshade colors */}
+      {!hideAdvancedControls && (supportsShadowColor || supportsHighlightColor || supportsAccentColor) && (
+        <Collapsible open={isColorsOpen} onOpenChange={setIsColorsOpen}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+            Hillshade Colors<ChevronDown className={`h-4 w-4 transition-transform ${isColorsOpen ? "rotate-180" : ""}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-1 pt-1">
+            <div className="grid gap-2" style={{ gridTemplateColumns: supportsAccentColor ? "repeat(3, 1fr)" : "repeat(2, 1fr)" }}>
+              {supportsShadowColor && (<div className="space-y-1"><Label className="text-xs">Shadow</Label><Input type="color" value={state.shadowColor} onChange={(e) => setState({ shadowColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
+              {supportsHighlightColor && (<div className="space-y-1"><Label className="text-xs">Highlight</Label><Input type="color" value={state.highlightColor} onChange={(e) => setState({ highlightColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
+              {supportsAccentColor && (<div className="space-y-1"><Label className="text-xs">Accent</Label><Input type="color" value={state.accentColor} onChange={(e) => setState({ accentColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
     </Section>
   )
 }

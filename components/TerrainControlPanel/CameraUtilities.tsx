@@ -110,6 +110,7 @@ const DEFAULT_POSE: CameraPose = {
 // capture, since captureSnapshot only records fields the URL currently overrides.
 const NUMERIC_STATE_DEFAULTS: Record<string, number> = {
   hillshadeOpacity: 1.0,
+  lightingEffectsOpacity: 1.0,
   colorReliefOpacity: 0.35,
   slopeOpacity: 1.0,
   rasterBasemapOpacity: 1.0,

@@ -63,17 +63,28 @@ export const VisualizationModesSection: React.FC<{
           onSliderChange={(value) => setState({ terrainAnalysisOpacity: value })}
         />
       )}
-      {/* Matcap + Phong, both plain raster overlays draped over 3D terrain
-          automatically — see Options: Lighting Effects for material/light
-          controls. */}
+      {/* Native MapLibre hillshade — its own independent viz mode, entirely
+          separate from "Lighting Effects" below. See Options: Hillshade for
+          method/illumination/color controls. */}
       <CheckboxWithSlider
         id="hillshade"
         checked={state.showHillshade}
         onCheckedChange={(checked) => setState({ showHillshade: checked })}
-        label="Lighting Effects"
-        tooltip="Matcap and Phong surface shading — see Options: Lighting Effects for both sub-modes."
+        label="Hillshade"
+        tooltip="MapLibre's native hillshade rendering — method (standard/igor/combined/multidirectional/basic), illumination direction/altitude, and colors — see Options: Hillshade."
         sliderValue={state.hillshadeOpacity}
         onSliderChange={(value) => setState({ hillshadeOpacity: value })}
+      />
+      {/* Matcap + Phong, both custom WebGL layers draped over 3D terrain —
+          see Options: Lighting Effects for material/light controls. */}
+      <CheckboxWithSlider
+        id="lighting-effects"
+        checked={state.showLightingEffects}
+        onCheckedChange={(checked) => setState({ showLightingEffects: checked })}
+        label="Lighting Effects"
+        tooltip="Matcap and Phong surface shading — see Options: Lighting Effects for both sub-modes."
+        sliderValue={state.lightingEffectsOpacity}
+        onSliderChange={(value) => setState({ lightingEffectsOpacity: value })}
       />
       {state.tellsBeta && (
         <CheckboxWithSlider

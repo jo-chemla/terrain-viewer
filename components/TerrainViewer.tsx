@@ -61,6 +61,7 @@ import {
   RasterLayer,
   OverlayBasemapLayers,
   BackgroundLayer,
+  HillshadeLayer,
   ColorReliefLayer,
   SlopeReliefLayer,
   AspectReliefLayer,
@@ -77,6 +78,7 @@ import {
   TellsInspectPopup,
   TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT,
   LAYER_SLOTS,
+  computeHillshadePaint,
   computeColorReliefPaint,
 } from "./LayersAndSources/MapLayers"
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
@@ -184,12 +186,20 @@ export function TerrainViewer() {
     overlayBasemapIds: parseAsArrayOf(parseAsString).withDefault([]),
     // colorRamp: parseAsString.withDefault("mby"),
     colorRamp: parseAsStringLiteral(COLOR_RAMP_IDS).withDefault("mby"),
-    // "Lighting Effects" viz mode — master toggle/opacity, housing two
-    // sub-modes: Matcap first, Phong second (see hillshade-options-section.tsx).
-    // Composites (multiplies) with each sub-mode's own opacity below, same
-    // master-vs-submode pattern as Relief Visualization's LRM/SVF/Openness.
+    // Native MapLibre Hillshade — its own independent viz mode, entirely
+    // separate from "Lighting Effects" (Matcap/Phong) below. Paint built by
+    // computeHillshadePaint (MapLayers.tsx) from hillshadeMethod/
+    // illuminationDir/illuminationAlt/shadowColor/highlightColor/
+    // hillshadeExag/accentColor further down this block.
     showHillshade: parseAsBoolean.withDefault(true),
     hillshadeOpacity: parseAsFloat.withDefault(1.0),
+    // "Lighting Effects" viz mode — master toggle/opacity, housing two
+    // sub-modes: Matcap first, Phong second (see
+    // lighting-effects-options-section.tsx). Composites (multiplies) with
+    // each sub-mode's own opacity below, same master-vs-submode pattern as
+    // Relief Visualization's LRM/SVF/Openness.
+    showLightingEffects: parseAsBoolean.withDefault(true),
+    lightingEffectsOpacity: parseAsFloat.withDefault(1.0),
     // "Matcap" sub-mode (lib/matcap-protocol.ts) — a plain raster overlay
     // (draped over 3D terrain the same automatic way the raster basemap is)
     // that looks up color from a material-capture image using the surface
@@ -403,6 +413,12 @@ export function TerrainViewer() {
 
 
   const [skyConfig] = useAtom(skyConfigAtom)
+
+  // Compute hillshade paint with useMemo to prevent recalculation
+  const hillshadePaint = useMemo(
+    () => computeHillshadePaint(state),
+    [ state.hillshadeMethod, state.illuminationDir, state.illuminationAlt, state.hillshadeOpacity, state.shadowColor, state.highlightColor, state.hillshadeExag, state.accentColor ]
+  )
 
   const colorReliefPaint = useMemo(
     () => computeColorReliefPaint(state),
@@ -1396,10 +1412,10 @@ export function TerrainViewer() {
           )}
           <MatcapLayer
             mapRef={isPrimary ? mapARef : mapBRef}
-            enabled={state.showHillshade && state.showMatcap}
+            enabled={state.showLightingEffects && state.showMatcap}
             drapeEnabled={state.viewMode !== "2d"}
             exaggeration={state.exaggeration}
-            opacity={state.hillshadeOpacity * state.matcapOpacity}
+            opacity={state.lightingEffectsOpacity * state.matcapOpacity}
             textureId={state.matcapTextureId}
             rotationDeg={state.matcapRotationDeg}
             debugNormals={false}
@@ -1411,10 +1427,10 @@ export function TerrainViewer() {
           />
           <PhongLayer
             mapRef={isPrimary ? mapARef : mapBRef}
-            enabled={state.showHillshade && state.showPhong}
+            enabled={state.showLightingEffects && state.showPhong}
             drapeEnabled={state.viewMode !== "2d"}
             exaggeration={state.exaggeration}
-            opacity={state.hillshadeOpacity * state.phongOpacity}
+            opacity={state.lightingEffectsOpacity * state.phongOpacity}
             diffuseStrength={state.phongDiffuseStrength}
             specularStrength={state.phongSpecularStrength}
             lightDir={state.illuminationDir}
@@ -1424,6 +1440,10 @@ export function TerrainViewer() {
             mapboxKey={mapboxKey}
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
+          />
+          <HillshadeLayer
+            showHillshade={state.showHillshade}
+            hillshadePaint={hillshadePaint}
           />
 
           {/* Contours — self-contained, primary map only */}
@@ -1569,7 +1589,9 @@ export function TerrainViewer() {
     [
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
       state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB, state.overlayBasemapIds,
-      state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity, state.showHillshade,
+      state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity,
+      state.showHillshade, state.hillshadeMethod, state.shadowColor, state.highlightColor, state.hillshadeExag, state.accentColor,
+      state.showLightingEffects, state.lightingEffectsOpacity,
       // Same "toggle it on but nothing shows until I pan or edit a slider"
       // desync as the tellsBeta comment below — these plain raster Sources/
       // Layers only ever refreshed on a map move because none of their own
@@ -1589,7 +1611,7 @@ export function TerrainViewer() {
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor, state.contourWeight,
       activeBasemapSourceA, activeBasemapSourceB,
-      colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
+      hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, blobnessReliefPaint, svfReliefPaint, opennessReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,

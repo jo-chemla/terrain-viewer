@@ -17,6 +17,7 @@ import { TerrainSourceSection } from "./terrain-source-section"
 import { DownloadSection } from "./download-section"
 import { VisualizationModesSection } from "./visualization-modes-section"
 import { HillshadeOptionsSection } from "./hillshade-options-section"
+import { LightingEffectsOptionsSection } from "./lighting-effects-options-section"
 import { HypsometricTintOptionsSection } from "./hypsometric-tint-options-section"
 import { TerrainAnalysisOptionsSection } from "./terrain-analysis-section"
 import { ReliefVisualizationOptionsSection } from "./relief-visualization-section"
@@ -46,6 +47,7 @@ const SECTION_KEYS = [
   "download",
   "visualizationModes",
   "hillshade",
+  "lightingEffects",
   "hypsometricTint",
   "terrainAnalysis",
   "reliefVisualization",
@@ -68,6 +70,7 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   download: false,
   terrainSource: false,
   hillshade: false,
+  lightingEffects: false,
   hypsometricTint: false,
   terrainAnalysis: false,
   reliefVisualization: false,
@@ -160,6 +163,7 @@ export function TerrainControlPanel({
       savedVizModesRef.current = {
         showContoursAndGraticules: state.showContoursAndGraticules,
         showHillshade: state.showHillshade,
+        showLightingEffects: state.showLightingEffects,
         showRasterBasemap: state.showRasterBasemap,
         showColorRelief: state.showColorRelief,
         showReliefVisualization: state.showReliefVisualization,
@@ -170,6 +174,7 @@ export function TerrainControlPanel({
       setState({
         showContoursAndGraticules: false,
         showHillshade: false,
+        showLightingEffects: false,
         showRasterBasemap: true,
         showColorRelief: false,
         showReliefVisualization: false,
@@ -434,10 +439,11 @@ export function TerrainControlPanel({
                 withSeparator={!showDetectors}
               />
             )}
-            {/* "Lighting Effects" (Matcap + Phong) — positioned after Terrain
-                Analysis and before Background, matching Visualization Modes'
-                own list order. */}
+            {/* Native Hillshade and "Lighting Effects" (Matcap + Phong) are two
+                independent viz modes, positioned after Terrain Analysis and
+                before Background, matching Visualization Modes' own list order. */}
             <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
+            <LightingEffectsOptionsSection state={state} setState={setState} isOpen={sectionOpen.lightingEffects} onOpenChange={toggle("lightingEffects")} />
           </>
         )}
         {!hiddenSections.includes("terrainAnalysis") && showDetectors && (
