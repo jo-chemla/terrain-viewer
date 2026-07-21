@@ -22,7 +22,7 @@ const DEFAULTS = {
   opennessMin: undefined,
   opennessMax: undefined,
   opennessInvertColorRamp: false,
-  opennessSymmetric: false,
+  opennessSymmetric: true,
   opennessRadius: 8,
 }
 

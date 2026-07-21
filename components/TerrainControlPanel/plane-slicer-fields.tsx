@@ -22,6 +22,20 @@ export const PlaneSlicerFields: React.FC<{
 }> = ({ state, setState }) => {
   const isLrm = state.planeSlicerReferenceMode === "lrm"
 
+  // Absolute is metres of real elevation; LRM is height above/below the local
+  // mean. Both allow going slightly below zero (−100) so a threshold can sit
+  // just under sea level / the local trend. Keep in sync with the SliderControl.
+  const boundsFor = (mode: string) =>
+    mode === "lrm" ? { min: -100, max: 100 } : { min: -100, max: 8000 }
+
+  // Absolute and LRM each keep their own threshold value (planeSlicerValue vs.
+  // planeSlicerValueLrm) — switching reference just reads/writes the field for
+  // the active mode, so each frame restores its own last value rather than one
+  // number being dragged (or clamped) across two very different ranges.
+  const valueField = isLrm ? "planeSlicerValueLrm" : "planeSlicerValue"
+  const value = state[valueField] ?? 0
+  const bounds = boundsFor(state.planeSlicerReferenceMode)
+
   return (
     <div className="space-y-2">
       <Separator />
@@ -41,7 +55,7 @@ export const PlaneSlicerFields: React.FC<{
             <ToggleGroup
               type="single"
               value={state.planeSlicerReferenceMode}
-              onValueChange={(value) => value && setState({ planeSlicerReferenceMode: value })}
+              onValueChange={(v) => v && setState({ planeSlicerReferenceMode: v })}
               className="border rounded-md w-[180px]"
             >
               <ToggleGroupItem value="absolute" className={TOGGLE_ITEM_CLASS} title="Reference is real elevation in meters.">
@@ -55,10 +69,10 @@ export const PlaneSlicerFields: React.FC<{
 
           <SliderControl
             label={isLrm ? "Height" : "Altitude"}
-            value={state.planeSlicerValue}
-            onChange={(v) => setState({ planeSlicerValue: v })}
-            min={isLrm ? -50 : 0}
-            max={isLrm ? 50 : 8000}
+            value={value}
+            onChange={(v) => setState({ [valueField]: v })}
+            min={bounds.min}
+            max={bounds.max}
             step={1}
             suffix=" m"
             sliderId="plane-slicer:value"

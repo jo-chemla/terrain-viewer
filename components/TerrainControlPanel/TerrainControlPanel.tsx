@@ -420,6 +420,10 @@ export function TerrainControlPanel({
             {!hiddenSections.includes("contour") && (
               <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
             )}
+            {/* Native Hillshade sits between Contours and Elevation Hypso here,
+                mirroring Visualization Modes' own list order (Raster Basemap,
+                the only mode between them there, lives under Sources instead). */}
+            <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
             <HypsometricTintOptionsSection state={state} setState={setState} isOpen={sectionOpen.hypsometricTint} onOpenChange={toggle("hypsometricTint")} mapRef={mapRef} />
             {!hiddenSections.includes("reliefVisualization") && (
               <ReliefVisualizationOptionsSection
@@ -439,10 +443,9 @@ export function TerrainControlPanel({
                 withSeparator={!showDetectors}
               />
             )}
-            {/* Native Hillshade and "Lighting Effects" (Matcap + Phong) are two
-                independent viz modes, positioned after Terrain Analysis and
-                before Background, matching Visualization Modes' own list order. */}
-            <HillshadeOptionsSection state={state} setState={setState} isOpen={sectionOpen.hillshade} onOpenChange={toggle("hillshade")} />
+            {/* "Lighting Effects" (Matcap + Phong) is last in the Options group,
+                after Terrain Analysis, matching Visualization Modes' own list
+                order. */}
             <LightingEffectsOptionsSection state={state} setState={setState} isOpen={sectionOpen.lightingEffects} onOpenChange={toggle("lightingEffects")} />
           </>
         )}

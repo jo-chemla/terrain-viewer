@@ -176,6 +176,20 @@ export const LightingEffectsOptionsSection: React.FC<{
           />
           {state.showPhong && (
             <div className="space-y-3 pl-1">
+              {/* Light Mode (Absolute vs Camera-relative) toggle temporarily
+                  commented out. Matcap could take the same absolute/camera-
+                  relative path too (rotate the matcap lookup by the map bearing,
+                  the way phongLightRelativeToCamera adds bearing to the phong
+                  azimuth), but since BOTH Matcap and Phong are plain raster-tile
+                  protocols rather than live WebGL layers, "camera-relative"
+                  here can only ever mean baking the settled map bearing into the
+                  tile URL and re-fetching every tile on rotate — not a true
+                  per-frame headlamp. Pulling the control until we decide whether
+                  that raster-recompute approximation is worth exposing (and
+                  whether to add the matching Matcap version). The
+                  phongLightRelativeToCamera state + its TerrainViewer.tsx wiring
+                  are left intact (defaulting to Absolute), so re-enabling is just
+                  un-commenting this block.
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-sm font-medium">Light Mode</Label>
                 <ToggleGroup
@@ -192,6 +206,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   </ToggleGroupItem>
                 </ToggleGroup>
               </div>
+              */}
               <Collapsible open={isLightDirOpen} onOpenChange={setIsLightDirOpen}>
                 <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
                   Light Direction<ChevronDown className={`h-4 w-4 transition-transform ${isLightDirOpen ? "rotate-180" : ""}`} />

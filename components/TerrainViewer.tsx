@@ -208,7 +208,7 @@ export function TerrainViewer() {
     // lighting-effects-options-section.tsx). Composites (multiplies) with
     // each sub-mode's own opacity below, same master-vs-submode pattern as
     // Relief Visualization's LRM/SVF/Openness.
-    showLightingEffects: parseAsBoolean.withDefault(true),
+    showLightingEffects: parseAsBoolean.withDefault(false),
     lightingEffectsOpacity: parseAsFloat.withDefault(1.0),
     // "Matcap" sub-mode (lib/matcap-protocol.ts) — a plain raster overlay
     // (draped over 3D terrain the same automatic way the raster basemap is)
@@ -269,6 +269,9 @@ export function TerrainViewer() {
     // Only read when slopeColorRamp === "custom" — see computeColorReliefPaint's
     // dedicated branch for that ramp id in MapLayers.tsx.
     slopeCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    // When the custom ramp is selected, render its stops as hard discrete bands
+    // (each color holds until the next stop) instead of a continuous gradient.
+    slopeCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showAspect: parseAsBoolean.withDefault(false),
     aspectOpacity: parseAsFloat.withDefault(0.5),
     aspectColorRamp: parseAsString.withDefault("aspect-compass"),
@@ -330,7 +333,7 @@ export function TerrainViewer() {
     opennessMin: parseAsFloat.withDefault(-15),
     opennessMax: parseAsFloat.withDefault(15),
     opennessInvertColorRamp: parseAsBoolean.withDefault(false),
-    opennessSymmetric: parseAsBoolean.withDefault(false),
+    opennessSymmetric: parseAsBoolean.withDefault(true),
     opennessRadius: parseAsFloat.withDefault(8),
     opennessMode: parseAsStringLiteral(OPENNESS_MODES).withDefault("positive"),
     // Plane Slicer — Tools: Elevation Picker sub-section. Paints one solid color
@@ -338,7 +341,14 @@ export function TerrainViewer() {
     // computePlaneSlicerPaint in MapLayers.tsx.
     showPlaneSlicer: parseAsBoolean.withDefault(false),
     planeSlicerReferenceMode: parseAsStringLiteral(PLANE_SLICER_REFERENCE_MODES).withDefault("absolute"),
+    // Absolute and LRM keep independent threshold values — the two reference
+    // frames have wildly different natural ranges (metres of real elevation vs.
+    // ±metres of local relief), so switching between them restores each mode's
+    // own last value instead of dragging one number across both. planeSlicerValue
+    // is the Absolute one; planeSlicerValueLrm the LRM one. The active value is
+    // picked by planeSlicerReferenceMode (see planeSlicerPaint / plane-slicer-fields).
     planeSlicerValue: parseAsFloat.withDefault(0),
+    planeSlicerValueLrm: parseAsFloat.withDefault(0),
     planeSlicerSide: parseAsStringLiteral(PLANE_SLICER_SIDES).withDefault("below"),
     planeSlicerColor: parseAsString.withDefault("#3388ff"),
     planeSlicerOpacity: parseAsFloat.withDefault(0.6),
@@ -469,13 +479,14 @@ export function TerrainViewer() {
     () => computeColorReliefPaint({
       colorRamp: state.slopeColorRamp,
       customStops: state.slopeCustomStops,
+      customStopsDiscrete: state.slopeCustomStopsDiscrete,
       customHypsoMinMax: true,
       minElevation: state.slopeMinDegrees,
       maxElevation: state.slopeMaxDegrees,
       colorReliefOpacity: state.slopeOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.slopeInvertColorRamp,
     }),
-    [ state.slopeColorRamp, state.slopeCustomStops, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.terrainAnalysisOpacity, state.slopeInvertColorRamp ]
+    [ state.slopeColorRamp, state.slopeCustomStops, state.slopeCustomStopsDiscrete, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.terrainAnalysisOpacity, state.slopeInvertColorRamp ]
   )
 
   // Aspect/TRI/curvature: same trick as slope above, just with their own state fields.
@@ -547,12 +558,12 @@ export function TerrainViewer() {
 
   const planeSlicerPaint = useMemo(
     () => computePlaneSlicerPaint({
-      value: state.planeSlicerValue,
+      value: state.planeSlicerReferenceMode === "lrm" ? state.planeSlicerValueLrm : state.planeSlicerValue,
       side: state.planeSlicerSide,
       color: state.planeSlicerColor,
       opacity: state.planeSlicerOpacity,
     }),
-    [ state.planeSlicerValue, state.planeSlicerSide, state.planeSlicerColor, state.planeSlicerOpacity ]
+    [ state.planeSlicerReferenceMode, state.planeSlicerValue, state.planeSlicerValueLrm, state.planeSlicerSide, state.planeSlicerColor, state.planeSlicerOpacity ]
   )
 
   const roughnessReliefPaint = useMemo(

@@ -34,13 +34,32 @@ export const DEFAULT_SLOPE_CUSTOM_STOPS: CustomRampStop[] = [
 // file already has — so it flows through computeColorReliefPaint,
 // remapColorRampStops (invert), extractStops, and the ramp-picker's own
 // gradient-swatch preview unchanged, no special-casing needed downstream.
-export function buildCustomRampColors(stops: CustomRampStop[]): any[] {
+export function buildCustomRampColors(stops: CustomRampStop[], discrete = false): any[] {
   const sorted = [...stops].sort((a, b) => a.value - b.value)
   // An interpolate expression needs at least 2 (strictly ascending) stops —
   // fall back to the default bands rather than let maplibre's style
   // validator reject a degenerate one-stop (or empty) custom ramp.
   const usable = sorted.length >= 2 ? sorted : DEFAULT_SLOPE_CUSTOM_STOPS
   const colors: any[] = ["interpolate", ["linear"], ["elevation"]]
+  if (discrete) {
+    // Hard bands: each stop's color holds flat until the next stop's value.
+    // color-relief-color only ever evaluates through maplibre's interpolate
+    // path (a "step" expression there silently renders transparent — see the
+    // note on computePlaneSlicerPaint in MapLayers.tsx), so a stepped look is
+    // faked by holding the previous color up to a hair before each boundary and
+    // switching in a near-vertical (epsilon-wide) ramp exactly at it. epsilon is
+    // kept well under the smallest gap so the injected pair stays strictly
+    // ascending, which maplibre's style validator requires.
+    let minGap = Infinity
+    for (let i = 1; i < usable.length; i++) minGap = Math.min(minGap, usable[i].value - usable[i - 1].value)
+    const eps = Number.isFinite(minGap) && minGap > 0 ? Math.min(1e-3, minGap / 1000) : 1e-3
+    colors.push(usable[0].value, usable[0].color)
+    for (let i = 1; i < usable.length; i++) {
+      colors.push(usable[i].value - eps, usable[i - 1].color)
+      colors.push(usable[i].value, usable[i].color)
+    }
+    return colors
+  }
   for (const stop of usable) colors.push(stop.value, stop.color)
   return colors
 }
@@ -607,22 +626,36 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
-  // Same diverging-around-transparent structure as curvature-diverging, but
-  // white/black instead of red/blue — reads cleanly against both a light and
-  // a dark basemap (no hue to clash with), which is exactly what makes this
-  // useful for ridge/valley mapping specifically: white ridges fading to
-  // nothing on flat ground, deepening to black in valleys (or the reverse —
-  // "Invert Color Ramp" below already swaps the two polarities of ANY ramp,
-  // ridges<->valleys included, without needing a second monochrome entry).
-  "curvature-monochrome": {
-    name: "Curvature (Monochrome)",
+  // Two monochrome curvature ramps that diverge to the SAME tone at both
+  // extremes and fade to fully transparent at flat (0) — so any curved feature
+  // (ridge OR valley) is drawn in one ink over an otherwise-untinted surface,
+  // rather than a two-color ridge-vs-valley split (that's what curvature-
+  // diverging above is for). Pick the one whose ink contrasts your basemap:
+  // black-transp-black reads on a light basemap, white-transp-white on a dark
+  // one. Conceptually these are the "white-black-white" / "black-white-black"
+  // pair with the theme-matching tone taken all the way to transparent, so no
+  // separate theme-based colorramp preprocessing is needed here.
+  "curvature-mono-black": {
+    name: "Curvature (Black on Transparent)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -20, "rgb(0, 0, 0)",
+      -5, "rgba(0, 0, 0, 0.5)",
+      0, "rgba(0, 0, 0, 0)",
+      5, "rgba(0, 0, 0, 0.5)",
+      20, "rgb(0, 0, 0)",
+    ],
+    continuous: true,
+  },
+  "curvature-mono-white": {
+    name: "Curvature (White on Transparent)",
     colors: [
       "interpolate", ["linear"], ["elevation"],
       -20, "rgb(255, 255, 255)",
       -5, "rgba(255, 255, 255, 0.5)",
-      0, "rgba(0, 0, 0, 0)",
-      5, "rgba(0, 0, 0, 0.5)",
-      20, "rgb(0, 0, 0)",
+      0, "rgba(255, 255, 255, 0)",
+      5, "rgba(255, 255, 255, 0.5)",
+      20, "rgb(255, 255, 255)",
     ],
     continuous: true,
   },

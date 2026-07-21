@@ -375,7 +375,18 @@ LrmReliefLayer.displayName = "LrmReliefLayer"
 export const PlaneSlicerLayer = memo(({ enabled, referenceMode, planeSlicerPaint }: { enabled: boolean; referenceMode: "absolute" | "lrm"; planeSlicerPaint: any }) => {
   if (!enabled) return null
   return (
+    // key={referenceMode} forces a full remount when the reference mode flips.
+    // A maplibre layer's `source` is immutable after creation, and react-map-gl's
+    // <Layer> only ever diffs paint/layout/filter/zoom on an update — it silently
+    // ignores a changed `source` prop (see updateLayer in react-map-gl's
+    // layer.js). Without the key, switching Absolute<->LRM would leave the layer
+    // still bound to whichever source it was first created with (hillshadeSource),
+    // so LRM mode appeared to "do nothing" — it was reading absolute elevation
+    // with the LRM slider's ±50 m range, which paints ~nothing. Keying by the
+    // source-selecting prop unmounts the old layer and creates a fresh one bound
+    // to the correct source instead.
     <Layer
+      key={referenceMode}
       beforeId={LAYER_SLOTS.PLANE_SLICER}
       id="plane-slicer"
       type="color-relief"
@@ -758,6 +769,7 @@ export type ColorReliefConfig = {
   // for it, so its expression is built live from these user-authored stops
   // instead of looked up.
   customStops?: CustomRampStop[]
+  customStopsDiscrete?: boolean
   customHypsoMinMax?: boolean
   minElevation?: number
   maxElevation?: number
@@ -772,6 +784,7 @@ export type ColorReliefConfig = {
 export const computeColorReliefPaint = ({
   colorRamp,
   customStops,
+  customStopsDiscrete = false,
   customHypsoMinMax = false,
   minElevation = 0,
   maxElevation = 8100,
@@ -785,7 +798,7 @@ export const computeColorReliefPaint = ({
     // so customHypsoMinMax/min/maxElevation don't apply here. Invert still
     // makes sense as a pure polarity swap, done by rescaling onto its own
     // existing bounds (a no-op stretch).
-    const baseColors = buildCustomRampColors(customStops ?? DEFAULT_SLOPE_CUSTOM_STOPS)
+    const baseColors = buildCustomRampColors(customStops ?? DEFAULT_SLOPE_CUSTOM_STOPS, customStopsDiscrete)
     const stops = extractStops(baseColors)
     const colors = invertColorRamp
       ? remapColorRampStops(baseColors, Math.min(...stops), Math.max(...stops), true)
