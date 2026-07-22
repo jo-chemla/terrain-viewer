@@ -9,6 +9,17 @@ export interface ThemeConfig {
    *  from tweakcn.com's own utils/theme-presets.ts, extracted directly
    *  rather than guessed, same as every other preset already here). */
   source?: "tweakcn" | "themux" | "shadcnthemes";
+  /** Set only for themes whose SOURCE only ever defined one mode (the 8
+   *  shadcnthemes.app presets — see src/styles/themes/*.css's "known
+   *  limitation" comments) — their "-light"/"-dark" CSS blocks are literal
+   *  duplicates of the same values, so picking one while the app's own
+   *  light/dark toggle is set to the OPPOSITE of this field would show a
+   *  dark-designed palette under a "light" label (or vice versa) with no way
+   *  to tell from the toggle that anything is mismatched. theme-provider.tsx's
+   *  setTheme forces the app's own toggle to match this field when set, so
+   *  the toggle always accurately reflects what's actually on screen for
+   *  these single-mode presets. */
+  singleMode?: "light" | "dark";
 }
 
 export const themes: ThemeConfig[] = [
@@ -402,6 +413,7 @@ export const themes: ThemeConfig[] = [
     primaryDark: "oklch(0.606 0.25 292.717)",
     fontSans: "Geist, sans-serif",
     source: "shadcnthemes",
+    singleMode: "dark",
   },
   {
     name: "aurora-bloom",
@@ -410,6 +422,7 @@ export const themes: ThemeConfig[] = [
     primaryDark: "oklch(0.541 0.281 293.009)",
     fontSans: "system-ui",
     source: "shadcnthemes",
+    singleMode: "light",
   },
   {
     name: "ember-noir",
@@ -418,6 +431,7 @@ export const themes: ThemeConfig[] = [
     primaryDark: "oklch(0.837 0.128 66.29)",
     fontSans: "Instrument Sans",
     source: "shadcnthemes",
+    singleMode: "dark",
   },
   {
     name: "graphite-shadcnthemes",
@@ -426,6 +440,7 @@ export const themes: ThemeConfig[] = [
     primaryDark: "oklch(0.87 0 0)",
     fontSans: "Inter",
     source: "shadcnthemes",
+    singleMode: "dark",
   },
   {
     name: "midnight-mint",
@@ -434,6 +449,7 @@ export const themes: ThemeConfig[] = [
     primaryDark: "oklch(0.97 0 0)",
     fontSans: "Inter",
     source: "shadcnthemes",
+    singleMode: "dark",
   },
   {
     name: "vivid-coral",
@@ -442,6 +458,7 @@ export const themes: ThemeConfig[] = [
     primaryDark: "oklch(0.278 0.033 256.848)",
     fontSans: "system-ui",
     source: "shadcnthemes",
+    singleMode: "light",
   },
   {
     name: "tangerine-glow",
@@ -450,6 +467,7 @@ export const themes: ThemeConfig[] = [
     primaryDark: "oklch(0.837 0.128 66.29)",
     fontSans: "Switzer",
     source: "shadcnthemes",
+    singleMode: "light",
   },
   {
     name: "sandstone-light",
@@ -458,6 +476,7 @@ export const themes: ThemeConfig[] = [
     primaryDark: "oklch(0.828 0.189 84.429)",
     fontSans: "Google Sans Flex",
     source: "shadcnthemes",
+    singleMode: "light",
   },
 ];
 

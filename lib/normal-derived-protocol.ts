@@ -486,3 +486,15 @@ export function buildProtocolUrl(
 ): string {
   return `${scheme}://${encoding}/${tileSize}/${encodeURIComponent(upstreamTileTemplate)}/{z}/{x}/{y}`
 }
+
+// Plain template-literal interpolation of a number (`${n}`) uses
+// Number.prototype.toString(), which switches to exponential notation
+// ("8.5e-7") for magnitudes below 1e-6 — e.g. a light-altitude value that
+// rounds to just above zero via the on-map XY pad's trig. A protocol URL's
+// own regex (e.g. PHONG_URL_RE) only ever expects plain decimal digits, so an
+// exponential value fails to match and the whole tile request throws
+// "Invalid protocol URL" instead of silently treating it as ~0. Fixed
+// decimal notation has no such cutover, so this is always safe for URL params.
+export function formatUrlNumber(n: number): string {
+  return n.toFixed(6)
+}

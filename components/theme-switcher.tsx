@@ -60,20 +60,27 @@ export function ColorThemeSelect() {
   const currentTitle = builtIn?.title ?? custom?.name ?? sortedThemes[0].title;
   const currentSwatch = builtIn ? (isDark ? builtIn.primaryDark : builtIn.primaryLight) : (custom ? customSwatch.get(custom.name) ?? "#888" : sortedThemes[0].primaryLight);
 
-  // Built-in presets bucketed by source site, each rendered as its own
-  // SelectGroup — order within a bucket stays as sortedThemes already sorted it.
+  // sortedThemes[0] is always the app's own baseline "Default" theme (kept
+  // first regardless of alphabetical sort — see themes-config.ts) — pulled
+  // into its own group at the very top of the dropdown instead of being
+  // lumped inside "tweakcn.com" just because it has no explicit `source`.
+  const defaultTheme = sortedThemes[0];
+
+  // Built-in presets (excluding the Default theme above) bucketed by source
+  // site, each rendered as its own SelectGroup — order within a bucket stays
+  // as sortedThemes already sorted it.
   const bySource = useMemo(() => {
     const buckets = new Map<string, ThemeConfig[]>(SOURCE_GROUPS.map((g) => [g.key, []]));
-    for (const t of sortedThemes) buckets.get(t.source ?? "tweakcn")!.push(t);
+    for (const t of sortedThemes.slice(1)) buckets.get(t.source ?? "tweakcn")!.push(t);
     return buckets;
   }, []);
 
-  // Cycling order matches the dropdown's own visual order: saved custom
-  // themes first, then grouped built-ins (themux, then shadcnthemes, then the
-  // long tweakcn.com list last).
+  // Cycling order matches the dropdown's own visual order: Default first,
+  // then saved custom themes, then grouped built-ins (themux, then
+  // shadcnthemes, then the long tweakcn.com list last).
   const orderedNames = useMemo(
-    () => [...customThemes.map((t) => t.name), ...SOURCE_GROUPS.flatMap((g) => bySource.get(g.key)!.map((t) => t.name))],
-    [bySource, customThemes],
+    () => [defaultTheme.name, ...customThemes.map((t) => t.name), ...SOURCE_GROUPS.flatMap((g) => bySource.get(g.key)!.map((t) => t.name))],
+    [bySource, customThemes, defaultTheme],
   );
 
   // Radix's SelectTrigger opens the popup on ArrowUp/ArrowDown by default (see
@@ -102,6 +109,19 @@ export function ColorThemeSelect() {
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
+        <SelectGroup>
+          <SelectLabel>Default</SelectLabel>
+          <SelectItem value={defaultTheme.name}>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 rounded-full shrink-0"
+                style={{ backgroundColor: isDark ? defaultTheme.primaryDark : defaultTheme.primaryLight }}
+              />
+              <span>{defaultTheme.title}</span>
+            </div>
+          </SelectItem>
+        </SelectGroup>
+        <SelectSeparator />
         {customThemes.length > 0 && (
           <>
             <SelectGroup>

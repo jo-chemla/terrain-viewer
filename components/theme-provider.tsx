@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useAtomValue } from "jotai";
-import { allThemeValues, DEFAULT_THEME, themeNames } from "@/lib/themes-config";
+import { allThemeValues, DEFAULT_THEME, themeNames, themes } from "@/lib/themes-config";
 import { useTheme as useAppTheme } from "@/lib/controls-utils";
 import { customThemesAtom } from "@/lib/settings-atoms";
 
@@ -75,7 +75,7 @@ export function ThemeProvider({
   storageKey = "tweakcn-theme",
   ...props
 }: ThemeProviderProps) {
-  const { theme: appTheme } = useAppTheme();
+  const { theme: appTheme, setTheme: setAppTheme } = useAppTheme();
   useInjectCustomThemes();
   const [colorName, setColorName] = useState<string>(() => {
     const stored =
@@ -94,6 +94,16 @@ export function ThemeProvider({
     const bareName = stripStaleModeSuffix(colorName);
     localStorage.setItem(storageKey, bareName);
     setColorName(bareName);
+    // Single-mode-sourced presets (the 8 shadcnthemes.app themes — see
+    // ThemeConfig.singleMode's doc comment) have IDENTICAL "-light"/"-dark"
+    // CSS blocks, since their source never defined a second variant. Without
+    // this, picking one while the app's own toggle is set to the OPPOSITE of
+    // what that theme actually looks like shows a mismatched result (e.g. a
+    // dark-designed palette rendering under a "light" label) with no visual
+    // cue that anything's off — forcing the toggle to match keeps what the
+    // toggle says in sync with what's actually on screen.
+    const singleMode = themes.find((t) => t.name === bareName)?.singleMode;
+    if (singleMode) setAppTheme(singleMode);
   };
 
   const value = { theme, setTheme };

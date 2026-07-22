@@ -21,7 +21,7 @@
 // texture upload), so accelerating the actual shading math matters. Falls
 // back to an equivalent CPU loop if WebGL2 is ever unavailable.
 import { computeNormalPixels } from "./normals-protocol"
-import { buildProtocolUrl, type UpstreamEncoding } from "./normal-derived-protocol"
+import { buildProtocolUrl, formatUrlNumber, type UpstreamEncoding } from "./normal-derived-protocol"
 import { computeMatcapPixelsGPU } from "./gpu-matcap-compute"
 
 const MATCAP_URL_RE = /^matcap:\/\/([^/]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
@@ -35,7 +35,7 @@ export function buildMatcapProtocolUrl(
   // shape doesn't have room for extra params — splice matcapUrl/rotationDeg/
   // exaggeration in right after the scheme instead of inventing a second URL
   // builder.
-  return base.replace("matcap://", `matcap://${encodeURIComponent(matcapUrl)}/${rotationDeg}/${exaggeration}/`)
+  return base.replace("matcap://", `matcap://${encodeURIComponent(matcapUrl)}/${formatUrlNumber(rotationDeg)}/${formatUrlNumber(exaggeration)}/`)
 }
 
 // maplibre's own request layer (util/ajax.ts's makeRequest) calls the

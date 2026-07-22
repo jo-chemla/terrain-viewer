@@ -152,10 +152,13 @@
    doesn't yet style them in every shipping version). Both read the SAME
    --border/--background tokens every other themed element uses, so this
    re-colors automatically per preset and per light/dark, no separate
-   dark-mode override needed. */
+   dark-mode override needed. Idle thumb color is --muted-foreground (a
+   clearly-visible neutral, not the near-invisible --border) so the
+   scrollbar itself reads as a real, findable control at rest; --primary on
+   hover makes it pop further as an interaction affordance. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--border) var(--background);
+  scrollbar-color: var(--muted-foreground) var(--background);
 }
 ::-webkit-scrollbar {
   width: 10px;
@@ -165,11 +168,11 @@
   background: var(--background);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--muted-foreground);
   border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground);
+  background: var(--primary);
 }
 
 /* Fix tooltip dark/light theme styling - invert themes */

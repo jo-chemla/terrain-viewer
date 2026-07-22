@@ -57,6 +57,7 @@ import { phongProtocol } from '@/lib/phong-protocol'
 import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
 import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource } from "./LayersAndSources/MapSources"
+import { PhongLiveGlLayer } from "./LayersAndSources/PhongLiveGlLayer"
 import {
   LayerOrderSlots,
   RasterLayer,
@@ -245,6 +246,15 @@ export function TerrainViewer() {
     // a rapid-fire tile-recompute trigger the way it would if bearing were
     // live-tracked.
     phongLightRelativeToCamera: parseAsBoolean.withDefault(false),
+    // "raster" (default): lib/phong-protocol.ts's plain raster-tile pipeline —
+    // drapes correctly over 3D terrain exaggeration AND globe, but every
+    // light/strength/exaggeration change costs a real tile refetch (~150ms
+    // debounced). "live": lib/phong-live-gl-layer.ts's CustomLayerInterface —
+    // instant GPU-uniform updates, zero refetch, but flat-only (no terrain
+    // drape, no globe — see that file's header for why not) and only
+    // meaningful outside "globe" view mode; see lighting-effects-options-
+    // section.tsx for the UI toggle exposing this trade-off directly.
+    phongRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("raster"),
     showColorRelief: parseAsBoolean.withDefault(false),
     colorReliefOpacity: parseAsFloat.withDefault(0.35),
     // Master toggles for what used to be one merged "Slope and More" viz mode,
@@ -1237,6 +1247,13 @@ export function TerrainViewer() {
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
       const isPrimary = mapId === "map-a"
+      // "live" (lib/phong-live-gl-layer.ts) is flat-only — no terrain drape,
+      // no globe (see that file's header for why) — so it silently falls
+      // back to "raster" while viewMode is "globe" rather than making Phong
+      // just disappear. lighting-effects-options-section.tsx also disables
+      // picking "live" outright while already in globe, but this covers
+      // switching TO globe while "live" was already selected.
+      const effectivePhongRenderer = state.phongRenderer === "live" && state.viewMode !== "globe" ? "live" : "raster"
 
       return (
         <Map
@@ -1463,7 +1480,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <PhongSource
-            enabled={state.showLightingEffects && state.showPhong}
+            enabled={state.showLightingEffects && state.showPhong && effectivePhongRenderer === "raster"}
             diffuseStrength={state.phongDiffuseStrength}
             specularStrength={state.phongSpecularStrength}
             // Relative mode bakes the map's own (settled, not live-dragged —
@@ -1473,6 +1490,21 @@ export function TerrainViewer() {
             lightDir={state.phongLightRelativeToCamera ? ((state.illuminationDir + state.bearing) % 360 + 360) % 360 : state.illuminationDir}
             lightAlt={state.illuminationAlt}
             exaggeration={state.exaggeration}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
+          <PhongLiveGlLayer
+            mapRef={isPrimary ? mapARef : mapBRef}
+            enabled={state.showLightingEffects && state.showPhong && effectivePhongRenderer === "live"}
+            diffuseStrength={state.phongDiffuseStrength}
+            specularStrength={state.phongSpecularStrength}
+            lightDir={state.phongLightRelativeToCamera ? ((state.illuminationDir + state.bearing) % 360 + 360) % 360 : state.illuminationDir}
+            lightAlt={state.illuminationAlt}
+            exaggeration={state.exaggeration}
+            opacity={state.phongOpacity * state.lightingEffectsOpacity}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -1556,7 +1588,7 @@ export function TerrainViewer() {
             opacity={state.lightingEffectsOpacity * state.matcapOpacity}
           />
           <PhongRasterLayer
-            enabled={state.showLightingEffects && state.showPhong}
+            enabled={state.showLightingEffects && state.showPhong && state.phongRenderer === "raster"}
             opacity={state.lightingEffectsOpacity * state.phongOpacity}
           />
           <HillshadeLayer
@@ -1715,7 +1747,7 @@ export function TerrainViewer() {
       // Layers only ever refreshed on a map move because none of their own
       // state was actually in this dependency list.
       state.showMatcap, state.matcapOpacity, state.matcapTextureId, state.matcapRotationDeg,
-      state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongLightRelativeToCamera,
+      state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongLightRelativeToCamera, state.phongRenderer,
       state.illuminationDir, state.illuminationAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,

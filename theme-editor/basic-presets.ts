@@ -1,4 +1,4 @@
-import { formatOklch } from "./color-math"
+import { formatOklch, hexToOklch } from "./color-math"
 import { FONT_PRESETS } from "./token-schema"
 
 // ─── Style ──────────────────────────────────────────────────────────────────
@@ -96,7 +96,23 @@ export const DEFAULT_BASIC_OPTIONS: BasicOptions = {
   menuAccent: "Subtle",
 }
 
+// "Theme"/"Chart Color" normally hold a NAMED_HUES name, but either can also
+// hold a custom user-picked color instead of the curated hue list — encoded
+// as this sentinel prefix + a hex color, so BasicOptions stays a plain
+// Record<string, string> (no new field/type needed) and the existing lock
+// system (keyed on BasicOptions' own keys) already covers it for free.
+const CUSTOM_HUE_PREFIX = "custom:"
+export function isCustomHueValue(value: string): boolean {
+  return value.startsWith(CUSTOM_HUE_PREFIX)
+}
+export function customHueHex(value: string): string {
+  return value.slice(CUSTOM_HUE_PREFIX.length)
+}
+export function makeCustomHueValue(hex: string): string {
+  return `${CUSTOM_HUE_PREFIX}${hex}`
+}
 function findHue(name: string): number {
+  if (isCustomHueValue(name)) return hexToOklch(customHueHex(name)).h
   return NAMED_HUES.find((h) => h.name === name)?.hue ?? 0
 }
 function findBase(name: string): BaseColorFamily {

@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type React from "react"
 import { createPortal } from "react-dom"
-import { Dice5, Lock, Unlock } from "lucide-react"
+import { Dice5, Lock, Unlock, Sun, Moon } from "lucide-react"
 import { TOKEN_GROUPS, FONT_PRESETS, fontCategoryForKey } from "./token-schema"
 import type { TokenDef } from "./types"
 import { useThemeEditor, parseNum, type UseThemeEditorOptions } from "./useThemeEditor"
 import { hexToOklch, oklchToHex, parseColorToOklch, formatOklch } from "./color-math"
-import { STYLE_PRESETS, BASE_COLOR_FAMILIES, NAMED_HUES, MENU_ACCENT_LEVELS, type BasicOptions } from "./basic-presets"
+import {
+  STYLE_PRESETS, BASE_COLOR_FAMILIES, NAMED_HUES, MENU_ACCENT_LEVELS, type BasicOptions,
+  isCustomHueValue, customHueHex, makeCustomHueValue,
+} from "./basic-presets"
 
 const STYLE_ID = "theme-editor-panel-styles"
 
@@ -86,6 +89,14 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
     const isDark = shuffleBasic()
     onModeChange?.(isDark)
   }
+
+  // Same lightness heuristic setBasicOption/randomize already use to infer
+  // mode from the CURRENT palette — good enough for a header icon, not meant
+  // to be authoritative (the host app's own toggle state is, which is exactly
+  // why this button goes through onModeChange rather than tracking its own
+  // separate boolean).
+  const isDarkNow = useMemo(() => parseColorToOklch(values.background || "oklch(0.98 0 0)").l < 0.5, [values.background])
+  const handleToggleMode = () => onModeChange?.(!isDarkNow)
   const [copied, setCopied] = useState(false)
   const [pos, setPos] = useState(defaultPosition ?? { x: 24, y: 24 })
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
@@ -145,6 +156,11 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
       <div className="tec-header" onPointerDown={startDrag}>
         <span className="tec-title">Theme Editor</span>
         <div className="tec-header-actions">
+          {onModeChange && (
+            <button type="button" className="tec-icon-btn" onClick={handleToggleMode} title={isDarkNow ? "Switch to light mode" : "Switch to dark mode"}>
+              {isDarkNow ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
+          )}
           <button type="button" className="tec-icon-btn" onClick={handleRandomize} title="Shuffle unlocked Basic-mode fields (see lock icons below)"><Dice5 size={16} /></button>
           <button type="button" className="tec-icon-btn" onClick={onClose} aria-label="Close">✕</button>
         </div>
@@ -163,8 +179,8 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
               )}
               <SelectRow label="Style" value={basicOptions.style} options={STYLE_PRESETS.map((s) => s.name)} onChange={(v) => setBasicOption({ style: v })} locked={locks.style} onToggleLock={() => toggleLock("style")} />
               <SelectRow label="Base Color" value={basicOptions.baseColor} options={BASE_COLOR_FAMILIES.map((b) => b.name)} onChange={(v) => setBasicOption({ baseColor: v })} locked={locks.baseColor} onToggleLock={() => toggleLock("baseColor")} />
-              <SelectRow label="Theme" value={basicOptions.theme} options={NAMED_HUES.map((h) => h.name)} onChange={(v) => setBasicOption({ theme: v })} locked={locks.theme} onToggleLock={() => toggleLock("theme")} />
-              <SelectRow label="Chart Color" value={basicOptions.chartColor} options={NAMED_HUES.map((h) => h.name)} onChange={(v) => setBasicOption({ chartColor: v })} locked={locks.chartColor} onToggleLock={() => toggleLock("chartColor")} />
+              <HueRow label="Theme" value={basicOptions.theme} onChange={(v) => setBasicOption({ theme: v })} locked={locks.theme} onToggleLock={() => toggleLock("theme")} />
+              <HueRow label="Chart Color" value={basicOptions.chartColor} onChange={(v) => setBasicOption({ chartColor: v })} locked={locks.chartColor} onToggleLock={() => toggleLock("chartColor")} />
               <SliderRow label="Radius" value={`${basicOptions.radius}`} unit="rem" min={0} max={1.5} step={0.05} onChange={(v) => setBasicOption({ radius: parseNum(v) })} locked={locks.radius} onToggleLock={() => toggleLock("radius")} />
               <SelectRow label="Menu" value={basicOptions.menuSolid ? "Solid" : "Default"} options={["Default", "Solid"]} onChange={(v) => setBasicOption({ menuSolid: v === "Solid" })} locked={locks.menuSolid} onToggleLock={() => toggleLock("menuSolid")} />
               <SelectRow label="Menu Accent" value={basicOptions.menuAccent} options={[...MENU_ACCENT_LEVELS]} onChange={(v) => setBasicOption({ menuAccent: v as BasicOptions["menuAccent"] })} locked={locks.menuAccent} onToggleLock={() => toggleLock("menuAccent")} />
@@ -348,6 +364,42 @@ function SelectRow({ label, value, options, onChange, locked, onToggleLock }: { 
   )
 }
 
+const CUSTOM_HUE_OPTION = "Custom…"
+
+// Same as SelectRow, but for "Theme"/"Chart Color" specifically — these can
+// hold either a curated NAMED_HUES name or an arbitrary user-picked color
+// (see basic-presets.ts's makeCustomHueValue/isCustomHueValue), so this adds
+// a "Custom…" option that reveals a color swatch for that arbitrary pick.
+function HueRow({ label, value, onChange, locked, onToggleLock }: { label: string; value: string; onChange: (v: string) => void; locked?: boolean; onToggleLock?: () => void }) {
+  const isCustom = isCustomHueValue(value)
+  const hex = isCustom ? customHueHex(value) : "#3388ff"
+  return (
+    <div className="tec-row">
+      <label className="tec-row-label">{label}</label>
+      <div className="tec-row-control">
+        <select
+          className="tec-select"
+          style={{ flex: 1 }}
+          value={isCustom ? CUSTOM_HUE_OPTION : value}
+          onChange={(e) => onChange(e.target.value === CUSTOM_HUE_OPTION ? makeCustomHueValue(hex) : e.target.value)}
+        >
+          {NAMED_HUES.map((h) => <option key={h.name} value={h.name}>{h.name}</option>)}
+          <option value={CUSTOM_HUE_OPTION}>{CUSTOM_HUE_OPTION}</option>
+        </select>
+        {isCustom && (
+          <input
+            type="color"
+            className="tec-swatch"
+            value={hex}
+            onChange={(e) => onChange(makeCustomHueValue(e.target.value))}
+          />
+        )}
+        {onToggleLock && <LockButton locked={!!locked} onToggle={onToggleLock} />}
+      </div>
+    </div>
+  )
+}
+
 // Ephemeral picker, same idea as FontRow's "Quick pick…" — always resets to
 // the blank option after firing, since there's no single persistent "current
 // preset" value to reflect back once loaded (loading one changes dozens of
@@ -391,7 +443,18 @@ function FontRow({ label, value, onChange, presets }: { label: string; value: st
 const PANEL_CSS = `
 .tec-panel {
   position: fixed;
-  z-index: 2147483000;
+  /* Must outrank shadcn/Radix Dialog's overlay+content (z-50 — see
+     components/ui/dialog.tsx), including when this panel is opened from a
+     button INSIDE an already-open Settings dialog. Both are portaled
+     directly to <body> as siblings, so a numeric z-index comparison is all
+     that's needed — !important guards against Radix ever applying its own
+     higher-specificity inline style to elements it doesn't recognize as part
+     of its own modal stack (this panel uses a hand-rolled createPortal, not
+     Radix's own Portal primitive). pointer-events is set explicitly for the
+     same reason: a modal Dialog can otherwise leave stray "inert" styling on
+     body-level siblings it doesn't manage. */
+  z-index: 2147483000 !important;
+  pointer-events: auto !important;
   width: 320px;
   max-height: min(80vh, 640px);
   display: flex;
@@ -426,6 +489,7 @@ const PANEL_CSS = `
 .tec-icon-btn {
   background: transparent; border: none; cursor: pointer; color: inherit;
   font-size: 14px; line-height: 1; padding: 2px 6px; border-radius: 4px;
+  flex-shrink: 0;
 }
 .tec-icon-btn:hover { background: var(--accent, #e5e5e5); }
 .tec-body {
@@ -434,12 +498,12 @@ const PANEL_CSS = `
      this panel is a standalone stylesheet with no Tailwind of its own, so it
      needs its own copy rather than inheriting the app's rule. */
   scrollbar-width: thin;
-  scrollbar-color: var(--border, #ccc) var(--background, #fff);
+  scrollbar-color: var(--muted-foreground, #888) var(--background, #fff);
 }
 .tec-body::-webkit-scrollbar { width: 10px; }
 .tec-body::-webkit-scrollbar-track { background: var(--background, #fff); }
-.tec-body::-webkit-scrollbar-thumb { background: var(--border, #ccc); border-radius: 8px; }
-.tec-body::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground, #888); }
+.tec-body::-webkit-scrollbar-thumb { background: var(--muted-foreground, #888); border-radius: 8px; }
+.tec-body::-webkit-scrollbar-thumb:hover { background: var(--primary, #666); }
 .tec-group { border-bottom: 1px solid var(--border, #eee); }
 .tec-group-header {
   width: 100%; display: flex; align-items: center; justify-content: space-between;
@@ -483,7 +547,14 @@ const PANEL_CSS = `
   background: var(--background, #fff); color: var(--foreground, #111); font-size: 12px;
 }
 .tec-slider { flex: 1; accent-color: var(--primary, #666); }
-.tec-value { flex: 0 0 auto; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted-foreground, #666); font-size: 11px; }
+/* white-space: nowrap matters here — without it, a longer value+unit string
+   (e.g. Radius's "0.625rem", the longest of any SliderRow's unit) can wrap
+   onto two lines inside this flex item's constrained width, making the row
+   taller than its sibling lock button and throwing off their vertical
+   alignment (align-items: center on .tec-row-control then centers the lock
+   button against a taller box instead of a single text line). min-width
+   bumped so a two-decimal "rem" value never needs to wrap or grow at all. */
+.tec-value { flex: 0 0 auto; min-width: 54px; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted-foreground, #666); font-size: 11px; }
 .tec-footer {
   display: flex; flex-direction: column; gap: 6px; padding: 8px 10px;
   border-top: 1px solid var(--border, #ddd);

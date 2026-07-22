@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, CheckboxWithSlider, SliderControl } from "./controls-components"
 import { SphericalXYPad } from './XYPad'
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
@@ -176,6 +177,48 @@ export const LightingEffectsOptionsSection: React.FC<{
           />
           {state.showPhong && (
             <div className="space-y-3 pl-1">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-sm font-medium">Renderer</Label>
+                <ToggleGroup
+                  type="single"
+                  value={state.phongRenderer}
+                  onValueChange={(value) => value && setState({ phongRenderer: value })}
+                  className="border rounded-md w-[180px]"
+                >
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <ToggleGroupItem
+                        value="raster"
+                        className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+                      >
+                        3D Slow
+                      </ToggleGroupItem>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Drapes correctly over 3D terrain exaggeration and globe, but every light/strength change re-fetches a tile (~150ms debounced).</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <ToggleGroupItem
+                        value="live"
+                        disabled={state.viewMode === "globe"}
+                        className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        2D Fast
+                      </ToggleGroupItem>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{state.viewMode === "globe" ? "Not available in Globe view — this renderer doesn't drape onto globe curvature." : "A live GPU shader, instant light/strength updates, zero tile refetch — but flat only: doesn't drape onto 3D terrain elevation."}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </ToggleGroup>
+              </div>
+              {state.phongRenderer === "live" && (
+                <p className="text-xs text-muted-foreground">
+                  Fast mode renders a flat shaded plane and won't follow 3D terrain elevation — switch to Accurate for a correct drape.
+                </p>
+              )}
               {/* Light Mode (Absolute vs Camera-relative) toggle temporarily
                   commented out. Matcap could take the same absolute/camera-
                   relative path too (rotate the matcap lookup by the map bearing,

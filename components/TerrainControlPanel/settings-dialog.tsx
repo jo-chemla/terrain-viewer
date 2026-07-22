@@ -33,13 +33,19 @@ import { sortedThemes } from "@/lib/themes-config"
 // Built once at module scope (sortedThemes never changes at runtime) — the
 // Basic section's "Load Preset" picker in the advanced theme editor, grouped
 // the same way as ColorThemeSelect's own dropdown for a consistent picture of
-// where each preset came from.
-const PRESET_GROUPS = SOURCE_GROUPS
-  .map((group) => ({
-    label: group.label,
-    options: sortedThemes.filter((t) => (t.source ?? "tweakcn") === group.key).map((t) => ({ value: t.name, label: t.title })),
-  }))
-  .filter((group) => group.options.length > 0)
+// where each preset came from. sortedThemes[0] is always the app's own
+// baseline "Default" theme — pulled into its own leading group instead of
+// being lumped inside "tweakcn.com" (see theme-switcher.tsx's ColorThemeSelect
+// for the same treatment).
+const PRESET_GROUPS = [
+  { label: "Default", options: [{ value: sortedThemes[0].name, label: sortedThemes[0].title }] },
+  ...SOURCE_GROUPS
+    .map((group) => ({
+      label: group.label,
+      options: sortedThemes.slice(1).filter((t) => (t.source ?? "tweakcn") === group.key).map((t) => ({ value: t.name, label: t.title })),
+    }))
+    .filter((group) => group.options.length > 0),
+]
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any }> = ({ isOpen, onOpenChange, state, setState }) => {
   const { theme, toggleTheme, setTheme: setAppTheme } = useTheme()
@@ -666,10 +672,14 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               Preset UI color palette (<a href="https://github.com/BankkRoll/tweakcn-theme-picker" target="_blank" rel="noopener noreferrer" className="underline">tweakcn</a>) —
               light/dark still follows the Theme toggle under Appearance above.
             </p>
-            <ColorThemeSelect />
-            <Button variant="outline" size="sm" className="w-full cursor-pointer" onClick={() => setShowThemeEditor(true)}>
-              Advanced Theme Editor
-            </Button>
+            <div className="flex gap-2">
+              <div className="w-3/4 min-w-0">
+                <ColorThemeSelect />
+              </div>
+              <Button variant="outline" size="sm" className="w-1/4 cursor-pointer" onClick={() => setShowThemeEditor(true)}>
+                Advanced Theme Editor
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground">
               Live-edit every color/radius/shadow/font token (see theme-editor/README.md)
               and copy the result as a new preset CSS block.

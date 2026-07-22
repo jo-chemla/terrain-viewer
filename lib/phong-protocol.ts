@@ -21,7 +21,7 @@
 // normals-protocol.ts's header), so the light vector is built directly in
 // that same space with no rotation needed.
 import { computeNormalPixels } from "./normals-protocol"
-import { buildProtocolUrl, type UpstreamEncoding } from "./normal-derived-protocol"
+import { buildProtocolUrl, formatUrlNumber, type UpstreamEncoding } from "./normal-derived-protocol"
 import { computePhongPixelsGPU } from "./gpu-phong-compute"
 
 const PHONG_URL_RE = /^phong:\/\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
@@ -31,7 +31,7 @@ export function buildPhongProtocolUrl(
   upstreamTileTemplate: string, encoding: UpstreamEncoding, tileSize: number,
 ): string {
   const base = buildProtocolUrl("phong", upstreamTileTemplate, encoding, tileSize)
-  return base.replace("phong://", `phong://${diffuseStrength}/${specularStrength}/${lightDir}/${lightAlt}/${exaggeration}/`)
+  return base.replace("phong://", `phong://${formatUrlNumber(diffuseStrength)}/${formatUrlNumber(specularStrength)}/${formatUrlNumber(lightDir)}/${formatUrlNumber(lightAlt)}/${formatUrlNumber(exaggeration)}/`)
 }
 
 const AMBIENT = 0.35
