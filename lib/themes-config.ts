@@ -8,7 +8,7 @@ export interface ThemeConfig {
    *  undefined means "tweakcn" (the original 42 + these additions all came
    *  from tweakcn.com's own utils/theme-presets.ts, extracted directly
    *  rather than guessed, same as every other preset already here). */
-  source?: "tweakcn" | "themux" | "shadcnthemes";
+  source?: "hwai" | "tweakcn" | "themux" | "shadcnthemes";
   /** Set only for themes whose SOURCE only ever defined one mode (the 8
    *  shadcnthemes.app presets — see src/styles/themes/*.css's "known
    *  limitation" comments) — their "-light"/"-dark" CSS blocks are literal
@@ -29,6 +29,14 @@ export const themes: ThemeConfig[] = [
     primaryLight: "oklch(0.2050 0 0)",
     primaryDark: "oklch(0.9220 0 0)",
     fontSans: "ui-sans-serif, system-ui, sans-serif",
+  },
+  {
+    name: "hwai",
+    title: "HeritageWatch AI",
+    primaryLight: "#1a237e",
+    primaryDark: "#7986cb",
+    fontSans: "Inter, sans-serif",
+    source: "hwai",
   },
   {
     name: "amber-minimal",

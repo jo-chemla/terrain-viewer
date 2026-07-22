@@ -22,9 +22,12 @@ function extractPrimaryHex(css: string, mode: "light" | "dark"): string | null {
 // the biggest group and least in need of being seen first. `undefined` on a
 // ThemeConfig means "tweakcn" (see themes-config.ts's ThemeConfig doc).
 export const SOURCE_GROUPS: { key: NonNullable<ThemeConfig["source"]>; label: string }[] = [
+  { key: "hwai", label: "HeritageWatch AI" },
   { key: "themux", label: "themux.vercel.app" },
-  { key: "shadcnthemes", label: "shadcnthemes.app" },
   { key: "tweakcn", label: "tweakcn.com" },
+  // shadcnthemes.app last: its presets only ship a single mode (no real
+  // light+dark pair), so they're the least well-behaved with the app's toggle.
+  { key: "shadcnthemes", label: "shadcnthemes.app" },
 ];
 
 // Color-preset picker only, no light/dark control of its own — mode always

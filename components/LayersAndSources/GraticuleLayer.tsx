@@ -62,6 +62,9 @@ export function GraticuleLayer({
 }: GraticuleLayerProps) {
     const { current: mapRef } = useMap()
     const gridRef = useRef<GeoGrid | null>(null)
+    // Guards against stacking multiple styledata retry listeners while waiting
+    // for the beforeId slot layer to appear (see updateGrid).
+    const pendingRetryRef = useRef(false)
 
     const resolvedLabelColor = labelColor ?? graticuleColor
 
@@ -119,15 +122,23 @@ export function GraticuleLayer({
 
         if (!propsRef.current.showGraticules) return
 
+        // geogrid-maplibre-gl inserts its layers `beforeId` this slot. On a fresh
+        // load LayerOrderSlots (MapLayers.tsx) may not have committed slot-contours
+        // to the style yet, so add() — including geogrid's OWN deferred styledata
+        // re-add — throws "Cannot add layer … before non-existing layer …". Wait
+        // (once, guarded against listener pileup) for the slot to actually exist
+        // before creating the grid at all; the next styledata re-runs this.
+        const beforeId = propsRef.current.beforeLayerId
+        if (beforeId && !map.getLayer(beforeId)) {
+            if (!pendingRetryRef.current) {
+                pendingRetryRef.current = true
+                map.once("styledata", () => { pendingRetryRef.current = false; updateGrid(map) })
+            }
+            return
+        }
+
         gridRef.current = new GeoGrid(buildOptions(map))
-        // geogrid-maplibre-gl's add() inserts its layers beforeId slot-contours;
-        // on a rapid re-init (editing grid color, width or density) that runs
-        // synchronously here, so this try/catch swallows the "Cannot add layer ...
-        // before non-existing layer slot-contours" throw for that path. (The lib
-        // can also add from its OWN deferred styledata handler on fresh load,
-        // which this can't catch — that's a pre-existing, harmless layer-ordering
-        // race the grid recovers from on the next update.)
-        try { gridRef.current.add() } catch { /* slot not ready yet; a later updateGrid re-adds */ }
+        try { gridRef.current.add() } catch { /* transient; a later updateGrid re-adds */ }
     }, [showGraticules])
 
     useEffect(() => {

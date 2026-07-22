@@ -1,0 +1,126 @@
+/* HeritageWatch AI brand theme — built from the brand guidebook:
+   Blues (observation) #1A237E primary · #283593 · #3F51B5 · #5C6BC0 · #7986CB
+   Reds  (analysis)    #FF1D23 primary · #D40012 · #940900 · #5C0002 · #450003
+   Type: Bebas Neue for headings, Inter for body (loaded in index.html). */
+
+/* Light mode */
+[data-theme="hwai-light"] {
+  --background: #ffffff;
+  --foreground: #1a237e;
+  --card: #ffffff;
+  --card-foreground: #1a237e;
+  --popover: #ffffff;
+  --popover-foreground: #1a237e;
+  --primary: #1a237e;
+  --primary-foreground: #ffffff;
+  --secondary: #e8eaf6;
+  --secondary-foreground: #1a237e;
+  --muted: #eef0f7;
+  --muted-foreground: #5c6bc0;
+  --accent: #3f51b5;
+  --accent-foreground: #ffffff;
+  --destructive: #ff1d23;
+  --destructive-foreground: #ffffff;
+  --border: #c5cae9;
+  --input: #c5cae9;
+  --ring: #3f51b5;
+  --chart-1: #1a237e;
+  --chart-2: #3f51b5;
+  --chart-3: #5c6bc0;
+  --chart-4: #7986cb;
+  --chart-5: #ff1d23;
+  --radius: 0.5rem;
+  --sidebar: #f5f6fb;
+  --sidebar-foreground: #1a237e;
+  --sidebar-primary: #1a237e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #3f51b5;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #c5cae9;
+  --sidebar-ring: #3f51b5;
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: ui-monospace, monospace;
+  --shadow-color: hsl(232 62% 30%);
+  --shadow-opacity: 0.1;
+  --shadow-blur: 6px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0px;
+  --shadow-offset-y: 4px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 0px 4px 6px 0px hsl(232 62% 30% / 0.05);
+  --shadow-xs: 0px 4px 6px 0px hsl(232 62% 30% / 0.05);
+  --shadow-sm: 0px 4px 6px 0px hsl(232 62% 30% / 0.1), 0px 1px 2px -1px hsl(232 62% 30% / 0.1);
+  --shadow: 0px 4px 6px 0px hsl(232 62% 30% / 0.1), 0px 1px 2px -1px hsl(232 62% 30% / 0.1);
+  --shadow-md: 0px 4px 6px 0px hsl(232 62% 30% / 0.1), 0px 2px 4px -1px hsl(232 62% 30% / 0.1);
+  --shadow-lg: 0px 4px 6px 0px hsl(232 62% 30% / 0.1), 0px 4px 6px -1px hsl(232 62% 30% / 0.1);
+  --shadow-xl: 0px 4px 6px 0px hsl(232 62% 30% / 0.1), 0px 8px 10px -1px hsl(232 62% 30% / 0.1);
+  --shadow-2xl: 0px 4px 6px 0px hsl(232 62% 30% / 0.25);
+  --tracking-normal: 0em;
+}
+
+/* Dark mode — the deep primary blue is too dark on a dark background, so
+   primary/ring shift up the blue family (5C6BC0/7986CB) for legibility. */
+[data-theme="hwai-dark"] {
+  --background: #0f1226;
+  --foreground: #e8eaf6;
+  --card: #1a1d3a;
+  --card-foreground: #e8eaf6;
+  --popover: #1a1d3a;
+  --popover-foreground: #e8eaf6;
+  --primary: #7986cb;
+  --primary-foreground: #0f1226;
+  --secondary: #283593;
+  --secondary-foreground: #e8eaf6;
+  --muted: #232647;
+  --muted-foreground: #9fa8da;
+  --accent: #5c6bc0;
+  --accent-foreground: #ffffff;
+  --destructive: #ff1d23;
+  --destructive-foreground: #ffffff;
+  --border: #2a2e57;
+  --input: #2a2e57;
+  --ring: #7986cb;
+  --chart-1: #7986cb;
+  --chart-2: #5c6bc0;
+  --chart-3: #3f51b5;
+  --chart-4: #9fa8da;
+  --chart-5: #ff1d23;
+  --radius: 0.5rem;
+  --sidebar: #12142b;
+  --sidebar-foreground: #e8eaf6;
+  --sidebar-primary: #7986cb;
+  --sidebar-primary-foreground: #0f1226;
+  --sidebar-accent: #5c6bc0;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2a2e57;
+  --sidebar-ring: #7986cb;
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: ui-monospace, monospace;
+  --shadow-color: hsl(232 40% 4%);
+  --shadow-opacity: 0.4;
+  --shadow-blur: 6px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0px;
+  --shadow-offset-y: 4px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+  --shadow-2xs: 0px 4px 6px 0px hsl(232 40% 4% / 0.2);
+  --shadow-xs: 0px 4px 6px 0px hsl(232 40% 4% / 0.2);
+  --shadow-sm: 0px 4px 6px 0px hsl(232 40% 4% / 0.4), 0px 1px 2px -1px hsl(232 40% 4% / 0.4);
+  --shadow: 0px 4px 6px 0px hsl(232 40% 4% / 0.4), 0px 1px 2px -1px hsl(232 40% 4% / 0.4);
+  --shadow-md: 0px 4px 6px 0px hsl(232 40% 4% / 0.4), 0px 2px 4px -1px hsl(232 40% 4% / 0.4);
+  --shadow-lg: 0px 4px 6px 0px hsl(232 40% 4% / 0.4), 0px 4px 6px -1px hsl(232 40% 4% / 0.4);
+  --shadow-xl: 0px 4px 6px 0px hsl(232 40% 4% / 0.4), 0px 8px 10px -1px hsl(232 40% 4% / 0.4);
+  --shadow-2xl: 0px 4px 6px 0px hsl(232 40% 4% / 0.5);
+}
+
+/* Bebas Neue for headings (brand Typography 01); Inter drives everything else
+   via --font-sans above. Scoped to the HWAI theme so no other theme is touched. */
+[data-theme="hwai-light"] h1, [data-theme="hwai-light"] h2, [data-theme="hwai-light"] h3, [data-theme="hwai-light"] h4,
+[data-theme="hwai-dark"] h1, [data-theme="hwai-dark"] h2, [data-theme="hwai-dark"] h3, [data-theme="hwai-dark"] h4 {
+  font-family: "Bebas Neue", var(--font-sans);
+  letter-spacing: 0.03em;
+}
