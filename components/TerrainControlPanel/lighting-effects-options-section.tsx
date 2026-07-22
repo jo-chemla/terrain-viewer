@@ -6,12 +6,15 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { CalendarDays } from "lucide-react"
 import { Section, CheckboxWithSlider, SliderControl, MobileSlider, SectionIdContext, SegmentedToggle } from "./controls-components"
 import { SphericalXYPad } from './XYPad'
 import { cn } from "@/lib/utils"
 import { activeSliderAtom } from "@/lib/settings-atoms"
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
-import { solarPosition, dayLength, formatDayOfYear, formatHour, dateStrToDayOfYear } from "@/lib/solar-position"
+import { solarPosition, dayLength, formatDayOfYear, formatHour, dayOfYearToDate, dayOfYearFromDate } from "@/lib/solar-position"
 
 // Common width for the Phong toggle groups (see SegmentedToggle in
 // controls-components for the segmented-control styling + why the active pill
@@ -354,14 +357,22 @@ export const LightingEffectsOptionsSection: React.FC<{
                         sliderId="phong-light"
                         displayValue={formatDayOfYear(dayOfYear)}
                         displayNode={
-                          <input
-                            type="date"
-                            className="text-sm text-muted-foreground tabular-nums bg-transparent outline-none cursor-pointer hover:text-foreground"
-                            value={formatDayOfYear(dayOfYear)}
-                            onChange={(e) => { const d = dateStrToDayOfYear(e.target.value); if (d) setDayOfYear(d) }}
-                            onClick={(e) => { try { (e.currentTarget as HTMLInputElement).showPicker() } catch { /* not supported / already open */ } }}
-                            title="Pick a date"
-                          />
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button type="button" className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground" title="Pick a date">
+                                {formatDayOfYear(dayOfYear)}
+                                <CalendarDays className="h-3.5 w-3.5" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={dayOfYearToDate(dayOfYear)}
+                                defaultMonth={dayOfYearToDate(dayOfYear)}
+                                onSelect={(d) => { if (d) setDayOfYear(dayOfYearFromDate(d)) }}
+                              />
+                            </PopoverContent>
+                          </Popover>
                         }
                         ticks={SEASON_TICKS}
                       />

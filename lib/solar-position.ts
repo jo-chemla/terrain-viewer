@@ -101,6 +101,13 @@ export function dateStrToDayOfYear(str: string, year = 2026): number | null {
   return Math.min(365, Math.max(1, doy))
 }
 
+/** Date → day-of-year (1–365); month/day only, year ignored. */
+export function dayOfYearFromDate(d: Date, year = 2026): number {
+  const jan1 = new Date(year, 0, 1)
+  const doy = Math.round((new Date(year, d.getMonth(), d.getDate()).getTime() - jan1.getTime()) / 86400000) + 1
+  return Math.min(365, Math.max(1, doy))
+}
+
 /** Fractional hour (e.g. 6.5) → "HH:MM" (e.g. "06:30"). */
 export function formatHour(hour: number): string {
   const clamped = clamp(hour, 0, 24)

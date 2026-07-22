@@ -233,6 +233,19 @@ export function TerrainControlPanel({
   const hideSourcePanels = activeProjectConfig?.hideSourcePanels ?? false
   const hiddenSections = activeProjectConfig?.hiddenSections ?? []
 
+  // Each section in the Options group returns null unless its viz mode is on
+  // (Hillshade→showHillshade, Elevation Hypso→showColorRelief, etc.), so with
+  // only Raster Basemap active the whole group is empty. Mirror those exact
+  // gates here so the "Options" label+chevron row hides too instead of sitting
+  // above nothing (raster-basemap options live in Sources / source meta).
+  const optionsHasContent =
+    (!hiddenSections.includes("contour") && state.showContoursAndGraticules) ||
+    state.showHillshade ||
+    state.showColorRelief ||
+    (!hiddenSections.includes("reliefVisualization") && state.showReliefVisualization) ||
+    (!hiddenSections.includes("terrainAnalysis") && state.showTerrainAnalysis) ||
+    state.showLightingEffects
+
   // A pinned section (currently just Visualization Modes, via its own pin
   // toggle) is excluded from the "is everything folded" check and left
   // untouched when folding — it only ever closes via its own chevron.
@@ -417,8 +430,10 @@ export function TerrainControlPanel({
             )}
           </>
         )}
-        <MacroSeparator label="Options" isOpen={macroGroupOpen.Options} onToggle={() => toggleMacroGroup("Options")} />
-        {macroGroupOpen.Options && (
+        {optionsHasContent && (
+          <MacroSeparator label="Options" isOpen={macroGroupOpen.Options} onToggle={() => toggleMacroGroup("Options")} />
+        )}
+        {optionsHasContent && macroGroupOpen.Options && (
           <>
             {!hiddenSections.includes("contour") && (
               <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
