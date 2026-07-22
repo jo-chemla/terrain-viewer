@@ -47,7 +47,7 @@
   --shadow-lg: 0px 8px 16px -4px oklch(0.00 0 0 / 0.08), 0px 4px 6px -5px oklch(0.00 0 0 / 0.08);
   --shadow-xl: 0px 8px 16px -4px oklch(0.00 0 0 / 0.08), 0px 8px 10px -5px oklch(0.00 0 0 / 0.08);
   --radius: 0.625rem;
-  --font-sans: "Source Serif 4", serif;
+  --font-sans: "Open Sans", sans-serif;
   --font-serif: "Source Serif 4", serif;
   --font-mono: "IBM Plex Mono", monospace;
   --spacing: 0.25rem;
@@ -102,7 +102,7 @@
   --shadow-lg: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 4px 6px -1px oklch(0.00 0 0 / 0.10);
   --shadow-xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 8px 10px -1px oklch(0.00 0 0 / 0.10);
   --radius: 0.625rem;
-  --font-sans: "Source Serif 4", serif;
+  --font-sans: "Open Sans", sans-serif;
   --font-serif: "Source Serif 4", serif;
   --font-mono: "IBM Plex Mono", monospace;
   --spacing: 0.25rem;

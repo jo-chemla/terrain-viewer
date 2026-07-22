@@ -45,7 +45,7 @@
   --shadow-lg: 0px 1px 3px 0px oklch(0.35 0.05 163.50 / 0.04), 0px 4px 6px -1px oklch(0.35 0.05 163.50 / 0.04);
   --shadow-xl: 0px 1px 3px 0px oklch(0.35 0.05 163.50 / 0.04), 0px 8px 10px -1px oklch(0.35 0.05 163.50 / 0.04);
   --radius: 0.625rem;
-  --font-sans: Merriweather, sans-serif;
+  --font-sans: Lato, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Roboto Mono", monospace;
   --spacing: 0.25rem;
@@ -99,7 +99,7 @@
   --shadow-xl: 0px 1px 2px 0px oklch(0 0 0 / 0.01), 0px 8px 10px -1px oklch(0 0 0 / 0.01);
   --shadow-blur: 2px;
   --radius: 0.625rem;
-  --font-sans: Merriweather, sans-serif;
+  --font-sans: Lato, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Roboto Mono", monospace;
   --spacing: 0.25rem;

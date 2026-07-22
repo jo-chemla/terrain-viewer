@@ -427,7 +427,7 @@ export const themes: ThemeConfig[] = [
     title: "Art Deco",
     primaryLight: "oklch(0.77 0.14 91.05)",
     primaryDark: "oklch(0.84 0.17 82.56)",
-    fontSans: "\"Delius Swash Caps\", cursive",
+    fontSans: "\"Delius Swash Caps\", sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -435,7 +435,7 @@ export const themes: ThemeConfig[] = [
     title: "VS Code",
     primaryLight: "oklch(0.71 0.15 239.07)",
     primaryDark: "oklch(0.71 0.15 239.07)",
-    fontSans: "\"Source Serif 4\", serif",
+    fontSans: "\"Source Code Pro\", sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -443,7 +443,7 @@ export const themes: ThemeConfig[] = [
     title: "Caffeine (shadcnstudio)",
     primaryLight: "oklch(0.43 0.04 41.99)",
     primaryDark: "oklch(0.92 0.05 66.17)",
-    fontSans: "\"Source Serif 4\", serif",
+    fontSans: "Geist, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -451,7 +451,7 @@ export const themes: ThemeConfig[] = [
     title: "Claude (shadcnstudio)",
     primaryLight: "oklch(0.62 0.14 39.04)",
     primaryDark: "oklch(0.67 0.13 38.76)",
-    fontSans: "\"Source Serif 4\", serif",
+    fontSans: "Geist, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -459,7 +459,7 @@ export const themes: ThemeConfig[] = [
     title: "Clean Slate (shadcnstudio)",
     primaryLight: "oklch(0.59 0.20 277.12)",
     primaryDark: "oklch(0.68 0.16 276.93)",
-    fontSans: "Merriweather, sans-serif",
+    fontSans: "Inter, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -467,7 +467,7 @@ export const themes: ThemeConfig[] = [
     title: "Corporate",
     primaryLight: "oklch(0.48 0.20 260.48)",
     primaryDark: "oklch(0.56 0.24 260.95)",
-    fontSans: "\"Source Serif 4\", serif",
+    fontSans: "Inter, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -475,7 +475,7 @@ export const themes: ThemeConfig[] = [
     title: "Elegant Luxury (shadcnstudio)",
     primaryLight: "oklch(0.47 0.15 24.94)",
     primaryDark: "oklch(0.51 0.19 27.52)",
-    fontSans: "\"Libre Baskerville\", sans-serif",
+    fontSans: "Poppins, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -483,7 +483,7 @@ export const themes: ThemeConfig[] = [
     title: "Ghibli Studio (shadcnstudio)",
     primaryLight: "oklch(0.71 0.10 111.99)",
     primaryDark: "oklch(0.64 0.05 115.39)",
-    fontSans: "\"PT Serif\", serif",
+    fontSans: "Nunito, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -491,7 +491,7 @@ export const themes: ThemeConfig[] = [
     title: "Marvel",
     primaryLight: "oklch(0.55 0.22 27.03)",
     primaryDark: "oklch(0.5502 0.22 27.03)",
-    fontSans: "Merriweather, sans-serif",
+    fontSans: "Outfit, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -499,7 +499,7 @@ export const themes: ThemeConfig[] = [
     title: "Material Design",
     primaryLight: "oklch(0.51 0.21 286.50)",
     primaryDark: "oklch(0.60 0.22 279.81)",
-    fontSans: "Merriweather, sans-serif",
+    fontSans: "Roboto, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -507,7 +507,7 @@ export const themes: ThemeConfig[] = [
     title: "Midnight Bloom (shadcnstudio)",
     primaryLight: "oklch(0.57 0.20 283.08)",
     primaryDark: "oklch(0.57 0.20 283.08)",
-    fontSans: "\"Playfair Display\", sans-serif",
+    fontSans: "Montserrat, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -515,7 +515,7 @@ export const themes: ThemeConfig[] = [
     title: "Modern Minimal (shadcnstudio)",
     primaryLight: "oklch(0.62 0.19 259.76)",
     primaryDark: "oklch(0.62 0.19 259.76)",
-    fontSans: "\"Source Serif 4\", serif",
+    fontSans: "Inter, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -523,7 +523,7 @@ export const themes: ThemeConfig[] = [
     title: "Nature (shadcnstudio)",
     primaryLight: "oklch(0.52 0.13 144.33)",
     primaryDark: "oklch(0.67 0.16 144.06)",
-    fontSans: "Merriweather, sans-serif",
+    fontSans: "Montserrat, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -531,7 +531,7 @@ export const themes: ThemeConfig[] = [
     title: "Neo Brutalism (shadcnstudio)",
     primaryLight: "oklch(0.65 0.24 26.97)",
     primaryDark: "oklch(0.70 0.19 23.19)",
-    fontSans: "ui-sans-serif, system-ui, sans-serif",
+    fontSans: "\"DM Sans\", sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -539,7 +539,7 @@ export const themes: ThemeConfig[] = [
     title: "Pastel Dreams (shadcnstudio)",
     primaryLight: "oklch(0.71 0.16 293.54)",
     primaryDark: "oklch(0.79 0.12 295.75)",
-    fontSans: "\"Source Serif 4\", serif",
+    fontSans: "\"Open Sans\", sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -547,7 +547,7 @@ export const themes: ThemeConfig[] = [
     title: "Perplexity",
     primaryLight: "oklch(0.72 0.12 209.78)",
     primaryDark: "oklch(0.72 0.12 209.78)",
-    fontSans: "Lora, sans-serif",
+    fontSans: "Inter, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -555,7 +555,7 @@ export const themes: ThemeConfig[] = [
     title: "Slack",
     primaryLight: "oklch(0.37 0.14 323.23)",
     primaryDark: "oklch(0.58 0.14 327.21)",
-    fontSans: "Merriweather, sans-serif",
+    fontSans: "Lato, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -563,7 +563,7 @@ export const themes: ThemeConfig[] = [
     title: "Spotify (shadcnstudio)",
     primaryLight: "oklch(0.67 0.17 153.85)",
     primaryDark: "oklch(0.67 0.17 153.85)",
-    fontSans: "Merriweather, sans-serif",
+    fontSans: "Lato, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -571,7 +571,7 @@ export const themes: ThemeConfig[] = [
     title: "Summer",
     primaryLight: "oklch(0.70 0.17 28.12)",
     primaryDark: "oklch(0.70 0.17 28.12)",
-    fontSans: "Lora, sans-serif",
+    fontSans: "Nunito, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -579,7 +579,7 @@ export const themes: ThemeConfig[] = [
     title: "Sunset Horizon (shadcnstudio)",
     primaryLight: "oklch(0.74 0.16 34.71)",
     primaryDark: "oklch(0.74 0.16 34.71)",
-    fontSans: "Merriweather, sans-serif",
+    fontSans: "Montserrat, sans-serif",
     source: "shadcnstudio",
   },
   {
@@ -587,7 +587,7 @@ export const themes: ThemeConfig[] = [
     title: "Valorant",
     primaryLight: "oklch(0.67 0.22 21.34)",
     primaryDark: "oklch(0.67 0.22 21.34)",
-    fontSans: "Merriweather, sans-serif",
+    fontSans: "Barlow, sans-serif",
     source: "shadcnstudio",
   },
   {

@@ -47,7 +47,7 @@
   --shadow-lg: 0px 6px 12px -3px oklch(0.00 0 0 / 0.09), 0px 4px 6px -4px oklch(0.00 0 0 / 0.09);
   --shadow-xl: 0px 6px 12px -3px oklch(0.00 0 0 / 0.09), 0px 8px 10px -4px oklch(0.00 0 0 / 0.09);
   --radius: 0.625rem;
-  --font-sans: Merriweather, sans-serif;
+  --font-sans: Montserrat, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Ubuntu Mono", monospace;
   --spacing: 0.25rem;
@@ -102,7 +102,7 @@
   --shadow-lg: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 4px 6px -1px oklch(0.00 0 0 / 0.10);
   --shadow-xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 8px 10px -1px oklch(0.00 0 0 / 0.10);
   --radius: 0.625rem;
-  --font-sans: Merriweather, sans-serif;
+  --font-sans: Montserrat, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Ubuntu Mono", monospace;
   --spacing: 0.25rem;

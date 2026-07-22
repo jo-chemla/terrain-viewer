@@ -45,7 +45,7 @@
   --shadow-lg: 0px 1px 3px 0px oklch(0.70 0.17 28.12 / 0.05), 0px 4px 6px -1px oklch(0.70 0.17 28.12 / 0.05);
   --shadow-xl: 0px 1px 3px 0px oklch(0.70 0.17 28.12 / 0.05), 0px 8px 10px -1px oklch(0.70 0.17 28.12 / 0.05);
   --radius: 0.625rem;
-  --font-sans: Lora, sans-serif;
+  --font-sans: Nunito, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Fira Code", sans-serif;
   --spacing: 0.25rem;
@@ -98,7 +98,7 @@
   --shadow-lg: 0px 1px 3px 0px oklch(0.70 0.17 28.12 / 0.05), 0px 4px 6px -1px oklch(0.70 0.17 28.12 / 0.05);
   --shadow-xl: 0px 1px 3px 0px oklch(0.70 0.17 28.12 / 0.05), 0px 8px 10px -1px oklch(0.70 0.17 28.12 / 0.05);
   --radius: 0.625rem;
-  --font-sans: Lora, sans-serif;
+  --font-sans: Nunito, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Fira Code", sans-serif;
   --spacing: 0.25rem;

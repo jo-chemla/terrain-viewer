@@ -45,7 +45,7 @@
   --shadow-lg: 0px 1px 3px 0px oklch(0 0 0 / 0.01), 0px 4px 6px -1px oklch(0 0 0 / 0.01);
   --shadow-xl: 0px 1px 3px 0px oklch(0 0 0 / 0.01), 0px 8px 10px -1px oklch(0 0 0 / 0.01);
   --radius: 0.625rem;
-  --font-sans: Merriweather, sans-serif;
+  --font-sans: Outfit, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Geist Mono", monospace;
   --spacing: 0.25rem;
@@ -98,7 +98,7 @@
   --shadow-lg: 0px 1px 3px 0px oklch(0 0 0 / 0.01), 0px 4px 6px -1px oklch(0 0 0 / 0.01);
   --shadow-xl: 0px 1px 3px 0px oklch(0 0 0 / 0.01), 0px 8px 10px -1px oklch(0 0 0 / 0.01);
   --radius: 0.625rem;
-  --font-sans: Merriweather, sans-serif;
+  --font-sans: Outfit, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Geist Mono", monospace;
   --spacing: 0.25rem;

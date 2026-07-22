@@ -46,9 +46,9 @@
   --shadow-lg: 0px 1px 2.5px 0px oklch(0.49 0.09 235.45 / 0.06), 0px 4px 6px -1px oklch(0.49 0.09 235.45 / 0.06);
   --shadow-xl: 0px 1px 2.5px 0px oklch(0.49 0.09 235.45 / 0.06), 0px 8px 10px -1px oklch(0.49 0.09 235.45 / 0.06);
   --radius: 0.625rem;
-  --font-sans: "Source Serif 4", serif;
+  --font-sans: "Source Code Pro", sans-serif;
   --font-serif: "Source Serif 4", serif;
-  --font-mono: "Source Code Pro", monospace;
+  --font-mono: "Source Code Pro", sans-serif;
   --spacing: 0.25rem;
   --letter-spacing: 0em;
   --tracking-normal: 0em;
@@ -100,9 +100,9 @@
   --shadow-lg: 0px 1px 2px 0px oklch(0 0 0 / 0.01), 0px 4px 6px -1px oklch(0 0 0 / 0.01);
   --shadow-xl: 0px 1px 2px 0px oklch(0 0 0 / 0.01), 0px 8px 10px -1px oklch(0 0 0 / 0.01);
   --radius: 0.625rem;
-  --font-sans: "Source Serif 4", serif;
+  --font-sans: "Source Code Pro", sans-serif;
   --font-serif: "Source Serif 4", serif;
-  --font-mono: "Source Code Pro", monospace;
+  --font-mono: "Source Code Pro", sans-serif;
   --spacing: 0.25rem;
   --letter-spacing: 0em;
   --tracking-normal: 0em;
