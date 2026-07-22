@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useEffect, forwardRef, createContext, useContext, useId } from "react"
+import { useState, useEffect, forwardRef, createContext, useContext, useId, Fragment } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Toggle } from "@/components/ui/toggle"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Marker, MarkerContent } from "@/components/ui/marker"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { LucideIcon } from "lucide-react"
@@ -23,6 +24,60 @@ import { activeSliderAtom, transparentUiAtom } from "@/lib/settings-atoms"
 // ─── Section context (module-level, not inside component) ────────────────────
 
 export const SectionIdContext = createContext<string>("")
+
+// ─── SegmentedToggle ────────────────────────────────────────────────────────
+// iOS-style segmented control (muted track + one elevated "background" pill for
+// the active option). The active pill is driven by an explicit value match, NOT
+// data-[state=on]: when an item doubles as a TooltipTrigger asChild, the
+// tooltip's own data-state (open/closed) is merged onto the SAME element and
+// clobbers the toggle's on/off state, so data-[state=on]:… styling silently
+// never applies (this bit the old Phong toggles). Reads clearly in light + dark
+// where the previous data-[state=on]:bg-white pill was invisible on light.
+const SEG_ITEM_BASE = "flex-1 rounded-sm px-2 py-1 text-xs cursor-pointer transition-colors text-muted-foreground font-normal hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+const SEG_ITEM_ACTIVE = "bg-background shadow-sm font-semibold text-foreground"
+
+export interface SegmentedOption<T extends string> {
+  value: T
+  label: React.ReactNode
+  disabled?: boolean
+  tooltip?: string
+}
+
+export function SegmentedToggle<T extends string>({
+  value, onChange, options, className, disabled,
+}: {
+  value: T
+  onChange: (v: T) => void
+  options: SegmentedOption<T>[]
+  className?: string
+  disabled?: boolean
+}) {
+  return (
+    <ToggleGroup
+      type="single"
+      value={value}
+      onValueChange={(v) => v && onChange(v as T)}
+      disabled={disabled}
+      className={cn("gap-0.5 rounded-md bg-muted p-0.5", className)}
+    >
+      {options.map((o) => {
+        const item = (
+          <ToggleGroupItem value={o.value} disabled={o.disabled} className={cn(SEG_ITEM_BASE, value === o.value && SEG_ITEM_ACTIVE)}>
+            {o.label}
+          </ToggleGroupItem>
+        )
+        return o.tooltip ? (
+          <Tooltip key={o.value} delayDuration={300}>
+            <TooltipTrigger asChild>{item}</TooltipTrigger>
+            <TooltipContent><p>{o.tooltip}</p></TooltipContent>
+          </Tooltip>
+        ) : (
+          <Fragment key={o.value}>{item}</Fragment>
+        )
+      })}
+    </ToggleGroup>
+  )
+}
 
 // ─── MobileSlider ─────────────────────────────────────────────────────────────
 

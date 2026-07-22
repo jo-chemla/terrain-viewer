@@ -403,14 +403,17 @@ export function TerrainControlPanel({
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
         <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
         <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} withSeparator={false} />
-        <MacroSeparator label="Sources" isOpen={macroGroupOpen.Sources} onToggle={() => toggleMacroGroup("Sources")} />
-        {macroGroupOpen.Sources && (
+        {/* Whole "Sources" group (label+chevron row AND its sections) is hidden
+            when the project config hides source panels — otherwise the chevron/
+            label row would sit there with nothing to expand. */}
+        {!hideSourcePanels && (
           <>
-            {!hideSourcePanels && (
-              <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
-            )}
-            {!hideSourcePanels && (
-              <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
+            <MacroSeparator label="Sources" isOpen={macroGroupOpen.Sources} onToggle={() => toggleMacroGroup("Sources")} />
+            {macroGroupOpen.Sources && (
+              <>
+                <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
+                <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
+              </>
             )}
           </>
         )}

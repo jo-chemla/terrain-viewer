@@ -4,8 +4,7 @@ import { Globe, RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Section } from "./controls-components"
+import { Section, SegmentedToggle } from "./controls-components"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 
 export const GeneralSettings: React.FC<{
@@ -21,27 +20,26 @@ export const GeneralSettings: React.FC<{
     <Section title="General Settings" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-medium">View Mode</Label>
-        <ToggleGroup type="single" value={state.viewMode} onValueChange={(value) => value && setState({ viewMode: value })} className="border rounded-md w-[140px]">
-          {!disabledViewModes.includes("2d") && (
-            <ToggleGroupItem value="2d" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">2D</ToggleGroupItem>
-          )}
-          {!disabledViewModes.includes("globe") && (
-            <ToggleGroupItem value="globe" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
-              <Globe className="h-4 w-4" strokeWidth={state.viewMode === 'globe' ? 2 : 1.5} />
-            </ToggleGroupItem>
-          )}
-          {!disabledViewModes.includes("3d") && (
-            <ToggleGroupItem value="3d" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">3D</ToggleGroupItem>
-          )}
-        </ToggleGroup>
+        <SegmentedToggle
+          className="w-[140px]"
+          value={state.viewMode}
+          onChange={(value) => setState({ viewMode: value })}
+          options={[
+            !disabledViewModes.includes("2d") && { value: "2d", label: "2D" },
+            !disabledViewModes.includes("globe") && { value: "globe", label: <Globe className="h-4 w-4 mx-auto" strokeWidth={state.viewMode === "globe" ? 2 : 1.5} /> },
+            !disabledViewModes.includes("3d") && { value: "3d", label: "3D" },
+          ].filter(Boolean) as { value: string; label: React.ReactNode }[]}
+        />
       </div>
       {!hideSplitScreen && (
         <div className="flex items-center justify-between gap-2">
           <Label className="text-sm font-medium">Split Screen</Label>
-          <ToggleGroup type="single" value={state.splitScreen ? "on" : "off"} onValueChange={(value) => value && setState({ splitScreen: value === "on" })} className="border rounded-md w-[140px]">
-            <ToggleGroupItem value="off" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">Off</ToggleGroupItem>
-            <ToggleGroupItem value="on" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">On</ToggleGroupItem>
-          </ToggleGroup>
+          <SegmentedToggle
+            className="w-[140px]"
+            value={state.splitScreen ? "on" : "off"}
+            onChange={(value) => setState({ splitScreen: value === "on" })}
+            options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+          />
         </div>
       )}
       {(state.viewMode === "3d" || state.viewMode === "globe") && (

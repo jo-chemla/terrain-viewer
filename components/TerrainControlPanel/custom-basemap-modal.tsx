@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { SegmentedToggle } from "./controls-components"
 import { type CustomBasemapSource } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
 import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
@@ -278,25 +279,15 @@ export const CustomBasemapModal: React.FC<{
               )}
               <div className="space-y-2">
                 <Label>Use as</Label>
-                <ToggleGroup
-                  type="single"
-                  value={role}
-                  onValueChange={(value) => value && setRole(value as CustomBasemapSource["role"])}
-                  className="border rounded-md w-full"
-                >
-                  <ToggleGroupItem
-                    value="basemap"
-                    className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
-                  >
-                    Basemap
-                  </ToggleGroupItem>
-                  <ToggleGroupItem
-                    value="overlay"
-                    className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
-                  >
-                    Overlay
-                  </ToggleGroupItem>
-                </ToggleGroup>
+                <SegmentedToggle
+                  className="w-full"
+                  value={(role ?? "basemap") as NonNullable<CustomBasemapSource["role"]>}
+                  onChange={(value) => setRole(value)}
+                  options={[
+                    { value: "basemap" as NonNullable<CustomBasemapSource["role"]>, label: "Basemap" },
+                    { value: "overlay" as NonNullable<CustomBasemapSource["role"]>, label: "Overlay" },
+                  ]}
+                />
                 <p className="text-xs text-muted-foreground">
                   Overlays stack on top of the active basemap instead of replacing it — only available in Split/Radio basemap mode.
                 </p>

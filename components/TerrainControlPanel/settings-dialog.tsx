@@ -22,7 +22,7 @@ import { isOpfsSupported, estimateStorage, listPersistedCogs, clearAllPersistedC
 import { listPersistedVectorLayers, clearAllPersistedVectorLayers } from "@/lib/opfs-vector-store"
 import { persistVectorLayersAtom } from "./TerraDrawSystem"
 import { useTheme } from "@/lib/controls-utils"
-import { PasswordInput } from "./controls-components"
+import { PasswordInput, SegmentedToggle } from "./controls-components"
 import { TooltipIconButton } from "./controls-components"
 import { JsonEditor } from "@/components/ui/json-editor"
 import { ColorThemeSelect, SOURCE_GROUPS, DEFAULT_GROUP_SOURCES } from "@/components/theme-switcher"
@@ -324,25 +324,15 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">COG Streaming Settings</Label>
-              <ToggleGroup
-                type="single"
+              <SegmentedToggle
+                className="w-[160px]"
                 value={useCogProtocolVsTitiler ? "cogprotocol" : "titiler"}
-                onValueChange={(value) => value && setUseCogProtocolVsTitiler(value == "cogprotocol")}
-                className="border rounded-md"
-              >
-                <ToggleGroupItem
-                  value="cogprotocol"
-                  className="px-3 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
-                >
-                  MapLibre
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  value="titiler"
-                  className="px-3 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
-                >
-                  Titiler
-                </ToggleGroupItem>
-              </ToggleGroup>
+                onChange={(value) => setUseCogProtocolVsTitiler(value === "cogprotocol")}
+                options={[
+                  { value: "cogprotocol", label: "MapLibre" },
+                  { value: "titiler", label: "Titiler" },
+                ]}
+              />
             </div>
 
             <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded-md">

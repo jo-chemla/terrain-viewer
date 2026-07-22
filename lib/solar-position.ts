@@ -88,6 +88,19 @@ export function formatDayOfYear(dayOfYear: number, year = 2026): string {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
+/** "YYYY-MM-DD" → day-of-year (1–365); ignores the year (month/day only).
+ *  Returns null for an unparseable string. */
+export function dateStrToDayOfYear(str: string, year = 2026): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str)
+  if (!m) return null
+  const month = Number(m[2]), day = Number(m[3])
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  const d = new Date(year, month - 1, day)
+  const jan1 = new Date(year, 0, 1)
+  const doy = Math.round((d.getTime() - jan1.getTime()) / 86400000) + 1
+  return Math.min(365, Math.max(1, doy))
+}
+
 /** Fractional hour (e.g. 6.5) → "HH:MM" (e.g. "06:30"). */
 export function formatHour(hour: number): string {
   const clamped = clamp(hour, 0, 24)

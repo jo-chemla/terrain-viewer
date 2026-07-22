@@ -5,8 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
+import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit, SegmentedToggle } from "./controls-components"
 import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
@@ -59,19 +58,15 @@ export const OpennessFields: React.FC<{
             <RotateCcw className="h-3 w-3" />
           </Button>
         </div>
-        <ToggleGroup
-          type="single"
-          value={state.opennessMode ?? DEFAULTS.opennessMode}
-          onValueChange={(value) => value && setState({ opennessMode: value as OpennessMode })}
-          className="border rounded-md w-full"
-        >
-          <ToggleGroupItem value="positive" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
-            Positive
-          </ToggleGroupItem>
-          <ToggleGroupItem value="negative" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
-            Negative
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <SegmentedToggle
+          className="w-full"
+          value={(state.opennessMode ?? DEFAULTS.opennessMode) as OpennessMode}
+          onChange={(value) => setState({ opennessMode: value })}
+          options={[
+            { value: "positive" as OpennessMode, label: "Positive" },
+            { value: "negative" as OpennessMode, label: "Negative" },
+          ]}
+        />
         <p className="text-xs text-muted-foreground">
           {state.opennessMode === "negative" ? "Highlights enclosed valleys/pits." : "Highlights exposed ridges/summits."}
         </p>

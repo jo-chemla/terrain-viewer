@@ -1491,11 +1491,13 @@ export function TerrainViewer() {
             enabled={state.showLightingEffects && state.showPhong && effectivePhongRenderer === "raster"}
             diffuseStrength={state.phongDiffuseStrength}
             specularStrength={state.phongSpecularStrength}
-            // Relative mode bakes the map's own (settled, not live-dragged —
-            // see phongLightRelativeToCamera's state comment) bearing into
-            // the tile's effective azimuth, so the light appears fixed to
-            // the camera instead of to compass directions.
-            lightDir={state.phongLightRelativeToCamera ? ((state.illuminationDir + state.bearing) % 360 + 360) % 360 : state.illuminationDir}
+            // 3D Slow (raster) is always ABSOLUTE — a per-frame camera headlamp
+            // isn't possible here (it would bake the settled bearing into every
+            // tile URL and re-fetch on each rotate, not a real headlamp), so the
+            // Light Anchor toggle is disabled + forced to Absolute in this mode
+            // (see lighting-effects-options-section.tsx). Only the live 2D Fast
+            // layer honours phongLightRelativeToCamera.
+            lightDir={state.illuminationDir}
             lightAlt={state.illuminationAlt}
             exaggeration={state.exaggeration}
             terrainSource={source}

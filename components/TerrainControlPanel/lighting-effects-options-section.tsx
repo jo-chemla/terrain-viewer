@@ -6,31 +6,17 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Section, CheckboxWithSlider, SliderControl, MobileSlider, SectionIdContext } from "./controls-components"
+import { Section, CheckboxWithSlider, SliderControl, MobileSlider, SectionIdContext, SegmentedToggle } from "./controls-components"
 import { SphericalXYPad } from './XYPad'
 import { cn } from "@/lib/utils"
 import { activeSliderAtom } from "@/lib/settings-atoms"
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
-import { solarPosition, dayLength, formatDayOfYear, formatHour } from "@/lib/solar-position"
+import { solarPosition, dayLength, formatDayOfYear, formatHour, dateStrToDayOfYear } from "@/lib/solar-position"
 
-// Segmented-control styling for the Phong toggle groups (Renderer, Light Mode,
-// Direction). Two problems made "which option is active" ambiguous before:
-//  1. data-[state=on]:bg-white is invisible on light themes (white pill on a
-//     white popover).
-//  2. more fundamentally, every item here is ALSO a TooltipTrigger asChild,
-//     which merges the TOOLTIP's data-state (open/closed) onto the very same
-//     element — clobbering the ToggleGroupItem's own data-state (on/off), so
-//     `data-[state=on]:…` styling literally never applied (same asChild/
-//     data-state collision noted on AdvancedModeToggle in controls-components).
-// So the active pill is driven by an explicit `active` boolean (segItem below)
-// from the actual state value, not data-state — a muted track + elevated
-// "background" pill that reads clearly in both light and dark.
-const SEG_GROUP = "w-[200px] gap-0.5 rounded-md bg-muted p-0.5"
-const SEG_ITEM_BASE = "flex-1 rounded-sm px-2 text-xs cursor-pointer transition-colors text-muted-foreground font-normal hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-const SEG_ITEM_ACTIVE = "bg-background shadow-sm font-semibold text-foreground"
-const segItem = (active: boolean) => cn(SEG_ITEM_BASE, active && SEG_ITEM_ACTIVE)
+// Common width for the Phong toggle groups (see SegmentedToggle in
+// controls-components for the segmented-control styling + why the active pill
+// is driven by an explicit value match rather than data-[state=on]).
+const SEG_WIDTH = "w-[200px]"
 
 // Seasonal reference points for the day-of-year slider (non-leap 2026), so the
 // physical meaning of a date is legible at a glance (winter = low sun, etc.).
@@ -50,8 +36,8 @@ const SEASON_TICKS = [
 const LightSlider: React.FC<{
   label: string; value: number; onChange: (v: number) => void
   min: number; max: number; step: number; sliderId: string
-  displayValue: string; ticks?: { value: number; label?: string }[]
-}> = ({ label, value, onChange, min, max, step, sliderId, displayValue, ticks }) => {
+  displayValue: string; displayNode?: React.ReactNode; ticks?: { value: number; label?: string }[]
+}> = ({ label, value, onChange, min, max, step, sliderId, displayValue, displayNode, ticks }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const id = `${sectionId}:${sliderId}`
@@ -60,7 +46,7 @@ const LightSlider: React.FC<{
     <div className={cn("space-y-1 transition-opacity duration-150", isDimmed && "opacity-20")}>
       <div className="flex items-center justify-between">
         <Label className="text-sm">{label}</Label>
-        <span className="text-sm text-muted-foreground tabular-nums">{displayValue}</span>
+        {displayNode ?? <span className="text-sm text-muted-foreground tabular-nums">{displayValue}</span>}
       </div>
       <MobileSlider sliderId={id} value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" />
       {ticks && ticks.length > 0 && (
@@ -155,6 +141,17 @@ export const LightingEffectsOptionsSection: React.FC<{
   onOpenChange,
 }) => {
   const [isLightDirOpen, setIsLightDirOpen] = useState(true)
+  const [isIntensitiesOpen, setIsIntensitiesOpen] = useState(false)
+
+  // When ANY slider (a MobileSlider/SphericalXYPad) is actively being dragged,
+  // everything that isn't the active control dims (the transparent-UI "silence
+  // everything except what I'm editing" behavior). Toggle groups + section
+  // labels aren't sliders so they never set/own the active id — so dim them
+  // whenever an active slider exists. The datetime Date/Time sliders + the XY
+  // pad share the "phong-light" id, so editing them dims these toggle rows
+  // while keeping only the pad + sliders lit, as requested.
+  const [activeSlider] = useAtom(activeSliderAtom)
+  const dimWhenSliding = cn("transition-opacity duration-150", activeSlider !== null && "opacity-20")
 
   const cycleMatcap = useCallback((direction: number) => {
     const currentIndex = MATCAP_IDS.indexOf(state.matcapTextureId)
@@ -273,102 +270,63 @@ export const LightingEffectsOptionsSection: React.FC<{
           />
           {state.showPhong && (
             <div className="space-y-3 pl-1">
-              <div className="flex items-center justify-between gap-2">
+              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
                 <Label className="text-sm font-medium">Renderer</Label>
-                <ToggleGroup
-                  type="single"
+                <SegmentedToggle
+                  className={SEG_WIDTH}
                   value={state.phongRenderer}
-                  onValueChange={(value) => value && setState({ phongRenderer: value })}
-                  className={SEG_GROUP}
-                >
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <ToggleGroupItem value="raster" className={segItem(state.phongRenderer === "raster")}>
-                        3D Slow
-                      </ToggleGroupItem>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Drapes correctly over 3D terrain exaggeration and globe, but every light/strength change re-fetches a tile (~150ms debounced).</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <ToggleGroupItem value="live" disabled={state.viewMode === "globe"} className={segItem(state.phongRenderer === "live")}>
-                        2D Fast
-                      </ToggleGroupItem>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{state.viewMode === "globe" ? "Not available in Globe view — this renderer doesn't drape onto globe curvature." : "A live GPU shader, instant light/strength updates, zero tile refetch — but flat only: doesn't drape onto 3D terrain elevation."}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </ToggleGroup>
+                  onChange={(value) => setState({ phongRenderer: value })}
+                  options={[
+                    { value: "raster", label: "3D Slow", tooltip: "Drapes correctly over 3D terrain exaggeration and globe, but every light/strength change re-fetches a tile (~150ms debounced)." },
+                    { value: "live", label: "2D Fast", disabled: state.viewMode === "globe", tooltip: state.viewMode === "globe" ? "Not available in Globe view — this renderer doesn't drape onto globe curvature." : "A live GPU shader, instant light/strength updates, zero tile refetch — but flat only: doesn't drape onto 3D terrain elevation." },
+                  ]}
+                />
               </div>
-              {state.phongRenderer === "live" && (
-                <p className="text-xs text-muted-foreground">
-                  2D Fast renders a flat shaded plane and won't follow 3D terrain elevation — switch to 3D Slow for a correct drape.
-                </p>
-              )}
-              {/* Light Mode: Absolute keeps the light fixed to compass
-                  directions (matches maplibre's own hillshade illumination);
-                  Camera adds the settled map bearing to the azimuth so the
-                  light appears to follow the view like a headlamp. Wired into
-                  BOTH renderers' lightDir prop in TerrainViewer.tsx. */}
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-sm font-medium">Light Mode</Label>
-                <ToggleGroup
-                  type="single"
-                  value={state.phongLightRelativeToCamera ? "relative" : "absolute"}
-                  onValueChange={(value) => value && setState({ phongLightRelativeToCamera: value === "relative" })}
-                  className={SEG_GROUP}
-                >
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <ToggleGroupItem value="absolute" className={segItem(!state.phongLightRelativeToCamera)}>
-                        Absolute
-                      </ToggleGroupItem>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Light stays fixed to compass directions as you rotate the map — matches maplibre's own hillshade illumination direction.</p></TooltipContent>
-                  </Tooltip>
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <ToggleGroupItem value="relative" className={segItem(state.phongLightRelativeToCamera)}>
-                        Camera
-                      </ToggleGroupItem>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Light stays fixed relative to the camera — it appears to follow you as you rotate the map, like a headlamp.</p></TooltipContent>
-                  </Tooltip>
-                </ToggleGroup>
+              {/* Intensities — albedo/diffuse/specular, foldable, above Light Anchor. */}
+              <Collapsible open={isIntensitiesOpen} onOpenChange={setIsIntensitiesOpen}>
+                <CollapsibleTrigger className={cn("flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer", dimWhenSliding)}>
+                  Intensities<ChevronDown className={`h-4 w-4 transition-transform ${isIntensitiesOpen ? "rotate-180" : ""}`} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-1">
+                  <SliderControl label="Albedo (Raster Basemap Opacity)" value={state.rasterBasemapOpacity} onChange={(v) => setState({ rasterBasemapOpacity: v })} min={0} max={1} step={0.05} decimals={2} sliderId="phong-albedo" />
+                  <SliderControl label="Diffuse Strength" value={phongDiffuseStrength} onChange={setPhongDiffuseStrength} min={0} max={1} step={0.05} decimals={2} sliderId="phong-diffuse" />
+                  <SliderControl label="Specular Strength" value={phongSpecularStrength} onChange={setPhongSpecularStrength} min={0} max={1} step={0.05} decimals={2} sliderId="phong-specular" />
+                </CollapsibleContent>
+              </Collapsible>
+              {/* Light Anchor: Absolute keeps the light fixed to compass
+                  directions; Camera makes it a headlamp fixed to the view.
+                  Only 2D Fast (live) can do a true per-frame camera headlamp,
+                  so this is disabled + forced to Absolute in 3D Slow (raster),
+                  which always renders absolute (see TerrainViewer.tsx). */}
+              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+                <Label className="text-sm font-medium">Light Anchor</Label>
+                <SegmentedToggle
+                  className={SEG_WIDTH}
+                  disabled={state.phongRenderer === "raster"}
+                  value={state.phongRenderer === "raster" ? "absolute" : (state.phongLightRelativeToCamera ? "relative" : "absolute")}
+                  onChange={(value) => setState({ phongLightRelativeToCamera: value === "relative" })}
+                  options={[
+                    { value: "absolute", label: "Absolute", tooltip: "Light stays fixed to compass directions as you rotate the map — matches maplibre's own hillshade illumination direction." },
+                    { value: "relative", label: "Camera", tooltip: state.phongRenderer === "raster" ? "Camera-relative light is only available in 2D Fast." : "Light stays fixed relative to the camera — it appears to follow you as you rotate the map, like a headlamp." },
+                  ]}
+                />
               </div>
               <Collapsible open={isLightDirOpen} onOpenChange={setIsLightDirOpen}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+                <CollapsibleTrigger className={cn("flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer", dimWhenSliding)}>
                   Light Direction<ChevronDown className={`h-4 w-4 transition-transform ${isLightDirOpen ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-1 overflow-visible">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="text-sm font-medium">Direction</Label>
-                    <ToggleGroup
-                      type="single"
+                  <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+                    <Label className="text-sm font-medium">Mode</Label>
+                    <SegmentedToggle
+                      className={SEG_WIDTH}
                       value={state.phongLightUseDatetime ? "datetime" : "free"}
-                      onValueChange={(value) => value && setState({ phongLightUseDatetime: value === "datetime" })}
-                      className={SEG_GROUP}
-                    >
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <ToggleGroupItem value="free" className={segItem(!state.phongLightUseDatetime)}>
-                            Free
-                          </ToggleGroupItem>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Drag the pad to set any light azimuth + elevation freely.</p></TooltipContent>
-                      </Tooltip>
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <ToggleGroupItem value="datetime" className={segItem(state.phongLightUseDatetime)}>
-                            Datetime
-                          </ToggleGroupItem>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Derive the light from the sun's position for a day + time at the viewport-center latitude/longitude.</p></TooltipContent>
-                      </Tooltip>
-                    </ToggleGroup>
+                      onChange={(value) => setState({ phongLightUseDatetime: value === "datetime" })}
+                      options={[
+                        { value: "free", label: "Free", tooltip: "Drag the pad to set any light azimuth + elevation freely." },
+                        { value: "datetime", label: "Datetime", tooltip: "Derive the light from the sun's position for a day + time at the viewport-center latitude/longitude." },
+                      ]}
+                    />
                   </div>
 
                   {state.phongLightUseDatetime && (
@@ -384,6 +342,16 @@ export const LightingEffectsOptionsSection: React.FC<{
                         min={1} max={365} step={1}
                         sliderId="phong-light"
                         displayValue={formatDayOfYear(state.phongLightDayOfYear)}
+                        displayNode={
+                          <input
+                            type="date"
+                            className="text-sm text-muted-foreground tabular-nums bg-transparent outline-none cursor-pointer hover:text-foreground"
+                            value={formatDayOfYear(state.phongLightDayOfYear)}
+                            onChange={(e) => { const d = dateStrToDayOfYear(e.target.value); if (d) setState({ phongLightDayOfYear: d }) }}
+                            onClick={(e) => { try { (e.currentTarget as HTMLInputElement).showPicker() } catch { /* not supported / already open */ } }}
+                            title="Pick a date"
+                          />
+                        }
                         ticks={SEASON_TICKS}
                       />
                       {/* Time of day (local solar time), ticked at the day's
@@ -400,7 +368,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                           { value: dayRange.sunset, label: `↓${formatHour(dayRange.sunset)}` },
                         ]}
                       />
-                      <p className="text-xs text-muted-foreground">
+                      <p className={cn("text-xs text-muted-foreground", dimWhenSliding)}>
                         {dayRange.polarNight
                           ? "Polar night — sun stays below the horizon all day"
                           : dayRange.polarDay
@@ -428,27 +396,6 @@ export const LightingEffectsOptionsSection: React.FC<{
                   </div>
                 </CollapsibleContent>
               </Collapsible>
-              <SliderControl
-                label="Albedo (Raster Basemap Opacity)"
-                value={state.rasterBasemapOpacity}
-                onChange={(v) => setState({ rasterBasemapOpacity: v })}
-                min={0} max={1} step={0.05} decimals={2}
-                sliderId="phong-albedo"
-              />
-              <SliderControl
-                label="Diffuse Strength"
-                value={phongDiffuseStrength}
-                onChange={setPhongDiffuseStrength}
-                min={0} max={1} step={0.05} decimals={2}
-                sliderId="phong-diffuse"
-              />
-              <SliderControl
-                label="Specular Strength"
-                value={phongSpecularStrength}
-                onChange={setPhongSpecularStrength}
-                min={0} max={1} step={0.05} decimals={2}
-                sliderId="phong-specular"
-              />
             </div>
           )}
         </div>
