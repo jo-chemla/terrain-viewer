@@ -141,7 +141,7 @@ export const LightingEffectsOptionsSection: React.FC<{
   onOpenChange,
 }) => {
   const [isLightDirOpen, setIsLightDirOpen] = useState(true)
-  const [isIntensitiesOpen, setIsIntensitiesOpen] = useState(false)
+  const [isIntensitiesOpen, setIsIntensitiesOpen] = useState(true)
 
   // When ANY slider (a MobileSlider/SphericalXYPad) is actively being dragged,
   // everything that isn't the active control dims (the transparent-UI "silence
@@ -177,6 +177,17 @@ export const LightingEffectsOptionsSection: React.FC<{
     state.illuminationDir, state.illuminationAlt,
     useCallback((v: { azimuthDeg: number; elevationDeg: number }) => setState({ illuminationDir: v.azimuthDeg, illuminationAlt: v.elevationDeg }), [setState]),
     phongDebounceMs,
+  )
+  // Datetime sliders are debounced by the same renderer-based delay: dragging
+  // Date/Time changes the sun position → the effect below rewrites
+  // illuminationDir/Alt, which in RASTER (3D Slow) re-fetches every tile. Un-
+  // debounced that meant a refetch per drag step (the "old/new/old/new" flicker
+  // in 3D); 150ms settles it. Live (2D Fast, 0ms) stays instant.
+  const [dayOfYear, setDayOfYear] = useDebouncedState(
+    state.phongLightDayOfYear, useCallback((v: number) => setState({ phongLightDayOfYear: Math.round(v) }), [setState]), phongDebounceMs,
+  )
+  const [timeOfDay, setTimeOfDay] = useDebouncedState(
+    state.phongLightTimeOfDay, useCallback((v: number) => setState({ phongLightTimeOfDay: Math.round(v * 4) / 4 }), [setState]), phongDebounceMs,
   )
 
   // ─── Datetime-driven light ───────────────────────────────────────────────
@@ -337,17 +348,17 @@ export const LightingEffectsOptionsSection: React.FC<{
                           lit (and dims everything else). */}
                       <LightSlider
                         label="Date"
-                        value={state.phongLightDayOfYear}
-                        onChange={(v) => setState({ phongLightDayOfYear: Math.round(v) })}
+                        value={dayOfYear}
+                        onChange={setDayOfYear}
                         min={1} max={365} step={1}
                         sliderId="phong-light"
-                        displayValue={formatDayOfYear(state.phongLightDayOfYear)}
+                        displayValue={formatDayOfYear(dayOfYear)}
                         displayNode={
                           <input
                             type="date"
                             className="text-sm text-muted-foreground tabular-nums bg-transparent outline-none cursor-pointer hover:text-foreground"
-                            value={formatDayOfYear(state.phongLightDayOfYear)}
-                            onChange={(e) => { const d = dateStrToDayOfYear(e.target.value); if (d) setState({ phongLightDayOfYear: d }) }}
+                            value={formatDayOfYear(dayOfYear)}
+                            onChange={(e) => { const d = dateStrToDayOfYear(e.target.value); if (d) setDayOfYear(d) }}
                             onClick={(e) => { try { (e.currentTarget as HTMLInputElement).showPicker() } catch { /* not supported / already open */ } }}
                             title="Pick a date"
                           />
@@ -358,41 +369,40 @@ export const LightingEffectsOptionsSection: React.FC<{
                           sunrise/sunset for the viewport-center latitude. */}
                       <LightSlider
                         label="Time"
-                        value={state.phongLightTimeOfDay}
-                        onChange={(v) => setState({ phongLightTimeOfDay: Math.round(v * 4) / 4 })}
+                        value={timeOfDay}
+                        onChange={setTimeOfDay}
                         min={0} max={24} step={0.25}
                         sliderId="phong-light"
-                        displayValue={formatHour(state.phongLightTimeOfDay)}
+                        displayValue={formatHour(timeOfDay)}
                         ticks={dayRange.polarDay || dayRange.polarNight ? undefined : [
                           { value: dayRange.sunrise, label: `↑${formatHour(dayRange.sunrise)}` },
                           { value: dayRange.sunset, label: `↓${formatHour(dayRange.sunset)}` },
                         ]}
                       />
-                      <p className={cn("text-xs text-muted-foreground", dimWhenSliding)}>
-                        {dayRange.polarNight
-                          ? "Polar night — sun stays below the horizon all day"
-                          : dayRange.polarDay
-                            ? "Midnight sun — sun stays above the horizon all day"
-                            : `Daylight ${formatHour(dayRange.sunrise)}–${formatHour(dayRange.sunset)} · sun ${sun.altitude >= 0 ? `${Math.round(sun.altitude)}° above` : `${Math.round(-sun.altitude)}° below`} horizon (solar time @ ${state.lat.toFixed(2)}°, ${state.lng.toFixed(2)}°)`}
-                      </p>
                     </div>
                   )}
 
                   {/* In datetime mode the pad is a read-only visualization of the
                       computed sun direction (the sliders drive it), so pointer
-                      events are disabled to avoid fighting the sliders. Shares
-                      the "phong-light" sliderId with the datetime sliders so it
-                      stays lit (not dimmed) while they're being edited. */}
-                  <div className={`flex justify-center ${state.phongLightUseDatetime ? "pointer-events-none" : ""}`}>
-                    <SphericalXYPad
-                      width={200}
-                      height={200}
-                      azimuthRange={[0, 360]}
-                      elevationRange={[0, 90]}
-                      sliderId="phong-light"
-                      value={lightDir}
-                      onChange={setLightDir}
-                    />
+                      events are disabled and it's greyed (desaturated + dimmed)
+                      to read as "display only" while still showing the light
+                      direction. Shares the "phong-light" sliderId with the
+                      datetime sliders so it stays lit while they're edited. */}
+                  <div className={cn("flex flex-col items-center gap-1", state.phongLightUseDatetime && "pointer-events-none")}>
+                    <div className={cn(state.phongLightUseDatetime && "opacity-60 grayscale")}>
+                      <SphericalXYPad
+                        width={200}
+                        height={200}
+                        azimuthRange={[0, 360]}
+                        elevationRange={[0, 90]}
+                        sliderId="phong-light"
+                        value={lightDir}
+                        onChange={setLightDir}
+                      />
+                    </div>
+                    {state.phongLightUseDatetime && (
+                      <span className="text-[10px] text-muted-foreground italic">Set by date &amp; time · display only</span>
+                    )}
                   </div>
                 </CollapsibleContent>
               </Collapsible>

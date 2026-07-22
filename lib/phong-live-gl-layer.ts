@@ -176,6 +176,7 @@ export class PhongLiveLayer implements CustomLayerInterface {
   private frameCounter = 0
   private disposed = false
   private loggedError = false
+  private loggedFetchError = false
 
   constructor(id: string, options: PhongLiveOptions) {
     this.id = id
@@ -258,7 +259,16 @@ export class PhongLiveLayer implements CustomLayerInterface {
         this.textures.set(key, { texture, lastUsed: this.frameCounter })
         this.map?.triggerRepaint()
       })
-      .catch(() => { this.pending.delete(key) })
+      .catch((err) => {
+        this.pending.delete(key)
+        // Was silently swallowed — an abort during pan is normal, but a real
+        // fetch/compute failure here is exactly what leaves the layer white
+        // with no clue why, so surface the first one.
+        if (err?.name !== "AbortError" && !this.loggedFetchError) {
+          this.loggedFetchError = true
+          console.error(`[phong-live-gl-layer] normal-tile fetch/compute failed (z${z}/${x}/${y}); template=${this.options.upstreamTemplate}`, err)
+        }
+      })
   }
 
   private pruneTextures() {
@@ -297,8 +307,13 @@ export class PhongLiveLayer implements CustomLayerInterface {
       // instead of a plain per-tile matrix, which isn't implemented here; the
       // React wrapper is expected to keep this option unavailable while
       // viewMode is "globe", but bail defensively here too in case that ever
-      // drifts.
-      if (map.getProjection()?.type !== "mercator") return
+      // drifts. Bail ONLY on an explicit globe projection: map.getProjection()
+      // returns `undefined`/no `.type` when no projection has been set on the
+      // style (the mercator default), so the old `!== "mercator"` test wrongly
+      // bailed on EVERY frame in that (very common) case — the layer added fine
+      // but never drew, i.e. the "2D Fast is pure white while 3D Slow is fine"
+      // regression. Treat missing type as mercator.
+      if (map.getProjection()?.type === "globe") return
       this.frameCounter++
 
       const tileIDs = map.coveringTiles({
