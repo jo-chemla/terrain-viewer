@@ -8,7 +8,7 @@ export interface ThemeConfig {
    *  undefined means "tweakcn" (the original 42 + these additions all came
    *  from tweakcn.com's own utils/theme-presets.ts, extracted directly
    *  rather than guessed, same as every other preset already here). */
-  source?: "hwai" | "tweakcn" | "themux" | "shadcnthemes";
+  source?: "hwai" | "tweakcn" | "themux" | "shadcnstudio" | "shadcnthemes";
   /** Set only for themes whose SOURCE only ever defined one mode (the 8
    *  shadcnthemes.app presets — see src/styles/themes/*.css's "known
    *  limitation" comments) — their "-light"/"-dark" CSS blocks are literal

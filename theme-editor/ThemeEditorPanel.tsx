@@ -99,22 +99,34 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
   const handleToggleMode = () => onModeChange?.(!isDarkNow)
   const [copied, setCopied] = useState(false)
   const [pos, setPos] = useState(defaultPosition ?? { x: 24, y: 24 })
+  // Explicit user-chosen height (via the bottom resize handle). null = use the
+  // CSS max-height default.
+  const [height, setHeight] = useState<number | null>(null)
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
+  const resizeRef = useRef<{ startY: number; origH: number } | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       const d = dragRef.current
-      if (!d) return
-      const panel = panelRef.current
-      const maxX = window.innerWidth - (panel?.offsetWidth ?? 320)
-      const maxY = window.innerHeight - (panel?.offsetHeight ?? 200)
-      setPos({
-        x: Math.min(Math.max(0, d.origX + (e.clientX - d.startX)), Math.max(0, maxX)),
-        y: Math.min(Math.max(0, d.origY + (e.clientY - d.startY)), Math.max(0, maxY)),
-      })
+      if (d) {
+        const panel = panelRef.current
+        const maxX = window.innerWidth - (panel?.offsetWidth ?? 320)
+        const maxY = window.innerHeight - (panel?.offsetHeight ?? 200)
+        setPos({
+          x: Math.min(Math.max(0, d.origX + (e.clientX - d.startX)), Math.max(0, maxX)),
+          y: Math.min(Math.max(0, d.origY + (e.clientY - d.startY)), Math.max(0, maxY)),
+        })
+        return
+      }
+      const rz = resizeRef.current
+      if (rz) {
+        const top = panelRef.current?.getBoundingClientRect().top ?? 0
+        const maxH = window.innerHeight - top - 8
+        setHeight(Math.min(Math.max(180, rz.origH + (e.clientY - rz.startY)), Math.max(180, maxH)))
+      }
     }
-    const onUp = () => { dragRef.current = null }
+    const onUp = () => { dragRef.current = null; resizeRef.current = null }
     window.addEventListener("pointermove", onMove)
     window.addEventListener("pointerup", onUp)
     return () => {
@@ -125,6 +137,10 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
 
   const startDrag = (e: React.PointerEvent) => {
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y }
+  }
+  const startResize = (e: React.PointerEvent) => {
+    e.stopPropagation()
+    resizeRef.current = { startY: e.clientY, origH: panelRef.current?.offsetHeight ?? 400 }
   }
 
   const [copyFailed, setCopyFailed] = useState(false)
@@ -152,7 +168,7 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
   // box instead. Escaping to <body> is what keeps this genuinely drop-in
   // safe regardless of where the host app happens to mount it from.
   return createPortal(
-    <div ref={panelRef} className="tec-panel" style={{ left: pos.x, top: pos.y }}>
+    <div ref={panelRef} className="tec-panel" style={{ left: pos.x, top: pos.y, ...(height != null ? { height, maxHeight: "none" } : {}) }}>
       <div className="tec-header" onPointerDown={startDrag}>
         <span className="tec-title">Theme Editor</span>
         <div className="tec-header-actions">
@@ -278,6 +294,8 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
           )}
         </div>
       </div>
+      {/* Drag the bottom edge to resize the panel vertically. */}
+      <div className="tec-resize" onPointerDown={startResize} title="Drag to resize" />
     </div>,
     document.body,
   )
@@ -306,7 +324,7 @@ function ColorRow({ label, value, onChange }: { label: string; value: string; on
   return (
     <div className="tec-row">
       <label className="tec-row-label">{label}</label>
-      <div className="tec-row-control">
+      <div className="tec-row-control tec-row-control--color">
         <input
           type="color"
           className="tec-swatch"
@@ -336,6 +354,12 @@ function LockButton({ locked, onToggle }: { locked: boolean; onToggle: () => voi
   )
 }
 
+// Trims float noise for display (e.g. a randomized radius of
+// 0.15000000000000002 shows as "0.15"), without changing the stored value.
+function formatNum(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)))
+}
+
 function SliderRow({ label, value, unit, min, max, step, onChange, locked, onToggleLock }: { label: string; value: string; unit: string; min: number; max: number; step: number; onChange: (v: string) => void; locked?: boolean; onToggleLock?: () => void }) {
   const num = parseNum(value || "0")
   return (
@@ -343,7 +367,7 @@ function SliderRow({ label, value, unit, min, max, step, onChange, locked, onTog
       <label className="tec-row-label">{label}</label>
       <div className="tec-row-control">
         <input type="range" className="tec-slider" min={min} max={max} step={step} value={num} onChange={(e) => onChange(`${e.target.value}${unit}`)} />
-        <span className="tec-value">{num}{unit}</span>
+        <span className="tec-value">{formatNum(num)}{unit}</span>
         {onToggleLock && <LockButton locked={!!locked} onToggle={onToggleLock} />}
       </div>
     </div>
@@ -493,7 +517,12 @@ const PANEL_CSS = `
 }
 .tec-icon-btn:hover { background: var(--accent, #e5e5e5); }
 .tec-body {
+  /* flex:1 + min-height:0 give the body a bounded height inside the panel's
+     max-height, which is what actually makes overflow-y kick in — without it
+     the content just overran the panel and the wheel had nothing to scroll. */
+  flex: 1 1 auto; min-height: 0;
   overflow-y: auto; padding: 4px 0;
+  overscroll-behavior: contain;
   /* Themed scrollbar, same reasoning as the host app's own (src/index.css) —
      this panel is a standalone stylesheet with no Tailwind of its own, so it
      needs its own copy rather than inheriting the app's rule. */
@@ -575,4 +604,18 @@ const PANEL_CSS = `
 }
 .tec-btn:hover { filter: brightness(0.95); }
 .tec-btn--primary { background: var(--primary, #333); color: var(--primary-foreground, #fff); border-color: transparent; }
+/* Bottom-edge vertical resize grip. */
+.tec-resize {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 8px;
+  cursor: ns-resize; touch-action: none;
+}
+.tec-resize::after {
+  content: ""; position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%);
+  width: 28px; height: 3px; border-radius: 2px; background: var(--border, #ccc);
+}
+/* Color rows: hex input fills, swatch sits at the far right so every color
+   row's picker lines up in a single right-aligned column. */
+.tec-row-control--color { justify-content: flex-end; }
+.tec-row-control--color .tec-text-input { flex: 1 1 auto; min-width: 0; }
+.tec-row-control--color .tec-swatch { order: 2; }
 `

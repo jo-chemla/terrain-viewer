@@ -13,6 +13,32 @@ export function parseNum(value: string): number {
   return m ? parseFloat(m[0]) : 0
 }
 
+// Generic/system font families that are always available — never worth trying
+// to fetch from Google Fonts.
+const GENERIC_FONTS = new Set([
+  "inherit", "initial", "serif", "sans-serif", "monospace", "cursive", "fantasy",
+  "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace", "ui-rounded",
+  "-apple-system", "blinkmacsystemfont", "emoji", "math", "fangsong",
+])
+
+// Live-loads a font family the user selected/typed if it isn't a generic family
+// and hasn't already been requested — so choosing (or typing) any Google Font in
+// the Typography section actually renders instead of silently falling back to
+// the next family in the stack. Best-effort: a missing/unavailable family just
+// won't load, same as before.
+function ensureFontLoaded(fontStack: string) {
+  if (typeof document === "undefined" || !fontStack) return
+  const first = fontStack.split(",")[0].trim().replace(/^['"]|['"]$/g, "").trim()
+  if (!first || GENERIC_FONTS.has(first.toLowerCase())) return
+  const id = "tec-font-" + first.replace(/\s+/g, "-").toLowerCase()
+  if (document.getElementById(id)) return
+  const link = document.createElement("link")
+  link.id = id
+  link.rel = "stylesheet"
+  link.href = `https://fonts.googleapis.com/css2?family=${first.replace(/\s+/g, "+")}:wght@400;500;600;700&display=swap`
+  document.head.appendChild(link)
+}
+
 // themeName must be the BARE color-preset name — buildCss()'s save flow
 // appends its own "-light"/"-dark" suffix, so a themeName that already had
 // one (reading the raw data-theme attribute verbatim, e.g. "cyberpunk-light")
@@ -120,6 +146,7 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
 
   const setValue = useCallback((key: string, value: string) => {
     target?.style.setProperty(`--${key}`, value)
+    if (key.startsWith("font-")) ensureFontLoaded(value)
     setValues((prev) => {
       const next = { ...prev, [key]: value }
       if ((SHADOW_BASE_KEYS as readonly string[]).includes(key)) applyDerivedShadows(next)
@@ -135,7 +162,10 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
   // edits the same way an adjustment layer would.
   const applyValues = useCallback((patch: Record<string, string>) => {
     if (!target) return
-    for (const [key, value] of Object.entries(patch)) target.style.setProperty(`--${key}`, value)
+    for (const [key, value] of Object.entries(patch)) {
+      target.style.setProperty(`--${key}`, value)
+      if (key.startsWith("font-")) ensureFontLoaded(value)
+    }
     setValues((prev) => {
       const next = { ...prev, ...patch }
       if (Object.keys(patch).some((k) => (SHADOW_BASE_KEYS as readonly string[]).includes(k))) applyDerivedShadows(next)
@@ -232,7 +262,7 @@ export function useThemeEditor(options: UseThemeEditorOptions = {}) {
     if (!locks.baseColor) patch.baseColor = pick(BASE_COLOR_FAMILIES).name
     if (!locks.theme) patch.theme = pick(NAMED_HUES).name
     if (!locks.chartColor) patch.chartColor = pick(NAMED_HUES).name
-    if (!locks.radius) patch.radius = Math.round((Math.random() * 1.5) / 0.05) * 0.05
+    if (!locks.radius) patch.radius = Number((Math.round((Math.random() * 1.5) / 0.05) * 0.05).toFixed(3))
     if (!locks.menuSolid) patch.menuSolid = Math.random() < 0.5
     if (!locks.menuAccent) patch.menuAccent = pick(MENU_ACCENT_LEVELS)
     setBasicOption(patch, isDark)

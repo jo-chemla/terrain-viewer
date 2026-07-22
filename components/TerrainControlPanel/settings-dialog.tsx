@@ -25,7 +25,7 @@ import { useTheme } from "@/lib/controls-utils"
 import { PasswordInput } from "./controls-components"
 import { TooltipIconButton } from "./controls-components"
 import { JsonEditor } from "@/components/ui/json-editor"
-import { ColorThemeSelect, SOURCE_GROUPS } from "@/components/theme-switcher"
+import { ColorThemeSelect, SOURCE_GROUPS, DEFAULT_GROUP_SOURCES } from "@/components/theme-switcher"
 import { useTheme as useColorTheme } from "@/components/theme-provider"
 import { ThemeEditorPanel } from "@/theme-editor"
 import { sortedThemes } from "@/lib/themes-config"
@@ -38,7 +38,11 @@ import { sortedThemes } from "@/lib/themes-config"
 // being lumped inside "tweakcn.com" (see theme-switcher.tsx's ColorThemeSelect
 // for the same treatment).
 const PRESET_GROUPS = [
-  { label: "Default", options: [{ value: sortedThemes[0].name, label: sortedThemes[0].title }] },
+  {
+    label: "Default",
+    options: [sortedThemes[0], ...sortedThemes.slice(1).filter((t) => t.source && DEFAULT_GROUP_SOURCES.has(t.source))]
+      .map((t) => ({ value: t.name, label: t.title })),
+  },
   ...SOURCE_GROUPS
     .map((group) => ({
       label: group.label,
