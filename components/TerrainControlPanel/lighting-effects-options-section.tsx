@@ -216,7 +216,7 @@ export const LightingEffectsOptionsSection: React.FC<{
               </div>
               {state.phongRenderer === "live" && (
                 <p className="text-xs text-muted-foreground">
-                  Fast mode renders a flat shaded plane and won't follow 3D terrain elevation — switch to Accurate for a correct drape.
+                  2D Fast renders a flat shaded plane and won't follow 3D terrain elevation — switch to 3D Slow for a correct drape.
                 </p>
               )}
               {/* Light Mode (Absolute vs Camera-relative) toggle temporarily

@@ -546,7 +546,12 @@ const PANEL_CSS = `
   padding: 3px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px;
   background: var(--background, #fff); color: var(--foreground, #111); font-size: 12px;
 }
-.tec-slider { flex: 1; accent-color: var(--primary, #666); }
+/* min-width:0 is essential: a native range input has an intrinsic min-width
+   (~129px) so with plain flex:1 it refuses to shrink, pushing the value+lock
+   past the 320px panel edge (the "radius lock misplaced / rem text overflows"
+   report). Allowing it to shrink keeps the value and the right-aligned lock in
+   the row and aligned with every other row's lock. */
+.tec-slider { flex: 1 1 0; min-width: 0; accent-color: var(--primary, #666); }
 /* white-space: nowrap matters here — without it, a longer value+unit string
    (e.g. Radius's "0.625rem", the longest of any SliderRow's unit) can wrap
    onto two lines inside this flex item's constrained width, making the row

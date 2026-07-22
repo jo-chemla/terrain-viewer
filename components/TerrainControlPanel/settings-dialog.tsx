@@ -206,7 +206,18 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
         />
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto" showCloseButton={false}>
+      <DialogContent
+        className="sm:max-w-2xl max-h-[80vh] overflow-y-auto"
+        showCloseButton={false}
+        // The advanced theme editor is portaled to <body> as a sibling of this
+        // dialog (not inside its content), so a click inside it counts as
+        // "outside" and Radix would dismiss the Settings dialog. Keep the dialog
+        // open when the interaction originates within the editor panel (.tec-panel).
+        onInteractOutside={(e) => {
+          const target = (e.detail as any)?.originalEvent?.target as HTMLElement | null
+          if (target?.closest?.(".tec-panel")) e.preventDefault()
+        }}
+      >
         <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
         <DialogHeader>
           <DialogTitle>Settings & Resources</DialogTitle>
@@ -673,10 +684,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               light/dark still follows the Theme toggle under Appearance above.
             </p>
             <div className="flex gap-2">
-              <div className="w-3/4 min-w-0">
+              <div className="flex-[2] min-w-0">
                 <ColorThemeSelect />
               </div>
-              <Button variant="outline" size="sm" className="w-1/4 cursor-pointer" onClick={() => setShowThemeEditor(true)}>
+              {/* flex-1 (≈1/3) so "Advanced Theme Editor" isn't clipped, vs the
+                  select's flex-[2] (≈2/3) — gap is handled by flexbox. */}
+              <Button variant="outline" size="sm" className="flex-1 min-w-0 cursor-pointer" onClick={() => setShowThemeEditor(true)}>
                 Advanced Theme Editor
               </Button>
             </div>
