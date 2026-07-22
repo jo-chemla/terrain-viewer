@@ -255,6 +255,14 @@ export function TerrainViewer() {
     // meaningful outside "globe" view mode; see lighting-effects-options-
     // section.tsx for the UI toggle exposing this trade-off directly.
     phongRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("raster"),
+    // "Datetime-based" light: when on, illuminationDir/illuminationAlt are
+    // driven from a physically-plausible sun position (see lib/solar-position.ts)
+    // computed from the viewport-center lat/lng + these day-of-year (1–365) and
+    // time-of-day (local solar hours, 0–24) values, instead of the free XY-pad
+    // pick. The XY pad still just reflects the resulting illuminationDir/Alt.
+    phongLightUseDatetime: parseAsBoolean.withDefault(false),
+    phongLightDayOfYear: parseAsFloat.withDefault(172), // ~summer solstice
+    phongLightTimeOfDay: parseAsFloat.withDefault(15),  // mid-afternoon
     showColorRelief: parseAsBoolean.withDefault(false),
     colorReliefOpacity: parseAsFloat.withDefault(0.35),
     // Master toggles for what used to be one merged "Slope and More" viz mode,

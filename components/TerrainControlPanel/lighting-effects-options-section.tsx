@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -7,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Section, CheckboxWithSlider, SliderControl } from "./controls-components"
+import { Section, CheckboxWithSlider, SliderControl, MobileSlider } from "./controls-components"
 import { SphericalXYPad } from './XYPad'
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
+import { solarPosition, dayLength, formatDayOfYear, formatHour } from "@/lib/solar-position"
 
 const MATCAP_IDS = MATCAP_TEXTURES.map((t) => t.id)
 
@@ -96,16 +97,43 @@ export const LightingEffectsOptionsSection: React.FC<{
   const [matcapRotationDeg, setMatcapRotationDeg] = useDebouncedState(
     state.matcapRotationDeg, useCallback((v: number) => setState({ matcapRotationDeg: v }), [setState]),
   )
+  // The "live" (2D Fast) renderer updates via GPU uniforms with zero tile
+  // refetch, so its controls can settle almost instantly (10ms); "raster" (3D
+  // Slow) re-fetches every visible tile per change, so it keeps the gentler
+  // 150ms debounce.
+  const phongDebounceMs = state.phongRenderer === "live" ? 10 : 150
   const [phongDiffuseStrength, setPhongDiffuseStrength] = useDebouncedState(
-    state.phongDiffuseStrength, useCallback((v: number) => setState({ phongDiffuseStrength: v }), [setState]),
+    state.phongDiffuseStrength, useCallback((v: number) => setState({ phongDiffuseStrength: v }), [setState]), phongDebounceMs,
   )
   const [phongSpecularStrength, setPhongSpecularStrength] = useDebouncedState(
-    state.phongSpecularStrength, useCallback((v: number) => setState({ phongSpecularStrength: v }), [setState]),
+    state.phongSpecularStrength, useCallback((v: number) => setState({ phongSpecularStrength: v }), [setState]), phongDebounceMs,
   )
   const [lightDir, setLightDir] = useDebouncedLightDir(
     state.illuminationDir, state.illuminationAlt,
     useCallback((v: { azimuthDeg: number; elevationDeg: number }) => setState({ illuminationDir: v.azimuthDeg, illuminationAlt: v.elevationDeg }), [setState]),
+    phongDebounceMs,
   )
+
+  // ─── Datetime-driven light ───────────────────────────────────────────────
+  // When "Datetime-based" is on, the day-of-year + time-of-day sliders drive
+  // the light: solarPosition() turns them (plus the viewport-center lat/lng)
+  // into a compass azimuth + altitude that we write straight into
+  // illuminationDir/illuminationAlt — the same fields the XY pad reflects, so
+  // the pad shows the resulting sun direction. Only writes when the computed
+  // values actually differ (rounded) so it never fights itself into a loop.
+  const sun = useMemo(
+    () => solarPosition(state.lat, state.lng, state.phongLightDayOfYear, state.phongLightTimeOfDay),
+    [state.lat, state.lng, state.phongLightDayOfYear, state.phongLightTimeOfDay],
+  )
+  const dayRange = useMemo(() => dayLength(state.lat, state.phongLightDayOfYear), [state.lat, state.phongLightDayOfYear])
+  useEffect(() => {
+    if (!state.phongLightUseDatetime) return
+    const dir = Math.round(((sun.azimuth % 360) + 360) % 360 * 10) / 10
+    const alt = Math.round(Math.max(0, Math.min(90, sun.altitude)) * 10) / 10
+    if (Math.abs(dir - state.illuminationDir) > 0.05 || Math.abs(alt - state.illuminationAlt) > 0.05) {
+      setState({ illuminationDir: dir, illuminationAlt: alt })
+    }
+  }, [state.phongLightUseDatetime, sun, state.illuminationDir, state.illuminationAlt, setState])
 
   if (!state.showLightingEffects) return null
 
@@ -219,20 +247,11 @@ export const LightingEffectsOptionsSection: React.FC<{
                   2D Fast renders a flat shaded plane and won't follow 3D terrain elevation — switch to 3D Slow for a correct drape.
                 </p>
               )}
-              {/* Light Mode (Absolute vs Camera-relative) toggle temporarily
-                  commented out. Matcap could take the same absolute/camera-
-                  relative path too (rotate the matcap lookup by the map bearing,
-                  the way phongLightRelativeToCamera adds bearing to the phong
-                  azimuth), but since BOTH Matcap and Phong are plain raster-tile
-                  protocols rather than live WebGL layers, "camera-relative"
-                  here can only ever mean baking the settled map bearing into the
-                  tile URL and re-fetching every tile on rotate — not a true
-                  per-frame headlamp. Pulling the control until we decide whether
-                  that raster-recompute approximation is worth exposing (and
-                  whether to add the matching Matcap version). The
-                  phongLightRelativeToCamera state + its TerrainViewer.tsx wiring
-                  are left intact (defaulting to Absolute), so re-enabling is just
-                  un-commenting this block.
+              {/* Light Mode: Absolute keeps the light fixed to compass
+                  directions (matches maplibre's own hillshade illumination);
+                  Camera adds the settled map bearing to the azimuth so the
+                  light appears to follow the view like a headlamp. Wired into
+                  BOTH renderers' lightDir prop in TerrainViewer.tsx. */}
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-sm font-medium">Light Mode</Label>
                 <ToggleGroup
@@ -241,29 +260,110 @@ export const LightingEffectsOptionsSection: React.FC<{
                   onValueChange={(value) => value && setState({ phongLightRelativeToCamera: value === "relative" })}
                   className="border rounded-md w-[180px]"
                 >
-                  <ToggleGroupItem value="absolute" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal" title="Light stays fixed to compass directions as you rotate the map — matches maplibre's own hillshade illumination direction.">
-                    Absolute
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="relative" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal" title="Light stays fixed relative to the camera — it appears to follow you as you rotate the map, like a headlamp.">
-                    Camera
-                  </ToggleGroupItem>
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <ToggleGroupItem value="absolute" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
+                        Absolute
+                      </ToggleGroupItem>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Light stays fixed to compass directions as you rotate the map — matches maplibre's own hillshade illumination direction.</p></TooltipContent>
+                  </Tooltip>
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <ToggleGroupItem value="relative" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
+                        Camera
+                      </ToggleGroupItem>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Light stays fixed relative to the camera — it appears to follow you as you rotate the map, like a headlamp.</p></TooltipContent>
+                  </Tooltip>
                 </ToggleGroup>
               </div>
-              */}
               <Collapsible open={isLightDirOpen} onOpenChange={setIsLightDirOpen}>
                 <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
                   Light Direction<ChevronDown className={`h-4 w-4 transition-transform ${isLightDirOpen ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
-                <CollapsibleContent className="flex justify-center pt-1 overflow-visible">
-                  <SphericalXYPad
-                    width={200}
-                    height={200}
-                    azimuthRange={[0, 360]}
-                    elevationRange={[0, 90]}
-                    sliderId="phong-light-xypad"
-                    value={lightDir}
-                    onChange={setLightDir}
-                  />
+                <CollapsibleContent className="space-y-3 pt-1 overflow-visible">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-sm font-medium">Direction</Label>
+                    <ToggleGroup
+                      type="single"
+                      value={state.phongLightUseDatetime ? "datetime" : "free"}
+                      onValueChange={(value) => value && setState({ phongLightUseDatetime: value === "datetime" })}
+                      className="border rounded-md w-[180px]"
+                    >
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <ToggleGroupItem value="free" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
+                            Free
+                          </ToggleGroupItem>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Drag the pad to set any light azimuth + elevation freely.</p></TooltipContent>
+                      </Tooltip>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <ToggleGroupItem value="datetime" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
+                            Datetime
+                          </ToggleGroupItem>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Derive the light from the sun's position for a day + time at the viewport-center latitude/longitude.</p></TooltipContent>
+                      </Tooltip>
+                    </ToggleGroup>
+                  </div>
+
+                  {state.phongLightUseDatetime && (
+                    <div className="space-y-3">
+                      {/* Day of year → calendar date */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">Date</Label>
+                          <span className="text-sm text-muted-foreground tabular-nums">{formatDayOfYear(state.phongLightDayOfYear)}</span>
+                        </div>
+                        <MobileSlider
+                          sliderId="phong-light-day"
+                          value={[state.phongLightDayOfYear]}
+                          onValueChange={([v]) => setState({ phongLightDayOfYear: Math.round(v) })}
+                          min={1} max={365} step={1}
+                          className="cursor-pointer"
+                        />
+                      </div>
+                      {/* Time of day (local solar time) → shows the day's daylight range */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">Time</Label>
+                          <span className="text-sm text-muted-foreground tabular-nums">{formatHour(state.phongLightTimeOfDay)}</span>
+                        </div>
+                        <MobileSlider
+                          sliderId="phong-light-time"
+                          value={[state.phongLightTimeOfDay]}
+                          onValueChange={([v]) => setState({ phongLightTimeOfDay: Math.round(v * 4) / 4 })}
+                          min={0} max={24} step={0.25}
+                          className="cursor-pointer"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {dayRange.polarNight
+                            ? "Polar night — sun stays below the horizon all day"
+                            : dayRange.polarDay
+                              ? "Midnight sun — sun stays above the horizon all day"
+                              : `Daylight ${formatHour(dayRange.sunrise)}–${formatHour(dayRange.sunset)} · sun ${sun.altitude >= 0 ? `${Math.round(sun.altitude)}° above` : `${Math.round(-sun.altitude)}° below`} horizon (solar time @ ${state.lat.toFixed(2)}°, ${state.lng.toFixed(2)}°)`}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* In datetime mode the pad is a read-only visualization of the
+                      computed sun direction (the sliders drive it), so pointer
+                      events are disabled to avoid fighting the sliders. */}
+                  <div className={`flex justify-center ${state.phongLightUseDatetime ? "pointer-events-none opacity-90" : ""}`}>
+                    <SphericalXYPad
+                      width={200}
+                      height={200}
+                      azimuthRange={[0, 360]}
+                      elevationRange={[0, 90]}
+                      sliderId="phong-light-xypad"
+                      value={lightDir}
+                      onChange={setLightDir}
+                    />
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
               <SliderControl

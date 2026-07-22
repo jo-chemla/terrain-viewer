@@ -105,6 +105,30 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
   const resizeRef = useRef<{ startY: number; origH: number } | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+
+  // Wheel over a native <select>, <input type=range/color>, or a non-scrolling
+  // <textarea> gets consumed by that control (cycles the select, nudges the
+  // slider, or just does nothing) instead of scrolling the panel — which read
+  // as "mousewheel sometimes doesn't scroll" depending purely on what the
+  // cursor happened to be over. A single non-passive wheel listener on the
+  // scroll container translates every wheel into a panel scroll itself, only
+  // stepping aside for a textarea that genuinely has its own overflow to
+  // scroll. Registered natively (not via React's onWheel) because React
+  // attaches wheel as passive, so preventDefault() there is a no-op.
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null
+      const ta = target?.closest?.("textarea")
+      if (ta && ta.scrollHeight > ta.clientHeight) return
+      el.scrollTop += e.deltaY
+      e.preventDefault()
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [])
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
@@ -182,7 +206,7 @@ export function ThemeEditorPanel({ onClose, defaultPosition, onSaveTheme, onMode
         </div>
       </div>
 
-      <div className="tec-body">
+      <div className="tec-body" ref={bodyRef}>
         <div className="tec-group">
           <button type="button" className="tec-group-header" onClick={() => setBasicOpen((v) => !v)}>
             <span>Basic</span>
@@ -322,8 +346,8 @@ function ColorRow({ label, value, onChange }: { label: string; value: string; on
   const oklch = useMemo(() => parseColorToOklch(value || "oklch(0.5 0 0)"), [value])
   const hex = useMemo(() => oklchToHex(oklch), [oklch])
   return (
-    <div className="tec-row">
-      <label className="tec-row-label">{label}</label>
+    <div className="tec-row tec-row--color">
+      <label className="tec-row-label" title={label}>{label}</label>
       <div className="tec-row-control tec-row-control--color">
         <input
           type="color"
@@ -614,8 +638,18 @@ const PANEL_CSS = `
   width: 28px; height: 3px; border-radius: 2px; background: var(--border, #ccc);
 }
 /* Color rows: hex input fills, swatch sits at the far right so every color
-   row's picker lines up in a single right-aligned column. */
-.tec-row-control--color { justify-content: flex-end; }
+   row's picker lines up in a single right-aligned column. The control column
+   is a FIXED width (not flex:1) and the label takes the slack + ellipsizes —
+   otherwise a longer label ("Sidebar Primary Foreground") ate into the
+   content-sized label's neighbour and left the hex input narrower than a
+   short-label row's ("the hex inputs are not always the same size" report).
+   Pinning the control width makes every hex input identical regardless of
+   label length; the label still shows its full text on hover (title attr). */
+.tec-row--color .tec-row-label {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tec-row-control--color { flex: 0 0 172px; justify-content: flex-end; }
 .tec-row-control--color .tec-text-input { flex: 1 1 auto; min-width: 0; }
 .tec-row-control--color .tec-swatch { order: 2; }
 `
