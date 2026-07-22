@@ -181,38 +181,60 @@ export const LightingEffectsOptionsSection: React.FC<{
     useCallback((v: { azimuthDeg: number; elevationDeg: number }) => setState({ illuminationDir: v.azimuthDeg, illuminationAlt: v.elevationDeg }), [setState]),
     phongDebounceMs,
   )
-  // Datetime sliders are debounced by the same renderer-based delay: dragging
-  // Date/Time changes the sun position → the effect below rewrites
-  // illuminationDir/Alt, which in RASTER (3D Slow) re-fetches every tile. Un-
-  // debounced that meant a refetch per drag step (the "old/new/old/new" flicker
-  // in 3D); 150ms settles it. Live (2D Fast, 0ms) stays instant.
-  const [dayOfYear, setDayOfYear] = useDebouncedState(
-    state.phongLightDayOfYear, useCallback((v: number) => setState({ phongLightDayOfYear: Math.round(v) }), [setState]), phongDebounceMs,
-  )
-  const [timeOfDay, setTimeOfDay] = useDebouncedState(
-    state.phongLightTimeOfDay, useCallback((v: number) => setState({ phongLightTimeOfDay: Math.round(v * 4) / 4 }), [setState]), phongDebounceMs,
-  )
-
   // ─── Datetime-driven light ───────────────────────────────────────────────
   // When "Datetime-based" is on, the day-of-year + time-of-day sliders drive
-  // the light: solarPosition() turns them (plus the viewport-center lat/lng)
-  // into a compass azimuth + altitude that we write straight into
-  // illuminationDir/illuminationAlt — the same fields the XY pad reflects, so
-  // the pad shows the resulting sun direction. Only writes when the computed
-  // values actually differ (rounded) so it never fights itself into a loop.
+  // the light: solarPosition() (plus the viewport-center lat/lng) → compass
+  // azimuth + altitude written into illuminationDir/illuminationAlt (the same
+  // fields the XY pad reflects). sunToIllum computes that pair for a given
+  // day+time so the Date/Time setters can write the day/time AND the resulting
+  // light direction in ONE setState — a single re-render / terrain re-drape
+  // instead of two. Writing them separately (slider setState, then an effect
+  // rewriting the light) was the "old/new/old/new" flicker in 3D/globe, where
+  // each re-render triggers a full terrain re-drape.
+  const sunToIllum = useCallback((day: number, time: number) => {
+    const s = solarPosition(state.lat, state.lng, day, time)
+    return {
+      illuminationDir: Math.round((((s.azimuth % 360) + 360) % 360) * 10) / 10,
+      illuminationAlt: Math.round(Math.max(0, Math.min(90, s.altitude)) * 10) / 10,
+    }
+  }, [state.lat, state.lng])
+
+  // Datetime sliders are debounced by the same renderer-based delay so RASTER
+  // (3D Slow) doesn't re-fetch per drag step (150ms); live (2D Fast, 0ms) stays
+  // instant. Each writes the light direction together with the day/time.
+  const [dayOfYear, setDayOfYear] = useDebouncedState(
+    state.phongLightDayOfYear,
+    useCallback((v: number) => {
+      const d = Math.round(v)
+      setState({ phongLightDayOfYear: d, ...(state.phongLightUseDatetime ? sunToIllum(d, state.phongLightTimeOfDay) : {}) })
+    }, [setState, sunToIllum, state.phongLightUseDatetime, state.phongLightTimeOfDay]),
+    phongDebounceMs,
+  )
+  const [timeOfDay, setTimeOfDay] = useDebouncedState(
+    state.phongLightTimeOfDay,
+    useCallback((v: number) => {
+      const t = Math.round(v * 4) / 4
+      setState({ phongLightTimeOfDay: t, ...(state.phongLightUseDatetime ? sunToIllum(state.phongLightDayOfYear, t) : {}) })
+    }, [setState, sunToIllum, state.phongLightUseDatetime, state.phongLightDayOfYear]),
+    phongDebounceMs,
+  )
+
   const sun = useMemo(
     () => solarPosition(state.lat, state.lng, state.phongLightDayOfYear, state.phongLightTimeOfDay),
     [state.lat, state.lng, state.phongLightDayOfYear, state.phongLightTimeOfDay],
   )
   const dayRange = useMemo(() => dayLength(state.lat, state.phongLightDayOfYear), [state.lat, state.phongLightDayOfYear])
+  // Catches the cases the setters don't: toggling datetime ON, and viewport
+  // pans (lat/lng change the sun for the same day/time). For a day/time change
+  // the setter already wrote the matching light, so the guard makes this a
+  // no-op (no second render) rather than a fighting rewrite.
   useEffect(() => {
     if (!state.phongLightUseDatetime) return
-    const dir = Math.round(((sun.azimuth % 360) + 360) % 360 * 10) / 10
-    const alt = Math.round(Math.max(0, Math.min(90, sun.altitude)) * 10) / 10
+    const { illuminationDir: dir, illuminationAlt: alt } = sunToIllum(state.phongLightDayOfYear, state.phongLightTimeOfDay)
     if (Math.abs(dir - state.illuminationDir) > 0.05 || Math.abs(alt - state.illuminationAlt) > 0.05) {
       setState({ illuminationDir: dir, illuminationAlt: alt })
     }
-  }, [state.phongLightUseDatetime, sun, state.illuminationDir, state.illuminationAlt, setState])
+  }, [state.phongLightUseDatetime, sunToIllum, state.phongLightDayOfYear, state.phongLightTimeOfDay, state.illuminationDir, state.illuminationAlt, setState])
 
   if (!state.showLightingEffects) return null
 
@@ -292,7 +314,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   onChange={(value) => setState({ phongRenderer: value })}
                   options={[
                     { value: "raster", label: "3D Slow", tooltip: "Drapes correctly over 3D terrain exaggeration and globe, but every light/strength change re-fetches a tile (~150ms debounced)." },
-                    { value: "live", label: "2D Fast", disabled: state.viewMode === "globe", tooltip: state.viewMode === "globe" ? "Not available in Globe view — this renderer doesn't drape onto globe curvature." : "A live GPU shader, instant light/strength updates, zero tile refetch — but flat only: doesn't drape onto 3D terrain elevation." },
+                    { value: "live", label: "2D Fast", tooltip: state.viewMode === "globe" ? "Selectable in Globe, but currently falls back to 3D Slow rendering there (native globe support for this renderer is coming)." : "A live GPU shader, instant light/strength updates, zero tile refetch — but flat only: doesn't drape onto 3D terrain elevation." },
                   ]}
                 />
               </div>

@@ -316,8 +316,13 @@ export class PhongLiveLayer implements CustomLayerInterface {
       if (map.getProjection()?.type === "globe") return
       this.frameCounter++
 
+      // Divide the covering tileSize by devicePixelRatio so a retina screen
+      // pulls a higher zoom level (more, sharper tiles) — matching what
+      // MapLibre's own native raster pipeline (3D Slow) does automatically, so
+      // 2D Fast is no longer visibly softer than 3D Slow on hi-dpi displays.
+      const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1
       const tileIDs = map.coveringTiles({
-        tileSize: this.options.tileSize,
+        tileSize: Math.max(1, Math.round(this.options.tileSize / dpr)),
         minzoom: this.options.minzoom,
         maxzoom: this.options.maxzoom,
       })
