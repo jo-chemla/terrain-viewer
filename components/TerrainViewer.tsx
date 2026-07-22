@@ -1509,8 +1509,13 @@ export function TerrainViewer() {
             enabled={state.showLightingEffects && state.showPhong && effectivePhongRenderer === "live"}
             diffuseStrength={state.phongDiffuseStrength}
             specularStrength={state.phongSpecularStrength}
-            lightDir={state.phongLightRelativeToCamera ? ((state.illuminationDir + state.bearing) % 360 + 360) % 360 : state.illuminationDir}
+            // Raw compass azimuth + a relative flag: the live layer adds the
+            // CURRENT map bearing itself every frame (headlamp that tracks
+            // through the whole rotate gesture), instead of us baking in the
+            // settled bearing here the way the raster layer must.
+            lightDir={state.illuminationDir}
             lightAlt={state.illuminationAlt}
+            lightRelativeToCamera={state.phongLightRelativeToCamera}
             exaggeration={state.exaggeration}
             opacity={state.phongOpacity * state.lightingEffectsOpacity}
             terrainSource={source}

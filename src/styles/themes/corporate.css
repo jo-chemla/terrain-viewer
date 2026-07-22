@@ -1,0 +1,101 @@
+/* Corporate Theme - shadcnstudio.com (registry: @ss-themes/corporate) */
+
+/* Light mode */
+[data-theme="corporate-light"] {
+  --background: oklch(0.9555 0.0125 271.28);
+  --foreground: oklch(0.21 0.03 264.67);
+  --card: oklch(0.9793 0.0083 271.33);
+  --card-foreground: oklch(0.21 0.03 264.67);
+  --popover: oklch(1.00 0 0);
+  --popover-foreground: oklch(0.21 0.03 264.67);
+  --primary: oklch(0.48 0.20 260.48);
+  --primary-foreground: oklch(1.00 0 0);
+  --secondary: oklch(0.9142 0.0208 274.02);
+  --secondary-foreground: oklch(0.37 0.03 259.73);
+  --muted: oklch(0.9443 0.0165 274.82);
+  --muted-foreground: oklch(0.55 0.02 264.37);
+  --accent: oklch(0.95 0.02 261.78);
+  --accent-foreground: oklch(0.48 0.20 260.48);
+  --destructive: oklch(0.58 0.22 27.33);
+  --border: oklch(0.8893 0.0169 259.42);
+  --input: oklch(0.9002 0.013 266.69);
+  --ring: oklch(0.48 0.20 260.48);
+  --chart-1: oklch(0.48 0.20 260.48);
+  --chart-2: oklch(0.56 0.24 260.95);
+  --chart-3: oklch(0.40 0.16 259.09);
+  --chart-4: oklch(0.43 0.16 259.85);
+  --chart-5: oklch(0.29 0.07 260.37);
+  --sidebar: oklch(0.97 0.00 264.70);
+  --sidebar-foreground: oklch(0.21 0.03 264.67);
+  --sidebar-primary: oklch(0.48 0.20 260.48);
+  --sidebar-primary-foreground: oklch(1.00 0 0);
+  --sidebar-accent: oklch(0.95 0.02 261.78);
+  --sidebar-accent-foreground: oklch(0.48 0.20 260.48);
+  --sidebar-border: oklch(0.93 0.01 264.60);
+  --sidebar-ring: oklch(0.48 0.20 260.48);
+  --shadow-2xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+  --shadow-xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+  --shadow-2xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.25);
+  --shadow-sm: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+  --shadow: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-md: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 2px 4px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-lg: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 4px 6px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 8px 10px -1px oklch(0.00 0 0 / 0.10);
+  --radius: 0.625rem;
+  --font-sans: "Source Serif 4", serif;
+  --font-serif: "Source Serif 4", serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --spacing: 0.25rem;
+  --letter-spacing: 0em;
+  --tracking-normal: 0em;
+}
+
+/* Dark mode */
+[data-theme="corporate-dark"] {
+  --background: oklch(0.26 0.03 262.71);
+  --foreground: oklch(0.93 0.01 264.60);
+  --card: oklch(0.3452 0.0243 255.69);
+  --card-foreground: oklch(0.93 0.01 264.60);
+  --popover: oklch(0.3452 0.0243 255.69);
+  --popover-foreground: oklch(0.93 0.01 264.60);
+  --primary: oklch(0.56 0.24 260.95);
+  --primary-foreground: oklch(1.00 0 0);
+  --secondary: oklch(0.35 0.04 262.16);
+  --secondary-foreground: oklch(0.93 0.01 264.60);
+  --muted: oklch(0.30 0.03 261.75);
+  --muted-foreground: oklch(0.71 0.02 261.33);
+  --accent: oklch(0.33 0.04 264.82);
+  --accent-foreground: oklch(0.93 0.01 264.60);
+  --destructive: oklch(0.64 0.21 25.33);
+  --border: oklch(0.35 0.04 262.16);
+  --input: oklch(0.35 0.04 262.16);
+  --ring: oklch(0.56 0.24 260.95);
+  --chart-1: oklch(0.56 0.24 260.95);
+  --chart-2: oklch(0.48 0.20 260.48);
+  --chart-3: oklch(0.69 0.17 256.00);
+  --chart-4: oklch(0.43 0.16 259.85);
+  --chart-5: oklch(0.29 0.07 260.37);
+  --sidebar: oklch(0.26 0.03 262.71);
+  --sidebar-foreground: oklch(0.93 0.01 264.60);
+  --sidebar-primary: oklch(0.56 0.24 260.95);
+  --sidebar-primary-foreground: oklch(1.00 0 0);
+  --sidebar-accent: oklch(0.33 0.04 264.82);
+  --sidebar-accent-foreground: oklch(0.93 0.01 264.60);
+  --sidebar-border: oklch(0.35 0.04 262.16);
+  --sidebar-ring: oklch(0.56 0.24 260.95);
+  --shadow-2xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+  --shadow-xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+  --shadow-2xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.25);
+  --shadow-sm: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+  --shadow: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-md: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 2px 4px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-lg: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 4px 6px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 8px 10px -1px oklch(0.00 0 0 / 0.10);
+  --radius: 0.625rem;
+  --font-sans: "Source Serif 4", serif;
+  --font-serif: "Source Serif 4", serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --spacing: 0.25rem;
+  --letter-spacing: 0em;
+  --tracking-normal: 0em;
+}

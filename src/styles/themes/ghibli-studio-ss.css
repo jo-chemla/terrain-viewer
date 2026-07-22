@@ -1,0 +1,101 @@
+/* Ghibli Studio (shadcnstudio) Theme - shadcnstudio.com (registry: @ss-themes/ghibli-studio) */
+
+/* Light mode */
+[data-theme="ghibli-studio-ss-light"] {
+  --background: oklch(0.91 0.05 82.69);
+  --foreground: oklch(0.41 0.08 79.04);
+  --card: oklch(0.92 0.04 83.86);
+  --card-foreground: oklch(0.41 0.08 73.75);
+  --popover: oklch(0.92 0.04 83.86);
+  --popover-foreground: oklch(0.41 0.08 73.75);
+  --primary: oklch(0.71 0.10 111.99);
+  --primary-foreground: oklch(0.98 0.01 3.71);
+  --secondary: oklch(0.88 0.05 83.41);
+  --secondary-foreground: oklch(0.51 0.08 79.21);
+  --muted: oklch(0.86 0.06 83.48);
+  --muted-foreground: oklch(0.51 0.08 74.26);
+  --accent: oklch(0.86 0.05 84.50);
+  --accent-foreground: oklch(0.26 0.02 358.42);
+  --destructive: oklch(0.63 0.24 29.21);
+  --border: oklch(0.74 0.06 79.81);
+  --input: oklch(0.74 0.06 79.81);
+  --ring: oklch(0.51 0.08 74.26);
+  --chart-1: oklch(0.66 0.19 41.68);
+  --chart-2: oklch(0.70 0.12 183.20);
+  --chart-3: oklch(0.48 0.08 211.46);
+  --chart-4: oklch(0.84 0.17 85.07);
+  --chart-5: oklch(0.74 0.17 60.21);
+  --sidebar: oklch(0.87 0.06 83.96);
+  --sidebar-foreground: oklch(0.41 0.08 79.04);
+  --sidebar-primary: oklch(0.26 0.02 358.42);
+  --sidebar-primary-foreground: oklch(0.98 0.01 3.71);
+  --sidebar-accent: oklch(0.83 0.06 84.46);
+  --sidebar-accent-foreground: oklch(0.26 0.02 358.42);
+  --sidebar-border: oklch(0.91 0.00 0.43);
+  --sidebar-ring: oklch(0.71 0.00 0.37);
+  --shadow-2xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+  --shadow-xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+  --shadow-2xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.25);
+  --shadow-sm: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+  --shadow: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-md: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 2px 4px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-lg: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 4px 6px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 8px 10px -1px oklch(0.00 0 0 / 0.10);
+  --radius: 0.625rem;
+  --font-sans: "PT Serif", serif;
+  --font-serif: "PT Serif", serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --spacing: 0.25rem;
+  --letter-spacing: 0em;
+  --tracking-normal: 0em;
+}
+
+/* Dark mode */
+[data-theme="ghibli-studio-ss-dark"] {
+  --background: oklch(0.20 0.01 48.35);
+  --foreground: oklch(0.88 0.05 79.26);
+  --card: oklch(0.25 0.01 56.14);
+  --card-foreground: oklch(0.88 0.05 79.26);
+  --popover: oklch(0.25 0.01 56.14);
+  --popover-foreground: oklch(0.88 0.05 79.26);
+  --primary: oklch(0.64 0.05 115.39);
+  --primary-foreground: oklch(0.98 0.01 3.71);
+  --secondary: oklch(0.33 0.02 60.70);
+  --secondary-foreground: oklch(0.88 0.05 83.41);
+  --muted: oklch(0.27 0.01 39.35);
+  --muted-foreground: oklch(0.74 0.06 79.81);
+  --accent: oklch(0.33 0.02 60.70);
+  --accent-foreground: oklch(0.86 0.05 84.50);
+  --destructive: oklch(0.63 0.24 29.21);
+  --border: oklch(0.33 0.02 60.70);
+  --input: oklch(0.33 0.02 60.70);
+  --ring: oklch(0.64 0.05 115.39);
+  --chart-1: oklch(0.66 0.19 41.68);
+  --chart-2: oklch(0.70 0.12 183.20);
+  --chart-3: oklch(0.48 0.08 211.46);
+  --chart-4: oklch(0.84 0.17 85.07);
+  --chart-5: oklch(0.74 0.17 60.21);
+  --sidebar: oklch(0.23 0.01 56.09);
+  --sidebar-foreground: oklch(0.88 0.05 79.26);
+  --sidebar-primary: oklch(0.64 0.05 115.39);
+  --sidebar-primary-foreground: oklch(0.98 0.01 3.71);
+  --sidebar-accent: oklch(0.33 0.02 60.70);
+  --sidebar-accent-foreground: oklch(0.86 0.05 84.50);
+  --sidebar-border: oklch(0.33 0.02 60.70);
+  --sidebar-ring: oklch(0.64 0.05 115.39);
+  --shadow-2xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+  --shadow-xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+  --shadow-2xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.25);
+  --shadow-sm: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+  --shadow: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-md: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 2px 4px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-lg: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 4px 6px -1px oklch(0.00 0 0 / 0.10);
+  --shadow-xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 8px 10px -1px oklch(0.00 0 0 / 0.10);
+  --radius: 0.625rem;
+  --font-sans: "PT Serif", serif;
+  --font-serif: "PT Serif", serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --spacing: 0.25rem;
+  --letter-spacing: 0em;
+  --tracking-normal: 0em;
+}

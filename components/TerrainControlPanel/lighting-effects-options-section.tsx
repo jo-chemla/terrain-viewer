@@ -1,5 +1,6 @@
 import type React from "react"
-import { useState, useRef, useEffect, useCallback, useMemo } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo, useContext } from "react"
+import { useAtom } from "jotai"
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -7,10 +8,77 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Section, CheckboxWithSlider, SliderControl, MobileSlider } from "./controls-components"
+import { Section, CheckboxWithSlider, SliderControl, MobileSlider, SectionIdContext } from "./controls-components"
 import { SphericalXYPad } from './XYPad'
+import { cn } from "@/lib/utils"
+import { activeSliderAtom } from "@/lib/settings-atoms"
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
 import { solarPosition, dayLength, formatDayOfYear, formatHour } from "@/lib/solar-position"
+
+// Segmented-control styling for the Phong toggle groups (Renderer, Light Mode,
+// Direction). Two problems made "which option is active" ambiguous before:
+//  1. data-[state=on]:bg-white is invisible on light themes (white pill on a
+//     white popover).
+//  2. more fundamentally, every item here is ALSO a TooltipTrigger asChild,
+//     which merges the TOOLTIP's data-state (open/closed) onto the very same
+//     element — clobbering the ToggleGroupItem's own data-state (on/off), so
+//     `data-[state=on]:…` styling literally never applied (same asChild/
+//     data-state collision noted on AdvancedModeToggle in controls-components).
+// So the active pill is driven by an explicit `active` boolean (segItem below)
+// from the actual state value, not data-state — a muted track + elevated
+// "background" pill that reads clearly in both light and dark.
+const SEG_GROUP = "w-[200px] gap-0.5 rounded-md bg-muted p-0.5"
+const SEG_ITEM_BASE = "flex-1 rounded-sm px-2 text-xs cursor-pointer transition-colors text-muted-foreground font-normal hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+const SEG_ITEM_ACTIVE = "bg-background shadow-sm font-semibold text-foreground"
+const segItem = (active: boolean) => cn(SEG_ITEM_BASE, active && SEG_ITEM_ACTIVE)
+
+// Seasonal reference points for the day-of-year slider (non-leap 2026), so the
+// physical meaning of a date is legible at a glance (winter = low sun, etc.).
+const SEASON_TICKS = [
+  { value: 79, label: "Spr" },  // ~Mar 20 equinox
+  { value: 172, label: "Sum" }, // ~Jun 21 solstice
+  { value: 265, label: "Aut" }, // ~Sep 22 equinox
+  { value: 355, label: "Win" }, // ~Dec 21 solstice
+]
+
+// A slider row that (a) participates in the "dim everything except the control
+// being edited" behavior exactly like SliderControl (composes the same
+// section-scoped id + reads activeSliderAtom), (b) shows an arbitrary formatted
+// value string rather than value.toFixed, and (c) can render tick marks under
+// the track. The datetime sliders share ONE sliderId with the XY pad below so
+// that editing either day/time keeps the pad (their visualization) lit too.
+const LightSlider: React.FC<{
+  label: string; value: number; onChange: (v: number) => void
+  min: number; max: number; step: number; sliderId: string
+  displayValue: string; ticks?: { value: number; label?: string }[]
+}> = ({ label, value, onChange, min, max, step, sliderId, displayValue, ticks }) => {
+  const [activeSlider] = useAtom(activeSliderAtom)
+  const sectionId = useContext(SectionIdContext)
+  const id = `${sectionId}:${sliderId}`
+  const isDimmed = activeSlider !== null && activeSlider !== id
+  return (
+    <div className={cn("space-y-1 transition-opacity duration-150", isDimmed && "opacity-20")}>
+      <div className="flex items-center justify-between">
+        <Label className="text-sm">{label}</Label>
+        <span className="text-sm text-muted-foreground tabular-nums">{displayValue}</span>
+      </div>
+      <MobileSlider sliderId={id} value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" />
+      {ticks && ticks.length > 0 && (
+        <div className="relative h-3">
+          {ticks.map((t) => {
+            const pos = Math.min(1, Math.max(0, (t.value - min) / (max - min)))
+            return (
+              <div key={t.value} className="absolute flex flex-col items-center -translate-x-1/2" style={{ left: `${pos * 100}%` }}>
+                <div className="w-px h-1 bg-muted-foreground/60" />
+                {t.label && <span className="text-[9px] leading-none text-muted-foreground whitespace-nowrap">{t.label}</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const MATCAP_IDS = MATCAP_TEXTURES.map((t) => t.id)
 
@@ -98,10 +166,10 @@ export const LightingEffectsOptionsSection: React.FC<{
     state.matcapRotationDeg, useCallback((v: number) => setState({ matcapRotationDeg: v }), [setState]),
   )
   // The "live" (2D Fast) renderer updates via GPU uniforms with zero tile
-  // refetch, so its controls can settle almost instantly (10ms); "raster" (3D
-  // Slow) re-fetches every visible tile per change, so it keeps the gentler
-  // 150ms debounce.
-  const phongDebounceMs = state.phongRenderer === "live" ? 10 : 150
+  // refetch, so it isn't debounced at all (0ms — every drag frame applies
+  // immediately); "raster" (3D Slow) re-fetches every visible tile per change,
+  // so it keeps the gentler 150ms debounce.
+  const phongDebounceMs = state.phongRenderer === "live" ? 0 : 150
   const [phongDiffuseStrength, setPhongDiffuseStrength] = useDebouncedState(
     state.phongDiffuseStrength, useCallback((v: number) => setState({ phongDiffuseStrength: v }), [setState]), phongDebounceMs,
   )
@@ -211,14 +279,11 @@ export const LightingEffectsOptionsSection: React.FC<{
                   type="single"
                   value={state.phongRenderer}
                   onValueChange={(value) => value && setState({ phongRenderer: value })}
-                  className="border rounded-md w-[180px]"
+                  className={SEG_GROUP}
                 >
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
-                      <ToggleGroupItem
-                        value="raster"
-                        className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
-                      >
+                      <ToggleGroupItem value="raster" className={segItem(state.phongRenderer === "raster")}>
                         3D Slow
                       </ToggleGroupItem>
                     </TooltipTrigger>
@@ -228,11 +293,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   </Tooltip>
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
-                      <ToggleGroupItem
-                        value="live"
-                        disabled={state.viewMode === "globe"}
-                        className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal disabled:cursor-not-allowed disabled:opacity-50"
-                      >
+                      <ToggleGroupItem value="live" disabled={state.viewMode === "globe"} className={segItem(state.phongRenderer === "live")}>
                         2D Fast
                       </ToggleGroupItem>
                     </TooltipTrigger>
@@ -258,11 +319,11 @@ export const LightingEffectsOptionsSection: React.FC<{
                   type="single"
                   value={state.phongLightRelativeToCamera ? "relative" : "absolute"}
                   onValueChange={(value) => value && setState({ phongLightRelativeToCamera: value === "relative" })}
-                  className="border rounded-md w-[180px]"
+                  className={SEG_GROUP}
                 >
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
-                      <ToggleGroupItem value="absolute" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
+                      <ToggleGroupItem value="absolute" className={segItem(!state.phongLightRelativeToCamera)}>
                         Absolute
                       </ToggleGroupItem>
                     </TooltipTrigger>
@@ -270,7 +331,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   </Tooltip>
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
-                      <ToggleGroupItem value="relative" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
+                      <ToggleGroupItem value="relative" className={segItem(state.phongLightRelativeToCamera)}>
                         Camera
                       </ToggleGroupItem>
                     </TooltipTrigger>
@@ -289,11 +350,11 @@ export const LightingEffectsOptionsSection: React.FC<{
                       type="single"
                       value={state.phongLightUseDatetime ? "datetime" : "free"}
                       onValueChange={(value) => value && setState({ phongLightUseDatetime: value === "datetime" })}
-                      className="border rounded-md w-[180px]"
+                      className={SEG_GROUP}
                     >
                       <Tooltip delayDuration={300}>
                         <TooltipTrigger asChild>
-                          <ToggleGroupItem value="free" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
+                          <ToggleGroupItem value="free" className={segItem(!state.phongLightUseDatetime)}>
                             Free
                           </ToggleGroupItem>
                         </TooltipTrigger>
@@ -301,7 +362,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                       </Tooltip>
                       <Tooltip delayDuration={300}>
                         <TooltipTrigger asChild>
-                          <ToggleGroupItem value="datetime" className="flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal">
+                          <ToggleGroupItem value="datetime" className={segItem(state.phongLightUseDatetime)}>
                             Datetime
                           </ToggleGroupItem>
                         </TooltipTrigger>
@@ -312,54 +373,55 @@ export const LightingEffectsOptionsSection: React.FC<{
 
                   {state.phongLightUseDatetime && (
                     <div className="space-y-3">
-                      {/* Day of year → calendar date */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-sm">Date</Label>
-                          <span className="text-sm text-muted-foreground tabular-nums">{formatDayOfYear(state.phongLightDayOfYear)}</span>
-                        </div>
-                        <MobileSlider
-                          sliderId="phong-light-day"
-                          value={[state.phongLightDayOfYear]}
-                          onValueChange={([v]) => setState({ phongLightDayOfYear: Math.round(v) })}
-                          min={1} max={365} step={1}
-                          className="cursor-pointer"
-                        />
-                      </div>
-                      {/* Time of day (local solar time) → shows the day's daylight range */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-sm">Time</Label>
-                          <span className="text-sm text-muted-foreground tabular-nums">{formatHour(state.phongLightTimeOfDay)}</span>
-                        </div>
-                        <MobileSlider
-                          sliderId="phong-light-time"
-                          value={[state.phongLightTimeOfDay]}
-                          onValueChange={([v]) => setState({ phongLightTimeOfDay: Math.round(v * 4) / 4 })}
-                          min={0} max={24} step={0.25}
-                          className="cursor-pointer"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          {dayRange.polarNight
-                            ? "Polar night — sun stays below the horizon all day"
-                            : dayRange.polarDay
-                              ? "Midnight sun — sun stays above the horizon all day"
-                              : `Daylight ${formatHour(dayRange.sunrise)}–${formatHour(dayRange.sunset)} · sun ${sun.altitude >= 0 ? `${Math.round(sun.altitude)}° above` : `${Math.round(-sun.altitude)}° below`} horizon (solar time @ ${state.lat.toFixed(2)}°, ${state.lng.toFixed(2)}°)`}
-                        </p>
-                      </div>
+                      {/* Day of year → calendar date, with seasonal tick marks.
+                          Shares the "phong-light" sliderId with the Time slider
+                          and XY pad so editing any of them keeps the whole group
+                          lit (and dims everything else). */}
+                      <LightSlider
+                        label="Date"
+                        value={state.phongLightDayOfYear}
+                        onChange={(v) => setState({ phongLightDayOfYear: Math.round(v) })}
+                        min={1} max={365} step={1}
+                        sliderId="phong-light"
+                        displayValue={formatDayOfYear(state.phongLightDayOfYear)}
+                        ticks={SEASON_TICKS}
+                      />
+                      {/* Time of day (local solar time), ticked at the day's
+                          sunrise/sunset for the viewport-center latitude. */}
+                      <LightSlider
+                        label="Time"
+                        value={state.phongLightTimeOfDay}
+                        onChange={(v) => setState({ phongLightTimeOfDay: Math.round(v * 4) / 4 })}
+                        min={0} max={24} step={0.25}
+                        sliderId="phong-light"
+                        displayValue={formatHour(state.phongLightTimeOfDay)}
+                        ticks={dayRange.polarDay || dayRange.polarNight ? undefined : [
+                          { value: dayRange.sunrise, label: `↑${formatHour(dayRange.sunrise)}` },
+                          { value: dayRange.sunset, label: `↓${formatHour(dayRange.sunset)}` },
+                        ]}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {dayRange.polarNight
+                          ? "Polar night — sun stays below the horizon all day"
+                          : dayRange.polarDay
+                            ? "Midnight sun — sun stays above the horizon all day"
+                            : `Daylight ${formatHour(dayRange.sunrise)}–${formatHour(dayRange.sunset)} · sun ${sun.altitude >= 0 ? `${Math.round(sun.altitude)}° above` : `${Math.round(-sun.altitude)}° below`} horizon (solar time @ ${state.lat.toFixed(2)}°, ${state.lng.toFixed(2)}°)`}
+                      </p>
                     </div>
                   )}
 
                   {/* In datetime mode the pad is a read-only visualization of the
                       computed sun direction (the sliders drive it), so pointer
-                      events are disabled to avoid fighting the sliders. */}
-                  <div className={`flex justify-center ${state.phongLightUseDatetime ? "pointer-events-none opacity-90" : ""}`}>
+                      events are disabled to avoid fighting the sliders. Shares
+                      the "phong-light" sliderId with the datetime sliders so it
+                      stays lit (not dimmed) while they're being edited. */}
+                  <div className={`flex justify-center ${state.phongLightUseDatetime ? "pointer-events-none" : ""}`}>
                     <SphericalXYPad
                       width={200}
                       height={200}
                       azimuthRange={[0, 360]}
                       elevationRange={[0, 90]}
-                      sliderId="phong-light-xypad"
+                      sliderId="phong-light"
                       value={lightDir}
                       onChange={setLightDir}
                     />

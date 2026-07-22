@@ -38,10 +38,19 @@ export type PhongLiveOptions = {
   minzoom?: number
   maxzoom?: number
   /** Compass azimuth, degrees clockwise from north — same field/sign
-   *  convention as phong-protocol.ts (state.illuminationDir). */
+   *  convention as phong-protocol.ts (state.illuminationDir). In
+   *  camera-relative mode (below) this is the azimuth RELATIVE to the camera;
+   *  the live map bearing is added per-frame inside render(). */
   lightDir: number
   /** Degrees above the horizon. */
   lightAlt: number
+  /** When true, the light is fixed to the CAMERA (a headlamp): the current map
+   *  bearing is added to lightDir every rendered frame, read live from the
+   *  transform — so the light tracks continuously through a rotate gesture,
+   *  not just after it settles (which is all the React `lightDir` prop could
+   *  ever do, and why baking bearing in upstream felt broken). Absolute mode
+   *  (false) leaves the light pinned to compass directions. */
+  lightRelativeToCamera: boolean
   diffuseStrength: number
   specularStrength: number
   exaggeration: number
@@ -303,7 +312,11 @@ export class PhongLiveLayer implements CustomLayerInterface {
       // same formula/empirically-verified signs as phong-protocol.ts (see its
       // header comment for how these signs were pinned against maplibre's own
       // hillshade shader).
-      const azRad = (this.options.lightDir * Math.PI) / 180
+      // Camera-relative: add the LIVE map bearing (read straight from the
+      // transform this frame, not from a settled React prop) so the light
+      // tracks smoothly as the map rotates, like a headlamp fixed to the view.
+      const azDeg = this.options.lightDir + (this.options.lightRelativeToCamera ? map.getBearing() : 0)
+      const azRad = (azDeg * Math.PI) / 180
       const elRad = (this.options.lightAlt * Math.PI) / 180
       const cosEl = Math.cos(elRad)
       const lx = -Math.sin(azRad) * cosEl
