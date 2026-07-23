@@ -211,7 +211,7 @@ export function TerrainViewer() {
     // lighting-effects-options-section.tsx). Composites (multiplies) with
     // each sub-mode's own opacity below, same master-vs-submode pattern as
     // Relief Visualization's LRM/SVF/Openness.
-    showLightingEffects: parseAsBoolean.withDefault(false),
+    showLightingEffects: parseAsBoolean.withDefault(true),
     lightingEffectsOpacity: parseAsFloat.withDefault(1.0),
     // "Matcap" sub-mode (lib/matcap-protocol.ts) — a plain raster overlay
     // (draped over 3D terrain the same automatic way the raster basemap is)
@@ -230,7 +230,7 @@ export function TerrainViewer() {
     // on-map "hold L, drag" light control uses). Albedo intentionally has no
     // field of its own — it reuses rasterBasemapOpacity directly, per the
     // request that spawned this ("Albedo (raster basemap opacity)").
-    showPhong: parseAsBoolean.withDefault(false),
+    showPhong: parseAsBoolean.withDefault(true),
     phongOpacity: parseAsFloat.withDefault(1.0),
     phongDiffuseStrength: parseAsFloat.withDefault(0.8),
     phongSpecularStrength: parseAsFloat.withDefault(0.2),
@@ -277,7 +277,7 @@ export function TerrainViewer() {
     // Master opacity for Terrain Analysis — composites (multiplies) with each
     // sub-mode's own opacity below, rather than replacing it.
     terrainAnalysisOpacity: parseAsFloat.withDefault(1.0),
-    showReliefVisualization: parseAsBoolean.withDefault(false),
+    showReliefVisualization: parseAsBoolean.withDefault(true),
     reliefVisualizationOpacity: parseAsFloat.withDefault(1.0),
     showSlope: parseAsBoolean.withDefault(true),
     slopeOpacity: parseAsFloat.withDefault(1.0),
@@ -320,7 +320,7 @@ export function TerrainViewer() {
     tpiMax: parseAsFloat.withDefault(20),
     tpiInvertColorRamp: parseAsBoolean.withDefault(false),
     tpiSymmetric: parseAsBoolean.withDefault(true),
-    showLrm: parseAsBoolean.withDefault(false),
+    showLrm: parseAsBoolean.withDefault(true),
     lrmOpacity: parseAsFloat.withDefault(1.0),
     lrmColorRamp: parseAsString.withDefault("lrm-diverging"),
     lrmMin: parseAsFloat.withDefault(-20),

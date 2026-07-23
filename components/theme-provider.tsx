@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect } from "react";
+import { useQueryState, parseAsString } from "nuqs";
 import { useAtomValue } from "jotai";
 import { allThemeValues, DEFAULT_THEME, themeNames, themes } from "@/lib/themes-config";
 import { useTheme as useAppTheme } from "@/lib/controls-utils";
@@ -77,11 +78,23 @@ export function ThemeProvider({
 }: ThemeProviderProps) {
   const { theme: appTheme, setTheme: setAppTheme } = useAppTheme();
   useInjectCustomThemes();
-  const [colorName, setColorName] = useState<string>(() => {
-    const stored =
-      typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
-    return stripStaleModeSuffix(stored || defaultTheme);
-  });
+
+  // The color preset is now a shareable URL param (`?colortheme=`) instead of
+  // localStorage-only. Only the built-in ("real") presets round-trip through
+  // the URL — a saved *custom* theme is browser-local CSS that wouldn't resolve
+  // on anyone else's machine, so selecting one clears the param and falls back
+  // to localStorage (see setTheme). The param's DEFAULT is seeded from
+  // localStorage so a bare visit (no `?colortheme=`) still restores the last
+  // pick and the URL stays clean until an explicit choice is made.
+  const storedDefault =
+    typeof window !== "undefined"
+      ? stripStaleModeSuffix(localStorage.getItem(storageKey) || defaultTheme)
+      : defaultTheme;
+  const [rawColorName, setColorNameParam] = useQueryState(
+    "colortheme",
+    parseAsString.withDefault(storedDefault),
+  );
+  const colorName = stripStaleModeSuffix(rawColorName);
 
   const theme = `${colorName}-${appTheme}`;
 
@@ -93,7 +106,10 @@ export function ThemeProvider({
   const setTheme = (colorName: string) => {
     const bareName = stripStaleModeSuffix(colorName);
     localStorage.setItem(storageKey, bareName);
-    setColorName(bareName);
+    // Built-in presets go in the URL (shareable); custom themes clear it
+    // (null) and live in localStorage only — the seeded default above still
+    // surfaces them for this browser.
+    setColorNameParam(themeNames.includes(bareName) ? bareName : null);
     // Single-mode-sourced presets (the 8 shadcnthemes.app themes — see
     // ThemeConfig.singleMode's doc comment) have IDENTICAL "-light"/"-dark"
     // CSS blocks, since their source never defined a second variant. Without
