@@ -237,7 +237,7 @@ export function TerrainControlPanel({
     return () => ro.disconnect()
   }, [updateFade, isSidebarOpen])
 
-  const FADE_PX = 28
+  const FADE_PX = 56
   const scrollMask = `linear-gradient(to bottom, ${fade.top ? "transparent" : "#000"} 0, #000 ${FADE_PX}px, #000 calc(100% - ${FADE_PX}px), ${fade.bottom ? "transparent" : "#000"} 100%)`
 
   // Records when each viz-mode is switched on so the corresponding Section can

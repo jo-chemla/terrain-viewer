@@ -14,7 +14,7 @@
 // own elevation model.
 
 export type RoutingEngine = "brouter" | "valhalla"
-export type RoutingProfile = "foot" | "bike"
+export type RoutingProfile = "foot" | "bike" | "car"
 
 export interface RouteResult {
   /** Route geometry as [lng, lat] pairs. */
@@ -25,8 +25,8 @@ export interface RouteResult {
 
 // BRouter ships many profiles; these two are the sensible hiking / bike-touring
 // defaults. Valhalla's costing model is coarser (just a travel mode).
-const BROUTER_PROFILE: Record<RoutingProfile, string> = { foot: "hiking-mountain", bike: "trekking" }
-const VALHALLA_COSTING: Record<RoutingProfile, string> = { foot: "pedestrian", bike: "bicycle" }
+const BROUTER_PROFILE: Record<RoutingProfile, string> = { foot: "hiking-mountain", bike: "trekking", car: "car-fast" }
+const VALHALLA_COSTING: Record<RoutingProfile, string> = { foot: "pedestrian", bike: "bicycle", car: "auto" }
 
 // Valhalla returns Google-style encoded polylines but at precision 6 (not the
 // classic 5) — decode accordingly.

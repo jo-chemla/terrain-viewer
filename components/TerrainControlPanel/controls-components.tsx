@@ -203,13 +203,17 @@ export const Section: React.FC<{
           "flex items-center justify-between w-full py-2 transition-opacity duration-150",
           dim && "opacity-20"
         )}>
-          <CollapsibleTrigger className="flex-1 min-w-0 text-base font-medium text-left cursor-pointer flex items-center gap-2">
+          <CollapsibleTrigger className="flex-1 min-w-0 text-base font-medium text-left cursor-pointer flex items-center gap-3">
             <span className="text-left">{title}</span>
             {pulse && (
-              // Breathing dot: a pinging ring + solid core in the primary color.
-              <span className="relative inline-flex h-2 w-2 shrink-0" aria-hidden>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              // Ripple-breath dot: solid primary core + expanding/fading rings
+              // (see .breathing-dot in index.css). ml-1 adds a touch more
+              // breathing room from the title beyond the flex gap.
+              <span className="breathing-dot ml-1 shrink-0" aria-hidden>
+                <span className="ripple-ring" />
+                <span className="ripple-ring" />
+                <span className="ripple-ring" />
+                <span className="ripple-core" />
               </span>
             )}
           </CollapsibleTrigger>

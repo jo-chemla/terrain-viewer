@@ -199,7 +199,14 @@ export const ElevationPickerSection: React.FC<{
     let cancelled = false
     setRouteError(null); setRouteCoords(null); setProfileLoading(true)
     fetchRoute(routeMode, routeProfile, { lng: pa.lng, lat: pa.lat }, { lng: pb.lng, lat: pb.lat }, controller.signal)
-      .then((r) => { if (!cancelled) setRouteCoords(resamplePath(r.coords, PROFILE_SAMPLES)) })
+      .then((r) => {
+        if (cancelled) return
+        // The router snaps the endpoints to the nearest routable way, so the
+        // returned geometry starts/ends slightly off the actual picks. Stitch
+        // the real picked points onto both ends so the drawn line + profile
+        // connect to the markers (short "off-network" connector segments).
+        setRouteCoords([[pa.lng, pa.lat], ...resamplePath(r.coords, PROFILE_SAMPLES), [pb.lng, pb.lat]])
+      })
       .catch((err) => {
         if (cancelled || err?.name === "AbortError") return
         setRouteError(err instanceof Error ? err.message : "Routing failed"); setRouteCoords(null); setProfileLoading(false)
@@ -508,6 +515,7 @@ export const ElevationPickerSection: React.FC<{
                     <SelectContent>
                       <SelectItem value="foot">Hiking / foot</SelectItem>
                       <SelectItem value="bike">Bike / trekking</SelectItem>
+                      <SelectItem value="car">Vehicle / car</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

@@ -1040,9 +1040,14 @@ export function TerrainViewer() {
     }
   }, [])
 
-  // 2D no longer force-resets to north-up/flat on entry — rotation and pitch are
-  // allowed in 2D again (per request), so switching to 2D keeps the current
-  // bearing/pitch instead of snapping them to 0.
+  // 2D is a strict nadir, north-up top-down view: reset bearing + pitch to 0 on
+  // entry (rotation/pitch are also disabled while in 2D — see the Map props).
+  useEffect(() => {
+    if (mapARef.current && state.viewMode === "2d") {
+      const map = mapARef.current.getMap()
+      map.easeTo({ bearing: 0, pitch: 0, duration: 500 })
+    }
+  }, [state.viewMode])
 
   const { theme } = useTheme()
   // const theme = state.theme
@@ -1341,8 +1346,8 @@ export function TerrainViewer() {
             latitude: state.lat,
             longitude: state.lng,
             zoom: state.zoom,
-            pitch: state.pitch,
-            bearing: state.bearing,
+            pitch: state.viewMode === "2d" ? 0 : state.pitch,
+            bearing: state.viewMode === "2d" ? 0 : state.bearing,
           }}
           onMove={isPrimary ? onMoveA : onMoveB}
           onMoveEnd={isPrimary ? onMoveEndA : onMoveEndB}
@@ -1383,17 +1388,17 @@ export function TerrainViewer() {
           }}
           sky={state.showBackground ? getSkyConfig() : getNoSkyConfig()}
           minPitch={0}
-          // 2D is now freely rotatable + pitchable like 3D/globe (per request);
-          // no viewMode gating on pitch/rotate anymore.
-          maxPitch={85}
-          rollEnabled={true}
+          // 2D is a locked nadir top-down view: no pitch (maxPitch 0) and no
+          // rotation (dragRotate off, roll off). 3D/globe stay free.
+          maxPitch={state.viewMode === "2d" ? 0 : 85}
+          rollEnabled={state.viewMode !== "2d"}
           // pitchWithRotate is a maplibre-gl-js *construction-time-only* option — there's no
           // imperative setter, so gating it on viewMode meant a map first created in "2d" mode
           // (pitchWithRotate baked in as false) stayed locked out of right-click-drag pitch
           // forever after switching to 3d/globe. maxPitch=0 already fully enforces the 2d
           // pitch lock, so this can just stay true and let maxPitch do the gating.
           pitchWithRotate={true}
-          dragRotate={true}
+          dragRotate={state.viewMode !== "2d"}
           // touchZoomRotate={state.viewMode !== "2d"}
           touchZoomRotate={true}
           // terrain={{

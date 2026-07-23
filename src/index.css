@@ -402,6 +402,44 @@
   animation: pin-wiggle 0.7s;
 }
 
+/* Section "just activated" indicator (see controls-components.tsx's Section):
+   a "ripple breath" — a solid primary-colored core with rings expanding + fading
+   outward. Bounded to a whole number of cycles: base period 1.5s × 2 iterations
+   = 3s, matching Section's 3s unmount timeout, so no loop is cut off mid-way. */
+.breathing-dot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.5rem;
+  height: 0.5rem;
+}
+.breathing-dot .ripple-core {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--primary);
+  animation: breathe-core 1.5s ease-in-out 2;
+}
+.breathing-dot .ripple-ring {
+  position: absolute;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  border: 1.5px solid var(--primary);
+  animation: breathe-ripple 1.5s ease-out 2;
+}
+.breathing-dot .ripple-ring:nth-child(2) { animation-delay: 0.5s; }
+.breathing-dot .ripple-ring:nth-child(3) { animation-delay: 1s; }
+@keyframes breathe-ripple {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(3.5); opacity: 0; }
+}
+@keyframes breathe-core {
+  0%, 100% { transform: scale(0.85); }
+  50% { transform: scale(1.15); }
+}
+
 /* Control panel: whichever Section happens to render last before a bold
    MacroSeparator (see controls-components.tsx) would otherwise show its own
    ordinary thin separator right on top of it — which section that is varies

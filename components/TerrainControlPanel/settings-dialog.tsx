@@ -251,6 +251,25 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 onCheckedChange={setTransparentUi}
               />
             </div>
+            {/* Color Theme — a sub-section of Appearance (light/dark lives right
+                above it here). */}
+            <div className="pt-1 space-y-2">
+              <Label className="text-sm font-medium">Color Theme</Label>
+              <p className="text-xs text-muted-foreground">
+                Preset UI color palette (<a href="https://github.com/BankkRoll/tweakcn-theme-picker" target="_blank" rel="noopener noreferrer" className="underline">tweakcn</a>) — light/dark follows the Theme toggle above.
+              </p>
+              <div className="flex gap-2">
+                <div className="flex-[2] min-w-0">
+                  <ColorThemeSelect />
+                </div>
+                <Button variant="outline" size="sm" className="flex-1 min-w-0 cursor-pointer" onClick={() => setShowThemeEditor(true)}>
+                  Advanced Theme Editor
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Live-edit every color/radius/shadow/font token (see theme-editor/README.md) and copy the result as a new preset CSS block.
+              </p>
+            </div>
           </div>
           <Separator />
           <div className="space-y-2">
@@ -261,63 +280,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Space</kbd> — re-toggle whichever visualization-mode checkbox you last clicked, even after a map drag has moved keyboard focus onto the map canvas.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">L</kbd> <span className="mx-1">(hold)</span> + drag — set the Hillshade illumination direction/altitude directly on the map instead of panning it; release L or the mouse to exit.</div>
             </div>
-          </div>
-          <Separator />
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">API Keys</h3>
-              <div className="flex gap-2">
-                {batchEditMode && (
-                  <Button variant="outline" size="sm" onClick={() => setBatchEditMode(false)} className="cursor-pointer">
-                    Cancel
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" onClick={handleBatchToggle} className="cursor-pointer">{batchEditMode ? "Save" : "Batch Edit"}</Button>
-              </div>
-            </div>
-            {batchEditMode ? (
-              <div className="space-y-2">
-                <Label htmlFor="batch-keys">API Keys (one per line: key=value)</Label>
-                <JsonEditor
-                  language="properties"
-                  value={batchApiKeys}
-                  onChange={setBatchApiKeys}
-                  className="min-h-[120px]"
-                />
-              </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="maptiler-key">MapTiler API Key</Label>
-                  <PasswordInput
-                    id="maptiler-key"
-                    value={maptilerKey}
-                    onChange={(e: any) => setMaptilerKey(e.target.value)}
-                    className="cursor-text"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="mapbox-key">Mapbox Access Token</Label>
-                  <PasswordInput
-                    id="mapbox-key"
-                    value={mapboxKey}
-                    onChange={(e: any) => setMapboxKey(e.target.value)}
-                    className="cursor-text"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="google-key">Google Maps API Key</Label>
-                  <PasswordInput
-                    id="google-key"
-                    value={googleKey}
-                    onChange={(e: any) => setGoogleKey(e.target.value)}
-                    className="cursor-text"
-                  />
-                </div>
-              </>
-            )}
           </div>
           <Separator />
 
@@ -475,12 +437,85 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </div>
 
           <Separator />
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Terrain Encoding Functions</h3>
-            <div className="space-y-2 text-sm font-mono bg-muted p-3 rounded">
-              <div><span className="font-semibold">TerrainRGB:</span><br /><code>height = -10000 + ((R * 256 * 256 + G * 256 + B) * 0.1)</code></div>
-              <div className="mt-2"><span className="font-semibold">Terrarium:</span><br /><code>height = (R * 256 + G + B / 256) - 32768</code></div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Tells (Mound Candidates) Detection</h3>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="tells-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
+                <Switch
+                  id="tells-beta"
+                  checked={state.tellsBeta}
+                  className="cursor-pointer"
+                  onCheckedChange={(checked) => setState({ tellsBeta: checked })}
+                />
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Computes a <span className="font-semibold text-foreground">Difference-of-Gaussians of the LRM</span>{" "}
+              (DoG-of-LRM) as the primary bump signal, keeps only its local maxima
+              (non-maximum suppression scaled to the configured tell size), then vetoes
+              candidates that fail any of three shape filters: <span className="font-semibold text-foreground">Blobness</span>{" "}
+              (structure-tensor peak/pit detector), <span className="font-semibold text-foreground">Plan Curvature / Divergence</span>{" "}
+              (rejects saddles and ridges where flow diverges outward across contours), and{" "}
+              <span className="font-semibold text-foreground">Det-Hessian</span> (rejects saddle points, keeps bowl/dome shapes).
+            </p>
+          </div>
+          <Separator />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">API Keys</h3>
+              <div className="flex gap-2">
+                {batchEditMode && (
+                  <Button variant="outline" size="sm" onClick={() => setBatchEditMode(false)} className="cursor-pointer">
+                    Cancel
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={handleBatchToggle} className="cursor-pointer">{batchEditMode ? "Save" : "Batch Edit"}</Button>
+              </div>
+            </div>
+            {batchEditMode ? (
+              <div className="space-y-2">
+                <Label htmlFor="batch-keys">API Keys (one per line: key=value)</Label>
+                <JsonEditor
+                  language="properties"
+                  value={batchApiKeys}
+                  onChange={setBatchApiKeys}
+                  className="min-h-[120px]"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="maptiler-key">MapTiler API Key</Label>
+                  <PasswordInput
+                    id="maptiler-key"
+                    value={maptilerKey}
+                    onChange={(e: any) => setMaptilerKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="mapbox-key">Mapbox Access Token</Label>
+                  <PasswordInput
+                    id="mapbox-key"
+                    value={mapboxKey}
+                    onChange={(e: any) => setMapboxKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="google-key">Google Maps API Key</Label>
+                  <PasswordInput
+                    id="google-key"
+                    value={googleKey}
+                    onChange={(e: any) => setGoogleKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                </div>
+              </>
+            )}
           </div>
           <Separator />
           <div className="space-y-2">
@@ -528,46 +563,27 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </div>
           </div>
           <Separator />
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Tells (Mound Candidates) Detection</h3>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="tells-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
-                <Switch
-                  id="tells-beta"
-                  checked={state.tellsBeta}
-                  className="cursor-pointer"
-                  onCheckedChange={(checked) => setState({ tellsBeta: checked })}
-                />
-              </div>
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold">Terrain Encoding Functions</h3>
+            <div className="space-y-2 text-sm font-mono bg-muted p-3 rounded">
+              <div><span className="font-semibold">TerrainRGB:</span><br /><code>height = -10000 + ((R * 256 * 256 + G * 256 + B) * 0.1)</code></div>
+              <div className="mt-2"><span className="font-semibold">Terrarium:</span><br /><code>height = (R * 256 + G + B / 256) - 32768</code></div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Computes a <span className="font-semibold text-foreground">Difference-of-Gaussians of the LRM</span>{" "}
-              (DoG-of-LRM) as the primary bump signal, keeps only its local maxima
-              (non-maximum suppression scaled to the configured tell size), then vetoes
-              candidates that fail any of three shape filters: <span className="font-semibold text-foreground">Blobness</span>{" "}
-              (structure-tensor peak/pit detector), <span className="font-semibold text-foreground">Plan Curvature / Divergence</span>{" "}
-              (rejects saddles and ridges where flow diverges outward across contours), and{" "}
-              <span className="font-semibold text-foreground">Det-Hessian</span> (rejects saddle points, keeps bowl/dome shapes).
-            </p>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Smart Bounds Zoom</h3>
-            <p className="text-xs text-muted-foreground">
-              Clicking a source's name (Terrain Source / Basemap Source lists) only flies to its
-              bounds when they're fully inside the current viewport or fully disjoint from it — a
-              world-covering basemap or a partially-overlapping COG preserves your camera viewport
-              instead of yanking your context away.
-            </p>
           </div>
           <Separator />
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Map Bounds</h3>
+            <h3 className="text-sm font-semibold">Map bounds constraints</h3>
             <p className="text-xs text-muted-foreground">
-              Constrains panning/zooming to a bounding box, instead of the one-shot camera
-              fly-to above. "Terrain"/"Raster"/"Union" are resolved automatically from the
-              active source(s) (COG/tilejson metadata) and update if you switch sources.
+              Constrains panning/zooming to a bounding box. "Terrain"/"Raster"/"Union" are
+              resolved automatically from the active source(s) (COG/tilejson metadata) and
+              update if you switch sources.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Smart bounds zoom:</span> clicking a
+              source's name (Terrain Source / Basemap Source lists) only flies to its bounds when
+              they're fully inside the current viewport or fully disjoint from it — a world-covering
+              basemap or a partially-overlapping COG preserves your camera viewport instead of
+              yanking your context away.
             </p>
             <div className="space-y-1">
               <Label>Mode</Label>
@@ -688,28 +704,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </div>
           </div>
 
-          <Separator />
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Color Theme</h3>
-            <p className="text-xs text-muted-foreground">
-              Preset UI color palette (<a href="https://github.com/BankkRoll/tweakcn-theme-picker" target="_blank" rel="noopener noreferrer" className="underline">tweakcn</a>) —
-              light/dark still follows the Theme toggle under Appearance above.
-            </p>
-            <div className="flex gap-2">
-              <div className="flex-[2] min-w-0">
-                <ColorThemeSelect />
-              </div>
-              {/* flex-1 (≈1/3) so "Advanced Theme Editor" isn't clipped, vs the
-                  select's flex-[2] (≈2/3) — gap is handled by flexbox. */}
-              <Button variant="outline" size="sm" className="flex-1 min-w-0 cursor-pointer" onClick={() => setShowThemeEditor(true)}>
-                Advanced Theme Editor
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Live-edit every color/radius/shadow/font token (see theme-editor/README.md)
-              and copy the result as a new preset CSS block.
-            </p>
-          </div>
         </div>
       </DialogContent>
       {showThemeEditor && (
