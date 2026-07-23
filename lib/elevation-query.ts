@@ -150,3 +150,55 @@ export async function sampleClientElevationProfile(
   }
   return out
 }
+
+/** Like sampleClientElevationProfile but along an arbitrary polyline (a routed
+ *  path, not a straight segment) — one mosaic covering the whole path's bbox for
+ *  TMS, per-point windowed reads for COG. `coords` is [lng, lat] pairs, assumed
+ *  already resampled to a bounded count by the caller (see lib/routing.ts's
+ *  resamplePath). Returns elevations aligned with `coords`. */
+export async function sampleClientElevationPath(
+  source: ClientExportSource,
+  coords: [number, number][],
+): Promise<(number | null)[]> {
+  if (coords.length === 0) return []
+
+  if (source.type === "cog") {
+    const out: (number | null)[] = []
+    for (const [lng, lat] of coords) {
+      try { out.push(await sampleCogPointElevation(source.url, lng, lat)) } catch { out.push(null) }
+    }
+    return out
+  }
+
+  const eps = 1e-9
+  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity
+  for (const [lng, lat] of coords) {
+    west = Math.min(west, lng); east = Math.max(east, lng)
+    south = Math.min(south, lat); north = Math.max(north, lat)
+  }
+  const bbox: [number, number, number, number] = [west - eps, south - eps, east + eps, north + eps]
+  const decodePixel = source.type === "terrainrgb" ? terrainrgbToElevation : terrariumToElevation
+  const targetPx = Math.max(128, Math.min(2048, coords.length * 4))
+  const startZoom = Math.min(source.maxzoom, pickZoomForResolution(bbox, targetPx, targetPx, source.tileSize, source.maxzoom))
+
+  let mosaic: Awaited<ReturnType<typeof fetchTileMosaic>> | null = null
+  for (let zoom = startZoom; zoom >= Math.max(0, startZoom - 6); zoom--) {
+    try {
+      mosaic = await fetchTileMosaic({ tileUrlTemplate: source.url, tileSize: source.tileSize, bbox, zoom, decodePixel })
+      break
+    } catch (err) {
+      if (err instanceof Error && /\(404\)/.test(err.message)) continue
+      throw err
+    }
+  }
+  if (!mosaic) return new Array(coords.length).fill(null)
+
+  const { data, width, height, bbox: mb } = mosaic
+  const [mWest, mSouth, mEast, mNorth] = mb
+  return coords.map(([lng, lat]) => {
+    const px = Math.min(width - 1, Math.max(0, Math.floor(((lng - mWest) / (mEast - mWest)) * width)))
+    const py = Math.min(height - 1, Math.max(0, Math.floor(((mNorth - lat) / (mNorth - mSouth)) * height)))
+    const v = data[py * width + px]
+    return Number.isFinite(v) ? v : null
+  })
+}

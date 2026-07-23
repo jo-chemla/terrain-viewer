@@ -14,10 +14,12 @@ import { Input } from "@/components/ui/input"
 import { useSourceConfig } from "@/lib/controls-utils"
 import { customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { getClientExportSource } from "@/lib/client-export"
-import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint, sampleClientElevationProfile, type ProfilePoint } from "@/lib/elevation-query"
+import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint, sampleClientElevationPath, type ProfilePoint } from "@/lib/elevation-query"
 import { ElevationProfileChart, computeLineOfSight } from "./elevation-profile-chart"
 import { PlaneSlicerFields } from "./plane-slicer-fields"
 import { track } from "@/lib/analytics"
+import { fetchRoute, resamplePath, type RoutingEngine, type RoutingProfile } from "@/lib/routing"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const PROFILE_SAMPLES = 160
 
@@ -79,6 +81,14 @@ export const ElevationPickerSection: React.FC<{
   // blue→red gradient matching the two endpoint markers, so it's clear on the
   // map where the profile runs.
   const [showLineOnMap, setShowLineOnMap] = useState(true)
+  // Routing: "straight" is the as-the-crow-flies segment; the other two fetch an
+  // actual trail/path between the two picks from a public API (see lib/routing.ts)
+  // and the profile is sampled along THAT geometry instead. routeCoords holds the
+  // fetched/resampled path ([lng,lat][]) while routing is active, else null.
+  const [routeMode, setRouteMode] = useState<"straight" | RoutingEngine>("straight")
+  const [routeProfile, setRouteProfile] = useState<RoutingProfile>("foot")
+  const [routeCoords, setRouteCoords] = useState<[number, number][] | null>(null)
+  const [routeError, setRouteError] = useState<string | null>(null)
   const { getTilesUrl } = useSourceConfig()
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const markersRef = useRef<maplibregl.Marker[]>([])
@@ -139,31 +149,31 @@ export const ElevationPickerSection: React.FC<{
   // truth (queryTerrainElevation per point — cheap, no fetch); in 2D there's no
   // terrain object, so one batched mosaic covers the whole line (see
   // sampleClientElevationProfile).
-  const sampleProfile = useCallback(async (
-    a: { lng: number; lat: number }, b: { lng: number; lat: number },
-  ): Promise<ProfilePoint[]> => {
+  // Sample the elevation profile along an arbitrary polyline (a straight
+  // 2-point segment resampled to PROFILE_SAMPLES, or a routed path). Distance is
+  // cumulative great-circle length along the path, so a winding route reads its
+  // true along-track distance rather than the straight endpoint separation.
+  const computeProfile = useCallback(async (coords: [number, number][]): Promise<ProfilePoint[]> => {
+    if (coords.length < 2) return []
     const s = stateRef.current
-    const lerp = (t: number) => ({ lng: a.lng + (b.lng - a.lng) * t, lat: a.lat + (b.lat - a.lat) * t })
 
     let elevations: (number | null)[]
     if (s.viewMode === "3d" || s.viewMode === "globe") {
       const map = mapRef.current?.getMap()
       elevations = map
-        ? Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
-            const { lng, lat } = lerp(i / (PROFILE_SAMPLES - 1))
-            return queryTerrainElevationAtPoint(map, lng, lat, s.exaggeration || 1)
-          })
-        : new Array(PROFILE_SAMPLES).fill(null)
+        ? coords.map(([lng, lat]) => queryTerrainElevationAtPoint(map, lng, lat, s.exaggeration || 1))
+        : new Array(coords.length).fill(null)
     } else {
       const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current)
       elevations = clientSource
-        ? await sampleClientElevationProfile(clientSource, a, b, PROFILE_SAMPLES)
-        : new Array(PROFILE_SAMPLES).fill(null)
+        ? await sampleClientElevationPath(clientSource, coords)
+        : new Array(coords.length).fill(null)
     }
 
-    return elevations.map((elevation, i) => {
-      const { lng, lat } = lerp(i / (PROFILE_SAMPLES - 1))
-      return { lng, lat, elevation, distanceM: turfDistance([a.lng, a.lat], [lng, lat], { units: "meters" }) }
+    let cumM = 0
+    return coords.map(([lng, lat], i) => {
+      if (i > 0) cumM += turfDistance([coords[i - 1][0], coords[i - 1][1]], [lng, lat], { units: "meters" })
+      return { lng, lat, elevation: elevations[i] ?? null, distanceM: cumM }
     })
   }, [mapRef])
 
@@ -177,17 +187,51 @@ export const ElevationPickerSection: React.FC<{
   const lineKey = points.length === 2
     ? `${points[0].lng},${points[0].lat},${points[1].lng},${points[1].lat}`
     : ""
+  // Fetch the routed path when a routing engine is active and both points are
+  // picked (straight mode clears it). Resampled to PROFILE_SAMPLES so the
+  // profile + map line stay bounded no matter how dense the router's geometry is.
   useEffect(() => {
-    if (!profileMode || pointsRef.current.length !== 2) { setProfilePoints([]); return }
+    if (routeMode === "straight" || !profileMode || pointsRef.current.length !== 2) {
+      setRouteCoords(null); setRouteError(null); return
+    }
     const [pa, pb] = pointsRef.current
+    const controller = new AbortController()
+    let cancelled = false
+    setRouteError(null); setRouteCoords(null); setProfileLoading(true)
+    fetchRoute(routeMode, routeProfile, { lng: pa.lng, lat: pa.lat }, { lng: pb.lng, lat: pb.lat }, controller.signal)
+      .then((r) => { if (!cancelled) setRouteCoords(resamplePath(r.coords, PROFILE_SAMPLES)) })
+      .catch((err) => {
+        if (cancelled || err?.name === "AbortError") return
+        setRouteError(err instanceof Error ? err.message : "Routing failed"); setRouteCoords(null); setProfileLoading(false)
+      })
+    return () => { cancelled = true; controller.abort() }
+  }, [routeMode, routeProfile, profileMode, lineKey])
+
+  // The path the profile + map line follow: the straight segment (resampled) in
+  // "straight" mode, or the fetched route otherwise. Null while a route is still
+  // loading so we don't briefly chart the straight line under it.
+  const profilePath: [number, number][] | null = (() => {
+    if (!profileMode || points.length !== 2) return null
+    if (routeMode !== "straight") return routeCoords
+    const [pa, pb] = points
+    return Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
+      const t = i / (PROFILE_SAMPLES - 1)
+      return [pa.lng + (pb.lng - pa.lng) * t, pa.lat + (pb.lat - pa.lat) * t] as [number, number]
+    })
+  })()
+  const pathKey = profilePath ? `${profilePath.length}:${profilePath[0]?.join(",")}:${profilePath[profilePath.length - 1]?.join(",")}` : ""
+
+  useEffect(() => {
+    if (!profilePath) { setProfilePoints([]); return }
     let cancelled = false
     setProfileLoading(true)
-    sampleProfile({ lng: pa.lng, lat: pa.lat }, { lng: pb.lng, lat: pb.lat })
+    computeProfile(profilePath)
       .then((pts) => { if (!cancelled) setProfilePoints(pts) })
       .catch(() => { if (!cancelled) setProfilePoints([]) })
       .finally(() => { if (!cancelled) setProfileLoading(false) })
     return () => { cancelled = true }
-  }, [profileMode, lineKey, sampleProfile])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileMode, pathKey, computeProfile])
 
   const handleMapClick = useCallback((e: MapMouseEvent) => {
     const map = mapRef.current?.getMap()
@@ -262,67 +306,66 @@ export const ElevationPickerSection: React.FC<{
     if (!map) return
     const SRC = "elevation-picker-line"
     const LYR = "elevation-picker-line"
-    if (!(isActive && showLineOnMap && pointsRef.current.length === 2)) return
 
-    let cancelled = false
-    let redraw: () => void = () => {}
+    // Reuse the already-sampled profile points (which follow the route when
+    // routing is on) instead of re-sampling — same coordinates, same colors,
+    // one fewer round trip.
+    const samples = profilePoints
+    if (!(isActive && showLineOnMap && samples.length >= 2)) {
+      if (map.getLayer(LYR)) map.removeLayer(LYR)
+      if (map.getSource(SRC)) map.removeSource(SRC)
+      return
+    }
 
-    ;(async () => {
-      const [pa, pb] = pointsRef.current
-      const samples = await sampleProfile({ lng: pa.lng, lat: pa.lat }, { lng: pb.lng, lat: pb.lat })
-      if (cancelled) return
+    const coordinates = samples.map((s) => [s.lng, s.lat])
+    const data = { type: "Feature" as const, geometry: { type: "LineString" as const, coordinates }, properties: {} }
 
-      const coordinates = samples.map((s) => [s.lng, s.lat])
-      const data = { type: "Feature" as const, geometry: { type: "LineString" as const, coordinates }, properties: {} }
-
-      // Elevation-colored gradient stops (line-progress ≈ i/(N−1) for the evenly
-      // spaced samples), carrying the last valid color across any no-data gaps.
-      const elevs = samples.map((s) => s.elevation).filter((e): e is number => e !== null)
-      let gradient: any
-      if (elevs.length >= 2) {
-        const minE = Math.min(...elevs)
-        const span = Math.max(...elevs) - minE || 1
-        const stops: (number | string)[] = []
-        let lastColor: string | null = null
-        for (let i = 0; i < samples.length; i++) {
-          const e = samples[i].elevation
-          const color: string | null = e === null ? lastColor : elevationColor((e - minE) / span)
-          if (color === null) continue
-          lastColor = color
-          stops.push(i / (samples.length - 1), color)
-        }
-        if (stops.length >= 4) gradient = ["interpolate", ["linear"], ["line-progress"], ...stops]
+    // Elevation-colored gradient stops (line-progress ≈ i/(N−1) for the evenly
+    // spaced samples), carrying the last valid color across any no-data gaps.
+    const elevs = samples.map((s) => s.elevation).filter((e): e is number => e !== null)
+    let gradient: any
+    if (elevs.length >= 2) {
+      const minE = Math.min(...elevs)
+      const span = Math.max(...elevs) - minE || 1
+      const stops: (number | string)[] = []
+      let lastColor: string | null = null
+      for (let i = 0; i < samples.length; i++) {
+        const e = samples[i].elevation
+        const color: string | null = e === null ? lastColor : elevationColor((e - minE) / span)
+        if (color === null) continue
+        lastColor = color
+        stops.push(i / (samples.length - 1), color)
       }
-      if (!gradient) gradient = ["interpolate", ["linear"], ["line-progress"], 0, MARKER_COLORS[0], 1, MARKER_COLORS[1]]
+      if (stops.length >= 4) gradient = ["interpolate", ["linear"], ["line-progress"], ...stops]
+    }
+    if (!gradient) gradient = ["interpolate", ["linear"], ["line-progress"], 0, MARKER_COLORS[0], 1, MARKER_COLORS[1]]
 
-      redraw = () => {
-        if (!map.isStyleLoaded()) return
-        const existing = map.getSource(SRC) as maplibregl.GeoJSONSource | undefined
-        if (existing) existing.setData(data as any)
-        else map.addSource(SRC, { type: "geojson", lineMetrics: true, data: data as any })
-        if (!map.getLayer(LYR)) {
-          map.addLayer({
-            id: LYR,
-            type: "line",
-            source: SRC,
-            layout: { "line-cap": "round", "line-join": "round" },
-            paint: { "line-width": 3, "line-gradient": gradient },
-          })
-        } else {
-          map.setPaintProperty(LYR, "line-gradient", gradient)
-        }
+    const redraw = () => {
+      if (!map.isStyleLoaded()) return
+      const existing = map.getSource(SRC) as maplibregl.GeoJSONSource | undefined
+      if (existing) existing.setData(data as any)
+      else map.addSource(SRC, { type: "geojson", lineMetrics: true, data: data as any })
+      if (!map.getLayer(LYR)) {
+        map.addLayer({
+          id: LYR,
+          type: "line",
+          source: SRC,
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-width": 3, "line-gradient": gradient },
+        })
+      } else {
+        map.setPaintProperty(LYR, "line-gradient", gradient)
       }
-      redraw()
-      map.on("styledata", redraw)
-    })()
+    }
+    redraw()
+    map.on("styledata", redraw)
 
     return () => {
-      cancelled = true
       map.off("styledata", redraw)
       if (map.getLayer(LYR)) map.removeLayer(LYR)
       if (map.getSource(SRC)) map.removeSource(SRC)
     }
-  }, [isActive, showLineOnMap, lineKey, sampleProfile, mapRef])
+  }, [isActive, showLineOnMap, profilePoints, mapRef])
 
   const handleToggle = useCallback((checked: boolean) => {
     setIsActive(checked)
@@ -437,6 +480,39 @@ export const ElevationPickerSection: React.FC<{
 
           {profileMode && (
             <div className="space-y-2">
+              {/* Path: straight great-circle vs a routed trail/path from a public
+                  API — sampled along that geometry instead of the direct line. */}
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-sm font-medium">Path</Label>
+                <Select
+                  value={routeMode}
+                  onValueChange={(v) => {
+                    const m = v as "straight" | RoutingEngine
+                    setRouteMode(m)
+                    if (isActive && m !== "straight") track("tools-elevation-picker", { mode: "routing", engine: m, profile: routeProfile })
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-[130px] text-xs cursor-pointer"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="straight">Straight line</SelectItem>
+                    <SelectItem value="brouter">BRouter</SelectItem>
+                    <SelectItem value="valhalla">Valhalla</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {routeMode !== "straight" && (
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm font-medium">Routing profile</Label>
+                  <Select value={routeProfile} onValueChange={(v) => setRouteProfile(v as RoutingProfile)}>
+                    <SelectTrigger className="h-7 w-[130px] text-xs cursor-pointer"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="foot">Hiking / foot</SelectItem>
+                      <SelectItem value="bike">Bike / trekking</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {routeError && <p className="text-xs text-destructive">Routing failed: {routeError}</p>}
               {points.length < 2 ? (
                 <p className="text-xs text-muted-foreground">
                   Pick two points to sample the terrain along the line between them.
