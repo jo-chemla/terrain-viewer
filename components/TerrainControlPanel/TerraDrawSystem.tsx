@@ -23,6 +23,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { Section, CheckboxWithSlider, GroupHeading } from './controls-components'
 import { truncate as turf_truncate } from '@turf/truncate'
 import { downloadGeoJSON } from "@/lib/download-geojson"
+import { track } from "@/lib/analytics"
 import { persistVectorLayerFeatures, readPersistedVectorLayerFeatures, deletePersistedVectorLayer } from "@/lib/opfs-vector-store"
 
 import * as toGeoJSON from '@tmcw/togeojson'
@@ -737,7 +738,7 @@ export function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; ma
                         key={id}
                         variant={activeDrawMode === id ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { draw.setMode(id); setActiveDrawMode(id) }}
+                        onClick={() => { draw.setMode(id); setActiveDrawMode(id); if (id !== "select") track("tools-drawing", { action: "mode", mode: id }) }}
                         className="cursor-pointer"
                     >
                         <Icon className="h-4 w-4 mr-1" />
@@ -1073,7 +1074,10 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
         if (map) setTerraDrawOpacity(map, newOpacity)
     }
 
-    const exportGeoJSON = () => downloadGeoJSON(features, 'drawings')
+    const exportGeoJSON = () => {
+        track("tools-drawing", { action: "export", features: features.length })
+        downloadGeoJSON(features, 'drawings')
+    }
 
     const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
@@ -1094,6 +1098,7 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
             const raw = truncated.type === 'FeatureCollection' ? truncated.features : [truncated]
             const newFeatures = parseFeatures(raw, importLayer.id)
             if (newFeatures.length === 0) return
+            track("tools-drawing", { action: "import", features: newFeatures.length, format: ext })
 
             // Accumulate on top of whatever's already drawn/imported instead of
             // wiping it — importing a second file (or re-importing after a manual

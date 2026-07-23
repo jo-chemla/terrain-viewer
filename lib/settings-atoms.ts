@@ -2,6 +2,14 @@ import { atomWithStorage } from "jotai/utils"
 import { atom } from "jotai"
 import type { ProjectConfig } from "./project-config"
 
+// Timestamp (ms) of the last time each viz-mode was switched on, keyed by its
+// show-flag name. Written by TerrainControlPanel's edge detector, read by the
+// Section header to show a 3s "just turned on" breathing dot. Lives in an atom
+// (not Section-local state) because each Options section unmounts while its
+// mode is off and remounts already-on when toggled — so the false→true edge is
+// invisible from inside the freshly-mounted Section itself.
+export const vizActivationAtom = atom<Record<string, number>>({})
+
 export const mapboxKeyAtom = atomWithStorage("mapboxKey", "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw")
 export const googleKeyAtom = atomWithStorage("googleKey", "AIzaSyAo6DIOnhYdywBidl4clsPZPkQkXfq6QhI")
 export const mapzenKeyAtom = atomWithStorage("mapzenKey", "mapzen-xxxxxxx")

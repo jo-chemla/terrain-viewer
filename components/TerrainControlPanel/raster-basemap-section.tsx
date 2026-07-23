@@ -45,7 +45,7 @@ export const RasterBasemapSection: React.FC<{
   if (!state.showRasterBasemap) return null
 
   return (
-    <Section title="Basemap" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
+    <Section title="Basemap" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator} pulseKey="showRasterBasemap">
       <Collapsible open={isWorldwideOpen} onOpenChange={setIsWorldwideOpen}>
         <div className="flex items-center justify-between gap-2">
           <CollapsibleTrigger className="flex-1 min-w-0 text-left cursor-pointer">

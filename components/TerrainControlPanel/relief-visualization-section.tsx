@@ -42,6 +42,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
       title="Relief Visualization"
       isOpen={isOpen}
       onOpenChange={onOpenChange}
+      pulseKey="showReliefVisualization"
       headerExtra={<AdvancedModeToggle advanced={advanced} onToggle={() => setAdvanced(!advanced)} />}
     >
       <div className="space-y-4">
@@ -49,7 +50,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
           <CheckboxWithSlider
             id="relief-visualization-lrm"
             label="Local Relief Model"
-            tooltip="Elevation relative to a smoothed regional trend (wider neighborhood than Topographic Position)."
+            tooltip="Elevation relative to a smoothed regional trend (wider neighborhood than Topographic Position). Somewhat like HAG (Height Above Ground), but the 'ground' is that smoothed local trend, not a classified bare-earth surface."
             checked={state.showLrm}
             onCheckedChange={(checked) => setState({ showLrm: checked })}
             sliderValue={state.lrmOpacity}

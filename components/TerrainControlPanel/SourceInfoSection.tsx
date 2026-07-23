@@ -40,6 +40,18 @@ export const SourceInfoSection: React.FC<{
 
   const sourceKind = sourceKindOf(state.sourceA)
 
+  // Drive the "show data provenance at map center" probe from the section's own
+  // expand/collapse: expanding turns it on, collapsing turns it off (per
+  // request). The manual switch still lets you override it while expanded — the
+  // sync only fires on an actual open/close transition.
+  useEffect(() => {
+    setIsActive(isOpen)
+    if (!isOpen) {
+      setResult(null)
+      setError(null)
+    }
+  }, [isOpen])
+
   const refresh = useCallback((kind: ProvenanceSourceKind) => {
     const map = mapRef.current?.getMap()
     if (!map) return

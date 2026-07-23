@@ -484,11 +484,16 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </div>
           <Separator />
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Slope and More Modes</h3>
+            <h3 className="text-sm font-semibold">Visualization Modes</h3>
             <p className="text-xs text-muted-foreground">
-              Most of these modes are supported by — and inspired by — <span className="font-semibold text-foreground">gdaldem</span>{" "}
+              Grouped as they are in the panel — <span className="font-semibold text-foreground">Terrain Analysis</span>{" "}
+              (surface derivatives + neighborhood statistics), <span className="font-semibold text-foreground">Relief Visualization</span>{" "}
+              (multi-scale relief / visibility) and <span className="font-semibold text-foreground">Light</span> (normal-based shading).
+              Most are supported by — and inspired by — <span className="font-semibold text-foreground">gdaldem</span>{" "}
               and the <span className="font-semibold text-foreground">RVT (Relief Visualization Toolbox)</span> QGIS plugin.
             </p>
+
+            <div className="pt-1 text-xs font-semibold text-foreground">Terrain Analysis</div>
             <div className="space-y-1.5 text-xs text-muted-foreground">
               <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
               <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
@@ -505,7 +510,20 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <div><span className="font-semibold text-foreground">TPI (Topographic Position Index):</span> elevation relative to neighborhood mean</div>
               <div><span className="font-semibold text-foreground">Roughness:</span> max−min elevation in a neighborhood</div>
               <div><span className="font-semibold text-foreground">Blobness:</span> structure-tensor measure of how much the gradient direction varies across a small window (det/trace of the smoothed gradient outer-product matrix) — high at peaks, pits, saddles and knolls, near zero on a uniform slope or straight ridge/valley</div>
-              <div><span className="font-semibold text-foreground">LRM (Local Relief Model):</span> raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree</div>
+            </div>
+
+            <div className="pt-2 text-xs font-semibold text-foreground">Relief Visualization</div>
+            <div className="space-y-1.5 text-xs text-muted-foreground">
+              <div><span className="font-semibold text-foreground">LRM (Local Relief Model):</span> raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree. Conceptually close to <span className="font-medium text-foreground">HAG (Height Above Ground)</span>, but with the "ground" being that smoothed local trend surface rather than a classified bare-earth model.</div>
+              <div><span className="font-semibold text-foreground">SVF (Sky-View Factor):</span> the fraction of the sky hemisphere visible from a point (0–1), estimated from horizon angles sampled in many directions — darkens enclosed valleys and pits, brightens exposed ridges and summits, independent of any light direction</div>
+              <div><span className="font-semibold text-foreground">Openness (Positive / Negative):</span> the mean zenith (positive) or nadir (negative) horizon angle over a search radius — positive openness emphasizes convex, exposed features (ridges, crests), negative openness emphasizes concave ones (channels, pits); a diffuse, illumination-free relief</div>
+              <div><span className="font-semibold text-foreground">Local Dominance:</span> how much a location visually towers over its surroundings — the mean angular drop to the terrain around it across a radius range, highlighting locally elevated features such as mounds, plateaus and terraces</div>
+            </div>
+
+            <div className="pt-2 text-xs font-semibold text-foreground">Light</div>
+            <div className="space-y-1.5 text-xs text-muted-foreground">
+              <div><span className="font-semibold text-foreground">Matcap (material capture):</span> looks up a surface colour from a pre-lit sphere image using the surface normal as UV coordinates — a stylized, art-directable shading that doesn't depend on a directional light</div>
+              <div><span className="font-semibold text-foreground">Phong:</span> real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; "3D Slow" drapes over terrain/globe via raster tiles, "2D Fast" is a live GPU shader (see the Lighting Effects panel)</div>
               <div className="pt-1 italic">Neighborhood usually refers to a 3×3 kernel centered on the pixel.</div>
             </div>
           </div>

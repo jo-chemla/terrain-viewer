@@ -33,6 +33,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       withSeparator={withSeparator}
+      pulseKey="showTerrainAnalysis"
       headerExtra={<AdvancedModeToggle advanced={advanced} onToggle={() => setAdvanced(!advanced)} />}
     >
       <div className="space-y-4">

@@ -239,7 +239,7 @@ export const LightingEffectsOptionsSection: React.FC<{
   if (!state.showLightingEffects) return null
 
   return (
-    <Section title="Lighting Effects" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section title="Lighting Effects" isOpen={isOpen} onOpenChange={onOpenChange} pulseKey="showLightingEffects">
       <div className="space-y-4">
         {/* ─── Matcap sub-mode ─── */}
         <div className="space-y-2">

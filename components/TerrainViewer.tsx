@@ -721,32 +721,72 @@ export function TerrainViewer() {
   // initial mount, so defaults / URL-restored state aren't miscounted as usage.
   const analyticsPrev = useRef<Record<string, unknown> | null>(null)
   useEffect(() => {
-    const VIZ_MODES = [
+    // Master viz-mode toggles (the "Visualization Modes" checkboxes) vs the
+    // sub-modes housed inside them — tracked as separate event names so the
+    // dashboard can tell "opened Relief Visualization" from "used SVF".
+    const VIZ_MASTERS = [
       "showHillshade", "showColorRelief", "showRasterBasemap", "showContoursAndGraticules", "showBackground",
-      "showLightingEffects", "showMatcap", "showPhong",
-      "showReliefVisualization", "showLrm", "showSvf", "showOpenness", "showLocalDominance",
-      "showTerrainAnalysis", "showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showBlobness",
-      "showPlaneSlicer", "showTellsDetector",
+      "showLightingEffects", "showReliefVisualization", "showTerrainAnalysis",
     ] as const
+    const VIZ_SUBMODES = [
+      "showMatcap", "showPhong",
+      "showLrm", "showSvf", "showOpenness", "showLocalDominance",
+      "showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showBlobness",
+      "showContours", "showGraticules",
+    ] as const
+    const activeBasemap = state.basemapPerView ? state.basemapSourceA : state.basemapSource
     const prev = analyticsPrev.current
     const snapshot: Record<string, unknown> = {
-      viewMode: state.viewMode, phongRenderer: state.phongRenderer, sourceA: state.sourceA,
+      viewMode: state.viewMode, phongRenderer: state.phongRenderer,
+      sourceA: state.sourceA, basemap: activeBasemap, splitScreen: state.splitScreen,
+      // A few discrete sub-mode settings worth knowing which values people pick
+      // (not every slider — just the categorical choices).
+      hillshadeMethod: state.hillshadeMethod,
+      slopeColorRamp: state.slopeColorRamp, curvatureMode: state.curvatureMode,
     }
-    for (const k of VIZ_MODES) snapshot[k] = state[k]
+    for (const k of [...VIZ_MASTERS, ...VIZ_SUBMODES]) snapshot[k] = state[k]
+    snapshot.showPlaneSlicer = state.showPlaneSlicer
+    snapshot.showTellsDetector = state.showTellsDetector
 
     if (prev) {
-      for (const k of VIZ_MODES) {
-        // Only the false→true edge — "turned it on" is the usage signal; off is noise.
-        if (state[k] && !prev[k]) track("viz-mode", { mode: k.replace(/^show/, "") })
-      }
+      // Only the false→true edge — "turned it on" is the usage signal; off is noise.
+      for (const k of VIZ_MASTERS) if (state[k] && !prev[k]) track("viz-mode", { mode: k.replace(/^show/, "") })
+      for (const k of VIZ_SUBMODES) if (state[k] && !prev[k]) track("viz-sub-mode", { mode: k.replace(/^show/, "") })
+      if (state.showPlaneSlicer && !prev.showPlaneSlicer) track("tools-elevation-picker", { mode: "plane-slicer" })
+      if (state.showTellsDetector && !prev.showTellsDetector) track("tools-tells", {})
       if (state.viewMode !== prev.viewMode) track("view-mode", { mode: state.viewMode })
       if (state.phongRenderer !== prev.phongRenderer) track("phong-renderer", { renderer: state.phongRenderer })
+      if (state.splitScreen !== prev.splitScreen) track("tools-split-screen", { enabled: state.splitScreen })
       if (state.sourceA !== prev.sourceA) {
-        track("terrain-source", { source: state.sourceA, custom: customTerrainSources.some((s) => s.id === state.sourceA) })
+        track("source-terrain", { source: state.sourceA, custom: customTerrainSources.some((s) => s.id === state.sourceA) })
       }
+      if (activeBasemap !== prev.basemap) {
+        track("source-basemap", { source: activeBasemap, custom: customBasemapSources.some((s) => s.id === activeBasemap) })
+      }
+      if (state.hillshadeMethod !== prev.hillshadeMethod) track("options-hillshade", { method: state.hillshadeMethod })
+      if (state.slopeColorRamp !== prev.slopeColorRamp) track("options-terrain-analysis", { setting: "slopeColorRamp", value: state.slopeColorRamp })
+      if (state.curvatureMode !== prev.curvatureMode) track("options-terrain-analysis", { setting: "curvatureMode", value: state.curvatureMode })
     }
     analyticsPrev.current = snapshot
-  }, [state, customTerrainSources])
+  }, [state, customTerrainSources, customBasemapSources])
+
+  // "User added a new source" — a growth in the persisted custom-source lists.
+  // The baseline is captured on the first run (jotai atomWithStorage hydrates
+  // synchronously, so mount-time restores aren't miscounted as fresh adds).
+  const prevTerrainCount = useRef<number | null>(null)
+  const prevBasemapCount = useRef<number | null>(null)
+  useEffect(() => {
+    if (prevTerrainCount.current !== null && customTerrainSources.length > prevTerrainCount.current) {
+      track("source-add", { kind: "terrain", type: customTerrainSources[customTerrainSources.length - 1]?.type })
+    }
+    prevTerrainCount.current = customTerrainSources.length
+  }, [customTerrainSources])
+  useEffect(() => {
+    if (prevBasemapCount.current !== null && customBasemapSources.length > prevBasemapCount.current) {
+      track("source-add", { kind: "basemap", type: customBasemapSources[customBasemapSources.length - 1]?.type })
+    }
+    prevBasemapCount.current = customBasemapSources.length
+  }, [customBasemapSources])
 
   // Register the COG protocol. All in-house derived protocols go through
   // withTileResultCache so hiding/re-showing a mode (which makes maplibre drop
@@ -1000,13 +1040,9 @@ export function TerrainViewer() {
     }
   }, [])
 
-  // Reset to north-up 2D view when switching to 2D mode
-  useEffect(() => {
-    if (mapARef.current && state.viewMode === "2d") {
-      const map = mapARef.current.getMap()
-      map.easeTo({ bearing: 0, pitch: 0, duration: 500 })
-    }
-  }, [state.viewMode])
+  // 2D no longer force-resets to north-up/flat on entry — rotation and pitch are
+  // allowed in 2D again (per request), so switching to 2D keeps the current
+  // bearing/pitch instead of snapping them to 0.
 
   const { theme } = useTheme()
   // const theme = state.theme
@@ -1305,8 +1341,8 @@ export function TerrainViewer() {
             latitude: state.lat,
             longitude: state.lng,
             zoom: state.zoom,
-            pitch: state.viewMode === "2d" ? 0 : state.pitch,
-            bearing: state.viewMode === "2d" ? 0 : state.bearing,
+            pitch: state.pitch,
+            bearing: state.bearing,
           }}
           onMove={isPrimary ? onMoveA : onMoveB}
           onMoveEnd={isPrimary ? onMoveEndA : onMoveEndB}
@@ -1347,15 +1383,17 @@ export function TerrainViewer() {
           }}
           sky={state.showBackground ? getSkyConfig() : getNoSkyConfig()}
           minPitch={0}
-          maxPitch={state.viewMode === "2d" ? 0 : 85}
-          rollEnabled={state.viewMode !== "2d"}
+          // 2D is now freely rotatable + pitchable like 3D/globe (per request);
+          // no viewMode gating on pitch/rotate anymore.
+          maxPitch={85}
+          rollEnabled={true}
           // pitchWithRotate is a maplibre-gl-js *construction-time-only* option — there's no
           // imperative setter, so gating it on viewMode meant a map first created in "2d" mode
           // (pitchWithRotate baked in as false) stayed locked out of right-click-drag pitch
           // forever after switching to 3d/globe. maxPitch=0 already fully enforces the 2d
           // pitch lock, so this can just stay true and let maxPitch do the gating.
           pitchWithRotate={true}
-          dragRotate={state.viewMode !== "2d"}
+          dragRotate={true}
           // touchZoomRotate={state.viewMode !== "2d"}
           touchZoomRotate={true}
           // terrain={{

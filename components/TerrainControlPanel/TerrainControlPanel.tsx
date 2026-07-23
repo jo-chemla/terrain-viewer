@@ -7,7 +7,7 @@ import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home }
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom } from "@/lib/settings-atoms"
+import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
 import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
@@ -205,11 +205,68 @@ export function TerrainControlPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSidebarOpen])
 
-  // Save scroll position on scroll
+  // Scroll-fade (shadcn/ui "scroll-fade" util): soften the top/bottom edges of
+  // the panel with a mask gradient, but ONLY the edge that actually has more
+  // content past it — so the very first/last row is never faded when there's
+  // nothing to scroll to. `fade` holds which edges are currently active.
+  const [fade, setFade] = useState({ top: false, bottom: false })
+  const updateFade = useCallback((el: HTMLElement | null) => {
+    if (!el) return
+    const top = el.scrollTop > 4
+    const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 4
+    setFade((f) => (f.top === top && f.bottom === bottom ? f : { top, bottom }))
+  }, [])
+
+  // Save scroll position on scroll (and refresh the fade edges).
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const scrollTop = e.currentTarget.scrollTop
-    setScrollPosition(scrollTop)
-  }, [setScrollPosition])
+    const el = e.currentTarget
+    setScrollPosition(el.scrollTop)
+    updateFade(el)
+  }, [setScrollPosition, updateFade])
+
+  // Recompute fade when content height changes (sections expand/collapse) or the
+  // panel resizes, not just on scroll — otherwise expanding a section below the
+  // fold wouldn't turn the bottom fade on until the first scroll tick.
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    updateFade(el)
+    const ro = new ResizeObserver(() => updateFade(el))
+    ro.observe(el)
+    for (const child of Array.from(el.children)) ro.observe(child)
+    return () => ro.disconnect()
+  }, [updateFade, isSidebarOpen])
+
+  const FADE_PX = 28
+  const scrollMask = `linear-gradient(to bottom, ${fade.top ? "transparent" : "#000"} 0, #000 ${FADE_PX}px, #000 calc(100% - ${FADE_PX}px), ${fade.bottom ? "transparent" : "#000"} 100%)`
+
+  // Records when each viz-mode is switched on so the corresponding Section can
+  // show its 3s breathing dot. Lives here (a component that never unmounts)
+  // because the Options sections themselves unmount while off — see
+  // vizActivationAtom. The first run only seeds the baseline (no pulse for
+  // whatever's already on at load / URL-restored).
+  const [, setVizActivation] = useAtom(vizActivationAtom)
+  const prevVizRef = useRef<Record<string, boolean> | null>(null)
+  useEffect(() => {
+    const flags: Record<string, boolean> = {
+      showHillshade: state.showHillshade, showColorRelief: state.showColorRelief,
+      showRasterBasemap: state.showRasterBasemap, showContoursAndGraticules: state.showContoursAndGraticules,
+      showBackground: state.showBackground, showLightingEffects: state.showLightingEffects,
+      showReliefVisualization: state.showReliefVisualization, showTerrainAnalysis: state.showTerrainAnalysis,
+    }
+    const prev = prevVizRef.current
+    if (prev) {
+      const now = Date.now()
+      const updates: Record<string, number> = {}
+      for (const k in flags) if (flags[k] && !prev[k]) updates[k] = now
+      if (Object.keys(updates).length) setVizActivation((p) => ({ ...p, ...updates }))
+    }
+    prevVizRef.current = flags
+  }, [
+    state.showHillshade, state.showColorRelief, state.showRasterBasemap, state.showContoursAndGraticules,
+    state.showBackground, state.showLightingEffects, state.showReliefVisualization, state.showTerrainAnalysis,
+    setVizActivation,
+  ])
 
 
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
@@ -412,6 +469,7 @@ export function TerrainControlPanel({
           // content's natural height — without it, overflow-y-auto here would
           // never kick in and this div would just keep growing Card taller.
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-4 space-y-2"
+          style={{ maskImage: scrollMask, WebkitMaskImage: scrollMask }}
         >
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
         <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />

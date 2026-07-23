@@ -35,6 +35,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Section, GroupHeading } from "./controls-components"
 import { atomWithStorage } from "jotai/utils"
 import { useAtom } from "jotai"
+import { track } from "@/lib/analytics"
 
 // import { type AppSnapshot, type CameraPose, encodeSnapshot, decodeSnapshot } from "@/lib/pose-codec"
 // import { animEngine, spinEngine, fovEngine } from "@/lib/animation-engine"
@@ -882,6 +883,12 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
 
     stopPlay()
     setExporting(true); setExportProgress(0); setExportCodec("")
+    track("tools-animation", {
+      action: "video-export",
+      durationSec: Math.round(durationMsRef.current / 100) / 10,
+      resolution: resolutionKey,
+      fps,
+    })
 
     let targetW = selectedResolution.width; let targetH = selectedResolution.height
     if (targetW === 0) {

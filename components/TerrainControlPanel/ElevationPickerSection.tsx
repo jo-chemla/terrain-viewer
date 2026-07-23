@@ -17,6 +17,7 @@ import { getClientExportSource } from "@/lib/client-export"
 import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint, sampleClientElevationProfile, type ProfilePoint } from "@/lib/elevation-query"
 import { ElevationProfileChart, computeLineOfSight } from "./elevation-profile-chart"
 import { PlaneSlicerFields } from "./plane-slicer-fields"
+import { track } from "@/lib/analytics"
 
 const PROFILE_SAMPLES = 160
 
@@ -70,7 +71,7 @@ export const ElevationPickerSection: React.FC<{
   // Profile / line-of-sight sub-tool: samples the DEM along the line between the
   // two picked points and charts it, flagging terrain that blocks the direct
   // sight line (with an optional equal mast/pole height at each end).
-  const [profileMode, setProfileMode] = useState(false)
+  const [profileMode, setProfileMode] = useState(true)
   const [profilePoints, setProfilePoints] = useState<ProfilePoint[]>([])
   const [profileLoading, setProfileLoading] = useState(false)
   const [poleHeight, setPoleHeight] = useState(0)
@@ -325,8 +326,9 @@ export const ElevationPickerSection: React.FC<{
 
   const handleToggle = useCallback((checked: boolean) => {
     setIsActive(checked)
+    if (checked) track("tools-elevation-picker", { mode: profileMode ? "profile" : "picker" })
     if (!checked) { setPoints([]); setProfilePoints([]) }
-  }, [])
+  }, [profileMode])
 
   const lineOfSight = profileMode ? computeLineOfSight(profilePoints, poleHeight) : null
 
@@ -428,7 +430,7 @@ export const ElevationPickerSection: React.FC<{
             <Switch
               id="elevation-profile-toggle"
               checked={profileMode}
-              onCheckedChange={setProfileMode}
+              onCheckedChange={(v) => { setProfileMode(v); if (isActive && v) track("tools-elevation-picker", { mode: "profile" }) }}
               className="cursor-pointer"
             />
           </div>

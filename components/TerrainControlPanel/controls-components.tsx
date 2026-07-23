@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { LucideIcon } from "lucide-react"
 import { atom, useAtom } from "jotai"
 import { cn } from "@/lib/utils"
-import { activeSliderAtom, transparentUiAtom } from "@/lib/settings-atoms"
+import { activeSliderAtom, transparentUiAtom, vizActivationAtom } from "@/lib/settings-atoms"
 
 
 // ─── Active-slider atom (global, no prop drilling) ────────────────────────────
@@ -168,12 +168,33 @@ export const Section: React.FC<{
   // header into a title-trigger and a chevron-trigger with this slot between
   // them doesn't change the "click anywhere in the header to expand" feel.
   headerExtra?: React.ReactNode
+  // The show-flag name of this section's viz-mode (e.g. "showLrm"). When that
+  // mode is switched on, a breathing dot appears next to the title for 3s. The
+  // activation timestamp is read from vizActivationAtom (written by
+  // TerrainControlPanel) rather than tracked here, because the section remounts
+  // already-on when toggled, hiding any local false→true edge.
+  pulseKey?: string
   children: React.ReactNode
-}> = ({ title, isOpen, onOpenChange, withSeparator = true, headerExtra, children }) => {
+}> = ({ title, isOpen, onOpenChange, withSeparator = true, headerExtra, pulseKey, children }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
+  const [vizActivation] = useAtom(vizActivationAtom)
   const autoId = useId()
   const isMine = activeSlider !== null && activeSlider.startsWith(autoId + ":")
   const dim = activeSlider !== null && !isMine
+
+  // Breathing "just activated" dot — on for the remainder of 3s from the moment
+  // this section's mode was switched on (works across the mount that toggling
+  // causes: on mount we read how long ago the activation was).
+  const activatedAt = pulseKey ? vizActivation[pulseKey] : undefined
+  const [pulse, setPulse] = useState(false)
+  useEffect(() => {
+    if (!activatedAt) return
+    const remaining = 3000 - (Date.now() - activatedAt)
+    if (remaining <= 0) return
+    setPulse(true)
+    const t = setTimeout(() => setPulse(false), remaining)
+    return () => clearTimeout(t)
+  }, [activatedAt])
 
   return (
     <>
@@ -182,8 +203,15 @@ export const Section: React.FC<{
           "flex items-center justify-between w-full py-2 transition-opacity duration-150",
           dim && "opacity-20"
         )}>
-          <CollapsibleTrigger className="flex-1 min-w-0 text-base font-medium text-left cursor-pointer">
+          <CollapsibleTrigger className="flex-1 min-w-0 text-base font-medium text-left cursor-pointer flex items-center gap-2">
             <span className="text-left">{title}</span>
+            {pulse && (
+              // Breathing dot: a pinging ring + solid core in the primary color.
+              <span className="relative inline-flex h-2 w-2 shrink-0" aria-hidden>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              </span>
+            )}
           </CollapsibleTrigger>
           <div className="flex items-center gap-3 shrink-0">
             {headerExtra}
