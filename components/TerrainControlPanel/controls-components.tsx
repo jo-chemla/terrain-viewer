@@ -211,8 +211,10 @@ export const Section: React.FC<{
               // breathing room from the title beyond the flex gap.
               <span className="breathing-dot ml-1 shrink-0" aria-hidden>
                 <span className="ripple-ring" />
+                {/*
                 <span className="ripple-ring" />
                 <span className="ripple-ring" />
+                */ }
                 <span className="ripple-core" />
               </span>
             )}
