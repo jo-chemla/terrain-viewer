@@ -25,6 +25,7 @@ import { MAX_BOUNDS_MODES, unionBounds, bufferBounds, resolveCustomSourceBounds,
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { getProjectConfig } from "@/lib/project-config"
 import { useTheme } from "@/lib/controls-utils"
+import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS } from "./TerrainControlPanel/raster-basemap-section"
 import customSourcesData from "@/lib/custom-sources.json"
@@ -211,7 +212,7 @@ export function TerrainViewer() {
     // lighting-effects-options-section.tsx). Composites (multiplies) with
     // each sub-mode's own opacity below, same master-vs-submode pattern as
     // Relief Visualization's LRM/SVF/Openness.
-    showLightingEffects: parseAsBoolean.withDefault(true),
+    showLightingEffects: parseAsBoolean.withDefault(false),
     lightingEffectsOpacity: parseAsFloat.withDefault(1.0),
     // "Matcap" sub-mode (lib/matcap-protocol.ts) — a plain raster overlay
     // (draped over 3D terrain the same automatic way the raster basemap is)
@@ -277,7 +278,7 @@ export function TerrainViewer() {
     // Master opacity for Terrain Analysis — composites (multiplies) with each
     // sub-mode's own opacity below, rather than replacing it.
     terrainAnalysisOpacity: parseAsFloat.withDefault(1.0),
-    showReliefVisualization: parseAsBoolean.withDefault(true),
+    showReliefVisualization: parseAsBoolean.withDefault(false),
     reliefVisualizationOpacity: parseAsFloat.withDefault(1.0),
     showSlope: parseAsBoolean.withDefault(true),
     slopeOpacity: parseAsFloat.withDefault(1.0),
@@ -711,6 +712,41 @@ export function TerrainViewer() {
   useEffect(() => {
     setMapLibreReady(true)
   }, [])
+
+  // ─── Feature-usage analytics (umami custom events) ─────────────────────────
+  // Discrete, intentional-action events — a viz mode switched on, the view mode
+  // or Phong renderer changed, a terrain source picked — so the dashboard shows
+  // what people actually USE, distinct from the (query-param-driven) pageview
+  // stream. A ref snapshot fires events only on real transitions and skips the
+  // initial mount, so defaults / URL-restored state aren't miscounted as usage.
+  const analyticsPrev = useRef<Record<string, unknown> | null>(null)
+  useEffect(() => {
+    const VIZ_MODES = [
+      "showHillshade", "showColorRelief", "showRasterBasemap", "showContoursAndGraticules", "showBackground",
+      "showLightingEffects", "showMatcap", "showPhong",
+      "showReliefVisualization", "showLrm", "showSvf", "showOpenness", "showLocalDominance",
+      "showTerrainAnalysis", "showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showBlobness",
+      "showPlaneSlicer", "showTellsDetector",
+    ] as const
+    const prev = analyticsPrev.current
+    const snapshot: Record<string, unknown> = {
+      viewMode: state.viewMode, phongRenderer: state.phongRenderer, sourceA: state.sourceA,
+    }
+    for (const k of VIZ_MODES) snapshot[k] = state[k]
+
+    if (prev) {
+      for (const k of VIZ_MODES) {
+        // Only the false→true edge — "turned it on" is the usage signal; off is noise.
+        if (state[k] && !prev[k]) track("viz-mode", { mode: k.replace(/^show/, "") })
+      }
+      if (state.viewMode !== prev.viewMode) track("view-mode", { mode: state.viewMode })
+      if (state.phongRenderer !== prev.phongRenderer) track("phong-renderer", { renderer: state.phongRenderer })
+      if (state.sourceA !== prev.sourceA) {
+        track("terrain-source", { source: state.sourceA, custom: customTerrainSources.some((s) => s.id === state.sourceA) })
+      }
+    }
+    analyticsPrev.current = snapshot
+  }, [state, customTerrainSources])
 
   // Register the COG protocol. All in-house derived protocols go through
   // withTileResultCache so hiding/re-showing a mode (which makes maplibre drop

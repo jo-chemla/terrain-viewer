@@ -12,13 +12,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=Outfit&family=Plus+Jakarta+Sans&family=Playfair+Display&family=Merriweather&family=JetBrains+Mono&family=Fira+Code&family=Gabriela&family=Delius+Swash+Caps&family=Geist+Mono&family=Source+Code+Pro&family=Source+Serif+4&family=IBM+Plex+Mono&family=Libre+Baskerville&family=Lora&family=PT+Serif&family=Roboto+Mono&family=Space+Mono&family=Ubuntu+Mono&family=Barlow&family=DM+Sans&family=Geist&family=Lato&family=Montserrat&family=Nunito&family=Open+Sans&family=Poppins&family=Roboto&display=swap" />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css" />
     <link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.7.0/dist/maplibre-gl-geocoder.css" />
-    <!-- data-exclude-search: this is a nuqs-driven SPA, so almost all app state
-         lives in the URL query string and changes constantly (light dir, viz
-         toggles, viewport…). Without this, umami counted every query change as a
-         brand-new pageview — 100x inflation per real visitor. Excluding the
-         search string collapses them back to one page per visit. Use custom
-         events (umami.track('feature', {…})) for feature-usage analytics. -->
-    <script defer src="https://cloud.umami.is/script.js" data-website-id="89d911b9-9de7-4665-872e-5b91ff4b7b39" data-exclude-search="true"></script>
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="89d911b9-9de7-4665-872e-5b91ff4b7b39"></script>
 
     <meta name="og:title" property="og:title" content="Terrain Viewer" />
     <meta name="og:description" property="og:description" content="Viewer for DSM/DTM 3D Terrain via hillshade, hypso color-relief, maplibre contours, raster basemap etc" />

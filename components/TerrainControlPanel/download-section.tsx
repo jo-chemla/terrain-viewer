@@ -12,6 +12,7 @@ import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captu
 import { getClientExportSource, exportElevationClientSide } from "@/lib/client-export"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { mergeContourLines } from "@/lib/merge-contours"
+import { track } from "@/lib/analytics"
 import { ShareButton } from "./ShareSection"
 import { TooltipButton } from "./controls-components"
 import { Progress } from "@/components/ui/progress"
@@ -54,6 +55,7 @@ export const DownloadSection: React.FC<{
     try {
       const success = await captureAndCopyMapToClipboard(mapRef)
       if (success) {
+        track("export", { kind: "snapshot-clipboard" })
         console.log("Snapshot copied to clipboard")
       } else {
         console.error("Failed to copy snapshot")
@@ -79,6 +81,7 @@ export const DownloadSection: React.FC<{
       }
       
       saveAs(blob, `${filename}.jpg`)
+      track("export", { kind: "screenshot", viewMode: state.viewMode })
 
       // Generate world file if in 2D mode
       if (state.viewMode === "2d") {
@@ -195,6 +198,7 @@ export const DownloadSection: React.FC<{
     setIsExporting(true)
     setExportError("")
     setExportProgress(useClientExport ? 0 : null)
+    track("export", { kind: "dtm", mode: useClientExport ? "client" : "titiler" })
     try {
       if (useClientExport) {
         await exportDTMClientSide()
@@ -224,6 +228,7 @@ export const DownloadSection: React.FC<{
     // Stitches contour segments that were only cut apart by tile boundaries back
     // into single continuous lines — see lib/merge-contours.ts.
     downloadGeoJSON(mergeContourLines(features as GeoJSON.Feature[]), 'contours')
+    track("export", { kind: "contours" })
   }, [mapRef])
 
   return (
