@@ -254,10 +254,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             {/* Color Theme — a sub-section of Appearance (light/dark lives right
                 above it here). */}
             <div className="pt-1 space-y-2">
+              <div className="flex items-baseline gap-2">
               <Label className="text-sm font-medium">Color Theme</Label>
               <p className="text-xs text-muted-foreground">
-                Preset UI color palette (<a href="https://github.com/BankkRoll/tweakcn-theme-picker" target="_blank" rel="noopener noreferrer" className="underline">tweakcn</a>) — light/dark follows the Theme toggle above.
+                Preset UI color palette/font/radius (<a href="https://tweakcn.com/" target="_blank" rel="noopener noreferrer" className="underline">tweakcn</a>, <a href="https://themux.vercel.app/shadcn-themes" target="_blank" rel="noopener noreferrer" className="underline">themux</a>, <a href="https://shadcnstudio.com/" target="_blank" rel="noopener noreferrer" className="underline">shadcnstudio</a>)
               </p>
+              </div>
               <div className="flex gap-2">
                 <div className="flex-[2] min-w-0">
                   <ColorThemeSelect />
@@ -266,9 +268,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   Advanced Theme Editor
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Live-edit every color/radius/shadow/font token (see theme-editor/README.md) and copy the result as a new preset CSS block.
-              </p>
             </div>
           </div>
           <Separator />
@@ -282,8 +281,55 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </div>
           </div>
           <Separator />
+          
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Visualization Modes</h3>
+            <p className="text-xs text-muted-foreground">
+              Grouped as they are in the panel — <span className="font-semibold text-foreground">Terrain Analysis</span>{" "}
+              (surface derivatives + neighborhood statistics), <span className="font-semibold text-foreground">Relief Visualization</span>{" "}
+              (multi-scale relief / visibility) and <span className="font-semibold text-foreground">Light</span> (normal-based shading).
+              Most are supported by — and inspired by — <span className="font-semibold text-foreground">gdaldem</span>{" "}
+              and the <span className="font-semibold text-foreground">RVT (Relief Visualization Toolbox)</span> QGIS plugin.
+            </p>
+
+            <div className="pt-1 text-xs font-semibold text-foreground">Terrain Analysis</div>
+            <div className="space-y-1.5 text-xs text-muted-foreground">
+              <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
+              <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
+              <div>
+                <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change — Profile, Plan, Mean/Combined, or Gaussian (Det Hessian)</div>
+                <ul className="list-disc pl-5 pt-1 space-y-1">
+                  <li><span className="font-medium text-foreground">Profile (Flow Acceleration):</span> rate of slope change along the steepest-descent direction, affects flow acceleration</li>
+                  <li><span className="font-medium text-foreground">Plan (Convergence/Divergence):</span> rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)</li>
+                  <li><span className="font-medium text-foreground">Mean/Combined:</span> discrete Laplacian (∇²z) — mean curvature H = (κ₁+κ₂)/2, general surface bending that doesn't separate flow direction from contour direction</li>
+                  <li><span className="font-medium text-foreground">Gaussian Curvature (Det Hessian):</span> determinant of the Hessian (fxx·fyy − fxy²) — Gaussian curvature K = κ₁·κ₂, a blob/saddle detector, positive at bowl/dome-shaped extrema and negative at saddle points</li>
+                </ul>
+              </div>
+              <div><span className="font-semibold text-foreground">TRI (Terrain Ruggedness Index):</span> mean elevation difference to neighbors</div>
+              <div><span className="font-semibold text-foreground">TPI (Topographic Position Index):</span> elevation relative to neighborhood mean</div>
+              <div><span className="font-semibold text-foreground">Roughness:</span> max−min elevation in a neighborhood</div>
+              <div><span className="font-semibold text-foreground">Blobness:</span> structure-tensor measure of how much the gradient direction varies across a small window (det/trace of the smoothed gradient outer-product matrix) — high at peaks, pits, saddles and knolls, near zero on a uniform slope or straight ridge/valley</div>
+            </div>
+
+            <div className="pt-2 text-xs font-semibold text-foreground">Relief Visualization</div>
+            <div className="space-y-1.5 text-xs text-muted-foreground">
+              <div><span className="font-semibold text-foreground">LRM (Local Relief Model):</span> raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree. Conceptually close to <span className="font-medium text-foreground">HAG (Height Above Ground)</span>, but with the "ground" being that smoothed local trend surface rather than a classified bare-earth model.</div>
+              <div><span className="font-semibold text-foreground">SVF (Sky-View Factor):</span> the fraction of the sky hemisphere visible from a point (0–1), estimated from horizon angles sampled in many directions — darkens enclosed valleys and pits, brightens exposed ridges and summits, independent of any light direction</div>
+              <div><span className="font-semibold text-foreground">Openness (Positive / Negative):</span> the mean zenith (positive) or nadir (negative) horizon angle over a search radius — positive openness emphasizes convex, exposed features (ridges, crests), negative openness emphasizes concave ones (channels, pits); a diffuse, illumination-free relief</div>
+              <div><span className="font-semibold text-foreground">Local Dominance:</span> how much a location visually towers over its surroundings — the mean angular drop to the terrain around it across a radius range, highlighting locally elevated features such as mounds, plateaus and terraces</div>
+            </div>
+
+            <div className="pt-2 text-xs font-semibold text-foreground">Light</div>
+            <div className="space-y-1.5 text-xs text-muted-foreground">
+              <div><span className="font-semibold text-foreground">Matcap (material capture):</span> looks up a surface colour from a pre-lit sphere image using the surface normal as UV coordinates — a stylized, art-directable shading that doesn't depend on a directional light</div>
+              <div><span className="font-semibold text-foreground">Phong:</span> real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; "3D Slow" drapes over terrain/globe via raster tiles, "2D Fast" is a live GPU shader (see the Lighting Effects panel)</div>
+              <div className="pt-1 italic">Neighborhood usually refers to a 3×3 kernel centered on the pixel.</div>
+            </div>
+          </div>
+          <Separator />
 
           <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Streaming Settings</h3>
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">COG Streaming Settings</Label>
               <SegmentedToggle
@@ -354,12 +400,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 onCheckedChange={setCacheVizTiles}
               />
             </div>
+              
+            <div className="flex gap-2">
+              <Label className="flex-1 min-w-0" htmlFor="titiler-endpoint">Titiler Endpoint</Label>
+              <Input className="flex-2 min-w-0 cursor-text" id="titiler-endpoint" type="text" placeholder="https://titiler.xyz" value={titilerEndpoint} onChange={(e) => setTitilerEndpoint(e.target.value)} />
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="titiler-endpoint">Titiler Endpoint</Label>
-            <Input id="titiler-endpoint" type="text" placeholder="https://titiler.xyz" value={titilerEndpoint} onChange={(e) => setTitilerEndpoint(e.target.value)} className="cursor-text" />
-          </div>
 
           <Separator />
           <div className="space-y-4">
@@ -460,6 +507,16 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <span className="font-semibold text-foreground">Det-Hessian</span> (rejects saddle points, keeps bowl/dome shapes).
             </p>
           </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold">Terrain Encoding Functions</h3>
+            <div className="space-y-2 text-sm font-mono bg-muted p-3 rounded">
+              <div><span className="font-semibold">TerrainRGB:</span><br /><code>height = -10000 + ((R * 256 * 256 + G * 256 + B) * 0.1)</code></div>
+              <div className="mt-2"><span className="font-semibold">Terrarium:</span><br /><code>height = (R * 256 + G + B / 256) - 32768</code></div>
+            </div>
+          </div>
           <Separator />
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -516,59 +573,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 </div>
               </>
             )}
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Visualization Modes</h3>
-            <p className="text-xs text-muted-foreground">
-              Grouped as they are in the panel — <span className="font-semibold text-foreground">Terrain Analysis</span>{" "}
-              (surface derivatives + neighborhood statistics), <span className="font-semibold text-foreground">Relief Visualization</span>{" "}
-              (multi-scale relief / visibility) and <span className="font-semibold text-foreground">Light</span> (normal-based shading).
-              Most are supported by — and inspired by — <span className="font-semibold text-foreground">gdaldem</span>{" "}
-              and the <span className="font-semibold text-foreground">RVT (Relief Visualization Toolbox)</span> QGIS plugin.
-            </p>
-
-            <div className="pt-1 text-xs font-semibold text-foreground">Terrain Analysis</div>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
-              <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
-              <div>
-                <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change — Profile, Plan, Mean/Combined, or Gaussian (Det Hessian)</div>
-                <ul className="list-disc pl-5 pt-1 space-y-1">
-                  <li><span className="font-medium text-foreground">Profile (Flow Acceleration):</span> rate of slope change along the steepest-descent direction, affects flow acceleration</li>
-                  <li><span className="font-medium text-foreground">Plan (Convergence/Divergence):</span> rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)</li>
-                  <li><span className="font-medium text-foreground">Mean/Combined:</span> discrete Laplacian (∇²z) — mean curvature H = (κ₁+κ₂)/2, general surface bending that doesn't separate flow direction from contour direction</li>
-                  <li><span className="font-medium text-foreground">Gaussian Curvature (Det Hessian):</span> determinant of the Hessian (fxx·fyy − fxy²) — Gaussian curvature K = κ₁·κ₂, a blob/saddle detector, positive at bowl/dome-shaped extrema and negative at saddle points</li>
-                </ul>
-              </div>
-              <div><span className="font-semibold text-foreground">TRI (Terrain Ruggedness Index):</span> mean elevation difference to neighbors</div>
-              <div><span className="font-semibold text-foreground">TPI (Topographic Position Index):</span> elevation relative to neighborhood mean</div>
-              <div><span className="font-semibold text-foreground">Roughness:</span> max−min elevation in a neighborhood</div>
-              <div><span className="font-semibold text-foreground">Blobness:</span> structure-tensor measure of how much the gradient direction varies across a small window (det/trace of the smoothed gradient outer-product matrix) — high at peaks, pits, saddles and knolls, near zero on a uniform slope or straight ridge/valley</div>
-            </div>
-
-            <div className="pt-2 text-xs font-semibold text-foreground">Relief Visualization</div>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <div><span className="font-semibold text-foreground">LRM (Local Relief Model):</span> raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree. Conceptually close to <span className="font-medium text-foreground">HAG (Height Above Ground)</span>, but with the "ground" being that smoothed local trend surface rather than a classified bare-earth model.</div>
-              <div><span className="font-semibold text-foreground">SVF (Sky-View Factor):</span> the fraction of the sky hemisphere visible from a point (0–1), estimated from horizon angles sampled in many directions — darkens enclosed valleys and pits, brightens exposed ridges and summits, independent of any light direction</div>
-              <div><span className="font-semibold text-foreground">Openness (Positive / Negative):</span> the mean zenith (positive) or nadir (negative) horizon angle over a search radius — positive openness emphasizes convex, exposed features (ridges, crests), negative openness emphasizes concave ones (channels, pits); a diffuse, illumination-free relief</div>
-              <div><span className="font-semibold text-foreground">Local Dominance:</span> how much a location visually towers over its surroundings — the mean angular drop to the terrain around it across a radius range, highlighting locally elevated features such as mounds, plateaus and terraces</div>
-            </div>
-
-            <div className="pt-2 text-xs font-semibold text-foreground">Light</div>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <div><span className="font-semibold text-foreground">Matcap (material capture):</span> looks up a surface colour from a pre-lit sphere image using the surface normal as UV coordinates — a stylized, art-directable shading that doesn't depend on a directional light</div>
-              <div><span className="font-semibold text-foreground">Phong:</span> real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; "3D Slow" drapes over terrain/globe via raster tiles, "2D Fast" is a live GPU shader (see the Lighting Effects panel)</div>
-              <div className="pt-1 italic">Neighborhood usually refers to a 3×3 kernel centered on the pixel.</div>
-            </div>
-          </div>
-          <Separator />
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Terrain Encoding Functions</h3>
-            <div className="space-y-2 text-sm font-mono bg-muted p-3 rounded">
-              <div><span className="font-semibold">TerrainRGB:</span><br /><code>height = -10000 + ((R * 256 * 256 + G * 256 + B) * 0.1)</code></div>
-              <div className="mt-2"><span className="font-semibold">Terrarium:</span><br /><code>height = (R * 256 + G + B / 256) - 32768</code></div>
-            </div>
           </div>
           <Separator />
           <div className="space-y-3">
