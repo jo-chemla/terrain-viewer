@@ -314,7 +314,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   onChange={(value) => setState({ phongRenderer: value })}
                   options={[
                     { value: "raster", label: "3D Slow", tooltip: "Drapes correctly over 3D terrain exaggeration and globe, but every light/strength change re-fetches a tile (~150ms debounced)." },
-                    { value: "live", label: "2D Fast", tooltip: state.viewMode === "globe" ? "Selectable in Globe, but currently falls back to 3D Slow rendering there (native globe support for this renderer is coming)." : "A live GPU shader, instant light/strength updates, zero tile refetch — but flat only: doesn't drape onto 3D terrain elevation." },
+                    { value: "live", label: "2D Fast", tooltip: "A live GPU shader, instant light/strength updates, zero tile refetch — projects correctly under mercator and globe, but flat only: doesn't drape onto 3D terrain elevation." },
                   ]}
                 />
               </div>

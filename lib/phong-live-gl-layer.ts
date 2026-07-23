@@ -7,25 +7,28 @@
 // plain uniforms. A slider drag is therefore a uniform write + repaint, never
 // a tile re-fetch/PNG-encode/re-decode round trip.
 //
-// FLAT ONLY, by design: this positions each tile using
-// `map.transform.getProjectionData({overscaledTileID})`'s `mainMatrix` alone
-// (the same per-tile matrix MapLibre's own hillshade/raster renderers use for
-// mercator projection), with no elevation displacement at all. That matrix is
-// documented as sufficient for "simple custom layers that also only support
-// mercator projection" (see maplibre-gl's own CustomRenderMethodInput docs) —
-// deliberately skipping globe support (no `shaderData.vertexShaderPrelude`)
-// and, more importantly, deliberately skipping terrain drape. A prior attempt
-// at draping a custom-layer mesh onto MapLibre's OWN elevated terrain surface
+// MERCATOR + GLOBE, flat (no terrain drape). Positioning goes through
+// MapLibre's OWN projection code via the per-frame `shaderData.vertexShaderPrelude`
+// (which defines `projectTile(a_pos)`) plus the projection uniforms from
+// `map.transform.getProjectionData({overscaledTileID})` — so the same tile
+// quad projects correctly under mercator AND globe, matching how MapLibre's
+// own layers do it. Because the shader variant depends on the active
+// projection (`shaderData.variantName` flips mercator↔globe), the GL program
+// is compiled lazily per variant and cached (see `programs` below): the plain
+// per-tile `u_matrix` approach used before only handled mercator, which is why
+// globe used to be unavailable for "2D Fast".
+//
+// Still FLAT (no terrain drape) by design: a prior attempt at draping a
+// custom-layer mesh onto MapLibre's OWN elevated terrain surface
 // (projectTileFor3D + a hand-built elevation buffer) never reliably matched
 // that surface and was abandoned; deep-diving MapLibre's actual render
 // internals since confirmed there is no public hook for a `type: "custom"`
 // layer to participate in MapLibre's terrain-drape/RenderToTexture pipeline
-// at all (see project memory). So: correct and instant in flat 2D/tilted-3D-
-// without-terrain-elevation and even globe's OWN flat mercator fallback, but
-// will render as a flat plane (not draped) if terrain elevation is active —
-// that's the explicit speed/correctness trade this "Fast" mode offers, with
-// lib/phong-protocol.ts's raster pipeline remaining the "Accurate" (terrain-
-// and globe-correct) alternative.
+// at all (see project memory). So: correct and instant in flat 2D, tilted-3D-
+// without-terrain-elevation, and globe, but renders as a flat plane (not
+// draped) if terrain elevation is active — that's the explicit speed/
+// correctness trade this "Fast" mode offers, with lib/phong-protocol.ts's
+// raster pipeline remaining the "Accurate" (terrain-draped) alternative.
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap, OverscaledTileID } from "maplibre-gl"
 import { createTileMesh } from "maplibre-gl"
 import { computeNormalPixels } from "./normals-protocol"
@@ -61,16 +64,25 @@ export type PhongLiveOptions = {
 // pan/zoom sessions without needing a hard tile-count cap on `coveringTiles`.
 const MAX_CACHED_TEXTURES = 96
 
-const VERTEX_SHADER = `#version 300 es
+// The vertex shader is assembled per projection variant from MapLibre's own
+// `shaderData` (see render()): the prelude declares the u_projection_* uniforms
+// and defines `projectTile(vec2)`, which projects tile-local 0..EXTENT coords
+// to clip space correctly under BOTH mercator and globe. `a_pos` is forced to
+// attribute location 0 (bindAttribLocation, see compileProgram) so the single
+// shared VAO works for every compiled variant.
+function buildVertexShader(prelude: string, define: string): string {
+  return `#version 300 es
+${prelude}
+${define}
 in vec2 a_pos;
-uniform mat4 u_matrix;
 out vec2 v_uv;
 const float TILE_EXTENT = 8192.0;
 void main() {
   v_uv = a_pos / TILE_EXTENT;
-  gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
+  gl_Position = projectTile(a_pos);
 }
 `
+}
 
 // Same Blinn-Phong math/encoding as gpu-phong-compute.ts's fragment shader
 // (kept byte-for-byte equivalent — see that file for the derivation/rationale
@@ -138,6 +150,9 @@ function compileProgram(gl: WebGL2RenderingContext, vertexSrc: string, fragmentS
   const program = gl.createProgram()!
   gl.attachShader(program, compileShader(gl, gl.VERTEX_SHADER, vertexSrc))
   gl.attachShader(program, compileShader(gl, gl.FRAGMENT_SHADER, fragmentSrc))
+  // Pin a_pos to location 0 for every variant so the single shared VAO (set up
+  // once in onAdd against index 0) stays valid no matter which program is bound.
+  gl.bindAttribLocation(program, 0, "a_pos")
   gl.linkProgram(program)
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     const info = gl.getProgramInfoLog(program)
@@ -145,6 +160,23 @@ function compileProgram(gl: WebGL2RenderingContext, vertexSrc: string, fragmentS
     throw new Error(`[phong-live-gl-layer] program link failed: ${info}`)
   }
   return program
+}
+
+// One compiled program per projection variant (mercator vs globe), each with
+// its own uniform locations — see render()'s getProgram().
+interface ProgramBundle {
+  program: WebGLProgram
+  uProjectionMatrix: WebGLUniformLocation | null
+  uProjectionTileMercatorCoords: WebGLUniformLocation | null
+  uProjectionClippingPlane: WebGLUniformLocation | null
+  uProjectionTransition: WebGLUniformLocation | null
+  uProjectionFallbackMatrix: WebGLUniformLocation | null
+  uNormalMap: WebGLUniformLocation | null
+  uLightDir: WebGLUniformLocation | null
+  uDiffuseStrength: WebGLUniformLocation | null
+  uSpecularStrength: WebGLUniformLocation | null
+  uExaggeration: WebGLUniformLocation | null
+  uOpacity: WebGLUniformLocation | null
 }
 
 interface TextureEntry {
@@ -160,17 +192,14 @@ export class PhongLiveLayer implements CustomLayerInterface {
 
   private map: MapLibreMap | null = null
   private gl: WebGL2RenderingContext | null = null
-  private program: WebGLProgram | null = null
+  // Compiled programs keyed by shaderData.variantName (mercator vs globe) —
+  // MapLibre hands us a different prelude per projection, so we can't compile
+  // a single program up front in onAdd (which has no shaderData); we compile
+  // lazily on first render for each variant and reuse thereafter.
+  private programs = new Map<string, ProgramBundle>()
   private vao: WebGLVertexArrayObject | null = null
   private indexCount = 0
   private indexType = 0
-  private uMatrix: WebGLUniformLocation | null = null
-  private uNormalMap: WebGLUniformLocation | null = null
-  private uLightDir: WebGLUniformLocation | null = null
-  private uDiffuseStrength: WebGLUniformLocation | null = null
-  private uSpecularStrength: WebGLUniformLocation | null = null
-  private uExaggeration: WebGLUniformLocation | null = null
-  private uOpacity: WebGLUniformLocation | null = null
   private textures = new Map<string, TextureEntry>()
   private pending = new Set<string>()
   private frameCounter = 0
@@ -196,27 +225,24 @@ export class PhongLiveLayer implements CustomLayerInterface {
   onAdd(map: MapLibreMap, gl: WebGL2RenderingContext) {
     this.map = map
     this.gl = gl
-    this.program = compileProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER)
-    this.uMatrix = gl.getUniformLocation(this.program, "u_matrix")
-    this.uNormalMap = gl.getUniformLocation(this.program, "u_normalMap")
-    this.uLightDir = gl.getUniformLocation(this.program, "u_lightDir")
-    this.uDiffuseStrength = gl.getUniformLocation(this.program, "u_diffuseStrength")
-    this.uSpecularStrength = gl.getUniformLocation(this.program, "u_specularStrength")
-    this.uExaggeration = gl.getUniformLocation(this.program, "u_exaggeration")
-    this.uOpacity = gl.getUniformLocation(this.program, "u_opacity")
+    // Programs are compiled lazily per projection variant in render() (we need
+    // MapLibre's per-frame shaderData for the prelude, which onAdd doesn't get).
 
-    // A single shared quad mesh (granularity 1 — no subdivision needed for
-    // flat mercator content) reused for every tile: only the per-tile
-    // `u_matrix` differs between draw calls, never the geometry itself.
-    const mesh = createTileMesh({ granularity: 1 }, "16bit")
+    // A single shared quad mesh (granularity higher than 1 so globe projection
+    // has enough vertices to curve the tile across the sphere instead of a flat
+    // chord — a 1×1 quad would visibly cut the corner under globe) reused for
+    // every tile: only the per-tile projection uniforms differ between draw
+    // calls, never the geometry itself. a_pos is bound to attribute location 0
+    // for every program variant (see compileProgram), so this one VAO is valid
+    // no matter which program is bound at draw time.
+    const mesh = createTileMesh({ granularity: 8 }, "16bit")
     this.vao = gl.createVertexArray()
     gl.bindVertexArray(this.vao)
     const vertexBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
     gl.bufferData(gl.ARRAY_BUFFER, mesh.vertices, gl.STATIC_DRAW)
-    const aPos = gl.getAttribLocation(this.program, "a_pos")
-    gl.enableVertexAttribArray(aPos)
-    gl.vertexAttribPointer(aPos, 2, gl.SHORT, false, 0, 0)
+    gl.enableVertexAttribArray(0)
+    gl.vertexAttribPointer(0, 2, gl.SHORT, false, 0, 0)
     const indexBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW)
@@ -230,12 +256,37 @@ export class PhongLiveLayer implements CustomLayerInterface {
     for (const entry of this.textures.values()) gl.deleteTexture(entry.texture)
     this.textures.clear()
     this.pending.clear()
-    if (this.program) gl.deleteProgram(this.program)
+    for (const bundle of this.programs.values()) gl.deleteProgram(bundle.program)
+    this.programs.clear()
     if (this.vao) gl.deleteVertexArray(this.vao)
-    this.program = null
     this.vao = null
     this.gl = null
     this.map = null
+  }
+
+  // Compile (once) and return the program for the current projection variant.
+  // shaderData.variantName changes whenever the prelude/projection changes, so
+  // it's the correct cache key (MapLibre's own docs recommend exactly this).
+  private getProgram(gl: WebGL2RenderingContext, shaderData: CustomRenderMethodInput["shaderData"]): ProgramBundle {
+    const existing = this.programs.get(shaderData.variantName)
+    if (existing) return existing
+    const program = compileProgram(gl, buildVertexShader(shaderData.vertexShaderPrelude, shaderData.define), FRAGMENT_SHADER)
+    const bundle: ProgramBundle = {
+      program,
+      uProjectionMatrix: gl.getUniformLocation(program, "u_projection_matrix"),
+      uProjectionTileMercatorCoords: gl.getUniformLocation(program, "u_projection_tile_mercator_coords"),
+      uProjectionClippingPlane: gl.getUniformLocation(program, "u_projection_clipping_plane"),
+      uProjectionTransition: gl.getUniformLocation(program, "u_projection_transition"),
+      uProjectionFallbackMatrix: gl.getUniformLocation(program, "u_projection_fallback_matrix"),
+      uNormalMap: gl.getUniformLocation(program, "u_normalMap"),
+      uLightDir: gl.getUniformLocation(program, "u_lightDir"),
+      uDiffuseStrength: gl.getUniformLocation(program, "u_diffuseStrength"),
+      uSpecularStrength: gl.getUniformLocation(program, "u_specularStrength"),
+      uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
+      uOpacity: gl.getUniformLocation(program, "u_opacity"),
+    }
+    this.programs.set(shaderData.variantName, bundle)
+    return bundle
   }
 
   private fetchTile(tileID: OverscaledTileID, key: string) {
@@ -282,7 +333,7 @@ export class PhongLiveLayer implements CustomLayerInterface {
     }
   }
 
-  render(glArg: WebGLRenderingContext | WebGL2RenderingContext, _args: CustomRenderMethodInput) {
+  render(glArg: WebGLRenderingContext | WebGL2RenderingContext, args: CustomRenderMethodInput) {
     // This layer's shaders are #version 300 es (WebGL2-only) — onAdd already
     // requires a WebGL2RenderingContext to compile them, so by the time
     // render() runs, glArg is always actually a WebGL2RenderingContext too
@@ -290,7 +341,7 @@ export class PhongLiveLayer implements CustomLayerInterface {
     // CustomLayerInterface signature (which also allows plain WebGL1).
     const gl = glArg as WebGL2RenderingContext
     const map = this.map
-    if (!map || !this.program || !this.vao) return
+    if (!map || !this.vao) return
 
     // render() runs every single frame with no isolation from MapLibre's own
     // render loop — an uncaught exception here (e.g. from calling a
@@ -302,18 +353,11 @@ export class PhongLiveLayer implements CustomLayerInterface {
     // failure here can't leave state that corrupts whatever layer MapLibre
     // draws next even if this layer's own draw calls didn't all complete.
     try {
-      // Deliberately flat-only (see file header) — under globe projection
-      // this layer would need shaderData.vertexShaderPrelude's projectTile()
-      // instead of a plain per-tile matrix, which isn't implemented here; the
-      // React wrapper is expected to keep this option unavailable while
-      // viewMode is "globe", but bail defensively here too in case that ever
-      // drifts. Bail ONLY on an explicit globe projection: map.getProjection()
-      // returns `undefined`/no `.type` when no projection has been set on the
-      // style (the mercator default), so the old `!== "mercator"` test wrongly
-      // bailed on EVERY frame in that (very common) case — the layer added fine
-      // but never drew, i.e. the "2D Fast is pure white while 3D Slow is fine"
-      // regression. Treat missing type as mercator.
-      if (map.getProjection()?.type === "globe") return
+      // Mercator AND globe are both handled: the program for the current
+      // projection variant is compiled from MapLibre's own per-frame
+      // shaderData (prelude + define), and projectTile() inside it does the
+      // right thing for whichever projection is active. No projection bail.
+      const bundle = this.getProgram(gl, args.shaderData)
       this.frameCounter++
 
       // Divide the covering tileSize by devicePixelRatio so a retina screen
@@ -343,14 +387,14 @@ export class PhongLiveLayer implements CustomLayerInterface {
       const ly = -Math.cos(azRad) * cosEl
       const lz = Math.sin(elRad)
 
-      gl.useProgram(this.program)
+      gl.useProgram(bundle.program)
       gl.bindVertexArray(this.vao)
-      gl.uniform1i(this.uNormalMap, 0)
-      gl.uniform3f(this.uLightDir, lx, ly, lz)
-      gl.uniform1f(this.uDiffuseStrength, this.options.diffuseStrength)
-      gl.uniform1f(this.uSpecularStrength, this.options.specularStrength)
-      gl.uniform1f(this.uExaggeration, this.options.exaggeration)
-      gl.uniform1f(this.uOpacity, this.options.opacity)
+      gl.uniform1i(bundle.uNormalMap, 0)
+      gl.uniform3f(bundle.uLightDir, lx, ly, lz)
+      gl.uniform1f(bundle.uDiffuseStrength, this.options.diffuseStrength)
+      gl.uniform1f(bundle.uSpecularStrength, this.options.specularStrength)
+      gl.uniform1f(bundle.uExaggeration, this.options.exaggeration)
+      gl.uniform1f(bundle.uOpacity, this.options.opacity)
       gl.activeTexture(gl.TEXTURE0)
 
       for (const tileID of tileIDs) {
@@ -362,12 +406,18 @@ export class PhongLiveLayer implements CustomLayerInterface {
         }
         entry.lastUsed = this.frameCounter
 
-        // Per-tile matrix from MapLibre's own projection code — this alone is
-        // "sufficient for simple custom layers that also only support mercator
-        // projection" per maplibre-gl's own docs (CustomRenderMethodInput's
-        // defaultProjectionData comment), which is exactly this layer's scope.
-        const projectionData = map.transform.getProjectionData({ overscaledTileID: tileID })
-        gl.uniformMatrix4fv(this.uMatrix, false, projectionData.mainMatrix)
+        // Per-tile projection uniforms from MapLibre's own projection code.
+        // These are exactly what shaderData.vertexShaderPrelude's projectTile()
+        // consumes, so the SAME shader handles mercator and globe — the whole
+        // point of routing through the prelude instead of a bare u_matrix.
+        // applyGlobeMatrix:true so globe gets the sphere transform (ignored,
+        // harmlessly, under mercator).
+        const p = map.transform.getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
+        gl.uniformMatrix4fv(bundle.uProjectionMatrix, false, p.mainMatrix)
+        gl.uniform4f(bundle.uProjectionTileMercatorCoords, p.tileMercatorCoords[0], p.tileMercatorCoords[1], p.tileMercatorCoords[2], p.tileMercatorCoords[3])
+        gl.uniform4f(bundle.uProjectionClippingPlane, p.clippingPlane[0], p.clippingPlane[1], p.clippingPlane[2], p.clippingPlane[3])
+        gl.uniform1f(bundle.uProjectionTransition, p.projectionTransition)
+        gl.uniformMatrix4fv(bundle.uProjectionFallbackMatrix, false, p.fallbackMatrix)
         gl.bindTexture(gl.TEXTURE_2D, entry.texture)
         gl.drawElements(gl.TRIANGLES, this.indexCount, this.indexType, 0)
       }

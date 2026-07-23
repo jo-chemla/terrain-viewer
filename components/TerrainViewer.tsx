@@ -1255,13 +1255,11 @@ export function TerrainViewer() {
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
       const isPrimary = mapId === "map-a"
-      // "live" (lib/phong-live-gl-layer.ts) is flat-only — no terrain drape,
-      // no globe (see that file's header for why) — so it silently falls
-      // back to "raster" while viewMode is "globe" rather than making Phong
-      // just disappear. lighting-effects-options-section.tsx also disables
-      // picking "live" outright while already in globe, but this covers
-      // switching TO globe while "live" was already selected.
-      const effectivePhongRenderer = state.phongRenderer === "live" && state.viewMode !== "globe" ? "live" : "raster"
+      // "live" (lib/phong-live-gl-layer.ts) now projects through MapLibre's own
+      // per-frame shaderData prelude, so it renders correctly under BOTH
+      // mercator and globe — no globe fallback needed anymore. It's still
+      // flat-only (no terrain-elevation drape); that trade-off is unchanged.
+      const effectivePhongRenderer = state.phongRenderer
 
       return (
         <Map

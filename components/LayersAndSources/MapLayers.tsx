@@ -201,7 +201,10 @@ export const MatcapRasterLayer = memo(({ enabled, opacity }: { enabled: boolean;
       id="matcap-terrain"
       type="raster"
       source="matcapSource"
-      paint={{ "raster-opacity": opacity, "raster-resampling": "linear" }}
+      // raster-fade-duration:0 for the same reason as PhongRasterLayer below —
+      // matcap params also rebuild the tile URL, and the default cross-fade
+      // flickers under 3D/globe drape.
+      paint={{ "raster-opacity": opacity, "raster-resampling": "linear", "raster-fade-duration": 0 }}
     />
   )
 })
@@ -215,7 +218,13 @@ export const PhongRasterLayer = memo(({ enabled, opacity }: { enabled: boolean; 
       id="phong-terrain"
       type="raster"
       source="phongSource"
-      paint={{ "raster-opacity": opacity, "raster-resampling": "linear" }}
+      // raster-fade-duration:0 — every light/strength/datetime change rebuilds
+      // the phong:// tile URL, so the source reloads its tiles. MapLibre's
+      // default 300ms raster cross-fade blends the OLD tiles with the NEW ones
+      // during that reload, which under 3D-terrain/globe RenderToTexture drape
+      // reads as an "old→new→old→new" flicker (the drape re-samples mid-fade).
+      // Disabling the fade makes each parameter change a clean single swap.
+      paint={{ "raster-opacity": opacity, "raster-resampling": "linear", "raster-fade-duration": 0 }}
     />
   )
 })
