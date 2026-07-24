@@ -8,6 +8,7 @@ import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
 import { SphericalXYPad } from './XYPad'
 import { isHillshadeXYPadOpenAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { useAtom } from "jotai"
+import { ColorAlphaSwatch } from "./color-picker"
 
 // Native MapLibre `type: "hillshade"` rendering (paint built by
 // computeHillshadePaint in MapLayers.tsx) — an entirely independent viz mode
@@ -120,10 +121,30 @@ export const HillshadeOptionsSection: React.FC<{
             Hillshade Colors<ChevronDown className={`h-4 w-4 transition-transform ${isColorsOpen ? "rotate-180" : ""}`} />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-1 pt-1">
-            <div className="grid gap-2" style={{ gridTemplateColumns: supportsAccentColor ? "repeat(3, 1fr)" : "repeat(2, 1fr)" }}>
-              {supportsShadowColor && (<div className="space-y-1"><Label className="text-xs">Shadow</Label><Input type="color" value={state.shadowColor} onChange={(e) => setState({ shadowColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
-              {supportsHighlightColor && (<div className="space-y-1"><Label className="text-xs">Highlight</Label><Input type="color" value={state.highlightColor} onChange={(e) => setState({ highlightColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
-              {supportsAccentColor && (<div className="space-y-1"><Label className="text-xs">Accent</Label><Input type="color" value={state.accentColor} onChange={(e) => setState({ accentColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
+            <div className="flex gap-2" style={{ gridTemplateColumns: supportsAccentColor ? "repeat(3, 1fr)" : "repeat(2, 1fr)" }}>
+              {supportsShadowColor && (
+                <div className="flex flex-2 items-center gap-2">
+                  <Label className="text-xs">Shadow Color</Label>
+                  <ColorAlphaSwatch
+                    title="Shadow color"
+                    color={state.shadowColor}
+                    onChange={(hex) => setState({ shadowColor: hex })}
+                    className="rounded"
+                  />
+                </div>
+              )}
+              {supportsHighlightColor && (
+                <div className="flex flex-2 items-center gap-2">
+                  <Label className="text-xs">Highlight Color</Label>
+                  <ColorAlphaSwatch
+                    title="Highlight color"
+                    color={state.highlightColor}
+                    onChange={(hex) => setState({ highlightColor: hex })}
+                    className="rounded"
+                  />
+                </div>
+              )}
+              {supportsAccentColor && (<div className="flex flex-2 items-center gap-2"><Label className="text-xs">Accent</Label><Input type="color" value={state.accentColor} onChange={(e) => setState({ accentColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
             </div>
           </CollapsibleContent>
         </Collapsible>

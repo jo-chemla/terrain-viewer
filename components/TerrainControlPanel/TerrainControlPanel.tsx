@@ -516,13 +516,13 @@ export function TerrainControlPanel({
                 setState={setState}
                 isOpen={sectionOpen.terrainAnalysis}
                 onOpenChange={toggle("terrainAnalysis")}
-                withSeparator={!showDetectors}
               />
             )}
             {/* "Lighting Effects" (Matcap + Phong) is last in the Options group,
                 after Terrain Analysis, matching Visualization Modes' own list
                 order. */}
             <LightingEffectsOptionsSection state={state} setState={setState} isOpen={sectionOpen.lightingEffects} onOpenChange={toggle("lightingEffects")} />
+            <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
           </>
         )}
         {!hiddenSections.includes("terrainAnalysis") && showDetectors && (
@@ -539,7 +539,6 @@ export function TerrainControlPanel({
           />
         )}
         {!hiddenSections.includes("terrainAnalysis") && showDetectors && <MacroSeparator />}
-        <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
         <MacroSeparator label="Tools" isOpen={macroGroupOpen.Tools} onToggle={() => toggleMacroGroup("Tools")} />
         {macroGroupOpen.Tools && (
           <>

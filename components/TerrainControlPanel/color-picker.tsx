@@ -1,0 +1,44 @@
+
+// --- LAYERS COMPONENT ---
+
+import { HexAlphaColorPicker, HexColorInput } from "react-colorful";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+
+// A color swatch that opens a popover with an alpha-aware picker. Native
+// <input type="color"> can't carry an alpha channel at all (browsers strip
+// it), and shadcn/ui doesn't ship a color picker of its own — the common
+// pattern is react-colorful's HexAlphaColorPicker inside a Popover, which is
+// what this pairs with the project's own Popover primitive.
+export function ColorAlphaSwatch({
+    color, onChange, title, className,
+}: { color: string; onChange: (hex: string) => void; title: string; className?: string }) {
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    title={title}
+                    className={`h-6 w-6 shrink-0 p-0 m-0 border cursor-pointer ${className ?? ''}`}
+                    style={{
+                        // Two stacked background layers: the layer's own (possibly
+                        // semi-transparent) color on top of a checkerboard, so partial
+                        // alpha is visible on the swatch itself rather than just
+                        // blending invisibly into the sidebar background.
+                        backgroundImage: `linear-gradient(${color}, ${color}), repeating-conic-gradient(#80808080 0% 25%, transparent 0% 50%)`,
+                        backgroundSize: 'auto, 8px 8px',
+                    }}
+                />
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-3 space-y-2">
+                <HexAlphaColorPicker color={color} onChange={onChange} />
+                <HexColorInput
+                    color={color}
+                    onChange={onChange}
+                    alpha
+                    prefixed
+                    className="flex h-8 w-full rounded-md border bg-transparent px-2 text-sm"
+                />
+            </PopoverContent>
+        </Popover>
+    )
+}

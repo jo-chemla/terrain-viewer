@@ -161,28 +161,30 @@ export const LrmFields: React.FC<{
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="lrm-symmetric"
-          checked={symmetric}
-          onCheckedChange={(checked) => setState({ lrmSymmetric: checked === true })}
-          className="cursor-pointer"
-        />
-        <Label htmlFor="lrm-symmetric" className="text-sm font-medium cursor-pointer">
-          Symmetric Range
-        </Label>
-      </div>
+      <div className="flex gap-2">
+        <div className="flex flex-1 items-center gap-2">
+          <Checkbox
+            id="lrm-symmetric"
+            checked={symmetric}
+            onCheckedChange={(checked) => setState({ lrmSymmetric: checked === true })}
+            className="cursor-pointer"
+          />
+          <Label htmlFor="lrm-symmetric" className="text-sm font-medium cursor-pointer">
+            Symmetric Range
+          </Label>
+        </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="lrm-invert-color-ramp"
-          checked={state.lrmInvertColorRamp || false}
-          onCheckedChange={(checked) => setState({ lrmInvertColorRamp: checked === true })}
-          className="cursor-pointer"
-        />
-        <Label htmlFor="lrm-invert-color-ramp" className="text-sm font-medium cursor-pointer">
-          Invert Color Ramp
-        </Label>
+        <div className="flex flex-1 items-center gap-2">
+          <Checkbox
+            id="lrm-invert-color-ramp"
+            checked={state.lrmInvertColorRamp || false}
+            onCheckedChange={(checked) => setState({ lrmInvertColorRamp: checked === true })}
+            className="cursor-pointer"
+          />
+          <Label htmlFor="lrm-invert-color-ramp" className="text-sm font-medium cursor-pointer">
+            Invert Ramp
+          </Label>
+        </div>
       </div>
     </div>
   )

@@ -35,7 +35,7 @@ export const VisualizationModesSection: React.FC<{
       headerExtra={<PinToggle pinned={vizModePinned} onToggle={() => setVizModePinned(!vizModePinned)} wiggleNonce={wiggleNonce} />}
     >
       {!hideContours && (
-        <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} />
+        <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} tooltip="Controllable contours (minor/major elevation difference)" />
       )}
       {/* Native MapLibre hillshade — its own independent viz mode, entirely
           separate from "Lighting Effects" below. See Options: Hillshade for
@@ -45,12 +45,12 @@ export const VisualizationModesSection: React.FC<{
         checked={state.showHillshade}
         onCheckedChange={(checked) => setState({ showHillshade: checked })}
         label="Hillshade"
-        tooltip="MapLibre's native hillshade rendering — method (standard/igor/combined/multidirectional/basic), illumination direction/altitude, and colors — see Options: Hillshade."
+        tooltip="Hillshade rendering — method (standard/igor/combined/multidirectional/basic), illumination direction/altitude etc"
         sliderValue={state.hillshadeOpacity}
         onSliderChange={(value) => setState({ hillshadeOpacity: value })}
       />
-      <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} />
-      <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} />
+      <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} tooltip="Raster Basemap source (predefined aerial/satellite or BYOD)" />
+      <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} tooltip="Hypsometric/Color relief colorramp altitude representation" />
       {/* Separates the "basic" modes above (contours/hillshade/basemap/hypso)
           from the more advanced derived-analysis ones below. Darker than the
           default --border (which is barely visible) — bg-foreground/NN
@@ -69,6 +69,7 @@ export const VisualizationModesSection: React.FC<{
           onCheckedChange={(checked) => setState({ showReliefVisualization: checked })}
           label="Relief Visualization"
           sliderValue={state.reliefVisualizationOpacity}
+          tooltip="Relief Visualization: LRM relative altitude to neighborhood, Sky View Factor SVF, Openness, Local Dominance"
           onSliderChange={(value) => setState({ reliefVisualizationOpacity: value })}
         />
       )}
@@ -78,6 +79,7 @@ export const VisualizationModesSection: React.FC<{
           checked={state.showTerrainAnalysis}
           onCheckedChange={(checked) => setState({ showTerrainAnalysis: checked })}
           label="Terrain Analysis"
+          tooltip="Terrain Analysis: Surface Derivatives and Neighborhood statistics (Slope, Aspect, Curvature, Blobness, TPI, TRI, Roughness)"
           sliderValue={state.terrainAnalysisOpacity}
           onSliderChange={(value) => setState({ terrainAnalysisOpacity: value })}
         />
@@ -89,25 +91,26 @@ export const VisualizationModesSection: React.FC<{
         checked={state.showLightingEffects}
         onCheckedChange={(checked) => setState({ showLightingEffects: checked })}
         label="Lighting Effects"
-        tooltip="Matcap and Phong surface shading — see Options: Lighting Effects for both sub-modes."
+        tooltip="Matcap and Phong surface shading"
         sliderValue={state.lightingEffectsOpacity}
         onSliderChange={(value) => setState({ lightingEffectsOpacity: value })}
       />
-      {state.tellsBeta && (
-        <CheckboxWithSlider
-          id="tells-visibility"
-          checked={state.showTellsDetector}
-          onCheckedChange={(checked) => setState({ showTellsDetector: checked === true })}
-          label="Tells (Mound Detector)"
-          tooltip="Turns the experimental mound detector on/off — its own Mound Candidates section (style, thresholds, a separate marker-visibility toggle) appears once this is on."
-          hideSlider
-        />
-      )}
       {/* Fog/sky only affects maplibre's 3D/globe rendering pipeline — meaningless
           (and was rendering a dead control) in flat 2D — but lives last in this
           list whenever it does apply. */}
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
         <CheckboxWithSlider id="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />
+      )}
+      <Separator className="bg-foreground/33" />
+      {state.tellsBeta && (
+        <CheckboxWithSlider
+          id="tells-visibility"
+          checked={state.showTellsDetector}
+          onCheckedChange={(checked) => setState({ showTellsDetector: checked === true })}
+          label="Mound Detector"
+          tooltip="Turns the experimental mound detector on/off — its own Mound Candidates section (style, thresholds, a separate marker-visibility toggle) appears once this is on."
+          hideSlider
+        />
       )}
     </Section>
   )

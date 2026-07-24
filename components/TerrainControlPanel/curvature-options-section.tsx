@@ -226,28 +226,31 @@ export const CurvatureFields: React.FC<{
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="curvature-symmetric"
-          checked={symmetric}
-          onCheckedChange={(checked) => setState({ curvatureSymmetric: checked === true })}
-          className="cursor-pointer"
-        />
-        <Label htmlFor="curvature-symmetric" className="text-sm font-medium cursor-pointer">
-          Symmetric Range
-        </Label>
-      </div>
+      
+      <div className="flex gap-2">
+        <div className="flex flex-2 items-center gap-2">
+          <Checkbox
+            id="curvature-symmetric"
+            checked={symmetric}
+            onCheckedChange={(checked) => setState({ curvatureSymmetric: checked === true })}
+            className="cursor-pointer"
+          />
+          <Label htmlFor="curvature-symmetric" className="text-sm font-medium cursor-pointer">
+            Symmetric
+          </Label>
+        </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="curvature-invert-color-ramp"
-          checked={state.curvatureInvertColorRamp || false}
-          onCheckedChange={(checked) => setState({ curvatureInvertColorRamp: checked === true })}
-          className="cursor-pointer"
-        />
-        <Label htmlFor="curvature-invert-color-ramp" className="text-sm font-medium cursor-pointer">
-          Invert Color Ramp
-        </Label>
+        <div className="flex flex-2 items-center gap-2">
+          <Checkbox
+            id="curvature-invert-color-ramp"
+            checked={state.curvatureInvertColorRamp || false}
+            onCheckedChange={(checked) => setState({ curvatureInvertColorRamp: checked === true })}
+            className="cursor-pointer"
+          />
+          <Label htmlFor="curvature-invert-color-ramp" className="text-sm font-medium cursor-pointer">
+            Invert
+          </Label>
+        </div>
       </div>
     </div>
   )

@@ -119,28 +119,30 @@ export const TpiFields: React.FC<{
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="tpi-symmetric"
-          checked={symmetric}
-          onCheckedChange={(checked) => setState({ tpiSymmetric: checked === true })}
-          className="cursor-pointer"
-        />
-        <Label htmlFor="tpi-symmetric" className="text-sm font-medium cursor-pointer">
-          Symmetric Range
-        </Label>
-      </div>
+      <div className="flex gap-2">
+        <div className="flex flex-1 items-center gap-2">
+          <Checkbox
+            id="tpi-symmetric"
+            checked={symmetric}
+            onCheckedChange={(checked) => setState({ tpiSymmetric: checked === true })}
+            className="cursor-pointer"
+          />
+          <Label htmlFor="tpi-symmetric" className="text-sm font-medium cursor-pointer">
+            Symmetric Range
+          </Label>
+        </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="tpi-invert-color-ramp"
-          checked={state.tpiInvertColorRamp || false}
-          onCheckedChange={(checked) => setState({ tpiInvertColorRamp: checked === true })}
-          className="cursor-pointer"
-        />
-        <Label htmlFor="tpi-invert-color-ramp" className="text-sm font-medium cursor-pointer">
-          Invert Color Ramp
-        </Label>
+        <div className="flex flex-1 items-center gap-2">
+          <Checkbox
+            id="tpi-invert-color-ramp"
+            checked={state.tpiInvertColorRamp || false}
+            onCheckedChange={(checked) => setState({ tpiInvertColorRamp: checked === true })}
+            className="cursor-pointer"
+          />
+          <Label htmlFor="tpi-invert-color-ramp" className="text-sm font-medium cursor-pointer">
+            Invert Ramp
+          </Label>
+        </div>
       </div>
     </div>
   )
