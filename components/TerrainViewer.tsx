@@ -1040,14 +1040,32 @@ export function TerrainViewer() {
     }
   }, [])
 
-  // 2D is a strict nadir, north-up top-down view: reset bearing + pitch to 0 on
-  // entry (rotation/pitch are also disabled while in 2D — see the Map props).
+  // 2D is a strict nadir, north-up top-down view. maxPitch:0 (Map prop) locks
+  // pitch, but bearing can still be changed by right-drag / two-finger rotate
+  // even with the dragRotate prop off (react-map-gl doesn't reliably re-apply
+  // that handler option after construction — same caveat as pitchWithRotate), so
+  // disable the rotation handlers imperatively here and snap bearing+pitch to 0
+  // on entry. Re-enabled for 3D/globe. Runs on map load too, so a map first
+  // constructed in 2D still gets locked.
   useEffect(() => {
-    if (mapARef.current && state.viewMode === "2d") {
-      const map = mapARef.current.getMap()
-      map.easeTo({ bearing: 0, pitch: 0, duration: 500 })
+    const is2d = state.viewMode === "2d"
+    const apply = (ref: React.RefObject<MapRef>) => {
+      const map = ref.current?.getMap()
+      if (!map) return
+      if (is2d) {
+        map.dragRotate.disable()
+        map.touchZoomRotate.disableRotation()
+        ;(map.keyboard as any)?.disableRotation?.()
+        map.easeTo({ bearing: 0, pitch: 0, duration: 500 })
+      } else {
+        map.dragRotate.enable()
+        map.touchZoomRotate.enableRotation()
+        ;(map.keyboard as any)?.enableRotation?.()
+      }
     }
-  }, [state.viewMode])
+    apply(mapARef)
+    apply(mapBRef)
+  }, [state.viewMode, mapALoaded, mapBLoaded])
 
   const { theme } = useTheme()
   // const theme = state.theme
