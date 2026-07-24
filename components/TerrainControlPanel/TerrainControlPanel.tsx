@@ -553,9 +553,12 @@ export function TerrainControlPanel({
               appState={state}
               setAppState={setAppState}
               setAppStateSafe={setAppState}
+              withSeparator={!hiddenSections.includes("sourceInfo")}
             />
             {!hiddenSections.includes("sourceInfo") && isProvenanceSource(state.sourceA) && (
-              <SourceInfoSection state={state} mapRef={mapRef} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} />
+              <>
+                <SourceInfoSection state={state} mapRef={mapRef} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} />
+              </>
             )}
           </>
         )}

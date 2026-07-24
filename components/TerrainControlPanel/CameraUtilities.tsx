@@ -1132,14 +1132,16 @@ interface AnimationSectionProps {
   appState: Record<string, unknown>
   setAppState: (state: Record<string, unknown>, shallow?: boolean) => void
   setAppStateSafe: (state: Record<string, unknown>, shallow?: boolean) => void
+  withSeparator?: boolean
 }
 
 export function AnimationSection({
   mapRef, isOpen, onOpenChange,
   appState, setAppState, setAppStateSafe,
+  withSeparator
 }: AnimationSectionProps) {
   return (
-    <Section title="Animation" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={false}>
+    <Section title="Animation" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
       <CameraButtons
         mapRef={mapRef}
         appState={appState}

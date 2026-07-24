@@ -101,16 +101,18 @@ export const VisualizationModesSection: React.FC<{
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
         <CheckboxWithSlider id="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />
       )}
-      <Separator className="bg-foreground/33" />
       {state.tellsBeta && (
-        <CheckboxWithSlider
-          id="tells-visibility"
-          checked={state.showTellsDetector}
-          onCheckedChange={(checked) => setState({ showTellsDetector: checked === true })}
-          label="Mound Detector"
-          tooltip="Turns the experimental mound detector on/off — its own Mound Candidates section (style, thresholds, a separate marker-visibility toggle) appears once this is on."
-          hideSlider
-        />
+        <>
+          <Separator className="bg-foreground/33" />
+          <CheckboxWithSlider
+            id="tells-visibility"
+            checked={state.showTellsDetector}
+            onCheckedChange={(checked) => setState({ showTellsDetector: checked === true })}
+            label="Mound Detector"
+            tooltip="Turns the experimental mound detector on/off — its own Mound Candidates section (style, thresholds, a separate marker-visibility toggle) appears once this is on."
+            hideSlider
+          />
+        </>
       )}
     </Section>
   )
