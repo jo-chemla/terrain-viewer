@@ -1,7 +1,7 @@
 import type React from "react"
 import { useRef } from "react"
 import { useAtom, useSetAtom, useAtomValue } from "jotai"
-import { MapPin, Edit, Trash2, Upload, HardDrive } from "lucide-react"
+import { MapPin, Edit, Trash2, Upload, HardDrive, Link } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -15,7 +15,12 @@ export const CustomSourceDetails: React.FC<{
    *  Omit in contexts (e.g. split-screen A/B) where a separate control already handles
    *  selection and the label should only fit-to-bounds. */
   onSelect?: (id: string) => void
-}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect }) => {
+  /** Name of the paired terrain/basemap source this one is linked to (see
+   *  CustomTerrainSource.linkedBasemapId / CustomBasemapSource.linkedTerrainId)
+   *  — the caller resolves this since it needs the OTHER list to look it up.
+   *  Undefined/empty renders no badge at all. */
+  linkedSourceName?: string
+}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName }) => {
   const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -88,6 +93,14 @@ export const CustomSourceDetails: React.FC<{
           <span className="shrink-0"><HardDrive className="h-3.5 w-3.5 text-muted-foreground" /></span>
         </TooltipTrigger>
         <TooltipContent><p>Local file — lives only in this browser's storage, not a shareable URL</p></TooltipContent>
+      </Tooltip>
+    )}
+    {linkedSourceName && (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="shrink-0"><Link className="h-3.5 w-3.5 text-muted-foreground" /></span>
+        </TooltipTrigger>
+        <TooltipContent><p>Linked to "{linkedSourceName}" — selecting either one auto-selects the other</p></TooltipContent>
       </Tooltip>
     )}
     <Tooltip>

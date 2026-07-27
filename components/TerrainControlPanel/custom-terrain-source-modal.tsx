@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { type CustomTerrainSource, useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
+import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
 import { WmsPickerPanel } from "./wms-picker-panel"
 
@@ -21,9 +21,15 @@ export const CustomTerrainSourceModal: React.FC<{
   const [type, setType] = useState<TerrainFormType>("cog")
   const [description, setDescription] = useState("")
   const [maxzoom, setMaxzoom] = useState("")
+  // Pairs this terrain source with a basemap/raster one (e.g. a fresco's DTM
+  // paired with its own albedo photo COG) — "" means unlinked. See
+  // CustomTerrainSource.linkedBasemapId; the reverse Select lives in
+  // custom-basemap-modal.tsx and either side is enough to link the pair.
+  const [linkedBasemapId, setLinkedBasemapId] = useState("")
   const [localFileName, setLocalFileName] = useState<string | null>(null)
   const [localFileWarning, setLocalFileWarning] = useState<string | null>(null)
   const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
+  const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // Guards against an in-flight validateLocalCogFile from a previous pick
@@ -38,6 +44,7 @@ export const CustomTerrainSourceModal: React.FC<{
       setType(editingSource.type)
       setDescription(editingSource.description || "")
       setMaxzoom(editingSource.maxzoom === undefined ? "" : String(editingSource.maxzoom))
+      setLinkedBasemapId(editingSource.linkedBasemapId ?? "")
       // Re-opening the modal on an existing "cog-local" source: the File itself
       // only lives in-memory for the session it was picked in, so after a reload
       // this is null until the user picks the file again via the button below.
@@ -49,6 +56,7 @@ export const CustomTerrainSourceModal: React.FC<{
       setType("cog")
       setDescription("")
       setMaxzoom("")
+      setLinkedBasemapId("")
       setLocalFileName(null)
       setLocalFileWarning(null)
     }
@@ -87,9 +95,12 @@ export const CustomTerrainSourceModal: React.FC<{
   const handleSave = useCallback(() => {
     if (!name || !url) return
     const parsedMaxzoom = maxzoom === "" ? undefined : Number(maxzoom)
-    onSave({ id: editingSource?.id, name, url, type: type as CustomTerrainSource["type"], description, maxzoom: parsedMaxzoom })
+    onSave({
+      id: editingSource?.id, name, url, type: type as CustomTerrainSource["type"], description, maxzoom: parsedMaxzoom,
+      linkedBasemapId: linkedBasemapId || undefined,
+    })
     onOpenChange(false)
-  }, [name, url, type, description, maxzoom, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, maxzoom, linkedBasemapId, editingSource, onSave, onOpenChange])
 
   // COG/VRT sources detect their own zoom range from file metadata; WMS/TMS/TileJSON
   // sources (wms-raw, terrainrgb, terrarium, tilejson) have no such metadata, so they
@@ -212,6 +223,22 @@ export const CustomTerrainSourceModal: React.FC<{
               <div className="space-y-2">
                 <Label htmlFor="source-description">Description (optional)</Label>
                 <Input id="source-description" type="text" placeholder="Custom terrain data from..." value={description} onChange={(e) => setDescription(e.target.value)} className="cursor-text" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="source-linked-basemap">Linked Basemap Source (optional)</Label>
+                <Select value={linkedBasemapId || "none"} onValueChange={(value) => setLinkedBasemapId(value === "none" ? "" : value)}>
+                  <SelectTrigger id="source-linked-basemap" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {customBasemapSources.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Pairs this with a basemap/raster source (e.g. a fresco's DTM with its own
+                  albedo photo) — selecting either one as active auto-selects the other.
+                </p>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="cursor-pointer">Cancel</Button>

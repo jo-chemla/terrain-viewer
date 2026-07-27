@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useSetAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { SegmentedToggle } from "./controls-components"
-import { type CustomBasemapSource } from "@/lib/settings-atoms"
+import { type CustomBasemapSource, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
 import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
 import { WmsPickerPanel } from "./wms-picker-panel"
@@ -34,6 +34,12 @@ export const CustomBasemapModal: React.FC<{
   const [description, setDescription] = useState("")
   const [role, setRole] = useState<CustomBasemapSource["role"]>("basemap")
   const [opacity, setOpacity] = useState(100)
+  // Pairs this basemap/raster source with a terrain one (e.g. a fresco's
+  // albedo photo COG paired with its own DTM) — "" means unlinked. See
+  // CustomBasemapSource.linkedTerrainId; the reverse Select lives in
+  // custom-terrain-source-modal.tsx and either side is enough to link the pair.
+  const [linkedTerrainId, setLinkedTerrainId] = useState("")
+  const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   // The opacity editingSource had when the modal opened — restored on Cancel/
   // close-without-saving so a live-previewed drag doesn't stick if abandoned.
   const originalOpacityRef = useRef(100)
@@ -63,6 +69,7 @@ export const CustomBasemapModal: React.FC<{
       setRole(editingSource.role ?? "basemap")
       setOpacity(editingSource.opacity ?? 100)
       originalOpacityRef.current = editingSource.opacity ?? 100
+      setLinkedTerrainId(editingSource.linkedTerrainId ?? "")
       // Re-opening the modal on an existing "cog-local" source: the File itself
       // only lives in-memory for the session it was picked in, so after a reload
       // this is null until the user picks the file again via the button below.
@@ -75,6 +82,7 @@ export const CustomBasemapModal: React.FC<{
       setDescription("")
       setRole("basemap")
       setOpacity(100)
+      setLinkedTerrainId("")
       setLocalFileName(null)
       setLocalFileWarning(null)
     }
@@ -131,9 +139,12 @@ export const CustomBasemapModal: React.FC<{
   const handleSave = useCallback(() => {
     if (!name || !url) return
     savedRef.current = true
-    onSave({ id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role, opacity })
+    onSave({
+      id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role, opacity,
+      linkedTerrainId: linkedTerrainId || undefined,
+    })
     onOpenChange(false)
-  }, [name, url, type, description, role, opacity, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, role, opacity, linkedTerrainId, editingSource, onSave, onOpenChange])
 
   const url_placeholder = type === "cog" ?
     "https://example.com/basemap.cog.tiff" :
@@ -324,6 +335,22 @@ export const CustomBasemapModal: React.FC<{
                   onValueChange={([value]) => handleOpacityChange(value)}
                   className="cursor-pointer"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="basemap-linked-terrain">Linked Terrain Source (optional)</Label>
+                <Select value={linkedTerrainId || "none"} onValueChange={(value) => setLinkedTerrainId(value === "none" ? "" : value)}>
+                  <SelectTrigger id="basemap-linked-terrain" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {customTerrainSources.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Pairs this with a terrain/elevation source (e.g. a fresco's albedo photo
+                  with its own DTM) — selecting either one as active auto-selects the other.
+                </p>
               </div>
               <div className="flex justify-end gap-2">
                 <Button

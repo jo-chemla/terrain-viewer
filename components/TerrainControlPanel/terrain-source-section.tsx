@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
-  isByodOpenAtom, customTerrainSourcesAtom,
+  isByodOpenAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
   titilerEndpointAtom, useCogProtocolVsTitilerAtom,
   type CustomTerrainSource
 } from "@/lib/settings-atoms"
@@ -37,6 +37,7 @@ export const TerrainSourceSection: React.FC<{
   const [isByodOpen, setIsByodOpen] = useAtom(isByodOpenAtom)
   const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false)
   const [editingSource, setEditingSource] = useState<CustomTerrainSource | null>(null)
@@ -47,6 +48,16 @@ export const TerrainSourceSection: React.FC<{
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
 
   const linkCallback = useCallback((link: string) => () => window.open(templateLink(link, state.lat, state.lng), "_blank"), [state.lat, state.lng])
+
+  // Resolves a terrain source's paired basemap NAME for CustomSourceDetails'
+  // link badge (see CustomTerrainSource.linkedBasemapId) — falls back to a
+  // reverse scan since the pairing may have been set from the basemap's own
+  // modal instead, same "either side works" logic as TerrainViewer.tsx's
+  // auto-select effects.
+  const linkedBasemapName = useCallback((source: CustomTerrainSource) => {
+    const id = source.linkedBasemapId ?? customBasemapSources.find((b) => b.linkedTerrainId === source.id)?.id
+    return id ? customBasemapSources.find((b) => b.id === id)?.name : undefined
+  }, [customBasemapSources])
 
   const handleSaveCustomSource = useCallback((source: Omit<CustomTerrainSource, "id"> & { id?: string }) => {
     if (source.id) {
@@ -248,7 +259,7 @@ export const TerrainSourceSection: React.FC<{
                         onSelectA={() => setState({ sourceA: source.id })}
                         onSelectB={() => setState({ sourceB: source.id })}
                       />
-                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource }} />
+                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, linkedSourceName: linkedBasemapName(source) }} />
                     </div>
                   ))
                 ) : (
@@ -256,7 +267,7 @@ export const TerrainSourceSection: React.FC<{
                     {customTerrainSources.map((source) => (
                       <div key={source.id} className="flex items-center gap-2 min-w-0">
                         <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
-                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: (id: string) => setState({ sourceA: id }) }} />
+                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: (id: string) => setState({ sourceA: id }), linkedSourceName: linkedBasemapName(source) }} />
                       </div>
                     ))}
                   </RadioGroup>

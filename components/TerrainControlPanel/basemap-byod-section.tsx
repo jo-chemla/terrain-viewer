@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { TooltipButton, SourceAbToggle, GroupHeading } from "./controls-components"
 import {
-  isBasemapByodOpenAtom, customBasemapSourcesAtom,
+  isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
   type CustomBasemapSource
 } from "@/lib/settings-atoms"
@@ -26,11 +26,22 @@ const SAMPLE_BASEMAP_SOURCES = customSources['SAMPLE_BASEMAPS_SOURCES']
 export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
   const [isBasemapByodOpen, setIsBasemapByodOpen] = useAtom(isBasemapByodOpenAtom)
   const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
+  const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [isAddBasemapModalOpen, setIsAddBasemapModalOpen] = useState(false)
   const [editingBasemap, setEditingBasemap] = useState<CustomBasemapSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
+
+  // Resolves a basemap source's paired terrain NAME for CustomSourceDetails'
+  // link badge (see CustomBasemapSource.linkedTerrainId) — falls back to a
+  // reverse scan since the pairing may have been set from the terrain
+  // source's own modal instead, same "either side works" logic as
+  // TerrainViewer.tsx's auto-select effects.
+  const linkedTerrainName = useCallback((source: CustomBasemapSource) => {
+    const id = source.linkedTerrainId ?? customTerrainSources.find((t) => t.linkedBasemapId === source.id)?.id
+    return id ? customTerrainSources.find((t) => t.id === id)?.name : undefined
+  }, [customTerrainSources])
 
   const handleSaveCustomBasemap = useCallback((source: Omit<CustomBasemapSource, "id"> & { id?: string }) => {
     if (source.id) {
@@ -200,6 +211,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                         handleFitToBounds={handleFitToBounds}
                         handleEditSource={handleEditBasemap}
                         handleDeleteCustomSource={handleDeleteCustomBasemap}
+                        linkedSourceName={linkedTerrainName(source)}
                       />
                     </div>
                   ))}
@@ -219,6 +231,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                         handleEditSource={handleEditBasemap}
                         handleDeleteCustomSource={handleDeleteCustomBasemap}
                         onSelect={(id) => setState({ basemapSourceA: id })}
+                        linkedSourceName={linkedTerrainName(source)}
                       />
                     </div>
                   ))}
@@ -239,6 +252,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                       handleEditSource={handleEditBasemap}
                       handleDeleteCustomSource={handleDeleteCustomBasemap}
                       onSelect={(id) => setState({ basemapSource: id })}
+                      linkedSourceName={linkedTerrainName(source)}
                     />
                   </div>
                 ))}

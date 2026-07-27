@@ -88,6 +88,13 @@ export interface CustomTerrainSource {
    *  per-source "fit to bounds" action works instantly instead of needing type-specific
    *  metadata detection (see handleFitToBounds in terrain-source-section.tsx). */
   bounds?: [west: number, south: number, east: number, north: number]
+  /** Paired custom basemap source id — e.g. a fresco/mural's elevation COG
+   *  paired with its own albedo/photo COG (see the non-geo relief-viz
+   *  workflow in Non-Geo-Relief-Visualization.md). Selecting this terrain
+   *  source as active auto-selects that basemap too. The link only needs to
+   *  be set from ONE side (here or CustomBasemapSource.linkedTerrainId) —
+   *  TerrainViewer.tsx's auto-select effects check both directions. */
+  linkedBasemapId?: string
 }
 
 // getOnInit: true reads localStorage synchronously on first render instead of the
@@ -135,6 +142,10 @@ export interface CustomBasemapSource {
    *  instead of fully opaque. Defaults to 100 for sources created before this
    *  field existed. */
   opacity?: number
+  /** Mirror of CustomTerrainSource.linkedBasemapId — the terrain source this
+   *  basemap auto-selects (and is auto-selected by) when either becomes
+   *  active. Only needs to be set from one side of the pair. */
+  linkedTerrainId?: string
 }
 
 export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [], undefined, { getOnInit: true })

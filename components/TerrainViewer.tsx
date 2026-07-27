@@ -1345,6 +1345,31 @@ export function TerrainViewer() {
   const activeBasemapSourceB = state.basemapPerView ? state.basemapSourceB : state.basemapSource
   const isBasemapCustom = customBasemapSources.some(s => s.id === activeBasemapSourceA)
 
+  // Linked terrain/basemap pairs (e.g. a fresco's DTM + its own albedo photo
+  // COG, see CustomTerrainSource.linkedBasemapId / CustomBasemapSource.
+  // linkedTerrainId) — selecting either half of a pair as active auto-selects
+  // the other. The link only needs to be set from one side; each effect below
+  // also falls back to a reverse scan of the OTHER list so it doesn't matter
+  // which source's own modal the pairing was configured from. Only wired for
+  // the primary view (sourceA/map A) — split-screen's B side typically shows
+  // a deliberately different source, not this source's paired counterpart.
+  useEffect(() => {
+    const linkedBasemapId = customTerrainSources.find((s) => s.id === state.sourceA)?.linkedBasemapId
+      ?? customBasemapSources.find((b) => b.linkedTerrainId === state.sourceA)?.id
+    if (!linkedBasemapId) return
+    if (state.basemapPerView) {
+      if (state.basemapSourceA !== linkedBasemapId) setState({ basemapSourceA: linkedBasemapId })
+    } else if (state.basemapSource !== linkedBasemapId) {
+      setState({ basemapSource: linkedBasemapId })
+    }
+  }, [state.sourceA, state.basemapPerView, state.basemapSourceA, state.basemapSource, customTerrainSources, customBasemapSources, setState])
+
+  useEffect(() => {
+    const linkedTerrainId = customBasemapSources.find((b) => b.id === activeBasemapSourceA)?.linkedTerrainId
+      ?? customTerrainSources.find((s) => s.linkedBasemapId === activeBasemapSourceA)?.id
+    if (linkedTerrainId && state.sourceA !== linkedTerrainId) setState({ sourceA: linkedTerrainId })
+  }, [activeBasemapSourceA, customTerrainSources, customBasemapSources, state.sourceA, setState])
+
   // Shift the vanishing point left so it stays centered in the visible (non-obscured)
   // portion of the map when the floating sidebar covers the right edge.
   // Widths match the sidebar's own w-96/right-4 (desktop) and w-80 (mobile) classes.
