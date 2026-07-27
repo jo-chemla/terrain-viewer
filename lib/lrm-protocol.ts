@@ -26,10 +26,64 @@
 import { elevationToTerrarium } from "./elevation-encoding"
 import {
   sharedTileCache, fetchDecodedTile, fetchPaddedElevationGrid, bilinearSamplePadded,
-  buildProtocolUrl, type UpstreamEncoding,
+  buildProtocolUrl, type UpstreamEncoding, type DecodedTile,
 } from "./normal-derived-protocol"
 
 const LRM_URL_RE = /^lrm:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\?k=(\d+)$/
+
+// A WMS-raw ("float32dem-bbox://") upstream has no real pre-built overview
+// pyramid the way TMS/COG do — each tile is generated on the fly by asking
+// the server's GetMap endpoint for whatever bbox+pixel-size is requested.
+// For the FINE tile that's a small bbox at native resolution, but for the
+// ANCESTOR (k levels up) the bbox is scale× larger per side while this app
+// still asked for the SAME n×n pixels — forcing the server to downsample
+// scale²× worth of data on its own, by whatever method it defaults to
+// (often nearest-neighbor for a WMS GetMap with no explicit INTERPOLATION
+// param). That server-side resampling — not this file's own bilinear math —
+// is what produces the hard block edges seen on IGN's LidarHD WMS at large
+// radii (confirmed absent on Mapterhorn, a real COG/XYZ overview pyramid, at
+// the same radius). The fix: ask the WMS for a properly SMALLER image
+// (honestly matching how much detail a scale×-coarser area needs) and do
+// the upsampling ourselves via bilinear — the same interpolation TMS/COG
+// ancestors already get from their own pre-filtered overview levels.
+const FLOAT32DEM_BBOX_TEMPLATE_RE = /^float32dem-bbox:\/\/(.+)\/\{z\}\/\{x\}\/\{y\}$/
+
+function rewriteWmsRequestSize(upstreamTemplate: string, size: number): string {
+  const match = upstreamTemplate.match(FLOAT32DEM_BBOX_TEMPLATE_RE)
+  if (!match) return upstreamTemplate
+  const decodedWmsUrl = decodeURIComponent(match[1])
+    .replace(/([?&])WIDTH=\d+/i, `$1WIDTH=${size}`)
+    .replace(/([?&])HEIGHT=\d+/i, `$1HEIGHT=${size}`)
+  return `float32dem-bbox://${encodeURIComponent(decodedWmsUrl)}/{z}/{x}/{y}`
+}
+
+/** Bilinear-resizes a decoded tile to targetSize×targetSize — a no-op if
+ *  it's already that size (every non-WMS-raw ancestor, and any WMS-raw one
+ *  small enough that rewriteWmsRequestSize's clamp left it at full size). */
+function upsampleDecodedTile(tile: DecodedTile, targetSize: number): DecodedTile {
+  if (tile.width === targetSize && tile.height === targetSize) return tile
+  const out = new Float32Array(targetSize * targetSize)
+  const scaleX = tile.width / targetSize
+  const scaleY = tile.height / targetSize
+  for (let ty = 0; ty < targetSize; ty++) {
+    const fy = Math.min(tile.height - 1, Math.max(0, (ty + 0.5) * scaleY - 0.5))
+    const y0 = Math.floor(fy)
+    const y1 = Math.min(tile.height - 1, y0 + 1)
+    const wy = fy - y0
+    for (let tx = 0; tx < targetSize; tx++) {
+      const fx = Math.min(tile.width - 1, Math.max(0, (tx + 0.5) * scaleX - 0.5))
+      const x0 = Math.floor(fx)
+      const x1 = Math.min(tile.width - 1, x0 + 1)
+      const wx = fx - x0
+      const v00 = tile.data[y0 * tile.width + x0]
+      const v10 = tile.data[y0 * tile.width + x1]
+      const v01 = tile.data[y1 * tile.width + x0]
+      const v11 = tile.data[y1 * tile.width + x1]
+      out[ty * targetSize + tx] = v00 * (1 - wx) * (1 - wy) + v10 * wx * (1 - wy) + v01 * (1 - wx) * wy + v11 * wx * wy
+    }
+  }
+  return { data: out, width: targetSize, height: targetSize }
+}
 
 // `radiusPx` is the user-facing "Smoothing Radius" control (roughly, how many native
 // pixels wide the low-pass regional trend should span) — converted here to `k`
@@ -78,9 +132,26 @@ export async function lrmProtocol(
   const xOffsetTiles = x - (ancestorX << levels)
   const yOffsetTiles = y - (ancestorY << levels)
 
+  // For a WMS-raw upstream, request the ancestor at a genuinely smaller
+  // pixel size (honestly matching how much detail a `scale`×-coarser area
+  // needs) instead of asking for n×n and trusting the server's own
+  // downsampling — see this file's header comment. ×4 oversampling gives
+  // bilinear some real neighboring detail to work with rather than the bare
+  // theoretical minimum; the 32px floor avoids a degenerate request at very
+  // large radii; the n ceiling means a barely-coarser ancestor (small scale)
+  // just requests full size as before (upsampleDecodedTile no-ops on it).
+  const ancestorRequestSize = Math.max(32, Math.min(n, Math.round((n / scale) * 4)))
+  const rewrittenAncestorTemplate = rewriteWmsRequestSize(upstreamTemplate, ancestorRequestSize)
+  const ancestorFetchTile = rewrittenAncestorTemplate === upstreamTemplate
+    ? undefined
+    : async (url: string, tileSignal: AbortSignal) => {
+        const tile = await fetchDecodedTile(sharedTileCache, url, encoding, tileSignal)
+        return tile ? upsampleDecodedTile(tile, n) : null
+      }
+
   const [centerTile, ancestorGrid] = await Promise.all([
     fetchDecodedTile(sharedTileCache, upstreamUrl(z, x, y), encoding, signal),
-    fetchPaddedElevationGrid(sharedTileCache, upstreamTemplate, encoding, ancestorZ, ancestorX, ancestorY, n, signal),
+    fetchPaddedElevationGrid(sharedTileCache, rewrittenAncestorTemplate, encoding, ancestorZ, ancestorX, ancestorY, n, signal, 1, ancestorFetchTile),
   ])
   if (!centerTile) throw new Error(`Failed to fetch LRM center tile at ${z}/${x}/${y}`)
 

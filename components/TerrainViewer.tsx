@@ -1582,6 +1582,21 @@ export function TerrainViewer() {
           // effectiveMinZoom/effectiveMaxZoom are applied imperatively instead.
           minZoom={-2}
           maxZoom={22}
+          // Default (true) cancels a tile's in-flight request the moment you
+          // zoom past its level — fine for a normal, fast raster tile (a
+          // fresh request at that zoom next time is cheap), but for the
+          // ray-marched SVF/Openness/Local Dominance modes it means an
+          // expensive compute gets torn down before finishing almost every
+          // time, so there's rarely any real data anywhere nearby in the
+          // pyramid for MapLibre's own (already-generous, up to 10 levels)
+          // overzoom-placeholder mechanism to reuse — not a bug in that
+          // mechanism, just nothing available for it to fall back to.
+          // Letting in-flight requests finish even after you've moved on
+          // trades a bit of "wasted" compute for tiles you're not looking at
+          // anymore for a pyramid that actually fills in, so a later zoom
+          // through the same area gets a coarse-then-sharp transition
+          // instead of a blank gap.
+          cancelPendingTileRequestsWhileZooming={false}
           maxBounds={resolvedMaxBounds ?? undefined}
 
         >

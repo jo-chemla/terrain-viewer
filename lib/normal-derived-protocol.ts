@@ -245,6 +245,15 @@ export async function fetchPaddedElevationGrid(
   n: number,
   abortSignal: AbortSignal,
   halo = 1,
+  /** Overrides how each of the 9 same-zoom tiles (center + neighbors) is
+   *  fetched+decoded — defaults to the normal cached fetchDecodedTile call.
+   *  Used by LRM's ancestor fetch (lib/lrm-protocol.ts) to request a WMS-raw
+   *  ancestor at a reduced pixel size and bilinear-upsample the result back
+   *  to n×n itself, instead of trusting the upstream WMS server's own
+   *  (often nearest-neighbor) downsampling for a large zoom-level jump — see
+   *  that file for the full reasoning. Every other caller/upstream type
+   *  leaves this at its default. */
+  fetchTile: (url: string, signal: AbortSignal) => Promise<DecodedTile | null> = (url, signal) => fetchDecodedTile(cache, url, encoding, signal),
 ): Promise<PaddedElevationGrid> {
   const worldSize = 1 << z
 
@@ -257,7 +266,7 @@ export async function fetchPaddedElevationGrid(
     if (ty < 0 || ty >= worldSize) continue
     for (let tdx = -1; tdx <= 1; tdx++) {
       const tx = wrapTileX(x + tdx, z)
-      tilePromises.set(`${tdx},${tdy}`, fetchDecodedTile(cache, upstreamUrl(tx, ty), encoding, abortSignal))
+      tilePromises.set(`${tdx},${tdy}`, fetchTile(upstreamUrl(tx, ty), abortSignal))
     }
   }
 
