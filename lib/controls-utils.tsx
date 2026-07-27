@@ -191,6 +191,36 @@ export async function copyBlobToClipboard(blob: Blob): Promise<void> {
   ])
 }
 
+/** Captures the map canvas downscaled to a small JPEG data: URL — for a
+ *  bookmark thumbnail (lib/bookmarks.ts), not a real export: those all live
+ *  in localStorage's small (~5-10MB) shared quota, so this deliberately
+ *  trades quality for size rather than reusing captureMapScreenshot's
+ *  full-resolution PNG/JPEG. maxWidth=320 at JPEG quality 0.6 lands around
+ *  15-25KB per thumbnail — dozens to low hundreds of bookmarks before
+ *  quota becomes a real concern. */
+export async function captureBookmarkThumbnail(
+  mapRef: React.RefObject<MapRef>,
+  maxWidth = 320,
+): Promise<string | null> {
+  if (!mapRef.current) return null
+  try {
+    const canvas = mapRef.current.getMap().getCanvas()
+    const scale = Math.min(1, maxWidth / canvas.clientWidth)
+    const width = Math.round(canvas.clientWidth * scale)
+    const height = Math.round(canvas.clientHeight * scale)
+    const thumbCanvas = document.createElement("canvas")
+    thumbCanvas.width = width
+    thumbCanvas.height = height
+    const ctx = thumbCanvas.getContext("2d")
+    if (!ctx) return null
+    ctx.drawImage(canvas, 0, 0, width, height)
+    return thumbCanvas.toDataURL("image/jpeg", 0.6)
+  } catch (error) {
+    console.error("Failed to capture bookmark thumbnail:", error)
+    return null
+  }
+}
+
 /**
  * Captures the map canvas and copies it to clipboard
  * Uses PNG for clipboard (better compatibility, supports transparency)

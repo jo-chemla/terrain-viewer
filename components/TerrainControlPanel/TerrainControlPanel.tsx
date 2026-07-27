@@ -15,6 +15,7 @@ import { SettingsDialog } from "./settings-dialog"
 import { GeneralSettings } from "./general-settings"
 import { TerrainSourceSection } from "./terrain-source-section"
 import { DownloadSection } from "./download-section"
+import { BookmarksSection } from "./bookmarks-section"
 import { VisualizationModesSection } from "./visualization-modes-section"
 import { HillshadeOptionsSection } from "./hillshade-options-section"
 import { LightingEffectsOptionsSection } from "./lighting-effects-options-section"
@@ -46,6 +47,7 @@ const SECTION_KEYS = [
   "general",
   "terrainSource",
   "download",
+  "bookmarks",
   "visualizationModes",
   "hillshade",
   "lightingEffects",
@@ -69,6 +71,7 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   general: true,
   visualizationModes: true,
   download: false,
+  bookmarks: false,
   terrainSource: false,
   hillshade: false,
   lightingEffects: false,
@@ -477,6 +480,7 @@ export function TerrainControlPanel({
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
         <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
         <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} withSeparator={false} />
+        <BookmarksSection mapRef={mapRef} isOpen={sectionOpen.bookmarks} onOpenChange={toggle("bookmarks")} />
         {/* Whole "Sources" group (label+chevron row AND its sections) is hidden
             when the project config hides source panels — otherwise the chevron/
             label row would sit there with nothing to expand. */}
