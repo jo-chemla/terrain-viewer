@@ -471,7 +471,11 @@ export const CycleButtonGroup: React.FC<{
    *  and the chevron pair. */
   middle?: React.ReactNode
 }> = ({ value, options, onChange, onCycle, middle }) => (
-  <div className="flex gap-2">
+  // items-center: `middle` (e.g. Tells' ColorAlphaSwatch, h-6) is shorter than
+  // the h-8 Select/chevrons — without it, a shorter middle child sits flush to
+  // the row's top instead of vertically centered (an explicit cross-axis size
+  // opts an item out of the default align-items: stretch).
+  <div className="flex items-center gap-2">
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="flex-1 h-8 cursor-pointer"><SelectValue /></SelectTrigger>
       <SelectContent>

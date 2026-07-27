@@ -115,10 +115,13 @@ export const HillshadeOptionsSection: React.FC<{
             Hillshade Colors<ChevronDown className={`h-4 w-4 transition-transform ${isColorsOpen ? "rotate-180" : ""}`} />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-1 pt-1">
-            <div className="flex gap-2" style={{ gridTemplateColumns: supportsAccentColor ? "repeat(3, 1fr)" : "repeat(2, 1fr)" }}>
+            {/* justify-between spreads the pairs like justified text — first
+                label flush left, last swatch flush right, matching whichever
+                pair ends up last (Highlight with 2 colors, Accent with 3). */}
+            <div className="flex items-center justify-between gap-2">
               {supportsShadowColor && (
-                <div className="flex flex-2 items-center gap-2">
-                  <Label className="text-xs">Shadow Color</Label>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs whitespace-nowrap">Shadow</Label>
                   <ColorAlphaSwatch
                     title="Shadow color"
                     color={state.shadowColor}
@@ -128,8 +131,8 @@ export const HillshadeOptionsSection: React.FC<{
                 </div>
               )}
               {supportsHighlightColor && (
-                <div className="flex flex-2 items-center gap-2">
-                  <Label className="text-xs">Highlight Color</Label>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs whitespace-nowrap">Highlight</Label>
                   <ColorAlphaSwatch
                     title="Highlight color"
                     color={state.highlightColor}
@@ -139,8 +142,8 @@ export const HillshadeOptionsSection: React.FC<{
                 </div>
               )}
               {supportsAccentColor && (
-                <div className="flex flex-2 items-center gap-2">
-                  <Label className="text-xs">Accent</Label>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs whitespace-nowrap">Accent</Label>
                   <ColorAlphaSwatch
                     title="Accent color"
                     color={state.accentColor}

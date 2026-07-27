@@ -4,16 +4,17 @@ import { RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
-import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
-import { getGradientColors } from "@/lib/controls-utils"
+import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color-ramp"
+import { colorRampsClassic, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 
 const DEFAULTS = {
   triColorRamp: "tri-default",
   triMin: undefined,
   triMax: undefined,
   triInvertColorRamp: false,
+  triCustomStops: DEFAULT_SLOPE_CUSTOM_STOPS,
+  triCustomStopsDiscrete: false,
 }
 
 // Fields-only (no Section wrapper/gate) — embedded inside TerrainAnalysisOptionsSection,
@@ -22,6 +23,10 @@ const DEFAULTS = {
 export const TriFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
+  const isCustom = state.triColorRamp === "custom"
+  const isDiscrete = state.triCustomStopsDiscrete ?? false
+  const customStops = state.triCustomStops ?? DEFAULT_SLOPE_CUSTOM_STOPS
+
   const rampBounds = useMemo(() => {
     const ramp = colorRampsClassic[state.triColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["tri-default"]
     const stops = extractStops(ramp.colors)
@@ -37,59 +42,55 @@ export const TriFields: React.FC<{
             <RotateCcw className="h-3 w-3" />
           </Button>
         </div>
-        <Select
+        <ColorRampSelectWithCustom
+          ramps={colorRampsClassic}
           value={state.triColorRamp}
           onValueChange={(value) => setState({
             triColorRamp: value,
             triMin: undefined,
             triMax: undefined,
           })}
-        >
-          <SelectTrigger className="w-full cursor-pointer">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(colorRampsClassic).map(([key, ramp]: [string, any]) => (
-              <SelectItem key={key} value={key}>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-12 h-4 rounded-sm"
-                    style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
-                  />
-                  <span>{ramp.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">TRI Range (m)</Label>
-          <div className="flex items-center gap-2">
-            <DraftBoundInput
-              value={state.triMin ?? rampBounds.min}
-              onCommit={(v) => setState({ triMin: clampMinCommit(v, state.triMax ?? rampBounds.max) })}
-              className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-            />
-            <DraftBoundInput
-              value={state.triMax ?? rampBounds.max}
-              onCommit={(v) => setState({ triMax: clampMaxCommit(v, state.triMin ?? rampBounds.min) })}
-              className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-            />
-          </div>
-        </div>
-        <MobileSlider
-          sliderId="tri:range"
-          min={0}
-          max={500}
-          step={1}
-          value={[state.triMin ?? rampBounds.min, state.triMax ?? rampBounds.max]}
-          onValueChange={([min, max]) => setState({ triMin: Math.min(min, max), triMax: Math.max(min, max) })}
-          className="w-full cursor-pointer"
+          anchorKey="tri-default"
+          customStops={customStops}
+          customStopsDiscrete={isDiscrete}
         />
       </div>
+
+      {isCustom ? (
+        <CustomRampStopsEditor
+          customStops={customStops}
+          onStopsChange={(stops) => setState({ triCustomStops: stops })}
+          isDiscrete={isDiscrete}
+          onDiscreteChange={(discrete) => setState({ triCustomStopsDiscrete: discrete })}
+        />
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">TRI Range (m)</Label>
+            <div className="flex items-center gap-2">
+              <DraftBoundInput
+                value={state.triMin ?? rampBounds.min}
+                onCommit={(v) => setState({ triMin: clampMinCommit(v, state.triMax ?? rampBounds.max) })}
+                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+              />
+              <DraftBoundInput
+                value={state.triMax ?? rampBounds.max}
+                onCommit={(v) => setState({ triMax: clampMaxCommit(v, state.triMin ?? rampBounds.min) })}
+                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+              />
+            </div>
+          </div>
+          <MobileSlider
+            sliderId="tri:range"
+            min={0}
+            max={500}
+            step={1}
+            value={[state.triMin ?? rampBounds.min, state.triMax ?? rampBounds.max]}
+            onValueChange={([min, max]) => setState({ triMin: Math.min(min, max), triMax: Math.max(min, max) })}
+            className="w-full cursor-pointer"
+          />
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <Checkbox

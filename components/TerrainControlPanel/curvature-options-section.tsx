@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
-import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
-import { getGradientColors } from "@/lib/controls-utils"
+import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color-ramp"
+import { colorRampsClassic, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 import type { CurvatureMode } from "@/lib/curvature-protocol"
 
 const DEFAULTS = {
@@ -17,6 +17,8 @@ const DEFAULTS = {
   curvatureMax: undefined,
   curvatureInvertColorRamp: false,
   curvatureSymmetric: true,
+  curvatureCustomStops: DEFAULT_SLOPE_CUSTOM_STOPS,
+  curvatureCustomStopsDiscrete: false,
 }
 
 // defaultMagnitude: each mode's formula has a different typical value scale (Profile's
@@ -73,6 +75,10 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
 export const CurvatureFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
+  const isCustom = state.curvatureColorRamp === "custom"
+  const isDiscrete = state.curvatureCustomStopsDiscrete ?? false
+  const customStops = state.curvatureCustomStops ?? DEFAULT_SLOPE_CUSTOM_STOPS
+
   const rampBounds = useMemo(() => {
     const ramp = colorRampsClassic[state.curvatureColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["curvature-diverging"]
     const stops = extractStops(ramp.colors)
@@ -152,85 +158,81 @@ export const CurvatureFields: React.FC<{
             <RotateCcw className="h-3 w-3" />
           </Button>
         </div>
-        <Select
+        <ColorRampSelectWithCustom
+          ramps={colorRampsClassic}
           value={state.curvatureColorRamp}
           onValueChange={(value) => setState({
             curvatureColorRamp: value,
             curvatureMin: undefined,
             curvatureMax: undefined,
           })}
-        >
-          <SelectTrigger className="w-full cursor-pointer">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(colorRampsClassic).map(([key, ramp]: [string, any]) => (
-              <SelectItem key={key} value={key}>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-12 h-4 rounded-sm"
-                    style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
-                  />
-                  <span>{ramp.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          anchorKey="curvature-diverging"
+          customStops={customStops}
+          customStopsDiscrete={isDiscrete}
+        />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Curvature Range</Label>
+      {isCustom ? (
+        <CustomRampStopsEditor
+          customStops={customStops}
+          onStopsChange={(stops) => setState({ curvatureCustomStops: stops })}
+          isDiscrete={isDiscrete}
+          onDiscreteChange={(discrete) => setState({ curvatureCustomStopsDiscrete: discrete })}
+        />
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Curvature Range</Label>
+            {symmetric ? (
+              <DraftBoundInput
+                value={magnitude}
+                onCommit={(v) => setState({ curvatureMin: -Math.abs(v ?? 0), curvatureMax: Math.abs(v ?? 0) })}
+                className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+                step={sliderStep}
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <DraftBoundInput
+                  value={state.curvatureMin ?? rampBounds.min}
+                  onCommit={(v) => setState({ curvatureMin: clampMinCommit(v, state.curvatureMax ?? rampBounds.max) })}
+                  className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                  step={sliderStep}
+                />
+                <DraftBoundInput
+                  value={state.curvatureMax ?? rampBounds.max}
+                  onCommit={(v) => setState({ curvatureMax: clampMaxCommit(v, state.curvatureMin ?? rampBounds.min) })}
+                  className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                  step={sliderStep}
+                />
+              </div>
+            )}
+          </div>
           {symmetric ? (
-            <DraftBoundInput
-              value={magnitude}
-              onCommit={(v) => setState({ curvatureMin: -Math.abs(v ?? 0), curvatureMax: Math.abs(v ?? 0) })}
-              className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+            <MobileSlider
+              sliderId="curvature:range"
+              min={0}
+              max={sliderMax}
               step={sliderStep}
+              value={[magnitude]}
+              onValueChange={([v]) => setState({ curvatureMin: -v, curvatureMax: v })}
+              className="w-full cursor-pointer"
             />
           ) : (
-            <div className="flex items-center gap-2">
-              <DraftBoundInput
-                value={state.curvatureMin ?? rampBounds.min}
-                onCommit={(v) => setState({ curvatureMin: clampMinCommit(v, state.curvatureMax ?? rampBounds.max) })}
-                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-                step={sliderStep}
-              />
-              <DraftBoundInput
-                value={state.curvatureMax ?? rampBounds.max}
-                onCommit={(v) => setState({ curvatureMax: clampMaxCommit(v, state.curvatureMin ?? rampBounds.min) })}
-                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-                step={sliderStep}
-              />
-            </div>
+            <MobileSlider
+              sliderId="curvature:range"
+              min={-sliderMax}
+              max={sliderMax}
+              step={sliderStep}
+              value={[state.curvatureMin ?? rampBounds.min, state.curvatureMax ?? rampBounds.max]}
+              onValueChange={([min, max]) => setState({ curvatureMin: Math.min(min, max), curvatureMax: Math.max(min, max) })}
+              className="w-full cursor-pointer"
+            />
           )}
         </div>
-        {symmetric ? (
-          <MobileSlider
-            sliderId="curvature:range"
-            min={0}
-            max={sliderMax}
-            step={sliderStep}
-            value={[magnitude]}
-            onValueChange={([v]) => setState({ curvatureMin: -v, curvatureMax: v })}
-            className="w-full cursor-pointer"
-          />
-        ) : (
-          <MobileSlider
-            sliderId="curvature:range"
-            min={-sliderMax}
-            max={sliderMax}
-            step={sliderStep}
-            value={[state.curvatureMin ?? rampBounds.min, state.curvatureMax ?? rampBounds.max]}
-            onValueChange={([min, max]) => setState({ curvatureMin: Math.min(min, max), curvatureMax: Math.max(min, max) })}
-            className="w-full cursor-pointer"
-          />
-        )}
-      </div>
+      )}
 
-      
       <div className="flex gap-2">
+        {!isCustom && (
         <div className="flex flex-2 items-center gap-2">
           <Checkbox
             id="curvature-symmetric"
@@ -242,6 +244,7 @@ export const CurvatureFields: React.FC<{
             Symmetric Range
           </Label>
         </div>
+        )}
 
         <div className="flex flex-2 items-center gap-2">
           <Checkbox

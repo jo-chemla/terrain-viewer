@@ -3,9 +3,9 @@ import { useCallback } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, CycleButtonGroup } from "./controls-components"
 import { TellsFields } from "./tells-options-section"
+import { ColorAlphaSwatch } from "./color-picker"
 
 // "hidden" is deliberately NOT an option here — visibility is the topmost
 // checkbox below (and the Tells toggle in Visualization Modes), not a style.
@@ -74,18 +74,13 @@ export const DetectorMoundsSection: React.FC<{
           onChange={(v) => setState({ tellsStyle: v })}
           onCycle={cycleTellsStyle}
           middle={state.tellsStyle === "outline" ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <input
-                  type="color"
-                  aria-label="Outline color"
-                  value={state.tellsOutlineColor}
-                  onChange={(e) => setState({ tellsOutlineColor: e.target.value })}
-                  className="h-8 w-9 shrink-0 cursor-pointer rounded border bg-transparent p-0.5"
-                />
-              </TooltipTrigger>
-              <TooltipContent><p>Outline color — red by default; white or black read better over some ramps.</p></TooltipContent>
-            </Tooltip>
+            <ColorAlphaSwatch
+              title="Outline color — red by default; white or black read better over some ramps."
+              color={state.tellsOutlineColor}
+              onChange={(hex) => setState({ tellsOutlineColor: hex })}
+              size="h-7 w-7"
+              className="rounded"
+            />
           ) : undefined}
         />
         <TellsFields state={state} setState={setState} tileSize={terrainTileSize} mapRef={mapRef} />

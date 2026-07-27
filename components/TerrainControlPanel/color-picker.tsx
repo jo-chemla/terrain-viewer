@@ -3,6 +3,7 @@
 
 import { HexAlphaColorPicker, HexColorInput } from "react-colorful";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { cn } from "@/lib/utils";
 
 // A color swatch that opens a popover with an alpha-aware picker. Native
 // <input type="color"> can't carry an alpha channel at all (browsers strip
@@ -10,15 +11,22 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 // pattern is react-colorful's HexAlphaColorPicker inside a Popover, which is
 // what this pairs with the project's own Popover primitive.
 export function ColorAlphaSwatch({
-    color, onChange, title, className,
-}: { color: string; onChange: (hex: string) => void; title: string; className?: string }) {
+    color, onChange, title, className, size = "h-6 w-6",
+}: {
+    color: string; onChange: (hex: string) => void; title: string; className?: string
+    /** Tailwind height/width utility pair — defaults to "h-6 w-6" (this
+     *  component's original size). Pass e.g. "h-7 w-7" to match an adjacent
+     *  control's height (like CycleButtonGroup's chevron buttons) instead of
+     *  fighting `className` over which sizing utility wins. */
+    size?: string
+}) {
     return (
         <Popover>
             <PopoverTrigger asChild>
                 <button
                     type="button"
                     title={title}
-                    className={`h-6 w-6 shrink-0 p-0 m-0 border cursor-pointer ${className ?? ''}`}
+                    className={cn(size, "shrink-0 p-0 m-0 border cursor-pointer", className)}
                     style={{
                         // Two stacked background layers: the layer's own (possibly
                         // semi-transparent) color on top of a checkerboard, so partial

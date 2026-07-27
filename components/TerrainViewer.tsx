@@ -11,7 +11,7 @@ import Map, {
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
-import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
+import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, type CustomRampStop } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useSetAtom } from "jotai"
 import {
@@ -204,6 +204,8 @@ export function TerrainViewer() {
     overlayBasemapIds: parseAsArrayOf(parseAsString).withDefault([]),
     // colorRamp: parseAsString.withDefault("mby"),
     colorRamp: parseAsStringLiteral(COLOR_RAMP_IDS).withDefault("mby"),
+    customStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    customStopsDiscrete: parseAsBoolean.withDefault(false),
     // Native MapLibre Hillshade — its own independent viz mode, entirely
     // separate from "Lighting Effects" (Matcap/Phong) below. Paint built by
     // computeHillshadePaint (MapLayers.tsx) from hillshadeMethod/
@@ -316,12 +318,16 @@ export function TerrainViewer() {
     aspectMaxDegrees: parseAsFloat.withDefault(360),
     aspectShiftDegrees: parseAsFloat.withDefault(0),
     aspectInvertColorRamp: parseAsBoolean.withDefault(false),
+    aspectCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    aspectCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showTri: parseAsBoolean.withDefault(false),
     triOpacity: parseAsFloat.withDefault(1.0),
     triColorRamp: parseAsString.withDefault("tri-default"),
     triMin: parseAsFloat.withDefault(0),
     triMax: parseAsFloat.withDefault(50),
     triInvertColorRamp: parseAsBoolean.withDefault(false),
+    triCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    triCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showCurvature: parseAsBoolean.withDefault(false),
     curvatureOpacity: parseAsFloat.withDefault(1.0),
     curvatureMode: parseAsStringLiteral(CURVATURE_MODES).withDefault("combined"),
@@ -330,6 +336,8 @@ export function TerrainViewer() {
     curvatureMax: parseAsFloat.withDefault(20),
     curvatureInvertColorRamp: parseAsBoolean.withDefault(false),
     curvatureSymmetric: parseAsBoolean.withDefault(true),
+    curvatureCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    curvatureCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showTpi: parseAsBoolean.withDefault(false),
     tpiOpacity: parseAsFloat.withDefault(1.0),
     tpiColorRamp: parseAsString.withDefault("tpi-diverging"),
@@ -373,6 +381,8 @@ export function TerrainViewer() {
     opennessSymmetric: parseAsBoolean.withDefault(true),
     opennessRadius: parseAsFloat.withDefault(8),
     opennessMode: parseAsStringLiteral(OPENNESS_MODES).withDefault("positive"),
+    opennessCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    opennessCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     // Local Dominance (Hesse 2016) — Relief Visualization mode, see
     // lib/local-dominance-protocol.ts. Mean downward view angle onto the terrain
     // over the [min,max]-radius annulus; grayscale, dark=depression/light=mound.
@@ -387,6 +397,8 @@ export function TerrainViewer() {
     localDominanceSymmetric: parseAsBoolean.withDefault(false),
     localDominanceMinRadius: parseAsFloat.withDefault(8),
     localDominanceMaxRadius: parseAsFloat.withDefault(32),
+    localDominanceCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    localDominanceCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     // Plane Slicer — Tools: Elevation Picker sub-section. Paints one solid color
     // above or below a chosen elevation/LRM-height plane. See PlaneSlicerLayer/
     // computePlaneSlicerPaint in MapLayers.tsx.
@@ -543,7 +555,7 @@ export function TerrainViewer() {
 
   const colorReliefPaint = useMemo(
     () => computeColorReliefPaint(state),
-    [ state.colorRamp, state.customHypsoMinMax, state.minElevation, state.maxElevation, state.colorReliefOpacity, state.invertColorRamp ]
+    [ state.colorRamp, state.customStops, state.customStopsDiscrete, state.customHypsoMinMax, state.minElevation, state.maxElevation, state.colorReliefOpacity, state.invertColorRamp ]
   )
 
   // Slope reuses the exact same paint-computation as the hypsometric tint above — a
@@ -570,6 +582,8 @@ export function TerrainViewer() {
   const aspectReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.aspectColorRamp,
+      customStops: state.aspectCustomStops,
+      customStopsDiscrete: state.aspectCustomStopsDiscrete,
       customHypsoMinMax: true,
       minElevation: state.aspectMinDegrees,
       maxElevation: state.aspectMaxDegrees,
@@ -577,36 +591,41 @@ export function TerrainViewer() {
       invertColorRamp: state.aspectInvertColorRamp,
       shiftDegrees: state.aspectShiftDegrees,
     }),
-    [ state.aspectColorRamp, state.aspectMinDegrees, state.aspectMaxDegrees, state.aspectOpacity, state.terrainAnalysisOpacity, state.aspectInvertColorRamp, state.aspectShiftDegrees ]
+    [ state.aspectColorRamp, state.aspectCustomStops, state.aspectCustomStopsDiscrete, state.aspectMinDegrees, state.aspectMaxDegrees, state.aspectOpacity, state.terrainAnalysisOpacity, state.aspectInvertColorRamp, state.aspectShiftDegrees ]
   )
 
   const triReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.triColorRamp,
+      customStops: state.triCustomStops,
+      customStopsDiscrete: state.triCustomStopsDiscrete,
       customHypsoMinMax: true,
       minElevation: state.triMin,
       maxElevation: state.triMax,
       colorReliefOpacity: state.triOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.triInvertColorRamp,
     }),
-    [ state.triColorRamp, state.triMin, state.triMax, state.triOpacity, state.terrainAnalysisOpacity, state.triInvertColorRamp ]
+    [ state.triColorRamp, state.triCustomStops, state.triCustomStopsDiscrete, state.triMin, state.triMax, state.triOpacity, state.terrainAnalysisOpacity, state.triInvertColorRamp ]
   )
 
   const curvatureReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.curvatureColorRamp,
-      customHypsoMinMax: true,
       // The curvature:// protocol wire-encodes its value ×CURVATURE_ENCODE_SCALE
       // for finer Terrarium quantization (see curvature-protocol.ts) — the raw
       // ["elevation"] this color-relief layer reads back is scaled the same
-      // way, so the ramp's min/max need the same factor to line up. The
-      // slider/state itself (curvatureMin/Max) stays in ordinary curvature units.
+      // way, so custom stops (authored in ordinary curvature units, like every
+      // other curvature field here) need the same factor applied to line up.
+      customStops: state.curvatureCustomStops?.map((s: CustomRampStop) => ({ ...s, value: s.value * CURVATURE_ENCODE_SCALE })),
+      customStopsDiscrete: state.curvatureCustomStopsDiscrete,
+      customHypsoMinMax: true,
+      // The slider/state itself (curvatureMin/Max) stays in ordinary curvature units.
       minElevation: state.curvatureMin * CURVATURE_ENCODE_SCALE,
       maxElevation: state.curvatureMax * CURVATURE_ENCODE_SCALE,
       colorReliefOpacity: state.curvatureOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.curvatureInvertColorRamp,
     }),
-    [ state.curvatureColorRamp, state.curvatureMin, state.curvatureMax, state.curvatureOpacity, state.terrainAnalysisOpacity, state.curvatureInvertColorRamp ]
+    [ state.curvatureColorRamp, state.curvatureCustomStops, state.curvatureCustomStopsDiscrete, state.curvatureMin, state.curvatureMax, state.curvatureOpacity, state.terrainAnalysisOpacity, state.curvatureInvertColorRamp ]
   )
 
   const tpiReliefPaint = useMemo(
@@ -682,25 +701,29 @@ export function TerrainViewer() {
   const opennessReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.opennessColorRamp,
+      customStops: state.opennessCustomStops,
+      customStopsDiscrete: state.opennessCustomStopsDiscrete,
       customHypsoMinMax: true,
       minElevation: state.opennessMin,
       maxElevation: state.opennessMax,
       colorReliefOpacity: state.opennessOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.opennessInvertColorRamp,
     }),
-    [ state.opennessColorRamp, state.opennessMin, state.opennessMax, state.opennessOpacity, state.reliefVisualizationOpacity, state.opennessInvertColorRamp ]
+    [ state.opennessColorRamp, state.opennessCustomStops, state.opennessCustomStopsDiscrete, state.opennessMin, state.opennessMax, state.opennessOpacity, state.reliefVisualizationOpacity, state.opennessInvertColorRamp ]
   )
 
   const localDominanceReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.localDominanceColorRamp,
+      customStops: state.localDominanceCustomStops,
+      customStopsDiscrete: state.localDominanceCustomStopsDiscrete,
       customHypsoMinMax: true,
       minElevation: state.localDominanceMin,
       maxElevation: state.localDominanceMax,
       colorReliefOpacity: state.localDominanceOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.localDominanceInvertColorRamp,
     }),
-    [ state.localDominanceColorRamp, state.localDominanceMin, state.localDominanceMax, state.localDominanceOpacity, state.reliefVisualizationOpacity, state.localDominanceInvertColorRamp ]
+    [ state.localDominanceColorRamp, state.localDominanceCustomStops, state.localDominanceCustomStopsDiscrete, state.localDominanceMin, state.localDominanceMax, state.localDominanceOpacity, state.reliefVisualizationOpacity, state.localDominanceInvertColorRamp ]
   )
 
   // circle-color expressions for the tells color-by marker styles, built from

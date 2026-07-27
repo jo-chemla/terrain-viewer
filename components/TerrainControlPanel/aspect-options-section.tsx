@@ -3,10 +3,9 @@ import { RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MobileSlider, DraftBoundInput } from "./controls-components"
-import { colorRampsClassic } from "@/lib/color-ramps"
-import { getGradientColors } from "@/lib/controls-utils"
+import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color-ramp"
+import { colorRampsClassic, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 
 const DEFAULTS = {
   aspectColorRamp: "aspect-compass",
@@ -14,6 +13,8 @@ const DEFAULTS = {
   aspectMaxDegrees: undefined,
   aspectShiftDegrees: undefined,
   aspectInvertColorRamp: false,
+  aspectCustomStops: DEFAULT_SLOPE_CUSTOM_STOPS,
+  aspectCustomStopsDiscrete: false,
 }
 
 // Fields-only (no Section wrapper/gate) — embedded inside TerrainAnalysisOptionsSection,
@@ -22,6 +23,9 @@ export const AspectFields: React.FC<{
   state: any; setState: (updates: any) => void
 }> = ({ state, setState }) => {
   const shiftDegrees = state.aspectShiftDegrees ?? 0
+  const isCustom = state.aspectColorRamp === "custom"
+  const isDiscrete = state.aspectCustomStopsDiscrete ?? false
+  const customStops = state.aspectCustomStops ?? DEFAULT_SLOPE_CUSTOM_STOPS
 
   return (
     <div className="space-y-4 pl-6">
@@ -32,32 +36,28 @@ export const AspectFields: React.FC<{
             <RotateCcw className="h-3 w-3" />
           </Button>
         </div>
-        <Select
+        <ColorRampSelectWithCustom
+          ramps={colorRampsClassic}
           value={state.aspectColorRamp}
           onValueChange={(value) => setState({
             aspectColorRamp: value,
             aspectMinDegrees: undefined,
             aspectMaxDegrees: undefined,
           })}
-        >
-          <SelectTrigger className="w-full cursor-pointer">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(colorRampsClassic).map(([key, ramp]: [string, any]) => (
-              <SelectItem key={key} value={key}>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-12 h-4 rounded-sm"
-                    style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
-                  />
-                  <span>{ramp.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          anchorKey="aspect-compass"
+          customStops={customStops}
+          customStopsDiscrete={isDiscrete}
+        />
       </div>
+
+      {isCustom && (
+        <CustomRampStopsEditor
+          customStops={customStops}
+          onStopsChange={(stops) => setState({ aspectCustomStops: stops })}
+          isDiscrete={isDiscrete}
+          onDiscreteChange={(discrete) => setState({ aspectCustomStopsDiscrete: discrete })}
+        />
+      )}
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">

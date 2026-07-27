@@ -13,9 +13,10 @@ import { Slider } from "@/components/ui/slider"
 import {
   colorRampTypeAtom, licenseFilterAtom, activeSliderAtom
 } from "@/lib/settings-atoms"
-import { colorRamps, extractStops, colorRampsFlat } from "@/lib/color-ramps"
+import { colorRamps, extractStops, colorRampsFlat, buildCustomRampColors, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 // import { Section, TooltipIconButton } from "./controls-components"
 import { Section, TooltipIconButton, MobileSlider, SectionIdContext, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
+import { CustomRampStopsEditor } from "./custom-color-ramp"
 import { cn } from "@/lib/utils"
 import { getGradientColors } from "@/lib/controls-utils"
 import { useEffect } from "react"
@@ -52,14 +53,24 @@ export const HypsometricTintOptionsSection: React.FC<{
     activeTab?.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" })
   }, [colorRampType, isOpen])
 
+  const isCustom = state.colorRamp === "custom"
+  const isDiscrete = state.customStopsDiscrete ?? false
+  const customStops = state.customStops ?? DEFAULT_SLOPE_CUSTOM_STOPS
+
   // Calculate the bounds for the current color ramp
   const rampBounds = useMemo(() => {
+    // "custom" has no colorRampsFlat entry — its bounds come from the user's
+    // own stops instead of a registry ramp's fixed stops.
+    if (isCustom) {
+      const stops = extractStops(buildCustomRampColors(customStops, isDiscrete))
+      return { min: Math.min(...stops), max: Math.max(...stops) }
+    }
     const stops = extractStops(colorRampsFlat[state.colorRamp].colors)
     return {
       min: Math.min(...stops),
       max: Math.max(...stops)
     }
-  }, [state.colorRamp])
+  }, [isCustom, state.colorRamp, customStops, isDiscrete])
 
   // Reset slider bounds when color ramp changes, so the slider track always starts
   // out matching the newly-selected ramp's own min/max. This used to be keyed on
@@ -74,6 +85,10 @@ export const HypsometricTintOptionsSection: React.FC<{
   useEffect(() => {
     if (prevColorRampRef.current === state.colorRamp) return
     prevColorRampRef.current = state.colorRamp
+    // "custom" has no colorRampsFlat entry — its own stops editor (below)
+    // doesn't use hypsoSliderMinBound/MaxBound at all, so there's nothing to
+    // reset here.
+    if (state.colorRamp === "custom") return
     const stops = extractStops(colorRampsFlat[state.colorRamp].colors)
     setState({
       hypsoSliderMinBound: Math.floor(Math.min(...stops)),
@@ -391,6 +406,18 @@ export const HypsometricTintOptionsSection: React.FC<{
                 <SelectValue className="min-w-0 truncate" />
               </SelectTrigger>
               <SelectContent>
+                {/* Pinned at the top regardless of which category tab is active —
+                    "custom" isn't a cpt-city category, so there's no natural
+                    anchor ramp to inject it after like the other viz modes do. */}
+                <SelectItem value="custom">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div
+                      className="w-12 h-4 rounded-sm shrink-0"
+                      style={{ background: `linear-gradient(to right, ${getGradientColors(buildCustomRampColors(customStops, isDiscrete))})` }}
+                    />
+                    <span className="truncate">-- Custom Colorramp Stops --</span>
+                  </div>
+                </SelectItem>
                 {Object.entries(filteredColorRamps).map(([key, ramp]: [string, any]) => (
                   <SelectItem key={key} value={key}>
                     <div className="flex items-center gap-2 min-w-0">
@@ -445,7 +472,17 @@ export const HypsometricTintOptionsSection: React.FC<{
           </div>
         </div>
 
+        {isCustom && (
+          <CustomRampStopsEditor
+            customStops={customStops}
+            onStopsChange={(stops) => setState({ customStops: stops })}
+            isDiscrete={isDiscrete}
+            onDiscreteChange={(discrete) => setState({ customStopsDiscrete: discrete })}
+          />
+        )}
+
         {/* Custom min/max elevation */}
+        {!isCustom && (
         <div className="space-y-2">
           <div className="w-full gap-1 flex items-center">
             <div className="flex-[2] flex items-center">
@@ -517,14 +554,18 @@ export const HypsometricTintOptionsSection: React.FC<{
           />
 
         </div>
-        
-        {/* Invert Color Ramp */}
-        {state.customHypsoMinMax && 
+        )}
+
+        {/* Invert Color Ramp — always offered for a custom ramp (a pure
+            polarity swap over its own stops, same as every other viz mode's
+            custom-ramp support), otherwise only once a custom Min/Max range
+            is in play, same as before. */}
+        {(isCustom || state.customHypsoMinMax) &&
           <div className="flex items-center gap-2">
-            <Checkbox 
-              id="invert-color-ramp" 
-              checked={state.invertColorRamp || false} 
-              onCheckedChange={(checked) => setState({ invertColorRamp: checked === true })} 
+            <Checkbox
+              id="invert-color-ramp"
+              checked={state.invertColorRamp || false}
+              onCheckedChange={(checked) => setState({ invertColorRamp: checked === true })}
               className="cursor-pointer"
             />
             <Label htmlFor="invert-color-ramp" className="text-sm font-medium cursor-pointer">

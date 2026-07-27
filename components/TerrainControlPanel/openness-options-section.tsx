@@ -4,10 +4,9 @@ import { RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit, SegmentedToggle } from "./controls-components"
-import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
-import { getGradientColors } from "@/lib/controls-utils"
+import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color-ramp"
+import { colorRampsClassic, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
 import type { OpennessMode } from "@/lib/openness-protocol"
 
@@ -23,6 +22,8 @@ const DEFAULTS = {
   opennessInvertColorRamp: false,
   opennessSymmetric: true,
   opennessRadius: 8,
+  opennessCustomStops: DEFAULT_SLOPE_CUSTOM_STOPS,
+  opennessCustomStopsDiscrete: false,
 }
 
 // Fields-only (no Section wrapper/gate) — embedded inside ReliefVisualizationOptionsSection,
@@ -34,6 +35,10 @@ export const OpennessFields: React.FC<{
   state: any; setState: (updates: any) => void
   tileSize?: number
 }> = ({ state, setState, tileSize = 256 }) => {
+  const isCustom = state.opennessColorRamp === "custom"
+  const isDiscrete = state.opennessCustomStopsDiscrete ?? false
+  const customStops = state.opennessCustomStops ?? DEFAULT_SLOPE_CUSTOM_STOPS
+
   const rampBounds = useMemo(() => {
     const ramp = colorRampsClassic[state.opennessColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["openness-diverging"]
     const stops = extractStops(ramp.colors)
@@ -74,31 +79,18 @@ export const OpennessFields: React.FC<{
 
       <div className="space-y-2">
         <Label className="text-sm font-medium">Color Ramp</Label>
-        <Select
+        <ColorRampSelectWithCustom
+          ramps={colorRampsClassic}
           value={state.opennessColorRamp}
           onValueChange={(value) => setState({
             opennessColorRamp: value,
             opennessMin: undefined,
             opennessMax: undefined,
           })}
-        >
-          <SelectTrigger className="w-full cursor-pointer">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(colorRampsClassic).map(([key, ramp]: [string, any]) => (
-              <SelectItem key={key} value={key}>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-12 h-4 rounded-sm"
-                    style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
-                  />
-                  <span>{ramp.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          anchorKey="openness-default"
+          customStops={customStops}
+          customStopsDiscrete={isDiscrete}
+        />
       </div>
 
       <div className="space-y-2">
@@ -124,57 +116,67 @@ export const OpennessFields: React.FC<{
         />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Openness Range (°)</Label>
+      {isCustom ? (
+        <CustomRampStopsEditor
+          customStops={customStops}
+          onStopsChange={(stops) => setState({ opennessCustomStops: stops })}
+          isDiscrete={isDiscrete}
+          onDiscreteChange={(discrete) => setState({ opennessCustomStopsDiscrete: discrete })}
+        />
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Openness Range (°)</Label>
+            {symmetric ? (
+              <DraftBoundInput
+                value={magnitude}
+                onCommit={(v) => setState({ opennessMin: -Math.abs(v ?? 0), opennessMax: Math.abs(v ?? 0) })}
+                className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+                step={0.5}
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <DraftBoundInput
+                  value={state.opennessMin ?? rampBounds.min}
+                  onCommit={(v) => setState({ opennessMin: clampMinCommit(v, state.opennessMax ?? rampBounds.max) })}
+                  className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                  step={0.5}
+                />
+                <DraftBoundInput
+                  value={state.opennessMax ?? rampBounds.max}
+                  onCommit={(v) => setState({ opennessMax: clampMaxCommit(v, state.opennessMin ?? rampBounds.min) })}
+                  className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                  step={0.5}
+                />
+              </div>
+            )}
+          </div>
           {symmetric ? (
-            <DraftBoundInput
-              value={magnitude}
-              onCommit={(v) => setState({ opennessMin: -Math.abs(v ?? 0), opennessMax: Math.abs(v ?? 0) })}
-              className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+            <MobileSlider
+              sliderId="openness:range"
+              min={0}
+              max={100}
               step={0.5}
+              value={[magnitude]}
+              onValueChange={([v]) => setState({ opennessMin: -v, opennessMax: v })}
+              className="w-full cursor-pointer"
             />
           ) : (
-            <div className="flex items-center gap-2">
-              <DraftBoundInput
-                value={state.opennessMin ?? rampBounds.min}
-                onCommit={(v) => setState({ opennessMin: clampMinCommit(v, state.opennessMax ?? rampBounds.max) })}
-                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-                step={0.5}
-              />
-              <DraftBoundInput
-                value={state.opennessMax ?? rampBounds.max}
-                onCommit={(v) => setState({ opennessMax: clampMaxCommit(v, state.opennessMin ?? rampBounds.min) })}
-                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-                step={0.5}
-              />
-            </div>
+            <MobileSlider
+              sliderId="openness:range"
+              min={-100}
+              max={100}
+              step={0.5}
+              value={[state.opennessMin ?? rampBounds.min, state.opennessMax ?? rampBounds.max]}
+              onValueChange={([min, max]) => setState({ opennessMin: Math.min(min, max), opennessMax: Math.max(min, max) })}
+              className="w-full cursor-pointer"
+            />
           )}
         </div>
-        {symmetric ? (
-          <MobileSlider
-            sliderId="openness:range"
-            min={0}
-            max={100}
-            step={0.5}
-            value={[magnitude]}
-            onValueChange={([v]) => setState({ opennessMin: -v, opennessMax: v })}
-            className="w-full cursor-pointer"
-          />
-        ) : (
-          <MobileSlider
-            sliderId="openness:range"
-            min={-100}
-            max={100}
-            step={0.5}
-            value={[state.opennessMin ?? rampBounds.min, state.opennessMax ?? rampBounds.max]}
-            onValueChange={([min, max]) => setState({ opennessMin: Math.min(min, max), opennessMax: Math.max(min, max) })}
-            className="w-full cursor-pointer"
-          />
-        )}
-      </div>
+      )}
 
       <div className="flex gap-2">
+        {!isCustom && (
         <div className="flex flex-1 items-center gap-2">
           <Checkbox
             id="openness-symmetric"
@@ -186,6 +188,7 @@ export const OpennessFields: React.FC<{
             Symmetric Range
           </Label>
         </div>
+        )}
 
         <div className="flex flex-1 items-center gap-2">
           <Checkbox

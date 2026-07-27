@@ -826,9 +826,17 @@ export const computeColorReliefPaint = ({
     // existing bounds (a no-op stretch).
     const baseColors = buildCustomRampColors(customStops ?? DEFAULT_SLOPE_CUSTOM_STOPS, customStopsDiscrete)
     const stops = extractStops(baseColors)
-    const colors = invertColorRamp
-      ? remapColorRampStops(baseColors, Math.min(...stops), Math.max(...stops), true)
+    const domainMin = Math.min(...stops)
+    const domainMax = Math.max(...stops)
+    let colors = invertColorRamp
+      ? remapColorRampStops(baseColors, domainMin, domainMax, true)
       : baseColors
+    // Aspect's shift is meaningful on a custom ramp too — rotate around the
+    // stops' own domain (there's no minElevation/maxElevation to fall back
+    // on here, unlike the named-ramp path below).
+    if (shiftDegrees) {
+      colors = shiftCyclicRampStops(colors, shiftDegrees, domainMin, domainMax)
+    }
     return {
       "color-relief-opacity": colorReliefOpacity,
       "color-relief-color": colors,

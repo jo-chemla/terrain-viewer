@@ -4,10 +4,9 @@ import { RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
-import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
-import { getGradientColors } from "@/lib/controls-utils"
+import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color-ramp"
+import { colorRampsClassic, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
 
 function formatMeters(meters: number): string {
@@ -22,6 +21,8 @@ const DEFAULTS = {
   localDominanceSymmetric: false,
   localDominanceMinRadius: 8,
   localDominanceMaxRadius: 32,
+  localDominanceCustomStops: DEFAULT_SLOPE_CUSTOM_STOPS,
+  localDominanceCustomStopsDiscrete: false,
 }
 
 // The annulus is sampled one ring per pyramid octave (see
@@ -41,6 +42,10 @@ export const LocalDominanceFields: React.FC<{
   state: any; setState: (updates: any) => void
   tileSize?: number
 }> = ({ state, setState, tileSize = 256 }) => {
+  const isCustom = state.localDominanceColorRamp === "custom"
+  const isDiscrete = state.localDominanceCustomStopsDiscrete ?? false
+  const customStops = state.localDominanceCustomStops ?? DEFAULT_SLOPE_CUSTOM_STOPS
+
   const rampBounds = useMemo(() => {
     const ramp = colorRampsClassic[state.localDominanceColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["local-dominance-default"]
     const stops = extractStops(ramp.colors)
@@ -75,31 +80,18 @@ export const LocalDominanceFields: React.FC<{
             <RotateCcw className="h-3 w-3" />
           </Button>
         </div>
-        <Select
+        <ColorRampSelectWithCustom
+          ramps={colorRampsClassic}
           value={state.localDominanceColorRamp}
           onValueChange={(value) => setState({
             localDominanceColorRamp: value,
             localDominanceMin: undefined,
             localDominanceMax: undefined,
           })}
-        >
-          <SelectTrigger className="w-full cursor-pointer">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(colorRampsClassic).map(([key, ramp]: [string, any]) => (
-              <SelectItem key={key} value={key}>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-12 h-4 rounded-sm"
-                    style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
-                  />
-                  <span>{ramp.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          anchorKey="local-dominance-default"
+          customStops={customStops}
+          customStopsDiscrete={isDiscrete}
+        />
       </div>
 
       <div className="space-y-2">
@@ -122,57 +114,67 @@ export const LocalDominanceFields: React.FC<{
         />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Local Dominance Range (°)</Label>
+      {isCustom ? (
+        <CustomRampStopsEditor
+          customStops={customStops}
+          onStopsChange={(stops) => setState({ localDominanceCustomStops: stops })}
+          isDiscrete={isDiscrete}
+          onDiscreteChange={(discrete) => setState({ localDominanceCustomStopsDiscrete: discrete })}
+        />
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Local Dominance Range (°)</Label>
+            {symmetric ? (
+              <DraftBoundInput
+                value={magnitude}
+                onCommit={(v) => setState({ localDominanceMin: -Math.abs(v ?? 0), localDominanceMax: Math.abs(v ?? 0) })}
+                className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+                step={0.5}
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <DraftBoundInput
+                  value={state.localDominanceMin ?? rampBounds.min}
+                  onCommit={(v) => setState({ localDominanceMin: clampMinCommit(v, state.localDominanceMax ?? rampBounds.max) })}
+                  className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                  step={0.5}
+                />
+                <DraftBoundInput
+                  value={state.localDominanceMax ?? rampBounds.max}
+                  onCommit={(v) => setState({ localDominanceMax: clampMaxCommit(v, state.localDominanceMin ?? rampBounds.min) })}
+                  className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                  step={0.5}
+                />
+              </div>
+            )}
+          </div>
           {symmetric ? (
-            <DraftBoundInput
-              value={magnitude}
-              onCommit={(v) => setState({ localDominanceMin: -Math.abs(v ?? 0), localDominanceMax: Math.abs(v ?? 0) })}
-              className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+            <MobileSlider
+              sliderId="local-dominance:range"
+              min={0}
+              max={30}
               step={0.5}
+              value={[magnitude]}
+              onValueChange={([v]) => setState({ localDominanceMin: -v, localDominanceMax: v })}
+              className="w-full cursor-pointer"
             />
           ) : (
-            <div className="flex items-center gap-2">
-              <DraftBoundInput
-                value={state.localDominanceMin ?? rampBounds.min}
-                onCommit={(v) => setState({ localDominanceMin: clampMinCommit(v, state.localDominanceMax ?? rampBounds.max) })}
-                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-                step={0.5}
-              />
-              <DraftBoundInput
-                value={state.localDominanceMax ?? rampBounds.max}
-                onCommit={(v) => setState({ localDominanceMax: clampMaxCommit(v, state.localDominanceMin ?? rampBounds.min) })}
-                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-                step={0.5}
-              />
-            </div>
+            <MobileSlider
+              sliderId="local-dominance:range"
+              min={-30}
+              max={30}
+              step={0.5}
+              value={[state.localDominanceMin ?? rampBounds.min, state.localDominanceMax ?? rampBounds.max]}
+              onValueChange={([min, max]) => setState({ localDominanceMin: Math.min(min, max), localDominanceMax: Math.max(min, max) })}
+              className="w-full cursor-pointer"
+            />
           )}
         </div>
-        {symmetric ? (
-          <MobileSlider
-            sliderId="local-dominance:range"
-            min={0}
-            max={30}
-            step={0.5}
-            value={[magnitude]}
-            onValueChange={([v]) => setState({ localDominanceMin: -v, localDominanceMax: v })}
-            className="w-full cursor-pointer"
-          />
-        ) : (
-          <MobileSlider
-            sliderId="local-dominance:range"
-            min={-30}
-            max={30}
-            step={0.5}
-            value={[state.localDominanceMin ?? rampBounds.min, state.localDominanceMax ?? rampBounds.max]}
-            onValueChange={([min, max]) => setState({ localDominanceMin: Math.min(min, max), localDominanceMax: Math.max(min, max) })}
-            className="w-full cursor-pointer"
-          />
-        )}
-      </div>
+      )}
 
       <div className="flex gap-2">
+        {!isCustom && (
         <div className="flex flex-1 items-center gap-2">
           <Checkbox
             id="local-dominance-symmetric"
@@ -184,6 +186,7 @@ export const LocalDominanceFields: React.FC<{
             Symmetric Range
           </Label>
         </div>
+        )}
 
         <div className="flex flex-1 items-center gap-2">
           <Checkbox
