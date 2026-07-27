@@ -19,6 +19,7 @@ const DEFAULTS = {
   localDominanceMin: undefined,
   localDominanceMax: undefined,
   localDominanceInvertColorRamp: false,
+  localDominanceSymmetric: false,
   localDominanceMinRadius: 8,
   localDominanceMaxRadius: 32,
 }
@@ -45,6 +46,15 @@ export const LocalDominanceFields: React.FC<{
     const stops = extractStops(ramp.colors)
     return { min: Math.min(...stops), max: Math.max(...stops) }
   }, [state.localDominanceColorRamp])
+
+  // Unlike TPI/Curvature, Local Dominance isn't naturally diverging around 0 (flat
+  // ground sits at a small positive baseline, hence the default's asymmetric -5..15
+  // range), so symmetric defaults off — but the option is offered the same way.
+  const symmetric = state.localDominanceSymmetric ?? false
+  const magnitude = Math.max(
+    Math.abs(state.localDominanceMin ?? rampBounds.min),
+    Math.abs(state.localDominanceMax ?? rampBounds.max),
+  )
 
   // Snap to powers of two — that's all the octave sampler uses.
   const minRadius = 2 ** octaveOf(state.localDominanceMinRadius ?? DEFAULTS.localDominanceMinRadius)
@@ -115,40 +125,77 @@ export const LocalDominanceFields: React.FC<{
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">Local Dominance Range (°)</Label>
-          <div className="flex items-center gap-2">
+          {symmetric ? (
             <DraftBoundInput
-              value={state.localDominanceMin ?? rampBounds.min}
-              onCommit={(v) => setState({ localDominanceMin: clampMinCommit(v, state.localDominanceMax ?? rampBounds.max) })}
-              className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+              value={magnitude}
+              onCommit={(v) => setState({ localDominanceMin: -Math.abs(v ?? 0), localDominanceMax: Math.abs(v ?? 0) })}
+              className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+              step={0.5}
             />
-            <DraftBoundInput
-              value={state.localDominanceMax ?? rampBounds.max}
-              onCommit={(v) => setState({ localDominanceMax: clampMaxCommit(v, state.localDominanceMin ?? rampBounds.min) })}
-              className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-            />
-          </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <DraftBoundInput
+                value={state.localDominanceMin ?? rampBounds.min}
+                onCommit={(v) => setState({ localDominanceMin: clampMinCommit(v, state.localDominanceMax ?? rampBounds.max) })}
+                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                step={0.5}
+              />
+              <DraftBoundInput
+                value={state.localDominanceMax ?? rampBounds.max}
+                onCommit={(v) => setState({ localDominanceMax: clampMaxCommit(v, state.localDominanceMin ?? rampBounds.min) })}
+                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                step={0.5}
+              />
+            </div>
+          )}
         </div>
-        <MobileSlider
-          sliderId="local-dominance:range"
-          min={-30}
-          max={30}
-          step={0.5}
-          value={[state.localDominanceMin ?? rampBounds.min, state.localDominanceMax ?? rampBounds.max]}
-          onValueChange={([min, max]) => setState({ localDominanceMin: Math.min(min, max), localDominanceMax: Math.max(min, max) })}
-          className="w-full cursor-pointer"
-        />
+        {symmetric ? (
+          <MobileSlider
+            sliderId="local-dominance:range"
+            min={0}
+            max={30}
+            step={0.5}
+            value={[magnitude]}
+            onValueChange={([v]) => setState({ localDominanceMin: -v, localDominanceMax: v })}
+            className="w-full cursor-pointer"
+          />
+        ) : (
+          <MobileSlider
+            sliderId="local-dominance:range"
+            min={-30}
+            max={30}
+            step={0.5}
+            value={[state.localDominanceMin ?? rampBounds.min, state.localDominanceMax ?? rampBounds.max]}
+            onValueChange={([min, max]) => setState({ localDominanceMin: Math.min(min, max), localDominanceMax: Math.max(min, max) })}
+            className="w-full cursor-pointer"
+          />
+        )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="local-dominance-invert-color-ramp"
-          checked={state.localDominanceInvertColorRamp || false}
-          onCheckedChange={(checked) => setState({ localDominanceInvertColorRamp: checked === true })}
-          className="cursor-pointer"
-        />
-        <Label htmlFor="local-dominance-invert-color-ramp" className="text-sm font-medium cursor-pointer">
-          Invert Color Ramp
-        </Label>
+      <div className="flex gap-2">
+        <div className="flex flex-1 items-center gap-2">
+          <Checkbox
+            id="local-dominance-symmetric"
+            checked={symmetric}
+            onCheckedChange={(checked) => setState({ localDominanceSymmetric: checked === true })}
+            className="cursor-pointer"
+          />
+          <Label htmlFor="local-dominance-symmetric" className="text-sm font-medium cursor-pointer">
+            Symmetric Range
+          </Label>
+        </div>
+
+        <div className="flex flex-1 items-center gap-2">
+          <Checkbox
+            id="local-dominance-invert-color-ramp"
+            checked={state.localDominanceInvertColorRamp || false}
+            onCheckedChange={(checked) => setState({ localDominanceInvertColorRamp: checked === true })}
+            className="cursor-pointer"
+          />
+          <Label htmlFor="local-dominance-invert-color-ramp" className="text-sm font-medium cursor-pointer">
+            Invert Ramp
+          </Label>
+        </div>
       </div>
     </div>
   )

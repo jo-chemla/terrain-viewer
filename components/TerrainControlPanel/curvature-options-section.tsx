@@ -187,6 +187,7 @@ export const CurvatureFields: React.FC<{
               value={magnitude}
               onCommit={(v) => setState({ curvatureMin: -Math.abs(v ?? 0), curvatureMax: Math.abs(v ?? 0) })}
               className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+              step={sliderStep}
             />
           ) : (
             <div className="flex items-center gap-2">
@@ -194,11 +195,13 @@ export const CurvatureFields: React.FC<{
                 value={state.curvatureMin ?? rampBounds.min}
                 onCommit={(v) => setState({ curvatureMin: clampMinCommit(v, state.curvatureMax ?? rampBounds.max) })}
                 className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                step={sliderStep}
               />
               <DraftBoundInput
                 value={state.curvatureMax ?? rampBounds.max}
                 onCommit={(v) => setState({ curvatureMax: clampMaxCommit(v, state.curvatureMin ?? rampBounds.min) })}
                 className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                step={sliderStep}
               />
             </div>
           )}
@@ -236,7 +239,7 @@ export const CurvatureFields: React.FC<{
             className="cursor-pointer"
           />
           <Label htmlFor="curvature-symmetric" className="text-sm font-medium cursor-pointer">
-            Symmetric
+            Symmetric Range
           </Label>
         </div>
 
@@ -248,7 +251,7 @@ export const CurvatureFields: React.FC<{
             className="cursor-pointer"
           />
           <Label htmlFor="curvature-invert-color-ramp" className="text-sm font-medium cursor-pointer">
-            Invert
+            Invert Ramp
           </Label>
         </div>
       </div>

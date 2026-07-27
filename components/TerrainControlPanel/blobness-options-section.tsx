@@ -72,11 +72,13 @@ export const BlobnessFields: React.FC<{
               value={state.blobnessMin ?? rampBounds.min}
               onCommit={(v) => setState({ blobnessMin: clampMinCommit(v, state.blobnessMax ?? rampBounds.max) })}
               className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+              step={0.02}
             />
             <DraftBoundInput
               value={state.blobnessMax ?? rampBounds.max}
               onCommit={(v) => setState({ blobnessMax: clampMaxCommit(v, state.blobnessMin ?? rampBounds.min) })}
               className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+              step={0.02}
             />
           </div>
         </div>

@@ -28,6 +28,7 @@ import { useTheme } from "@/lib/controls-utils"
 import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS } from "./TerrainControlPanel/raster-basemap-section"
+import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
 
 const SAMPLE_TERRAIN_SOURCES = customSourcesData["SAMPLE_TERRAIN_SOURCES"] as CustomTerrainSource[]
@@ -261,9 +262,21 @@ export function TerrainViewer() {
     // computed from the viewport-center lat/lng + these day-of-year (1–365) and
     // time-of-day (local solar hours, 0–24) values, instead of the free XY-pad
     // pick. The XY pad still just reflects the resulting illuminationDir/Alt.
-    phongLightUseDatetime: parseAsBoolean.withDefault(false),
-    phongLightDayOfYear: parseAsFloat.withDefault(172), // ~summer solstice
-    phongLightTimeOfDay: parseAsFloat.withDefault(15),  // mid-afternoon
+    // Shared by both Phong (Lighting Effects) and native Hillshade — see
+    // light-direction-control.tsx — since both ultimately read the same
+    // illuminationDir/illuminationAlt fields.
+    lightUseDatetime: parseAsBoolean.withDefault(false),
+    lightDayOfYear: parseAsFloat.withDefault(172), // ~summer solstice
+    lightTimeOfDay: parseAsFloat.withDefault(15),  // mid-afternoon
+    // Which clock convention lightTimeOfDay is expressed in — "local": the
+    // real civil wall-clock time at the viewport lat/lng, including that
+    // location's actual DST rules (see lib/timezone.ts); "utc": UTC directly,
+    // regardless of viewport location. Either way this is only ever a
+    // *display/input* convention — light-direction-control.tsx converts it to
+    // true solar time (see solar-position.ts) before computing the sun
+    // position, and rebases lightTimeOfDay across a mode switch so toggling
+    // this doesn't itself move the light.
+    lightTimeMode: parseAsStringLiteral(["local", "utc"] as const).withDefault("local"),
     showColorRelief: parseAsBoolean.withDefault(false),
     colorReliefOpacity: parseAsFloat.withDefault(0.35),
     // Master toggles for what used to be one merged "Slope and More" viz mode,
@@ -368,6 +381,7 @@ export function TerrainViewer() {
     localDominanceMin: parseAsFloat.withDefault(-5),
     localDominanceMax: parseAsFloat.withDefault(15),
     localDominanceInvertColorRamp: parseAsBoolean.withDefault(false),
+    localDominanceSymmetric: parseAsBoolean.withDefault(false),
     localDominanceMinRadius: parseAsFloat.withDefault(8),
     localDominanceMaxRadius: parseAsFloat.withDefault(32),
     // Plane Slicer — Tools: Elevation Picker sub-section. Paints one solid color
@@ -1347,6 +1361,22 @@ export function TerrainViewer() {
     state.sourceA, activeBasemapSourceA, customTerrainSources, customBasemapSources, useCogProtocolVsTitiler, titilerEndpoint,
   ])
 
+  // Phong's raster ("3D Slow") tile source is expensive to refetch, so its
+  // consumed light direction is decoupled from the raw illuminationDir/
+  // illuminationAlt nuqs state via a read-side debounce (see
+  // useDebouncedValue's own header for why this has to live on the READ
+  // side): the shared state can be written at very different cadences —
+  // Hillshade's own XY pad/sliders write it undebounced (native hillshade
+  // paint is a cheap GPU uniform, see hillshadePaint above, which still reads
+  // state.illuminationDir/Alt directly) — so debouncing only Phong's own
+  // pad/sliders isn't enough to stop a Hillshade drag from re-fetching every
+  // phong:// tile on every pointer-move frame. "live" (2D Fast) is itself a
+  // cheap GPU uniform update, so it gets debounceMs 0 — a same-render
+  // passthrough of the raw state, per useDebouncedValue.
+  const phongRasterLightDebounceMs = state.phongRenderer === "raster" ? 150 : 0
+  const phongLightDir = useDebouncedValue(state.illuminationDir, phongRasterLightDebounceMs)
+  const phongLightAlt = useDebouncedValue(state.illuminationAlt, phongRasterLightDebounceMs)
+
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
       const isPrimary = mapId === "map-a"
@@ -1592,8 +1622,8 @@ export function TerrainViewer() {
             // Light Anchor toggle is disabled + forced to Absolute in this mode
             // (see lighting-effects-options-section.tsx). Only the live 2D Fast
             // layer honours phongLightRelativeToCamera.
-            lightDir={state.illuminationDir}
-            lightAlt={state.illuminationAlt}
+            lightDir={phongLightDir}
+            lightAlt={phongLightAlt}
             exaggeration={state.exaggeration}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
@@ -1610,8 +1640,8 @@ export function TerrainViewer() {
             // CURRENT map bearing itself every frame (headlamp that tracks
             // through the whole rotate gesture), instead of us baking in the
             // settled bearing here the way the raster layer must.
-            lightDir={state.illuminationDir}
-            lightAlt={state.illuminationAlt}
+            lightDir={phongLightDir}
+            lightAlt={phongLightAlt}
             lightRelativeToCamera={state.phongLightRelativeToCamera}
             exaggeration={state.exaggeration}
             opacity={state.phongOpacity * state.lightingEffectsOpacity}
@@ -1858,7 +1888,7 @@ export function TerrainViewer() {
       // state was actually in this dependency list.
       state.showMatcap, state.matcapOpacity, state.matcapTextureId, state.matcapRotationDeg,
       state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongLightRelativeToCamera, state.phongRenderer,
-      state.illuminationDir, state.illuminationAlt,
+      phongLightDir, phongLightAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
       state.showSvf, state.svfRadius, state.showOpenness, state.opennessRadius, state.opennessMode,

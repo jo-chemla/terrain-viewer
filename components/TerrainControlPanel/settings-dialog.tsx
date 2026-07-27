@@ -1,12 +1,13 @@
 import type React from "react"
 import { useState, useCallback, useEffect } from "react"
 import { useAtom, useSetAtom } from "jotai"
-import { Moon, Sun, Settings, ExternalLink, Trash2 } from "lucide-react"
+import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -50,6 +51,34 @@ const PRESET_GROUPS = [
     }))
     .filter((group) => group.options.length > 0),
 ]
+
+// Every top-level settings section folds independently (own local isOpen —
+// nothing here needs to survive a dialog close/reopen). defaultOpen is false
+// only for "Resources: MapLibre GL Features", a long link dump that isn't
+// something you configure, just skim occasionally.
+const CollapsibleSection: React.FC<{
+  title: string
+  defaultOpen?: boolean
+  headerExtra?: React.ReactNode
+  contentClassName?: string
+  children: React.ReactNode
+}> = ({ title, defaultOpen = true, headerExtra, contentClassName = "space-y-3 pt-2", children }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="flex items-center justify-between gap-2">
+        <CollapsibleTrigger className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer">
+          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+          <h3 className="text-sm font-semibold">{title}</h3>
+        </CollapsibleTrigger>
+        {headerExtra}
+      </div>
+      <CollapsibleContent className={contentClassName}>
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any }> = ({ isOpen, onOpenChange, state, setState }) => {
   const { theme, toggleTheme, setTheme: setAppTheme } = useTheme()
@@ -228,8 +257,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           <DialogDescription>Configure API keys, application settings, and explore related resources</DialogDescription>
         </DialogHeader>
         <div className="space-y-6">
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Appearance</h3>
+          <CollapsibleSection title="Appearance">
             <div className="flex items-center justify-between">
               <Label>Theme</Label>
               <Button variant="outline" size="sm" onClick={toggleTheme} className="cursor-pointer">
@@ -269,21 +297,19 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 </Button>
               </div>
             </div>
-          </div>
+          </CollapsibleSection>
           <Separator />
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Keyboard Shortcuts</h3>
+          <CollapsibleSection title="Keyboard Shortcuts" contentClassName="space-y-2 pt-2">
             <div className="space-y-1.5 text-xs text-muted-foreground">
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Shift</kbd> <span className="mx-1">(tap alone, either side)</span> — toggle the Raster Basemap on/off, without opening the sidebar.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd> <span className="mx-1">(tap alone, either side)</span> — hide every visualization mode down to just the plain basemap; tap again to restore whichever modes were on.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Space</kbd> — re-toggle whichever visualization-mode checkbox you last clicked, even after a map drag has moved keyboard focus onto the map canvas.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">L</kbd> <span className="mx-1">(hold)</span> + drag — set the Hillshade illumination direction/altitude directly on the map instead of panning it; release L or the mouse to exit.</div>
             </div>
-          </div>
+          </CollapsibleSection>
           <Separator />
-          
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Visualization Modes</h3>
+
+          <CollapsibleSection title="Visualization Modes" contentClassName="space-y-2 pt-2">
             <p className="text-xs text-muted-foreground">
               Grouped as they are in the panel — <span className="font-semibold text-foreground">Terrain Analysis</span>{" "}
               (surface derivatives + neighborhood statistics), <span className="font-semibold text-foreground">Relief Visualization</span>{" "}
@@ -325,11 +351,10 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <div><span className="font-semibold text-foreground">Phong:</span> real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; "3D Slow" drapes over terrain/globe via raster tiles, "2D Fast" is a live GPU shader (see the Lighting Effects panel)</div>
               <div className="pt-1 italic">Neighborhood usually refers to a 3×3 kernel centered on the pixel.</div>
             </div>
-          </div>
+          </CollapsibleSection>
           <Separator />
 
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Streaming Settings</h3>
+          <CollapsibleSection title="Streaming Settings" contentClassName="space-y-2 pt-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">COG Streaming Settings</Label>
               <SegmentedToggle
@@ -405,13 +430,11 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <Label className="flex-1 min-w-0" htmlFor="titiler-endpoint">Titiler Endpoint</Label>
               <Input className="flex-2 min-w-0 cursor-text" id="titiler-endpoint" type="text" placeholder="https://titiler.xyz" value={titilerEndpoint} onChange={(e) => setTitilerEndpoint(e.target.value)} />
             </div>
-          </div>
+          </CollapsibleSection>
 
 
           <Separator />
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold">Browser Local Storage Persistence</h3>
-
+          <CollapsibleSection title="Browser Local Storage Persistence" contentClassName="space-y-4 pt-2">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Local COG Files</Label>
               <div className="flex items-center justify-between">
@@ -481,12 +504,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 </div>
               )}
             </div>
-          </div>
+          </CollapsibleSection>
 
           <Separator />
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Tells (Mound Candidates) Detection</h3>
+          <CollapsibleSection
+            title="Tells (Mound Candidates) Detection"
+            contentClassName="space-y-2 pt-2"
+            headerExtra={
               <div className="flex items-center gap-2">
                 <Label htmlFor="tells-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
                 <Switch
@@ -496,7 +520,8 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   onCheckedChange={(checked) => setState({ tellsBeta: checked })}
                 />
               </div>
-            </div>
+            }
+          >
             <p className="text-xs text-muted-foreground">
               Computes a <span className="font-semibold text-foreground">Difference-of-Gaussians of the LRM</span>{" "}
               (DoG-of-LRM) as the primary bump signal, keeps only its local maxima
@@ -506,21 +531,21 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               (rejects saddles and ridges where flow diverges outward across contours), and{" "}
               <span className="font-semibold text-foreground">Det-Hessian</span> (rejects saddle points, keeps bowl/dome shapes).
             </p>
-          </div>
+          </CollapsibleSection>
 
           <Separator />
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Terrain Encoding Functions</h3>
+          <CollapsibleSection title="Terrain Encoding Functions">
             <div className="space-y-2 text-sm font-mono bg-muted p-3 rounded">
               <div><span className="font-semibold">TerrainRGB:</span><br /><code>height = -10000 + ((R * 256 * 256 + G * 256 + B) * 0.1)</code></div>
               <div className="mt-2"><span className="font-semibold">Terrarium:</span><br /><code>height = (R * 256 + G + B / 256) - 32768</code></div>
             </div>
-          </div>
+          </CollapsibleSection>
           <Separator />
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">API Keys</h3>
+          <CollapsibleSection
+            title="API Keys"
+            contentClassName="space-y-4 pt-2"
+            headerExtra={
               <div className="flex gap-2">
                 {batchEditMode && (
                   <Button variant="outline" size="sm" onClick={() => setBatchEditMode(false)} className="cursor-pointer">
@@ -529,7 +554,8 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 )}
                 <Button variant="outline" size="sm" onClick={handleBatchToggle} className="cursor-pointer">{batchEditMode ? "Save" : "Batch Edit"}</Button>
               </div>
-            </div>
+            }
+          >
             {batchEditMode ? (
               <div className="space-y-2">
                 <Label htmlFor="batch-keys">API Keys (one per line: key=value)</Label>
@@ -573,10 +599,9 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 </div>
               </>
             )}
-          </div>
+          </CollapsibleSection>
           <Separator />
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Map bounds constraints</h3>
+          <CollapsibleSection title="Map bounds constraints">
             <p className="text-xs text-muted-foreground">
               Constrains panning/zooming to a bounding box. "Terrain"/"Raster"/"Union" are
               resolved automatically from the active source(s) (COG/tilejson metadata) and
@@ -644,10 +669,9 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 </div>
               </div>
             )}
-          </div>
+          </CollapsibleSection>
           <Separator />
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Save Project Preset</h3>
+          <CollapsibleSection title="Save Project Preset">
             <p className="text-xs text-muted-foreground">
               Copies the current view/sources/viz settings as a project-preset JSON snippet you can
               paste into lib/projects.json (as a new top-level key) to make it loadable via
@@ -666,13 +690,10 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             <Button onClick={handleCopyProjectJson} className="cursor-pointer w-full" variant="outline">
               {projectCopied ? "Copied!" : "Copy Project JSON"}
             </Button>
-          </div>
+          </CollapsibleSection>
           <Separator />
-          <div className="space-y-3">
-
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold">Resources: MapLibre GL Features</h3>
-              <div className="space-y-2 text-sm">
+          <CollapsibleSection title="Resources: MapLibre GL Features" defaultOpen={false}>
+            <div className="space-y-2 text-sm">
 
                 <a href="https://github.com/maplibre/maplibre-style-spec/issues/1374" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
                   <span>New Normal-Derived Methods like slope, aspect etc (Design Proposal #1374)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
@@ -705,8 +726,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   <span>CET — Peter Kovesi&apos;s perceptually-uniform colormaps</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
                 </a>
               </div>
-            </div>
-          </div>
+          </CollapsibleSection>
 
         </div>
       </DialogContent>

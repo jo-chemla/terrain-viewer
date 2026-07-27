@@ -8,47 +8,75 @@ export const FooterSection: React.FC = () => (
       see <a href="https://github.com/iconem/terrain-viewer" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">repo</a>
     </p>
 
-    <p>Also see: <a href="/maplibre-raster-dem-wms-float32-generic.html" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">
-      French IGN LidarHD DTM/DSM raw WMS Float32
-    </a></p>
+    <p>Also see:</p>
+    <ul className="list-disc pl-6 space-y-0.5">
+      <li>
+        <div className="flex items-center justify-between">
+          <a href="https://rem.prod.heritagewatch.ai/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
+            RiverREM by Iconem
+          </a>
+          <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+        </div>
+      </li>
+      <li>
+        <div className="flex items-center justify-between">
+          <a href="/maplibre-raster-dem-wms-float32-generic.html" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
+            French IGN LidarHD DTM/DSM raw WMS Float32
+          </a>
+          <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+        </div>
+      </li>
+    </ul>
 
     <p>Inspired by:</p>
-    <ul className="space-y-0.5">
-      <li className="flex items-center justify-between">
-        <a href="https://mapterhorn.com/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
-          Mapterhorn
-        </a>
-        <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+    <ul className="list-disc pl-6 space-y-0.5">
+      <li>
+        <div className="flex items-center justify-between">
+          <a href="https://mapterhorn.com/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
+            Mapterhorn
+          </a>
+          <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+        </div>
       </li>
-      <li className="flex items-center justify-between">
-        <a href="https://tangrams.github.io/heightmapper/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
-          Tangram Height Mapper
-        </a>
-        <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+      <li>
+        <div className="flex items-center justify-between">
+          <a href="https://tangrams.github.io/heightmapper/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
+            Tangram Height Mapper
+          </a>
+          <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+        </div>
       </li>
-      <li className="flex items-center justify-between">
-        <a href="https://impasto.dev/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
-          Impasto CAS Viewer
-        </a>
-        <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+      <li>
+        <div className="flex items-center justify-between">
+          <a href="https://impasto.dev/" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">
+            Impasto CAS Viewer
+          </a>
+          <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+        </div>
       </li>
-      <li className="flex items-center justify-between">
-        <p>
-          Codetard threejs terrain demos: {" "}
-          <a href="https://x.com/codetaur/status/1968896182744207599" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">ui</a>
-          {", "}
-          <a href="https://x.com/codetaur/status/1967783305866252557" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">modes</a>
-          {", "}
-          <a href="https://x.com/codetaur/status/1986614344957006075" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">globe</a>
-          {", "}
-          <a href="https://github.com/ngwnos/threegs" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">repo</a>
-        </p>
-        <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+      <li>
+        <div className="flex items-center justify-between">
+          <p>
+            Codetard threejs terrain demos: {" "}
+            <a href="https://x.com/codetaur/status/1968896182744207599" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">ui</a>
+            {", "}
+            <a href="https://x.com/codetaur/status/1967783305866252557" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">modes</a>
+            {", "}
+            <a href="https://x.com/codetaur/status/1986614344957006075" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">globe</a>
+            {", "}
+            <a href="https://github.com/ngwnos/threegs" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">repo</a>
+          </p>
+          <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+        </div>
       </li>
-      <li className="flex items-center justify-between">
-        Mike Jenkin {": "} <a href="https://minimaps.mikejenkin.com/" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">minimap</a>
-        {", 2026-06 ("}<a href="https://github.com/drjenkin/minimaps" target="_blank" rel="noopener noreferrer" className="hover:underline flex-1 cursor-pointer">repo)</a>
-        <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+      <li>
+        <div className="flex items-center justify-between">
+          <span>
+            Mike Jenkin {": "} <a href="https://minimaps.mikejenkin.com/" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">minimap</a>
+            {", 2026-06 ("}<a href="https://github.com/drjenkin/minimaps" target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">repo)</a>
+          </span>
+          <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+        </div>
       </li>
     </ul>
   </div>

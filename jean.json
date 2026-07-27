@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "setup": "pnpm install",
+    "teardown": null,
+    "run": "pnpm run dev"
+  }
+}

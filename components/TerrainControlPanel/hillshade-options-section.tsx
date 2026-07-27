@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
-import { SphericalXYPad } from './XYPad'
+import { LightDirectionControl } from "./light-direction-control"
 import { isHillshadeXYPadOpenAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { useAtom } from "jotai"
 import { ColorAlphaSwatch } from "./color-picker"
@@ -77,18 +77,13 @@ export const HillshadeOptionsSection: React.FC<{
           <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
              Illumination Azimuth and Elevation<ChevronDown className={`h-4 w-4 transition-transform ${isHillshadeXYPadOpen ? "rotate-180" : ""}`} />
           </CollapsibleTrigger>
-          <CollapsibleContent className="flex justify-center pt-1 overflow-visible">
-            <SphericalXYPad
-              width={200}
-              height={200}
-              azimuthRange={[0, 360]}
-              // azimuthRange={[-180, 180]}
-              elevationRange={[1, 90]}
+          <CollapsibleContent className="pt-1 overflow-visible">
+            <LightDirectionControl
+              state={state}
+              setState={setState}
               sliderId="illumination-xypad"
-              value={{ azimuthDeg: state.illuminationDir, elevationDeg: state.illuminationAlt }}
-              onChange={({ azimuthDeg, elevationDeg }) => {
-                setState({ illuminationDir: azimuthDeg, illuminationAlt: elevationDeg })
-              }}
+              debounceMs={0}
+              elevationRange={[1, 90]}
               // Constrain based on what the current method supports
               fixedAzimuth={fixedIlluminationDirection}
               fixedElevation={fixedIlluminationAltitude}

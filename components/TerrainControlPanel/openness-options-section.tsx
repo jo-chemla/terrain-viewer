@@ -132,6 +132,7 @@ export const OpennessFields: React.FC<{
               value={magnitude}
               onCommit={(v) => setState({ opennessMin: -Math.abs(v ?? 0), opennessMax: Math.abs(v ?? 0) })}
               className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+              step={0.5}
             />
           ) : (
             <div className="flex items-center gap-2">
@@ -139,11 +140,13 @@ export const OpennessFields: React.FC<{
                 value={state.opennessMin ?? rampBounds.min}
                 onCommit={(v) => setState({ opennessMin: clampMinCommit(v, state.opennessMax ?? rampBounds.max) })}
                 className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                step={0.5}
               />
               <DraftBoundInput
                 value={state.opennessMax ?? rampBounds.max}
                 onCommit={(v) => setState({ opennessMax: clampMaxCommit(v, state.opennessMin ?? rampBounds.min) })}
                 className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                step={0.5}
               />
             </div>
           )}

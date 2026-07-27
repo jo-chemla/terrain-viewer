@@ -415,6 +415,7 @@ export const HypsometricTintOptionsSection: React.FC<{
                 onCommit={(v) => setState({ minElevation: clampMinCommit(v, state.maxElevation), customHypsoMinMax: true })}
                 placeholder="Min"
                 className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
               />
             </div>
             <div className="flex-1 flex items-center">
@@ -423,6 +424,7 @@ export const HypsometricTintOptionsSection: React.FC<{
                 onCommit={(v) => setState({ maxElevation: clampMaxCommit(v, state.minElevation), customHypsoMinMax: true })}
                 placeholder="Max"
                 className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
               />
             </div>
           </div>

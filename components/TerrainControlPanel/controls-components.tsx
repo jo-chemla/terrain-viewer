@@ -584,12 +584,17 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
 // NaN. Deliberately does NOT commit on every keystroke — typing "100" digit-by-digit
 // used to commit 1, then 10, then 100 in quick succession, visibly jerking the slider
 // track as its range changed mid-type. Validation/commit only happens on Enter or blur.
+//
+// ArrowUp/ArrowDown nudge the value by `step` (Shift held = 10×step), mirroring a
+// native <input type="number"> spinner — this is a plain text input (see above),
+// so that stepping isn't free and is replicated here. Nudging commits immediately.
 export const DraftBoundInput: React.FC<{
   value: number | undefined
   onCommit: (value: number | undefined) => void
   placeholder?: string
   className: string
-}> = ({ value, onCommit, placeholder, className }) => {
+  step?: number
+}> = ({ value, onCommit, placeholder, className, step = 1 }) => {
   const [draft, setDraft] = useState<string>(value === undefined ? "" : String(value))
 
   // Keep the draft in sync when the bound changes externally (ramp switch, reset button, etc.)
@@ -602,6 +607,15 @@ export const DraftBoundInput: React.FC<{
     const parsed = parseFloat(draft)
     if (Number.isFinite(parsed)) onCommit(parsed)
     else setDraft(value === undefined ? "" : String(value)) // revert an incomplete draft (e.g. a lone "-")
+  }
+
+  const nudge = (direction: 1 | -1, big: boolean) => {
+    const current = value ?? parseFloat(draft)
+    const base = Number.isFinite(current) ? current : 0
+    // Round away float noise (e.g. 0.1 + 0.2) without clobbering legitimate sub-integer steps.
+    const next = Math.round((base + direction * step * (big ? 10 : 1)) * 1e6) / 1e6
+    setDraft(String(next))
+    onCommit(next)
   }
 
   return (
@@ -619,7 +633,11 @@ export const DraftBoundInput: React.FC<{
         if (!/^-?\d*\.?\d*$/.test(next)) return
         setDraft(next)
       }}
-      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur() }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") { e.currentTarget.blur(); return }
+        if (e.key === "ArrowUp") { e.preventDefault(); nudge(1, e.shiftKey) }
+        else if (e.key === "ArrowDown") { e.preventDefault(); nudge(-1, e.shiftKey) }
+      }}
       onBlur={commit}
     />
   )
