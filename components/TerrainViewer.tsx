@@ -1350,69 +1350,20 @@ export function TerrainViewer() {
 
   // Linked terrain/basemap pairs (e.g. a fresco's DTM + its own albedo photo
   // COG, see CustomTerrainSource.linkedBasemapId / CustomBasemapSource.
-  // linkedTerrainId) — selecting either half of a pair as active auto-selects
-  // the other. The link only needs to be set from one side; each effect below
-  // also falls back to a reverse scan of the OTHER list so it doesn't matter
-  // which source's own modal the pairing was configured from.
-  //
-  // Each effect below is gated on a "did the TRIGGER field itself actually
-  // change" ref, not just "did this effect re-run" — without that guard, the
-  // sourceA-watching effect would also fire (and re-assert its own link)
-  // every time the BASEMAP effect's own setState call changed basemapSource/
-  // basemapSourceA (both are in its dep array, since it reads them), and vice
-  // versa for the basemap-watching effect whenever sourceA changed for any
-  // reason. That made a linked pair's basemap/terrain permanently unescapable
-  // once selected — manually picking a different basemap while a linked
-  // terrain was still active got silently reverted right back on the next
-  // render. Only reacting to a genuine change in the trigger itself lets a
-  // manual pick to an unrelated source stick.
-  const prevSourceARef = useRef(state.sourceA)
-  useEffect(() => {
-    if (prevSourceARef.current === state.sourceA) return
-    prevSourceARef.current = state.sourceA
-    const linkedBasemapId = customTerrainSources.find((s) => s.id === state.sourceA)?.linkedBasemapId
-      ?? customBasemapSources.find((b) => b.linkedTerrainId === state.sourceA)?.id
-    if (!linkedBasemapId) return
-    if (state.basemapPerView) {
-      if (state.basemapSourceA !== linkedBasemapId) setState({ basemapSourceA: linkedBasemapId })
-    } else if (state.basemapSource !== linkedBasemapId) {
-      setState({ basemapSource: linkedBasemapId })
-    }
-  }, [state.sourceA, state.basemapPerView, state.basemapSourceA, state.basemapSource, customTerrainSources, customBasemapSources, setState])
-
-  const prevActiveBasemapARef = useRef(activeBasemapSourceA)
-  useEffect(() => {
-    if (prevActiveBasemapARef.current === activeBasemapSourceA) return
-    prevActiveBasemapARef.current = activeBasemapSourceA
-    const linkedTerrainId = customBasemapSources.find((b) => b.id === activeBasemapSourceA)?.linkedTerrainId
-      ?? customTerrainSources.find((s) => s.linkedBasemapId === activeBasemapSourceA)?.id
-    if (linkedTerrainId && state.sourceA !== linkedTerrainId) setState({ sourceA: linkedTerrainId })
-  }, [activeBasemapSourceA, customTerrainSources, customBasemapSources, state.sourceA, setState])
-
-  // Same pair-linking for the secondary view (sourceB/map B) — but only when
-  // basemapSourceB is actually its own independent slot (basemapPerView);
-  // otherwise it's the same shared basemapSource the A-side effects above
-  // already own, and reacting to it here too would just be a redundant,
-  // possibly-conflicting second writer over the same field.
-  const prevSourceBRef = useRef(state.sourceB)
-  useEffect(() => {
-    if (prevSourceBRef.current === state.sourceB) return
-    prevSourceBRef.current = state.sourceB
-    if (!state.basemapPerView) return
-    const linkedBasemapId = customTerrainSources.find((s) => s.id === state.sourceB)?.linkedBasemapId
-      ?? customBasemapSources.find((b) => b.linkedTerrainId === state.sourceB)?.id
-    if (linkedBasemapId && state.basemapSourceB !== linkedBasemapId) setState({ basemapSourceB: linkedBasemapId })
-  }, [state.sourceB, state.basemapPerView, state.basemapSourceB, customTerrainSources, customBasemapSources, setState])
-
-  const prevActiveBasemapBRef = useRef(activeBasemapSourceB)
-  useEffect(() => {
-    if (prevActiveBasemapBRef.current === activeBasemapSourceB) return
-    prevActiveBasemapBRef.current = activeBasemapSourceB
-    if (!state.basemapPerView) return
-    const linkedTerrainId = customBasemapSources.find((b) => b.id === activeBasemapSourceB)?.linkedTerrainId
-      ?? customTerrainSources.find((s) => s.linkedBasemapId === activeBasemapSourceB)?.id
-    if (linkedTerrainId && state.sourceB !== linkedTerrainId) setState({ sourceB: linkedTerrainId })
-  }, [activeBasemapSourceB, state.basemapPerView, customTerrainSources, customBasemapSources, state.sourceB, setState])
+  // linkedTerrainId) used to be applied via a pair of reactive useEffects
+  // here (one watching sourceA, one watching the active basemap, each
+  // re-asserting the link). That was fragile in a way ref-guards on "did the
+  // effect's OWN trigger change" couldn't fully fix: both effects still
+  // shared the same dependency surface (each reads the OTHER's target field
+  // to decide whether to write it), so a manual pick of an unrelated
+  // basemap could still race against the terrain-side effect re-confirming
+  // its own link on the same render pass, silently reverting the user's
+  // click. Resolving the link imperatively, once, at the exact moment of
+  // each user selection (see resolveLinkedTerrainSelect/
+  // resolveLinkedBasemapSelect below, used by terrain-source-section.tsx and
+  // basemap-byod-section.tsx/raster-basemap-section.tsx) has no such race:
+  // there's only ever one setState call per click, containing exactly the
+  // fields that one action should touch.
 
   // Shift the vanishing point left so it stays centered in the visible (non-obscured)
   // portion of the map when the floating sidebar covers the right edge.

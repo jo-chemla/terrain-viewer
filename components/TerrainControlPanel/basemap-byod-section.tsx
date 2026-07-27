@@ -19,6 +19,7 @@ import { CustomBasemapModal } from "./custom-basemap-modal"
 import { BasemapBatchEditModal } from "./basemap-batch-edit-modal"
 import { CustomSourceDetails } from "./custom-source-details"
 import { shouldZoomToBounds } from "@/lib/controls-utils"
+import { resolveLinkedTerrainId } from "@/lib/linked-sources"
 
 import customSources from "@/lib/custom-sources.json"
 const SAMPLE_BASEMAP_SOURCES = customSources['SAMPLE_BASEMAPS_SOURCES']
@@ -37,11 +38,30 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   // link badge (see CustomBasemapSource.linkedTerrainId) — falls back to a
   // reverse scan since the pairing may have been set from the terrain
   // source's own modal instead, same "either side works" logic as
-  // TerrainViewer.tsx's auto-select effects.
+  // lib/linked-sources.ts's resolvers below.
   const linkedTerrainName = useCallback((source: CustomBasemapSource) => {
     const id = source.linkedTerrainId ?? customTerrainSources.find((t) => t.linkedBasemapId === source.id)?.id
     return id ? customTerrainSources.find((t) => t.id === id)?.name : undefined
   }, [customTerrainSources])
+
+  // Every basemap pick (split A/B, single, or per-view A) routes through
+  // these so a linked terrain source is resolved once, imperatively, at the
+  // moment of the click — see lib/linked-sources.ts's header for why this
+  // replaced a pair of reactive effects that used to live in TerrainViewer.tsx.
+  const selectBasemapA = useCallback((id: string) => {
+    const linkedTerrainId = resolveLinkedTerrainId(id, customTerrainSources, customBasemapSources)
+    setState(linkedTerrainId ? { basemapSourceA: id, sourceA: linkedTerrainId } : { basemapSourceA: id })
+  }, [customTerrainSources, customBasemapSources, setState])
+
+  const selectBasemapB = useCallback((id: string) => {
+    const linkedTerrainId = resolveLinkedTerrainId(id, customTerrainSources, customBasemapSources)
+    setState(linkedTerrainId ? { basemapSourceB: id, sourceB: linkedTerrainId } : { basemapSourceB: id })
+  }, [customTerrainSources, customBasemapSources, setState])
+
+  const selectBasemapSingle = useCallback((id: string) => {
+    const linkedTerrainId = resolveLinkedTerrainId(id, customTerrainSources, customBasemapSources)
+    setState(linkedTerrainId ? { basemapSource: id, sourceA: linkedTerrainId } : { basemapSource: id })
+  }, [customTerrainSources, customBasemapSources, setState])
 
   const handleSaveCustomBasemap = useCallback((source: Omit<CustomBasemapSource, "id"> & { id?: string }) => {
     if (source.id) {
@@ -50,8 +70,15 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       const newSource: CustomBasemapSource = { ...source, id: `custom-basemap-${Date.now()}` } as CustomBasemapSource
       setCustomBasemapSources([...customBasemapSources, newSource])
       // Newly added sources are the ones the user almost always wants to look at
-      // immediately — auto-select it as the active basemap.
-      setState({ basemapSource: newSource.id })
+      // immediately — auto-select it as the active basemap. Resolved directly
+      // from newSource (see terrain-source-section.tsx's matching comment for
+      // why: a brand-new id can't yet be a reverse-link target, and
+      // customBasemapSources here is one render stale).
+      if (newSource.linkedTerrainId) {
+        setState({ basemapSource: newSource.id, sourceA: newSource.linkedTerrainId })
+      } else {
+        setState({ basemapSource: newSource.id })
+      }
     }
   }, [customBasemapSources, setCustomBasemapSources, setState])
 
@@ -203,8 +230,8 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                       <SourceAbToggle
                         aActive={state.basemapSourceA === source.id}
                         bActive={state.basemapSourceB === source.id}
-                        onSelectA={() => setState({ basemapSourceA: source.id })}
-                        onSelectB={() => setState({ basemapSourceB: source.id })}
+                        onSelectA={() => selectBasemapA(source.id)}
+                        onSelectB={() => selectBasemapB(source.id)}
                       />
                       <CustomSourceDetails
                         source={source}
@@ -217,7 +244,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                   ))}
                 </div>
               ) : (
-                <RadioGroup value={state.basemapSourceA} onValueChange={(value) => setState({ basemapSourceA: value })} className="gap-2">
+                <RadioGroup value={state.basemapSourceA} onValueChange={selectBasemapA} className="gap-2">
                   {basemapRoleSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
                       <RadioGroupItem
@@ -230,7 +257,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                         handleFitToBounds={handleFitToBounds}
                         handleEditSource={handleEditBasemap}
                         handleDeleteCustomSource={handleDeleteCustomBasemap}
-                        onSelect={(id) => setState({ basemapSourceA: id })}
+                        onSelect={selectBasemapA}
                         linkedSourceName={linkedTerrainName(source)}
                       />
                     </div>
@@ -238,7 +265,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                 </RadioGroup>
               )
             ) : (
-              <RadioGroup value={state.basemapSource} onValueChange={(value) => setState({ basemapSource: value })} className="gap-2">
+              <RadioGroup value={state.basemapSource} onValueChange={selectBasemapSingle} className="gap-2">
                 {basemapRoleSources.map((source) => (
                   <div key={source.id} className="flex items-center gap-2 min-w-0">
                     <RadioGroupItem
@@ -251,7 +278,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                       handleFitToBounds={handleFitToBounds}
                       handleEditSource={handleEditBasemap}
                       handleDeleteCustomSource={handleDeleteCustomBasemap}
-                      onSelect={(id) => setState({ basemapSource: id })}
+                      onSelect={selectBasemapSingle}
                       linkedSourceName={linkedTerrainName(source)}
                     />
                   </div>

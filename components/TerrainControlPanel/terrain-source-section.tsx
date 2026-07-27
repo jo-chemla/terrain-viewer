@@ -19,6 +19,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import saveAs from "file-saver"
 import { Section, SourceAbToggle, GroupHeading } from "./controls-components"
 import { type Bounds, templateLink, shouldZoomToBounds } from "@/lib/controls-utils"
+import { resolveLinkedBasemapId } from "@/lib/linked-sources"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
@@ -59,6 +60,24 @@ export const TerrainSourceSection: React.FC<{
     return id ? customBasemapSources.find((b) => b.id === id)?.name : undefined
   }, [customBasemapSources])
 
+  // Every terrain-source pick (worldwide default, custom, split A/B or single)
+  // routes through these so a linked basemap (see lib/linked-sources.ts) is
+  // resolved once, imperatively, at the moment of the click — one setState
+  // call with both fields, instead of a reactive effect racing the user's
+  // next action (see TerrainViewer.tsx's removed link-effects for why that
+  // was fragile).
+  const selectTerrainA = useCallback((id: string) => {
+    const linkedBasemapId = resolveLinkedBasemapId(id, customTerrainSources, customBasemapSources)
+    setState(linkedBasemapId
+      ? (state.basemapPerView ? { sourceA: id, basemapSourceA: linkedBasemapId } : { sourceA: id, basemapSource: linkedBasemapId })
+      : { sourceA: id })
+  }, [customTerrainSources, customBasemapSources, state.basemapPerView, setState])
+
+  const selectTerrainB = useCallback((id: string) => {
+    const linkedBasemapId = state.basemapPerView ? resolveLinkedBasemapId(id, customTerrainSources, customBasemapSources) : undefined
+    setState(linkedBasemapId ? { sourceB: id, basemapSourceB: linkedBasemapId } : { sourceB: id })
+  }, [customTerrainSources, customBasemapSources, state.basemapPerView, setState])
+
   const handleSaveCustomSource = useCallback((source: Omit<CustomTerrainSource, "id"> & { id?: string }) => {
     if (source.id) {
       setCustomTerrainSources(customTerrainSources.map((s) => s.id === source.id ? { ...s, ...source } as CustomTerrainSource : s))
@@ -67,9 +86,20 @@ export const TerrainSourceSection: React.FC<{
       setCustomTerrainSources([...customTerrainSources, newSource])
       // Newly added sources are the ones the user almost always wants to look at
       // immediately — auto-select it as the primary (sourceA) terrain source.
-      setState({ sourceA: newSource.id })
+      // Resolved directly from newSource rather than via selectTerrainA: a
+      // brand-new id can't yet be the target of a REVERSE link from an
+      // existing basemap (nothing could have referenced it before it
+      // existed), and customTerrainSources here is one render stale (doesn't
+      // include newSource yet), so only the forward link is relevant.
+      if (newSource.linkedBasemapId) {
+        setState(state.basemapPerView
+          ? { sourceA: newSource.id, basemapSourceA: newSource.linkedBasemapId }
+          : { sourceA: newSource.id, basemapSource: newSource.linkedBasemapId })
+      } else {
+        setState({ sourceA: newSource.id })
+      }
     }
-  }, [customTerrainSources, setCustomTerrainSources, setState])
+  }, [customTerrainSources, setCustomTerrainSources, state.basemapPerView, setState])
 
   const handleDeleteCustomSource = useCallback((id: string) => {
     const deleted = customTerrainSources.find((s) => s.id === id)
@@ -198,15 +228,15 @@ export const TerrainSourceSection: React.FC<{
                       disabled={config.encoding === "3dtiles"}
                       aActive={state.sourceA === key}
                       bActive={state.sourceB === key}
-                      onSelectA={() => setState({ sourceA: key })}
-                      onSelectB={() => setState({ sourceB: key })}
+                      onSelectA={() => selectTerrainA(key)}
+                      onSelectB={() => selectTerrainB(key)}
                     />
                     <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} />
                   </div>
                 ))}
               </>
             ) : (
-              <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })} className="gap-2">
+              <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">
                 {Object.entries(terrainSources).map(([key, config]) => (
                   <div key={key} className="flex items-center gap-2 min-w-0">
                     <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer shrink-0" disabled={config.encoding === "3dtiles"} />
@@ -256,18 +286,18 @@ export const TerrainSourceSection: React.FC<{
                       <SourceAbToggle
                         aActive={state.sourceA === source.id}
                         bActive={state.sourceB === source.id}
-                        onSelectA={() => setState({ sourceA: source.id })}
-                        onSelectB={() => setState({ sourceB: source.id })}
+                        onSelectA={() => selectTerrainA(source.id)}
+                        onSelectB={() => selectTerrainB(source.id)}
                       />
                       <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, linkedSourceName: linkedBasemapName(source) }} />
                     </div>
                   ))
                 ) : (
-                  <RadioGroup value={state.sourceA} onValueChange={(value) => setState({ sourceA: value })} className="gap-2">
+                  <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">
                     {customTerrainSources.map((source) => (
                       <div key={source.id} className="flex items-center gap-2 min-w-0">
                         <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
-                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: (id: string) => setState({ sourceA: id }), linkedSourceName: linkedBasemapName(source) }} />
+                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
                       </div>
                     ))}
                   </RadioGroup>

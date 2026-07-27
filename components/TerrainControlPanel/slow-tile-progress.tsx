@@ -4,21 +4,31 @@ import { Loader2 } from "lucide-react"
 import { slowTileStatsAtom, type SlowVizMode } from "@/lib/tile-timing-stats"
 
 /** "Computing… ~Ns remaining (a/b tiles)" for the slow, ray-marched relief
- *  modes (SVF/Openness/Local Dominance) — see lib/tile-timing-stats.ts. Renders
- *  nothing once the viewport's tiles have all resolved, or before there's a
- *  single real (non-cached) sample to estimate from. */
+ *  modes (SVF/Openness/Local Dominance) — see lib/tile-timing-stats.ts. Shows
+ *  immediately once tiles are pending (even before a first real sample
+ *  exists to time-estimate from — that's the point where a "nothing's
+ *  happening" impression is most likely), and renders nothing once the
+ *  viewport's tiles have all resolved. */
 export const SlowTileProgress: React.FC<{ mode: SlowVizMode }> = ({ mode }) => {
   const stats = useAtomValue(slowTileStatsAtom)[mode]
   const pending = stats.requestedCount - stats.completedCount
-  if (pending <= 0 || stats.avgMs === null) return null
+  if (pending <= 0) return null
 
-  const secondsRemaining = (pending * stats.avgMs) / 1000
-  const label = secondsRemaining >= 10 ? `~${Math.round(secondsRemaining)}s` : `~${secondsRemaining.toFixed(1)}s`
+  let label = "Computing…"
+  if (stats.avgMs !== null) {
+    // Tiles are genuinely in flight together (maplibre issues several
+    // requests concurrently, each awaiting network I/O) — dividing by the
+    // observed concurrency instead of treating them as strictly sequential
+    // is what keeps this from running too conservative.
+    const secondsRemaining = (pending / stats.maxConcurrency * stats.avgMs) / 1000
+    const time = secondsRemaining >= 10 ? `~${Math.round(secondsRemaining)}s` : `~${secondsRemaining.toFixed(1)}s`
+    label = `Computing… ${time} remaining`
+  }
 
   return (
     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
       <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-      Computing… {label} remaining ({stats.completedCount}/{stats.requestedCount} tiles)
+      {label} ({stats.completedCount}/{stats.requestedCount} tiles)
     </p>
   )
 }

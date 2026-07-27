@@ -24,9 +24,21 @@ export interface SlowModeStats {
   requestedCount: number
   /** Of those, how many have actually resolved (cache hit or real compute). */
   completedCount: number
+  /** Highest "requested minus completed" seen so far this session — an
+   *  empirical stand-in for how many tiles this browser/endpoint actually
+   *  processes at once (maplibre issues several tile requests concurrently;
+   *  each protocol call awaits network I/O rather than blocking a thread, so
+   *  many are genuinely in flight together even though the CPU-bound part of
+   *  each still executes one at a time on the main thread). Estimating
+   *  remaining time as `pending * avgMs` — i.e. as if every tile were
+   *  processed strictly one after another — is exactly why the estimate ran
+   *  too conservative; dividing by this instead accounts for the real
+   *  overlap. Kept as a running max (not reset per-viewport) since it's a
+   *  property of the browser/endpoint's own concurrency, not of any one view. */
+  maxConcurrency: number
 }
 
-const EMPTY_STATS: SlowModeStats = { avgMs: null, requestedCount: 0, completedCount: 0 }
+const EMPTY_STATS: SlowModeStats = { avgMs: null, requestedCount: 0, completedCount: 0, maxConcurrency: 1 }
 
 export const slowTileStatsAtom = atom<Record<SlowVizMode, SlowModeStats>>({
   svf: { ...EMPTY_STATS },
@@ -58,7 +70,10 @@ export function withSlowTileStats<
 >(mode: SlowVizMode, inner: T): T {
   const wrapped = async (params: { url: string }, abortController: AbortController) => {
     const store = getDefaultStore()
-    patchStats(mode, { requestedCount: store.get(slowTileStatsAtom)[mode].requestedCount + 1 })
+    const beforeStart = store.get(slowTileStatsAtom)[mode]
+    const requestedCount = beforeStart.requestedCount + 1
+    const inFlight = requestedCount - beforeStart.completedCount
+    patchStats(mode, { requestedCount, maxConcurrency: Math.max(beforeStart.maxConcurrency, inFlight) })
     const start = performance.now()
     try {
       const result = await inner(params, abortController)
