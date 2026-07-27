@@ -87,7 +87,7 @@ export const OpennessFields: React.FC<{
             opennessMin: undefined,
             opennessMax: undefined,
           })}
-          anchorKey="openness-default"
+          anchorKey="slope-plantopo"
           customStops={customStops}
           customStopsDiscrete={isDiscrete}
         />

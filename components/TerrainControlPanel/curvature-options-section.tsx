@@ -166,7 +166,7 @@ export const CurvatureFields: React.FC<{
             curvatureMin: undefined,
             curvatureMax: undefined,
           })}
-          anchorKey="curvature-diverging"
+          anchorKey="slope-plantopo"
           customStops={customStops}
           customStopsDiscrete={isDiscrete}
         />

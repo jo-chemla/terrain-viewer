@@ -893,21 +893,20 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
 
                                 {editMode ? (
                                     // Fill first (it's the dominant color — a marker/polygon/circle's
-                                    // own fill, and now also a line's color), then stroke; each keeps
-                                    // its own rounded corners with a small gap between them, same as
-                                    // every other standalone swatch, rather than sharing a flush edge.
-                                    <div className="flex gap-1 shrink-0">
+                                    // own fill, and now also a line's color), then stroke; the two
+                                    // swatches share a border and sit flush with no gap between them.
+                                    <div className="flex shrink-0">
                                         <ColorAlphaSwatch
                                             title="Fill color (marker/polygon/circle fill, line color)"
                                             color={layer.fillColor}
                                             onChange={(hex) => setLayerColor(layer.id, 'fillColor', hex)}
-                                            className="rounded"
+                                            className="rounded-r-none border-r-0"
                                         />
                                         <ColorAlphaSwatch
                                             title="Stroke color (outline)"
                                             color={layer.strokeColor}
                                             onChange={(hex) => setLayerColor(layer.id, 'strokeColor', hex)}
-                                            className="rounded"
+                                            className="rounded-l-none"
                                         />
                                     </div>
                                 ) : (

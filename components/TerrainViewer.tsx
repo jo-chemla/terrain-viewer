@@ -345,6 +345,8 @@ export function TerrainViewer() {
     tpiMax: parseAsFloat.withDefault(20),
     tpiInvertColorRamp: parseAsBoolean.withDefault(false),
     tpiSymmetric: parseAsBoolean.withDefault(true),
+    tpiCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    tpiCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showLrm: parseAsBoolean.withDefault(true),
     lrmOpacity: parseAsFloat.withDefault(1.0),
     lrmColorRamp: parseAsString.withDefault("lrm-diverging"),
@@ -353,18 +355,24 @@ export function TerrainViewer() {
     lrmInvertColorRamp: parseAsBoolean.withDefault(false),
     lrmSymmetric: parseAsBoolean.withDefault(true),
     lrmRadius: parseAsFloat.withDefault(16),
+    lrmCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    lrmCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showRoughness: parseAsBoolean.withDefault(false),
     roughnessOpacity: parseAsFloat.withDefault(1.0),
     roughnessColorRamp: parseAsString.withDefault("roughness-default"),
     roughnessMin: parseAsFloat.withDefault(0),
     roughnessMax: parseAsFloat.withDefault(50),
     roughnessInvertColorRamp: parseAsBoolean.withDefault(false),
+    roughnessCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    roughnessCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showBlobness: parseAsBoolean.withDefault(false),
     blobnessOpacity: parseAsFloat.withDefault(1.0),
     blobnessColorRamp: parseAsString.withDefault("blobness-default"),
     blobnessMin: parseAsFloat.withDefault(0),
     blobnessMax: parseAsFloat.withDefault(50),
     blobnessInvertColorRamp: parseAsBoolean.withDefault(false),
+    blobnessCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    blobnessCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showSvf: parseAsBoolean.withDefault(false),
     svfOpacity: parseAsFloat.withDefault(1.0),
     svfColorRamp: parseAsString.withDefault("svf-default"),
@@ -372,6 +380,8 @@ export function TerrainViewer() {
     svfMax: parseAsFloat.withDefault(100),
     svfInvertColorRamp: parseAsBoolean.withDefault(false),
     svfRadius: parseAsFloat.withDefault(8),
+    svfCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    svfCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showOpenness: parseAsBoolean.withDefault(false),
     opennessOpacity: parseAsFloat.withDefault(1.0),
     opennessColorRamp: parseAsString.withDefault("openness-default"),
@@ -631,25 +641,29 @@ export function TerrainViewer() {
   const tpiReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.tpiColorRamp,
+      customStops: state.tpiCustomStops,
+      customStopsDiscrete: state.tpiCustomStopsDiscrete,
       customHypsoMinMax: true,
       minElevation: state.tpiMin,
       maxElevation: state.tpiMax,
       colorReliefOpacity: state.tpiOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.tpiInvertColorRamp,
     }),
-    [ state.tpiColorRamp, state.tpiMin, state.tpiMax, state.tpiOpacity, state.terrainAnalysisOpacity, state.tpiInvertColorRamp ]
+    [ state.tpiColorRamp, state.tpiCustomStops, state.tpiCustomStopsDiscrete, state.tpiMin, state.tpiMax, state.tpiOpacity, state.terrainAnalysisOpacity, state.tpiInvertColorRamp ]
   )
 
   const lrmReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.lrmColorRamp,
+      customStops: state.lrmCustomStops,
+      customStopsDiscrete: state.lrmCustomStopsDiscrete,
       customHypsoMinMax: true,
       minElevation: state.lrmMin,
       maxElevation: state.lrmMax,
       colorReliefOpacity: state.lrmOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.lrmInvertColorRamp,
     }),
-    [ state.lrmColorRamp, state.lrmMin, state.lrmMax, state.lrmOpacity, state.reliefVisualizationOpacity, state.lrmInvertColorRamp ]
+    [ state.lrmColorRamp, state.lrmCustomStops, state.lrmCustomStopsDiscrete, state.lrmMin, state.lrmMax, state.lrmOpacity, state.reliefVisualizationOpacity, state.lrmInvertColorRamp ]
   )
 
   const planeSlicerPaint = useMemo(
@@ -665,37 +679,43 @@ export function TerrainViewer() {
   const roughnessReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.roughnessColorRamp,
+      customStops: state.roughnessCustomStops,
+      customStopsDiscrete: state.roughnessCustomStopsDiscrete,
       customHypsoMinMax: true,
       minElevation: state.roughnessMin,
       maxElevation: state.roughnessMax,
       colorReliefOpacity: state.roughnessOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.roughnessInvertColorRamp,
     }),
-    [ state.roughnessColorRamp, state.roughnessMin, state.roughnessMax, state.roughnessOpacity, state.terrainAnalysisOpacity, state.roughnessInvertColorRamp ]
+    [ state.roughnessColorRamp, state.roughnessCustomStops, state.roughnessCustomStopsDiscrete, state.roughnessMin, state.roughnessMax, state.roughnessOpacity, state.terrainAnalysisOpacity, state.roughnessInvertColorRamp ]
   )
 
   const blobnessReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.blobnessColorRamp,
+      customStops: state.blobnessCustomStops,
+      customStopsDiscrete: state.blobnessCustomStopsDiscrete,
       customHypsoMinMax: true,
       minElevation: state.blobnessMin,
       maxElevation: state.blobnessMax,
       colorReliefOpacity: state.blobnessOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.blobnessInvertColorRamp,
     }),
-    [ state.blobnessColorRamp, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.terrainAnalysisOpacity, state.blobnessInvertColorRamp ]
+    [ state.blobnessColorRamp, state.blobnessCustomStops, state.blobnessCustomStopsDiscrete, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.terrainAnalysisOpacity, state.blobnessInvertColorRamp ]
   )
 
   const svfReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.svfColorRamp,
+      customStops: state.svfCustomStops,
+      customStopsDiscrete: state.svfCustomStopsDiscrete,
       customHypsoMinMax: true,
       minElevation: state.svfMin,
       maxElevation: state.svfMax,
       colorReliefOpacity: state.svfOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.svfInvertColorRamp,
     }),
-    [ state.svfColorRamp, state.svfMin, state.svfMax, state.svfOpacity, state.reliefVisualizationOpacity, state.svfInvertColorRamp ]
+    [ state.svfColorRamp, state.svfCustomStops, state.svfCustomStopsDiscrete, state.svfMin, state.svfMax, state.svfOpacity, state.reliefVisualizationOpacity, state.svfInvertColorRamp ]
   )
 
   const opennessReliefPaint = useMemo(

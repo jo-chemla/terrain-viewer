@@ -50,7 +50,7 @@ export const TriFields: React.FC<{
             triMin: undefined,
             triMax: undefined,
           })}
-          anchorKey="tri-default"
+          anchorKey="slope-plantopo"
           customStops={customStops}
           customStopsDiscrete={isDiscrete}
         />

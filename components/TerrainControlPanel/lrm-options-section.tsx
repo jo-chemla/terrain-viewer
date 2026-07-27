@@ -4,10 +4,9 @@ import { RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
-import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
-import { getGradientColors } from "@/lib/controls-utils"
+import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color-ramp"
+import { colorRampsClassic, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
 import { radiusToLevels } from "@/lib/lrm-protocol"
 
@@ -22,6 +21,8 @@ const DEFAULTS = {
   lrmInvertColorRamp: false,
   lrmSymmetric: true,
   lrmRadius: 16,
+  lrmCustomStops: DEFAULT_SLOPE_CUSTOM_STOPS,
+  lrmCustomStopsDiscrete: false,
 }
 
 // Fields-only (no Section wrapper/gate) — embedded inside ReliefVisualizationOptionsSection,
@@ -34,6 +35,10 @@ export const LrmFields: React.FC<{
   // correct divisor for turning a pixel radius into a real-world distance.
   tileSize?: number
 }> = ({ state, setState, tileSize = 256 }) => {
+  const isCustom = state.lrmColorRamp === "custom"
+  const isDiscrete = state.lrmCustomStopsDiscrete ?? false
+  const customStops = state.lrmCustomStops ?? DEFAULT_SLOPE_CUSTOM_STOPS
+
   const rampBounds = useMemo(() => {
     const ramp = colorRampsClassic[state.lrmColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["lrm-diverging"]
     const stops = extractStops(ramp.colors)
@@ -64,31 +69,18 @@ export const LrmFields: React.FC<{
             <RotateCcw className="h-3 w-3" />
           </Button>
         </div>
-        <Select
+        <ColorRampSelectWithCustom
+          ramps={colorRampsClassic}
           value={state.lrmColorRamp}
           onValueChange={(value) => setState({
             lrmColorRamp: value,
             lrmMin: undefined,
             lrmMax: undefined,
           })}
-        >
-          <SelectTrigger className="w-full cursor-pointer">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(colorRampsClassic).map(([key, ramp]: [string, any]) => (
-              <SelectItem key={key} value={key}>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-12 h-4 rounded-sm"
-                    style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
-                  />
-                  <span>{ramp.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          anchorKey="slope-plantopo"
+          customStops={customStops}
+          customStopsDiscrete={isDiscrete}
+        />
       </div>
 
       <div className="space-y-2">
@@ -114,54 +106,64 @@ export const LrmFields: React.FC<{
         />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">LRM Range (m)</Label>
+      {isCustom ? (
+        <CustomRampStopsEditor
+          customStops={customStops}
+          onStopsChange={(stops) => setState({ lrmCustomStops: stops })}
+          isDiscrete={isDiscrete}
+          onDiscreteChange={(discrete) => setState({ lrmCustomStopsDiscrete: discrete })}
+        />
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">LRM Range (m)</Label>
+            {symmetric ? (
+              <DraftBoundInput
+                value={magnitude}
+                onCommit={(v) => setState({ lrmMin: -Math.abs(v ?? 0), lrmMax: Math.abs(v ?? 0) })}
+                className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <DraftBoundInput
+                  value={state.lrmMin ?? rampBounds.min}
+                  onCommit={(v) => setState({ lrmMin: clampMinCommit(v, state.lrmMax ?? rampBounds.max) })}
+                  className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                />
+                <DraftBoundInput
+                  value={state.lrmMax ?? rampBounds.max}
+                  onCommit={(v) => setState({ lrmMax: clampMaxCommit(v, state.lrmMin ?? rampBounds.min) })}
+                  className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+                />
+              </div>
+            )}
+          </div>
           {symmetric ? (
-            <DraftBoundInput
-              value={magnitude}
-              onCommit={(v) => setState({ lrmMin: -Math.abs(v ?? 0), lrmMax: Math.abs(v ?? 0) })}
-              className="h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
+            <MobileSlider
+              sliderId="lrm:range"
+              min={0}
+              max={100}
+              step={1}
+              value={[magnitude]}
+              onValueChange={([v]) => setState({ lrmMin: -v, lrmMax: v })}
+              className="w-full cursor-pointer"
             />
           ) : (
-            <div className="flex items-center gap-2">
-              <DraftBoundInput
-                value={state.lrmMin ?? rampBounds.min}
-                onCommit={(v) => setState({ lrmMin: clampMinCommit(v, state.lrmMax ?? rampBounds.max) })}
-                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-              />
-              <DraftBoundInput
-                value={state.lrmMax ?? rampBounds.max}
-                onCommit={(v) => setState({ lrmMax: clampMaxCommit(v, state.lrmMin ?? rampBounds.min) })}
-                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-              />
-            </div>
+            <MobileSlider
+              sliderId="lrm:range"
+              min={-100}
+              max={100}
+              step={1}
+              value={[state.lrmMin ?? rampBounds.min, state.lrmMax ?? rampBounds.max]}
+              onValueChange={([min, max]) => setState({ lrmMin: Math.min(min, max), lrmMax: Math.max(min, max) })}
+              className="w-full cursor-pointer"
+            />
           )}
         </div>
-        {symmetric ? (
-          <MobileSlider
-            sliderId="lrm:range"
-            min={0}
-            max={100}
-            step={1}
-            value={[magnitude]}
-            onValueChange={([v]) => setState({ lrmMin: -v, lrmMax: v })}
-            className="w-full cursor-pointer"
-          />
-        ) : (
-          <MobileSlider
-            sliderId="lrm:range"
-            min={-100}
-            max={100}
-            step={1}
-            value={[state.lrmMin ?? rampBounds.min, state.lrmMax ?? rampBounds.max]}
-            onValueChange={([min, max]) => setState({ lrmMin: Math.min(min, max), lrmMax: Math.max(min, max) })}
-            className="w-full cursor-pointer"
-          />
-        )}
-      </div>
+      )}
 
       <div className="flex gap-2">
+        {!isCustom && (
         <div className="flex flex-1 items-center gap-2">
           <Checkbox
             id="lrm-symmetric"
@@ -173,6 +175,7 @@ export const LrmFields: React.FC<{
             Symmetric Range
           </Label>
         </div>
+        )}
 
         <div className="flex flex-1 items-center gap-2">
           <Checkbox

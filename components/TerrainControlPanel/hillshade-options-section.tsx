@@ -117,11 +117,15 @@ export const HillshadeOptionsSection: React.FC<{
           <CollapsibleContent className="space-y-1 pt-1">
             {/* justify-between spreads the pairs like justified text — first
                 label flush left, last swatch flush right, matching whichever
-                pair ends up last (Highlight with 2 colors, Accent with 3). */}
+                pair ends up last (Highlight with 2 colors, Accent with 3).
+                With only 2 colors (no Accent) the row has a lot of empty
+                middle space, so the short single-word labels (used once
+                Accent adds a third pair) look sparse — full "Shadow Color"/
+                "Highlight Color" wording fills that better with just 2. */}
             <div className="flex items-center justify-between gap-2">
               {supportsShadowColor && (
                 <div className="flex items-center gap-2">
-                  <Label className="text-xs whitespace-nowrap">Shadow</Label>
+                  <Label className="text-xs whitespace-nowrap">{supportsAccentColor ? "Shadow" : "Shadow Color"}</Label>
                   <ColorAlphaSwatch
                     title="Shadow color"
                     color={state.shadowColor}
@@ -132,7 +136,7 @@ export const HillshadeOptionsSection: React.FC<{
               )}
               {supportsHighlightColor && (
                 <div className="flex items-center gap-2">
-                  <Label className="text-xs whitespace-nowrap">Highlight</Label>
+                  <Label className="text-xs whitespace-nowrap">{supportsAccentColor ? "Highlight" : "Highlight Color"}</Label>
                   <ColorAlphaSwatch
                     title="Highlight color"
                     color={state.highlightColor}

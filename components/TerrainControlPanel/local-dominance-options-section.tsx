@@ -88,7 +88,7 @@ export const LocalDominanceFields: React.FC<{
             localDominanceMin: undefined,
             localDominanceMax: undefined,
           })}
-          anchorKey="local-dominance-default"
+          anchorKey="slope-plantopo"
           customStops={customStops}
           customStopsDiscrete={isDiscrete}
         />

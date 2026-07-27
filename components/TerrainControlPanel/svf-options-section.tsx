@@ -4,10 +4,9 @@ import { RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
-import { colorRampsClassic, extractStops } from "@/lib/color-ramps"
-import { getGradientColors } from "@/lib/controls-utils"
+import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color-ramp"
+import { colorRampsClassic, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
 
 function formatMeters(meters: number): string {
@@ -20,6 +19,8 @@ const DEFAULTS = {
   svfMax: undefined,
   svfInvertColorRamp: false,
   svfRadius: 8,
+  svfCustomStops: DEFAULT_SLOPE_CUSTOM_STOPS,
+  svfCustomStopsDiscrete: false,
 }
 
 // Fields-only (no Section wrapper/gate) — embedded inside ReliefVisualizationOptionsSection,
@@ -32,6 +33,10 @@ export const SvfFields: React.FC<{
   // search radius, same reasoning as LrmFields.
   tileSize?: number
 }> = ({ state, setState, tileSize = 256 }) => {
+  const isCustom = state.svfColorRamp === "custom"
+  const isDiscrete = state.svfCustomStopsDiscrete ?? false
+  const customStops = state.svfCustomStops ?? DEFAULT_SLOPE_CUSTOM_STOPS
+
   const rampBounds = useMemo(() => {
     const ramp = colorRampsClassic[state.svfColorRamp as keyof typeof colorRampsClassic] ?? colorRampsClassic["svf-default"]
     const stops = extractStops(ramp.colors)
@@ -53,31 +58,18 @@ export const SvfFields: React.FC<{
             <RotateCcw className="h-3 w-3" />
           </Button>
         </div>
-        <Select
+        <ColorRampSelectWithCustom
+          ramps={colorRampsClassic}
           value={state.svfColorRamp}
           onValueChange={(value) => setState({
             svfColorRamp: value,
             svfMin: undefined,
             svfMax: undefined,
           })}
-        >
-          <SelectTrigger className="w-full cursor-pointer">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(colorRampsClassic).map(([key, ramp]: [string, any]) => (
-              <SelectItem key={key} value={key}>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-12 h-4 rounded-sm"
-                    style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
-                  />
-                  <span>{ramp.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          anchorKey="slope-plantopo"
+          customStops={customStops}
+          customStopsDiscrete={isDiscrete}
+        />
       </div>
 
       <div className="space-y-2">
@@ -103,32 +95,41 @@ export const SvfFields: React.FC<{
         />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Sky View Factor Range</Label>
-          <div className="flex items-center gap-2">
-            <DraftBoundInput
-              value={state.svfMin ?? rampBounds.min}
-              onCommit={(v) => setState({ svfMin: clampMinCommit(v, state.svfMax ?? rampBounds.max) })}
-              className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-            />
-            <DraftBoundInput
-              value={state.svfMax ?? rampBounds.max}
-              onCommit={(v) => setState({ svfMax: clampMaxCommit(v, state.svfMin ?? rampBounds.min) })}
-              className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
-            />
-          </div>
-        </div>
-        <MobileSlider
-          sliderId="svf:range"
-          min={0}
-          max={200}
-          step={1}
-          value={[state.svfMin ?? rampBounds.min, state.svfMax ?? rampBounds.max]}
-          onValueChange={([min, max]) => setState({ svfMin: Math.min(min, max), svfMax: Math.max(min, max) })}
-          className="w-full cursor-pointer"
+      {isCustom ? (
+        <CustomRampStopsEditor
+          customStops={customStops}
+          onStopsChange={(stops) => setState({ svfCustomStops: stops })}
+          isDiscrete={isDiscrete}
+          onDiscreteChange={(discrete) => setState({ svfCustomStopsDiscrete: discrete })}
         />
-      </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Sky View Factor Range</Label>
+            <div className="flex items-center gap-2">
+              <DraftBoundInput
+                value={state.svfMin ?? rampBounds.min}
+                onCommit={(v) => setState({ svfMin: clampMinCommit(v, state.svfMax ?? rampBounds.max) })}
+                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+              />
+              <DraftBoundInput
+                value={state.svfMax ?? rampBounds.max}
+                onCommit={(v) => setState({ svfMax: clampMaxCommit(v, state.svfMin ?? rampBounds.min) })}
+                className="h-6 py-1 px-1 w-12 text-xs text-right bg-transparent border rounded"
+              />
+            </div>
+          </div>
+          <MobileSlider
+            sliderId="svf:range"
+            min={0}
+            max={200}
+            step={1}
+            value={[state.svfMin ?? rampBounds.min, state.svfMax ?? rampBounds.max]}
+            onValueChange={([min, max]) => setState({ svfMin: Math.min(min, max), svfMax: Math.max(min, max) })}
+            className="w-full cursor-pointer"
+          />
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <Checkbox

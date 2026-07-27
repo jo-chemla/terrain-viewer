@@ -44,7 +44,7 @@ export const AspectFields: React.FC<{
             aspectMinDegrees: undefined,
             aspectMaxDegrees: undefined,
           })}
-          anchorKey="aspect-compass"
+          anchorKey="slope-plantopo"
           customStops={customStops}
           customStopsDiscrete={isDiscrete}
         />
