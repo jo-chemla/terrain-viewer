@@ -2,13 +2,13 @@ import type React from "react"
 import { useContext } from "react"
 import { useAtom } from "jotai"
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { MobileSlider, DraftBoundInput, SectionIdContext } from "./controls-components"
 import { ElevationReferenceToggle } from "./elevation-reference-toggle"
+import { ColorAlphaSwatch } from "./color-picker"
 import { activeSliderAtom } from "@/lib/settings-atoms"
 import { cn } from "@/lib/utils"
 
@@ -127,11 +127,11 @@ export const PlaneSlicerFields: React.FC<{
 
           <div className="flex items-center justify-between gap-2">
             <Label className="text-sm font-medium">Color</Label>
-            <Input
-              type="color"
-              value={state.planeSlicerColor}
-              onChange={(e) => setState({ planeSlicerColor: e.target.value })}
-              className="h-8 w-16 p-1 cursor-pointer border-none"
+            <ColorAlphaSwatch
+              title="Plane Slicer color"
+              color={state.planeSlicerColor}
+              onChange={(hex) => setState({ planeSlicerColor: hex })}
+              className="rounded"
             />
           </div>
         </div>

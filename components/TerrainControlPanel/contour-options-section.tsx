@@ -3,12 +3,12 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { Info, RotateCcw } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, SliderControl, CheckboxWithSlider, GroupHeading } from "./controls-components"
 import { ElevationReferenceToggle } from "./elevation-reference-toggle"
+import { ColorAlphaSwatch } from "./color-picker"
 import { useTheme } from "@/lib/controls-utils"
 
 const WEIGHT_TOGGLE_ITEM_CLASS = "cursor-pointer px-2 text-xs data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
@@ -61,11 +61,11 @@ export const ContourOptionsSection: React.FC<{
             <RotateCcw className="h-3 w-3" />
           </Button>
         )}
-        <Input
-          type="color"
-          value={state[stateKey] || autoHex}
-          onChange={(e) => setState({ [stateKey]: e.target.value })}
-          className="h-8 w-12 p-1 cursor-pointer border-none shrink-0"
+        <ColorAlphaSwatch
+          title={label}
+          color={state[stateKey] || autoHex}
+          onChange={(hex) => setState({ [stateKey]: hex })}
+          className="rounded"
         />
       </div>
     </div>

@@ -1,11 +1,11 @@
 import type React from "react"
 import { useAtom } from "jotai"
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { skyConfigAtom } from "@/lib/settings-atoms"
 import { Section, SliderControl } from "./controls-components"
+import { ColorAlphaSwatch } from "./color-picker"
 
 export const BackgroundOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void; theme?: 'light' | 'dark';
@@ -45,11 +45,11 @@ export const BackgroundOptionsSection: React.FC<{
         ) : (
           <>
             <div className="flex gap-3">
-              <Input
-                type="color"
-                value={skyConfig.skyColor}
-                onChange={(e) => setSkyConfig({ ...skyConfig, skyColor: e.target.value })}
-                className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
+              <ColorAlphaSwatch
+                title="Sky color"
+                color={skyConfig.skyColor}
+                onChange={(hex) => setSkyConfig({ ...skyConfig, skyColor: hex })}
+                className="rounded shrink-0"
               />
               <div className="grow">
                 <SliderControl
@@ -61,11 +61,11 @@ export const BackgroundOptionsSection: React.FC<{
               </div>
             </div>
             <div className="flex gap-3">
-              <Input
-                type="color"
-                value={skyConfig.horizonColor}
-                onChange={(e) => setSkyConfig({ ...skyConfig, horizonColor: e.target.value })}
-                className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
+              <ColorAlphaSwatch
+                title="Horizon color"
+                color={skyConfig.horizonColor}
+                onChange={(hex) => setSkyConfig({ ...skyConfig, horizonColor: hex })}
+                className="rounded shrink-0"
               />
               <div className="grow">
                 <SliderControl
@@ -77,11 +77,11 @@ export const BackgroundOptionsSection: React.FC<{
               </div>
             </div>
             <div className="flex gap-3">
-              <Input
-                type="color"
-                value={skyConfig.fogColor}
-                onChange={(e) => setSkyConfig({ ...skyConfig, fogColor: e.target.value })}
-                className="h-8 w-12 p-1 cursor-pointer border-none flex-shrink-0"
+              <ColorAlphaSwatch
+                title="Fog color"
+                color={skyConfig.fogColor}
+                onChange={(hex) => setSkyConfig({ ...skyConfig, fogColor: hex })}
+                className="rounded shrink-0"
               />
               <div className="grow">
                 <SliderControl

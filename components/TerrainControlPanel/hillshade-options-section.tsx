@@ -2,7 +2,6 @@ import type React from "react"
 import { useMemo, useCallback, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Section, CycleButtonGroup, SliderControl } from "./controls-components"
 import { LightDirectionControl } from "./light-direction-control"
@@ -139,7 +138,17 @@ export const HillshadeOptionsSection: React.FC<{
                   />
                 </div>
               )}
-              {supportsAccentColor && (<div className="flex flex-2 items-center gap-2"><Label className="text-xs">Accent</Label><Input type="color" value={state.accentColor} onChange={(e) => setState({ accentColor: e.target.value })} className="h-9 p-1 cursor-pointer border-none" /></div>)}
+              {supportsAccentColor && (
+                <div className="flex flex-2 items-center gap-2">
+                  <Label className="text-xs">Accent</Label>
+                  <ColorAlphaSwatch
+                    title="Accent color"
+                    color={state.accentColor}
+                    onChange={(hex) => setState({ accentColor: hex })}
+                    className="rounded"
+                  />
+                </div>
+              )}
             </div>
           </CollapsibleContent>
         </Collapsible>
