@@ -21,6 +21,7 @@ import {
 } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
+import { withSlowTileStats, resetSlowTileProgress } from "@/lib/tile-timing-stats"
 import { MAX_BOUNDS_MODES, unionBounds, bufferBounds, resolveCustomSourceBounds, type LngLatBoundsTuple } from "@/lib/max-bounds"
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { getProjectConfig } from "@/lib/project-config"
@@ -912,9 +913,11 @@ export function TerrainViewer() {
     maplibregl.addProtocol('lrm', withTileResultCache(lrmProtocol))
     maplibregl.addProtocol('roughness', withTileResultCache(roughnessProtocol))
     maplibregl.addProtocol('blobness', withTileResultCache(blobnessProtocol))
-    maplibregl.addProtocol('svf', withTileResultCache(svfProtocol))
-    maplibregl.addProtocol('openness', withTileResultCache(opennessProtocol))
-    maplibregl.addProtocol('local-dominance', withTileResultCache(localDominanceProtocol))
+    // withSlowTileStats composes INSIDE withTileResultCache so it measures the
+    // real ray-marching cost, not a cache hit — see tile-timing-stats.ts.
+    maplibregl.addProtocol('svf', withTileResultCache(withSlowTileStats('svf', svfProtocol)))
+    maplibregl.addProtocol('openness', withTileResultCache(withSlowTileStats('openness', opennessProtocol)))
+    maplibregl.addProtocol('local-dominance', withTileResultCache(withSlowTileStats('local-dominance', localDominanceProtocol)))
     maplibregl.addProtocol('tells', withTileResultCache(tellsProtocol))
     // Not wrapped in withTileResultCache — this is a debug-only registration,
     // not consumed by any mounted Source (see its own header comment):
@@ -1562,6 +1565,14 @@ export function TerrainViewer() {
             const map = isPrimary ? mapARef.current : mapBRef.current
             const mapInstance = map?.getMap()
             if (!mapInstance) return
+
+            // A new viewport needs a fresh "how many tiles are pending" count
+            // for the slow ray-marched modes (SVF/Openness/Local Dominance) —
+            // see tile-timing-stats.ts. Reset at the START of a move/zoom
+            // (not continuously during it) so the counts actually accumulate
+            // while the map is settled instead of being wiped every frame.
+            mapInstance.on('movestart', () => resetSlowTileProgress())
+            mapInstance.on('zoomstart', () => resetSlowTileProgress())
 
             // const applyTerrain = () => {
             //   if (mapInstance.getSource("terrainSource")) {

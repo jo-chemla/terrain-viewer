@@ -8,6 +8,7 @@ import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from ".
 import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color-ramp"
 import { colorRampsClassic, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
+import { SlowTileProgress } from "./slow-tile-progress"
 
 function formatMeters(meters: number): string {
   return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`
@@ -51,6 +52,7 @@ export const SvfFields: React.FC<{
 
   return (
     <div className="space-y-4 pl-6">
+      <SlowTileProgress mode="svf" />
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">Color Ramp</Label>
