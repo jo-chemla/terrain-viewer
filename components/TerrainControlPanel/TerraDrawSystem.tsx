@@ -717,6 +717,24 @@ export function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; ma
         return () => { container.classList.remove('terradraw-drawing-active') }
     }, [activeDrawMode, mapRef])
 
+    // Escape bails out of whatever drawing mode is active (circle, point,
+    // polygon…) back to Select — a quick "never mind" without having to
+    // click the Select button, matching the usual escape-cancels-tool
+    // convention. Skipped while typing in a text field for the same reason
+    // the feature iterator's own shortcuts are.
+    useEffect(() => {
+        if (!draw) return
+        const handler = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape' || draw.getMode() === 'select') return
+            const target = e.target as HTMLElement | null
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+            draw.setMode('select')
+            setActiveDrawMode('select')
+        }
+        window.addEventListener('keydown', handler)
+        return () => window.removeEventListener('keydown', handler)
+    }, [draw])
+
     if (!draw) return <div className="text-sm text-muted-foreground py-2">Initializing drawing tools...</div>
 
     const modes = [
@@ -884,7 +902,13 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
     useEffect(() => {
         if (!iteratorLayerId) return
         const feature = iteratorFeatures[iteratorIndex]
-        if (feature) flyToIteratorFeature(feature)
+        if (!feature) return
+        flyToIteratorFeature(feature)
+        // selectFeature switches TerraDraw into its select mode itself if it
+        // isn't already there — so the current feature is visibly selected
+        // (handles, delete-on-backspace etc. all just work) without the
+        // iterator needing its own selection UI.
+        if (feature.id) { try { draw?.selectFeature(feature.id) } catch { /* not in a mode that supports select */ } }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [iteratorLayerId, iteratorIndex])
 
@@ -892,6 +916,34 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
         if (iteratorTotal === 0) return
         setIteratorIndex(((i % iteratorTotal) + iteratorTotal) % iteratorTotal) // wraps both ways, matching the Repeat2/"loop through" framing
     }
+
+    const deleteIteratorFeature = () => {
+        const feature = iteratorFeatures[iteratorIndex]
+        if (!feature?.id) return
+        try { draw?.removeFeatures([feature.id]) } catch (e) { console.error('Error removing feature:', e) }
+        setFeatures((prev) => prev.filter((f) => f.id !== feature.id))
+        // iteratorIndex/iteratorTotal re-clamp themselves via the effect above.
+    }
+
+    // D deletes the currently-framed feature; Left/Right steps to the
+    // previous/next one — active only while the iterator is open, and only
+    // when focus isn't in a text field (so typing a layer name or a "go to
+    // index" value doesn't get eaten). Capture phase + stopPropagation so
+    // Left/Right win over MapLibre's own arrow-key camera pan when the map
+    // canvas happens to have focus, rather than doing both at once.
+    useEffect(() => {
+        if (!iteratorLayerId) return
+        const handler = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+            if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); goToIteratorIndex(iteratorIndex + 1) }
+            else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); goToIteratorIndex(iteratorIndex - 1) }
+            else if (e.key === 'd' || e.key === 'D') { e.preventDefault(); e.stopPropagation(); deleteIteratorFeature() }
+        }
+        window.addEventListener('keydown', handler, true)
+        return () => window.removeEventListener('keydown', handler, true)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [iteratorLayerId, iteratorIndex, iteratorTotal])
 
     return (
         <div className="space-y-2">
@@ -1026,7 +1078,14 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                                 <Repeat2 className="h-4 w-4" />
                                             </Toggle>
                                         </TooltipTrigger>
-                                        <TooltipContent><p>{iteratorLayerId === layer.id ? 'Stop looping through features' : 'Loop through this layer\'s features one at a time'}</p></TooltipContent>
+                                        <TooltipContent>
+                                            {iteratorLayerId === layer.id ? <p>Stop Feature Iterator</p> : (
+                                                <p>
+                                                    <span className="font-medium">Feature Iterator</span> — loop through this layer's features one at a time, auto-framing each on the map.<br />
+                                                    Use ←/→ (or the index field) to navigate, D to delete the current feature.
+                                                </p>
+                                            )}
+                                        </TooltipContent>
                                     </Tooltip>
                                 )}
 
@@ -1052,6 +1111,20 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
 
                     {iteratorLayerId && iteratorTotal > 0 && (
                         <div className="space-y-2 rounded-md border p-2">
+                            <Tooltip delayDuration={0}>
+                                <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground cursor-default">
+                                        <Repeat2 className="h-3.5 w-3.5" />
+                                        Feature Iterator
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>
+                                        Loop through this layer's features one at a time, auto-framing each on the map.<br />
+                                        Use ←/→ (or the index field) to navigate, D to delete the current feature.
+                                    </p>
+                                </TooltipContent>
+                            </Tooltip>
                             <div className="flex items-center justify-center gap-2">
                                 <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex - 1)}>
                                     <ChevronLeft className="h-4 w-4" />
@@ -1065,6 +1138,14 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                 <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex + 1)}>
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={deleteIteratorFeature}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>Delete this feature (D)</p></TooltipContent>
+                                </Tooltip>
                             </div>
                             <div className="flex items-center justify-between gap-2">
                                 <Tooltip>
