@@ -1350,10 +1350,23 @@ export function TerrainViewer() {
   // linkedTerrainId) — selecting either half of a pair as active auto-selects
   // the other. The link only needs to be set from one side; each effect below
   // also falls back to a reverse scan of the OTHER list so it doesn't matter
-  // which source's own modal the pairing was configured from. Only wired for
-  // the primary view (sourceA/map A) — split-screen's B side typically shows
-  // a deliberately different source, not this source's paired counterpart.
+  // which source's own modal the pairing was configured from.
+  //
+  // Each effect below is gated on a "did the TRIGGER field itself actually
+  // change" ref, not just "did this effect re-run" — without that guard, the
+  // sourceA-watching effect would also fire (and re-assert its own link)
+  // every time the BASEMAP effect's own setState call changed basemapSource/
+  // basemapSourceA (both are in its dep array, since it reads them), and vice
+  // versa for the basemap-watching effect whenever sourceA changed for any
+  // reason. That made a linked pair's basemap/terrain permanently unescapable
+  // once selected — manually picking a different basemap while a linked
+  // terrain was still active got silently reverted right back on the next
+  // render. Only reacting to a genuine change in the trigger itself lets a
+  // manual pick to an unrelated source stick.
+  const prevSourceARef = useRef(state.sourceA)
   useEffect(() => {
+    if (prevSourceARef.current === state.sourceA) return
+    prevSourceARef.current = state.sourceA
     const linkedBasemapId = customTerrainSources.find((s) => s.id === state.sourceA)?.linkedBasemapId
       ?? customBasemapSources.find((b) => b.linkedTerrainId === state.sourceA)?.id
     if (!linkedBasemapId) return
@@ -1364,11 +1377,39 @@ export function TerrainViewer() {
     }
   }, [state.sourceA, state.basemapPerView, state.basemapSourceA, state.basemapSource, customTerrainSources, customBasemapSources, setState])
 
+  const prevActiveBasemapARef = useRef(activeBasemapSourceA)
   useEffect(() => {
+    if (prevActiveBasemapARef.current === activeBasemapSourceA) return
+    prevActiveBasemapARef.current = activeBasemapSourceA
     const linkedTerrainId = customBasemapSources.find((b) => b.id === activeBasemapSourceA)?.linkedTerrainId
       ?? customTerrainSources.find((s) => s.linkedBasemapId === activeBasemapSourceA)?.id
     if (linkedTerrainId && state.sourceA !== linkedTerrainId) setState({ sourceA: linkedTerrainId })
   }, [activeBasemapSourceA, customTerrainSources, customBasemapSources, state.sourceA, setState])
+
+  // Same pair-linking for the secondary view (sourceB/map B) — but only when
+  // basemapSourceB is actually its own independent slot (basemapPerView);
+  // otherwise it's the same shared basemapSource the A-side effects above
+  // already own, and reacting to it here too would just be a redundant,
+  // possibly-conflicting second writer over the same field.
+  const prevSourceBRef = useRef(state.sourceB)
+  useEffect(() => {
+    if (prevSourceBRef.current === state.sourceB) return
+    prevSourceBRef.current = state.sourceB
+    if (!state.basemapPerView) return
+    const linkedBasemapId = customTerrainSources.find((s) => s.id === state.sourceB)?.linkedBasemapId
+      ?? customBasemapSources.find((b) => b.linkedTerrainId === state.sourceB)?.id
+    if (linkedBasemapId && state.basemapSourceB !== linkedBasemapId) setState({ basemapSourceB: linkedBasemapId })
+  }, [state.sourceB, state.basemapPerView, state.basemapSourceB, customTerrainSources, customBasemapSources, setState])
+
+  const prevActiveBasemapBRef = useRef(activeBasemapSourceB)
+  useEffect(() => {
+    if (prevActiveBasemapBRef.current === activeBasemapSourceB) return
+    prevActiveBasemapBRef.current = activeBasemapSourceB
+    if (!state.basemapPerView) return
+    const linkedTerrainId = customBasemapSources.find((b) => b.id === activeBasemapSourceB)?.linkedTerrainId
+      ?? customTerrainSources.find((s) => s.linkedBasemapId === activeBasemapSourceB)?.id
+    if (linkedTerrainId && state.sourceB !== linkedTerrainId) setState({ sourceB: linkedTerrainId })
+  }, [activeBasemapSourceB, state.basemapPerView, customTerrainSources, customBasemapSources, state.sourceB, setState])
 
   // Shift the vanishing point left so it stays centered in the visible (non-obscured)
   // portion of the map when the floating sidebar covers the right edge.

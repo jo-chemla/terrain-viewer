@@ -1,11 +1,13 @@
 import type React from "react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAtom, useSetAtom } from "jotai"
+import { ChevronDown, Link } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
 import { WmsPickerPanel } from "./wms-picker-panel"
@@ -26,6 +28,9 @@ export const CustomTerrainSourceModal: React.FC<{
   // CustomTerrainSource.linkedBasemapId; the reverse Select lives in
   // custom-basemap-modal.tsx and either side is enough to link the pair.
   const [linkedBasemapId, setLinkedBasemapId] = useState("")
+  // Folded by default — most sources aren't part of a linked pair, so this
+  // stays out of the way unless deliberately expanded.
+  const [isLinkedOpen, setIsLinkedOpen] = useState(false)
   const [localFileName, setLocalFileName] = useState<string | null>(null)
   const [localFileWarning, setLocalFileWarning] = useState<string | null>(null)
   const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
@@ -45,6 +50,7 @@ export const CustomTerrainSourceModal: React.FC<{
       setDescription(editingSource.description || "")
       setMaxzoom(editingSource.maxzoom === undefined ? "" : String(editingSource.maxzoom))
       setLinkedBasemapId(editingSource.linkedBasemapId ?? "")
+      setIsLinkedOpen(!!editingSource.linkedBasemapId)
       // Re-opening the modal on an existing "cog-local" source: the File itself
       // only lives in-memory for the session it was picked in, so after a reload
       // this is null until the user picks the file again via the button below.
@@ -57,6 +63,7 @@ export const CustomTerrainSourceModal: React.FC<{
       setDescription("")
       setMaxzoom("")
       setLinkedBasemapId("")
+      setIsLinkedOpen(false)
       setLocalFileName(null)
       setLocalFileWarning(null)
     }
@@ -224,22 +231,30 @@ export const CustomTerrainSourceModal: React.FC<{
                 <Label htmlFor="source-description">Description (optional)</Label>
                 <Input id="source-description" type="text" placeholder="Custom terrain data from..." value={description} onChange={(e) => setDescription(e.target.value)} className="cursor-text" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="source-linked-basemap">Linked Basemap Source (optional)</Label>
-                <Select value={linkedBasemapId || "none"} onValueChange={(value) => setLinkedBasemapId(value === "none" ? "" : value)}>
-                  <SelectTrigger id="source-linked-basemap" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {customBasemapSources.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Pairs this with a basemap/raster source (e.g. a fresco's DTM with its own
-                  albedo photo) — selecting either one as active auto-selects the other.
-                </p>
-              </div>
+              <Collapsible open={isLinkedOpen} onOpenChange={setIsLinkedOpen}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+                  <span className="flex items-center gap-1.5">
+                    <Link className="h-3.5 w-3.5" />
+                    Linked Basemap Source{linkedBasemapId && " (set)"}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isLinkedOpen ? "rotate-180" : ""}`} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2 pt-2">
+                  <Select value={linkedBasemapId || "none"} onValueChange={(value) => setLinkedBasemapId(value === "none" ? "" : value)}>
+                    <SelectTrigger id="source-linked-basemap" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {customBasemapSources.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Pairs this with a basemap/raster source (e.g. a fresco's DTM with its own
+                    albedo photo) — selecting either one as active auto-selects the other.
+                  </p>
+                </CollapsibleContent>
+              </Collapsible>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="cursor-pointer">Cancel</Button>
                 <Button onClick={handleSave} disabled={!name || !url} className="cursor-pointer">{editingSource ? "Save Changes" : "Add Source"}</Button>

@@ -1,6 +1,7 @@
 import type React from "react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAtom, useSetAtom } from "jotai"
+import { ChevronDown, Link } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -8,6 +9,7 @@ import { Slider } from "@/components/ui/slider"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { SegmentedToggle } from "./controls-components"
 import { type CustomBasemapSource, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
@@ -39,6 +41,9 @@ export const CustomBasemapModal: React.FC<{
   // CustomBasemapSource.linkedTerrainId; the reverse Select lives in
   // custom-terrain-source-modal.tsx and either side is enough to link the pair.
   const [linkedTerrainId, setLinkedTerrainId] = useState("")
+  // Folded by default — most sources aren't part of a linked pair, so this
+  // stays out of the way unless deliberately expanded.
+  const [isLinkedOpen, setIsLinkedOpen] = useState(false)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   // The opacity editingSource had when the modal opened — restored on Cancel/
   // close-without-saving so a live-previewed drag doesn't stick if abandoned.
@@ -70,6 +75,7 @@ export const CustomBasemapModal: React.FC<{
       setOpacity(editingSource.opacity ?? 100)
       originalOpacityRef.current = editingSource.opacity ?? 100
       setLinkedTerrainId(editingSource.linkedTerrainId ?? "")
+      setIsLinkedOpen(!!editingSource.linkedTerrainId)
       // Re-opening the modal on an existing "cog-local" source: the File itself
       // only lives in-memory for the session it was picked in, so after a reload
       // this is null until the user picks the file again via the button below.
@@ -83,6 +89,7 @@ export const CustomBasemapModal: React.FC<{
       setRole("basemap")
       setOpacity(100)
       setLinkedTerrainId("")
+      setIsLinkedOpen(false)
       setLocalFileName(null)
       setLocalFileWarning(null)
     }
@@ -336,22 +343,30 @@ export const CustomBasemapModal: React.FC<{
                   className="cursor-pointer"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="basemap-linked-terrain">Linked Terrain Source (optional)</Label>
-                <Select value={linkedTerrainId || "none"} onValueChange={(value) => setLinkedTerrainId(value === "none" ? "" : value)}>
-                  <SelectTrigger id="basemap-linked-terrain" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {customTerrainSources.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Pairs this with a terrain/elevation source (e.g. a fresco's albedo photo
-                  with its own DTM) — selecting either one as active auto-selects the other.
-                </p>
-              </div>
+              <Collapsible open={isLinkedOpen} onOpenChange={setIsLinkedOpen}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+                  <span className="flex items-center gap-1.5">
+                    <Link className="h-3.5 w-3.5" />
+                    Linked Terrain Source{linkedTerrainId && " (set)"}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isLinkedOpen ? "rotate-180" : ""}`} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2 pt-2">
+                  <Select value={linkedTerrainId || "none"} onValueChange={(value) => setLinkedTerrainId(value === "none" ? "" : value)}>
+                    <SelectTrigger id="basemap-linked-terrain" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {customTerrainSources.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Pairs this with a terrain/elevation source (e.g. a fresco's albedo photo
+                    with its own DTM) — selecting either one as active auto-selects the other.
+                  </p>
+                </CollapsibleContent>
+              </Collapsible>
               <div className="flex justify-end gap-2">
                 <Button
                   variant="outline"
