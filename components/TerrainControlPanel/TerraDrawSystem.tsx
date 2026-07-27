@@ -7,7 +7,7 @@ import {
     TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawCircleMode, TerraDrawSelectMode
 } from 'terra-draw'
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
-import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon } from 'lucide-react'
+import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, Target } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -19,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ColorAlphaSwatch } from './color-picker'
 import bbox from '@turf/bbox'
 import { v4 as uuidv4 } from 'uuid'
-import { Section, CheckboxWithSlider, GroupHeading } from './controls-components'
+import { Section, CheckboxWithSlider, GroupHeading, DraftBoundInput } from './controls-components'
 import { truncate as turf_truncate } from '@turf/truncate'
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { track } from "@/lib/analytics"
@@ -830,6 +830,69 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
         } catch (e) { console.error('Error zooming to layer bounds:', e) }
     }
 
+    // --- Feature Iterator ---
+    // "Loop through" one layer's features one at a time (Repeat2 toggle on the
+    // layer row), each one auto-framed on the map: a polyline/polygon gets
+    // fitBounds with a 20%-of-viewport margin on every side (its own computed
+    // zoom); a point has no extent to fit, so it's just centered at either a
+    // user-chosen fixed zoom or whatever zoom the map is already at.
+    const [iteratorLayerId, setIteratorLayerId] = useState<string | null>(null)
+    const [iteratorIndex, setIteratorIndex] = useState(0)
+    // null = "keep the map's current zoom untouched" for point features.
+    const [iteratorZoom, setIteratorZoom] = useState<number | null>(null)
+    const iteratorFeatures = iteratorLayerId
+        ? features.filter((f) => (f.properties?.layerId ?? layers[0]?.id) === iteratorLayerId)
+        : []
+    const iteratorTotal = iteratorFeatures.length
+
+    // Jumping to a brand-new layer (or one that's now empty) starts over at
+    // the first feature rather than carrying over an index that may no
+    // longer exist there.
+    useEffect(() => { setIteratorIndex(0) }, [iteratorLayerId])
+    // A layer shrinking (features deleted) while its iterator is open could
+    // otherwise leave the index pointing past the end.
+    useEffect(() => {
+        if (iteratorTotal > 0 && iteratorIndex >= iteratorTotal) setIteratorIndex(iteratorTotal - 1)
+    }, [iteratorTotal, iteratorIndex])
+
+    const flyToIteratorFeature = (feature: GeoJSONFeature) => {
+        const map = mapRef.current?.getMap()
+        if (!map || !feature?.geometry) return
+        if (feature.geometry.type === 'Point') {
+            const [lng, lat] = feature.geometry.coordinates
+            map.easeTo({ center: [lng, lat], zoom: iteratorZoom ?? map.getZoom(), duration: 500 })
+            return
+        }
+        try {
+            const bounds = bbox(feature as any)
+            if (bounds.length === 4 && !bounds.some((n: number) => Number.isNaN(n))) {
+                const container = map.getContainer()
+                const padX = container.clientWidth * 0.2
+                const padY = container.clientHeight * 0.2
+                map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], {
+                    padding: { top: padY, bottom: padY, left: padX, right: padX },
+                    duration: 500,
+                })
+            }
+        } catch (e) { console.error('Error zooming to feature bounds:', e) }
+    }
+
+    // Fires on genuine navigation (index or active layer changing) only —
+    // deliberately NOT on iteratorFeatures/flyToIteratorFeature identity
+    // changes (a re-render for an unrelated reason shouldn't re-trigger a
+    // camera move to the same feature it's already framing).
+    useEffect(() => {
+        if (!iteratorLayerId) return
+        const feature = iteratorFeatures[iteratorIndex]
+        if (feature) flyToIteratorFeature(feature)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [iteratorLayerId, iteratorIndex])
+
+    const goToIteratorIndex = (i: number) => {
+        if (iteratorTotal === 0) return
+        setIteratorIndex(((i % iteratorTotal) + iteratorTotal) % iteratorTotal) // wraps both ways, matching the Repeat2/"loop through" framing
+    }
+
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -950,6 +1013,23 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                     </Tooltip>
                                 )}
 
+                                {!editMode && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Toggle
+                                                pressed={iteratorLayerId === layer.id}
+                                                onPressedChange={(pressed) => setIteratorLayerId(pressed ? layer.id : null)}
+                                                size="sm"
+                                                disabled={featureCount(layer.id) === 0}
+                                                className="h-8 w-8 shrink-0 cursor-pointer p-0"
+                                            >
+                                                <Repeat2 className="h-4 w-4" />
+                                            </Toggle>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p>{iteratorLayerId === layer.id ? 'Stop looping through features' : 'Loop through this layer\'s features one at a time'}</p></TooltipContent>
+                                    </Tooltip>
+                                )}
+
                                 {editMode && (
                                     <Tooltip>
                                         <TooltipTrigger asChild>
@@ -969,6 +1049,56 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                             </div>
                         ))}
                     </RadioGroup>
+
+                    {iteratorLayerId && iteratorTotal > 0 && (
+                        <div className="space-y-2 rounded-md border p-2">
+                            <div className="flex items-center justify-center gap-2">
+                                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex - 1)}>
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <DraftBoundInput
+                                    value={iteratorIndex + 1}
+                                    onCommit={(v) => { if (v !== undefined) goToIteratorIndex(Math.round(v) - 1) }}
+                                    className="h-7 w-14 text-center text-sm bg-transparent border rounded"
+                                />
+                                <span className="text-sm text-muted-foreground shrink-0">/ {iteratorTotal}</span>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex + 1)}>
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Label className="text-xs text-muted-foreground shrink-0">Point zoom</Label>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>Zoom level to center a point feature at — only applies to points (polylines/polygons always auto-fit to their own extent). Empty keeps whatever zoom the map is already at.</p></TooltipContent>
+                                </Tooltip>
+                                <div className="flex items-center gap-1">
+                                    <DraftBoundInput
+                                        value={iteratorZoom ?? undefined}
+                                        onCommit={(v) => setIteratorZoom(v ?? null)}
+                                        placeholder="Current"
+                                        className="h-7 w-16 text-xs text-right bg-transparent border rounded"
+                                        step={0.5}
+                                    />
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 shrink-0 cursor-pointer"
+                                                onClick={() => setIteratorZoom(mapRef.current?.getMap()?.getZoom() ?? null)}
+                                            >
+                                                <Target className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p>Set to the map's current zoom</p></TooltipContent>
+                                    </Tooltip>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <Button variant="outline" size="sm" onClick={addLayer} className="cursor-pointer w-full">
                         <Plus className="h-4 w-4 mr-1" /> Add Layer
                     </Button>
