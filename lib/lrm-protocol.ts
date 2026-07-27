@@ -118,3 +118,18 @@ export async function lrmProtocol(
   const blob = await canvas.convertToBlob({ type: "image/png" })
   return { data: new Uint8Array(await blob.arrayBuffer()) }
 }
+
+/** `fetchTileBlob` override for lib/tile-mosaic.ts's `fetchTileMosaic` — calls
+ *  `lrmProtocol` directly as a plain function instead of a `fetch()`, since an
+ *  `lrm://` URL isn't fetchable outside maplibre's own request pipeline (see
+ *  fetchTileMosaic's own `fetchTileBlob` option header). Used by the client-
+ *  side LRM point/path sampling in lib/elevation-query.ts. */
+export async function lrmFetchTileBlob(url: string, signal?: AbortSignal): Promise<Blob> {
+  const controller = new AbortController()
+  if (signal) {
+    if (signal.aborted) controller.abort()
+    else signal.addEventListener("abort", () => controller.abort())
+  }
+  const { data } = await lrmProtocol({ url }, controller)
+  return new Blob([data as BlobPart], { type: "image/png" })
+}

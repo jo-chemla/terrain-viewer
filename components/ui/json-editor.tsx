@@ -22,7 +22,12 @@ export const JsonEditor: React.FC<{
   className?: string
   placeholder?: string
   language?: "json" | "properties"
-}> = ({ value, onChange, className, placeholder, language = "json" }) => {
+  /** Rows of monospace text (20px line-height + 12px top/bottom padding) to size
+   *  the editor to — e.g. the API-keys batch editor, which only ever holds a
+   *  handful of key=value lines and doesn't need the 400px JSON-editing default. */
+  rows?: number
+}> = ({ value, onChange, className, placeholder, language = "json", rows }) => {
+  const minHeight = rows ? `${rows * 20 + 24}px` : "400px"
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const highlightRef = useRef<HTMLDivElement>(null)
 
@@ -43,7 +48,7 @@ export const JsonEditor: React.FC<{
   }
 
   return (
-    <div className={cn("relative w-full min-h-[400px] border rounded-md overflow-hidden", className)}>
+    <div className={cn("relative w-full border rounded-md overflow-hidden", className)} style={{ minHeight }}>
       <div
         ref={highlightRef}
         aria-hidden
@@ -73,8 +78,8 @@ export const JsonEditor: React.FC<{
         onScroll={syncScroll}
         placeholder={placeholder}
         spellCheck={false}
-        className="relative w-full h-full min-h-[400px] resize-none outline-none focus:ring-2 focus:ring-ring text-transparent caret-foreground bg-transparent"
-        style={sharedTextStyle}
+        className="relative w-full h-full resize-none outline-none focus:ring-2 focus:ring-ring text-transparent caret-foreground bg-transparent"
+        style={{ ...sharedTextStyle, minHeight }}
       />
     </div>
   )

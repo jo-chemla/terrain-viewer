@@ -174,3 +174,21 @@ export const resolutionKeyAtom = atomWithStorage<ExportResolutionLabel> ('anim-r
 export const renderQualityAtom = atomWithStorage<RenderQuality>('anim-render-quality', 'normal')
 export const fpsAtom = atomWithStorage('anim-fps', 60)
 export const targetSizeMBAtom = atomWithStorage('anim-target-size-mb', '')
+
+// One open/closed atom per top-level Settings dialog section (settings-dialog.tsx's
+// CollapsibleSection) — remembers what the user last folded, same as
+// isByodOpenAtom/isHillshadeXYPadOpenAtom above do for sidebar sections. Most
+// default open (true); "Appearance", "Save Project Preset", "Map bounds
+// constraints" and "API Keys" default folded (false) — Appearance because it's
+// rarely revisited once picked, the rest because they're setup/export actions
+// you configure once, not something you look at every time the dialog opens.
+export const isSettingsAppearanceOpenAtom = atomWithStorage("isSettingsAppearanceOpen", false)
+export const isSettingsKeyboardShortcutsOpenAtom = atomWithStorage("isSettingsKeyboardShortcutsOpen", true)
+export const isSettingsVisualizationModesOpenAtom = atomWithStorage("isSettingsVisualizationModesOpen", true)
+export const isSettingsStreamingOpenAtom = atomWithStorage("isSettingsStreamingOpen", true)
+export const isSettingsStoragePersistenceOpenAtom = atomWithStorage("isSettingsStoragePersistenceOpen", true)
+export const isSettingsTellsDetectionOpenAtom = atomWithStorage("isSettingsTellsDetectionOpen", true)
+export const isSettingsApiKeysOpenAtom = atomWithStorage("isSettingsApiKeysOpen", false)
+export const isSettingsMapBoundsOpenAtom = atomWithStorage("isSettingsMapBoundsOpen", false)
+export const isSettingsSaveProjectOpenAtom = atomWithStorage("isSettingsSaveProjectOpen", false)
+export const isSettingsResourcesOpenAtom = atomWithStorage("isSettingsResourcesOpen", false)

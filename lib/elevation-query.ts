@@ -13,7 +13,7 @@
 
 import type { Map as MapLibreMap } from "maplibre-gl"
 import { terrainrgbToElevation, terrariumToElevation } from "./elevation-encoding"
-import { fetchTileMosaic, pickZoomForResolution } from "./tile-mosaic"
+import { fetchTileMosaic, pickZoomForResolution, isRetryableTileError } from "./tile-mosaic"
 import { sampleCogPointElevation, type ClientExportSource } from "./client-export"
 
 export interface ProfilePoint {
@@ -38,11 +38,15 @@ export function queryTerrainElevationAtPoint(
 }
 
 /** Fetches+decodes just the single tile/pixel under a point — the 2D-mode
- *  counterpart to lib/client-export.ts's full-bbox export. */
+ *  counterpart to lib/client-export.ts's full-bbox export. `fetchTileBlob`
+ *  overrides how tile bytes are obtained (see fetchTileMosaic's own option) —
+ *  needed to sample LRM (lib/lrm-protocol.ts) instead of raw elevation, since
+ *  an `lrm://` URL isn't fetchable via a plain `fetch()`. */
 export async function sampleClientElevationAtPoint(
   source: ClientExportSource,
   lng: number,
   lat: number,
+  fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob>,
 ): Promise<number | null> {
   if (source.type === "cog") {
     return sampleCogPointElevation(source.url, lng, lat)
@@ -65,10 +69,11 @@ export async function sampleClientElevationAtPoint(
         bbox: [lng - eps, lat - eps, lng + eps, lat + eps],
         zoom,
         decodePixel,
+        fetchTileBlob,
       })
       break
     } catch (err) {
-      if (err instanceof Error && /\(404\)/.test(err.message)) continue
+      if (isRetryableTileError(err)) continue
       throw err
     }
   }
@@ -131,7 +136,7 @@ export async function sampleClientElevationProfile(
       mosaic = await fetchTileMosaic({ tileUrlTemplate: source.url, tileSize: source.tileSize, bbox, zoom, decodePixel })
       break
     } catch (err) {
-      if (err instanceof Error && /\(404\)/.test(err.message)) continue
+      if (isRetryableTileError(err)) continue
       throw err
     }
   }
@@ -159,6 +164,7 @@ export async function sampleClientElevationProfile(
 export async function sampleClientElevationPath(
   source: ClientExportSource,
   coords: [number, number][],
+  fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob>,
 ): Promise<(number | null)[]> {
   if (coords.length === 0) return []
 
@@ -184,10 +190,10 @@ export async function sampleClientElevationPath(
   let mosaic: Awaited<ReturnType<typeof fetchTileMosaic>> | null = null
   for (let zoom = startZoom; zoom >= Math.max(0, startZoom - 6); zoom--) {
     try {
-      mosaic = await fetchTileMosaic({ tileUrlTemplate: source.url, tileSize: source.tileSize, bbox, zoom, decodePixel })
+      mosaic = await fetchTileMosaic({ tileUrlTemplate: source.url, tileSize: source.tileSize, bbox, zoom, decodePixel, fetchTileBlob })
       break
     } catch (err) {
-      if (err instanceof Error && /\(404\)/.test(err.message)) continue
+      if (isRetryableTileError(err)) continue
       throw err
     }
   }

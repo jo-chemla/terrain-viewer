@@ -21,6 +21,18 @@ export interface FetchTileMosaicOptions {
   zoom: number
   decodePixel: (r: number, g: number, b: number, a: number) => number
   onProgress?: (fraction: number) => void
+  /** Aborts the in-flight per-tile fetch (and rejects this call) — checked by
+   *  `fetch` itself at call time, so an abort between tiles takes effect on
+   *  the very next iteration without a separate `aborted` check here. */
+  signal?: AbortSignal
+  /** Overrides how each tile's image bytes are obtained — defaults to a plain
+   *  `fetch(url, {signal})` + `.blob()`. Needed for a tileUrlTemplate whose
+   *  scheme a plain `fetch()` can't resolve, e.g. `lrm://` (lib/lrm-
+   *  protocol.ts): that scheme is only ever dispatched by MAPLIBRE'S OWN
+   *  request pipeline via `maplibregl.addProtocol`, which does NOT intercept
+   *  arbitrary `fetch()` calls made elsewhere — see lib/elevation-query.ts's
+   *  LRM sampling for the caller that needs this. */
+  fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob>
 }
 
 function lonLatToTileXY(lon: number, lat: number, z: number): [number, number] {
@@ -51,21 +63,46 @@ export function pickZoomForResolution(
 ): number {
   const [west, south, east, north] = bbox
   for (let z = 0; z <= maxZoom; z++) {
-    const [x0] = lonLatToTileXY(west, north, z)
-    const [x1] = lonLatToTileXY(east, south, z)
-    const cols = Math.max(1, Math.ceil(x1) - Math.floor(x0))
-    if (cols * tileSize >= targetWidth) {
-      const [, y0] = lonLatToTileXY(west, north, z)
-      const [, y1] = lonLatToTileXY(east, south, z)
-      const rows = Math.max(1, Math.ceil(y1) - Math.floor(y0))
-      if (rows * tileSize >= targetHeight) return z
-    }
+    const [x0, y0] = lonLatToTileXY(west, north, z)
+    const [x1, y1] = lonLatToTileXY(east, south, z)
+    // Pixel resolution the bbox actually spans at this zoom is its FRACTIONAL
+    // tile-span times tileSize — not `ceil(x1) - floor(x0)` (the count of
+    // whole tiles it touches), which is always >= 1 by definition. That
+    // whole-tile-count version made this trivially pass at zoom 0 for ANY
+    // small bbox (a single world-spanning tile at z=0 already "has" tileSize
+    // pixels, e.g. 512 >= a 128px target, regardless of how little of that
+    // tile the bbox occupies) — confirmed via a real ~300m elevation-profile
+    // bbox always resolving to z=0 and sampling a blank/degenerate world
+    // tile instead of real detail.
+    const pixelWidth = Math.abs(x1 - x0) * tileSize
+    const pixelHeight = Math.abs(y1 - y0) * tileSize
+    if (pixelWidth >= targetWidth && pixelHeight >= targetHeight) return z
   }
   return maxZoom
 }
 
+/** Whether a fetchTileMosaic failure means "no tile at this zoom, try one
+ *  lower" rather than a real/permanent error. Plain tile-mosaic fetches throw
+ *  `Tile fetch failed (404): ...` (see fetchTileMosaic below). LRM sampling
+ *  (lib/lrm-protocol.ts, routed through fetchTileBlob) throws two differently
+ *  -shaped messages instead — both from lib/normal-derived-protocol.ts, which
+ *  discards the upstream HTTP status on any failure (returns null uniformly,
+ *  a design shared with every other derived-protocol mode), so neither has a
+ *  "(404)" substring to match: `Failed to fetch LRM center tile at z/x/y` (the
+ *  fine tile itself is missing) and the generic `Failed to fetch center tile
+ *  at z/x/y` fetchPaddedElevationGrid throws when the ANCESTOR (regional-
+ *  trend) tile it fetches for the low-pass side of the LRM difference is
+ *  missing instead. Recognizing all three lets a zoom-fallback loop actually
+ *  fall back for LRM instead of throwing on the first missing tile — whether
+ *  that's the fine tile or its ancestor. Shared by lib/elevation-query.ts
+ *  (point/path sampling) and lib/client-export.ts (bulk DTM export). */
+export function isRetryableTileError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  return /\(404\)/.test(err.message) || /Failed to fetch.*center tile/.test(err.message)
+}
+
 export async function fetchTileMosaic(opts: FetchTileMosaicOptions): Promise<TileMosaicResult> {
-  const { tileUrlTemplate, tileSize, bbox, zoom, decodePixel, onProgress } = opts
+  const { tileUrlTemplate, tileSize, bbox, zoom, decodePixel, onProgress, signal, fetchTileBlob } = opts
   const [west, south, east, north] = bbox
 
   const [xMinF, yMinF] = lonLatToTileXY(west, north, zoom)
@@ -91,9 +128,13 @@ export async function fetchTileMosaic(opts: FetchTileMosaicOptions): Promise<Til
         .replace("{x}", String(tx))
         .replace("{y}", String(ty))
 
-      const response = await fetch(url)
-      if (!response.ok) throw new Error(`Tile fetch failed (${response.status}): ${url}`)
-      const blob = await response.blob()
+      const blob = fetchTileBlob
+        ? await fetchTileBlob(url, signal)
+        : await (async () => {
+            const response = await fetch(url, { signal })
+            if (!response.ok) throw new Error(`Tile fetch failed (${response.status}): ${url}`)
+            return response.blob()
+          })()
       const bitmap = await createImageBitmap(blob)
 
       const canvas = document.createElement("canvas")

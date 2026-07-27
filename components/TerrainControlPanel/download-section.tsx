@@ -1,7 +1,7 @@
 import type React from "react"
-import { useState, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useAtom } from "jotai"
-import { Download, Camera, Copy, Loader2, MountainSnow } from "lucide-react"
+import { Download, Camera, Copy, Loader2, MountainSnow, X } from "lucide-react"
 import { titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
@@ -18,6 +18,18 @@ import { TooltipButton } from "./controls-components"
 import { Progress } from "@/components/ui/progress"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+/** Cooperative cancellation only — an already in-flight synchronous decode
+ *  step (e.g. the pixel loop below, or geotiff.js resampling a read that's
+ *  already started) can't be interrupted mid-step, so a cancel takes effect
+ *  at the next checkpoint: the next tile fetch, the next network request, or
+ *  (checked explicitly) right before the final GeoTIFF is written to disk —
+ *  never after. */
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError"
+}
 
 export const DownloadSection: React.FC<{
   state: any
@@ -39,6 +51,34 @@ export const DownloadSection: React.FC<{
   const [isCopying, setIsCopying] = useState(false)
   const [exportProgress, setExportProgress] = useState<number | null>(null)
   const [exportError, setExportError] = useState("")
+  // Non-fatal — the download still saved, but at less than the configured Max
+  // Resolution because the source's tile pyramid ran out of zoom over this
+  // bbox (see ClientExportResult.resolutionLimited in lib/client-export.ts).
+  const [exportWarning, setExportWarning] = useState("")
+  // Owns the currently in-flight DTM export's cancellation — see exportDTM
+  // (creates it) and cancelExportDTM (the Cancel button, aborts it).
+  const exportAbortControllerRef = useRef<AbortController | null>(null)
+  // Most exports finish in well under a second, so a Cancel affordance would
+  // just be noise flashing in and out — it only appears once an export has
+  // been running for a bit, meaning it's actually worth cancelling.
+  const [canCancelExport, setCanCancelExport] = useState(false)
+  useEffect(() => {
+    if (!isExporting) {
+      setCanCancelExport(false)
+      return
+    }
+    const timer = setTimeout(() => setCanCancelExport(true), 1500)
+    return () => clearTimeout(timer)
+  }, [isExporting])
+
+  // Auto-dismiss the resolution-limited warning — it's informational, not
+  // something that needs an explicit ack, so it shouldn't linger indefinitely
+  // after a since-completed export.
+  useEffect(() => {
+    if (!exportWarning) return
+    const timer = setTimeout(() => setExportWarning(""), 10000)
+    return () => clearTimeout(timer)
+  }, [exportWarning])
 
   const getTitilerDownloadUrl = useCallback(() => {
     const sourceConfig = getSourceConfig(state.sourceA)
@@ -55,7 +95,7 @@ export const DownloadSection: React.FC<{
     try {
       const success = await captureAndCopyMapToClipboard(mapRef)
       if (success) {
-        track("export", { kind: "snapshot-clipboard" })
+        track("actions-export", { kind: "snapshot-clipboard" })
         console.log("Snapshot copied to clipboard")
       } else {
         console.error("Failed to copy snapshot")
@@ -81,7 +121,7 @@ export const DownloadSection: React.FC<{
       }
       
       saveAs(blob, `${filename}.jpg`)
-      track("export", { kind: "screenshot", viewMode: state.viewMode })
+      track("actions-export", { kind: "screenshot", viewMode: state.viewMode })
 
       // Generate world file if in 2D mode
       if (state.viewMode === "2d") {
@@ -131,7 +171,7 @@ export const DownloadSection: React.FC<{
     saveAs(blob, `terrain-dtm-${Date.now()}.tif`)
   }, [])
 
-  const exportDTMClientSide = useCallback(async () => {
+  const exportDTMClientSide = useCallback(async (signal: AbortSignal) => {
     const clientSource = getClientExportSource(state.sourceA, customTerrainSources, getTilesUrl)
     if (!clientSource) {
       setExportError("This source isn't supported for client-side export (only COG, TerrainRGB and Terrarium sources are) — switch off Client-side mode to export via Titiler instead.")
@@ -143,13 +183,24 @@ export const DownloadSection: React.FC<{
       bbox: [bounds.west, bounds.south, bounds.east, bounds.north],
       targetResolution: maxResolution,
       onProgress: setExportProgress,
+      signal,
     })
+    // Every network step above already honours `signal`, but the pixel
+    // decode + mosaic assembly around it doesn't — check once more right
+    // before committing to a save, so a cancel that lands after the last
+    // fetch resolves still doesn't produce a download.
+    if (signal.aborted) throw new DOMException("Export cancelled", "AbortError")
+    if (result.resolutionLimited) {
+      setExportWarning(
+        `Exported at ${result.width}×${result.height}px, below the ${maxResolution}px Max Resolution setting — this source has no deeper zoom data over the selected area.`,
+      )
+    }
     await saveElevationGeoTiff(result.data, result.width, result.height, {
       west: result.bbox[0], south: result.bbox[1], east: result.bbox[2], north: result.bbox[3],
     })
   }, [state.sourceA, customTerrainSources, getTilesUrl, getMapBounds, maxResolution, saveElevationGeoTiff])
 
-  const exportDTMViaTitiler = useCallback(async () => {
+  const exportDTMViaTitiler = useCallback(async (signal: AbortSignal) => {
     const sourceConfig = getSourceConfig(state.sourceA)
     if (!sourceConfig) {
       setExportError("Source config not found")
@@ -161,7 +212,7 @@ export const DownloadSection: React.FC<{
     }
 
     const url = getTitilerDownloadUrl()
-    const response = await fetch(url)
+    const response = await fetch(url, { signal })
     if (!response.ok) {
       window.open(url, "_blank")
       return
@@ -189,35 +240,52 @@ export const DownloadSection: React.FC<{
       }
     }
 
+    // The single `fetch` above is the only network step in this path — the
+    // rest is a synchronous decode, so this is the last point a cancel can
+    // still stop the file from being written.
+    if (signal.aborted) throw new DOMException("Export cancelled", "AbortError")
     await saveElevationGeoTiff(elevationData, width, height, getMapBounds())
   }, [getTitilerDownloadUrl, getSourceConfig, state.sourceA, getMapBounds, saveElevationGeoTiff])
 
   const exportDTM = useCallback(async () => {
     if (isExporting) return
 
+    const controller = new AbortController()
+    exportAbortControllerRef.current = controller
+
     setIsExporting(true)
     setExportError("")
+    setExportWarning("")
     setExportProgress(useClientExport ? 0 : null)
-    track("export", { kind: "dtm", mode: useClientExport ? "client" : "titiler" })
+    track("actions-export", { kind: "dtm", mode: useClientExport ? "client" : "titiler" })
     try {
       if (useClientExport) {
-        await exportDTMClientSide()
+        await exportDTMClientSide(controller.signal)
       } else {
-        await exportDTMViaTitiler()
+        await exportDTMViaTitiler(controller.signal)
       }
     } catch (error) {
-      console.error("Failed to export DTM:", error)
-      if (useClientExport) {
-        setExportError(error instanceof Error ? error.message : "Client-side export failed")
+      if (isAbortError(error)) {
+        track("actions-export", { kind: "dtm-cancelled" })
       } else {
-        const url = getTitilerDownloadUrl()
-        window.open(url, "_blank")
+        console.error("Failed to export DTM:", error)
+        if (useClientExport) {
+          setExportError(error instanceof Error ? error.message : "Client-side export failed")
+        } else {
+          const url = getTitilerDownloadUrl()
+          window.open(url, "_blank")
+        }
       }
     } finally {
+      exportAbortControllerRef.current = null
       setIsExporting(false)
       setExportProgress(null)
     }
   }, [isExporting, useClientExport, exportDTMClientSide, exportDTMViaTitiler, getTitilerDownloadUrl])
+
+  const cancelExportDTM = useCallback(() => {
+    exportAbortControllerRef.current?.abort()
+  }, [])
 
   // Moved here from ContourOptionsSection — contour export is a download action like
   // the others in this section, not a contour-rendering option.
@@ -228,7 +296,7 @@ export const DownloadSection: React.FC<{
     // Stitches contour segments that were only cut apart by tile boundaries back
     // into single continuous lines — see lib/merge-contours.ts.
     downloadGeoJSON(mergeContourLines(features as GeoJSON.Feature[]), 'contours')
-    track("export", { kind: "contours" })
+    track("actions-export", { kind: "contours" })
   }, [mapRef])
 
   return (
@@ -242,20 +310,63 @@ export const DownloadSection: React.FC<{
             onClick={downloadScreenshot}
             className="flex-1 bg-transparent"
           />
-          <TooltipButton
-            icon={isExporting ? Loader2 : Download}
-            label={isExporting ? "Exporting…" : "DEM GeoTiff"}
-            tooltip="Export DTM as GeoTIFF"
-            onClick={exportDTM}
-            disabled={isExporting}
-            className={`flex-1 ${isExporting ? "[&_svg]:animate-spin" : ""}`}
-          />
+          {/* While exporting, an absolutely-positioned "Cancel" button sits on
+              top of the (disabled, inert) spinner button and fades in on
+              hover via group-hover — pure-CSS, no local hover state needed.
+              pointer-events-none until hovered so it can't be clicked by
+              accident the instant the export starts. Only mounted once
+              canCancelExport flips true (see the effect above) — a fast
+              export never shows a cancel affordance at all. */}
+          <div className="relative flex-1 group">
+            <TooltipButton
+              icon={isExporting ? Loader2 : Download}
+              label={isExporting ? "Exporting…" : "DEM GeoTiff"}
+              tooltip="Export DTM as GeoTIFF"
+              onClick={exportDTM}
+              disabled={isExporting}
+              // The hover-fade-to-Cancel behavior only applies once
+              // canCancelExport is true (the Cancel button is only mounted
+              // then) — gating group-hover:opacity-0 on isExporting alone
+              // meant hovering during the first 1.5s faded this button to
+              // nothing with no Cancel button underneath to replace it.
+              className={cn(
+                "block w-full",
+                isExporting && "[&_svg]:animate-spin",
+                isExporting && canCancelExport && "transition-opacity group-hover:opacity-0",
+              )}
+            />
+            {isExporting && canCancelExport && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={cancelExportDTM}
+                // Standard page background (bg-background — white in light
+                // theme, dark in dark theme), pinned the same in rest/hover/
+                // light/dark so it never shifts to the outline variant's own
+                // accent hover fill — only the text and border use the
+                // destructive token, in both rest and hover states.
+                // dark:border-destructive is needed alongside plain
+                // border-destructive — the outline variant's own
+                // dark:border-input is a *different* tailwind-merge conflict
+                // group than plain border-*, so it otherwise survives
+                // untouched in dark mode (same reasoning as the dark:hover:bg
+                // override below it).
+                className="cursor-pointer absolute inset-0 min-w-0 bg-background hover:bg-background dark:bg-background dark:hover:bg-background border-destructive dark:border-destructive text-destructive hover:text-destructive opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
+              >
+                <X className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" />
+                <span className="truncate text-xs sm:text-sm">Cancel</span>
+              </Button>
+            )}
+          </div>
         </div>
         {exportProgress !== null && (
           <Progress value={exportProgress * 100} className="h-1" />
         )}
         {exportError && (
           <p className="text-xs text-red-500">{exportError}</p>
+        )}
+        {exportWarning && (
+          <p className="text-xs text-amber-600 dark:text-amber-500">{exportWarning}</p>
         )}
         <div className="flex gap-2">
           {!hideContoursExport && (

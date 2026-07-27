@@ -13,10 +13,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useSourceConfig } from "@/lib/controls-utils"
 import { customTerrainSourcesAtom } from "@/lib/settings-atoms"
-import { getClientExportSource } from "@/lib/client-export"
+import { getClientExportSource, type ClientExportSource } from "@/lib/client-export"
 import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint, sampleClientElevationPath, type ProfilePoint } from "@/lib/elevation-query"
+import { buildLrmProtocolUrl, lrmFetchTileBlob } from "@/lib/lrm-protocol"
+import type { UpstreamEncoding } from "@/lib/normal-derived-protocol"
 import { ElevationProfileChart, computeLineOfSight } from "./elevation-profile-chart"
 import { PlaneSlicerFields } from "./plane-slicer-fields"
+import { ElevationReferenceToggle } from "./elevation-reference-toggle"
 import { track } from "@/lib/analytics"
 import { fetchRoute, resamplePath, type RoutingEngine, type RoutingProfile } from "@/lib/routing"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -57,6 +60,25 @@ function elevationColor(t: number): string {
   }
   const last = ELEV_RAMP[ELEV_RAMP.length - 1][1]
   return `rgb(${last[0]},${last[1]},${last[2]})`
+}
+
+// Rewrites a client DEM source into one that samples LRM (height above/below
+// the local neighborhood mean) instead of raw elevation — same lib/lrm-
+// protocol.ts computation Relief Visualization/Plane Slicer already use, just
+// sampled client-side by point/path instead of rendered as a map layer.
+// There's no 3D-mesh equivalent for this (map.queryTerrainElevation() only
+// ever reflects the real terrain), so LRM mode always samples this way
+// regardless of view mode — see sampleElevation/computeProfile below. Only
+// terrainrgb/terrarium sources are supported (mirrors lib/lrm-protocol.ts's
+// own upstream-encoding assumption); callers must exclude "cog" first.
+function toLrmClientSource(source: ClientExportSource, lrmRadius: number): ClientExportSource {
+  const upstreamEncoding: UpstreamEncoding = source.type === "terrarium" ? "terrarium" : "mapbox"
+  return {
+    type: "terrarium", // lrmProtocol always re-encodes its output as Terrarium
+    url: buildLrmProtocolUrl(source.url, upstreamEncoding, source.tileSize, lrmRadius),
+    tileSize: source.tileSize,
+    maxzoom: source.maxzoom,
+  }
 }
 
 export const ElevationPickerSection: React.FC<{
@@ -124,6 +146,23 @@ export const ElevationPickerSection: React.FC<{
     map: maplibregl.Map, lng: number, lat: number,
   ): Promise<{ elevation: number | null; error?: string }> => {
     const s = stateRef.current
+
+    // LRM has no 3D-mesh equivalent — always sample client-side, regardless
+    // of view mode (see toLrmClientSource above).
+    if (s.elevationPickerReferenceMode === "lrm") {
+      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current)
+      if (!clientSource || clientSource.type === "cog") {
+        return { elevation: null, error: "LRM elevation lookup only supports TerrainRGB/Terrarium sources — switch to Absolute, or pick a different source." }
+      }
+      try {
+        const elevation = await sampleClientElevationAtPoint(toLrmClientSource(clientSource, s.lrmRadius), lng, lat, lrmFetchTileBlob)
+        if (elevation === null) return { elevation: null, error: "No data at this point" }
+        return { elevation }
+      } catch (err) {
+        return { elevation: null, error: err instanceof Error ? err.message : "Elevation lookup failed" }
+      }
+    }
+
     if (s.viewMode === "3d" || s.viewMode === "globe") {
       const elevation = queryTerrainElevationAtPoint(map, lng, lat, s.exaggeration || 1)
       if (elevation === null) return { elevation: null, error: "No terrain elevation at this point" }
@@ -158,7 +197,14 @@ export const ElevationPickerSection: React.FC<{
     const s = stateRef.current
 
     let elevations: (number | null)[]
-    if (s.viewMode === "3d" || s.viewMode === "globe") {
+    if (s.elevationPickerReferenceMode === "lrm") {
+      // Same "no 3D-mesh equivalent" reasoning as sampleElevation above —
+      // always client-side, regardless of view mode.
+      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current)
+      elevations = (clientSource && clientSource.type !== "cog")
+        ? await sampleClientElevationPath(toLrmClientSource(clientSource, s.lrmRadius), coords, lrmFetchTileBlob)
+        : new Array(coords.length).fill(null)
+    } else if (s.viewMode === "3d" || s.viewMode === "globe") {
       const map = mapRef.current?.getMap()
       elevations = map
         ? coords.map(([lng, lat]) => queryTerrainElevationAtPoint(map, lng, lat, s.exaggeration || 1))
@@ -433,6 +479,16 @@ export const ElevationPickerSection: React.FC<{
           <p className="text-xs text-muted-foreground">
             Click the map to sample elevation. A second click measures the difference; a third starts a new pair.
           </p>
+          {/* Absolute (real altitude) vs LRM (height above/below the local
+              neighborhood mean) — same reference Plane Slicer below uses for
+              its own threshold, applied here to what a click/profile actually
+              samples. LRM has no 3D-mesh equivalent, so it always samples
+              client-side regardless of View Mode (see sampleElevation). */}
+          <ElevationReferenceToggle
+            label="Sample Reference"
+            value={state.elevationPickerReferenceMode}
+            onChange={(v) => setState({ elevationPickerReferenceMode: v })}
+          />
           {points.map((p, idx) => (
             <div key={idx} className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-muted/50 text-sm">
               <span className="flex items-center gap-1.5">

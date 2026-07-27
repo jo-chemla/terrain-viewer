@@ -10,6 +10,8 @@ import type { TerrainSource } from "@/lib/terrain-types"
 import type { CustomTerrainSource } from "@/lib/settings-atoms"
 import { resolveLocalFileUrl, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { buildCogContourUrl } from "@/lib/cog-contour-protocol"
+import { buildLrmProtocolUrl, lrmFetchTileBlob } from "@/lib/lrm-protocol"
+import type { UpstreamEncoding } from "@/lib/normal-derived-protocol"
 import { useAtomValue } from "jotai"
 import {LAYER_SLOTS} from "./MapLayers"
 
@@ -91,7 +93,7 @@ function buildTileUrl(
   titilerEndpoint: string,
   mapboxKey: string,
   maptilerKey: string,
-): { tileUrl: string; encoding: string; maxzoom: number } | null {
+): { tileUrl: string; encoding: string; maxzoom: number; tileSize: number } | null {
   const customSource = customTerrainSources.find((s) => s.id === sourceId)
 
   if (customSource) {
@@ -111,6 +113,7 @@ function buildTileUrl(
         tileUrl: `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`,
         encoding: "mapbox",
         maxzoom: 14,
+        tileSize: 256,
       }
     }
     if (customSource.type === "wms-raw") {
@@ -123,12 +126,14 @@ function buildTileUrl(
         tileUrl: `float32dem://${customSource.url.replace(/^https?:\/\//, "")}`,
         encoding: "terrarium",
         maxzoom: 14,
+        tileSize: 512,
       }
     }
     return {
       tileUrl: customSource.url,
       encoding: customSource.type === "terrarium" ? "terrarium" : "mapbox",
       maxzoom: 14,
+      tileSize: 256,
     }
   }
 
@@ -143,7 +148,61 @@ function buildTileUrl(
     tileUrl,
     encoding: source.encoding === "terrainrgb" ? "mapbox" : "terrarium",
     maxzoom: source.sourceConfig.maxzoom || 14,
+    tileSize: source.sourceConfig.tileSize || 256,
   }
+}
+
+// ─── LRM-mode DEM source ──────────────────────────────────────────────────
+//
+// maplibre-contour's DemSource always fetches its upstream DEM tiles via a
+// plain `fetch(url)` — in a dedicated worker when `worker: true` (the normal/
+// absolute-mode path below), or on the main thread via LocalDemManager's
+// default getTile when `worker: false`. Neither goes through maplibregl's
+// addProtocol registry (confirmed by this file's own comment above, for the
+// analogous cog-local/`local://` case) — a plain `fetch("lrm://...")` would
+// just fail as an unsupported URL scheme.
+//
+// So LRM mode can't simply hand DemSource an `lrm://` URL the way every other
+// consumer of lib/lrm-protocol.ts does (as a maplibre <Source tiles=[...]>,
+// where MAPLIBRE ITSELF dispatches the request through the registered
+// protocol handler). Instead this constructs a normal DemSource (which sets
+// up the maplibre contour-tile protocol + URL scheme as usual), then swaps
+// its internal manager for a LocalDemManager whose `getTile` calls
+// `lrmProtocol` directly as a plain function — no fetch, no protocol
+// dispatch, just running the same LRM computation in-process. This requires
+// `worker: false` (LocalDemManager, not RemoteDemManager) since a custom
+// `getTile` callback can't survive being postMessage'd into a Worker.
+// Trade-off: LRM contour generation runs on the main thread instead of a
+// worker, unlike absolute-mode contours — acceptable since it's an
+// occasional/opt-in mode, not the default.
+function buildLrmDemSource(
+  DemSourceClass: any,
+  LocalDemManagerClass: any,
+  resolved: { tileUrl: string; encoding: string; maxzoom: number; tileSize: number },
+  lrmRadius: number,
+): any {
+  const demUrlPattern = buildLrmProtocolUrl(resolved.tileUrl, resolved.encoding as UpstreamEncoding, resolved.tileSize, lrmRadius)
+  const dem = new DemSourceClass({
+    url: demUrlPattern,
+    // lrmProtocol always re-encodes its output as Terrarium (see its own
+    // header) regardless of the upstream encoding.
+    encoding: "terrarium",
+    maxzoom: resolved.maxzoom,
+    worker: false,
+    cacheSize: 100,
+    timeoutMs: 10000,
+  })
+  dem.manager = new LocalDemManagerClass({
+    demUrlPattern,
+    encoding: "terrarium",
+    maxzoom: resolved.maxzoom,
+    cacheSize: 100,
+    timeoutMs: 10000,
+    getTile: async (url: string, abortController: AbortController) => ({
+      data: await lrmFetchTileBlob(url, abortController.signal),
+    }),
+  })
+  return dem
 }
 
 function buildThresholds(minor: number, major: number) {
@@ -206,6 +265,14 @@ export interface ContoursLayerProps {
   showContourLabels: boolean
   /** Active terrain source id — used to build tile URLs */
   sourceId: string
+  /** "absolute" (iso-altitude, the default) or "lrm" (iso-relief — traces the
+   *  Local Relief Model instead of real elevation, see buildLrmDemSource
+   *  above). Ignored (always absolute) for a "cog-local" source — no LRM path
+   *  is wired for that source type. */
+  referenceMode: "absolute" | "lrm"
+  /** LRM smoothing radius, only read when referenceMode is "lrm" — same
+   *  shared control Relief Visualization/Plane Slicer's own LRM use (state.lrmRadius). */
+  lrmRadius: number
   contourMinor: number
   contourMajor: number
   contourWeight: number
@@ -229,6 +296,8 @@ export function ContoursLayer({
   showContours,
   showContourLabels,
   sourceId,
+  referenceMode,
+  lrmRadius,
   contourMinor,
   contourMajor,
   contourWeight,
@@ -307,13 +376,18 @@ export function ContoursLayer({
   // be reflected here.
   const localFileVersion = useAtomValue(localFileVersionAtom)
 
-  // ── Reset when terrain source (or a local file's availability) changes ─────
+  // ── Reset when terrain source (or reference mode, or a local file's
+  //    availability) changes ───────────────────────────────────────────────
+  // referenceMode/lrmRadius trigger the same full reset as a source change —
+  // switching to/from LRM swaps the DemSource's manager entirely (see
+  // buildLrmDemSource above), not something the lightweight threshold-update
+  // effect below can patch in place.
   useEffect(() => {
     initializedRef.current = false
     initAttemptsRef.current = 0
     demSourceRef.current = null
     isCogLocalRef.current = false
-  }, [sourceId, localFileVersion])
+  }, [sourceId, localFileVersion, referenceMode, lrmRadius])
 
   // ── Init: register DemSource (or the cog-local path) + add contour-source ──
   useEffect(() => {
@@ -381,15 +455,20 @@ export function ContoursLayer({
           (mlcontour as any).DemSource ??
           (mlcontour as any).default?.DemSource ??
           mlcontour
+        const LocalDemManager =
+          (mlcontour as any).LocalDemManager ??
+          (mlcontour as any).default?.LocalDemManager
 
-        const dem = new DemSource({
-          url: resolved.tileUrl,
-          encoding: resolved.encoding,
-          maxzoom: resolved.maxzoom,
-          worker: true,
-          cacheSize: 100,
-          timeoutMs: 10000,
-        })
+        const dem = referenceMode === "lrm"
+          ? buildLrmDemSource(DemSource, LocalDemManager, resolved, lrmRadius)
+          : new DemSource({
+              url: resolved.tileUrl,
+              encoding: resolved.encoding,
+              maxzoom: resolved.maxzoom,
+              worker: true,
+              cacheSize: 100,
+              timeoutMs: 10000,
+            })
 
         dem.setupMaplibre(maplibregl)
         demSourceRef.current = dem
@@ -424,7 +503,7 @@ export function ContoursLayer({
 
     const timer = setTimeout(tryInit, 1000)
     return () => clearTimeout(timer)
-  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef, localFileVersion])
+  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef, localFileVersion, referenceMode, lrmRadius])
 
   // ── Update thresholds when contourMinor/contourMajor change ───────────────
   useEffect(() => {

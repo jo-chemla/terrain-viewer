@@ -1,9 +1,16 @@
 import type React from "react"
+import { useContext } from "react"
+import { useAtom } from "jotai"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { CheckboxWithSlider, MobileSlider, DraftBoundInput } from "./controls-components"
+import { MobileSlider, DraftBoundInput, SectionIdContext } from "./controls-components"
+import { ElevationReferenceToggle } from "./elevation-reference-toggle"
+import { activeSliderAtom } from "@/lib/settings-atoms"
+import { cn } from "@/lib/utils"
 
 const TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
 
@@ -36,36 +43,47 @@ export const PlaneSlicerFields: React.FC<{
   const value = state[valueField] ?? 0
   const bounds = boundsFor(state.planeSlicerReferenceMode)
 
+  // Same "dim everything except the control being dragged" behavior
+  // CheckboxWithSlider gives every other master row — replicated by hand here
+  // since this row is a bespoke Switch (matching "Pick elevation on click"
+  // right above it in ElevationPickerSection) rather than CheckboxWithSlider's
+  // checkbox-on-the-left layout.
+  const [activeSlider] = useAtom(activeSliderAtom)
+  const sectionId = useContext(SectionIdContext)
+  const fullId = `${sectionId}:plane-slicer`
+  const isDimmed = activeSlider !== null && activeSlider !== fullId
+
   return (
     <div className="space-y-2">
       <Separator />
-      <CheckboxWithSlider
-        id="plane-slicer"
-        label="Plane Slicer"
-        tooltip="Colors everything above or below a chosen elevation/height plane — a quick flood-level preview or ridge/valley cutoff."
-        checked={state.showPlaneSlicer}
-        onCheckedChange={(checked) => setState({ showPlaneSlicer: checked })}
-        sliderValue={state.planeSlicerOpacity}
-        onSliderChange={(value) => setState({ planeSlicerOpacity: value })}
-      />
+      <div className={cn("grid grid-cols-[1fr_1fr_auto] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Label htmlFor="plane-slicer" className="text-sm cursor-pointer">Plane Slicer</Label>
+          </TooltipTrigger>
+          <TooltipContent><p>Colors everything above or below a chosen elevation/height plane — a quick flood-level preview or ridge/valley cutoff.</p></TooltipContent>
+        </Tooltip>
+        <MobileSlider
+          sliderId={fullId}
+          value={[state.planeSlicerOpacity]}
+          onValueChange={([v]) => setState({ planeSlicerOpacity: v })}
+          min={0} max={1} step={0.1}
+          className="cursor-pointer"
+          disabled={!state.showPlaneSlicer}
+        />
+        <Switch
+          id="plane-slicer"
+          checked={state.showPlaneSlicer}
+          onCheckedChange={(checked) => setState({ showPlaneSlicer: checked })}
+          className="cursor-pointer"
+        />
+      </div>
       {state.showPlaneSlicer && (
         <div className="space-y-3 pl-6">
-          <div className="flex items-center justify-between gap-2">
-            <Label className="text-sm font-medium">Reference</Label>
-            <ToggleGroup
-              type="single"
-              value={state.planeSlicerReferenceMode}
-              onValueChange={(v) => v && setState({ planeSlicerReferenceMode: v })}
-              className="border rounded-md w-[180px]"
-            >
-              <ToggleGroupItem value="absolute" className={TOGGLE_ITEM_CLASS} title="Reference is real elevation in meters.">
-                Absolute
-              </ToggleGroupItem>
-              <ToggleGroupItem value="lrm" className={TOGGLE_ITEM_CLASS} title="Reference is height above/below the local neighborhood mean (Local Relief Model).">
-                LRM
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
+          <ElevationReferenceToggle
+            value={state.planeSlicerReferenceMode}
+            onChange={(v) => setState({ planeSlicerReferenceMode: v })}
+          />
 
           <div className="space-y-1">
             <div className="flex items-center justify-between">

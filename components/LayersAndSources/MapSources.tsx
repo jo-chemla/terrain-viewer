@@ -5,6 +5,7 @@ import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
 import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
+import { probeMaxZoomAt } from "@/lib/tile-max-zoom"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 
@@ -159,7 +160,7 @@ export function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKe
 
 export const TerrainSources = memo(({
     // source, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint,
-    source, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, onZoomRangeChange,
+    source, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, onZoomRangeChange, lat, lng,
 }: {
     source: TerrainSource | string
     mapboxKey: string
@@ -167,6 +168,10 @@ export const TerrainSources = memo(({
     customTerrainSources: any[]
     titilerEndpoint: string
     onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom: boolean }) => void
+    /** Viewport-center lat/lng — used only to probe real per-location tile
+     *  coverage (see probedMaxzoom below), not threaded into sourceConfig. */
+    lat: number
+    lng: number
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const [highResTerrain] = useAtom(highResTerrainAtom)
@@ -261,7 +266,47 @@ export const TerrainSources = memo(({
         }
     }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, isCogLocal, resolvedCogUrl, isTilejson, tilejsonMetadata, mapboxKey, maptilerKey, metadata])
 
-    if (!sourceConfig) return null
+    // A source's declared maxzoom (sourceConfig.maxzoom) isn't always backed by
+    // real coverage at every location — most visibly Mapterhorn, which declares
+    // 18 uniformly but plenty of locations only have real tiles to z15-17 (see
+    // lib/tile-max-zoom.ts's header). Only genuine XYZ tile pyramids have this
+    // problem — a COG/tilejson-COG URL has no {z}/{x}/{y} placeholders to probe
+    // (its protocol resamples the actual file at whatever zoom is requested),
+    // so this only fires for a real `{z}` template.
+    const probeTileUrl = sourceConfig?.tiles?.[0]
+    const configuredMaxzoom = sourceConfig?.maxzoom
+    const [probedMaxzoom, setProbedMaxzoom] = useState<number | null>(null)
+    // Rounded to ~11km — coarser than the underlying probe's own zoom-6 cache
+    // bucket would need, but avoids re-running this effect on every sub-pixel
+    // lat/lng nudge a live pan/zoom might otherwise produce.
+    const roundedLat = typeof lat === "number" ? Math.round(lat * 10) / 10 : lat
+    const roundedLng = typeof lng === "number" ? Math.round(lng * 10) / 10 : lng
+    useEffect(() => {
+        // Reset unconditionally (not just in the early-return branch below) —
+        // otherwise a stale probe result from the PREVIOUS source/template
+        // would keep clamping this new one until its own probe resolves.
+        setProbedMaxzoom(null)
+        if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null) return
+        let cancelled = false
+        probeMaxZoomAt(probeTileUrl, roundedLng, roundedLat, configuredMaxzoom).then((z) => {
+            if (!cancelled) setProbedMaxzoom(z)
+        })
+        return () => { cancelled = true }
+    }, [probeTileUrl, configuredMaxzoom, roundedLat, roundedLng])
+
+    // Only ever lowers maxzoom (probedMaxzoom is always <= configuredMaxzoom by
+    // construction) — clamping here just tells maplibre where to stop
+    // descending the pyramid, so it overzooms (upsamples) the last real tile
+    // instead of requesting one that 404s. The reported onZoomRangeChange above
+    // deliberately still uses the unclamped, configured maxzoom — that's "how
+    // far this pyramid can theoretically go" for the camera zoom UI, a
+    // different question from "what does THIS exact viewport have."
+    const effectiveSourceConfig = useMemo(() => {
+        if (!sourceConfig || probedMaxzoom == null || sourceConfig.maxzoom == null || probedMaxzoom >= sourceConfig.maxzoom) return sourceConfig
+        return { ...sourceConfig, maxzoom: probedMaxzoom }
+    }, [sourceConfig, probedMaxzoom])
+
+    if (!effectiveSourceConfig) return null
 
     return (
         <>
@@ -269,9 +314,14 @@ export const TerrainSources = memo(({
                 "cog-local" source (id unchanged) must remount the Source rather than
                 have maplibre patch tiles in place against a stale pyramid/cache keyed
                 by the old blob: URL — same reasoning as LrmSource/CurvatureSource
-                keying on radius/mode below. */}
-            <Source id="terrainSource"  key={`terrain-${source}-${highResTerrain}-${resolvedCogUrl}`}  {...sourceConfig} />
-            <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}-${resolvedCogUrl}`} {...sourceConfig} />
+                keying on radius/mode below. effectiveSourceConfig.maxzoom is in the
+                key for the same reason: react-map-gl's <Source> only patches
+                coordinates/url/tiles in place (see @vis.gl/react-maplibre's
+                updateSource) — any other changed prop, maxzoom included, is silently
+                no-op'd with a console warning rather than actually applied, so a
+                probed maxzoom change has to force a remount to take effect. */}
+            <Source id="terrainSource"  key={`terrain-${source}-${highResTerrain}-${resolvedCogUrl}-${effectiveSourceConfig.maxzoom}`}  {...effectiveSourceConfig} />
+            <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}-${resolvedCogUrl}-${effectiveSourceConfig.maxzoom}`} {...effectiveSourceConfig} />
         </>
     )
 })
@@ -487,6 +537,17 @@ export const useClientDemUpstream = (
     mapboxKey: string,
     maptilerKey: string,
     titilerEndpoint: string,
+    // Viewport-center lat/lng — optional, and only used to probe real
+    // per-location tile coverage (see probedMaxzoom below), same reasoning as
+    // TerrainSources' own lat/lng probe above. Left undefined by most callers
+    // (unchanged behavior); LrmSource passes these through so the displayed
+    // LRM layer stops requesting a maxzoom the Elevation Picker's LRM point-
+    // sample has already learned (via its own 404 fallback) doesn't exist at
+    // this location — otherwise the two could disagree at a coverage gap:
+    // the displayed raster shows a blank/overzoomed tile at the declared
+    // maxzoom while the point-sample cleanly falls back to a lower, real one.
+    lat?: number,
+    lng?: number,
 ) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const [highResTerrain] = useAtom(highResTerrainAtom)
@@ -510,7 +571,7 @@ export const useClientDemUpstream = (
     const cogMetadata = useCogMetadata(cogUrlForMetadata)
     const cogZoomRange = useMemo(() => zoomRangeFromMetadata(cogMetadata), [cogMetadata])
 
-    return useMemo<ClientDemUpstream | null>(() => {
+    const baseUpstream = useMemo<ClientDemUpstream | null>(() => {
         if (!customSource) {
             const builtin = (terrainSources as any)[terrainSource as TerrainSource]
             if (!builtin || builtin.encoding === "3dtiles") return null
@@ -558,11 +619,16 @@ export const useClientDemUpstream = (
             // a per-tile one), so wrap it for per-tile bbox substitution instead of
             // using the built url/encoding directly. WMS serves whatever resolution
             // is requested rather than a fixed pyramid, so there's no native zoom
-            // ceiling to clamp against here.
+            // ceiling to auto-detect here — only the user-set maxzoom (custom-terrain-
+            // source-modal.tsx's "Max Zoom (optional)" field) can supply one; when
+            // that's also unset, MatcapSource/PhongSource fall back to a hardcoded
+            // default themselves (a plain `type: "raster"` source can't take an
+            // explicit `undefined` maxzoom at all).
             return {
                 template: `float32dem-bbox://${encodeURIComponent(customSource.url.replace(/^https?:\/\//, ""))}/{z}/{x}/{y}`,
                 encoding: "terrarium" as const,
                 tileSize: 512,
+                maxzoom: customSource.maxzoom,
             }
         }
 
@@ -594,6 +660,33 @@ export const useClientDemUpstream = (
         return { template: built.tiles[0], encoding, tileSize: 256 }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogRemote])
+
+    // Same per-viewport real-coverage probe TerrainSources runs for the
+    // primary elevation Source (see lib/tile-max-zoom.ts) — only actually
+    // probes when a caller passes lat/lng (see this hook's own params above).
+    // Only a real XYZ `{z}` template can be probed at all (a COG/tilejson-COG
+    // url has no z/x/y placeholders — its protocol resamples the actual file
+    // at whatever zoom is asked, so there's no coverage gap to hit).
+    const probeTileUrl = baseUpstream?.template
+    const configuredMaxzoom = baseUpstream?.maxzoom
+    const [probedMaxzoom, setProbedMaxzoom] = useState<number | null>(null)
+    const roundedLat = typeof lat === "number" ? Math.round(lat * 10) / 10 : lat
+    const roundedLng = typeof lng === "number" ? Math.round(lng * 10) / 10 : lng
+    useEffect(() => {
+        setProbedMaxzoom(null)
+        if (roundedLat == null || roundedLng == null) return
+        if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null) return
+        let cancelled = false
+        probeMaxZoomAt(probeTileUrl, roundedLng, roundedLat, configuredMaxzoom).then((z) => {
+            if (!cancelled) setProbedMaxzoom(z)
+        })
+        return () => { cancelled = true }
+    }, [probeTileUrl, configuredMaxzoom, roundedLat, roundedLng])
+
+    return useMemo<ClientDemUpstream | null>(() => {
+        if (!baseUpstream || probedMaxzoom == null || baseUpstream.maxzoom == null || probedMaxzoom >= baseUpstream.maxzoom) return baseUpstream
+        return { ...baseUpstream, maxzoom: probedMaxzoom }
+    }, [baseUpstream, probedMaxzoom])
 }
 
 export const SlopeSource = memo(({
@@ -664,10 +757,16 @@ interface NormalDerivedSourceProps {
     // (e.g. CurvatureSource, whose formula depends on curvatureMode) force a fresh
     // Source/tile-cache when something other than the terrain source changes.
     keySuffix?: string
+    // Viewport-center lat/lng, forwarded to useClientDemUpstream's own probe —
+    // see that hook's params for why this is optional (most callers don't pass
+    // it; LrmSource does, so the displayed layer's maxzoom agrees with what
+    // the Elevation Picker's LRM point-sample already falls back to).
+    lat?: number
+    lng?: number
 }
 
-const NormalDerivedSource = memo(({ enabled, sourceId, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, buildUrl, keySuffix = "" }: NormalDerivedSourceProps) => {
-    const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
+const NormalDerivedSource = memo(({ enabled, sourceId, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, buildUrl, keySuffix = "", lat, lng }: NormalDerivedSourceProps) => {
+    const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, lat, lng)
     if (!enabled || !clientUpstream) return null
     const url = buildUrl(clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize)
     return (
@@ -816,13 +915,16 @@ export const MatcapSource = memo(({
             type="raster"
             tiles={[url]}
             tileSize={clientUpstream.tileSize}
-            // clientUpstream.minzoom is only set for some upstream kinds (e.g. a
-            // COG's real pyramid floor) — a plain `type: "raster"` source's strict
-            // validator rejects an explicit `minzoom: undefined` outright, so this
-            // needs the same `?? 0` fallback RasterBasemapSource's own zoomRange
-            // already uses rather than passing the field through as-is.
+            // clientUpstream.minzoom/maxzoom are only set for some upstream kinds
+            // (e.g. a COG's real pyramid floor/ceiling, or a WMS source's user-set
+            // "Max Zoom" field) — a plain `type: "raster"` source's strict validator
+            // rejects an explicit `minzoom`/`maxzoom: undefined` outright (this is
+            // the "sources.matcapSource.maxzoom: number expected, undefined found"
+            // error a WMS DSM with no configured maxzoom used to hit), so these need
+            // the same fallback RasterBasemapSource's own zoomRange already uses
+            // rather than passing the fields through as-is.
             minzoom={clientUpstream.minzoom ?? 0}
-            maxzoom={clientUpstream.maxzoom}
+            maxzoom={clientUpstream.maxzoom ?? 20}
         />
     )
 })
@@ -854,8 +956,9 @@ export const PhongSource = memo(({
             type="raster"
             tiles={[url]}
             tileSize={clientUpstream.tileSize}
+            // See the matching comment on MatcapSource above.
             minzoom={clientUpstream.minzoom ?? 0}
-            maxzoom={clientUpstream.maxzoom}
+            maxzoom={clientUpstream.maxzoom ?? 20}
         />
     )
 })

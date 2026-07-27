@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useEffect } from "react"
-import { useAtom, useSetAtom } from "jotai"
+import { useAtom, useSetAtom, type PrimitiveAtom } from "jotai"
 import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,10 @@ import {
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom,
   customThemesAtom,
+  isSettingsAppearanceOpenAtom, isSettingsKeyboardShortcutsOpenAtom, isSettingsVisualizationModesOpenAtom,
+  isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsTellsDetectionOpenAtom,
+  isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
+  isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom,
 } from "@/lib/settings-atoms"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { persistLocalCogsAtom } from "@/lib/local-file-store"
@@ -52,18 +56,17 @@ const PRESET_GROUPS = [
     .filter((group) => group.options.length > 0),
 ]
 
-// Every top-level settings section folds independently (own local isOpen —
-// nothing here needs to survive a dialog close/reopen). defaultOpen is false
-// only for "Resources: MapLibre GL Features", a long link dump that isn't
-// something you configure, just skim occasionally.
+// Every top-level settings section folds independently, persisted via its own
+// atomWithStorage (lib/settings-atoms.ts) so the collapsed/expanded state
+// survives a dialog close/reopen and a page reload.
 const CollapsibleSection: React.FC<{
   title: string
-  defaultOpen?: boolean
+  openAtom: PrimitiveAtom<boolean>
   headerExtra?: React.ReactNode
   contentClassName?: string
   children: React.ReactNode
-}> = ({ title, defaultOpen = true, headerExtra, contentClassName = "space-y-3 pt-2", children }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
+}> = ({ title, openAtom, headerExtra, contentClassName = "space-y-3 pt-2", children }) => {
+  const [isOpen, setIsOpen] = useAtom(openAtom)
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="flex items-center justify-between gap-2">
@@ -257,7 +260,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           <DialogDescription>Configure API keys, application settings, and explore related resources</DialogDescription>
         </DialogHeader>
         <div className="space-y-6">
-          <CollapsibleSection title="Appearance">
+          <CollapsibleSection title="Appearance" openAtom={isSettingsAppearanceOpenAtom}>
             <div className="flex items-center justify-between">
               <Label>Theme</Label>
               <Button variant="outline" size="sm" onClick={toggleTheme} className="cursor-pointer">
@@ -299,17 +302,18 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </div>
           </CollapsibleSection>
           <Separator />
-          <CollapsibleSection title="Keyboard Shortcuts" contentClassName="space-y-2 pt-2">
+          <CollapsibleSection title="Keyboard Shortcuts" openAtom={isSettingsKeyboardShortcutsOpenAtom} contentClassName="space-y-2 pt-2">
             <div className="space-y-1.5 text-xs text-muted-foreground">
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Shift</kbd> <span className="mx-1">(tap alone, either side)</span> — toggle the Raster Basemap on/off, without opening the sidebar.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd> <span className="mx-1">(tap alone, either side)</span> — hide every visualization mode down to just the plain basemap; tap again to restore whichever modes were on.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Space</kbd> — re-toggle whichever visualization-mode checkbox you last clicked, even after a map drag has moved keyboard focus onto the map canvas.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">L</kbd> <span className="mx-1">(hold)</span> + drag — set the Hillshade illumination direction/altitude directly on the map instead of panning it; release L or the mouse to exit.</div>
+              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd>+<kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">K</kbd> — jump focus to the search box (geocoder) from anywhere.</div>
             </div>
           </CollapsibleSection>
           <Separator />
 
-          <CollapsibleSection title="Visualization Modes" contentClassName="space-y-2 pt-2">
+          <CollapsibleSection title="Visualization Modes" openAtom={isSettingsVisualizationModesOpenAtom} contentClassName="space-y-2 pt-2">
             <p className="text-xs text-muted-foreground">
               Grouped as they are in the panel — <span className="font-semibold text-foreground">Terrain Analysis</span>{" "}
               (surface derivatives + neighborhood statistics), <span className="font-semibold text-foreground">Relief Visualization</span>{" "}
@@ -351,10 +355,16 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <div><span className="font-semibold text-foreground">Phong:</span> real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; "3D Slow" drapes over terrain/globe via raster tiles, "2D Fast" is a live GPU shader (see the Lighting Effects panel)</div>
               <div className="pt-1 italic">Neighborhood usually refers to a 3×3 kernel centered on the pixel.</div>
             </div>
+
+            <div className="pt-2 text-xs font-semibold text-foreground">Terrain Encoding Functions</div>
+            <div className="space-y-2 text-sm font-mono bg-muted p-3 rounded">
+              <div><span className="font-semibold">TerrainRGB:</span><br /><code>height = -10000 + ((R * 256 * 256 + G * 256 + B) * 0.1)</code></div>
+              <div className="mt-2"><span className="font-semibold">Terrarium:</span><br /><code>height = (R * 256 + G + B / 256) - 32768</code></div>
+            </div>
           </CollapsibleSection>
           <Separator />
 
-          <CollapsibleSection title="Streaming Settings" contentClassName="space-y-2 pt-2">
+          <CollapsibleSection title="Streaming Settings" openAtom={isSettingsStreamingOpenAtom} contentClassName="space-y-2 pt-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">COG Streaming Settings</Label>
               <SegmentedToggle
@@ -434,7 +444,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
 
 
           <Separator />
-          <CollapsibleSection title="Browser Local Storage Persistence" contentClassName="space-y-4 pt-2">
+          <CollapsibleSection title="Browser Local Storage Persistence" openAtom={isSettingsStoragePersistenceOpenAtom} contentClassName="space-y-4 pt-2">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Local COG Files</Label>
               <div className="flex items-center justify-between">
@@ -509,6 +519,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           <Separator />
           <CollapsibleSection
             title="Tells (Mound Candidates) Detection"
+            openAtom={isSettingsTellsDetectionOpenAtom}
             contentClassName="space-y-2 pt-2"
             headerExtra={
               <div className="flex items-center gap-2">
@@ -534,16 +545,9 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </CollapsibleSection>
 
           <Separator />
-
-          <CollapsibleSection title="Terrain Encoding Functions">
-            <div className="space-y-2 text-sm font-mono bg-muted p-3 rounded">
-              <div><span className="font-semibold">TerrainRGB:</span><br /><code>height = -10000 + ((R * 256 * 256 + G * 256 + B) * 0.1)</code></div>
-              <div className="mt-2"><span className="font-semibold">Terrarium:</span><br /><code>height = (R * 256 + G + B / 256) - 32768</code></div>
-            </div>
-          </CollapsibleSection>
-          <Separator />
           <CollapsibleSection
             title="API Keys"
+            openAtom={isSettingsApiKeysOpenAtom}
             contentClassName="space-y-4 pt-2"
             headerExtra={
               <div className="flex gap-2">
@@ -563,7 +567,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   language="properties"
                   value={batchApiKeys}
                   onChange={setBatchApiKeys}
-                  className="min-h-[120px]"
+                  rows={5}
                 />
               </div>
             ) : (
@@ -601,7 +605,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             )}
           </CollapsibleSection>
           <Separator />
-          <CollapsibleSection title="Map bounds constraints">
+          <CollapsibleSection title="Map bounds constraints" openAtom={isSettingsMapBoundsOpenAtom}>
             <p className="text-xs text-muted-foreground">
               Constrains panning/zooming to a bounding box. "Terrain"/"Raster"/"Union" are
               resolved automatically from the active source(s) (COG/tilejson metadata) and
@@ -671,7 +675,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             )}
           </CollapsibleSection>
           <Separator />
-          <CollapsibleSection title="Save Project Preset">
+          <CollapsibleSection title="Save Project Preset" openAtom={isSettingsSaveProjectOpenAtom}>
             <p className="text-xs text-muted-foreground">
               Copies the current view/sources/viz settings as a project-preset JSON snippet you can
               paste into lib/projects.json (as a new top-level key) to make it loadable via
@@ -692,7 +696,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </Button>
           </CollapsibleSection>
           <Separator />
-          <CollapsibleSection title="Resources: MapLibre GL Features" defaultOpen={false}>
+          <CollapsibleSection title="Resources: MapLibre GL Features" openAtom={isSettingsResourcesOpenAtom}>
             <div className="space-y-2 text-sm">
 
                 <a href="https://github.com/maplibre/maplibre-style-spec/issues/1374" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">

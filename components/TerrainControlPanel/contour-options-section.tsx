@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, SliderControl, CheckboxWithSlider, GroupHeading } from "./controls-components"
+import { ElevationReferenceToggle } from "./elevation-reference-toggle"
 import { useTheme } from "@/lib/controls-utils"
 
 const WEIGHT_TOGGLE_ITEM_CLASS = "cursor-pointer px-2 text-xs data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
@@ -71,8 +72,16 @@ export const ContourOptionsSection: React.FC<{
   )
 
   // ── Contour derived values ─────────────────────────────────────────────
-  const currentMinor = Number(state.contourMinor) || 50
-  const currentMajor = Number(state.contourMajor) || 200
+  // Absolute and LRM keep independent minor/major intervals (same reasoning
+  // as Plane Slicer's planeSlicerValue/planeSlicerValueLrm split) — LRM's
+  // natural range is much narrower than real elevation's, so switching modes
+  // reads/writes a different pair of fields rather than dragging one
+  // interval across both scales.
+  const isLrm = state.contourReferenceMode === "lrm"
+  const minorField = isLrm ? "contourMinorLrm" : "contourMinor"
+  const majorField = isLrm ? "contourMajorLrm" : "contourMajor"
+  const currentMinor = Number(state[minorField]) || (isLrm ? 5 : 50)
+  const currentMajor = Number(state[majorField]) || (isLrm ? 20 : 200)
 
   const minorIndex = MINOR_INTERVALS.reduce((best, v, i) =>
     Math.abs(v - currentMinor) < Math.abs(MINOR_INTERVALS[best] - currentMinor) ? i : best, 0)
@@ -135,19 +144,29 @@ export const ContourOptionsSection: React.FC<{
                 onCheckedChange={(checked) => setState({ showContourLabels: checked })}
                 hideSlider
               />
+              {/* Switches which DEM the contour lines themselves trace —
+                  iso-altitude (Absolute) vs iso-relief (LRM), see
+                  ContoursLayer.tsx. Not supported for a "Bring Your Own
+                  Data" local COG source (no LRM path wired for that source
+                  type yet) — picking LRM there silently keeps tracing
+                  absolute elevation. */}
+              <ElevationReferenceToggle
+                value={state.contourReferenceMode}
+                onChange={(v) => setState({ contourReferenceMode: v })}
+              />
               <SliderControl
                 label={`Minor: ${snappedMinor}m`}
                 value={minorIndex}
                 onChange={(i) => {
                   const newMinor = MINOR_INTERVALS[i]
-                  setState({ contourMinor: newMinor, contourMajor: newMinor * currentMajorMultiplier })
+                  setState({ [minorField]: newMinor, [majorField]: newMinor * currentMajorMultiplier })
                 }}
                 min={0} max={MINOR_INTERVALS.length - 1} step={1} hideValue
               />
               <SliderControl
                 label={`Major: ${snappedMajor}m (${currentMajorMultiplier}×)`}
                 value={majorMultiplierIndex}
-                onChange={(i) => setState({ contourMajor: snappedMinor * MAJOR_MULTIPLIERS[i] })}
+                onChange={(i) => setState({ [majorField]: snappedMinor * MAJOR_MULTIPLIERS[i] })}
                 min={0} max={MAJOR_MULTIPLIERS.length - 1} step={1} hideValue
               />
               {colorRow("Line Color", "contourColor")}

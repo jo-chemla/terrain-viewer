@@ -10,7 +10,7 @@
 // types keep working through the existing titiler export in download-section.tsx.
 
 import { terrainrgbToElevation, terrariumToElevation } from "./elevation-encoding"
-import { fetchTileMosaic, pickZoomForResolution } from "./tile-mosaic"
+import { fetchTileMosaic, pickZoomForResolution, isRetryableTileError } from "./tile-mosaic"
 import { terrainSources } from "./terrain-sources"
 import type { TerrainSource } from "./terrain-types"
 import type { CustomTerrainSource } from "./settings-atoms"
@@ -70,6 +70,14 @@ export interface ClientExportResult {
   width: number
   height: number
   bbox: [west: number, south: number, east: number, north: number]
+  /** True when the achieved pixel dimensions fall short of the requested
+   *  targetResolution — the source's tile pyramid ran out of zoom before the
+   *  bbox could be covered at the requested detail (a large area against a
+   *  source whose maxzoom, possibly probed down further, isn't deep enough).
+   *  Always false for cog exports, which always produce exactly the
+   *  requested width/height (interpolated from whatever native detail
+   *  exists, never pixel-count-limited the way a tile pyramid can be). */
+  resolutionLimited?: boolean
 }
 
 function lonLatToWebMercator(lon: number, lat: number): [number, number] {
@@ -101,15 +109,16 @@ export async function exportCogWindow(
   bbox: [number, number, number, number],
   width: number,
   height: number,
+  signal?: AbortSignal,
 ): Promise<ClientExportResult> {
   const { fromUrl } = await import("geotiff")
-  const tiff = await fromUrl(url)
+  const tiff = await fromUrl(url, undefined, signal)
   const image = await tiff.getImage()
 
   // COGs store raw altitude per pixel already — no terrainrgb/terrarium decoding
   // needed, just a windowed read at the requested bbox/resolution.
   const reqBbox = reprojectBboxToRasterCrs(image, bbox)
-  const rasters = await image.readRasters({ bbox: reqBbox, width, height, resampleMethod: "bilinear" })
+  const rasters = await image.readRasters({ bbox: reqBbox, width, height, resampleMethod: "bilinear", signal })
   const data = Float32Array.from(rasters[0] as ArrayLike<number>)
   return { data, width, height, bbox }
 }
@@ -158,21 +167,40 @@ export interface ExportElevationClientSideParams {
    *  directly as the output width/height. */
   targetResolution: number
   onProgress?: (fraction: number) => void
+  /** Lets a caller cancel an in-flight export — aborts the COG range read or the
+   *  tile mosaic's next per-tile fetch (see fetchTileMosaic/exportCogWindow). */
+  signal?: AbortSignal
 }
 
 export async function exportElevationClientSide(
   params: ExportElevationClientSideParams,
 ): Promise<ClientExportResult> {
-  const { source, bbox, targetResolution, onProgress } = params
+  const { source, bbox, targetResolution, onProgress, signal } = params
 
   if (source.type === "cog") {
     onProgress?.(0)
-    const result = await exportCogWindow(source.url, bbox, targetResolution, targetResolution)
+    const result = await exportCogWindow(source.url, bbox, targetResolution, targetResolution, signal)
     onProgress?.(1)
     return result
   }
 
-  const zoom = pickZoomForResolution(bbox, targetResolution, targetResolution, source.tileSize, source.maxzoom)
+  const startZoom = pickZoomForResolution(bbox, targetResolution, targetResolution, source.tileSize, source.maxzoom)
   const decodePixel = source.type === "terrainrgb" ? terrainrgbToElevation : terrariumToElevation
-  return fetchTileMosaic({ tileUrlTemplate: source.url, tileSize: source.tileSize, bbox, zoom, decodePixel, onProgress })
+
+  // A source's declared maxzoom isn't always backed by 100% coverage across
+  // the whole export bbox (e.g. Mapterhorn declares 18 but plenty of real
+  // locations only go to 17) — walk down the pyramid on 404, same fallback
+  // lib/elevation-query.ts's point/path sampling already does, so a coverage
+  // gap at the exact maxzoom doesn't hard-fail the whole export.
+  let lastErr: unknown
+  for (let zoom = startZoom; zoom >= Math.max(0, startZoom - 6); zoom--) {
+    try {
+      const mosaic = await fetchTileMosaic({ tileUrlTemplate: source.url, tileSize: source.tileSize, bbox, zoom, decodePixel, onProgress, signal })
+      return { ...mosaic, resolutionLimited: mosaic.width < targetResolution || mosaic.height < targetResolution }
+    } catch (err) {
+      if (!isRetryableTileError(err)) throw err
+      lastErr = err
+    }
+  }
+  throw lastErr
 }

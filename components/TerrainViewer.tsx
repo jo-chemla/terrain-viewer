@@ -111,6 +111,9 @@ const VIEW_MODES = ['2d', 'globe', '3d'] as const
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian'] as const
 const OPENNESS_MODES = ['positive', 'negative'] as const
+// Shared by Plane Slicer, Contours, and the Elevation Picker — all three read
+// elevation off either real altitude ("absolute") or LRM's height above/below
+// the local neighborhood mean ("lrm", see lib/lrm-protocol.ts).
 const PLANE_SLICER_REFERENCE_MODES = ['absolute', 'lrm'] as const
 const PLANE_SLICER_SIDES = ['above', 'below'] as const
 const TELLS_STYLES = ['outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
@@ -400,6 +403,12 @@ export function TerrainViewer() {
     planeSlicerSide: parseAsStringLiteral(PLANE_SLICER_SIDES).withDefault("below"),
     planeSlicerColor: parseAsString.withDefault("#3388ff"),
     planeSlicerOpacity: parseAsFloat.withDefault(0.6),
+    // Same Absolute/LRM reference as Plane Slicer, for the Elevation Picker's
+    // point/profile sampling itself (lib/elevation-query.ts) — "LRM" here has
+    // no 3D-mesh equivalent (map.queryTerrainElevation() only ever reflects
+    // the real terrain, not a synthetic relief value), so LRM mode always
+    // samples client-side regardless of view mode; see ElevationPickerSection.
+    elevationPickerReferenceMode: parseAsStringLiteral(PLANE_SLICER_REFERENCE_MODES).withDefault("absolute"),
     // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
     // clutter Visualization Modes for everyone by default.
     tellsBeta: parseAsBoolean.withDefault(false),
@@ -465,8 +474,22 @@ export function TerrainViewer() {
     // graticuleColor: parseAsString.withDefault("#000"),
     // graticuleColor: parseAsString, // don't use default to sync with theme
     hillshadeExag: parseAsFloat.withDefault(1.0),
+    // Absolute ("real altitude") vs LRM ("height above/below the local
+    // neighborhood mean") — same reference concept Plane Slicer introduced
+    // (PLANE_SLICER_REFERENCE_MODES above), applied to what the contour LINES
+    // themselves trace: iso-altitude lines vs iso-relief lines. See
+    // ContoursLayer.tsx for how LRM mode swaps the DEM source it contours.
+    contourReferenceMode: parseAsStringLiteral(PLANE_SLICER_REFERENCE_MODES).withDefault("absolute"),
     contourMinor: parseAsFloat.withDefault(50),
     contourMajor: parseAsFloat.withDefault(200),
+    // Absolute and LRM keep independent interval values, same reasoning as
+    // planeSlicerValue/planeSlicerValueLrm — LRM's natural range (roughly
+    // ±100m of local relief) is much narrower than real elevation's, so a
+    // 50/200m default interval would produce zero (or a handful of very
+    // widely-spaced) LRM contour lines. Scaled down ~10x, same 1:4 minor:major
+    // ratio.
+    contourMinorLrm: parseAsFloat.withDefault(5),
+    contourMajorLrm: parseAsFloat.withDefault(20),
     // Multiplies both major and minor contour line-width — default (1) keeps
     // today's major-vs-minor ratio, 2/4 make both proportionally bolder.
     contourWeight: parseAsFloat.withDefault(1),
@@ -754,9 +777,15 @@ export function TerrainViewer() {
       viewMode: state.viewMode, phongRenderer: state.phongRenderer,
       sourceA: state.sourceA, basemap: activeBasemap, splitScreen: state.splitScreen,
       // A few discrete sub-mode settings worth knowing which values people pick
-      // (not every slider — just the categorical choices).
+      // (not every slider — just the categorical choices; color ramps aren't
+      // tracked, just the algorithm/mode selections).
       hillshadeMethod: state.hillshadeMethod,
-      slopeColorRamp: state.slopeColorRamp, curvatureMode: state.curvatureMode,
+      curvatureMode: state.curvatureMode,
+      slopeSourceMode: state.slopeSourceMode,
+      opennessMode: state.opennessMode,
+      lightUseDatetime: state.lightUseDatetime,
+      contourReferenceMode: state.contourReferenceMode, planeSlicerReferenceMode: state.planeSlicerReferenceMode,
+      elevationPickerReferenceMode: state.elevationPickerReferenceMode,
     }
     for (const k of [...VIZ_MASTERS, ...VIZ_SUBMODES]) snapshot[k] = state[k]
     snapshot.showPlaneSlicer = state.showPlaneSlicer
@@ -768,18 +797,31 @@ export function TerrainViewer() {
       for (const k of VIZ_SUBMODES) if (state[k] && !prev[k]) track("viz-sub-mode", { mode: k.replace(/^show/, "") })
       if (state.showPlaneSlicer && !prev.showPlaneSlicer) track("tools-elevation-picker", { mode: "plane-slicer" })
       if (state.showTellsDetector && !prev.showTellsDetector) track("tools-tells", {})
-      if (state.viewMode !== prev.viewMode) track("view-mode", { mode: state.viewMode })
-      if (state.phongRenderer !== prev.phongRenderer) track("phong-renderer", { renderer: state.phongRenderer })
+      if (state.viewMode !== prev.viewMode) track("actions-view-mode", { mode: state.viewMode })
+      if (state.phongRenderer !== prev.phongRenderer) track("options-light-phong", { renderer: state.phongRenderer })
       if (state.splitScreen !== prev.splitScreen) track("tools-split-screen", { enabled: state.splitScreen })
       if (state.sourceA !== prev.sourceA) {
-        track("source-terrain", { source: state.sourceA, custom: customTerrainSources.some((s) => s.id === state.sourceA) })
+        const custom = customTerrainSources.find((s) => s.id === state.sourceA)
+        track("source-terrain", { source: state.sourceA, custom: !!custom })
       }
       if (activeBasemap !== prev.basemap) {
-        track("source-basemap", { source: activeBasemap, custom: customBasemapSources.some((s) => s.id === activeBasemap) })
+        const custom = customBasemapSources.find((s) => s.id === activeBasemap)
+        track("source-basemap", { source: activeBasemap, custom: !!custom })
       }
       if (state.hillshadeMethod !== prev.hillshadeMethod) track("options-hillshade", { method: state.hillshadeMethod })
-      if (state.slopeColorRamp !== prev.slopeColorRamp) track("options-terrain-analysis", { setting: "slopeColorRamp", value: state.slopeColorRamp })
       if (state.curvatureMode !== prev.curvatureMode) track("options-terrain-analysis", { setting: "curvatureMode", value: state.curvatureMode })
+      if (state.slopeSourceMode !== prev.slopeSourceMode) track("options-terrain-analysis", { setting: "slopeSourceMode", value: state.slopeSourceMode })
+      if (state.opennessMode !== prev.opennessMode) track("options-relief-visualization", { setting: "opennessMode", value: state.opennessMode })
+      // Free vs Datetime-derived light direction — shared by Hillshade and
+      // Phong (see light-direction-control.tsx), so tracked under its own
+      // event rather than folded into options-light-phong.
+      if (state.lightUseDatetime !== prev.lightUseDatetime) track("options-light-direction", { mode: state.lightUseDatetime ? "datetime" : "free" })
+      // Absolute vs LRM reference — same toggle (see elevation-reference-
+      // toggle.tsx) reused by Contours, Plane Slicer, and the Elevation
+      // Picker; `feature` distinguishes which one changed.
+      if (state.contourReferenceMode !== prev.contourReferenceMode) track("options-elevation-reference", { feature: "contours", mode: state.contourReferenceMode })
+      if (state.planeSlicerReferenceMode !== prev.planeSlicerReferenceMode) track("options-elevation-reference", { feature: "plane-slicer", mode: state.planeSlicerReferenceMode })
+      if (state.elevationPickerReferenceMode !== prev.elevationPickerReferenceMode) track("options-elevation-reference", { feature: "elevation-picker", mode: state.elevationPickerReferenceMode })
     }
     analyticsPrev.current = snapshot
   }, [state, customTerrainSources, customBasemapSources])
@@ -791,13 +833,19 @@ export function TerrainViewer() {
   const prevBasemapCount = useRef<number | null>(null)
   useEffect(() => {
     if (prevTerrainCount.current !== null && customTerrainSources.length > prevTerrainCount.current) {
-      track("source-add", { kind: "terrain", type: customTerrainSources[customTerrainSources.length - 1]?.type })
+      const added = customTerrainSources[customTerrainSources.length - 1]
+      // The BYOD url itself is only meaningful to log once, right here at
+      // creation — source-terrain (above) fires again every time the user
+      // just re-selects an already-added source, which would otherwise
+      // re-log the same url repeatedly.
+      track("source-add", { kind: "terrain", type: added?.type, url: added?.url })
     }
     prevTerrainCount.current = customTerrainSources.length
   }, [customTerrainSources])
   useEffect(() => {
     if (prevBasemapCount.current !== null && customBasemapSources.length > prevBasemapCount.current) {
-      track("source-add", { kind: "basemap", type: customBasemapSources[customBasemapSources.length - 1]?.type })
+      const added = customBasemapSources[customBasemapSources.length - 1]
+      track("source-add", { kind: "basemap", type: added?.type, url: added?.url })
     }
     prevBasemapCount.current = customBasemapSources.length
   }, [customBasemapSources])
@@ -1474,6 +1522,8 @@ export function TerrainViewer() {
             customTerrainSources={customTerrainSources}
             titilerEndpoint={titilerEndpoint}
             onZoomRangeChange={isPrimary ? setZoomRangeA : setZoomRangeB}
+            lat={state.lat}
+            lng={state.lng}
           />
           <RasterBasemapSource
             basemapSource={isPrimary ? activeBasemapSourceA : activeBasemapSourceB}
@@ -1550,6 +1600,8 @@ export function TerrainViewer() {
             mapboxKey={mapboxKey}
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
+            lat={state.lat}
+            lng={state.lng}
           />
           <RoughnessSource
             enabled={state.showTerrainAnalysis}
@@ -1742,8 +1794,10 @@ export function TerrainViewer() {
               showContours={state.showContoursAndGraticules && state.showContours}
               showContourLabels={state.showContourLabels}
               sourceId={state.sourceA}
-              contourMinor={state.contourMinor}
-              contourMajor={state.contourMajor}
+              referenceMode={state.contourReferenceMode}
+              lrmRadius={state.lrmRadius}
+              contourMinor={state.contourReferenceMode === "lrm" ? state.contourMinorLrm : state.contourMinor}
+              contourMajor={state.contourReferenceMode === "lrm" ? state.contourMajorLrm : state.contourMajor}
               contourWeight={state.contourWeight}
               contourColor={state.contourColor || undefined}
               mapboxKey={mapboxKey}
@@ -1901,7 +1955,7 @@ export function TerrainViewer() {
       tellsColorByPaints, state.tellsOutlineColor, state.tellsScaleMarkers, state.tellsScaleMultiplier, state.tellMeasureScale,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
-      state.sourceA, state.contourMinor, state.contourMajor, state.contourWeight,
+      state.sourceA, state.contourMinor, state.contourMajor, state.contourMinorLrm, state.contourMajorLrm, state.contourReferenceMode, state.contourWeight,
       state.contourColor, state.graticuleColor,
       activeBasemapSourceA, activeBasemapSourceB,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,

@@ -38,6 +38,19 @@ export const HypsometricTintOptionsSection: React.FC<{
   const [colorRampType, setColorRampType] = useAtom(colorRampTypeAtom)
   const [licenseFilter, setLicenseFilter] = useAtom(licenseFilterAtom)
   const isUserActionRef = useRef(false)
+  const tabsScrollRef = useRef<HTMLDivElement>(null)
+
+  // The category tab bar scrolls horizontally (see the wrapping div's
+  // overflow-x-auto below) rather than wrapping/shrinking, since a fixed
+  // grid-cols-N breaks as soon as a category is added. That means whichever
+  // category is active (e.g. "topobath", the last one) can start off-screen
+  // to the right — both on first load from a shared URL and after switching
+  // categories — so scroll it into view whenever it becomes active.
+  useEffect(() => {
+    if (!isOpen) return
+    const activeTab = tabsScrollRef.current?.querySelector('[data-state="active"]')
+    activeTab?.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" })
+  }, [colorRampType, isOpen])
 
   // Calculate the bounds for the current color ramp
   const rampBounds = useMemo(() => {
@@ -160,56 +173,117 @@ export const HypsometricTintOptionsSection: React.FC<{
   }, [setState])
 
   // SET ELEVATION
+  //
+  // First attempt walked a `tileManager._inViewTiles` field and called
+  // `.getAllIds()`/`.getTileById()` on it — none of those exist on this
+  // maplibre-gl version's SourceCache, so it always silently returned null.
+  //
+  // Primary path below fixes that the minimal way: terrain.tileManager.
+  // getRenderableTiles() (maplibre/maplibre-gl-js#5293's pointer) IS the real
+  // per-tile DEM cache, so this reads the exact min/max baked into every pixel
+  // of whichever covering tiles have actually finished decoding — tighter than
+  // any point-sampled grid, since it's derived from the tile's full raster,
+  // not a handful of query points. Two filters keep it honest: (1) drop tiles
+  // whose own lng/lat bounds (derived from their OverscaledTileID — standard
+  // XYZ tile math, no internal API needed) don't actually overlap the map's
+  // CURRENT bounds, so a tile left over from before the last pan/zoom can't
+  // sneak in; (2) among what's left, keep only the finest zoom present (a
+  // coarser parent is often still standing in for a not-yet-loaded child, and
+  // its dem spans a much wider footprint than what's on screen). Tiles whose
+  // `.dem` hasn't decoded yet are simply skipped, same as the original code.
+  //
+  // Fallback: that per-tile pipeline can occasionally stay stuck on "loading"
+  // well after the visible mesh has already updated (confirmed live: `.dem`
+  // stayed undefined 20+s after a fast zoom, on an otherwise fully interactive
+  // terrain) — leaving NONE of the in-view tiles usable. Rather than silently
+  // no-opping in that case, fall back to map.queryTerrainElevation() (the same
+  // API the Elevation Picker tool already relies on) sampled across a grid —
+  // it reads whatever's actually drawn on screen right now, with no separate
+  // tile cache to fall out of sync with.
   const getLoadedTilesElevationRange = useCallback(() => {
     if (!mapRef.current) return null;
-    
-    const mapInstance = mapRef.current.getMap();
-    const terrain = (mapInstance as any).painter?.renderToTexture?.terrain;
-    
+
+    const map = mapRef.current.getMap();
+    const terrain = (map as any).terrain;
     if (!terrain) return null;
-    
-    const style = (mapInstance as any).style;
-    const tileManager = style?.tileManagers?.[terrain.options?.source];
 
-    if (!tileManager) return null;
+    const bounds = map.getBounds();
+    const west = bounds.getWest();
+    const east = bounds.getEast();
+    const south = bounds.getSouth();
+    const north = bounds.getNorth();
 
-    // Get current zoom level
-    const currentZoom = Math.floor(mapInstance.getZoom());
+    const tiles: any[] = terrain.tileManager?.getRenderableTiles?.() ?? [];
+    const inViewLoaded = tiles.filter((tile) => {
+      if (!tile.dem) return false;
+      const { x, y, z } = tile.tileID.canonical;
+      const n = 2 ** z;
+      // wrap accounts for a tile referencing a copy of the world other than
+      // the primary one (panning across the antimeridian).
+      const wrap = tile.tileID.wrap * n;
+      const tw = ((x + wrap) / n) * 360 - 180;
+      const te = ((x + 1 + wrap) / n) * 360 - 180;
+      const tn = (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n))) * 180) / Math.PI;
+      const ts = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 1)) / n))) * 180) / Math.PI;
+      return te > west && tw < east && tn > south && ts < north;
+    });
 
-    // Use _inViewTiles to get only viewport tiles. This is an internal maplibre
-    // field that isn't always populated yet (e.g. right after a source switch,
-    // slower terrain load on mobile) — bail out rather than crashing.
-    const inViewTiles = tileManager._inViewTiles;
-    if (!inViewTiles) return null;
-    const tileIds = inViewTiles.getAllIds(); // This gets only in-view tiles
-    
+    if (inViewLoaded.length) {
+      const maxZ = Math.max(...inViewLoaded.map((t) => t.tileID.canonical.z));
+      let min = Infinity;
+      let max = -Infinity;
+      let count = 0;
+      for (const tile of inViewLoaded) {
+        if (tile.tileID.canonical.z !== maxZ) continue;
+        // dem.min/max are already real (unexaggerated) meters — decoding is
+        // agnostic to the Terrain's exaggeration multiplier, which only
+        // applies at render time — so no `* terrain.exaggeration` here,
+        // matching the real-meters convention lib/elevation-query.ts uses.
+        min = Math.min(min, tile.dem.min);
+        max = Math.max(max, tile.dem.max);
+        count++;
+      }
+      if (count > 0) return { min, max, tilesCount: count };
+    }
+
+    // Fallback: none of the in-view tiles have decoded dem data yet.
+    const exaggeration = terrain.exaggeration || 1;
+    const GRID = 9; // 9x9 = 81 sample points spread across the viewport
     let min = Infinity;
     let max = -Infinity;
     let count = 0;
-    
-    for (const tileId of tileIds) {
-      const tile = inViewTiles.getTileById(tileId);
-      
-      // Filter: only tiles at current zoom or one level below
-      if (tile?.dem && 
-          tile.tileID.overscaledZ >= currentZoom - 1 && 
-          tile.tileID.overscaledZ <= currentZoom) {
-        min = Math.min(min, tile.dem.min * terrain.exaggeration);
-        max = Math.max(max, tile.dem.max * terrain.exaggeration);
+    for (let i = 0; i < GRID; i++) {
+      for (let j = 0; j < GRID; j++) {
+        const lng = west + ((east - west) * i) / (GRID - 1);
+        const lat = south + ((north - south) * j) / (GRID - 1);
+        const raw = map.queryTerrainElevation([lng, lat]);
+        if (raw === null || raw === undefined) continue;
+        const elevation = raw / exaggeration;
+        min = Math.min(min, elevation);
+        max = Math.max(max, elevation);
         count++;
       }
     }
-    
-    return count > 0 ? { min, max, tilesCount: count } : null;
+    if (count === 0) return null;
+    // queryTerrainElevation returns an interpolated 0 from the empty
+    // placeholder texture while a tile is still in flight, rather than null —
+    // a perfectly flat 0m plane across the ENTIRE sampled viewport is not a
+    // real terrain reading (real terrain essentially never sits exactly at
+    // sea level everywhere on screen), so treat that as "not loaded yet"
+    // instead of reporting a bogus 0m-wide range.
+    if (min === 0 && max === 0) return null;
+    return { min, max, tilesCount: count };
   }, [mapRef]);
 
   const setElevFromLoadedTiles = useCallback( 
     () => {
       const elevationRange = getLoadedTilesElevationRange()
-      console.log({elevationRange})
-      // alert(elevationRange ? `Loaded tiles elevation range: ${elevationRange.min.toFixed(2)} to ${elevationRange.max.toFixed(2)} (based on ${elevationRange.tilesCount} tiles)` : "No terrain tiles loaded or elevation data unavailable.")
-      const minElevation = elevationRange?.min || state.minElevation
-      const maxElevation = elevationRange?.max || state.maxElevation
+      // Round to 1 decimal — queryTerrainElevation's exaggeration division
+      // otherwise leaves a long, meaningless-precision float (e.g.
+      // 4155.842954438225) that the plain min/max inputs don't warrant.
+      const round1 = (v: number) => Math.round(v * 10) / 10
+      const minElevation = elevationRange ? round1(elevationRange.min) : state.minElevation
+      const maxElevation = elevationRange ? round1(elevationRange.max) : state.maxElevation
       const factor = 0.2
       const hypsoSliderMinBound = Math.floor(minElevation - (maxElevation - minElevation) * factor)
       const hypsoSliderMaxBound = Math.ceil(maxElevation + (maxElevation - minElevation) * factor) 
@@ -292,16 +366,21 @@ export const HypsometricTintOptionsSection: React.FC<{
         >
           {/* grid-cols-N hard-codes N equal-width columns, which breaks as soon as a category
               gets added (labels start clipping/wrapping) — a horizontally-scrollable flex row
-              scales to any number of categories instead. */}
-          <TabsList className="flex h-12 w-full overflow-x-auto justify-start gap-1 [&>*]:shrink-0">
-            <TabsTrigger value="classic" className="cursor-pointer">Classic</TabsTrigger>
-            <TabsTrigger value="topqgs" className="cursor-pointer">Top Qgs</TabsTrigger>
-            <TabsTrigger value="topo" className="cursor-pointer">Topo</TabsTrigger>
-            <TabsTrigger value="cet" className="cursor-pointer">CET</TabsTrigger>
-            <TabsTrigger value="sdr" className="cursor-pointer">SDR</TabsTrigger>
-            <TabsTrigger value="temp" className="cursor-pointer">Temp</TabsTrigger>
-            <TabsTrigger value="topobath" className="cursor-pointer">TopoBath</TabsTrigger>
-          </TabsList>
+              scales to any number of categories instead. Scrolling lives on this wrapping div
+              (not TabsList itself) so tabsScrollRef above has a plain DOM node to query/scroll —
+              our TabsList wrapper isn't a forwardRef component, so a ref couldn't attach to it
+              directly. */}
+          <div ref={tabsScrollRef} className="overflow-x-auto">
+            <TabsList className="flex h-12 w-full justify-start gap-1 [&>*]:shrink-0">
+              <TabsTrigger value="classic" className="cursor-pointer">Classic</TabsTrigger>
+              <TabsTrigger value="topqgs" className="cursor-pointer">Top Qgs</TabsTrigger>
+              <TabsTrigger value="topo" className="cursor-pointer">Topo</TabsTrigger>
+              <TabsTrigger value="cet" className="cursor-pointer">CET</TabsTrigger>
+              <TabsTrigger value="sdr" className="cursor-pointer">SDR</TabsTrigger>
+              <TabsTrigger value="temp" className="cursor-pointer">Temp</TabsTrigger>
+              <TabsTrigger value="topobath" className="cursor-pointer">TopoBath</TabsTrigger>
+            </TabsList>
+          </div>
         </Tabs>
       </div>
       <div className="space-y-4">

@@ -36,6 +36,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
 import { useShiftTapToggle } from '@/lib/use-shift-tap-toggle'
 import { useCtrlTapToggle } from '@/lib/use-ctrl-tap-toggle'
+import { useGeocoderShortcut } from '@/lib/use-geocoder-shortcut'
 import { cn } from "@/lib/utils"
 
 // --- Persisted state ---
@@ -147,6 +148,8 @@ export function TerrainControlPanel({
   // first but the browser's own Alt-alone menu-bar-focus behavior conflicts
   // with it.)
   useShiftTapToggle(() => setState({ showRasterBasemap: !state.showRasterBasemap }))
+  // Ctrl/Cmd+K jumps focus to the geocoder search box from anywhere.
+  useGeocoderShortcut()
   // Tapping either Ctrl key alone hides every overlay visualization mode down
   // to just the plain basemap imagery, and restores every mode's previous
   // on/off state on the next tap — a quick "what's actually under here"
