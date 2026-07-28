@@ -206,3 +206,4 @@ export const isSettingsApiKeysOpenAtom = atomWithStorage("isSettingsApiKeysOpen"
 export const isSettingsMapBoundsOpenAtom = atomWithStorage("isSettingsMapBoundsOpen", false)
 export const isSettingsSaveProjectOpenAtom = atomWithStorage("isSettingsSaveProjectOpen", false)
 export const isSettingsResourcesOpenAtom = atomWithStorage("isSettingsResourcesOpen", false)
+export const isSettingsGeomorphometryOpenAtom = atomWithStorage("isSettingsGeomorphometryOpen", false)

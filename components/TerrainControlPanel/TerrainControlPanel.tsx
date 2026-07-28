@@ -61,7 +61,8 @@ const SECTION_KEYS = [
   "drawing",
   "elevationPicker",
   "animation",
-  "sourceInfo"
+  "sourceInfo",
+  "footer"
 ] as const
 
 type SectionKey = (typeof SECTION_KEYS)[number]
@@ -86,6 +87,7 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   elevationPicker: false,
   animation: false,
   sourceInfo: false,
+  footer: false,
 }
 
 export const sectionOpenAtom = atomWithStorage<SectionOpenState>("sectionOpen", DEFAULT_OPEN_STATE)
@@ -569,8 +571,7 @@ export function TerrainControlPanel({
             )}
           </>
         )}
-        <MacroSeparator />
-        <FooterSection />
+        <FooterSection isOpen={sectionOpen.footer} onOpenChange={toggle("footer")} />
         </div>
       </Card>
     </TooltipProvider>

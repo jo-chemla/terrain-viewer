@@ -20,6 +20,99 @@ type GeocoderControlProps = Omit<MaplibreGeocoderOptions, 'maplibregl' | 'marker
 };
 
 /* eslint-disable camelcase */
+// Recognizes a typed "lat, lng" (or "lng, lat") pair and turns it straight
+// into a point feature instead of sending it to Photon as a place-name
+// search, which would find nothing useful for raw coordinates. Ported from
+// historicalsatellite's geocoder-control.tsx (itself adapted from the
+// mapbox-gl-geocoder docs' own coordinatesGeocoder example) — maplibre's
+// geocoder exposes the same `localGeocoder` hook mapbox's does, just with a
+// plain array return instead of null-or-array.
+// "48.8566°N 2.3522°E" rather than a bare signed number — the compass suffix
+// reads faster than remembering "negative longitude means west" and matches
+// the convention every other coordinate display in this app (e.g. the
+// elevation picker) already uses. Deliberately no comma between the two
+// halves: the geocoder's default result renderer splits `place_name` on its
+// first comma into a bold title line + a dimmer address line underneath, so
+// a comma here would push the longitude onto its own second line.
+function formatLatLng(lat: number, lng: number): string {
+  const ns = lat < 0 ? 'S' : 'N';
+  const ew = lng < 0 ? 'W' : 'E';
+  return `${Math.abs(lat)}°${ns} ${Math.abs(lng)}°${ew}`;
+}
+
+// One "12.34", "12.34°N", "12.34 N" style token — the trailing letter (any
+// of N/S/E/W) is optional and, when present, both fixes the value's sign and
+// says outright whether this token is the latitude or the longitude, so two
+// directioned tokens (in either order) never need the magnitude-based
+// guessing below.
+const COORD_TOKEN = String.raw`(?:Lat: |Lng: )?(-?\d+\.?\d*)\s*°?\s*([NSEWnsew])?`;
+const COORDINATES_PATTERN = new RegExp(`^[ ]*${COORD_TOKEN}[, ]+${COORD_TOKEN}[ ]*$`, 'i');
+
+function coordinatesGeocoder(query: string): CarmenGeojsonFeature[] {
+  // Matches "Lat: 12.34 Lng: 56.78", "12.34, 56.78", "12.34°N, 56.78°E", etc.
+  const matches = query.match(COORDINATES_PATTERN);
+  if (!matches) return [];
+
+  const coordinateFeature = (lng: number, lat: number): CarmenGeojsonFeature => {
+    const label = formatLatLng(lat, lng);
+    return {
+      id: `coord-${lng}-${lat}`,
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [lng, lat] },
+      place_name: label,
+      text: label,
+      place_type: ['coordinate'],
+      properties: {},
+      // Not part of CarmenGeojsonFeature's declared shape, but the geocoder
+      // reads it (same as the existing Photon results below) as the point to
+      // fly to.
+      center: [lng, lat],
+    } as CarmenGeojsonFeature;
+  };
+
+  const [, v1Str, dir1Raw, v2Str, dir2Raw] = matches;
+  const v1 = Number(v1Str);
+  const v2 = Number(v2Str);
+  const dir1 = dir1Raw?.toUpperCase();
+  const dir2 = dir2Raw?.toUpperCase();
+
+  if (dir1 || dir2) {
+    // A direction letter forces the value's sign (S/W negative, N/E
+    // positive) — with no letter, keep whatever sign the number itself
+    // already had.
+    const withSign = (v: number, dir?: string) =>
+      dir === 'S' || dir === 'W' ? -Math.abs(v) : dir === 'N' || dir === 'E' ? Math.abs(v) : v;
+    // token1 is the latitude unless it's explicitly marked E/W, or it's
+    // unmarked and token2 is explicitly marked E/W (leaving token1 as the
+    // latitude by elimination) — this reads correctly regardless of which
+    // token came first.
+    const token1IsLat = dir1 === 'N' || dir1 === 'S' || !(dir1 === 'E' || dir1 === 'W') && !(dir2 === 'N' || dir2 === 'S');
+    const lat = withSign(token1IsLat ? v1 : v2, token1IsLat ? dir1 : dir2);
+    const lng = withSign(token1IsLat ? v2 : v1, token1IsLat ? dir2 : dir1);
+    return [coordinateFeature(lng, lat)];
+  }
+
+  const coord1 = v1;
+  const coord2 = v2;
+  const features: CarmenGeojsonFeature[] = [];
+
+  if (coord1 < -90 || coord1 > 90) {
+    // coord1 can't be a latitude -> must be lng, lat
+    features.push(coordinateFeature(coord1, coord2));
+  } else if (coord2 < -90 || coord2 > 90) {
+    // coord2 can't be a latitude -> must be lat, lng
+    features.push(coordinateFeature(coord2, coord1));
+  } else {
+    // Either order is plausible (both values fit within ±90) — offer both
+    // interpretations rather than guessing, most-common-convention (lat, lng)
+    // first.
+    features.push(coordinateFeature(coord2, coord1));
+    features.push(coordinateFeature(coord1, coord2));
+  }
+
+  return features;
+}
+
 // Open-data geocoder (Photon / komoot, OSM-based, no key) — see riverrem-ui.
 const geocoderApi: MaplibreGeocoderApi = {
   forwardGeocode: async config => {
@@ -80,6 +173,7 @@ export default function GeocoderControl({
     ({ mapLib }) => {
       const ctrl = new MaplibreGeocoder(geocoderApi, {
         ...props,
+        localGeocoder: coordinatesGeocoder,
         // Always suppress the library's own built-in pin marker — this wrapper
         // renders its own (small dot, see the `marker` prop) via markerEl below.
         marker: false,

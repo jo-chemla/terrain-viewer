@@ -1,16 +1,24 @@
 import type React from "react"
 import { useAtomValue } from "jotai"
 import { Loader2 } from "lucide-react"
-import { slowTileStatsAtom, type SlowVizMode } from "@/lib/tile-timing-stats"
+import { slowTileStatsAtom, statsKey, type SlowVizMode } from "@/lib/tile-timing-stats"
+import type { HorizonPrecision } from "@/lib/horizon-angle"
+
+const EMPTY_STATS = { avgMs: null, requestedCount: 0, completedCount: 0, maxConcurrency: 1 }
 
 /** "Computing… ~Ns remaining (a/b tiles)" for the slow, ray-marched relief
  *  modes (SVF/Openness/Local Dominance) — see lib/tile-timing-stats.ts. Shows
  *  immediately once tiles are pending (even before a first real sample
  *  exists to time-estimate from — that's the point where a "nothing's
  *  happening" impression is most likely), and renders nothing once the
- *  viewport's tiles have all resolved. */
-export const SlowTileProgress: React.FC<{ mode: SlowVizMode }> = ({ mode }) => {
-  const stats = useAtomValue(slowTileStatsAtom)[mode]
+ *  viewport's tiles have all resolved.
+ *
+ *  `precision` (SVF/Openness only — Local Dominance has none) selects which
+ *  precision-qualified stats bucket to read, so switching Fast/Precise shows
+ *  that mode's OWN rolling average immediately instead of whichever one
+ *  happened to run most recently (see statsKey's comment). */
+export const SlowTileProgress: React.FC<{ mode: SlowVizMode; precision?: HorizonPrecision }> = ({ mode, precision }) => {
+  const stats = useAtomValue(slowTileStatsAtom)[statsKey(mode, precision)] ?? EMPTY_STATS
   const pending = stats.requestedCount - stats.completedCount
   if (pending <= 0) return null
 

@@ -18,6 +18,59 @@ export function extractStops(colors: any[]): number[] {
 
 export interface CustomRampStop { value: number; color: string }
 
+// ─── Quick ramp builder ─────────────────────────────────────────────────────
+// Generates a small custom-stops array for the two most common "shapes" this
+// app's own built-in ramps already use over and over by hand (curvature-
+// diverging, curvature-mono-black/white, transparent-white/black, blobness-
+// default, …) — a one-shot generator into the SAME customStops/
+// buildCustomRampColors mechanism every mode already has, not a separate ramp
+// system, so the result is just as editable afterward as any hand-built one.
+export type QuickRampShape = "sequential" | "diverging"
+export type QuickRampFade = "center" | "edges"
+
+const RAMP_TRANSPARENT = "rgba(0,0,0,0)"
+
+export function buildQuickRampStops(
+  shape: QuickRampShape,
+  fade: QuickRampFade,
+  colorA: string,
+  colorB: string,
+  min: number,
+  max: number,
+): CustomRampStop[] {
+  if (shape === "sequential") {
+    // Direction (which end is transparent) is left to the existing Invert
+    // Ramp checkbox every mode already has, same as every other continuous
+    // ramp here — no separate toggle needed.
+    return [
+      { value: min, color: RAMP_TRANSPARENT },
+      { value: max, color: colorA },
+    ]
+  }
+  const mid = (min + max) / 2
+  if (fade === "center") {
+    // e.g. curvature-diverging (colorA ≠ colorB) or curvature-mono-* (colorA
+    // === colorB) — opaque at both edges, transparent where they'd meet.
+    return [
+      { value: min, color: colorA },
+      { value: mid, color: RAMP_TRANSPARENT },
+      { value: max, color: colorB },
+    ]
+  }
+  // fade === "edges": the inverse shape — transparent at both edges, opaque
+  // right at the middle (e.g. transparent-white/transparent-black when
+  // colorA === colorB; a hard two-tone split at the middle when they differ).
+  // The tiny epsilon keeps the handoff at the middle a clean split rather than
+  // smearing one color across the whole range when colorA/colorB differ.
+  const eps = Math.max((max - min) * 0.01, 1e-6)
+  return [
+    { value: min, color: RAMP_TRANSPARENT },
+    { value: mid - eps, color: colorA },
+    { value: mid + eps, color: colorB },
+    { value: max, color: RAMP_TRANSPARENT },
+  ]
+}
+
 // Rough, widely-cited construction/vehicle-access slope bands (loosely
 // tracking NRCS slope classes) — not an industry-universal standard (that
 // varies a lot by jurisdiction/equipment), which is exactly why this is a

@@ -90,6 +90,7 @@
             "name": "Dura Synagogue - W-0.5mm DSM",
             "url": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/DuraEuropos_Synagogue_W_0.5mm_DSM_fakegeo.cog.tiff",
             "type": "cog",
+            "linkedBasemapId": "dura-w-05mm",
             "description": ""
         },
         {
@@ -97,6 +98,7 @@
             "name": "Dura Synagogue - GRID-2mm DSM",
             "url": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/DuraEuropos_Synagogue_2mm_DSM_mosaic.cog.tiff",
             "type": "cog",
+            "linkedBasemapId": "dura-grid-2mm",
             "description": ""
         }
     ],

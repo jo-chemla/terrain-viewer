@@ -1,6 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { useAtom } from "jotai"
+import { v4 as uuidv4 } from "uuid"
 import { Bookmark as BookmarkIcon, Trash2, Pencil, Maximize2, Upload, Download as DownloadIcon, ImageOff, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -196,7 +197,10 @@ export const BookmarksSection: React.FC<{
         ? summarizeActiveVizModes(state)
         : (await reverseGeocodeLabel(state.lat, state.lng)) ?? new Date().toLocaleString()
       const bookmark: Bookmark = {
-        id: crypto.randomUUID(),
+        // crypto.randomUUID() throws on a non-secure context (plain HTTP, not
+        // localhost) — this 'uuid' package version works everywhere, same
+        // reasoning as TerraDrawSystem.tsx's own use of it.
+        id: uuidv4(),
         name,
         ts: Date.now(),
         thumb,

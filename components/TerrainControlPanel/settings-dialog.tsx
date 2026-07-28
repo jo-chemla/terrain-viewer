@@ -19,7 +19,7 @@ import {
   isSettingsAppearanceOpenAtom, isSettingsKeyboardShortcutsOpenAtom, isSettingsVisualizationModesOpenAtom,
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsTellsDetectionOpenAtom,
   isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
-  isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom,
+  isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom, isSettingsGeomorphometryOpenAtom,
 } from "@/lib/settings-atoms"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { persistLocalCogsAtom } from "@/lib/local-file-store"
@@ -728,6 +728,29 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 </a>
                 <a href="https://colorcet.com/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
                   <span>CET — Peter Kovesi&apos;s perceptually-uniform colormaps</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+              </div>
+          </CollapsibleSection>
+          <Separator />
+          <CollapsibleSection title="Resources: Geomorphometry Scientific Literature and Tools" openAtom={isSettingsGeomorphometryOpenAtom}>
+            <div className="space-y-2 text-sm">
+                <a href="https://www.whiteboxgeo.com/manuals/qgis/terrain-analysis.html" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>WhiteboxTools Terrain Analysis Manual</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://web.archive.org/web/20251219110853/https://www.whiteboxgeo.com/manual/wbt_book/available_tools/geomorphometric_analysis.html" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>WhiteboxTools Geomorphometric Analysis Manual (Wayback archive, with screenshots)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://www.cnr.it/sites/default/files/public/media/attivita/editoria/Proceedings_Geomorphometry_2020-compressed.pdf" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>Geomorphometry 2020 Conference Proceedings (PDF)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://www.irpi.cnr.it/wp-content/uploads/2026/03/Proceedings_Geomorphometry_2025.pdf" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>Geomorphometry 2025 Conference Proceedings (PDF)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://geomorphometry.fns.uniba.sk/calc-service/lsp_calculator" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>LSP Calculator — land surface parameters web service</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+                </a>
+                <a href="https://github.com/xiceph/physical-geomorphometry-tools/tree/main/lsp-calculator" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+                  <span>LSP Calculator — source code</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
                 </a>
               </div>
           </CollapsibleSection>

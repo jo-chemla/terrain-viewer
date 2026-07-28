@@ -918,6 +918,23 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
         setIteratorIndex(((i % iteratorTotal) + iteratorTotal) % iteratorTotal) // wraps both ways, matching the Repeat2/"loop through" framing
     }
 
+    // Clicking a feature on the map (TerraDraw's own select mode, not
+    // anything the iterator drives — see the "Deliberately NOT calling
+    // draw.selectFeature" comment above) jumps the iterator to match it, the
+    // reverse direction of the effect above. Only when the click landed on a
+    // feature that's actually IN the currently-iterated layer — clicking one
+    // of another layer's features leaves the iterator wherever it was.
+    useEffect(() => {
+        if (!draw || !iteratorLayerId) return
+        const handleSelect = (id: string | number) => {
+            const idx = iteratorFeatures.findIndex((f) => f.id === id)
+            if (idx !== -1) setIteratorIndex(idx)
+        }
+        draw.on('select', handleSelect)
+        return () => { try { draw.off('select', handleSelect) } catch { } }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [draw, iteratorLayerId, iteratorFeatures])
+
     const deleteIteratorFeature = () => {
         const feature = iteratorFeatures[iteratorIndex]
         if (!feature?.id) return
@@ -1169,7 +1186,7 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                     value={iteratorZoom ?? undefined}
                                     onCommit={(v) => setIteratorZoom(v ?? null)}
                                     placeholder="Current"
-                                    className="h-7 w-[5ch] px-1 text-xs text-right bg-transparent border rounded"
+                                    className="h-7 w-[7ch] px-1 text-xs text-right bg-transparent border rounded"
                                     step={0.5}
                                 />
                                 <Tooltip>

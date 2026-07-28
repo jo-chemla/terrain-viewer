@@ -57,6 +57,19 @@ export async function probeMaxZoomAt(
   lat: number,
   configuredMaxzoom: number,
 ): Promise<number> {
+  // Callers already gate on the template containing a literal {z} — but a
+  // wms-raw source's `float32dem-bbox://…/{z}/{x}/{y}` upstream template has
+  // one too, even though it isn't a real fetchable XYZ pyramid: it's this
+  // app's own pseudo-scheme (see normal-derived-protocol.ts's loadTileBitmap),
+  // only ever resolved internally, never by the browser's real fetch(). A raw
+  // fetch() on it throws "URL scheme … is not supported" instead of 404ing.
+  // Same reasoning would apply to the `cog://` pseudo-scheme if it ever grew
+  // a probeable {z} template. Real coverage gaps don't apply to a WMS
+  // endpoint anyway — the server resamples any bbox on the fly rather than
+  // 404ing on a missing tile — so skipping the probe here just falls back to
+  // the configured maxzoom, exactly like a transient network failure would.
+  if (!/^https?:\/\//i.test(tileUrlTemplate)) return configuredMaxzoom
+
   const { x: bucketX, y: bucketY } = lngLatToTile(lng, lat, CACHE_ZOOM)
   const key = `${tileUrlTemplate}|${configuredMaxzoom}|${bucketX}|${bucketY}`
   const cached = cache.get(key)

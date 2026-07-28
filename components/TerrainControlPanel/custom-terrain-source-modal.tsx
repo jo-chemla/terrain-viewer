@@ -1,6 +1,7 @@
 import type React from "react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAtom, useSetAtom } from "jotai"
+import { v4 as uuidv4 } from "uuid"
 import { ChevronDown, Link, Settings2, Expand } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
@@ -90,7 +91,7 @@ export const CustomTerrainSourceModal: React.FC<{
     const file = e.target.files?.[0]
     e.target.value = "" // allow re-picking the same filename later without a no-op change event
     if (!file) return
-    const id = crypto.randomUUID()
+    const id = uuidv4() // crypto.randomUUID() throws on a non-secure context (plain HTTP)
     registerLocalFile({ id, file })
     setUrl(makeLocalFileUrl(id))
     setLocalFileName(file.name)

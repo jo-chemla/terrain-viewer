@@ -58,7 +58,7 @@ export const OpennessFields: React.FC<{
 
   return (
     <div className="space-y-4 pl-6">
-      <SlowTileProgress mode="openness" />
+      <SlowTileProgress mode="openness" precision={state.opennessPrecision} />
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">Mode</Label>
@@ -109,8 +109,9 @@ export const OpennessFields: React.FC<{
         />
         <p className="text-xs text-muted-foreground">
           Fast marches every pixel only out to {FAST_NATIVE_RADIUS_PX}px, then switches to
-          sampling the coarse tile pyramid for the rest of a larger radius — much cheaper, but
-          can slightly underestimate occlusion from a narrow, distant ridge.
+          sampling the coarse tile pyramid for the rest of a larger radius — cheaper for a
+          large radius, but identical to Precise (no difference at all) at {FAST_NATIVE_RADIUS_PX}px
+          or below, and can slightly underestimate occlusion from a narrow, distant ridge.
         </p>
       </div>
 

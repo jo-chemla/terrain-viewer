@@ -1,5 +1,5 @@
 import type React from "react"
-import { Fragment } from "react"
+import { Fragment, useState } from "react"
 import { Plus, Trash2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { DraftBoundInput } from "./controls-components"
-import { buildCustomRampColors, type CustomRampStop } from "@/lib/color-ramps"
+import {
+  buildCustomRampColors, buildQuickRampStops, type CustomRampStop, type QuickRampShape, type QuickRampFade,
+} from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 
 const TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer text-xs data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
@@ -64,6 +66,76 @@ export const ColorRampSelectWithCustom: React.FC<{
   </Select>
 )
 
+/** One-shot generator for the two "shapes" behind most of this app's own
+ *  hand-built diverging/sequential ramps (see buildQuickRampStops) — Apply
+ *  overwrites the current custom stops with a fresh 2-4 stop set spanning
+ *  whichever [min, max] the stops already cover, which stays just as editable
+ *  afterward (individually, below) as any hand-built stop list. Deliberately
+ *  not itself a persisted "ramp type" — it only ever writes into the same
+ *  customStops array every mode already has. */
+export const QuickRampBuilder: React.FC<{
+  currentStops: CustomRampStop[]
+  onApply: (stops: CustomRampStop[]) => void
+}> = ({ currentStops, onApply }) => {
+  const [shape, setShape] = useState<QuickRampShape>("diverging")
+  const [fade, setFade] = useState<QuickRampFade>("center")
+  const [colorA, setColorA] = useState("#2166ac")
+  const [colorB, setColorB] = useState("#b2182b")
+
+  const apply = () => {
+    const values = currentStops.map((s) => s.value)
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    onApply(buildQuickRampStops(shape, fade, colorA, colorB, min, max))
+  }
+
+  const swatchClass = "h-8 w-8 p-0 cursor-pointer border rounded-sm shrink-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch-wrapper]:p-0"
+
+  return (
+    <div className="space-y-2 rounded-md border p-2">
+      <Label className="text-xs font-medium text-muted-foreground">Quick Build</Label>
+      <ToggleGroup
+        type="single"
+        value={shape}
+        onValueChange={(value) => value && setShape(value as QuickRampShape)}
+        className="border rounded-md w-full"
+      >
+        <ToggleGroupItem value="sequential" className={TOGGLE_ITEM_CLASS} title="One color, fading in from transparent (flip direction with Invert Ramp below).">
+          1D
+        </ToggleGroupItem>
+        <ToggleGroupItem value="diverging" className={TOGGLE_ITEM_CLASS} title="Two colors, one on each side of the middle.">
+          Diverging
+        </ToggleGroupItem>
+      </ToggleGroup>
+      {shape === "diverging" && (
+        <ToggleGroup
+          type="single"
+          value={fade}
+          onValueChange={(value) => value && setFade(value as QuickRampFade)}
+          className="border rounded-md w-full"
+        >
+          <ToggleGroupItem value="center" className={TOGGLE_ITEM_CLASS} title="Color at both edges, transparent in the middle (e.g. a diverging curvature ramp).">
+            Transparent Center
+          </ToggleGroupItem>
+          <ToggleGroupItem value="edges" className={TOGGLE_ITEM_CLASS} title="Color in the middle, transparent at both edges (e.g. highlighting values near zero).">
+            Transparent Edges
+          </ToggleGroupItem>
+        </ToggleGroup>
+      )}
+      <div className="flex items-center gap-2">
+        <Input type="color" value={colorA} onChange={(e) => setColorA(e.target.value)} className={swatchClass} title={shape === "diverging" ? "Negative-side color" : "Color"} />
+        {shape === "diverging" && (
+          <Input type="color" value={colorB} onChange={(e) => setColorB(e.target.value)} className={swatchClass} title="Positive-side color" />
+        )}
+        <div className="flex-1" />
+        <Button variant="outline" size="sm" className="cursor-pointer" onClick={apply}>
+          Apply
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 /** The stop-editing UI itself (continuous/discrete toggle + per-stop color/
  *  value rows + add button) — appears in place of whatever range-slider UI a
  *  mode normally shows once its ramp Select is set to "custom", since a
@@ -109,6 +181,10 @@ export const CustomRampStopsEditor: React.FC<{
 
   return (
     <div className="space-y-2">
+      {/* Paused per user feedback (not the UI they had in mind) — kept intact,
+          just not rendered, for another pass later. Component/logic still
+          exported above (QuickRampBuilder / buildQuickRampStops). */}
+      {/* <QuickRampBuilder currentStops={customStops} onApply={onStopsChange} /> */}
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-medium">Custom Stops</Label>
         <ToggleGroup

@@ -11,6 +11,7 @@
 // state instead of a plain module-level variable.
 
 import { atom, getDefaultStore } from "jotai"
+import type { HorizonPrecision } from "./horizon-angle"
 
 export type SlowVizMode = "svf" | "openness" | "local-dominance"
 
@@ -40,22 +41,41 @@ export interface SlowModeStats {
 
 const EMPTY_STATS: SlowModeStats = { avgMs: null, requestedCount: 0, completedCount: 0, maxConcurrency: 1 }
 
-export const slowTileStatsAtom = atom<Record<SlowVizMode, SlowModeStats>>({
-  svf: { ...EMPTY_STATS },
-  openness: { ...EMPTY_STATS },
-  "local-dominance": { ...EMPTY_STATS },
-})
+/** SVF/Openness's "fast" and "precise" precision are genuinely different
+ *  computations (see horizon-angle.ts) with very different per-tile costs —
+ *  keying stats by mode alone (the pre-precision-toggle version of this file)
+ *  meant switching between them shared one rolling average, so the "time
+ *  remaining" estimate lagged behind whichever precision generated the
+ *  currently-averaged samples instead of the one actually running. Local
+ *  Dominance has no precision concept, so its key is just its own mode name. */
+export function statsKey(mode: SlowVizMode, precision?: HorizonPrecision): string {
+  return precision ? `${mode}:${precision}` : mode
+}
+
+export const slowTileStatsAtom = atom<Record<string, SlowModeStats>>({})
 
 // Rolling window, not a lifetime average — so the estimate adapts if the
 // endpoint's real latency shifts (e.g. its own server warms up, or a
-// different, larger radius setting is picked mid-session).
+// different, larger radius setting is picked mid-session). Keyed the same
+// way as slowTileStatsAtom (see statsKey) — entries are created on demand,
+// not pre-declared, since the precision-qualified key space isn't fixed.
 const ROLLING_WINDOW = 15
-const samples: Record<SlowVizMode, number[]> = { svf: [], openness: [], "local-dominance": [] }
+const samples: Record<string, number[]> = {}
 
-function patchStats(mode: SlowVizMode, patch: Partial<SlowModeStats>) {
+function patchStats(key: string, patch: Partial<SlowModeStats>) {
   const store = getDefaultStore()
   const current = store.get(slowTileStatsAtom)
-  store.set(slowTileStatsAtom, { ...current, [mode]: { ...current[mode], ...patch } })
+  const existing = current[key] ?? EMPTY_STATS
+  store.set(slowTileStatsAtom, { ...current, [key]: { ...existing, ...patch } })
+}
+
+// Pulls `precision=precise|fast` back out of the tile URL svf-protocol.ts/
+// openness-protocol.ts already encode it into (see buildSvfProtocolUrl/
+// buildOpennessProtocolUrl) — cheaper than threading a separate parameter
+// through addProtocol's fixed (params, abortController) handler signature.
+function precisionFromUrl(url: string): HorizonPrecision | undefined {
+  const match = url.match(/precision=(precise|fast)/)
+  return match ? (match[1] as HorizonPrecision) : undefined
 }
 
 /** Wraps a maplibre custom-protocol handler to record its real compute time
@@ -79,25 +99,26 @@ export function withSlowTileStats<
   T extends (params: { url: string }, abortController: AbortController) => Promise<{ data: Uint8Array }>,
 >(mode: SlowVizMode, inner: T): T {
   const wrapped = async (params: { url: string }, abortController: AbortController) => {
+    const key = statsKey(mode, precisionFromUrl(params.url))
     const store = getDefaultStore()
-    const beforeStart = store.get(slowTileStatsAtom)[mode]
+    const beforeStart = store.get(slowTileStatsAtom)[key] ?? EMPTY_STATS
     const requestedCount = beforeStart.requestedCount + 1
     const inFlight = requestedCount - beforeStart.completedCount
-    patchStats(mode, { requestedCount, maxConcurrency: Math.max(beforeStart.maxConcurrency, inFlight) })
+    patchStats(key, { requestedCount, maxConcurrency: Math.max(beforeStart.maxConcurrency, inFlight) })
     const start = performance.now()
     try {
       const result = await inner(params, abortController)
-      const arr = samples[mode]
+      const arr = samples[key] ?? (samples[key] = [])
       arr.push(performance.now() - start)
       if (arr.length > ROLLING_WINDOW) arr.shift()
       const avgMs = arr.reduce((a, b) => a + b, 0) / arr.length
-      patchStats(mode, { avgMs, completedCount: store.get(slowTileStatsAtom)[mode].completedCount + 1 })
+      patchStats(key, { avgMs, completedCount: (store.get(slowTileStatsAtom)[key]?.completedCount ?? 0) + 1 })
       return result
     } catch (err) {
       // Aborted (pan/zoom moved on before this tile finished) or genuinely
       // failed — neither is a real completed compute, and neither should
       // count against the viewport's pending total either.
-      patchStats(mode, { requestedCount: Math.max(0, store.get(slowTileStatsAtom)[mode].requestedCount - 1) })
+      patchStats(key, { requestedCount: Math.max(0, (store.get(slowTileStatsAtom)[key]?.requestedCount ?? 0) - 1) })
       throw err
     }
   }
@@ -106,12 +127,17 @@ export function withSlowTileStats<
 
 /** Called on movestart/zoomstart — a new viewport needs a fresh count of how
  *  many tiles it requires; the rolling avgMs is left untouched since it's a
- *  session-wide "how fast is this endpoint" estimate, not viewport-specific. */
+ *  session-wide "how fast is this endpoint" estimate, not viewport-specific.
+ *  Resets every precision-qualified key for the given mode (or every key at
+ *  all, if no mode is given) — a viewport change doesn't know or care which
+ *  precision generated whichever tiles were pending before it. */
 export function resetSlowTileProgress(mode?: SlowVizMode) {
   const store = getDefaultStore()
   const current = store.get(slowTileStatsAtom)
-  const modes: SlowVizMode[] = mode ? [mode] : ["svf", "openness", "local-dominance"]
   const next = { ...current }
-  for (const m of modes) next[m] = { ...current[m], requestedCount: 0, completedCount: 0 }
+  for (const key of Object.keys(next)) {
+    if (mode && key !== mode && !key.startsWith(`${mode}:`)) continue
+    next[key] = { ...next[key], requestedCount: 0, completedCount: 0 }
+  }
   store.set(slowTileStatsAtom, next)
 }

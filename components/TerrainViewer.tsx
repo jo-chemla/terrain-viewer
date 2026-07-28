@@ -735,11 +735,18 @@ export function TerrainViewer() {
   const shapeIndexReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.shapeIndexColorRamp,
-      customStops: state.shapeIndexCustomStops,
+      // Shape Index is still wire-encoded through the shared curvature://
+      // protocol, which applies CURVATURE_ENCODE_SCALE to every mode's value
+      // uniformly (see curvature-protocol.ts) — the raw ["elevation"] this
+      // color-relief layer reads back is in that ×1000-scaled space, same as
+      // curvatureReliefPaint above, even though the slider/state itself
+      // (shapeIndexMin/Max, custom stop values) stays in ordinary [-1, 1]
+      // shape-index units.
+      customStops: state.shapeIndexCustomStops?.map((s: CustomRampStop) => ({ ...s, value: s.value * CURVATURE_ENCODE_SCALE })),
       customStopsDiscrete: state.shapeIndexCustomStopsDiscrete,
       customHypsoMinMax: true,
-      minElevation: state.shapeIndexMin,
-      maxElevation: state.shapeIndexMax,
+      minElevation: state.shapeIndexMin * CURVATURE_ENCODE_SCALE,
+      maxElevation: state.shapeIndexMax * CURVATURE_ENCODE_SCALE,
       colorReliefOpacity: state.shapeIndexOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.shapeIndexInvertColorRamp,
     }),
@@ -1416,7 +1423,58 @@ export function TerrainViewer() {
       setMapBLoaded(false)
     }
   }, [state.splitScreen])
-  
+
+  // ----------------------------------------
+  // Terrain-transition tile-texture desync workaround (upstream MapLibre GL
+  // JS limitation, not something wrong on our end — a community-shared fix,
+  // no tracked issue/PR number to cite; see this function's own detailed
+  // walkthrough plus the memory note "maplibre-terrain-transition-rtt-desync"
+  // for the full original write-up if this ever needs revisiting). With 3D
+  // terrain on, each terrain tile's rendered-to-texture
+  // (RTT) result is cached and only freed on a style 'data' event (see this
+  // package's own Map#setTerrain, which wires exactly that). A maplibre paint-
+  // property TRANSITION — e.g. this app's color-relief opacity/min/max easing
+  // after a React/nuqs state change — does NOT fire a 'data' event per frame,
+  // so the terrain-draped layer keeps painting from whatever was cached at
+  // the transition's first frame until something else (a camera move, or the
+  // tile pool evicting an entry) happens to free it — which is exactly why
+  // interactions seem to "magically" fix a stuck-looking layer. Community
+  // workaround (not an official fix): force-free the RTT cache on every frame
+  // a transition is in progress, plus one extra frame after it ends (a
+  // transition's `hasTransition()` already reads false by the next tick, so
+  // the LAST real frame needs its own repaint triggered explicitly or it'd
+  // never get one). `.terrain` isn't in the public Map type (undocumented
+  // internal), hence the `any` — `getLayersOrder`/`getLayer`/`hasTransition`
+  // all are public.
+  useEffect(() => {
+    const map = mapARef.current?.getMap()
+    if (!map || !mapALoaded) return
+    let wasTransitioning = false
+    const onRender = () => {
+      const terrain = (map as any).terrain
+      const transitioning = !!terrain && map.getLayersOrder().some((id) => map.getLayer(id)?.hasTransition())
+      if (transitioning || wasTransitioning) terrain?.tileManager.freeRtt()
+      if (!transitioning && wasTransitioning) map.triggerRepaint()
+      wasTransitioning = transitioning
+    }
+    map.on('render', onRender)
+    return () => { map.off('render', onRender) }
+  }, [mapALoaded])
+
+  useEffect(() => {
+    const map = mapBRef.current?.getMap()
+    if (!map || !mapBLoaded) return
+    let wasTransitioning = false
+    const onRender = () => {
+      const terrain = (map as any).terrain
+      const transitioning = !!terrain && map.getLayersOrder().some((id) => map.getLayer(id)?.hasTransition())
+      if (transitioning || wasTransitioning) terrain?.tileManager.freeRtt()
+      if (!transitioning && wasTransitioning) map.triggerRepaint()
+      wasTransitioning = transitioning
+    }
+    map.on('render', onRender)
+    return () => { map.off('render', onRender) }
+  }, [mapBLoaded])
   // ----------------------------------------
 
   const [zoomRangeA, setZoomRangeA] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
