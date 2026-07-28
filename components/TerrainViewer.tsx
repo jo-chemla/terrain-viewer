@@ -61,6 +61,7 @@ import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
 import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource } from "./LayersAndSources/MapSources"
 import { PhongLiveGlLayer } from "./LayersAndSources/PhongLiveGlLayer"
+import { MatcapLiveGlLayer } from "./LayersAndSources/MatcapLiveGlLayer"
 import {
   LayerOrderSlots,
   RasterLayer,
@@ -195,6 +196,14 @@ export const QUERY_STATE_PARSERS = {
     // own bearing (a raster tile is baked once per z/x/y, so it can't track
     // live bearing the way a real-time GPU shader could).
     matcapRotationDeg: parseAsFloat.withDefault(0),
+    // "raster" (default): lib/matcap-protocol.ts's plain raster-tile
+    // pipeline — drapes correctly over 3D terrain exaggeration AND globe,
+    // but every rotation/exaggeration change costs a real tile refetch.
+    // "live": lib/matcap-live-gl-layer.ts's CustomLayerInterface — instant
+    // GPU-uniform updates, zero refetch, drapes onto 3D terrain the same
+    // way the live Phong layer does (see phongRenderer below), but not
+    // globe; see lighting-effects-options-section.tsx for the UI toggle.
+    matcapRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("raster"),
     // "Phong" sub-mode (lib/phong-protocol.ts) — a plain raster overlay doing
     // real ambient+diffuse+specular shading from a compass-fixed light
     // (state.illuminationDir/illuminationAlt below — the same fields the
@@ -221,8 +230,9 @@ export const QUERY_STATE_PARSERS = {
     // drapes correctly over 3D terrain exaggeration AND globe, but every
     // light/strength/exaggeration change costs a real tile refetch (~150ms
     // debounced). "live": lib/phong-live-gl-layer.ts's CustomLayerInterface —
-    // instant GPU-uniform updates, zero refetch, but flat-only (no terrain
-    // drape, no globe — see that file's header for why not) and only
+    // instant GPU-uniform updates, zero refetch, and (since 2026-07-28) also
+    // drapes onto 3D terrain via map.terrain.getTerrainData() — see that
+    // file's header for the derivation. Still no globe support, so it's only
     // meaningful outside "globe" view mode; see lighting-effects-options-
     // section.tsx for the UI toggle exposing this trade-off directly.
     phongRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("raster"),
@@ -909,7 +919,7 @@ export function TerrainViewer() {
     const activeBasemap = state.basemapPerView ? state.basemapSourceA : state.basemapSource
     const prev = analyticsPrev.current
     const snapshot: Record<string, unknown> = {
-      viewMode: state.viewMode, phongRenderer: state.phongRenderer,
+      viewMode: state.viewMode, phongRenderer: state.phongRenderer, matcapRenderer: state.matcapRenderer,
       sourceA: state.sourceA, basemap: activeBasemap, splitScreen: state.splitScreen,
       // A few discrete sub-mode settings worth knowing which values people pick
       // (not every slider — just the categorical choices; color ramps aren't
@@ -934,6 +944,7 @@ export function TerrainViewer() {
       if (state.showTellsDetector && !prev.showTellsDetector) track("tools-tells", {})
       if (state.viewMode !== prev.viewMode) track("actions-view-mode", { mode: state.viewMode })
       if (state.phongRenderer !== prev.phongRenderer) track("options-light-phong", { renderer: state.phongRenderer })
+      if (state.matcapRenderer !== prev.matcapRenderer) track("options-light-matcap", { renderer: state.matcapRenderer })
       if (state.splitScreen !== prev.splitScreen) track("tools-split-screen", { enabled: state.splitScreen })
       if (state.sourceA !== prev.sourceA) {
         const custom = customTerrainSources.find((s) => s.id === state.sourceA)
@@ -1916,7 +1927,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <MatcapSource
-            enabled={state.showLightingEffects && state.showMatcap}
+            enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "raster"}
             matcapUrl={matcapUrlFor(state.matcapTextureId)}
             rotationDeg={state.matcapRotationDeg}
             // Reapplied live to the cached (unexaggerated) normal map inside
@@ -1925,6 +1936,19 @@ export function TerrainViewer() {
             // exaggeration, same reasoning as MatcapGlLayer's own historical
             // drapeEnabled/exaggeration split.
             exaggeration={state.exaggeration}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
+          <MatcapLiveGlLayer
+            mapRef={isPrimary ? mapARef : mapBRef}
+            enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "live"}
+            matcapUrl={matcapUrlFor(state.matcapTextureId)}
+            rotationDeg={state.matcapRotationDeg}
+            exaggeration={state.exaggeration}
+            opacity={state.matcapOpacity * state.lightingEffectsOpacity}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2046,7 +2070,7 @@ export function TerrainViewer() {
             />
           )}
           <MatcapRasterLayer
-            enabled={state.showLightingEffects && state.showMatcap}
+            enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "raster"}
             opacity={state.lightingEffectsOpacity * state.matcapOpacity}
           />
           <PhongRasterLayer
@@ -2210,7 +2234,7 @@ export function TerrainViewer() {
       // desync as the tellsBeta comment below — these plain raster Sources/
       // Layers only ever refreshed on a map move because none of their own
       // state was actually in this dependency list.
-      state.showMatcap, state.matcapOpacity, state.matcapTextureId, state.matcapRotationDeg,
+      state.showMatcap, state.matcapOpacity, state.matcapTextureId, state.matcapRotationDeg, state.matcapRenderer,
       state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongLightRelativeToCamera, state.phongRenderer,
       phongLightDir, phongLightAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,

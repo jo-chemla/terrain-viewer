@@ -63,8 +63,12 @@ export const LightingEffectsOptionsSection: React.FC<{
     setState({ matcapTextureId: MATCAP_IDS[newIndex] })
   }, [state.matcapTextureId, setState])
 
+  // Same live-vs-raster debounce split as Phong below — "live" is a GPU
+  // uniform with zero tile refetch (0ms), "raster" re-fetches a tile per
+  // change (the gentler 150ms default).
+  const matcapDebounceMs = state.matcapRenderer === "live" ? 0 : 150
   const [matcapRotationDeg, setMatcapRotationDeg] = useDebouncedState(
-    state.matcapRotationDeg, useCallback((v: number) => setState({ matcapRotationDeg: v }), [setState]),
+    state.matcapRotationDeg, useCallback((v: number) => setState({ matcapRotationDeg: v }), [setState]), matcapDebounceMs,
   )
   // The "live" (2D Fast) renderer updates via GPU uniforms with zero tile
   // refetch, so it isn't debounced at all (0ms — every drag frame applies
@@ -95,6 +99,18 @@ export const LightingEffectsOptionsSection: React.FC<{
           />
           {state.showMatcap && (
             <div className="space-y-3 pl-1">
+              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+                <Label className="text-sm font-medium">Renderer</Label>
+                <SegmentedToggle
+                  className={SEG_WIDTH}
+                  value={state.matcapRenderer}
+                  onChange={(value) => setState({ matcapRenderer: value })}
+                  options={[
+                    { value: "raster", label: "3D Slow", tooltip: "Drapes correctly over 3D terrain exaggeration and globe, but every rotation/exaggeration change re-fetches a tile (~150ms debounced)." },
+                    { value: "live", label: "2D Fast", tooltip: "A live GPU shader with a perspective-correct reflection (rays diverge from the optical axis, like a real camera) — instant updates, zero tile refetch, drapes onto 3D terrain, but no globe." },
+                  ]}
+                />
+              </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Material</Label>
                 <div className="flex gap-2">
