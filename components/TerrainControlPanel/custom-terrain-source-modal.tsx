@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAtom, useSetAtom } from "jotai"
-import { ChevronDown, Link } from "lucide-react"
+import { ChevronDown, Link, Settings2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -28,9 +28,16 @@ export const CustomTerrainSourceModal: React.FC<{
   // CustomTerrainSource.linkedBasemapId; the reverse Select lives in
   // custom-basemap-modal.tsx and either side is enough to link the pair.
   const [linkedBasemapId, setLinkedBasemapId] = useState("")
-  // Folded by default — most sources aren't part of a linked pair, so this
-  // stays out of the way unless deliberately expanded.
-  const [isLinkedOpen, setIsLinkedOpen] = useState(false)
+  // [west, south, east, north] as free-text draft strings — mirrors
+  // CustomTerrainSource.bounds, manually settable for sources (e.g. WMS) whose
+  // extent can't be auto-detected the way COG metadata is.
+  const [boundsWest, setBoundsWest] = useState("")
+  const [boundsSouth, setBoundsSouth] = useState("")
+  const [boundsEast, setBoundsEast] = useState("")
+  const [boundsNorth, setBoundsNorth] = useState("")
+  // Folded by default — most sources need neither a linked pair nor manual
+  // bounds, so this stays out of the way unless deliberately expanded.
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
   const [localFileName, setLocalFileName] = useState<string | null>(null)
   const [localFileWarning, setLocalFileWarning] = useState<string | null>(null)
   const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
@@ -50,7 +57,11 @@ export const CustomTerrainSourceModal: React.FC<{
       setDescription(editingSource.description || "")
       setMaxzoom(editingSource.maxzoom === undefined ? "" : String(editingSource.maxzoom))
       setLinkedBasemapId(editingSource.linkedBasemapId ?? "")
-      setIsLinkedOpen(!!editingSource.linkedBasemapId)
+      setBoundsWest(editingSource.bounds ? String(editingSource.bounds[0]) : "")
+      setBoundsSouth(editingSource.bounds ? String(editingSource.bounds[1]) : "")
+      setBoundsEast(editingSource.bounds ? String(editingSource.bounds[2]) : "")
+      setBoundsNorth(editingSource.bounds ? String(editingSource.bounds[3]) : "")
+      setIsAdvancedOpen(!!editingSource.linkedBasemapId || !!editingSource.bounds)
       // Re-opening the modal on an existing "cog-local" source: the File itself
       // only lives in-memory for the session it was picked in, so after a reload
       // this is null until the user picks the file again via the button below.
@@ -63,7 +74,11 @@ export const CustomTerrainSourceModal: React.FC<{
       setDescription("")
       setMaxzoom("")
       setLinkedBasemapId("")
-      setIsLinkedOpen(false)
+      setBoundsWest("")
+      setBoundsSouth("")
+      setBoundsEast("")
+      setBoundsNorth("")
+      setIsAdvancedOpen(false)
       setLocalFileName(null)
       setLocalFileWarning(null)
     }
@@ -102,12 +117,19 @@ export const CustomTerrainSourceModal: React.FC<{
   const handleSave = useCallback(() => {
     if (!name || !url) return
     const parsedMaxzoom = maxzoom === "" ? undefined : Number(maxzoom)
+    const boundsValues = [boundsWest, boundsSouth, boundsEast, boundsNorth].map((v) => Number(v))
+    // All four or none — a partial bounds box isn't meaningful, so treat it the
+    // same as unset rather than saving e.g. [NaN, 41, 9.8, 51.5].
+    const parsedBounds = [boundsWest, boundsSouth, boundsEast, boundsNorth].every((v) => v !== "") && boundsValues.every(Number.isFinite)
+      ? (boundsValues as [number, number, number, number])
+      : undefined
     onSave({
       id: editingSource?.id, name, url, type: type as CustomTerrainSource["type"], description, maxzoom: parsedMaxzoom,
       linkedBasemapId: linkedBasemapId || undefined,
+      bounds: parsedBounds,
     })
     onOpenChange(false)
-  }, [name, url, type, description, maxzoom, linkedBasemapId, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, maxzoom, linkedBasemapId, boundsWest, boundsSouth, boundsEast, boundsNorth, editingSource, onSave, onOpenChange])
 
   // COG/VRT sources detect their own zoom range from file metadata; WMS/TMS/TileJSON
   // sources (wms-raw, terrainrgb, terrarium, tilejson) have no such metadata, so they
@@ -231,28 +253,48 @@ export const CustomTerrainSourceModal: React.FC<{
                 <Label htmlFor="source-description">Description (optional)</Label>
                 <Input id="source-description" type="text" placeholder="Custom terrain data from..." value={description} onChange={(e) => setDescription(e.target.value)} className="cursor-text" />
               </div>
-              <Collapsible open={isLinkedOpen} onOpenChange={setIsLinkedOpen}>
+              <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
                 <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
                   <span className="flex items-center gap-1.5">
-                    <Link className="h-3.5 w-3.5" />
-                    Linked Basemap Source{linkedBasemapId && " (set)"}
+                    <Settings2 className="h-3.5 w-3.5" />
+                    Advanced
                   </span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${isLinkedOpen ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isAdvancedOpen ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-2 pt-2">
-                  <Select value={linkedBasemapId || "none"} onValueChange={(value) => setLinkedBasemapId(value === "none" ? "" : value)}>
-                    <SelectTrigger id="source-linked-basemap" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {customBasemapSources.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Pairs this with a basemap/raster source (e.g. a fresco's DTM with its own
-                    albedo photo) — selecting either one as active auto-selects the other.
-                  </p>
+                <CollapsibleContent className="space-y-3 pt-2">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 text-sm">
+                      <Link className="h-3.5 w-3.5" />
+                      Linked Basemap Source{linkedBasemapId && " (set)"}
+                    </Label>
+                    <Select value={linkedBasemapId || "none"} onValueChange={(value) => setLinkedBasemapId(value === "none" ? "" : value)}>
+                      <SelectTrigger id="source-linked-basemap" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {customBasemapSources.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Pairs this with a basemap/raster source (e.g. a fresco's DTM with its own
+                      albedo photo) — selecting either one as active auto-selects the other.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Source Bounds (optional)</Label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <Input type="text" inputMode="decimal" placeholder="West" value={boundsWest} onChange={(e) => setBoundsWest(e.target.value)} className="cursor-text text-xs" />
+                      <Input type="text" inputMode="decimal" placeholder="South" value={boundsSouth} onChange={(e) => setBoundsSouth(e.target.value)} className="cursor-text text-xs" />
+                      <Input type="text" inputMode="decimal" placeholder="East" value={boundsEast} onChange={(e) => setBoundsEast(e.target.value)} className="cursor-text text-xs" />
+                      <Input type="text" inputMode="decimal" placeholder="North" value={boundsNorth} onChange={(e) => setBoundsNorth(e.target.value)} className="cursor-text text-xs" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      [west, south, east, north] in degrees — powers "Fit to bounds" for sources
+                      whose extent can't be auto-detected (e.g. a WMS endpoint has no such
+                      metadata). Leave any field empty to leave it unset.
+                    </p>
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
               <div className="flex justify-end gap-2">

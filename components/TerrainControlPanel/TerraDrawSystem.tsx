@@ -1156,15 +1156,8 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                 <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex + 1)}>
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={deleteIteratorFeature}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p>Delete this feature (D)</p></TooltipContent>
-                                </Tooltip>
-                                <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
+                            </div>
+                            <div className="flex items-center gap-1">
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Label className="text-xs text-muted-foreground shrink-0 cursor-default">Zoom</Label>
@@ -1190,6 +1183,31 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent><p>Set to the map's current zoom</p></TooltipContent>
+                                </Tooltip>
+                                <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 shrink-0 cursor-pointer"
+                                            onClick={() => {
+                                                const feature = iteratorFeatures[iteratorIndex]
+                                                if (feature) flyToIteratorFeature(feature)
+                                            }}
+                                        >
+                                            <MapPin className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>Zoom to this feature again (e.g. after panning away)</p></TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={deleteIteratorFeature}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>Delete this feature (D)</p></TooltipContent>
                                 </Tooltip>
                             </div>
                         </div>

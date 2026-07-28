@@ -1595,14 +1595,25 @@ export function TerrainViewer() {
           // expensive compute gets torn down before finishing almost every
           // time, so there's rarely any real data anywhere nearby in the
           // pyramid for MapLibre's own (already-generous, up to 10 levels)
-          // overzoom-placeholder mechanism to reuse — not a bug in that
-          // mechanism, just nothing available for it to fall back to.
-          // Letting in-flight requests finish even after you've moved on
-          // trades a bit of "wasted" compute for tiles you're not looking at
-          // anymore for a pyramid that actually fills in, so a later zoom
-          // through the same area gets a coarse-then-sharp transition
-          // instead of a blank gap.
-          cancelPendingTileRequestsWhileZooming={false}
+          // overzoom-placeholder mechanism to reuse.
+          //
+          // Tried setting this to false, but it didn't fix the placeholder-
+          // tile gap: this flag only stops MapLibre from ABORTING a tile it's
+          // already tracking (source_cache.ts's _updateRetainedTiles). It does
+          // nothing about tiles that haven't started yet, and those are the
+          // real bottleneck — maplibre-gl routes every tile/image fetch
+          // (basemap, hillshade, terrain elevation, AND every custom-protocol
+          // analysis tile) through one global FIFO queue whose concurrency cap
+          // drops from 16 to 8 (MAX_PARALLEL_IMAGE_REQUESTS_PER_FRAME) while
+          // the map is moving/zooming — a multi-second ray-marched tile either
+          // occupies one of those 8 slots for its whole duration once
+          // dispatched, or sits queued behind faster requests and never gets
+          // a turn to start. Re-enabling this (leaving it commented out,
+          // i.e. back to the true default) avoids the "wasted compute for
+          // tiles you've zoomed past" tradeoff it introduces for no real
+          // benefit as-is. Worth revisiting if that queue throttle is instead
+          // addressed directly, e.g. `maplibregl.config.MAX_PARALLEL_IMAGE_REQUESTS_PER_FRAME`.
+          // cancelPendingTileRequestsWhileZooming={false}
           maxBounds={resolvedMaxBounds ?? undefined}
 
         >
