@@ -73,9 +73,19 @@ function parseBookmarkSearch(search: string): Record<string, unknown> {
 }
 
 /** Applies a bookmark's saved state in place via nuqs's own setState — no SPA
- *  reload, unlike the earlier version of this function. A child bookmark
- *  restored while its parent project is already active drops the viewport
- *  keys from the patch first (see VIEWPORT_KEYS) so the camera stays put.
+ *  reload, unlike the earlier version of this function. Restoring any
+ *  bookmark from the same "family" (project or one of its children) as
+ *  whichever one was active before drops the viewport keys from the patch
+ *  first (see VIEWPORT_KEYS) so the camera stays put — not just a child
+ *  restored while its own parent project is active, but also the reverse
+ *  (its parent restored while that child is active) and siblings restored
+ *  after one another, since a project and all its children always share one
+ *  viewport by construction. activeProjectId already names "whichever
+ *  project family was active" regardless of whether a project or one of its
+ *  children was the exact bookmark last restored (see the setActiveProjectId
+ *  call below), so comparing the newly selected bookmark's own family id
+ *  (its parentId, or its own id if it has none) against it covers all three
+ *  relationships in one check.
  *
  *  setState alone is NOT enough to move the camera, though: TerrainViewer's
  *  <Map> only reads lat/lng/zoom/pitch/bearing once, as `initialViewState` —
@@ -93,8 +103,8 @@ export function restoreBookmark(
   mapRef?: React.RefObject<MapRef>,
 ) {
   const patch = parseBookmarkSearch(bookmark.search)
-  const isChildOfActiveProject = !!bookmark.parentId && bookmark.parentId === activeProjectId
-  if (isChildOfActiveProject) {
+  const sameFamilyAsActive = activeProjectId !== null && (bookmark.parentId ?? bookmark.id) === activeProjectId
+  if (sameFamilyAsActive) {
     for (const key of VIEWPORT_KEYS) delete patch[key]
   } else {
     const map = mapRef?.current?.getMap()

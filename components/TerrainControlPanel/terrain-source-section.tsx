@@ -316,7 +316,7 @@ export const TerrainSourceSection: React.FC<{
           <Lightbulb className="h-4 w-4 mr-1" /> Suggest a new terrain source
         </Button>
       </Section>
-      <CustomTerrainSourceModal isOpen={isAddSourceModalOpen} onOpenChange={setIsAddSourceModalOpen} editingSource={editingSource} onSave={handleSaveCustomSource} />
+      <CustomTerrainSourceModal isOpen={isAddSourceModalOpen} onOpenChange={setIsAddSourceModalOpen} editingSource={editingSource} onSave={handleSaveCustomSource} mapRef={mapRef} />
       <Dialog open={isBatchEditModalOpen} onOpenChange={setIsBatchEditModalOpen}>
         <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden" showCloseButton={false}>
           <DialogHeader>

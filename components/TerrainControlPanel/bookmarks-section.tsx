@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback, useRef, useMemo } from "react"
+import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { useAtom } from "jotai"
 import { Bookmark as BookmarkIcon, Trash2, Pencil, Maximize2, Upload, Download as DownloadIcon, ImageOff, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import {
   bookmarksAtom, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, restoreBookmark, exportBookmarksJson,
   mergeImportedBookmarks, formatBookmarkDate, summarizeActiveVizModes, type Bookmark,
 } from "@/lib/bookmarks"
+import { bookmarksListHeightAtom } from "@/lib/settings-atoms"
 import { reverseGeocodeLabel } from "@/lib/geocode"
 import { captureBookmarkThumbnail } from "@/lib/controls-utils"
 import { BookmarksGalleryModal } from "./bookmarks-gallery-modal"
@@ -145,6 +146,32 @@ export const BookmarksSection: React.FC<{
   const [editName, setEditName] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Drag-to-resize the bookmark list's scroll area — same pointer-based
+  // approach as theme-editor/ThemeEditorPanel.tsx's own resize handle, minus
+  // the floating-panel positioning (this list sits in normal document flow,
+  // so only its own height needs tracking, not screen position).
+  const [listHeight, setListHeight] = useAtom(bookmarksListHeightAtom)
+  const listRef = useRef<HTMLDivElement>(null)
+  const resizeRef = useRef<{ startY: number; origH: number } | null>(null)
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const rz = resizeRef.current
+      if (!rz) return
+      setListHeight(Math.min(Math.max(96, rz.origH + (e.clientY - rz.startY)), Math.round(window.innerHeight * 0.8)))
+    }
+    const onUp = () => { resizeRef.current = null }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+    return () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+    }
+  }, [setListHeight])
+  const startResize = (e: React.PointerEvent) => {
+    e.preventDefault()
+    resizeRef.current = { startY: e.clientY, origH: listRef.current?.offsetHeight ?? 256 }
+  }
+
   const roots = useMemo(() => {
     const ids = new Set(bookmarks.map((b) => b.id))
     // A child whose parent was since deleted floats up to root level instead
@@ -248,32 +275,19 @@ export const BookmarksSection: React.FC<{
         </div>
 
         {roots.length > 0 && (
-          <div className="space-y-1 max-h-64 overflow-y-auto">
-            {roots.map((project) => (
-              <div key={project.id} className="space-y-1">
-                <BookmarkRow
-                  bookmark={project}
-                  isChild={false}
-                  isReferenceProject={activeProjectId === project.id}
-                  isActive={activeBookmarkId === project.id}
-                  editId={editId}
-                  editName={editName}
-                  isSaving={isSaving}
-                  onRestore={handleRestore}
-                  onStartEdit={(bm) => { setEditId(bm.id); setEditName(bm.name) }}
-                  onEditNameChange={setEditName}
-                  onCommitRename={commitRename}
-                  onCancelEdit={() => setEditId(null)}
-                  onSaveChild={saveBookmark}
-                  onDelete={handleDelete}
-                />
-                {childrenOf(project.id).map((child) => (
+          <div>
+            <div
+              ref={listRef}
+              className="space-y-1 overflow-y-auto"
+              style={{ height: listHeight ?? 256 }}
+            >
+              {roots.map((project) => (
+                <div key={project.id} className="space-y-1">
                   <BookmarkRow
-                    key={child.id}
-                    bookmark={child}
-                    isChild
-                    isReferenceProject={false}
-                    isActive={activeBookmarkId === child.id}
+                    bookmark={project}
+                    isChild={false}
+                    isReferenceProject={activeProjectId === project.id}
+                    isActive={activeBookmarkId === project.id}
                     editId={editId}
                     editName={editName}
                     isSaving={isSaving}
@@ -285,9 +299,33 @@ export const BookmarksSection: React.FC<{
                     onSaveChild={saveBookmark}
                     onDelete={handleDelete}
                   />
-                ))}
-              </div>
-            ))}
+                  {childrenOf(project.id).map((child) => (
+                    <BookmarkRow
+                      key={child.id}
+                      bookmark={child}
+                      isChild
+                      isReferenceProject={false}
+                      isActive={activeBookmarkId === child.id}
+                      editId={editId}
+                      editName={editName}
+                      isSaving={isSaving}
+                      onRestore={handleRestore}
+                      onStartEdit={(bm) => { setEditId(bm.id); setEditName(bm.name) }}
+                      onEditNameChange={setEditName}
+                      onCommitRename={commitRename}
+                      onCancelEdit={() => setEditId(null)}
+                      onSaveChild={saveBookmark}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div
+              className="mx-auto mt-1 h-2 w-10 cursor-ns-resize touch-none rounded-full bg-border hover:bg-muted-foreground/50"
+              onPointerDown={startResize}
+              title="Drag to resize"
+            />
           </div>
         )}
 

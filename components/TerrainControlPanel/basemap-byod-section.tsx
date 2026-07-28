@@ -311,7 +311,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         </CollapsibleContent>
 
       </Collapsible>
-      <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} onLiveOpacityChange={handleLiveOpacityChange} />
+      <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} onLiveOpacityChange={handleLiveOpacityChange} mapRef={mapRef} />
       <BasemapBatchEditModal
         isOpen={isBatchEditModalOpen}
         onOpenChange={setIsBatchEditModalOpen}

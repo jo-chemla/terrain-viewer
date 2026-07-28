@@ -1,7 +1,8 @@
 import type React from "react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAtom, useSetAtom } from "jotai"
-import { ChevronDown, Link, Settings2 } from "lucide-react"
+import { ChevronDown, Link, Settings2, Expand } from "lucide-react"
+import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -29,7 +30,8 @@ export const CustomBasemapModal: React.FC<{
   // source; there's nothing on the map yet for a brand-new one to preview
   // against, so this is omitted for the "Add New Basemap" flow.
   onLiveOpacityChange?: (opacity: number) => void
-}> = ({ isOpen, onOpenChange, editingSource, onSave, onLiveOpacityChange }) => {
+  mapRef?: React.RefObject<MapRef>
+}> = ({ isOpen, onOpenChange, editingSource, onSave, onLiveOpacityChange, mapRef }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
   const [type, setType] = useState<BasemapFormType>("tms")
@@ -394,7 +396,27 @@ export const CustomBasemapModal: React.FC<{
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm">Source Bounds (optional)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Source Bounds (optional)</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 cursor-pointer"
+                        disabled={!mapRef}
+                        onClick={() => {
+                          const bounds = mapRef?.current?.getMap()?.getBounds()
+                          if (!bounds) return
+                          setBoundsWest(bounds.getWest().toFixed(6))
+                          setBoundsSouth(bounds.getSouth().toFixed(6))
+                          setBoundsEast(bounds.getEast().toFixed(6))
+                          setBoundsNorth(bounds.getNorth().toFixed(6))
+                        }}
+                        title="Set to the map's current bounds"
+                      >
+                        <Expand className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                     <div className="grid grid-cols-4 gap-1.5">
                       <Input type="text" inputMode="decimal" placeholder="West" value={boundsWest} onChange={(e) => setBoundsWest(e.target.value)} className="cursor-text text-xs" />
                       <Input type="text" inputMode="decimal" placeholder="South" value={boundsSouth} onChange={(e) => setBoundsSouth(e.target.value)} className="cursor-text text-xs" />

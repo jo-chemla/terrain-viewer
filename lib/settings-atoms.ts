@@ -151,6 +151,9 @@ export interface CustomBasemapSource {
 export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [], undefined, { getOnInit: true })
 export const isBasemapByodOpenAtom = atomWithStorage("isBasemapByodOpen", true)
 export const isHillshadeXYPadOpenAtom = atomWithStorage("isHillshadeXYPadOpen", true)
+// User-dragged height (px) of the Bookmarks list's scroll area (bookmarks-section.tsx's
+// drag handle below it) — null means "use the default max-h-64 clamp".
+export const bookmarksListHeightAtom = atomWithStorage<number | null>("bookmarksListHeight", null)
 // Pins Visualization Modes open through "Fold all sections" (TerrainControlPanel.tsx)
 // — that's the master on/off switchboard for every viz layer, so folding it away
 // along with everything else hides the controls someone's most likely to want
