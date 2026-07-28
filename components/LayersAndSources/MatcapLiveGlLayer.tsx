@@ -20,7 +20,7 @@ const LIVE_LAYER_ID = "matcap-live"
 
 export function MatcapLiveGlLayer({
   mapRef, enabled,
-  matcapUrl, rotationDeg, exaggeration, opacity,
+  matcapUrl, rotationDeg, exaggeration, opacity, lightRelativeToCamera,
   terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
 }: {
   mapRef: React.RefObject<MapRef>
@@ -29,6 +29,7 @@ export function MatcapLiveGlLayer({
   rotationDeg: number
   exaggeration: number
   opacity: number
+  lightRelativeToCamera: boolean
   terrainSource: TerrainSource | string
   customTerrainSources: CustomTerrainSource[]
   mapboxKey: string
@@ -49,7 +50,7 @@ export function MatcapLiveGlLayer({
       tileSize: clientUpstream.tileSize,
       minzoom: clientUpstream.minzoom,
       maxzoom: clientUpstream.maxzoom,
-      matcapUrl, rotationDeg, exaggeration, opacity,
+      matcapUrl, rotationDeg, exaggeration, opacity, lightRelativeToCamera,
     }
     const layer = new MatcapLiveLayerImpl(LIVE_LAYER_ID, options)
     layerRef.current = layer
@@ -85,8 +86,8 @@ export function MatcapLiveGlLayer({
   }, [enabled, clientUpstream?.template, clientUpstream?.encoding, clientUpstream?.tileSize, clientUpstream?.minzoom, clientUpstream?.maxzoom, mapRef])
 
   useEffect(() => {
-    layerRef.current?.updateOptions({ matcapUrl, rotationDeg, exaggeration, opacity })
-  }, [matcapUrl, rotationDeg, exaggeration, opacity])
+    layerRef.current?.updateOptions({ matcapUrl, rotationDeg, exaggeration, opacity, lightRelativeToCamera })
+  }, [matcapUrl, rotationDeg, exaggeration, opacity, lightRelativeToCamera])
 
   return null
 }

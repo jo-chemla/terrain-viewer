@@ -204,6 +204,14 @@ export const QUERY_STATE_PARSERS = {
     // way the live Phong layer does (see phongRenderer below), but not
     // globe; see lighting-effects-options-section.tsx for the UI toggle.
     matcapRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("raster"),
+    // "Light Anchor", ported from Phong's phongLightRelativeToCamera — only
+    // meaningful in "live" (2D Fast): off (Absolute) keeps the reflected
+    // ray's divergence tied to screen position + FOV only, ignoring how the
+    // camera itself is actually tilted/rotated; on (Camera) additionally
+    // rotates that ray by the camera's real pitch+bearing (see
+    // lib/matcap-live-gl-layer.ts's render()), so it reacts to viewport
+    // altitude/rotation like a real lens would.
+    matcapLightRelativeToCamera: parseAsBoolean.withDefault(false),
     // "Phong" sub-mode (lib/phong-protocol.ts) — a plain raster overlay doing
     // real ambient+diffuse+specular shading from a compass-fixed light
     // (state.illuminationDir/illuminationAlt below — the same fields the
@@ -1949,6 +1957,7 @@ export function TerrainViewer() {
             rotationDeg={state.matcapRotationDeg}
             exaggeration={state.exaggeration}
             opacity={state.matcapOpacity * state.lightingEffectsOpacity}
+            lightRelativeToCamera={state.matcapLightRelativeToCamera}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2234,7 +2243,7 @@ export function TerrainViewer() {
       // desync as the tellsBeta comment below — these plain raster Sources/
       // Layers only ever refreshed on a map move because none of their own
       // state was actually in this dependency list.
-      state.showMatcap, state.matcapOpacity, state.matcapTextureId, state.matcapRotationDeg, state.matcapRenderer,
+      state.showMatcap, state.matcapOpacity, state.matcapTextureId, state.matcapRotationDeg, state.matcapRenderer, state.matcapLightRelativeToCamera,
       state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongLightRelativeToCamera, state.phongRenderer,
       phongLightDir, phongLightAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,

@@ -85,6 +85,18 @@ export type MatcapLiveOptions = {
   rotationDeg: number
   exaggeration: number
   opacity: number
+  /** "Light Anchor", ported from phong-live-gl-layer.ts's own
+   *  lightRelativeToCamera: false ("Absolute") keeps the existing
+   *  screen-position-only divergence (the ray's direction depends on where
+   *  a fragment sits on screen + the FOV, but not on how the camera itself
+   *  is actually tilted/rotated in 3D) — camera-orientation-agnostic, the
+   *  original behavior. true ("Camera" / attached to camera) additionally
+   *  rotates that ray by the camera's REAL pitch+bearing (see render()'s
+   *  camera-basis derivation) so tilting or spinning the view changes which
+   *  part of the matcap sphere you see, the way a real lens would — reacts
+   *  to viewport altitude (pitch) and rotation (bearing), not just flat
+   *  screen position. */
+  lightRelativeToCamera: boolean
 }
 
 const MAX_CACHED_TEXTURES = 96
@@ -115,6 +127,9 @@ uniform float u_exaggeration;
 uniform float u_opacity;
 uniform float u_fov;
 uniform vec2 u_viewportSize;
+uniform bool u_lightRelativeToCamera;
+uniform float u_bearingRad;
+uniform float u_pitchRad;
 out vec4 fragColor;
 
 void main() {
@@ -132,19 +147,42 @@ void main() {
   float sb = sin(u_rotationRad);
   vec3 rotatedN = vec3(n.x * cb + n.y * sb, -n.x * sb + n.y * cb, n.z);
 
-  // Real per-fragment view ray instead of the orthographic-matcap
-  // simplification's constant (0,0,1): reconstruct this fragment's NDC
-  // position from gl_FragCoord + the actual viewport size, then scale by
-  // the camera's own half-vertical-FOV tangent (aspect-corrected for X) to
-  // get how far this ray cants away from the optical axis. At screen
-  // center (ndc = 0) this reduces exactly to the orthographic case
-  // (viewDir = (0,0,-1)); toward the edges, or at a wider FOV, the ray
-  // diverges more, so the same surface normal reflects toward a different
-  // point on the matcap sphere.
+  // This fragment's NDC position from gl_FragCoord + the actual viewport
+  // size, scaled by the camera's own half-vertical-FOV tangent (aspect-
+  // corrected for X) — how far a "local" ray cants away from the optical
+  // axis at this screen position.
   vec2 ndc = (gl_FragCoord.xy / u_viewportSize) * 2.0 - 1.0;
   float halfFovTan = tan(u_fov * 0.5);
   float aspect = u_viewportSize.x / u_viewportSize.y;
-  vec3 viewDir = normalize(vec3(ndc.x * halfFovTan * aspect, ndc.y * halfFovTan, -1.0));
+  vec3 localRay = vec3(ndc.x * halfFovTan * aspect, ndc.y * halfFovTan, -1.0);
+
+  vec3 viewDir;
+  if (u_lightRelativeToCamera) {
+    // "Camera" (attached to camera): rotate localRay by the camera's ACTUAL
+    // pitch+bearing into world (x=east, y=south, z=up) space -- same
+    // convention the surface normal is already in -- via an orthonormal
+    // camera basis (right/up/forward) built from those two angles. Unlike
+    // the "Absolute" branch below, this reacts to real 3D orientation: at
+    // pitch 0 (looking straight down) forward=(0,0,-1); as pitch increases
+    // toward the horizon, forward tilts toward the compass direction
+    // bearing points; right only depends on bearing (pitch rotates
+    // around it). Reduces to the flat/Absolute case exactly when pitch=0
+    // and bearing=0.
+    float cBear = cos(u_bearingRad);
+    float sBear = sin(u_bearingRad);
+    float cPitch = cos(u_pitchRad);
+    float sPitch = sin(u_pitchRad);
+    vec3 right   = vec3(cBear, sBear, 0.0);
+    vec3 up      = vec3(cPitch * sBear, -cPitch * cBear, sPitch);
+    vec3 forward = vec3(sPitch * sBear, -sPitch * cBear, -cPitch);
+    viewDir = normalize(localRay.x * right + localRay.y * up - localRay.z * forward);
+  } else {
+    // "Absolute": the ray's direction still depends on screen position +
+    // FOV (unlike the orthographic-matcap simplification's constant
+    // (0,0,1)), but NOT on how the camera is actually tilted/rotated —
+    // camera-orientation-agnostic, matching this layer's original behavior.
+    viewDir = normalize(localRay);
+  }
 
   vec3 r = reflect(viewDir, rotatedN);
   vec2 uv = r.xy * 0.5 + 0.5;
@@ -196,6 +234,9 @@ interface ProgramBundle {
   uOpacity: WebGLUniformLocation | null
   uFov: WebGLUniformLocation | null
   uViewportSize: WebGLUniformLocation | null
+  uLightRelativeToCamera: WebGLUniformLocation | null
+  uBearingRad: WebGLUniformLocation | null
+  uPitchRad: WebGLUniformLocation | null
   uTerrain: WebGLUniformLocation | null
   uTerrainDim: WebGLUniformLocation | null
   uTerrainMatrix: WebGLUniformLocation | null
@@ -315,6 +356,9 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       uOpacity: gl.getUniformLocation(program, "u_opacity"),
       uFov: gl.getUniformLocation(program, "u_fov"),
       uViewportSize: gl.getUniformLocation(program, "u_viewportSize"),
+      uLightRelativeToCamera: gl.getUniformLocation(program, "u_lightRelativeToCamera"),
+      uBearingRad: gl.getUniformLocation(program, "u_bearingRad"),
+      uPitchRad: gl.getUniformLocation(program, "u_pitchRad"),
       uTerrain: gl.getUniformLocation(program, "u_terrain"),
       uTerrainDim: gl.getUniformLocation(program, "u_terrain_dim"),
       uTerrainMatrix: gl.getUniformLocation(program, "u_terrain_matrix"),
@@ -436,6 +480,9 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       gl.uniform1f(bundle.uOpacity, this.options.opacity)
       gl.uniform1f(bundle.uFov, args.fov)
       gl.uniform2f(bundle.uViewportSize, gl.drawingBufferWidth, gl.drawingBufferHeight)
+      gl.uniform1i(bundle.uLightRelativeToCamera, this.options.lightRelativeToCamera ? 1 : 0)
+      gl.uniform1f(bundle.uBearingRad, (map.getBearing() * Math.PI) / 180)
+      gl.uniform1f(bundle.uPitchRad, (map.getPitch() * Math.PI) / 180)
 
       gl.activeTexture(gl.TEXTURE2)
       gl.bindTexture(gl.TEXTURE_2D, this.matcapTexture)
