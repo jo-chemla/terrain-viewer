@@ -22,7 +22,7 @@ import { buildCurvatureProtocolUrl, type CurvatureMode } from "@/lib/curvature-p
 import { buildTpiProtocolUrl } from "@/lib/tpi-protocol"
 import { buildRoughnessProtocolUrl } from "@/lib/roughness-protocol"
 import { buildLrmProtocolUrl } from "@/lib/lrm-protocol"
-import { buildBlobnessProtocolUrl } from "@/lib/blobness-protocol"
+import { buildBlobnessProtocolUrl, type BlobnessMode } from "@/lib/blobness-protocol"
 import { buildSvfProtocolUrl } from "@/lib/svf-protocol"
 import { buildOpennessProtocolUrl, type OpennessMode } from "@/lib/openness-protocol"
 import { buildLocalDominanceProtocolUrl } from "@/lib/local-dominance-protocol"
@@ -837,8 +837,13 @@ export const RoughnessSource = memo((props: Omit<NormalDerivedSourceProps, "sour
 ))
 RoughnessSource.displayName = "RoughnessSource"
 
-export const BlobnessSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
-    <NormalDerivedSource {...props} sourceId="blobnessSource" buildUrl={buildBlobnessProtocolUrl} />
+export const BlobnessSource = memo(({ mode, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { mode: BlobnessMode }) => (
+    <NormalDerivedSource
+        {...props}
+        sourceId="blobnessSource"
+        keySuffix={`-${mode}`}
+        buildUrl={(template, encoding, tileSize) => buildBlobnessProtocolUrl(template, encoding, tileSize, mode)}
+    />
 ))
 BlobnessSource.displayName = "BlobnessSource"
 

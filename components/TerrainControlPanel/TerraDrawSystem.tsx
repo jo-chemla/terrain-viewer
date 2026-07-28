@@ -1143,21 +1143,21 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                     </p>
                                 </TooltipContent>
                             </Tooltip>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center justify-center gap-1">
                                 <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex - 1)}>
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
                                 <DraftBoundInput
                                     value={iteratorIndex + 1}
                                     onCommit={(v) => { if (v !== undefined) goToIteratorIndex(Math.round(v) - 1) }}
-                                    className="h-7 w-10 px-1 text-center text-sm bg-transparent border rounded"
+                                    className="h-7 w-[5ch] px-1 text-center text-sm bg-transparent border rounded"
                                 />
                                 <span className="text-xs text-muted-foreground shrink-0">/{iteratorTotal}</span>
                                 <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex + 1)}>
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center justify-center gap-1">
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Label className="text-xs text-muted-foreground shrink-0 cursor-default">Zoom</Label>
@@ -1168,7 +1168,7 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                     value={iteratorZoom ?? undefined}
                                     onCommit={(v) => setIteratorZoom(v ?? null)}
                                     placeholder="Current"
-                                    className="h-7 w-12 px-1 text-xs text-right bg-transparent border rounded"
+                                    className="h-7 w-[10ch] px-1 text-xs text-right bg-transparent border rounded"
                                     step={0.5}
                                 />
                                 <Tooltip>
@@ -1177,7 +1177,10 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                             variant="ghost"
                                             size="icon"
                                             className="h-7 w-7 shrink-0 cursor-pointer"
-                                            onClick={() => setIteratorZoom(mapRef.current?.getMap()?.getZoom() ?? null)}
+                                            onClick={() => {
+                                                const zoom = mapRef.current?.getMap()?.getZoom()
+                                                setIteratorZoom(zoom === undefined ? null : Math.round(zoom * 10) / 10)
+                                            }}
                                         >
                                             <Target className="h-3.5 w-3.5" />
                                         </Button>

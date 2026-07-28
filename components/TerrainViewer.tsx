@@ -110,7 +110,8 @@ const parseAsFloatPrecise = createParser({
 // causing spurious mid-teardown crashes in ContoursLayer/TerraDraw during dev.
 const VIEW_MODES = ['2d', 'globe', '3d'] as const
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
-const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian'] as const
+const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian', 'casorati', 'shape-index'] as const
+const BLOBNESS_MODES = ['blobness', 'eigen-ratio', 'orientation'] as const
 const OPENNESS_MODES = ['positive', 'negative'] as const
 // Shared by Plane Slicer, Contours, and the Elevation Picker — all three read
 // elevation off either real altitude ("absolute") or LRM's height above/below
@@ -322,6 +323,7 @@ export const QUERY_STATE_PARSERS = {
     roughnessCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     roughnessCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showBlobness: parseAsBoolean.withDefault(false),
+    blobnessMode: parseAsStringLiteral(BLOBNESS_MODES).withDefault("blobness"),
     blobnessOpacity: parseAsFloat.withDefault(1.0),
     blobnessColorRamp: parseAsString.withDefault("blobness-default"),
     blobnessMin: parseAsFloat.withDefault(0),
@@ -860,6 +862,7 @@ export function TerrainViewer() {
       }
       if (state.hillshadeMethod !== prev.hillshadeMethod) track("options-hillshade", { method: state.hillshadeMethod })
       if (state.curvatureMode !== prev.curvatureMode) track("options-terrain-analysis", { setting: "curvatureMode", value: state.curvatureMode })
+      if (state.blobnessMode !== prev.blobnessMode) track("options-terrain-analysis", { setting: "blobnessMode", value: state.blobnessMode })
       if (state.slopeSourceMode !== prev.slopeSourceMode) track("options-terrain-analysis", { setting: "slopeSourceMode", value: state.slopeSourceMode })
       if (state.opennessMode !== prev.opennessMode) track("options-relief-visualization", { setting: "opennessMode", value: state.opennessMode })
       // Free vs Datetime-derived light direction — shared by Hillshade and
@@ -1716,6 +1719,7 @@ export function TerrainViewer() {
           />
           <BlobnessSource
             enabled={state.showTerrainAnalysis}
+            mode={state.blobnessMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2047,7 +2051,7 @@ export function TerrainViewer() {
       state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongLightRelativeToCamera, state.phongRenderer,
       phongLightDir, phongLightAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
-      state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness,
+      state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness, state.blobnessMode,
       state.showSvf, state.svfRadius, state.showOpenness, state.opennessRadius, state.opennessMode,
       state.showLocalDominance, state.localDominanceMinRadius, state.localDominanceMaxRadius,
       state.showPlaneSlicer, state.planeSlicerReferenceMode, planeSlicerPaint,

@@ -78,19 +78,6 @@ export const TerrainAnalysisOptionsSection: React.FC<{
           {state.showCurvature && advanced && <CurvatureFields state={state} setState={setState} />}
         </div>
 
-        <div className="space-y-2">
-          <CheckboxWithSlider
-            id="terrain-analysis-blobness"
-            label="Blobness"
-            tooltip="Structure-tensor measure of how much the gradient direction varies across a small window — high at peaks/pits/saddles, low on a uniform slope or straight ridge."
-            checked={state.showBlobness}
-            onCheckedChange={(checked) => setState({ showBlobness: checked })}
-            sliderValue={state.blobnessOpacity}
-            onSliderChange={(value) => setState({ blobnessOpacity: value })}
-          />
-          {state.showBlobness && advanced && <BlobnessFields state={state} setState={setState} />}
-        </div>
-
         <Separator />
         <GroupHeading>Neighborhood statistics</GroupHeading>
 
@@ -131,6 +118,22 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             onSliderChange={(value) => setState({ roughnessOpacity: value })}
           />
           {state.showRoughness && advanced && <RoughnessFields state={state} setState={setState} />}
+        </div>
+
+        <Separator />
+        <GroupHeading>Principal Components</GroupHeading>
+
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="terrain-analysis-blobness"
+            label="Blobness"
+            tooltip="Structure-tensor (2D PCA of the local gradient field) measures — Blobness (shape × steepness), Eigenvalue Ratio (shape only), or Dominant Orientation (axis of a ridge/valley/fault line)."
+            checked={state.showBlobness}
+            onCheckedChange={(checked) => setState({ showBlobness: checked })}
+            sliderValue={state.blobnessOpacity}
+            onSliderChange={(value) => setState({ blobnessOpacity: value })}
+          />
+          {state.showBlobness && advanced && <BlobnessFields state={state} setState={setState} />}
         </div>
       </div>
     </Section>

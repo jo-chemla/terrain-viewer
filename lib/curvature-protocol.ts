@@ -17,17 +17,28 @@
 //    on cylindrical/planar terrain like a straight ridge or uniform slope) rather
 //    than a flow quantity. Reuses the exact r/t/s (fxx/fyy/fxy) intermediates
 //    computeProfileAndPlan already derives, so it's effectively free to add.
-// All four share this file's sign convention (matching "combined"): positive =
-// concave (valleys), negative = convex (ridges) — det-hessian instead reads
-// positive = bowl/dome extremum, negative = saddle.
+//  - "casorati"/"shape-index": both derived from the same small-slope-approximation
+//    principal curvatures κ1/κ2 (the eigenvalues of the Hessian [[r,s],[s,t]] —
+//    the same r/t/s intermediates det-hessian already uses, just via its
+//    eigenvalues instead of only their product) as computeDetHessian, just two
+//    different combinations of the same two numbers: Casorati (Koch 1993),
+//    sqrt((κ1²+κ2²)/2), is an always-positive "how curved, regardless of shape"
+//    magnitude (RMS of the two principal curvatures); Shape Index (Koenderink &
+//    van Doorn 1992), (2/π)·atan2(κ1+κ2, κ1-κ2), is shape-only and scale-free —
+//    always in [-1, 1] regardless of how strongly curved the surface is (+1 dome,
+//    +0.5 ridge, 0 saddle, -0.5 valley, -1 bowl) — the two are complementary the
+//    same way a vector splits into magnitude and direction.
+// All modes share this file's sign convention (matching "combined"): positive =
+// concave (valleys), negative = convex (ridges) — det-hessian/shape-index instead
+// read positive = bowl/dome extremum, negative = saddle; Casorati is unsigned.
 
 import {
   sharedTileCache, runNormalDerivedProtocol, buildProtocolUrl, type UpstreamEncoding, type ElevationWindow,
 } from "./normal-derived-protocol"
 
-export type CurvatureMode = "combined" | "profile" | "plan" | "det-hessian"
+export type CurvatureMode = "combined" | "profile" | "plan" | "det-hessian" | "casorati" | "shape-index"
 
-const CURVATURE_URL_RE = /^curvature:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\?mode=(combined|profile|plan|det-hessian)$/
+const CURVATURE_URL_RE = /^curvature:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\?mode=(combined|profile|plan|det-hessian|casorati|shape-index)$/
 
 export function buildCurvatureProtocolUrl(
   upstreamTileTemplate: string, encoding: UpstreamEncoding, tileSize: number, mode: CurvatureMode = "combined",
@@ -69,6 +80,43 @@ export function computeDetHessian(w: ElevationWindow): number {
   return (r * t - s * s) * 10000
 }
 
+/** Principal curvatures κ1 ≥ κ2 — the eigenvalues of the Hessian [[r,s],[s,t]] —
+ *  in the same small-slope approximation computeDetHessian already uses (exact
+ *  only where the gradient is ~0, unlike computeProfileAndPlan's slope-corrected
+ *  profile/plan curvatures; consistent with det-hessian's existing precedent
+ *  rather than a new, more rigorous derivation). */
+function computePrincipalCurvatures(w: ElevationWindow): { k1: number; k2: number } {
+  const { r, t, s } = computeSecondDerivatives(w)
+  const trace = r + t
+  const disc = Math.sqrt((r - t) * (r - t) + 4 * s * s)
+  return { k1: (trace + disc) / 2, k2: (trace - disc) / 2 }
+}
+
+// sqrt((κ1²+κ2²)/2) — Koch (1993)'s Casorati curvature, an always-nonnegative "how
+// curved" magnitude (RMS of the two principal curvatures) — 0 only on flat/planar
+// ground, regardless of dome/ridge/saddle/valley/bowl shape. κ1/κ2 are degree-1 in
+// r/t/s (same units as profile/plan's numerator), so this gets their ×100 scale
+// rather than det-hessian's ×10000 (which compensates for being a degree-2 product).
+export function computeCasorati(w: ElevationWindow): number {
+  const { k1, k2 } = computePrincipalCurvatures(w)
+  return Math.sqrt((k1 * k1 + k2 * k2) / 2) * 100
+}
+
+// (2/π)·atan2(κ1+κ2, κ1-κ2) — Koenderink & van Doorn (1992)'s shape index: shape-
+// only and scale-free, always in [-1, 1] no matter how strongly curved the surface
+// is (+1 dome/peak, +0.5 ridge, 0 saddle, -0.5 valley, -1 pit/bowl). κ1-κ2 (the
+// eigengap) is never negative, so atan2's result — and this — never leaves
+// [-1, 1]; deliberately NOT given the other modes' ×100 bake-in (it's already
+// dimensionless and bounded, unlike their raw 1/m-scale curvatures) — the outer
+// CURVATURE_ENCODE_SCALE wire-quantization multiply below is enough on its own.
+// atan2(0, 0) = 0 on a perfectly flat patch (κ1=κ2=0) — shape is undefined there,
+// and 0 (this file's universal "no feature" value, same as TPI/LRM/Openness)
+// is as good a fallback as any.
+export function computeShapeIndex(w: ElevationWindow): number {
+  const { k1, k2 } = computePrincipalCurvatures(w)
+  return (2 / Math.PI) * Math.atan2(k1 + k2, k1 - k2)
+}
+
 // Curvature's own compute* functions already land in a small, near-zero-heavy
 // range (roughly -20..20 for real terrain, by design — see computeDetHessian's
 // comment). Wired straight into elevationToTerrarium's native ~0.0039 step
@@ -98,6 +146,8 @@ export async function curvatureProtocol(
       let value: number
       if (mode === "combined") value = computeCombined(w)
       else if (mode === "det-hessian") value = computeDetHessian(w)
+      else if (mode === "casorati") value = computeCasorati(w)
+      else if (mode === "shape-index") value = computeShapeIndex(w)
       else {
         const { profile, plan } = computeProfileAndPlan(w)
         value = mode === "profile" ? profile : plan
