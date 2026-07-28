@@ -488,6 +488,18 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       const terrain = (map as unknown as { terrain?: MapTerrainLike }).terrain
       gl.uniform1i(bundle.uTerrain, 1)
 
+      // Sort back-to-front before drawing — this layer's premultiplied-alpha
+      // blend (gl.blendFunc(ONE, ONE_MINUS_SRC_ALPHA)) only composites
+      // correctly in painter's-algorithm order; map.coveringTiles() returns a
+      // quadtree traversal order with no such guarantee, which read as
+      // "depth fighting" between overlapping/adjacent tile edges once the
+      // mesh actually follows real terrain elevation (a flat layer never
+      // exposed this — coplanar quads don't care about draw order). Depth
+      // proxy: each tile's own center, projected through its own mainMatrix,
+      // NDC z/w (bigger = farther in the -1..1 convention) — computed once
+      // per tile here since `p` is needed for drawing anyway.
+      const TILE_CENTER = 4096
+      const toDraw: { tileID: OverscaledTileID; entry: TextureEntry; p: ReturnType<typeof map.transform.getProjectionData>; depth: number }[] = []
       for (const tileID of tileIDs) {
         const key = tileID.key
         const entry = this.textures.get(key)
@@ -496,8 +508,19 @@ export class MatcapLiveLayer implements CustomLayerInterface {
           continue
         }
         entry.lastUsed = this.frameCounter
-
         const p = map.transform.getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
+        const m = p.mainMatrix
+        // clip.z / clip.w for the tile-local center point (elevation
+        // omitted — a same-tile z-fighting fix only needs relative ordering
+        // between tiles, not per-vertex precision).
+        const clipW = m[3] * TILE_CENTER + m[7] * TILE_CENTER + m[15]
+        const clipZ = m[2] * TILE_CENTER + m[6] * TILE_CENTER + m[14]
+        const depth = clipW !== 0 ? clipZ / clipW : 0
+        toDraw.push({ tileID, entry, p, depth })
+      }
+      toDraw.sort((a, b) => b.depth - a.depth)
+
+      for (const { tileID, entry, p } of toDraw) {
         gl.uniformMatrix4fv(bundle.uProjectionMatrix, false, p.mainMatrix)
         gl.uniform4f(bundle.uProjectionTileMercatorCoords, p.tileMercatorCoords[0], p.tileMercatorCoords[1], p.tileMercatorCoords[2], p.tileMercatorCoords[3])
         gl.uniform4f(bundle.uProjectionClippingPlane, p.clippingPlane[0], p.clippingPlane[1], p.clippingPlane[2], p.clippingPlane[3])

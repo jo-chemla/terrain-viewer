@@ -53,6 +53,94 @@ import { createTileMesh } from "maplibre-gl"
 import { computeNormalPixels } from "./normals-protocol"
 import type { UpstreamEncoding } from "./normal-derived-protocol"
 
+// --- Minimal vec3/mat4 helpers for the camera-relative light fix below ---
+// (self-contained rather than pulling in a matrix library for six calls/frame).
+
+type Vec3 = [number, number, number]
+const vSub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+const vDot = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+const vScale = (a: Vec3, s: number): Vec3 => [a[0] * s, a[1] * s, a[2] * s]
+const vNormalize = (a: Vec3): Vec3 => {
+  const len = Math.hypot(a[0], a[1], a[2]) || 1
+  return [a[0] / len, a[1] / len, a[2] / len]
+}
+
+// Standard cofactor-expansion 4x4 inverse (the well-known glMatrix mat4.invert
+// algorithm) — convention-agnostic w.r.t. row/column-major as long as the
+// same flat-array indexing is used consistently for both invert and multiply
+// (transformMat4 below), which it is.
+function invertMat4(a: ArrayLike<number>): number[] | null {
+  const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3]
+  const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7]
+  const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11]
+  const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15]
+
+  const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10, b02 = a00 * a13 - a03 * a10
+  const b03 = a01 * a12 - a02 * a11, b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12
+  const b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30, b08 = a20 * a33 - a23 * a30
+  const b09 = a21 * a32 - a22 * a31, b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32
+
+  let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06
+  if (!det) return null
+  det = 1.0 / det
+
+  return [
+    (a11 * b11 - a12 * b10 + a13 * b09) * det,
+    (a02 * b10 - a01 * b11 - a03 * b09) * det,
+    (a31 * b05 - a32 * b04 + a33 * b03) * det,
+    (a22 * b04 - a21 * b05 - a23 * b03) * det,
+    (a12 * b08 - a10 * b11 - a13 * b07) * det,
+    (a00 * b11 - a02 * b08 + a03 * b07) * det,
+    (a32 * b02 - a30 * b05 - a33 * b01) * det,
+    (a20 * b05 - a22 * b02 + a23 * b01) * det,
+    (a10 * b10 - a11 * b08 + a13 * b06) * det,
+    (a01 * b08 - a00 * b10 - a03 * b06) * det,
+    (a30 * b04 - a31 * b02 + a33 * b00) * det,
+    (a21 * b02 - a20 * b04 - a23 * b00) * det,
+    (a11 * b07 - a10 * b09 - a12 * b06) * det,
+    (a00 * b09 - a01 * b07 + a02 * b06) * det,
+    (a31 * b01 - a30 * b03 - a32 * b00) * det,
+    (a20 * b03 - a21 * b01 + a22 * b00) * det,
+  ]
+}
+
+function transformMat4(m: ArrayLike<number>, v: [number, number, number, number]): [number, number, number, number] {
+  const [x, y, z, w] = v
+  return [
+    m[0] * x + m[4] * y + m[8] * z + m[12] * w,
+    m[1] * x + m[5] * y + m[9] * z + m[13] * w,
+    m[2] * x + m[6] * y + m[10] * z + m[14] * w,
+    m[3] * x + m[7] * y + m[11] * z + m[15] * w,
+  ]
+}
+
+/** Robustly derives the camera's actual (right, up, forward) basis, in the
+ *  same (x=east, y=south, z=up) world space the light-direction formula
+ *  uses, from a visible tile's real per-tile projection matrix — rather
+ *  than hand-deriving a pitch/bearing rotation from trig (the approach that
+ *  had a real sign bug for Matcap's own camera-relative mode). Unprojects
+ *  three screen rays (center, center+dx, center+dy) through the matrix's
+ *  inverse and Gram-Schmidt-orthogonalizes the two offset rays against the
+ *  center ray — built entirely from real matrix data, self-consistent by
+ *  construction, no separate sign choice to get wrong. Returns null if the
+ *  matrix isn't invertible (degenerate frame — caller should keep whatever
+ *  basis it last had rather than update to garbage). */
+function computeCameraBasis(mainMatrix: ArrayLike<number>): { right: Vec3; up: Vec3; forward: Vec3 } | null {
+  const inv = invertMat4(mainMatrix)
+  if (!inv) return null
+  const unproject = (ndcX: number, ndcY: number, ndcZ: number): Vec3 => {
+    const h = transformMat4(inv, [ndcX, ndcY, ndcZ, 1])
+    return [h[0] / h[3], h[1] / h[3], h[2] / h[3]]
+  }
+  const eps = 0.01
+  const forward = vNormalize(vSub(unproject(0, 0, 1), unproject(0, 0, -1)))
+  const rightRay = vNormalize(vSub(unproject(eps, 0, 1), unproject(eps, 0, -1)))
+  const upRay = vNormalize(vSub(unproject(0, eps, 1), unproject(0, eps, -1)))
+  const right = vNormalize(vSub(rightRay, vScale(forward, vDot(rightRay, forward))))
+  const up = vNormalize(vSub(upRay, vScale(forward, vDot(upRay, forward))))
+  return { right, up, forward }
+}
+
 /** Shape of the real (but publicly untyped) `map.terrain` property — mirrors
  *  maplibre-gl's own `TerrainData` return shape for `getTerrainData()`. */
 interface MapTerrainLike {
@@ -120,12 +208,13 @@ export type PhongLiveOptions = {
   lightDir: number
   /** Degrees above the horizon. */
   lightAlt: number
-  /** When true, the light is fixed to the CAMERA (a headlamp): the current map
-   *  bearing is added to lightDir every rendered frame, read live from the
-   *  transform — so the light tracks continuously through a rotate gesture,
-   *  not just after it settles (which is all the React `lightDir` prop could
-   *  ever do, and why baking bearing in upstream felt broken). Absolute mode
-   *  (false) leaves the light pinned to compass directions. */
+  /** When true, the light is fixed to the CAMERA (a headlamp): lightDir/
+   *  lightAlt are reinterpreted as an offset from the camera's actual real-
+   *  time orientation (both bearing AND pitch — see render()'s
+   *  computeCameraBasis usage) every rendered frame, read live from the
+   *  transform — so the light tracks continuously through a rotate/tilt
+   *  gesture, not just after it settles. Absolute mode (false) leaves the
+   *  light pinned to compass directions, unaffected by camera orientation. */
   lightRelativeToCamera: boolean
   diffuseStrength: number
   specularStrength: number
@@ -292,6 +381,11 @@ export class PhongLiveLayer implements CustomLayerInterface {
   private flatTerrainTexture: WebGLTexture | null = null
   private static readonly FLAT_TERRAIN_MATRIX = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
   private static readonly FLAT_TERRAIN_UNPACK = [0, 0, 0, 0]
+  // Last-known-good camera basis for camera-relative light (see
+  // computeCameraBasis) — kept across frames so a rare degenerate/
+  // non-invertible matrix doesn't snap the light to a garbage direction for
+  // one frame; just reuses the previous orientation until the next good one.
+  private lastCameraBasis: { right: Vec3; up: Vec3; forward: Vec3 } | null = null
 
   constructor(id: string, options: PhongLiveOptions) {
     this.id = id
@@ -481,16 +575,55 @@ export class PhongLiveLayer implements CustomLayerInterface {
       // same formula/empirically-verified signs as phong-protocol.ts (see its
       // header comment for how these signs were pinned against maplibre's own
       // hillshade shader).
-      // Camera-relative: add the LIVE map bearing (read straight from the
-      // transform this frame, not from a settled React prop) so the light
-      // tracks smoothly as the map rotates, like a headlamp fixed to the view.
-      const azDeg = this.options.lightDir + (this.options.lightRelativeToCamera ? map.getBearing() : 0)
-      const azRad = (azDeg * Math.PI) / 180
+      const azRad = (this.options.lightDir * Math.PI) / 180
       const elRad = (this.options.lightAlt * Math.PI) / 180
       const cosEl = Math.cos(elRad)
-      const lx = -Math.sin(azRad) * cosEl
-      const ly = -Math.cos(azRad) * cosEl
-      const lz = Math.sin(elRad)
+      const lx0 = -Math.sin(azRad) * cosEl
+      const ly0 = -Math.cos(azRad) * cosEl
+      const lz0 = Math.sin(elRad)
+
+      let lx = lx0, ly = ly0, lz = lz0
+      if (this.options.lightRelativeToCamera) {
+        // Camera-relative ("headlamp"): reinterpret (lightDir, lightAlt) as
+        // an offset from the camera's OWN orientation — not just bearing
+        // (yaw) the way the previous version did, which left the light's
+        // altitude untouched as pitch changed. Uses the same real-camera-
+        // basis technique that fixed Matcap's equivalent bug (see
+        // computeCameraBasis) instead of hand-deriving a pitch/bearing
+        // rotation matrix — right/up/forward are built from real per-tile
+        // projection-matrix data via unprojection, not a separately chosen
+        // sign convention.
+        //
+        // The substitution below (right<->east, up<->-south i.e. north,
+        // forward<->-up i.e. down) is verified to reduce to EXACTLY the old
+        // lx0/ly0/lz0 formula at the reference orientation (bearing=0,
+        // pitch=0, where right=east, up=north, forward=straight down) —
+        // checked against all three axis cases (az=0/el=0, az=0/el=90,
+        // az=90/el=0) by hand before shipping, so this is a verified-
+        // consistent extension of the existing formula, not a fresh guess.
+        if (tileIDs.length > 0) {
+          const p0 = map.transform.getProjectionData({ overscaledTileID: tileIDs[0], applyGlobeMatrix: true })
+          const basis = computeCameraBasis(p0.mainMatrix)
+          if (basis) this.lastCameraBasis = basis
+        }
+        const basis = this.lastCameraBasis
+        if (basis) {
+          lx = lx0 * basis.right[0] - ly0 * basis.up[0] - lz0 * basis.forward[0]
+          ly = lx0 * basis.right[1] - ly0 * basis.up[1] - lz0 * basis.forward[1]
+          lz = lx0 * basis.right[2] - ly0 * basis.up[2] - lz0 * basis.forward[2]
+          const len = Math.hypot(lx, ly, lz) || 1
+          lx /= len; ly /= len; lz /= len
+        } else {
+          // No visible tiles yet this frame (nothing to derive a basis
+          // from) and no previous basis cached — fall back to the old
+          // bearing-only approximation rather than an undefined light.
+          const azDegFallback = this.options.lightDir + map.getBearing()
+          const azRadFallback = (azDegFallback * Math.PI) / 180
+          lx = -Math.sin(azRadFallback) * cosEl
+          ly = -Math.cos(azRadFallback) * cosEl
+          lz = lz0
+        }
+      }
 
       gl.useProgram(bundle.program)
       gl.bindVertexArray(this.vao)
