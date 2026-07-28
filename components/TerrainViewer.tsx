@@ -124,56 +124,11 @@ function matcapUrlFor(textureId: string): string {
   return (MATCAP_TEXTURES.find((t) => t.id === textureId) ?? MATCAP_TEXTURES.find((t) => t.id === DEFAULT_MATCAP_ID)!).url
 }
 
-export function TerrainViewer() {
-  const mapARef = useRef<MapRef>(null)
-  const mapBRef = useRef<MapRef>(null)
-  const isSyncing = useRef(false)
-  const [mapLibreReady, setMapLibreReady] = useState(false)
-  const [mapALoaded, setMapALoaded] = useState(false)
-  const [mapBLoaded, setMapBLoaded] = useState(false)
-  const viewStateUpdateTimer = useRef<NodeJS.Timeout | null>(null)
-  const isMobile = useIsMobile()
-
-  const [mapboxKey] = useAtom(mapboxKeyAtom)
-  const [maptilerKey] = useAtom(maptilerKeyAtom)
-  const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
-  const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
-  const bumpLocalFileVersion = useSetAtom(localFileVersionAtom)
-  // One-shot, on mount: repopulate this session's in-memory local-file-store
-  // (see its header comment) from OPFS for every "cog-local" source already
-  // in customTerrainSourcesAtom or customBasemapSourcesAtom, so a persisted
-  // local COG is usable again without the "Re-select file…" prompt. Only
-  // needs to run once — sources added *after* mount get their File registered
-  // live by the normal pick flow (custom-terrain-source-modal.tsx /
-  // custom-basemap-modal.tsx), not through this path.
-  useEffect(() => {
-    const ids = [...customTerrainSources, ...customBasemapSources]
-      .filter((s) => s.type === "cog-local")
-      .map((s) => localFileId(s.url))
-    if (ids.length === 0) return
-    let cancelled = false
-    hydrateAllPersistedCogs(ids, () => {
-      if (!cancelled) bumpLocalFileVersion((v) => v + 1)
-    })
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  const [titilerEndpoint] = useAtom(titilerEndpointAtom)
-  const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
-  const [highResTerrain] = useAtom(highResTerrainAtom)
-  // Latches true the first time the detector is turned on (showTellsDetector),
-  // and then stays true — this is TellsSource's mount gate instead of
-  // showTellsDetector itself, so toggling the detector (or just its markers'
-  // visibility, tellsMarkersVisible — a separate, independent flag) back off
-  // never unmounts the vector source / discards its already-fetched tiles the
-  // way tying the source's `enabled` directly to either flag would.
-  const [tellsEverActivated, setTellsEverActivated] = useState(false)
-  const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
-  const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
-  const [, setSectionOpen] = useAtom(sectionOpenAtom)
-  const hasAppliedEmbedConfig = useRef(false)
-
-  const [state, setState] = useQueryStates({
+// The full nuqs parser config for every field this app persists to the URL —
+// hoisted to module scope (rather than inline inside useQueryStates below) so
+// lib/bookmarks.ts's restoreBookmarkInPlace can reuse the exact same parsers to
+// turn a saved query string back into typed state without a page reload.
+export const QUERY_STATE_PARSERS = {
     // Embed/project convenience params: `project` looks up a named preset in
     // lib/projects.json (see lib/project-config.ts); terrainUrl/basemapUrl let an
     // embedder point straight at a raw tile/COG URL without registering a custom
@@ -546,7 +501,58 @@ export function TerrainViewer() {
     maxBoundsSouth: parseAsFloat.withDefault(-85),
     maxBoundsEast: parseAsFloat.withDefault(180),
     maxBoundsNorth: parseAsFloat.withDefault(85),
-  },
+}
+
+export function TerrainViewer() {
+  const mapARef = useRef<MapRef>(null)
+  const mapBRef = useRef<MapRef>(null)
+  const isSyncing = useRef(false)
+  const [mapLibreReady, setMapLibreReady] = useState(false)
+  const [mapALoaded, setMapALoaded] = useState(false)
+  const [mapBLoaded, setMapBLoaded] = useState(false)
+  const viewStateUpdateTimer = useRef<NodeJS.Timeout | null>(null)
+  const isMobile = useIsMobile()
+
+  const [mapboxKey] = useAtom(mapboxKeyAtom)
+  const [maptilerKey] = useAtom(maptilerKeyAtom)
+  const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
+  const bumpLocalFileVersion = useSetAtom(localFileVersionAtom)
+  // One-shot, on mount: repopulate this session's in-memory local-file-store
+  // (see its header comment) from OPFS for every "cog-local" source already
+  // in customTerrainSourcesAtom or customBasemapSourcesAtom, so a persisted
+  // local COG is usable again without the "Re-select file…" prompt. Only
+  // needs to run once — sources added *after* mount get their File registered
+  // live by the normal pick flow (custom-terrain-source-modal.tsx /
+  // custom-basemap-modal.tsx), not through this path.
+  useEffect(() => {
+    const ids = [...customTerrainSources, ...customBasemapSources]
+      .filter((s) => s.type === "cog-local")
+      .map((s) => localFileId(s.url))
+    if (ids.length === 0) return
+    let cancelled = false
+    hydrateAllPersistedCogs(ids, () => {
+      if (!cancelled) bumpLocalFileVersion((v) => v + 1)
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const [titilerEndpoint] = useAtom(titilerEndpointAtom)
+  const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
+  const [highResTerrain] = useAtom(highResTerrainAtom)
+  // Latches true the first time the detector is turned on (showTellsDetector),
+  // and then stays true — this is TellsSource's mount gate instead of
+  // showTellsDetector itself, so toggling the detector (or just its markers'
+  // visibility, tellsMarkersVisible — a separate, independent flag) back off
+  // never unmounts the vector source / discards its already-fetched tiles the
+  // way tying the source's `enabled` directly to either flag would.
+  const [tellsEverActivated, setTellsEverActivated] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
+  const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
+  const [, setSectionOpen] = useAtom(sectionOpenAtom)
+  const hasAppliedEmbedConfig = useRef(false)
+
+  const [state, setState] = useQueryStates(QUERY_STATE_PARSERS,
   {
     history: 'replace', // push to remember past interactions, or replace to avoid cluttering history
     limitUrlUpdates: {

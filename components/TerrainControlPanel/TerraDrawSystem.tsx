@@ -904,11 +904,12 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
         const feature = iteratorFeatures[iteratorIndex]
         if (!feature) return
         flyToIteratorFeature(feature)
-        // selectFeature switches TerraDraw into its select mode itself if it
-        // isn't already there — so the current feature is visibly selected
-        // (handles, delete-on-backspace etc. all just work) without the
-        // iterator needing its own selection UI.
-        if (feature.id) { try { draw?.selectFeature(feature.id) } catch { /* not in a mode that supports select */ } }
+        // Deliberately NOT calling draw.selectFeature here — it looked odd
+        // (TerraDraw's own selection handles appearing on every navigate) and
+        // could leave stale selection state behind when D/Delete removed a
+        // feature whose handles were currently showing. The iterator has its
+        // own D/Delete-key deletion (below) and doesn't need TerraDraw's
+        // select mode for that.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [iteratorLayerId, iteratorIndex])
 
@@ -925,10 +926,10 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
         // iteratorIndex/iteratorTotal re-clamp themselves via the effect above.
     }
 
-    // D deletes the currently-framed feature; Left/Right steps to the
-    // previous/next one — active only while the iterator is open, and only
-    // when focus isn't in a text field (so typing a layer name or a "go to
-    // index" value doesn't get eaten). Capture phase + stopPropagation so
+    // D or Delete deletes the currently-framed feature; Left/Right steps to
+    // the previous/next one — active only while the iterator is open, and
+    // only when focus isn't in a text field (so typing a layer name or a "go
+    // to index" value doesn't get eaten). Capture phase + stopPropagation so
     // Left/Right win over MapLibre's own arrow-key camera pan when the map
     // canvas happens to have focus, rather than doing both at once.
     useEffect(() => {
@@ -938,7 +939,7 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
             if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
             if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); goToIteratorIndex(iteratorIndex + 1) }
             else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); goToIteratorIndex(iteratorIndex - 1) }
-            else if (e.key === 'd' || e.key === 'D') { e.preventDefault(); e.stopPropagation(); deleteIteratorFeature() }
+            else if (e.key === 'd' || e.key === 'D' || e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); deleteIteratorFeature() }
         }
         window.addEventListener('keydown', handler, true)
         return () => window.removeEventListener('keydown', handler, true)
@@ -1068,15 +1069,23 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                 {!editMode && (
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <Toggle
-                                                pressed={iteratorLayerId === layer.id}
-                                                onPressedChange={(pressed) => setIteratorLayerId(pressed ? layer.id : null)}
-                                                size="sm"
-                                                disabled={featureCount(layer.id) === 0}
-                                                className="h-8 w-8 shrink-0 cursor-pointer p-0"
-                                            >
-                                                <Repeat2 className="h-4 w-4" />
-                                            </Toggle>
+                                            {/* The extra span (matching every other disablable toggle in
+                                                this file) matters beyond just letting the tooltip fire
+                                                while disabled: TooltipTrigger's asChild forwards its OWN
+                                                data-state (tooltip open/closed) onto its direct child,
+                                                clobbering Toggle's on/off data-state the pressed styling
+                                                keys off — put the span between them so each keeps its own. */}
+                                            <span>
+                                                <Toggle
+                                                    pressed={iteratorLayerId === layer.id}
+                                                    onPressedChange={(pressed) => setIteratorLayerId(pressed ? layer.id : null)}
+                                                    size="sm"
+                                                    disabled={featureCount(layer.id) === 0}
+                                                    className="h-8 w-8 shrink-0 cursor-pointer p-0"
+                                                >
+                                                    <Repeat2 className="h-4 w-4" />
+                                                </Toggle>
+                                            </span>
                                         </TooltipTrigger>
                                         <TooltipContent>
                                             {iteratorLayerId === layer.id ? <p>Stop Feature Iterator</p> : (

@@ -1,41 +1,138 @@
 // Saved-view bookmarks: a name + thumbnail + the full nuqs URL query string
-// (viewport, every viz mode, every option) captured verbatim — restoring one
-// is just navigating to `pathname + search`, so nuqs re-hydrates the ENTIRE
-// state from scratch exactly the way a shared link already does, with no
-// separate "reset every field first" bookkeeping needed. Modeled after
+// (viewport, every viz mode, every option) captured verbatim. Modeled after
 // RiverREM_UI's Runs/GalleryModal (github.com/Iconem/RiverREM_UI) — same
 // "sidebar list or fullscreen gallery, click a thumbnail to load" shape,
 // adapted to this app's full-state-in-the-URL model instead of a server-side
 // compute run.
 //
-// Flat list for now — the "viewport bookmark with viz-mode bookmarks nested
-// under it" hierarchy the feature was requested with is a natural follow-up
-// (group by a shared `parentId`), not implemented yet.
+// Two kinds, distinguished by `parentId`: a "project" (no parentId) is a
+// viewport + full initial state; a "view mode child" (parentId set) is saved
+// at that same project's viewport and only really differs in its
+// visualization-mode settings. Restoring a child while its parent project is
+// already the active one skips re-applying the (identical) viewport fields —
+// see restoreBookmark.
 
+import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
+import { QUERY_STATE_PARSERS } from "@/components/TerrainViewer"
 
 export interface Bookmark {
   id: string
   name: string
   /** Epoch ms. */
   ts: number
-  /** Small JPEG data URL (see captureBookmarkThumbnail) — kept deliberately
-   *  low-res since these all live in localStorage, which has a small (~5-10MB)
-   *  total quota shared with every other atomWithStorage in the app. */
+  /** JPEG data URL (see captureBookmarkThumbnail) — kept deliberately
+   *  moderate-res since these all live in localStorage, which has a small
+   *  (~5-10MB) total quota shared with every other atomWithStorage in the app. */
   thumb: string | null
   /** Everything after "?" in the URL at save time — the full nuqs state. */
   search: string
+  /** Id of the "project" bookmark this one is a view-mode child of. Absent
+   *  for a project (root) bookmark itself. */
+  parentId?: string
 }
 
 export const bookmarksAtom = atomWithStorage<Bookmark[]>("bookmarks", [], undefined, { getOnInit: true })
 
-/** Navigates to a bookmark's saved state — a real navigation (not an in-place
- *  nuqs setState), so every param re-hydrates from scratch, including ones
- *  that have since drifted from their default and aren't present in the
- *  bookmark's own (possibly older/shorter) query string. Same "apply on load"
- *  approach the ?project= preset mechanism already uses in TerrainViewer.tsx. */
-export function restoreBookmark(bookmark: Bookmark) {
-  window.location.href = `${window.location.pathname}?${bookmark.search}`
+/** Id of the project bookmark whose viewport is considered "already applied" —
+ *  set whenever a project (or one of its children) is restored. Deliberately
+ *  not persisted: a fresh page load has no "currently selected project"
+ *  context to preserve. */
+export const activeBookmarkProjectIdAtom = atom<string | null>(null)
+
+/** Id of the exact bookmark last restored (project OR child) — purely for
+ *  highlighting "this is the one currently loaded" in the UI. Distinct from
+ *  activeBookmarkProjectIdAtom above: that one always names the reference
+ *  PROJECT (a child's own parentId), this one names whichever row was
+ *  actually clicked. Also deliberately not persisted. */
+export const activeBookmarkIdAtom = atom<string | null>(null)
+
+/** Camera fields a "view mode child" bookmark shares verbatim with its parent
+ *  project — skipped on restore when that project is already active, so the
+ *  map doesn't visibly re-settle onto the exact spot it's already at. */
+const VIEWPORT_KEYS = ["lat", "lng", "zoom", "pitch", "bearing"] as const
+
+/** Parses a bookmark's saved query string back into typed state using the
+ *  exact same nuqs parsers useQueryStates itself is built from (see
+ *  components/TerrainViewer.tsx's QUERY_STATE_PARSERS) — every field parses
+ *  through its own parser's `parseServerSide`, which already falls back to
+ *  that field's real default when the key is missing or fails to parse. This
+ *  is what makes an in-place restore safe for an older/shorter bookmark: a
+ *  field absent from its search string resets to its default rather than
+ *  lingering at whatever the current URL happens to have. */
+function parseBookmarkSearch(search: string): Record<string, unknown> {
+  const params = new URLSearchParams(search)
+  const result: Record<string, unknown> = {}
+  for (const [key, parser] of Object.entries(QUERY_STATE_PARSERS as Record<string, any>)) {
+    const raw = parser.type === "multi" ? params.getAll(key) : (params.get(key) ?? undefined)
+    result[key] = parser.parseServerSide(raw)
+  }
+  return result
+}
+
+/** Applies a bookmark's saved state in place via nuqs's own setState — no SPA
+ *  reload, unlike the earlier version of this function. A child bookmark
+ *  restored while its parent project is already active drops the viewport
+ *  keys from the patch first (see VIEWPORT_KEYS) so the camera stays put. */
+export function restoreBookmark(
+  bookmark: Bookmark,
+  setState: (updates: Record<string, unknown>) => void,
+  activeProjectId: string | null,
+  setActiveProjectId: (id: string | null) => void,
+  setActiveBookmarkId: (id: string | null) => void,
+) {
+  const patch = parseBookmarkSearch(bookmark.search)
+  if (bookmark.parentId && bookmark.parentId === activeProjectId) {
+    for (const key of VIEWPORT_KEYS) delete patch[key]
+  }
+  setState(patch)
+  setActiveProjectId(bookmark.parentId ?? bookmark.id)
+  setActiveBookmarkId(bookmark.id)
+}
+
+/** Master-flag + sub-flag pairs behind each visualization mode, in the same
+ *  order they appear in the sidebar — used to build a shorthand default name
+ *  for a "view mode child" bookmark (e.g. "SVF + Basemap"). A sub-mode only
+ *  counts as active when both its own flag AND its section's master toggle
+ *  are on, matching what's actually visible on the map. */
+const VIZ_MODE_SHORTHANDS: Array<{ master: string; flag: string; label: string }> = [
+  { master: "showRasterBasemap", flag: "showRasterBasemap", label: "Basemap" },
+  { master: "showContoursAndGraticules", flag: "showContours", label: "Contours" },
+  { master: "showContoursAndGraticules", flag: "showGraticules", label: "Graticule" },
+  { master: "showHillshade", flag: "showHillshade", label: "Hillshade" },
+  { master: "showColorRelief", flag: "showColorRelief", label: "Hypso" },
+  { master: "showTerrainAnalysis", flag: "showSlope", label: "Slope" },
+  { master: "showTerrainAnalysis", flag: "showAspect", label: "Aspect" },
+  { master: "showTerrainAnalysis", flag: "showCurvature", label: "Curvature" },
+  { master: "showTerrainAnalysis", flag: "showTpi", label: "TPI" },
+  { master: "showTerrainAnalysis", flag: "showTri", label: "TRI" },
+  { master: "showTerrainAnalysis", flag: "showRoughness", label: "Roughness" },
+  { master: "showTerrainAnalysis", flag: "showBlobness", label: "Blobness" },
+  { master: "showReliefVisualization", flag: "showLrm", label: "LRM" },
+  { master: "showReliefVisualization", flag: "showSvf", label: "SVF" },
+  { master: "showReliefVisualization", flag: "showOpenness", label: "Openness" },
+  { master: "showReliefVisualization", flag: "showLocalDominance", label: "Local Dominance" },
+  { master: "showLightingEffects", flag: "showMatcap", label: "Matcap" },
+  { master: "showLightingEffects", flag: "showPhong", label: "Phong" },
+  { master: "showTellsDetector", flag: "showTellsDetector", label: "Tells" },
+  { master: "showPlaneSlicer", flag: "showPlaneSlicer", label: "Plane Slicer" },
+  { master: "showBackground", flag: "showBackground", label: "Sky/Fog" },
+]
+
+/** Shorthand summary of whichever viz modes/submodes are actually on right
+ *  now (e.g. "SVF + Basemap") — the default name for a "view mode child"
+ *  bookmark, since what distinguishes it from its sibling children is
+ *  exactly this, not the (shared) viewport. */
+export function summarizeActiveVizModes(state: Record<string, unknown>): string {
+  const active = VIZ_MODE_SHORTHANDS.filter((m) => state[m.master] && state[m.flag]).map((m) => m.label)
+  return active.length ? active.join(" + ") : "No viz modes"
+}
+
+/** YYYY-MM-DD, local time — used everywhere a bookmark's save date is shown. */
+export function formatBookmarkDate(ts: number): string {
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 export function exportBookmarksJson(bookmarks: Bookmark[]): string {

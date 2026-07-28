@@ -195,12 +195,13 @@ export async function copyBlobToClipboard(blob: Blob): Promise<void> {
  *  bookmark thumbnail (lib/bookmarks.ts), not a real export: those all live
  *  in localStorage's small (~5-10MB) shared quota, so this deliberately
  *  trades quality for size rather than reusing captureMapScreenshot's
- *  full-resolution PNG/JPEG. maxWidth=320 at JPEG quality 0.6 lands around
- *  15-25KB per thumbnail — dozens to low hundreds of bookmarks before
- *  quota becomes a real concern. */
+ *  full-resolution PNG/JPEG. maxWidth=960 at JPEG quality 0.5 lands around
+ *  60-100KB per thumbnail — quality 0.5 (down from the old 320px version's
+ *  0.6) claws back some of the ~9x pixel-count increase from tripling the
+ *  linear resolution, keeping dozens of bookmarks well within quota. */
 export async function captureBookmarkThumbnail(
   mapRef: React.RefObject<MapRef>,
-  maxWidth = 320,
+  maxWidth = 960,
 ): Promise<string | null> {
   if (!mapRef.current) return null
   try {
@@ -214,7 +215,7 @@ export async function captureBookmarkThumbnail(
     const ctx = thumbCanvas.getContext("2d")
     if (!ctx) return null
     ctx.drawImage(canvas, 0, 0, width, height)
-    return thumbCanvas.toDataURL("image/jpeg", 0.6)
+    return thumbCanvas.toDataURL("image/jpeg", 0.5)
   } catch (error) {
     console.error("Failed to capture bookmark thumbnail:", error)
     return null

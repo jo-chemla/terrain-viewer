@@ -479,8 +479,8 @@ export function TerrainControlPanel({
         >
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
         <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
-        <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} withSeparator={false} />
-        <BookmarksSection mapRef={mapRef} isOpen={sectionOpen.bookmarks} onOpenChange={toggle("bookmarks")} />
+        <BookmarksSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.bookmarks} onOpenChange={toggle("bookmarks")} />
+        <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} />
         {/* Whole "Sources" group (label+chevron row AND its sections) is hidden
             when the project config hides source panels — otherwise the chevron/
             label row would sit there with nothing to expand. */}
