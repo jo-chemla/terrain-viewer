@@ -1,5 +1,5 @@
 import type React from "react"
-import { useCallback, useContext, useEffect, useMemo } from "react"
+import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { useAtom } from "jotai"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -7,7 +7,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { CalendarDays, Clock } from "lucide-react"
+import { CalendarDays, Clock, ChevronDown } from "lucide-react"
 import { MobileSlider, SectionIdContext, SegmentedToggle } from "./controls-components"
 import { SphericalXYPad } from "./XYPad"
 import { useDebouncedState, useDebouncedLightDir } from "./use-debounced-state"
@@ -102,6 +102,10 @@ export const LightDirectionControl: React.FC<{
   // quarter-hour steps, but a precise tool (Sun Shadow Calculator) wants
   // real minute precision.
   timeStepMinutes?: number
+  // Folds the XY pad behind a closed-by-default toggle — for callers where
+  // the Date/Time sliders are the whole point (Sun Shadow Calculator) and
+  // the pad is just a secondary visualization of the result.
+  padFoldable?: boolean
 }> = ({
   state, setState, sliderId,
   debounceMs = 150,
@@ -110,8 +114,10 @@ export const LightDirectionControl: React.FC<{
   fixedAzimuth = null, fixedElevation = null,
   forceDatetime = false,
   timeStepMinutes = 15,
+  padFoldable = false,
 }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
+  const [showPad, setShowPad] = useState(!padFoldable)
   const dimWhenSliding = cn("transition-opacity duration-150", activeSlider !== null && "opacity-20")
 
   const [lightDir, setLightDir] = useDebouncedLightDir(
@@ -341,29 +347,41 @@ export const LightDirectionControl: React.FC<{
         </div>
       )}
 
+      {padFoldable && (
+        <button
+          type="button"
+          onClick={() => setShowPad((v) => !v)}
+          className="flex items-center justify-between gap-2 w-full cursor-pointer"
+        >
+          <Label className="text-sm font-medium cursor-pointer">Pad</Label>
+          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", showPad && "rotate-180")} />
+        </button>
+      )}
       {/* In datetime mode the pad is a read-only visualization of the
           computed sun direction (the sliders drive it), so pointer events are
           disabled and it's greyed (desaturated + dimmed) to read as "display
           only" while still showing the light direction. Shares `sliderId`
           with the datetime sliders so it stays lit while they're edited. */}
-      <div className={cn("flex flex-col items-center gap-1", state.lightUseDatetime && "pointer-events-none")}>
-        <div className={cn(state.lightUseDatetime && "opacity-60 grayscale")}>
-          <SphericalXYPad
-            width={padWidth}
-            height={padHeight}
-            azimuthRange={azimuthRange}
-            elevationRange={elevationRange}
-            sliderId={sliderId}
-            value={lightDir}
-            onChange={setLightDir}
-            fixedAzimuth={fixedAzimuth}
-            fixedElevation={fixedElevation}
-          />
+      {showPad && (
+        <div className={cn("flex flex-col items-center gap-1", state.lightUseDatetime && "pointer-events-none")}>
+          <div className={cn(state.lightUseDatetime && "opacity-60 grayscale")}>
+            <SphericalXYPad
+              width={padWidth}
+              height={padHeight}
+              azimuthRange={azimuthRange}
+              elevationRange={elevationRange}
+              sliderId={sliderId}
+              value={lightDir}
+              onChange={setLightDir}
+              fixedAzimuth={fixedAzimuth}
+              fixedElevation={fixedElevation}
+            />
+          </div>
+          {state.lightUseDatetime && (
+            <span className="text-[10px] text-muted-foreground italic">Set by date &amp; time · display only</span>
+          )}
         </div>
-        {state.lightUseDatetime && (
-          <span className="text-[10px] text-muted-foreground italic">Set by date &amp; time · display only</span>
-        )}
-      </div>
+      )}
     </div>
   )
 }

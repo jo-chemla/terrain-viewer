@@ -4,15 +4,13 @@ import maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import type { MapRef } from "react-map-gl/maplibre"
 import type { TerraDraw } from "terra-draw"
-import { ChevronDown } from "lucide-react"
-import { Section, SliderControl } from "./controls-components"
+import { Section, MobileSlider } from "./controls-components"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LightDirectionControl } from "./light-direction-control"
 import { ColorAlphaSwatch } from "./color-picker"
-import { cn } from "@/lib/utils"
 import { track } from "@/lib/analytics"
 
 interface PickedPoint {
@@ -23,10 +21,17 @@ interface PickedPoint {
 const MARKER_COLOR = "#f59e0b"
 const DEFAULT_LINE_COLOR = "#1e293b"
 const DEFAULT_LINE_WIDTH = 3
+const SRC = "sun-shadow-calc-line"
+const LYR = "sun-shadow-calc-line"
 // Anything past this is the sun grazing the horizon — the shadow is
 // technically infinite/off-screen, so it's clearer to say so than to draw a
 // wildly long line across the map.
 const MAX_DRAWABLE_SHADOW_M = 50_000
+const EMPTY_LINE = {
+  type: "Feature" as const,
+  geometry: { type: "LineString" as const, coordinates: [[0, 0], [0, 0]] },
+  properties: {},
+}
 
 export const SunShadowCalculatorSection: React.FC<{
   state: any
@@ -40,10 +45,6 @@ export const SunShadowCalculatorSection: React.FC<{
   const [point, setPoint] = useState<PickedPoint | null>(null)
   const [height, setHeight] = useState(10)
   const [drawModeActive, setDrawModeActive] = useState(false)
-  // The shared light direction control is folded by default here — the
-  // calculator only needs it to set the date/time; Azimuth/Altitude are
-  // already implied by the Shadow length readout below.
-  const [showLightControls, setShowLightControls] = useState(false)
   const [lineColor, setLineColor] = useState(DEFAULT_LINE_COLOR)
   const [lineWidth, setLineWidth] = useState(DEFAULT_LINE_WIDTH)
   const markerRef = useRef<maplibregl.Marker | null>(null)
@@ -113,20 +114,52 @@ export const SunShadowCalculatorSection: React.FC<{
   const azimuthDeg: number = state.illuminationDir
   const shadowLength = altitudeDeg > 0.05 ? height / Math.tan((altitudeDeg * Math.PI) / 180) : null
 
-  // Shadow line on the map: from the picked point, pointing away from the
-  // sun (azimuth + 180°), length = shadowLength. Meters→degrees uses a flat
-  // equirectangular approximation (fine at these lengths).
+  // Mounts the source/layer ONCE while the tool is active (and re-mounts on a
+  // style reload) — kept separate from the position/color updates below so
+  // that dragging a slider (which recomputes shadowLength on every tick with
+  // debounceMs=0) never removes+re-adds the layer, which was visibly
+  // flickering the line off and back on every edit.
   useEffect(() => {
     const map = mapRef.current?.getMap()
-    if (!map) return
-    const SRC = "sun-shadow-calc-line"
-    const LYR = "sun-shadow-calc-line"
-    const canDraw = isActive && point && shadowLength !== null && shadowLength > 0 && shadowLength < MAX_DRAWABLE_SHADOW_M
-    if (!canDraw) {
+    if (!map || !isActive) return
+    const ensure = () => {
+      if (!map.isStyleLoaded()) return
+      if (!map.getSource(SRC)) map.addSource(SRC, { type: "geojson", data: EMPTY_LINE })
+      if (!map.getLayer(LYR)) {
+        map.addLayer({
+          id: LYR,
+          type: "line",
+          source: SRC,
+          layout: { "line-cap": "round", visibility: "none" },
+          paint: { "line-width": lineWidth, "line-color": lineColor },
+        })
+      }
+    }
+    ensure()
+    map.on("styledata", ensure)
+    return () => {
+      map.off("styledata", ensure)
       if (map.getLayer(LYR)) map.removeLayer(LYR)
       if (map.getSource(SRC)) map.removeSource(SRC)
-      return
     }
+    // lineColor/lineWidth are only read here as the layer's INITIAL paint —
+    // later changes go through the dedicated setPaintProperty effect below,
+    // so they're deliberately excluded from this effect's deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, mapRef])
+
+  // Shadow line geometry: from the picked point, pointing away from the sun
+  // (azimuth + 180°), length = shadowLength. Meters→degrees uses a flat
+  // equirectangular approximation (fine at these lengths). Only ever calls
+  // setData/setLayoutProperty on the layer mounted above — never
+  // add/removeLayer — so repeated edits update the line in place instead of
+  // toggling it off and back on.
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map || !map.getSource(SRC) || !map.getLayer(LYR)) return
+    const canDraw = point && shadowLength !== null && shadowLength > 0 && shadowLength < MAX_DRAWABLE_SHADOW_M
+    map.setLayoutProperty(LYR, "visibility", canDraw ? "visible" : "none")
+    if (!canDraw) return
 
     const shadowAzRad = (((azimuthDeg + 180) % 360) * Math.PI) / 180
     const latRad = (point!.lat * Math.PI) / 180
@@ -138,39 +171,15 @@ export const SunShadowCalculatorSection: React.FC<{
       geometry: { type: "LineString" as const, coordinates: [[point!.lng, point!.lat], tip] },
       properties: {},
     }
+    ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data as any)
+  }, [point, shadowLength, azimuthDeg, mapRef, isActive])
 
-    const redraw = () => {
-      if (!map.isStyleLoaded()) return
-      const existing = map.getSource(SRC) as maplibregl.GeoJSONSource | undefined
-      if (existing) {
-        existing.setData(data as any)
-      } else {
-        map.addSource(SRC, { type: "geojson", data: data as any })
-        map.addLayer({
-          id: LYR,
-          type: "line",
-          source: SRC,
-          layout: { "line-cap": "round" },
-          paint: { "line-width": lineWidth, "line-color": lineColor },
-        })
-      }
-    }
-    redraw()
-    map.on("styledata", redraw)
-    return () => {
-      map.off("styledata", redraw)
-      if (map.getLayer(LYR)) map.removeLayer(LYR)
-      if (map.getSource(SRC)) map.removeSource(SRC)
-    }
-  }, [isActive, point, shadowLength, azimuthDeg, mapRef, lineColor, lineWidth])
-
-  // Color/width changes update the already-mounted layer's paint directly
-  // (no need to go through the redraw/addLayer path above for these).
+  // Color/width changes update the already-mounted layer's paint directly.
   useEffect(() => {
     const map = mapRef.current?.getMap()
-    if (!map || !map.getLayer("sun-shadow-calc-line")) return
-    map.setPaintProperty("sun-shadow-calc-line", "line-color", lineColor)
-    map.setPaintProperty("sun-shadow-calc-line", "line-width", lineWidth)
+    if (!map || !map.getLayer(LYR)) return
+    map.setPaintProperty(LYR, "line-color", lineColor)
+    map.setPaintProperty(LYR, "line-width", lineWidth)
   }, [lineColor, lineWidth, mapRef])
 
   const handleToggle = useCallback((checked: boolean) => {
@@ -208,29 +217,24 @@ export const SunShadowCalculatorSection: React.FC<{
           <p className="text-xs text-muted-foreground">
             Click the map to place an object and measure the shadow it casts at the current sun position.
           </p>
+          <p className="text-xs text-muted-foreground">
+            The <span className="font-semibold text-foreground">precise capture date</span> of the imagery
+            matters a lot here — it directly sets the sun's elevation, which the shadow length is
+            very sensitive to. Also pick the point as the object's{" "}
+            <span className="font-semibold text-foreground">ground projection</span> — where its base
+            meets the flat, horizontal ground — since that's the point the drawn line connects to the
+            shadow's tip; it doesn't account for real terrain slope.
+          </p>
 
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowLightControls((v) => !v)}
-              className="flex items-center justify-between gap-2 w-full cursor-pointer"
-            >
-              <Label className="text-sm font-medium cursor-pointer">Light Direction</Label>
-              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", showLightControls && "rotate-180")} />
-            </button>
-            {showLightControls && (
-              <div className="pt-2">
-                <LightDirectionControl
-                  state={state}
-                  setState={setState}
-                  sliderId="sun-shadow-calc"
-                  debounceMs={0}
-                  forceDatetime
-                  timeStepMinutes={1}
-                />
-              </div>
-            )}
-          </div>
+          <LightDirectionControl
+            state={state}
+            setState={setState}
+            sliderId="sun-shadow-calc"
+            debounceMs={0}
+            forceDatetime
+            timeStepMinutes={1}
+            padFoldable
+          />
 
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="sun-shadow-height" className="text-sm font-medium">Object height</Label>
@@ -248,20 +252,20 @@ export const SunShadowCalculatorSection: React.FC<{
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <Label className="text-sm font-medium">Line color</Label>
+          <div className="grid grid-cols-4 gap-2 items-center">
+            <Label className="text-sm font-medium">Color</Label>
             <ColorAlphaSwatch color={lineColor} onChange={setLineColor} title="Shadow line color" />
+            <Label className="text-sm font-medium">Width</Label>
+            <MobileSlider
+              sliderId="sun-shadow-calc-line-width"
+              value={[lineWidth]}
+              onValueChange={([v]) => setLineWidth(v)}
+              min={1}
+              max={10}
+              step={1}
+              className="cursor-pointer"
+            />
           </div>
-          <SliderControl
-            label="Line width"
-            value={lineWidth}
-            onChange={setLineWidth}
-            min={1}
-            max={10}
-            step={1}
-            suffix="px"
-            sliderId="sun-shadow-calc-line-width"
-          />
 
           {point ? (
             <div className="space-y-1">

@@ -18,7 +18,6 @@ import {
   customThemesAtom,
   isSettingsAppearanceOpenAtom, isSettingsKeyboardShortcutsOpenAtom, isSettingsVisualizationModesOpenAtom,
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
-  isSettingsTellsDetectionOpenAtom, isSettingsSunShadowOpenAtom,
   isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
   isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom, isSettingsGeomorphometryOpenAtom,
 } from "@/lib/settings-atoms"
@@ -100,8 +99,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [isStreamingOpen, setIsStreamingOpen] = useAtom(isSettingsStreamingOpenAtom)
   const [isStoragePersistenceOpen, setIsStoragePersistenceOpen] = useAtom(isSettingsStoragePersistenceOpenAtom)
   const [isBetaOpen, setIsBetaOpen] = useAtom(isSettingsBetaOpenAtom)
-  const [isTellsDetectionOpen, setIsTellsDetectionOpen] = useAtom(isSettingsTellsDetectionOpenAtom)
-  const [isSunShadowOpen, setIsSunShadowOpen] = useAtom(isSettingsSunShadowOpenAtom)
   const [isApiKeysOpen, setIsApiKeysOpen] = useAtom(isSettingsApiKeysOpenAtom)
   const [isMapBoundsOpen, setIsMapBoundsOpen] = useAtom(isSettingsMapBoundsOpenAtom)
   const [isSaveProjectOpen, setIsSaveProjectOpen] = useAtom(isSettingsSaveProjectOpenAtom)
@@ -109,12 +106,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [isGeomorphometryOpen, setIsGeomorphometryOpen] = useAtom(isSettingsGeomorphometryOpenAtom)
   const settingsSectionOpenStates = [
     isAppearanceOpen, isKeyboardShortcutsOpen, isVisualizationModesOpen, isStreamingOpen,
-    isStoragePersistenceOpen, isBetaOpen, isTellsDetectionOpen, isSunShadowOpen,
+    isStoragePersistenceOpen, isBetaOpen,
     isApiKeysOpen, isMapBoundsOpen, isSaveProjectOpen, isResourcesOpen, isGeomorphometryOpen,
   ]
   const settingsSectionSetters = [
     setIsAppearanceOpen, setIsKeyboardShortcutsOpen, setIsVisualizationModesOpen, setIsStreamingOpen,
-    setIsStoragePersistenceOpen, setIsBetaOpen, setIsTellsDetectionOpen, setIsSunShadowOpen,
+    setIsStoragePersistenceOpen, setIsBetaOpen,
     setIsApiKeysOpen, setIsMapBoundsOpen, setIsSaveProjectOpen, setIsResourcesOpen, setIsGeomorphometryOpen,
   ]
   const allSettingsFolded = settingsSectionOpenStates.every((open) => !open)
@@ -368,18 +365,30 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
               <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
               <div>
-                <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change — Profile, Plan, Mean/Combined, or Gaussian (Det Hessian)</div>
+                <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change — Profile, Plan, Mean/Combined, Gaussian (Det Hessian), or Casorati</div>
                 <ul className="list-disc pl-5 pt-1 space-y-1">
                   <li><span className="font-medium text-foreground">Profile (Flow Acceleration):</span> rate of slope change along the steepest-descent direction, affects flow acceleration</li>
                   <li><span className="font-medium text-foreground">Plan (Convergence/Divergence):</span> rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)</li>
                   <li><span className="font-medium text-foreground">Mean/Combined:</span> discrete Laplacian (∇²z) — mean curvature H = (κ₁+κ₂)/2, general surface bending that doesn't separate flow direction from contour direction</li>
                   <li><span className="font-medium text-foreground">Gaussian Curvature (Det Hessian):</span> determinant of the Hessian (fxx·fyy − fxy²) — Gaussian curvature K = κ₁·κ₂, a blob/saddle detector, positive at bowl/dome-shaped extrema and negative at saddle points</li>
+                  <li><span className="font-medium text-foreground">Casorati:</span> κ = √((κ₁²+κ₂²)/2) — RMS of the two principal curvatures (Koch, 1993); always ≥ 0, measures how curved the surface is regardless of shape (dome, ridge, saddle, valley and bowl all read the same), zero only on flat ground</li>
                 </ul>
               </div>
               <div><span className="font-semibold text-foreground">TRI (Terrain Ruggedness Index):</span> mean elevation difference to neighbors</div>
               <div><span className="font-semibold text-foreground">TPI (Topographic Position Index):</span> elevation relative to neighborhood mean</div>
               <div><span className="font-semibold text-foreground">Roughness:</span> max−min elevation in a neighborhood</div>
-              <div><span className="font-semibold text-foreground">Blobness:</span> structure-tensor measure of how much the gradient direction varies across a small window (det/trace of the smoothed gradient outer-product matrix) — high at peaks, pits, saddles and knolls, near zero on a uniform slope or straight ridge/valley</div>
+              <div><span className="font-semibold text-foreground">Shape Index:</span> SI = (2/π)·atan2(κ₁+κ₂, κ₁−κ₂) — Koenderink &amp; van Doorn (1992); scale-free and bounded to [−1, 1] regardless of curvature magnitude: +1 dome/peak, +0.5 ridge, 0 saddle, −0.5 valley, −1 pit/bowl</div>
+            </div>
+
+            <div className="pt-2 text-xs font-semibold text-foreground">Principal Components Analysis (PCA)</div>
+            <p className="text-xs text-muted-foreground">
+              A local 2D PCA of the window's gradient vectors, via the Förstner/Harris structure tensor
+              (box-averaged Ixx/Iyy/Ixy over a 5×5 window) — the same tensor behind all three modes below.
+            </p>
+            <div className="space-y-1.5 text-xs text-muted-foreground">
+              <div><span className="font-semibold text-foreground">Blobness:</span> det(J)/trace(J) — large where the gradient direction varies in every direction (peaks, pits, saddles, knolls), near zero on a uniform slope or straight ridge/valley; conflates shape with steepness</div>
+              <div><span className="font-semibold text-foreground">Eigenvalue Ratio:</span> λmin/λmax of the structure tensor (0–100%) — shape only, independent of steepness: 0% is a coherent linear feature (slope/ridge/valley), 100% is an isotropic blob (peak/pit/saddle)</div>
+              <div><span className="font-semibold text-foreground">Dominant Orientation:</span> axis (0–180°) of the tensor's dominant eigenvector — which way a linear feature (ridge, valley, fault line) runs; most meaningful where Eigenvalue Ratio is low</div>
             </div>
 
             <div className="pt-2 text-xs font-semibold text-foreground">Relief Visualization</div>
@@ -558,12 +567,10 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </CollapsibleSection>
 
           <Separator />
-          <CollapsibleSection title="Beta" openAtom={isSettingsBetaOpenAtom} contentClassName="space-y-3 pt-2">
-            <CollapsibleSection
-              title="Tells (Mound Candidates) Detection"
-              openAtom={isSettingsTellsDetectionOpenAtom}
-              contentClassName="space-y-2 pt-2"
-              headerExtra={
+          <CollapsibleSection title="Beta" openAtom={isSettingsBetaOpenAtom} contentClassName="space-y-4 pt-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold">Tells (Mound Candidates) Detection</h4>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="tells-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
                   <Switch
@@ -573,8 +580,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                     onCheckedChange={(checked) => setState({ tellsBeta: checked })}
                   />
                 </div>
-              }
-            >
+              </div>
               <p className="text-xs text-muted-foreground">
                 Computes a <span className="font-semibold text-foreground">Difference-of-Gaussians of the LRM</span>{" "}
                 (DoG-of-LRM) as the primary bump signal, keeps only its local maxima
@@ -584,13 +590,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 (rejects saddles and ridges where flow diverges outward across contours), and{" "}
                 <span className="font-semibold text-foreground">Det-Hessian</span> (rejects saddle points, keeps bowl/dome shapes).
               </p>
-            </CollapsibleSection>
+            </div>
 
-            <CollapsibleSection
-              title="Sun Shadow Calculator"
-              openAtom={isSettingsSunShadowOpenAtom}
-              contentClassName="space-y-2 pt-2"
-              headerExtra={
+            <Separator />
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold">Sun Shadow Calculator</h4>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="sun-shadow-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
                   <Switch
@@ -600,15 +606,14 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                     onCheckedChange={(checked) => setState({ sunShadowBeta: checked })}
                   />
                 </div>
-              }
-            >
+              </div>
               <p className="text-xs text-muted-foreground">
                 Pick a point on the map and measure the shadow an object of a given
                 height casts at the current sun position/date/time (Tools section)
                 — reuses the shared date/time light direction control that
                 Hillshade/Phong/Shadows also drive.
               </p>
-            </CollapsibleSection>
+            </div>
           </CollapsibleSection>
 
           <Separator />
