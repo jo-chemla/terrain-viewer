@@ -188,31 +188,40 @@ export const BookmarksSection: React.FC<{
     setIsSaving(true)
     try {
       const thumb = await captureBookmarkThumbnail(mapRef)
-      // Project (root): reverse-geocode the viewport center into "Country -
-      // Region/City" (falls back to a timestamp if the lookup fails/times out).
-      // Child: a shorthand of whichever viz modes are actually on — that's
-      // what actually distinguishes it from its siblings, not the viewport
-      // they all share.
-      const name = parentId
-        ? summarizeActiveVizModes(state)
-        : (await reverseGeocodeLabel(state.lat, state.lng)) ?? new Date().toLocaleString()
-      const bookmark: Bookmark = {
-        // crypto.randomUUID() throws on a non-secure context (plain HTTP, not
-        // localhost) — this 'uuid' package version works everywhere, same
-        // reasoning as TerraDrawSystem.tsx's own use of it.
-        id: uuidv4(),
-        name,
-        ts: Date.now(),
-        thumb,
-        // Full nuqs state lives entirely in the query string already (every
-        // viewport/viz-mode/option param) — this is the same string a shared
-        // link would carry, just snapshotted for later instead of copied now.
-        search: window.location.search.replace(/^\?/, ""),
-        ...(parentId ? { parentId } : {}),
+      // Full nuqs state lives entirely in the query string already (every
+      // viewport/viz-mode/option param) — this is the same string a shared
+      // link would carry, just snapshotted for later instead of copied now.
+      const search = window.location.search.replace(/^\?/, "")
+      const ts = Date.now()
+      // crypto.randomUUID() throws on a non-secure context (plain HTTP, not
+      // localhost) — this 'uuid' package version works everywhere, same
+      // reasoning as TerraDrawSystem.tsx's own use of it.
+      const makeId = () => uuidv4()
+
+      if (parentId) {
+        // Explicit child save (e.g. a project row's own "+" button) — a
+        // shorthand of whichever viz modes are actually on, since that's
+        // what distinguishes it from its siblings, not the (shared) viewport.
+        const bookmark: Bookmark = { id: makeId(), name: summarizeActiveVizModes(state), ts, thumb, search, parentId }
+        setBookmarks((prev) => [bookmark, ...prev])
+        setActiveProjectId(parentId)
+        setActiveBookmarkId(bookmark.id)
+        return
       }
-      setBookmarks((prev) => [bookmark, ...prev])
-      setActiveProjectId(parentId ?? bookmark.id)
-      setActiveBookmarkId(bookmark.id)
+
+      // New project (root): reverse-geocode the viewport center into
+      // "Country - Region/City" (falls back to a timestamp if the lookup
+      // fails/times out). Immediately paired with one child capturing the
+      // current viz-mode snapshot — a bare project row with no children
+      // used to look like an empty shell until the user thought to add one
+      // manually; every "Save View" now leaves a project with at least its
+      // own state already represented as a child.
+      const projectName = (await reverseGeocodeLabel(state.lat, state.lng)) ?? new Date().toLocaleString()
+      const project: Bookmark = { id: makeId(), name: projectName, ts, thumb, search }
+      const child: Bookmark = { id: makeId(), name: summarizeActiveVizModes(state), ts, thumb, search, parentId: project.id }
+      setBookmarks((prev) => [project, child, ...prev])
+      setActiveProjectId(project.id)
+      setActiveBookmarkId(child.id)
     } finally {
       setIsSaving(false)
     }
