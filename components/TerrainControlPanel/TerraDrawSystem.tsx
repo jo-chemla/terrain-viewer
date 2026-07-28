@@ -923,7 +923,16 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
         if (!feature?.id) return
         try { draw?.removeFeatures([feature.id]) } catch (e) { console.error('Error removing feature:', e) }
         setFeatures((prev) => prev.filter((f) => f.id !== feature.id))
-        // iteratorIndex/iteratorTotal re-clamp themselves via the effect above.
+        // iteratorIndex/iteratorTotal re-clamp themselves via the effect above,
+        // but that only changes iteratorIndex's VALUE when the deleted feature
+        // was the last one — otherwise the same index now refers to what was
+        // the next feature, and the nav effect (keyed on index/layer identity)
+        // won't re-fire to fly there. Fly to it explicitly here instead.
+        const remaining = iteratorFeatures.filter((f) => f.id !== feature.id)
+        if (remaining.length > 0) {
+            const nextIndex = iteratorIndex >= remaining.length ? remaining.length - 1 : iteratorIndex
+            flyToIteratorFeature(remaining[nextIndex])
+        }
     }
 
     // D or Delete deletes the currently-framed feature; Left/Right steps to
@@ -1134,16 +1143,16 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                     </p>
                                 </TooltipContent>
                             </Tooltip>
-                            <div className="flex items-center justify-center gap-2">
+                            <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex - 1)}>
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
                                 <DraftBoundInput
                                     value={iteratorIndex + 1}
                                     onCommit={(v) => { if (v !== undefined) goToIteratorIndex(Math.round(v) - 1) }}
-                                    className="h-7 w-14 text-center text-sm bg-transparent border rounded"
+                                    className="h-7 w-10 px-1 text-center text-sm bg-transparent border rounded"
                                 />
-                                <span className="text-sm text-muted-foreground shrink-0">/ {iteratorTotal}</span>
+                                <span className="text-xs text-muted-foreground shrink-0">/{iteratorTotal}</span>
                                 <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex + 1)}>
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
@@ -1155,36 +1164,33 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                     </TooltipTrigger>
                                     <TooltipContent><p>Delete this feature (D)</p></TooltipContent>
                                 </Tooltip>
-                            </div>
-                            <div className="flex items-center justify-between gap-2">
+                                <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Label className="text-xs text-muted-foreground shrink-0">Point zoom</Label>
+                                        <Label className="text-xs text-muted-foreground shrink-0 cursor-default">Zoom</Label>
                                     </TooltipTrigger>
                                     <TooltipContent><p>Zoom level to center a point feature at — only applies to points (polylines/polygons always auto-fit to their own extent). Empty keeps whatever zoom the map is already at.</p></TooltipContent>
                                 </Tooltip>
-                                <div className="flex items-center gap-1">
-                                    <DraftBoundInput
-                                        value={iteratorZoom ?? undefined}
-                                        onCommit={(v) => setIteratorZoom(v ?? null)}
-                                        placeholder="Current"
-                                        className="h-7 w-16 text-xs text-right bg-transparent border rounded"
-                                        step={0.5}
-                                    />
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7 shrink-0 cursor-pointer"
-                                                onClick={() => setIteratorZoom(mapRef.current?.getMap()?.getZoom() ?? null)}
-                                            >
-                                                <Target className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent><p>Set to the map's current zoom</p></TooltipContent>
-                                    </Tooltip>
-                                </div>
+                                <DraftBoundInput
+                                    value={iteratorZoom ?? undefined}
+                                    onCommit={(v) => setIteratorZoom(v ?? null)}
+                                    placeholder="Current"
+                                    className="h-7 w-12 px-1 text-xs text-right bg-transparent border rounded"
+                                    step={0.5}
+                                />
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 shrink-0 cursor-pointer"
+                                            onClick={() => setIteratorZoom(mapRef.current?.getMap()?.getZoom() ?? null)}
+                                        >
+                                            <Target className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>Set to the map's current zoom</p></TooltipContent>
+                                </Tooltip>
                             </div>
                         </div>
                     )}
