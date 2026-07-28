@@ -57,9 +57,10 @@ import { tellsProtocol } from '@/lib/tells-protocol'
 import { normalsProtocol } from '@/lib/normals-protocol'
 import { matcapProtocol } from '@/lib/matcap-protocol'
 import { phongProtocol } from '@/lib/phong-protocol'
+import { shadowProtocol } from '@/lib/shadow-protocol'
 import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource, ShadowSource } from "./LayersAndSources/MapSources"
 import { PhongLiveGlLayer } from "./LayersAndSources/PhongLiveGlLayer"
 import { MatcapLiveGlLayer } from "./LayersAndSources/MatcapLiveGlLayer"
 import {
@@ -70,6 +71,7 @@ import {
   HillshadeLayer,
   MatcapRasterLayer,
   PhongRasterLayer,
+  ShadowRasterLayer,
   ColorReliefLayer,
   SlopeReliefLayer,
   AspectReliefLayer,
@@ -247,6 +249,16 @@ export const QUERY_STATE_PARSERS = {
     // meaningful outside "globe" view mode; see lighting-effects-options-
     // section.tsx for the UI toggle exposing this trade-off directly.
     phongRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("raster"),
+    // "Shadows" sub-mode (lib/shadow-protocol.ts) — a plain binary raster
+    // mask: for each pixel, marches toward the sun's actual azimuth
+    // (state.illuminationDir/illuminationAlt below — same shared light as
+    // Hillshade/Phong, no separate light control here) and darkens it if
+    // something between it and the sun rises above the sun's own altitude.
+    showShadows: parseAsBoolean.withDefault(false),
+    shadowOpacity: parseAsFloat.withDefault(0.6),
+    // "Search Radius" — same convention as SVF/Openness: how many same-zoom
+    // pixels the single ray marches outward looking for an obstruction.
+    shadowRadiusPx: parseAsFloat.withDefault(32),
     // "Datetime-based" light: when on, illuminationDir/illuminationAlt are
     // driven from a physically-plausible sun position (see lib/solar-position.ts)
     // computed from the viewport-center lat/lng + these day-of-year (1–365) and
@@ -921,7 +933,7 @@ export function TerrainViewer() {
       "showLightingEffects", "showReliefVisualization", "showTerrainAnalysis",
     ] as const
     const VIZ_SUBMODES = [
-      "showMatcap", "showPhong",
+      "showMatcap", "showPhong", "showShadows",
       "showLrm", "showSvf", "showOpenness", "showLocalDominance",
       "showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showShapeIndex",
       "showBlobness", "showEigenRatio", "showOrientation",
@@ -1047,6 +1059,7 @@ export function TerrainViewer() {
     // layer with its own mesh/projection matrix.
     maplibregl.addProtocol('matcap', withTileResultCache(matcapProtocol))
     maplibregl.addProtocol('phong', withTileResultCache(phongProtocol))
+    maplibregl.addProtocol('shadow', withTileResultCache(shadowProtocol))
   }, [])
 
   // Keep the module-level cache flag in sync with the persisted Settings switch
@@ -1653,6 +1666,11 @@ export function TerrainViewer() {
   const phongRasterLightDebounceMs = state.phongRenderer === "raster" ? 150 : 0
   const phongLightDir = useDebouncedValue(state.illuminationDir, phongRasterLightDebounceMs)
   const phongLightAlt = useDebouncedValue(state.illuminationAlt, phongRasterLightDebounceMs)
+  // Shadows has no "live" renderer variant — always tile-based, so always
+  // debounced (same 150ms as Phong's own raster path), regardless of what
+  // phongRenderer happens to be set to.
+  const shadowLightDir = useDebouncedValue(state.illuminationDir, 150)
+  const shadowLightAlt = useDebouncedValue(state.illuminationAlt, 150)
 
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
@@ -2006,6 +2024,17 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
+          <ShadowSource
+            enabled={state.showLightingEffects && state.showShadows}
+            lightDir={shadowLightDir}
+            lightAlt={shadowLightAlt}
+            radiusPx={state.shadowRadiusPx}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
           {isPrimary && (
             <TellsSource
               enabled={state.tellsBeta && tellsEverActivated}
@@ -2088,6 +2117,10 @@ export function TerrainViewer() {
           <PhongRasterLayer
             enabled={state.showLightingEffects && state.showPhong && state.phongRenderer === "raster"}
             opacity={state.lightingEffectsOpacity * state.phongOpacity}
+          />
+          <ShadowRasterLayer
+            enabled={state.showLightingEffects && state.showShadows}
+            opacity={state.lightingEffectsOpacity * state.shadowOpacity}
           />
           <HillshadeLayer
             showHillshade={state.showHillshade}
@@ -2249,6 +2282,7 @@ export function TerrainViewer() {
       state.showMatcap, state.matcapOpacity, state.matcapTextureId, state.matcapRotationDeg, state.matcapRenderer, state.matcapLightRelativeToCamera,
       state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongLightRelativeToCamera, state.phongRenderer,
       phongLightDir, phongLightAlt,
+      state.showShadows, state.shadowOpacity, state.shadowRadiusPx, shadowLightDir, shadowLightAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness,
       state.showShapeIndex, state.showBlobness, state.showEigenRatio, state.showOrientation,

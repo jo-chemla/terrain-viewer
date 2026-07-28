@@ -239,6 +239,33 @@ export const LightingEffectsOptionsSection: React.FC<{
             </div>
           )}
         </div>
+
+        {/* ─── Shadows sub-mode ─── */}
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="lighting-shadows"
+            label="Shadows"
+            tooltip="Hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light. Shares Phong/Hillshade's light direction, no separate control here."
+            checked={state.showShadows}
+            onCheckedChange={(checked) => setState({ showShadows: checked })}
+            sliderValue={state.shadowOpacity}
+            onSliderChange={(value) => setState({ shadowOpacity: value })}
+          />
+          {state.showShadows && (
+            <div className="space-y-3 pl-1">
+              <SliderControl
+                label="Search Radius (px)"
+                value={state.shadowRadiusPx}
+                onChange={(v) => setState({ shadowRadiusPx: v })}
+                min={2} max={64} step={1}
+                sliderId="shadow-radius"
+              />
+              <p className="text-xs text-muted-foreground">
+                Uses the same light direction as Phong/Hillshade below — open Phong's Light Direction to change it.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </Section>
   )

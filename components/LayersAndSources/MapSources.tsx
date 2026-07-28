@@ -30,6 +30,7 @@ import { buildLocalDominanceProtocolUrl } from "@/lib/local-dominance-protocol"
 import { buildTellsProtocolUrl, type TellsOptions } from "@/lib/tells-protocol"
 import { buildMatcapProtocolUrl } from "@/lib/matcap-protocol"
 import { buildPhongProtocolUrl } from "@/lib/phong-protocol"
+import { buildShadowProtocolUrl } from "@/lib/shadow-protocol"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -1004,6 +1005,37 @@ export const PhongSource = memo(({
     )
 })
 PhongSource.displayName = "PhongSource"
+
+export const ShadowSource = memo(({
+    enabled, lightDir, lightAlt, radiusPx, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
+}: {
+    enabled: boolean
+    lightDir: number
+    lightAlt: number
+    radiusPx: number
+    terrainSource: TerrainSource | string
+    customTerrainSources: CustomTerrainSource[]
+    mapboxKey: string
+    maptilerKey: string
+    titilerEndpoint: string
+}) => {
+    const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
+    if (!enabled || !clientUpstream) return null
+    const url = buildShadowProtocolUrl(lightDir, lightAlt, radiusPx, clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize)
+    return (
+        <Source
+            id="shadowSource"
+            key={`shadowSource-${terrainSource}-${clientUpstream.template}`}
+            type="raster"
+            tiles={[url]}
+            tileSize={clientUpstream.tileSize}
+            // See the matching comment on MatcapSource above.
+            minzoom={clientUpstream.minzoom ?? 0}
+            maxzoom={clientUpstream.maxzoom ?? 20}
+        />
+    )
+})
+ShadowSource.displayName = "ShadowSource"
 
 // ─── Tells (archaeological mound candidate) source ─────────────────────────────
 //

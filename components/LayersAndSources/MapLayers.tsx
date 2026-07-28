@@ -27,6 +27,7 @@ export const LAYER_SLOTS = {
   HILLSHADE: "slot-hillshade",
   MATCAP: "slot-matcap",
   PHONG: "slot-phong",
+  SHADOWS: "slot-shadows",
   CONTOURS: "slot-contours",
   TELLS: "slot-tells",
   PLANE_SLICER: "slot-plane-slicer",
@@ -56,6 +57,7 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.HILLSHADE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.MATCAP}      type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.PHONG}       type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.SHADOWS}     type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.TELLS}       type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.PLANE_SLICER}type="background" paint={{ "background-opacity": 0 }} />
@@ -235,6 +237,24 @@ export const PhongRasterLayer = memo(({ enabled, opacity }: { enabled: boolean; 
   )
 })
 PhongRasterLayer.displayName = "PhongRasterLayer"
+
+// Cast shadows — plain binary (in-shadow/lit) raster tile from
+// lib/shadow-protocol.ts, draped the same automatic way every other derived
+// mode here is. Opacity is the only "how dark" control since the tile itself
+// is already a flat 0/255-alpha mask, not a gradient.
+export const ShadowRasterLayer = memo(({ enabled, opacity }: { enabled: boolean; opacity: number }) => {
+  if (!enabled) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.SHADOWS}
+      id="shadow-terrain"
+      type="raster"
+      source="shadowSource"
+      paint={{ "raster-opacity": opacity, "raster-resampling": "linear", "raster-fade-duration": 0 }}
+    />
+  )
+})
+ShadowRasterLayer.displayName = "ShadowRasterLayer"
 
 // Color Relief Layer — Hypsometric Tint
 export const ColorReliefLayer = memo(
