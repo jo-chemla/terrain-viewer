@@ -18,21 +18,94 @@
 // per-tile `u_matrix` approach used before only handled mercator, which is why
 // globe used to be unavailable for "2D Fast".
 //
-// Still FLAT (no terrain drape) by design: a prior attempt at draping a
-// custom-layer mesh onto MapLibre's OWN elevated terrain surface
-// (projectTileFor3D + a hand-built elevation buffer) never reliably matched
-// that surface and was abandoned; deep-diving MapLibre's actual render
-// internals since confirmed there is no public hook for a `type: "custom"`
-// layer to participate in MapLibre's terrain-drape/RenderToTexture pipeline
-// at all (see project memory). So: correct and instant in flat 2D, tilted-3D-
-// without-terrain-elevation, and globe, but renders as a flat plane (not
-// draped) if terrain elevation is active — that's the explicit speed/
-// correctness trade this "Fast" mode offers, with lib/phong-protocol.ts's
-// raster pipeline remaining the "Accurate" (terrain-draped) alternative.
+// NOW DRAPES onto MapLibre's own terrain surface. A prior attempt at this
+// (projectTileFor3D + a hand-built elevation buffer sourced independently of
+// MapLibre's own DEM texture) never reliably matched that surface and was
+// abandoned; deep-diving MapLibre's actual render internals at the time
+// concluded there was no hook for a `type: "custom"` layer to participate in
+// terrain-drape at all. Revisited following github.com/maplibre/maplibre-gl-js
+// discussion #5293 (kubapelc's pointer): `map.terrain.getTerrainData(tileID)`
+// hands back the EXACT SAME DEM texture + uniforms (`u_terrain*`) MapLibre's
+// own `terrain.vertex.glsl` shader reads, and the `get_elevation(vec2)` GLSL
+// function that shader calls to sample them — along with `projectTileFor3D`,
+// already used here for globe — is plain source shipped in the npm package's
+// `src/shaders/_prelude.vertex.glsl` (only its `#ifdef TERRAIN3D` block is
+// reproduced below as TERRAIN_PRELUDE; not exported as a JS string, but not
+// hidden either — legitimate to copy since it's the same public dependency
+// this project already has installed). `map.terrain` itself has no public
+// TS type (hence the local MapTerrainLike cast below), but `Terrain.
+// getTerrainData` is a fully public, documented method in maplibre-gl's own
+// .d.ts — this is an internal-but-stable hook, not a private hack.
+//
+// One shader path handles BOTH terrain-on and terrain-off: get_elevation()
+// always runs, but when no terrain is active render() binds a flat fallback
+// (1×1 zero DEM texture + identity matrix, see FLAT_FALLBACK below) that
+// makes it return 0 everywhere — collapsing to exactly the old flat
+// behavior, so 2D/tilted-3D-without-terrain/globe-without-terrain are
+// unaffected. Tile selection stays on the existing `map.coveringTiles()` (not
+// `map.terrain.sourceCache.getRenderableTiles()`, which a previous public
+// attempt at this same technique reported duplicate/overlapping coverage
+// from) — `getTerrainData()` resolves whatever DEM tile actually covers a
+// given tileID itself (including overzoom), so it doesn't need our tile
+// selection to match the terrain source's own tile pyramid.
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap, OverscaledTileID } from "maplibre-gl"
 import { createTileMesh } from "maplibre-gl"
 import { computeNormalPixels } from "./normals-protocol"
 import type { UpstreamEncoding } from "./normal-derived-protocol"
+
+/** Shape of the real (but publicly untyped) `map.terrain` property — mirrors
+ *  maplibre-gl's own `TerrainData` return shape for `getTerrainData()`. */
+interface MapTerrainLike {
+  exaggeration: number
+  getTerrainData(tileID: OverscaledTileID): {
+    u_terrain_dim: number
+    u_terrain_matrix: number[]
+    u_terrain_unpack: number[]
+    u_terrain_exaggeration: number
+    texture: WebGLTexture
+  }
+}
+
+// The `#ifdef TERRAIN3D` block of maplibre-gl's own
+// src/shaders/_prelude.vertex.glsl, trimmed to just get_elevation() and its
+// dependencies (the depth-texture/occlusion half of that file, u_depth +
+// calculate_visibility, isn't needed here — this layer doesn't do
+// behind-terrain occlusion). TERRAIN3D is unconditionally defined (not tied
+// to whether terrain is actually active) since the flat-fallback trick above
+// makes get_elevation() safe to call either way. The `#ifdef GLOBE` pole
+// guard is kept as-is — GLOBE is defined (or not) by shaderData.define,
+// which is spliced in immediately before this block, so the guard sees the
+// right value for the active projection variant.
+const TERRAIN_PRELUDE = `
+uniform sampler2D u_terrain;
+uniform float u_terrain_dim;
+uniform mat4 u_terrain_matrix;
+uniform vec4 u_terrain_unpack;
+uniform float u_terrain_exaggeration;
+
+float ele(vec2 pos) {
+  vec4 rgb = (texture(u_terrain, pos) * 255.0) * u_terrain_unpack;
+  return rgb.r + rgb.g + rgb.b - u_terrain_unpack.a;
+}
+
+float get_elevation(vec2 pos) {
+#ifdef GLOBE
+  if ((pos.y < -32767.5) || (pos.y > 32766.5)) {
+    return 0.0;
+  }
+#endif
+  vec2 coord = (u_terrain_matrix * vec4(pos, 0.0, 1.0)).xy * u_terrain_dim + 1.0;
+  vec2 f = fract(coord);
+  vec2 c = (floor(coord) + 0.5) / (u_terrain_dim + 2.0);
+  float d = 1.0 / (u_terrain_dim + 2.0);
+  float tl = ele(c);
+  float tr = ele(c + vec2(d, 0.0));
+  float bl = ele(c + vec2(0.0, d));
+  float br = ele(c + vec2(d, d));
+  float elevation = mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);
+  return elevation * u_terrain_exaggeration;
+}
+`
 
 export type PhongLiveOptions = {
   upstreamTemplate: string
@@ -74,12 +147,13 @@ function buildVertexShader(prelude: string, define: string): string {
   return `#version 300 es
 ${prelude}
 ${define}
+${TERRAIN_PRELUDE}
 in vec2 a_pos;
 out vec2 v_uv;
 const float TILE_EXTENT = 8192.0;
 void main() {
   v_uv = a_pos / TILE_EXTENT;
-  gl_Position = projectTile(a_pos);
+  gl_Position = projectTileFor3D(a_pos, get_elevation(a_pos));
 }
 `
 }
@@ -177,6 +251,11 @@ interface ProgramBundle {
   uSpecularStrength: WebGLUniformLocation | null
   uExaggeration: WebGLUniformLocation | null
   uOpacity: WebGLUniformLocation | null
+  uTerrain: WebGLUniformLocation | null
+  uTerrainDim: WebGLUniformLocation | null
+  uTerrainMatrix: WebGLUniformLocation | null
+  uTerrainUnpack: WebGLUniformLocation | null
+  uTerrainExaggeration: WebGLUniformLocation | null
 }
 
 interface TextureEntry {
@@ -206,6 +285,13 @@ export class PhongLiveLayer implements CustomLayerInterface {
   private disposed = false
   private loggedError = false
   private loggedFetchError = false
+  // 1×1 all-zero DEM texture + identity matrix bound whenever terrain isn't
+  // active (or a tile's real DEM isn't loaded yet) — makes get_elevation()
+  // return 0 uniformly, i.e. exactly the old flat behavior, with no separate
+  // shader variant needed for the terrain-off case.
+  private flatTerrainTexture: WebGLTexture | null = null
+  private static readonly FLAT_TERRAIN_MATRIX = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+  private static readonly FLAT_TERRAIN_UNPACK = [0, 0, 0, 0]
 
   constructor(id: string, options: PhongLiveOptions) {
     this.id = id
@@ -249,6 +335,14 @@ export class PhongLiveLayer implements CustomLayerInterface {
     this.indexType = mesh.uses32bitIndices ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT
     this.indexCount = mesh.indices.byteLength / (mesh.uses32bitIndices ? 4 : 2)
     gl.bindVertexArray(null)
+
+    this.flatTerrainTexture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, this.flatTerrainTexture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]))
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
   }
 
   onRemove(_map: MapLibreMap, gl: WebGL2RenderingContext) {
@@ -258,6 +352,8 @@ export class PhongLiveLayer implements CustomLayerInterface {
     this.pending.clear()
     for (const bundle of this.programs.values()) gl.deleteProgram(bundle.program)
     this.programs.clear()
+    if (this.flatTerrainTexture) gl.deleteTexture(this.flatTerrainTexture)
+    this.flatTerrainTexture = null
     if (this.vao) gl.deleteVertexArray(this.vao)
     this.vao = null
     this.gl = null
@@ -284,6 +380,11 @@ export class PhongLiveLayer implements CustomLayerInterface {
       uSpecularStrength: gl.getUniformLocation(program, "u_specularStrength"),
       uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
       uOpacity: gl.getUniformLocation(program, "u_opacity"),
+      uTerrain: gl.getUniformLocation(program, "u_terrain"),
+      uTerrainDim: gl.getUniformLocation(program, "u_terrain_dim"),
+      uTerrainMatrix: gl.getUniformLocation(program, "u_terrain_matrix"),
+      uTerrainUnpack: gl.getUniformLocation(program, "u_terrain_unpack"),
+      uTerrainExaggeration: gl.getUniformLocation(program, "u_terrain_exaggeration"),
     }
     this.programs.set(shaderData.variantName, bundle)
     return bundle
@@ -397,6 +498,14 @@ export class PhongLiveLayer implements CustomLayerInterface {
       gl.uniform1f(bundle.uOpacity, this.options.opacity)
       gl.activeTexture(gl.TEXTURE0)
 
+      // The real Terrain instance MapLibre's own terrain rendering uses —
+      // has no public TS type (see MapTerrainLike above), so this is
+      // undefined/null (not an error) whenever 3D terrain elevation isn't
+      // active, in which case every tile below binds the flat fallback
+      // instead and get_elevation() returns 0 uniformly.
+      const terrain = (map as unknown as { terrain?: MapTerrainLike }).terrain
+      gl.uniform1i(bundle.uTerrain, 1)
+
       for (const tileID of tileIDs) {
         const key = tileID.key
         const entry = this.textures.get(key)
@@ -418,6 +527,29 @@ export class PhongLiveLayer implements CustomLayerInterface {
         gl.uniform4f(bundle.uProjectionClippingPlane, p.clippingPlane[0], p.clippingPlane[1], p.clippingPlane[2], p.clippingPlane[3])
         gl.uniform1f(bundle.uProjectionTransition, p.projectionTransition)
         gl.uniformMatrix4fv(bundle.uProjectionFallbackMatrix, false, p.fallbackMatrix)
+
+        // Same DEM texture + uniforms MapLibre's own terrain.vertex.glsl reads
+        // for this exact tile (see this file's header comment) — get_elevation()
+        // in TERRAIN_PRELUDE samples them identically, so the mesh displaces
+        // onto the SAME surface MapLibre's native terrain rendering computes,
+        // no independently-fetched/meshed DEM involved.
+        gl.activeTexture(gl.TEXTURE1)
+        if (terrain) {
+          const td = terrain.getTerrainData(tileID)
+          gl.bindTexture(gl.TEXTURE_2D, td.texture)
+          gl.uniform1f(bundle.uTerrainDim, td.u_terrain_dim)
+          gl.uniformMatrix4fv(bundle.uTerrainMatrix, false, td.u_terrain_matrix)
+          gl.uniform4fv(bundle.uTerrainUnpack, td.u_terrain_unpack)
+          gl.uniform1f(bundle.uTerrainExaggeration, td.u_terrain_exaggeration)
+        } else {
+          gl.bindTexture(gl.TEXTURE_2D, this.flatTerrainTexture)
+          gl.uniform1f(bundle.uTerrainDim, 1)
+          gl.uniformMatrix4fv(bundle.uTerrainMatrix, false, PhongLiveLayer.FLAT_TERRAIN_MATRIX)
+          gl.uniform4fv(bundle.uTerrainUnpack, PhongLiveLayer.FLAT_TERRAIN_UNPACK)
+          gl.uniform1f(bundle.uTerrainExaggeration, 1)
+        }
+
+        gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, entry.texture)
         gl.drawElements(gl.TRIANGLES, this.indexCount, this.indexType, 0)
       }
