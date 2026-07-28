@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useEffect } from "react"
 import { useAtom, useSetAtom, type PrimitiveAtom } from "jotai"
-import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown } from "lucide-react"
+import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -89,6 +89,39 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const { setTheme: setColorTheme } = useColorTheme()
   const [showThemeEditor, setShowThemeEditor] = useState(false)
   const setCustomThemes = useSetAtom(customThemesAtom)
+
+  // Fold-all/expand-all for the settings dialog's own sections — same idea as
+  // the sidebar's chevron button (TerrainControlPanel.tsx), just against N
+  // separate atomWithStorage atoms here instead of one combined open-state
+  // object, since each settings section persists independently.
+  const [isAppearanceOpen, setIsAppearanceOpen] = useAtom(isSettingsAppearanceOpenAtom)
+  const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useAtom(isSettingsKeyboardShortcutsOpenAtom)
+  const [isVisualizationModesOpen, setIsVisualizationModesOpen] = useAtom(isSettingsVisualizationModesOpenAtom)
+  const [isStreamingOpen, setIsStreamingOpen] = useAtom(isSettingsStreamingOpenAtom)
+  const [isStoragePersistenceOpen, setIsStoragePersistenceOpen] = useAtom(isSettingsStoragePersistenceOpenAtom)
+  const [isBetaOpen, setIsBetaOpen] = useAtom(isSettingsBetaOpenAtom)
+  const [isTellsDetectionOpen, setIsTellsDetectionOpen] = useAtom(isSettingsTellsDetectionOpenAtom)
+  const [isSunShadowOpen, setIsSunShadowOpen] = useAtom(isSettingsSunShadowOpenAtom)
+  const [isApiKeysOpen, setIsApiKeysOpen] = useAtom(isSettingsApiKeysOpenAtom)
+  const [isMapBoundsOpen, setIsMapBoundsOpen] = useAtom(isSettingsMapBoundsOpenAtom)
+  const [isSaveProjectOpen, setIsSaveProjectOpen] = useAtom(isSettingsSaveProjectOpenAtom)
+  const [isResourcesOpen, setIsResourcesOpen] = useAtom(isSettingsResourcesOpenAtom)
+  const [isGeomorphometryOpen, setIsGeomorphometryOpen] = useAtom(isSettingsGeomorphometryOpenAtom)
+  const settingsSectionOpenStates = [
+    isAppearanceOpen, isKeyboardShortcutsOpen, isVisualizationModesOpen, isStreamingOpen,
+    isStoragePersistenceOpen, isBetaOpen, isTellsDetectionOpen, isSunShadowOpen,
+    isApiKeysOpen, isMapBoundsOpen, isSaveProjectOpen, isResourcesOpen, isGeomorphometryOpen,
+  ]
+  const settingsSectionSetters = [
+    setIsAppearanceOpen, setIsKeyboardShortcutsOpen, setIsVisualizationModesOpen, setIsStreamingOpen,
+    setIsStoragePersistenceOpen, setIsBetaOpen, setIsTellsDetectionOpen, setIsSunShadowOpen,
+    setIsApiKeysOpen, setIsMapBoundsOpen, setIsSaveProjectOpen, setIsResourcesOpen, setIsGeomorphometryOpen,
+  ]
+  const allSettingsFolded = settingsSectionOpenStates.every((open) => !open)
+  const handleFoldExpandAllSettings = () => {
+    const next = allSettingsFolded
+    settingsSectionSetters.forEach((setter) => setter(next))
+  }
   // The theme-editor package has no built-in preset library (see README) — this
   // just hands its "Load Preset" picker off to the same setter ColorThemeSelect
   // uses. That flips this app's own data-theme attribute, which the editor's
@@ -255,7 +288,14 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           if (target?.closest?.(".tec-panel")) e.preventDefault()
         }}
       >
-        <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
+        <div className="absolute top-4 right-4 flex items-center gap-1">
+          <TooltipIconButton
+            icon={allSettingsFolded ? ChevronsUpDown : ChevronsDownUp}
+            tooltip={allSettingsFolded ? "Expand all sections" : "Fold all sections"}
+            onClick={handleFoldExpandAllSettings}
+          />
+          <DialogClose className="cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
+        </div>
         <DialogHeader>
           <DialogTitle>Settings & Resources</DialogTitle>
           <DialogDescription>Configure API keys, application settings, and explore related resources</DialogDescription>
