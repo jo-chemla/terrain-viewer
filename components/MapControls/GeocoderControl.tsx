@@ -37,7 +37,11 @@ type GeocoderControlProps = Omit<MaplibreGeocoderOptions, 'maplibregl' | 'marker
 function formatLatLng(lat: number, lng: number): string {
   const ns = lat < 0 ? 'S' : 'N';
   const ew = lng < 0 ? 'W' : 'E';
-  return `${Math.abs(lat)}°${ns} ${Math.abs(lng)}°${ew}`;
+  // Clamped to 6dp — plenty for sub-meter precision, and keeps a DMS-derived
+  // value (e.g. 35.799683333333334 from 35°47'58.86") from spilling a long
+  // float tail into the result label.
+  const round6 = (v: number) => Math.round(Math.abs(v) * 1e6) / 1e6;
+  return `${round6(lat)}°${ns} ${round6(lng)}°${ew}`;
 }
 
 // One "12.34", "12.34°N", "12.34 N" (decimal), or "35°47'58.86\"N" (DMS)
