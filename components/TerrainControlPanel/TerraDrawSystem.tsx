@@ -1238,6 +1238,17 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [visible, setVisible] = useState(true)
     const [opacity, setOpacity] = useState(1)
+    // Surfaced under the Import/Export/Clear row — picking a file that isn't
+    // actually GeoJSON/KML (e.g. a bookmarks export, which also ends in
+    // .json) used to fail completely silently: the reader's try/catch only
+    // console.error'd, so nothing visible told you the import didn't work.
+    const [importError, setImportError] = useState<string | null>(null)
+    const importErrorTimer = useRef<NodeJS.Timeout | null>(null)
+    const reportImportError = (message: string) => {
+        if (importErrorTimer.current) clearTimeout(importErrorTimer.current)
+        setImportError(message)
+        importErrorTimer.current = setTimeout(() => setImportError(null), 6000)
+    }
 
     const getMap = () => mapRef.current?.getMap()
 
@@ -1263,21 +1274,35 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
         const file = event.target.files?.[0]
         if (!file) return
         const ext = file.name.split('.').pop()?.toLowerCase()
+        setImportError(null)
 
         // Each import lands in its own new layer named after the file, rather than
         // whatever layer happened to be selected — that made multi-file imports
         // (or importing without first remembering to create/pick a layer) dump
-        // everything into one layer by default.
+        // everything into one layer by default. Only actually created once we
+        // know the file produced real features (below) — otherwise a bad file
+        // used to leave a phantom empty layer behind.
         const importLayer = makeLayer(layers.length, file.name.replace(/\.[^./]+$/, '') || file.name)
-        setLayers((prev) => [...prev, importLayer])
-        setActiveLayerId(importLayer.id)
 
         const reader = new FileReader()
         const handleGeojson = (geojson: any) => {
+            // The file picker accepts a bare .json extension (for plain GeoJSON
+            // without a .geojson extension), which also matches unrelated exports
+            // like a bookmarks JSON — turf_truncate's own "Unknown Geometry Type"
+            // on anything that isn't shaped like GeoJSON is accurate but opaque,
+            // so check the obvious shape first and fail with a message that
+            // actually says what's wrong.
+            if (!geojson || (geojson.type !== 'FeatureCollection' && geojson.type !== 'Feature')) {
+                throw new Error(`"${file.name}" doesn't look like GeoJSON (expected a Feature or FeatureCollection) — wrong file selected?`)
+            }
             const truncated = turf_truncate(geojson, { precision: 6, coordinates: 2 })
             const raw = truncated.type === 'FeatureCollection' ? truncated.features : [truncated]
             const newFeatures = parseFeatures(raw, importLayer.id)
-            if (newFeatures.length === 0) return
+            if (newFeatures.length === 0) {
+                throw new Error(`"${file.name}" has no importable features.`)
+            }
+            setLayers((prev) => [...prev, importLayer])
+            setActiveLayerId(importLayer.id)
             track("tools-drawing", { action: "import", features: newFeatures.length, format: ext })
 
             // Accumulate on top of whatever's already drawn/imported instead of
@@ -1553,7 +1578,10 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
                     const xml = new DOMParser().parseFromString(e.target?.result as string, 'text/xml')
                     const geojson = toGeoJSON.kml(xml)
                     handleGeojson(geojson)
-                } catch (err) { console.error('KML import error:', err) }
+                } catch (err) {
+                    console.error('KML import error:', err)
+                    reportImportError(err instanceof Error ? err.message : `Failed to import "${file.name}".`)
+                }
             }
             reader.readAsText(file)
         } else {
@@ -1562,7 +1590,10 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
                 try {
                     const geojson = JSON.parse(e.target?.result as string)
                     handleGeojson(geojson)
-                } catch (err) { console.error('Import error:', err) }
+                } catch (err) {
+                    console.error('Import error:', err)
+                    reportImportError(err instanceof Error ? err.message : `Failed to import "${file.name}".`)
+                }
             }
             reader.readAsText(file)
         }
@@ -1602,6 +1633,9 @@ export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; map
             <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml" onChange={importFile} className="hidden" />
             {/* <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml,.gpkg" onChange={importFile} className="hidden" /> */}
             {/* <input ref={fileInputRef} type="file" accept=".geojson,.json" onChange={importGeoJSON} className="hidden" /> */}
+            {importError && (
+                <p className="text-xs text-destructive">{importError}</p>
+            )}
         </div>
     )
 }

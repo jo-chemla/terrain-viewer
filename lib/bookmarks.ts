@@ -12,8 +12,10 @@
 // already the active one skips re-applying the (identical) viewport fields —
 // see restoreBookmark.
 
+import type React from "react"
 import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
+import type { MapRef } from "react-map-gl/maplibre"
 import { QUERY_STATE_PARSERS } from "@/components/TerrainViewer"
 
 export interface Bookmark {
@@ -73,17 +75,40 @@ function parseBookmarkSearch(search: string): Record<string, unknown> {
 /** Applies a bookmark's saved state in place via nuqs's own setState — no SPA
  *  reload, unlike the earlier version of this function. A child bookmark
  *  restored while its parent project is already active drops the viewport
- *  keys from the patch first (see VIEWPORT_KEYS) so the camera stays put. */
+ *  keys from the patch first (see VIEWPORT_KEYS) so the camera stays put.
+ *
+ *  setState alone is NOT enough to move the camera, though: TerrainViewer's
+ *  <Map> only reads lat/lng/zoom/pitch/bearing once, as `initialViewState` —
+ *  after mount the state fields are downstream of the map's own onMove
+ *  handler (committed there on a debounce), not an input that drives it. The
+ *  old page-reload version of this function got away with that because a
+ *  reload remounts the map fresh against the just-updated URL; restoring in
+ *  place has to explicitly ease the camera there itself instead. */
 export function restoreBookmark(
   bookmark: Bookmark,
   setState: (updates: Record<string, unknown>) => void,
   activeProjectId: string | null,
   setActiveProjectId: (id: string | null) => void,
   setActiveBookmarkId: (id: string | null) => void,
+  mapRef?: React.RefObject<MapRef>,
 ) {
   const patch = parseBookmarkSearch(bookmark.search)
-  if (bookmark.parentId && bookmark.parentId === activeProjectId) {
+  const isChildOfActiveProject = !!bookmark.parentId && bookmark.parentId === activeProjectId
+  if (isChildOfActiveProject) {
     for (const key of VIEWPORT_KEYS) delete patch[key]
+  } else {
+    const map = mapRef?.current?.getMap()
+    if (map) {
+      // Split-screen's own onMove sync (TerrainViewer.tsx's onMoveA/onMoveB)
+      // mirrors this onto the secondary map — no need to touch it here too.
+      map.easeTo({
+        center: [patch.lng as number, patch.lat as number],
+        zoom: patch.zoom as number,
+        bearing: patch.bearing as number,
+        pitch: patch.pitch as number,
+        duration: 800,
+      })
+    }
   }
   setState(patch)
   setActiveProjectId(bookmark.parentId ?? bookmark.id)

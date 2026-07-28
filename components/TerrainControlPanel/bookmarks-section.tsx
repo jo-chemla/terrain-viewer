@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, TooltipButton, TooltipIconButton } from "./controls-components"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useIsTruncated } from "@/hooks/use-is-truncated"
 import {
   bookmarksAtom, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, restoreBookmark, exportBookmarksJson,
   mergeImportedBookmarks, formatBookmarkDate, summarizeActiveVizModes, type Bookmark,
@@ -15,6 +16,106 @@ import {
 import { reverseGeocodeLabel } from "@/lib/geocode"
 import { captureBookmarkThumbnail } from "@/lib/controls-utils"
 import { BookmarksGalleryModal } from "./bookmarks-gallery-modal"
+
+const BookmarkRow: React.FC<{
+  bookmark: Bookmark
+  isChild: boolean
+  isReferenceProject: boolean
+  isActive: boolean
+  editId: string | null
+  editName: string
+  isSaving: boolean
+  onRestore: (b: Bookmark) => void
+  onStartEdit: (b: Bookmark) => void
+  onEditNameChange: (name: string) => void
+  onCommitRename: () => void
+  onCancelEdit: () => void
+  onSaveChild: (id: string) => void
+  onDelete: (id: string) => void
+}> = ({
+  bookmark: b, isChild, isReferenceProject, isActive, editId, editName, isSaving,
+  onRestore, onStartEdit, onEditNameChange, onCommitRename, onCancelEdit, onSaveChild, onDelete,
+}) => {
+  const [nameRef, isNameTruncated] = useIsTruncated<HTMLDivElement>()
+
+  const nameButton = (
+    <button className="flex-1 min-w-0 text-left cursor-pointer" onClick={() => onRestore(b)}>
+      <div ref={nameRef} className="text-sm truncate">{b.name}</div>
+      <div className="text-xs text-muted-foreground">{formatBookmarkDate(b.ts)}</div>
+    </button>
+  )
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 min-w-0 rounded-md border border-transparent p-0.5",
+        // Reference project (its own row, or the currently-loaded project when
+        // a child is active) — the one whose viewport a sibling/child restore
+        // won't disturb.
+        isReferenceProject && "ring-1 ring-primary/50",
+        // Exact bookmark last restored, project or child.
+        isActive && "border-primary p-1.5",
+        // Applied last so a child's indent always wins over the (all-sides)
+        // padding bump above — twMerge lets a later, more specific side
+        // utility (pl-4) override just that one side of an earlier shorthand.
+        isChild && "pl-4",
+      )}
+    >
+      <button
+        className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
+        onClick={() => onRestore(b)}
+        title="Load this view"
+      >
+        {b.thumb ? (
+          <img src={b.thumb} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+            <ImageOff className="h-3.5 w-3.5" />
+          </div>
+        )}
+      </button>
+      {editId === b.id ? (
+        <Input
+          autoFocus
+          value={editName}
+          onChange={(e) => onEditNameChange(e.target.value)}
+          onBlur={onCommitRename}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+            if (e.key === "Escape") onCancelEdit()
+          }}
+          className="h-8 flex-1 min-w-0 text-sm"
+        />
+      ) : isNameTruncated ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{nameButton}</TooltipTrigger>
+          <TooltipContent><p>{b.name}</p></TooltipContent>
+        </Tooltip>
+      ) : nameButton}
+      {!isChild && (
+        <TooltipIconButton
+          icon={Plus}
+          tooltip="Save current view as a child of this project"
+          onClick={() => onSaveChild(b.id)}
+          disabled={isSaving}
+          className="h-8 w-8 shrink-0"
+        />
+      )}
+      <TooltipIconButton
+        icon={Pencil}
+        tooltip="Rename"
+        onClick={() => onStartEdit(b)}
+        className="h-8 w-8 shrink-0"
+      />
+      <TooltipIconButton
+        icon={Trash2}
+        tooltip="Delete"
+        onClick={() => onDelete(b.id)}
+        className="h-8 w-8 shrink-0"
+      />
+    </div>
+  )
+}
 
 // Saved-view bookmarks — see lib/bookmarks.ts for the data model/restore
 // mechanism. This is the sidebar (1-column tree) half of the feature;
@@ -100,8 +201,8 @@ export const BookmarksSection: React.FC<{
   }, [editId, editName, handleRename])
 
   const handleRestore = useCallback((b: Bookmark) => {
-    restoreBookmark(b, setState, activeProjectId, setActiveProjectId, setActiveBookmarkId)
-  }, [setState, activeProjectId, setActiveProjectId, setActiveBookmarkId])
+    restoreBookmark(b, setState, activeProjectId, setActiveProjectId, setActiveBookmarkId, mapRef)
+  }, [setState, activeProjectId, setActiveProjectId, setActiveBookmarkId, mapRef])
 
   const handleExport = useCallback(() => {
     const blob = new Blob([exportBookmarksJson(bookmarks)], { type: "application/json" })
@@ -124,80 +225,6 @@ export const BookmarksSection: React.FC<{
       }
     })
   }, [setBookmarks])
-
-  const renderRow = (b: Bookmark, isChild: boolean) => (
-    <div
-      key={b.id}
-      className={cn(
-        "flex items-center gap-2 min-w-0 rounded-md border border-transparent p-0.5",
-        isChild && "pl-4",
-        // Reference project (its own row, or the currently-loaded project when
-        // a child is active) — the one whose viewport a sibling/child restore
-        // won't disturb.
-        !isChild && activeProjectId === b.id && "ring-1 ring-primary/50",
-        // Exact bookmark last restored, project or child.
-        activeBookmarkId === b.id && "border-primary p-1.5",
-      )}
-    >
-      <button
-        className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
-        onClick={() => handleRestore(b)}
-        title="Load this view"
-      >
-        {b.thumb ? (
-          <img src={b.thumb} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <ImageOff className="h-3.5 w-3.5" />
-          </div>
-        )}
-      </button>
-      {editId === b.id ? (
-        <Input
-          autoFocus
-          value={editName}
-          onChange={(e) => setEditName(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur()
-            if (e.key === "Escape") setEditId(null)
-          }}
-          className="h-8 flex-1 min-w-0 text-sm"
-        />
-      ) : (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button className="flex-1 min-w-0 text-left cursor-pointer" onClick={() => handleRestore(b)}>
-              <div className="text-sm truncate">{b.name}</div>
-              <div className="text-xs text-muted-foreground">{formatBookmarkDate(b.ts)}</div>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent><p>{b.name}</p></TooltipContent>
-        </Tooltip>
-      )}
-      {!isChild && (
-        <TooltipIconButton
-          icon={Plus}
-          tooltip="Save current view as a child of this project"
-          onClick={() => saveBookmark(b.id)}
-          disabled={isSaving}
-          className="h-8 w-8 shrink-0"
-        />
-      )}
-      <TooltipIconButton
-        icon={Pencil}
-        tooltip="Rename"
-        onClick={() => { setEditId(b.id); setEditName(b.name) }}
-        className="h-8 w-8 shrink-0"
-      />
-      <TooltipIconButton
-        icon={Trash2}
-        tooltip="Delete"
-        onClick={() => handleDelete(b.id)}
-        className="h-8 w-8 shrink-0"
-      />
-    </div>
-  )
 
   return (
     <Section title="Bookmarks" isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -224,8 +251,41 @@ export const BookmarksSection: React.FC<{
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {roots.map((project) => (
               <div key={project.id} className="space-y-1">
-                {renderRow(project, false)}
-                {childrenOf(project.id).map((child) => renderRow(child, true))}
+                <BookmarkRow
+                  bookmark={project}
+                  isChild={false}
+                  isReferenceProject={activeProjectId === project.id}
+                  isActive={activeBookmarkId === project.id}
+                  editId={editId}
+                  editName={editName}
+                  isSaving={isSaving}
+                  onRestore={handleRestore}
+                  onStartEdit={(bm) => { setEditId(bm.id); setEditName(bm.name) }}
+                  onEditNameChange={setEditName}
+                  onCommitRename={commitRename}
+                  onCancelEdit={() => setEditId(null)}
+                  onSaveChild={saveBookmark}
+                  onDelete={handleDelete}
+                />
+                {childrenOf(project.id).map((child) => (
+                  <BookmarkRow
+                    key={child.id}
+                    bookmark={child}
+                    isChild
+                    isReferenceProject={false}
+                    isActive={activeBookmarkId === child.id}
+                    editId={editId}
+                    editName={editName}
+                    isSaving={isSaving}
+                    onRestore={handleRestore}
+                    onStartEdit={(bm) => { setEditId(bm.id); setEditName(bm.name) }}
+                    onEditNameChange={setEditName}
+                    onCommitRename={commitRename}
+                    onCancelEdit={() => setEditId(null)}
+                    onSaveChild={saveBookmark}
+                    onDelete={handleDelete}
+                  />
+                ))}
               </div>
             ))}
           </div>
@@ -257,6 +317,7 @@ export const BookmarksSection: React.FC<{
         onClose={() => setIsGalleryOpen(false)}
         bookmarks={bookmarks}
         setState={setState}
+        mapRef={mapRef}
         onDelete={handleDelete}
         onRename={handleRename}
       />
