@@ -9,7 +9,10 @@ import { TriFields } from "./tri-options-section"
 import { CurvatureFields } from "./curvature-options-section"
 import { TpiFields } from "./tpi-options-section"
 import { RoughnessFields } from "./roughness-options-section"
+import { ShapeIndexFields } from "./shape-index-options-section"
 import { BlobnessFields } from "./blobness-options-section"
+import { EigenRatioFields } from "./eigen-ratio-options-section"
+import { OrientationFields } from "./orientation-options-section"
 
 // Half of what used to be one merged "Slope and More" panel — the first-/second-
 // order gradient-based modes (Surface derivatives) plus the neighborhood-statistic
@@ -120,6 +123,19 @@ export const TerrainAnalysisOptionsSection: React.FC<{
           {state.showRoughness && advanced && <RoughnessFields state={state} setState={setState} />}
         </div>
 
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="terrain-analysis-shape-index"
+            label="Shape Index"
+            tooltip="Koenderink & van Doorn's scale-free local shape descriptor, from the same principal curvatures as Casorati Curvature (see Surface derivatives): +1 dome/peak, +0.5 ridge, 0 saddle, −0.5 valley, −1 pit/bowl."
+            checked={state.showShapeIndex}
+            onCheckedChange={(checked) => setState({ showShapeIndex: checked })}
+            sliderValue={state.shapeIndexOpacity}
+            onSliderChange={(value) => setState({ shapeIndexOpacity: value })}
+          />
+          {state.showShapeIndex && advanced && <ShapeIndexFields state={state} setState={setState} />}
+        </div>
+
         <Separator />
         <GroupHeading>Principal Components</GroupHeading>
 
@@ -127,13 +143,39 @@ export const TerrainAnalysisOptionsSection: React.FC<{
           <CheckboxWithSlider
             id="terrain-analysis-blobness"
             label="Blobness"
-            tooltip="Structure-tensor (2D PCA of the local gradient field) measures — Blobness (shape × steepness), Eigenvalue Ratio (shape only), or Dominant Orientation (axis of a ridge/valley/fault line)."
+            tooltip="Structure-tensor (2D PCA of the local gradient field) measure — det/trace, conflating shape with steepness: high at peaks/pits/saddles, low on a uniform slope or straight ridge."
             checked={state.showBlobness}
             onCheckedChange={(checked) => setState({ showBlobness: checked })}
             sliderValue={state.blobnessOpacity}
             onSliderChange={(value) => setState({ blobnessOpacity: value })}
           />
           {state.showBlobness && advanced && <BlobnessFields state={state} setState={setState} />}
+        </div>
+
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="terrain-analysis-eigen-ratio"
+            label="Eigenvalue Ratio"
+            tooltip="λmin/λmax of the same structure tensor as Blobness — shape only, independent of steepness: 0 = coherent edge (slope, ridge, or valley), 100 = isotropic blob (peak/pit/saddle)."
+            checked={state.showEigenRatio}
+            onCheckedChange={(checked) => setState({ showEigenRatio: checked })}
+            sliderValue={state.eigenRatioOpacity}
+            onSliderChange={(value) => setState({ eigenRatioOpacity: value })}
+          />
+          {state.showEigenRatio && advanced && <EigenRatioFields state={state} setState={setState} />}
+        </div>
+
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="terrain-analysis-orientation"
+            label="Dominant Orientation"
+            tooltip="Axis (0-180°) of the structure tensor's dominant eigenvector — which way a linear feature (ridge, valley, fault line) runs. Most meaningful where Eigenvalue Ratio is low; closer to noise where it's high."
+            checked={state.showOrientation}
+            onCheckedChange={(checked) => setState({ showOrientation: checked })}
+            sliderValue={state.orientationOpacity}
+            onSliderChange={(value) => setState({ orientationOpacity: value })}
+          />
+          {state.showOrientation && advanced && <OrientationFields state={state} setState={setState} />}
         </div>
       </div>
     </Section>

@@ -120,7 +120,7 @@ export const CustomSourceDetails: React.FC<{
       <TooltipContent> <p>{isDisabledVrt ? "VRT only works in titiler streaming mode" : source.name}</p> </TooltipContent>
     </Tooltip>
 
-    {['cog', 'cog-local', 'vrt', 'tilejson'].includes(source.type) && (
+    {(['cog', 'cog-local', 'vrt', 'tilejson'].includes(source.type) || !!source.bounds) && (
       <Tooltip>
         <TooltipTrigger asChild>
           {/* force=true: this button always fits, unlike the label click above which

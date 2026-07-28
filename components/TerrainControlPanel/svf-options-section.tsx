@@ -4,7 +4,8 @@ import { RotateCcw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
+import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit, SegmentedToggle } from "./controls-components"
+import { FAST_NATIVE_RADIUS_PX, type HorizonPrecision } from "@/lib/horizon-angle"
 import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color-ramp"
 import { colorRampsClassic, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
@@ -72,6 +73,24 @@ export const SvfFields: React.FC<{
           customStops={customStops}
           customStopsDiscrete={isDiscrete}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">Precision</Label>
+        <SegmentedToggle
+          className="w-full"
+          value={(state.svfPrecision ?? "precise") as HorizonPrecision}
+          onChange={(value) => setState({ svfPrecision: value })}
+          options={[
+            { value: "precise" as HorizonPrecision, label: "Precise" },
+            { value: "fast" as HorizonPrecision, label: "Fast" },
+          ]}
+        />
+        <p className="text-xs text-muted-foreground">
+          Fast marches every pixel only out to {FAST_NATIVE_RADIUS_PX}px, then switches to
+          sampling the coarse tile pyramid for the rest of a larger radius — much cheaper, but
+          can slightly underestimate occlusion from a narrow, distant ridge.
+        </p>
       </div>
 
       <div className="space-y-2">

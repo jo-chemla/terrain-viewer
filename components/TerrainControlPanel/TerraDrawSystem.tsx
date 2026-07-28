@@ -935,18 +935,19 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
         }
     }
 
-    // D or Delete deletes the currently-framed feature; Left/Right steps to
-    // the previous/next one — active only while the iterator is open, and
-    // only when focus isn't in a text field (so typing a layer name or a "go
-    // to index" value doesn't get eaten). Capture phase + stopPropagation so
-    // Left/Right win over MapLibre's own arrow-key camera pan when the map
-    // canvas happens to have focus, rather than doing both at once.
+    // D or Delete deletes the currently-framed feature; Left/Right (or N for
+    // next) steps to the previous/next one — active only while the iterator
+    // is open, and only when focus isn't in a text field (so typing a layer
+    // name or a "go to index" value doesn't get eaten). Capture phase +
+    // stopPropagation so Left/Right win over MapLibre's own arrow-key camera
+    // pan when the map canvas happens to have focus, rather than doing both
+    // at once.
     useEffect(() => {
         if (!iteratorLayerId) return
         const handler = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement | null
             if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
-            if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); goToIteratorIndex(iteratorIndex + 1) }
+            if (e.key === 'ArrowRight' || e.key === 'n' || e.key === 'N') { e.preventDefault(); e.stopPropagation(); goToIteratorIndex(iteratorIndex + 1) }
             else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); goToIteratorIndex(iteratorIndex - 1) }
             else if (e.key === 'd' || e.key === 'D' || e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); deleteIteratorFeature() }
         }
@@ -1100,7 +1101,7 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                             {iteratorLayerId === layer.id ? <p>Stop Feature Iterator</p> : (
                                                 <p>
                                                     <span className="font-medium">Feature Iterator</span> — loop through this layer's features one at a time, auto-framing each on the map.<br />
-                                                    Use ←/→ (or the index field) to navigate, D to delete the current feature.
+                                                    Use ←/→ (N for next, or the index field) to navigate, D to delete the current feature.
                                                 </p>
                                             )}
                                         </TooltipContent>
@@ -1139,7 +1140,7 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                 <TooltipContent>
                                     <p>
                                         Loop through this layer's features one at a time, auto-framing each on the map.<br />
-                                        Use ←/→ (or the index field) to navigate, D to delete the current feature.
+                                        Use ←/→ (N for next, or the index field) to navigate, D to delete the current feature.
                                     </p>
                                 </TooltipContent>
                             </Tooltip>
@@ -1150,7 +1151,7 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                 <DraftBoundInput
                                     value={iteratorIndex + 1}
                                     onCommit={(v) => { if (v !== undefined) goToIteratorIndex(Math.round(v) - 1) }}
-                                    className="h-7 w-[5ch] px-1 text-center text-sm bg-transparent border rounded"
+                                    className="h-7 w-[8ch] px-1 text-center text-sm bg-transparent border rounded"
                                 />
                                 <span className="text-xs text-muted-foreground shrink-0">/{iteratorTotal}</span>
                                 <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex + 1)}>
@@ -1168,7 +1169,7 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                     value={iteratorZoom ?? undefined}
                                     onCommit={(v) => setIteratorZoom(v ?? null)}
                                     placeholder="Current"
-                                    className="h-7 w-[10ch] px-1 text-xs text-right bg-transparent border rounded"
+                                    className="h-7 w-[5ch] px-1 text-xs text-right bg-transparent border rounded"
                                     step={0.5}
                                 />
                                 <Tooltip>

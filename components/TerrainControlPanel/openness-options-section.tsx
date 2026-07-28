@@ -9,6 +9,7 @@ import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color
 import { colorRampsClassic, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
 import type { OpennessMode } from "@/lib/openness-protocol"
+import { FAST_NATIVE_RADIUS_PX, type HorizonPrecision } from "@/lib/horizon-angle"
 import { SlowTileProgress } from "./slow-tile-progress"
 
 function formatMeters(meters: number): string {
@@ -93,6 +94,24 @@ export const OpennessFields: React.FC<{
           customStops={customStops}
           customStopsDiscrete={isDiscrete}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">Precision</Label>
+        <SegmentedToggle
+          className="w-full"
+          value={(state.opennessPrecision ?? "precise") as HorizonPrecision}
+          onChange={(value) => setState({ opennessPrecision: value })}
+          options={[
+            { value: "precise" as HorizonPrecision, label: "Precise" },
+            { value: "fast" as HorizonPrecision, label: "Fast" },
+          ]}
+        />
+        <p className="text-xs text-muted-foreground">
+          Fast marches every pixel only out to {FAST_NATIVE_RADIUS_PX}px, then switches to
+          sampling the coarse tile pyramid for the rest of a larger radius — much cheaper, but
+          can slightly underestimate occlusion from a narrow, distant ridge.
+        </p>
       </div>
 
       <div className="space-y-2">

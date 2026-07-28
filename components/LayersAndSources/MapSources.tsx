@@ -22,9 +22,10 @@ import { buildCurvatureProtocolUrl, type CurvatureMode } from "@/lib/curvature-p
 import { buildTpiProtocolUrl } from "@/lib/tpi-protocol"
 import { buildRoughnessProtocolUrl } from "@/lib/roughness-protocol"
 import { buildLrmProtocolUrl } from "@/lib/lrm-protocol"
-import { buildBlobnessProtocolUrl, type BlobnessMode } from "@/lib/blobness-protocol"
+import { buildBlobnessProtocolUrl } from "@/lib/blobness-protocol"
 import { buildSvfProtocolUrl } from "@/lib/svf-protocol"
 import { buildOpennessProtocolUrl, type OpennessMode } from "@/lib/openness-protocol"
+import type { HorizonPrecision } from "@/lib/horizon-angle"
 import { buildLocalDominanceProtocolUrl } from "@/lib/local-dominance-protocol"
 import { buildTellsProtocolUrl, type TellsOptions } from "@/lib/tells-protocol"
 import { buildMatcapProtocolUrl } from "@/lib/matcap-protocol"
@@ -837,35 +838,70 @@ export const RoughnessSource = memo((props: Omit<NormalDerivedSourceProps, "sour
 ))
 RoughnessSource.displayName = "RoughnessSource"
 
-export const BlobnessSource = memo(({ mode, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { mode: BlobnessMode }) => (
+// Shape Index reuses the curvature:// protocol (see buildCurvatureProtocolUrl)
+// with its mode fixed rather than user-selectable — it moved out of Curvature's
+// own mode dropdown into its own standalone toggle (Neighborhood statistics),
+// so it needs its own sourceId to coexist with whatever mode the main
+// Curvature layer is showing at the same time.
+export const ShapeIndexSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
+    <NormalDerivedSource
+        {...props}
+        sourceId="shapeIndexSource"
+        buildUrl={(template, encoding, tileSize) => buildCurvatureProtocolUrl(template, encoding, tileSize, "shape-index")}
+    />
+))
+ShapeIndexSource.displayName = "ShapeIndexSource"
+
+// Principal Components: Blobness/Eigenvalue Ratio/Dominant Orientation are
+// three independent toggles (siblings), not one mode-switched layer like
+// Curvature's — each is its own always-fixed-mode blobness:// source/sourceId
+// so all three can be shown at once.
+export const BlobnessSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
     <NormalDerivedSource
         {...props}
         sourceId="blobnessSource"
-        keySuffix={`-${mode}`}
-        buildUrl={(template, encoding, tileSize) => buildBlobnessProtocolUrl(template, encoding, tileSize, mode)}
+        buildUrl={(template, encoding, tileSize) => buildBlobnessProtocolUrl(template, encoding, tileSize, "blobness")}
     />
 ))
 BlobnessSource.displayName = "BlobnessSource"
 
+export const EigenRatioSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
+    <NormalDerivedSource
+        {...props}
+        sourceId="eigenRatioSource"
+        buildUrl={(template, encoding, tileSize) => buildBlobnessProtocolUrl(template, encoding, tileSize, "eigen-ratio")}
+    />
+))
+EigenRatioSource.displayName = "EigenRatioSource"
+
+export const OrientationSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
+    <NormalDerivedSource
+        {...props}
+        sourceId="orientationSource"
+        buildUrl={(template, encoding, tileSize) => buildBlobnessProtocolUrl(template, encoding, tileSize, "orientation")}
+    />
+))
+OrientationSource.displayName = "OrientationSource"
+
 // radius (the "Search Radius" control) is a literal same-zoom pixel count baked
 // into the tile URL (unlike LrmSource's radius, which maps to a pyramid level) —
 // same keySuffix reasoning as LrmSource/CurvatureSource above.
-export const SvfSource = memo(({ radius, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { radius: number }) => (
+export const SvfSource = memo(({ radius, precision, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { radius: number; precision: HorizonPrecision }) => (
     <NormalDerivedSource
         {...props}
         sourceId="svfSource"
-        keySuffix={`-${radius}`}
-        buildUrl={(template, encoding, tileSize) => buildSvfProtocolUrl(template, encoding, tileSize, radius)}
+        keySuffix={`-${radius}-${precision}`}
+        buildUrl={(template, encoding, tileSize) => buildSvfProtocolUrl(template, encoding, tileSize, radius, precision)}
     />
 ))
 SvfSource.displayName = "SvfSource"
 
-export const OpennessSource = memo(({ radius, mode, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { radius: number; mode: OpennessMode }) => (
+export const OpennessSource = memo(({ radius, mode, precision, ...props }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix"> & { radius: number; mode: OpennessMode; precision: HorizonPrecision }) => (
     <NormalDerivedSource
         {...props}
         sourceId="opennessSource"
-        keySuffix={`-${radius}-${mode}`}
-        buildUrl={(template, encoding, tileSize) => buildOpennessProtocolUrl(template, encoding, tileSize, radius, mode)}
+        keySuffix={`-${radius}-${mode}-${precision}`}
+        buildUrl={(template, encoding, tileSize) => buildOpennessProtocolUrl(template, encoding, tileSize, radius, mode, precision)}
     />
 ))
 OpennessSource.displayName = "OpennessSource"

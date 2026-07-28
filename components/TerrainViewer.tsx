@@ -11,7 +11,7 @@ import Map, {
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
-import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, type CustomRampStop } from "@/lib/color-ramps"
+import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, DEFAULT_SHAPE_INDEX_CUSTOM_STOPS, type CustomRampStop } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useSetAtom } from "jotai"
 import {
@@ -59,7 +59,7 @@ import { matcapProtocol } from '@/lib/matcap-protocol'
 import { phongProtocol } from '@/lib/phong-protocol'
 import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, BlobnessSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource } from "./LayersAndSources/MapSources"
 import { PhongLiveGlLayer } from "./LayersAndSources/PhongLiveGlLayer"
 import {
   LayerOrderSlots,
@@ -77,7 +77,10 @@ import {
   TpiReliefLayer,
   LrmReliefLayer,
   RoughnessReliefLayer,
+  ShapeIndexReliefLayer,
   BlobnessReliefLayer,
+  EigenRatioReliefLayer,
+  OrientationReliefLayer,
   SvfReliefLayer,
   OpennessReliefLayer,
   LocalDominanceReliefLayer,
@@ -110,9 +113,13 @@ const parseAsFloatPrecise = createParser({
 // causing spurious mid-teardown crashes in ContoursLayer/TerraDraw during dev.
 const VIEW_MODES = ['2d', 'globe', '3d'] as const
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
+// 'shape-index' stays a valid internal curvature:// mode (ShapeIndexSource
+// below reads it directly) even though nothing in the UI exposes setting
+// curvatureMode to it anymore — it moved to its own standalone toggle instead
+// of living in Curvature's mode dropdown.
 const CURVATURE_MODES = ['combined', 'profile', 'plan', 'det-hessian', 'casorati', 'shape-index'] as const
-const BLOBNESS_MODES = ['blobness', 'eigen-ratio', 'orientation'] as const
 const OPENNESS_MODES = ['positive', 'negative'] as const
+const HORIZON_PRECISIONS = ['precise', 'fast'] as const
 // Shared by Plane Slicer, Contours, and the Elevation Picker — all three read
 // elevation off either real altitude ("absolute") or LRM's height above/below
 // the local neighborhood mean ("lrm", see lib/lrm-protocol.ts).
@@ -322,8 +329,16 @@ export const QUERY_STATE_PARSERS = {
     roughnessInvertColorRamp: parseAsBoolean.withDefault(false),
     roughnessCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     roughnessCustomStopsDiscrete: parseAsBoolean.withDefault(false),
+    showShapeIndex: parseAsBoolean.withDefault(false),
+    shapeIndexOpacity: parseAsFloat.withDefault(1.0),
+    shapeIndexColorRamp: parseAsString.withDefault("custom"),
+    shapeIndexMin: parseAsFloat.withDefault(-1),
+    shapeIndexMax: parseAsFloat.withDefault(1),
+    shapeIndexInvertColorRamp: parseAsBoolean.withDefault(false),
+    shapeIndexSymmetric: parseAsBoolean.withDefault(true),
+    shapeIndexCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SHAPE_INDEX_CUSTOM_STOPS),
+    shapeIndexCustomStopsDiscrete: parseAsBoolean.withDefault(true),
     showBlobness: parseAsBoolean.withDefault(false),
-    blobnessMode: parseAsStringLiteral(BLOBNESS_MODES).withDefault("blobness"),
     blobnessOpacity: parseAsFloat.withDefault(1.0),
     blobnessColorRamp: parseAsString.withDefault("blobness-default"),
     blobnessMin: parseAsFloat.withDefault(0),
@@ -331,6 +346,22 @@ export const QUERY_STATE_PARSERS = {
     blobnessInvertColorRamp: parseAsBoolean.withDefault(false),
     blobnessCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     blobnessCustomStopsDiscrete: parseAsBoolean.withDefault(false),
+    showEigenRatio: parseAsBoolean.withDefault(false),
+    eigenRatioOpacity: parseAsFloat.withDefault(1.0),
+    eigenRatioColorRamp: parseAsString.withDefault("eigen-ratio-default"),
+    eigenRatioMin: parseAsFloat.withDefault(0),
+    eigenRatioMax: parseAsFloat.withDefault(100),
+    eigenRatioInvertColorRamp: parseAsBoolean.withDefault(false),
+    eigenRatioCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    eigenRatioCustomStopsDiscrete: parseAsBoolean.withDefault(false),
+    showOrientation: parseAsBoolean.withDefault(false),
+    orientationOpacity: parseAsFloat.withDefault(1.0),
+    orientationColorRamp: parseAsString.withDefault("orientation-default"),
+    orientationMin: parseAsFloat.withDefault(0),
+    orientationMax: parseAsFloat.withDefault(180),
+    orientationInvertColorRamp: parseAsBoolean.withDefault(false),
+    orientationCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    orientationCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showSvf: parseAsBoolean.withDefault(false),
     svfOpacity: parseAsFloat.withDefault(1.0),
     svfColorRamp: parseAsString.withDefault("svf-default"),
@@ -338,6 +369,7 @@ export const QUERY_STATE_PARSERS = {
     svfMax: parseAsFloat.withDefault(100),
     svfInvertColorRamp: parseAsBoolean.withDefault(false),
     svfRadius: parseAsFloat.withDefault(8),
+    svfPrecision: parseAsStringLiteral(HORIZON_PRECISIONS).withDefault("precise"),
     svfCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     svfCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showOpenness: parseAsBoolean.withDefault(false),
@@ -349,6 +381,7 @@ export const QUERY_STATE_PARSERS = {
     opennessSymmetric: parseAsBoolean.withDefault(true),
     opennessRadius: parseAsFloat.withDefault(8),
     opennessMode: parseAsStringLiteral(OPENNESS_MODES).withDefault("positive"),
+    opennessPrecision: parseAsStringLiteral(HORIZON_PRECISIONS).withDefault("precise"),
     opennessCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     opennessCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     // Local Dominance (Hesse 2016) — Relief Visualization mode, see
@@ -699,6 +732,20 @@ export function TerrainViewer() {
     [ state.roughnessColorRamp, state.roughnessCustomStops, state.roughnessCustomStopsDiscrete, state.roughnessMin, state.roughnessMax, state.roughnessOpacity, state.terrainAnalysisOpacity, state.roughnessInvertColorRamp ]
   )
 
+  const shapeIndexReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.shapeIndexColorRamp,
+      customStops: state.shapeIndexCustomStops,
+      customStopsDiscrete: state.shapeIndexCustomStopsDiscrete,
+      customHypsoMinMax: true,
+      minElevation: state.shapeIndexMin,
+      maxElevation: state.shapeIndexMax,
+      colorReliefOpacity: state.shapeIndexOpacity * state.terrainAnalysisOpacity,
+      invertColorRamp: state.shapeIndexInvertColorRamp,
+    }),
+    [ state.shapeIndexColorRamp, state.shapeIndexCustomStops, state.shapeIndexCustomStopsDiscrete, state.shapeIndexMin, state.shapeIndexMax, state.shapeIndexOpacity, state.terrainAnalysisOpacity, state.shapeIndexInvertColorRamp ]
+  )
+
   const blobnessReliefPaint = useMemo(
     () => computeColorReliefPaint({
       colorRamp: state.blobnessColorRamp,
@@ -711,6 +758,34 @@ export function TerrainViewer() {
       invertColorRamp: state.blobnessInvertColorRamp,
     }),
     [ state.blobnessColorRamp, state.blobnessCustomStops, state.blobnessCustomStopsDiscrete, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.terrainAnalysisOpacity, state.blobnessInvertColorRamp ]
+  )
+
+  const eigenRatioReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.eigenRatioColorRamp,
+      customStops: state.eigenRatioCustomStops,
+      customStopsDiscrete: state.eigenRatioCustomStopsDiscrete,
+      customHypsoMinMax: true,
+      minElevation: state.eigenRatioMin,
+      maxElevation: state.eigenRatioMax,
+      colorReliefOpacity: state.eigenRatioOpacity * state.terrainAnalysisOpacity,
+      invertColorRamp: state.eigenRatioInvertColorRamp,
+    }),
+    [ state.eigenRatioColorRamp, state.eigenRatioCustomStops, state.eigenRatioCustomStopsDiscrete, state.eigenRatioMin, state.eigenRatioMax, state.eigenRatioOpacity, state.terrainAnalysisOpacity, state.eigenRatioInvertColorRamp ]
+  )
+
+  const orientationReliefPaint = useMemo(
+    () => computeColorReliefPaint({
+      colorRamp: state.orientationColorRamp,
+      customStops: state.orientationCustomStops,
+      customStopsDiscrete: state.orientationCustomStopsDiscrete,
+      customHypsoMinMax: true,
+      minElevation: state.orientationMin,
+      maxElevation: state.orientationMax,
+      colorReliefOpacity: state.orientationOpacity * state.terrainAnalysisOpacity,
+      invertColorRamp: state.orientationInvertColorRamp,
+    }),
+    [ state.orientationColorRamp, state.orientationCustomStops, state.orientationCustomStopsDiscrete, state.orientationMin, state.orientationMax, state.orientationOpacity, state.terrainAnalysisOpacity, state.orientationInvertColorRamp ]
   )
 
   const svfReliefPaint = useMemo(
@@ -820,7 +895,8 @@ export function TerrainViewer() {
     const VIZ_SUBMODES = [
       "showMatcap", "showPhong",
       "showLrm", "showSvf", "showOpenness", "showLocalDominance",
-      "showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showBlobness",
+      "showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showShapeIndex",
+      "showBlobness", "showEigenRatio", "showOrientation",
       "showContours", "showGraticules",
     ] as const
     const activeBasemap = state.basemapPerView ? state.basemapSourceA : state.basemapSource
@@ -862,9 +938,10 @@ export function TerrainViewer() {
       }
       if (state.hillshadeMethod !== prev.hillshadeMethod) track("options-hillshade", { method: state.hillshadeMethod })
       if (state.curvatureMode !== prev.curvatureMode) track("options-terrain-analysis", { setting: "curvatureMode", value: state.curvatureMode })
-      if (state.blobnessMode !== prev.blobnessMode) track("options-terrain-analysis", { setting: "blobnessMode", value: state.blobnessMode })
       if (state.slopeSourceMode !== prev.slopeSourceMode) track("options-terrain-analysis", { setting: "slopeSourceMode", value: state.slopeSourceMode })
       if (state.opennessMode !== prev.opennessMode) track("options-relief-visualization", { setting: "opennessMode", value: state.opennessMode })
+      if (state.svfPrecision !== prev.svfPrecision) track("options-relief-visualization", { setting: "svfPrecision", value: state.svfPrecision })
+      if (state.opennessPrecision !== prev.opennessPrecision) track("options-relief-visualization", { setting: "opennessPrecision", value: state.opennessPrecision })
       // Free vs Datetime-derived light direction — shared by Hillshade and
       // Phong (see light-direction-control.tsx), so tracked under its own
       // event rather than folded into options-light-phong.
@@ -1717,9 +1794,32 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
+          <ShapeIndexSource
+            enabled={state.showTerrainAnalysis}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
           <BlobnessSource
             enabled={state.showTerrainAnalysis}
-            mode={state.blobnessMode}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
+          <EigenRatioSource
+            enabled={state.showTerrainAnalysis}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
+          <OrientationSource
+            enabled={state.showTerrainAnalysis}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -1729,6 +1829,7 @@ export function TerrainViewer() {
           <SvfSource
             enabled={state.showReliefVisualization}
             radius={state.svfRadius}
+            precision={state.svfPrecision}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -1739,6 +1840,7 @@ export function TerrainViewer() {
             enabled={state.showReliefVisualization}
             radius={state.opennessRadius}
             mode={state.opennessMode}
+            precision={state.opennessPrecision}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -1858,7 +1960,10 @@ export function TerrainViewer() {
           <TpiReliefLayer enabled={state.showTerrainAnalysis} showTpi={state.showTpi} tpiReliefPaint={tpiReliefPaint} />
           <LrmReliefLayer enabled={state.showReliefVisualization} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
           <RoughnessReliefLayer enabled={state.showTerrainAnalysis} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
+          <ShapeIndexReliefLayer enabled={state.showTerrainAnalysis} showShapeIndex={state.showShapeIndex} shapeIndexReliefPaint={shapeIndexReliefPaint} />
           <BlobnessReliefLayer enabled={state.showTerrainAnalysis} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
+          <EigenRatioReliefLayer enabled={state.showTerrainAnalysis} showEigenRatio={state.showEigenRatio} eigenRatioReliefPaint={eigenRatioReliefPaint} />
+          <OrientationReliefLayer enabled={state.showTerrainAnalysis} showOrientation={state.showOrientation} orientationReliefPaint={orientationReliefPaint} />
           <SvfReliefLayer enabled={state.showReliefVisualization} showSvf={state.showSvf} svfReliefPaint={svfReliefPaint} />
           <OpennessReliefLayer enabled={state.showReliefVisualization} showOpenness={state.showOpenness} opennessReliefPaint={opennessReliefPaint} />
           <LocalDominanceReliefLayer enabled={state.showReliefVisualization} showLocalDominance={state.showLocalDominance} localDominanceReliefPaint={localDominanceReliefPaint} />
@@ -2051,8 +2156,9 @@ export function TerrainViewer() {
       state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongLightRelativeToCamera, state.phongRenderer,
       phongLightDir, phongLightAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
-      state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness, state.showBlobness, state.blobnessMode,
-      state.showSvf, state.svfRadius, state.showOpenness, state.opennessRadius, state.opennessMode,
+      state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness,
+      state.showShapeIndex, state.showBlobness, state.showEigenRatio, state.showOrientation,
+      state.showSvf, state.svfRadius, state.svfPrecision, state.showOpenness, state.opennessRadius, state.opennessMode, state.opennessPrecision,
       state.showLocalDominance, state.localDominanceMinRadius, state.localDominanceMaxRadius,
       state.showPlaneSlicer, state.planeSlicerReferenceMode, planeSlicerPaint,
       // tellsBeta/tellsEverActivated gate the tells layer+source mounts: leaving
@@ -2066,7 +2172,8 @@ export function TerrainViewer() {
       state.contourColor, state.graticuleColor,
       activeBasemapSourceA, activeBasemapSourceB,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
-      tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, blobnessReliefPaint, svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,
+      tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint,
+      svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,
       skyConfig.skyColor, skyConfig.skyHorizonBlend, skyConfig.horizonColor, skyConfig.horizonFogBlend,

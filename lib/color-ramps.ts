@@ -29,6 +29,23 @@ export const DEFAULT_SLOPE_CUSTOM_STOPS: CustomRampStop[] = [
   { value: 35, color: "#ff4136" }, // typically excluded from routine construction access
 ]
 
+// Shape Index's default classification (Koenderink & van Doorn) — the same
+// diverging blue/white/red brewer palette curvature-diverging etc already use
+// (see colorRampsClassic below), just discretized into the 5 named shapes
+// Shape Index's own [-1, 1] range is built from. A "dedicated" preset can't
+// live in colorRampsClassic as a plain entry the way continuous ramps do —
+// discreteness there only fakes a stepped look via near-vertical interpolate
+// segments (see buildCustomRampColors below), which is exactly the "custom
+// stops, discrete" mechanism this is meant to default into, not a new
+// colorRampsClassic key.
+export const DEFAULT_SHAPE_INDEX_CUSTOM_STOPS: CustomRampStop[] = [
+  { value: -1, color: "#2166ac" },   // pit/bowl
+  { value: -0.5, color: "#92c5de" }, // valley
+  { value: 0, color: "#ffffff" },    // saddle
+  { value: 0.5, color: "#f4a582" },  // ridge
+  { value: 1, color: "#b2182b" },    // dome/peak
+]
+
 // Builds a plain "interpolate" color-relief expression directly from
 // user-authored (value, color) stops, same shape every other ramp in this
 // file already has — so it flows through computeColorReliefPaint,
@@ -659,6 +676,33 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // Generic (non-curvature-specific) versions of the same "transparent at the
+  // extremes, opaque at the center" idea as curvature-mono-black/white above —
+  // usable as a Color Ramp choice for any diverging mode (Shape Index, TPI,
+  // Blobness's Eigenvalue Ratio/Orientation, etc), not just curvature. Inverted
+  // from curvature-mono's own convention (opaque at the extremes, transparent
+  // at 0) since this pair is meant to highlight the CENTER (e.g. "flat"/
+  // "saddle"/"coherent-edge") rather than the extremes.
+  "transparent-white": {
+    name: "Transparent on White",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -20, "rgba(255, 255, 255, 0)",
+      0, "rgb(255, 255, 255)",
+      20, "rgba(255, 255, 255, 0)",
+    ],
+    continuous: true,
+  },
+  "transparent-black": {
+    name: "Transparent on Black",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -20, "rgba(0, 0, 0, 0)",
+      0, "rgb(0, 0, 0)",
+      20, "rgba(0, 0, 0, 0)",
+    ],
+    continuous: true,
+  },
   // Topographic Position Index (meters, center minus neighborhood mean) from
   // lib/tpi-protocol.ts — negative/below-neighborhood (valleys/pits) to positive/
   // above-neighborhood (ridges/peaks), diverging around a flat=fully-transparent
@@ -723,6 +767,39 @@ export const colorRampsClassic = {
       15, "rgb(153, 216, 201)",
       30, "rgb(44, 162, 95)",
       50, "rgb(0, 109, 44)",
+    ],
+    continuous: true,
+  },
+  // Eigenvalue Ratio (0-100%, λmin/λmax of the same structure tensor as
+  // Blobness) from lib/blobness-protocol.ts — 0 (coherent edge) fully
+  // transparent, same "nothing distinctive here" convention, rising to an
+  // opaque purple at 100 (isotropic blob). A distinct hue from Blobness'
+  // green so the two read apart if shown together.
+  "eigen-ratio-default": {
+    name: "Eigenvalue Ratio",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "rgba(255, 255, 255, 0)",
+      25, "rgb(239, 237, 245)",
+      50, "rgb(188, 189, 220)",
+      75, "rgb(128, 125, 186)",
+      100, "rgb(84, 39, 143)",
+    ],
+    continuous: true,
+  },
+  // Dominant Orientation (0-180°, axis of the same structure tensor's
+  // principal eigenvector) from lib/blobness-protocol.ts — sequential rather
+  // than diverging since 0° and 180° are the SAME axis (see that file's
+  // header), not opposite extremes.
+  "orientation-default": {
+    name: "Dominant Orientation",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "rgb(230, 85, 13)",
+      45, "rgb(253, 190, 133)",
+      90, "rgb(254, 230, 206)",
+      135, "rgb(158, 202, 225)",
+      180, "rgb(49, 130, 189)",
     ],
     continuous: true,
   },

@@ -71,20 +71,11 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
   {
     value: "casorati",
     label: "Casorati Curvature",
-    tooltip: "sqrt((κ₁²+κ₂²)/2) — how strongly curved the surface is, regardless of shape (dome, ridge, saddle, valley, or bowl all count equally). Always ≥ 0; complements Shape Index, which captures shape without magnitude.",
+    tooltip: "sqrt((κ₁²+κ₂²)/2) — how strongly curved the surface is, regardless of shape (dome, ridge, saddle, valley, or bowl all count equally). Always ≥ 0; complements Shape Index (see Neighborhood Statistics), which captures shape without magnitude.",
     defaultMagnitude: 5,
     sliderMax: 20,
     sliderStep: 0.1,
     defaultSymmetric: false,
-  },
-  {
-    value: "shape-index",
-    label: "Shape Index",
-    tooltip: "(2/π)·atan2(κ₁+κ₂, κ₁−κ₂) (Koenderink & van Doorn) — the surface's local shape, independent of how strongly curved it is: +1 dome/peak, +0.5 ridge, 0 saddle, −0.5 valley, −1 pit/bowl. Always in [−1, 1].",
-    defaultMagnitude: 1,
-    sliderMax: 1,
-    sliderStep: 0.02,
-    defaultSymmetric: true,
   },
 ]
 

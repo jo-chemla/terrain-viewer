@@ -17,7 +17,10 @@ export const LAYER_SLOTS = {
   TPI: "slot-tpi",
   LRM: "slot-lrm",
   ROUGHNESS: "slot-roughness",
+  SHAPE_INDEX: "slot-shape-index",
   BLOBNESS: "slot-blobness",
+  EIGEN_RATIO: "slot-eigen-ratio",
+  ORIENTATION: "slot-orientation",
   SVF: "slot-svf",
   OPENNESS: "slot-openness",
   LOCAL_DOMINANCE: "slot-local-dominance",
@@ -43,7 +46,10 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.TPI}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.LRM}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.ROUGHNESS}   type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.SHAPE_INDEX} type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.BLOBNESS}    type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.EIGEN_RATIO} type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.ORIENTATION} type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.SVF}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.OPENNESS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.LOCAL_DOMINANCE} type="background" paint={{ "background-opacity": 0 }} />
@@ -424,6 +430,21 @@ export const RoughnessReliefLayer = memo(({ enabled, showRoughness, roughnessRel
 })
 RoughnessReliefLayer.displayName = "RoughnessReliefLayer"
 
+export const ShapeIndexReliefLayer = memo(({ enabled, showShapeIndex, shapeIndexReliefPaint }: { enabled: boolean; showShapeIndex: boolean; shapeIndexReliefPaint: any }) => {
+  if (!enabled) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.SHAPE_INDEX}
+      id="shape-index-relief"
+      type="color-relief"
+      source="shapeIndexSource"
+      paint={shapeIndexReliefPaint}
+      layout={{ visibility: showShapeIndex ? "visible" : "none" }}
+    />
+  )
+})
+ShapeIndexReliefLayer.displayName = "ShapeIndexReliefLayer"
+
 export const BlobnessReliefLayer = memo(({ enabled, showBlobness, blobnessReliefPaint }: { enabled: boolean; showBlobness: boolean; blobnessReliefPaint: any }) => {
   if (!enabled) return null
   return (
@@ -438,6 +459,36 @@ export const BlobnessReliefLayer = memo(({ enabled, showBlobness, blobnessRelief
   )
 })
 BlobnessReliefLayer.displayName = "BlobnessReliefLayer"
+
+export const EigenRatioReliefLayer = memo(({ enabled, showEigenRatio, eigenRatioReliefPaint }: { enabled: boolean; showEigenRatio: boolean; eigenRatioReliefPaint: any }) => {
+  if (!enabled) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.EIGEN_RATIO}
+      id="eigen-ratio-relief"
+      type="color-relief"
+      source="eigenRatioSource"
+      paint={eigenRatioReliefPaint}
+      layout={{ visibility: showEigenRatio ? "visible" : "none" }}
+    />
+  )
+})
+EigenRatioReliefLayer.displayName = "EigenRatioReliefLayer"
+
+export const OrientationReliefLayer = memo(({ enabled, showOrientation, orientationReliefPaint }: { enabled: boolean; showOrientation: boolean; orientationReliefPaint: any }) => {
+  if (!enabled) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.ORIENTATION}
+      id="orientation-relief"
+      type="color-relief"
+      source="orientationSource"
+      paint={orientationReliefPaint}
+      layout={{ visibility: showOrientation ? "visible" : "none" }}
+    />
+  )
+})
+OrientationReliefLayer.displayName = "OrientationReliefLayer"
 
 export const SvfReliefLayer = memo(({ enabled, showSvf, svfReliefPaint }: { enabled: boolean; showSvf: boolean; svfReliefPaint: any }) => {
   if (!enabled) return null
