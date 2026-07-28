@@ -43,7 +43,7 @@ export const GeneralSettings: React.FC<{
           />
         </div>
       )}
-      <ImportExportProjectDialog state={state} setState={setState} />
+      <ImportExportProjectDialog setState={setState} />
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
         <div className="space-y-1 pt-1">
           <div className="flex items-center justify-between">

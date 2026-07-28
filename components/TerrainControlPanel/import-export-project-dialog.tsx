@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
-import { bookmarksAtom } from "@/lib/bookmarks"
+import { bookmarksAtom, parseBookmarkSearch } from "@/lib/bookmarks"
 import { drawingLayersAtom, drawingFeaturesAtom } from "./TerraDrawSystem"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import {
@@ -44,7 +44,7 @@ function looksLikeZip(bytes: Uint8Array): boolean {
   return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b
 }
 
-export function ImportExportProjectDialog({ state, setState }: { state: Record<string, unknown>; setState: (updates: Record<string, unknown>) => void }) {
+export function ImportExportProjectDialog({ setState }: { setState: (updates: Record<string, unknown>) => void }) {
   const [isExportOpen, setIsExportOpen] = useState(false)
   const [selection, setSelection] = useState<ProjectExportSelection>(DEFAULT_SELECTION)
   const [status, setStatus] = useState<string | null>(null)
@@ -70,7 +70,13 @@ export function ImportExportProjectDialog({ state, setState }: { state: Record<s
   const toggle = (category: keyof ProjectExportSelection) => setSelection((prev) => ({ ...prev, [category]: !prev[category] }))
 
   const handleExport = useCallback(async () => {
-    const archive = await buildProjectExportArchive(selection, { bookmarks, drawingLayers, drawingFeatures, viewState: state })
+    // The raw query string, not the decoded state object — see
+    // ProjectExportPayload.viewState's own comment for why: replaying a
+    // fully-populated object through setState on import writes every field
+    // explicitly, defeating nuqs's default-omission and blowing well past
+    // the URL length limit.
+    const viewState = window.location.search.replace(/^\?/, "")
+    const archive = await buildProjectExportArchive(selection, { bookmarks, drawingLayers, drawingFeatures, viewState })
     const zipped = selection.localCogs
     // `as BlobPart` — TS's DOM lib type for Blob's constructor wants a
     // Uint8Array<ArrayBuffer> specifically, but fflate's zipSync returns the
@@ -88,7 +94,7 @@ export function ImportExportProjectDialog({ state, setState }: { state: Record<s
         ? `Exported (${archive.missingCogIds.length} local file${archive.missingCogIds.length === 1 ? "" : "s"} couldn't be bundled — never persisted, evicted, or too large for this browser's storage; check the console for which).`
         : "Exported.",
     )
-  }, [selection, bookmarks, drawingLayers, drawingFeatures, state])
+  }, [selection, bookmarks, drawingLayers, drawingFeatures])
 
   const handleImportFile = useCallback((file: File) => {
     setError(null)
@@ -113,10 +119,12 @@ export function ImportExportProjectDialog({ state, setState }: { state: Record<s
       // applies. A more specific one below covers bytes that WERE bundled
       // but failed to persist on THIS machine (e.g. OPFS quota).
       const nothingBundled = hasLocalFileSources(payload.sources) && cogBytesById.size === 0
-      // viewState lives in the URL (nuqs), not localStorage — applied through
-      // the query-state setter so the URL carries it into the reload below,
-      // instead of through applyProjectImport's raw-localStorage path.
-      if (payload.viewState) setState(payload.viewState)
+      // viewState is a raw query string (same convention as a Bookmark's own
+      // `search` field) — parseBookmarkSearch decodes it through the exact
+      // same nuqs parsers useQueryStates itself uses, so only fields it
+      // actually contained get written; setState then carries that into the
+      // URL ahead of the reload below (not localStorage).
+      if (payload.viewState) setState(parseBookmarkSearch(payload.viewState))
       setStatus(
         failedCogIds.length
           ? `Imported — reloading… (${failedCogIds.length} local file${failedCogIds.length === 1 ? "" : "s"} failed to persist here — likely too large for this browser's storage; you'll need to re-select ${failedCogIds.length === 1 ? "it" : "them"})`

@@ -327,7 +327,17 @@ export function createBlobStore(dirName: string, lruKey: string, maxTotalBytes =
 // --- COG file store (unchanged directory/localStorage-key names from before
 // this module was generalized, so already-persisted user data keeps working) ---
 
-const cogStore = createBlobStore("local-cogs", "opfsCogLru")
+// Raised well above DEFAULT_MAX_TOTAL_BYTES (2026-07-28) — a real region-wide
+// DEM (e.g. an Alps-wide 50m COG) can plausibly exceed 1.5GB on its own, and
+// this cap was rejecting persistence (both on initial pick and on a project-
+// import re-persist on another machine) well before actually hitting the
+// browser's real quota. persist()'s own `estimate.quotaBytes * 0.8` clamp
+// still protects against genuinely running out of real disk/quota — this
+// only removes the app's OWN artificially-lower ceiling for COG bytes
+// specifically (vector layers, a much smaller/different kind of data, keep
+// the shared default via opfs-vector-store.ts).
+const COG_MAX_TOTAL_BYTES = 8 * 1024 * 1024 * 1024 // 8 GB
+const cogStore = createBlobStore("local-cogs", "opfsCogLru", COG_MAX_TOTAL_BYTES)
 
 export type PersistedCogEntry = PersistedBlobEntry
 

@@ -64,9 +64,18 @@ export interface ProjectExportPayload {
   bookmarks?: Bookmark[]
   drawings?: { layers: DrawLayer[]; features: GeoJSONFeature[] }
   settings?: Record<string, unknown>
-  /** Raw nuqs state object — applied via the query-state setter (not
-   *  localStorage) on import, see this module's header comment. */
-  viewState?: Record<string, unknown>
+  /** The current URL's query string (no leading "?") at export time — same
+   *  shape/convention as a Bookmark's own `search` field, and parsed back
+   *  the same way (lib/bookmarks.ts's parseBookmarkSearch) on import. This
+   *  is a raw STRING, not a decoded object, on purpose: a search string only
+   *  contains whatever fields were actually non-default when captured, so
+   *  re-applying it through parseBookmarkSearch + setState only ever writes
+   *  those same fields back — this is what keeps the URL compact. Passing a
+   *  fully-populated object with every field explicit here instead once
+   *  blew well past the URL length limit (2026-07-28: dozens of per-mode
+   *  colour-ramp custom-stops arrays that are normally never written to the
+   *  URL at all got written explicitly on every import). */
+  viewState?: string
 }
 
 function readLocalJSON<T>(key: string, fallback: T): T {
@@ -118,7 +127,7 @@ export function hasLocalFileSources(sources?: ProjectExportPayload["sources"]): 
 
 export function buildProjectExport(
   selection: ProjectExportSelection,
-  live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[]; viewState: Record<string, unknown> },
+  live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[]; viewState: string },
 ): ProjectExportPayload {
   const payload: ProjectExportPayload = { version: PROJECT_EXPORT_VERSION, exportedAt: Date.now() }
 
@@ -176,7 +185,7 @@ export interface ProjectExportArchive {
  *  spending CPU trying to compress. */
 export async function buildProjectExportArchive(
   selection: ProjectExportSelection,
-  live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[]; viewState: Record<string, unknown> },
+  live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[]; viewState: string },
 ): Promise<ProjectExportArchive> {
   const payload = buildProjectExport(selection, live)
   const entries: Record<string, Uint8Array> = { [PROJECT_JSON_ENTRY]: strToU8(JSON.stringify(payload, null, 2)) }

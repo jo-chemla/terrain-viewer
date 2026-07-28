@@ -54,15 +54,25 @@ export const activeBookmarkIdAtom = atom<string | null>(null)
  *  map doesn't visibly re-settle onto the exact spot it's already at. */
 const VIEWPORT_KEYS = ["lat", "lng", "zoom", "pitch", "bearing"] as const
 
-/** Parses a bookmark's saved query string back into typed state using the
- *  exact same nuqs parsers useQueryStates itself is built from (see
+/** Parses a saved query string back into typed state using the exact same
+ *  nuqs parsers useQueryStates itself is built from (see
  *  components/TerrainViewer.tsx's QUERY_STATE_PARSERS) — every field parses
  *  through its own parser's `parseServerSide`, which already falls back to
  *  that field's real default when the key is missing or fails to parse. This
- *  is what makes an in-place restore safe for an older/shorter bookmark: a
- *  field absent from its search string resets to its default rather than
- *  lingering at whatever the current URL happens to have. */
-function parseBookmarkSearch(search: string): Record<string, unknown> {
+ *  is what makes an in-place restore safe for an older/shorter search string: a
+ *  field absent from it resets to its default rather than lingering at
+ *  whatever the current URL happens to have.
+ *
+ *  Exported (not just used by restoreBookmark below) because
+ *  lib/project-export.ts's "View & Viz State" import needs the exact same
+ *  behavior — critically, feeding a *search string* through setState()
+ *  (which only ever writes the fields that were actually present) rather
+ *  than a fully-populated decoded object (which writes EVERY field
+ *  explicitly, defeating nuqs's own default-omission and bloating the URL
+ *  with dozens of otherwise-never-written keys like the per-mode
+ *  colour-ramp custom-stops arrays — confirmed 2026-07-28 via a real "Max
+ *  safe URL length exceeded" warning after a "View & Viz State" import). */
+export function parseBookmarkSearch(search: string): Record<string, unknown> {
   const params = new URLSearchParams(search)
   const result: Record<string, unknown> = {}
   for (const [key, parser] of Object.entries(QUERY_STATE_PARSERS as Record<string, any>)) {
