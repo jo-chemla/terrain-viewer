@@ -40,16 +40,30 @@ function formatLatLng(lat: number, lng: number): string {
   return `${Math.abs(lat)}°${ns} ${Math.abs(lng)}°${ew}`;
 }
 
-// One "12.34", "12.34°N", "12.34 N" style token — the trailing letter (any
-// of N/S/E/W) is optional and, when present, both fixes the value's sign and
-// says outright whether this token is the latitude or the longitude, so two
-// directioned tokens (in either order) never need the magnitude-based
-// guessing below.
-const COORD_TOKEN = String.raw`(?:Lat: |Lng: )?(-?\d+\.?\d*)\s*°?\s*([NSEWnsew])?`;
+// One "12.34", "12.34°N", "12.34 N" (decimal), or "35°47'58.86\"N" (DMS)
+// style token — degrees is required, minutes/seconds are each optional (and
+// only meaningful once degrees/minutes are present), and the trailing letter
+// (any of N/S/E/W) is optional. When present, the letter both fixes the
+// value's sign and says outright whether this token is the latitude or the
+// longitude, so two directioned tokens (in either order) never need the
+// magnitude-based guessing below. Minutes/seconds accept either the plain
+// ASCII quotes or the proper prime/double-prime marks some sources (e.g.
+// Google Earth's copy-coordinates output) use.
+const COORD_TOKEN = String.raw`(?:Lat: |Lng: )?(-?\d+\.?\d*)\s*°?\s*(?:(\d+\.?\d*)\s*['′]\s*(?:(\d+\.?\d*)\s*["″]\s*)?)?([NSEWnsew])?`;
 const COORDINATES_PATTERN = new RegExp(`^[ ]*${COORD_TOKEN}[, ]+${COORD_TOKEN}[ ]*$`, 'i');
 
+// Combines a token's degrees/minutes/seconds captures into one signed
+// decimal-degree value — magnitude comes from degrees+minutes/60+seconds/3600,
+// sign from the degrees value itself (direction-letter overrides, if any,
+// are applied by the caller the same way they already were for plain decimals).
+function dmsToDecimal(degStr: string, minStr?: string, secStr?: string): number {
+  const magnitude = Math.abs(Number(degStr)) + (minStr ? Number(minStr) / 60 : 0) + (secStr ? Number(secStr) / 3600 : 0);
+  return Number(degStr) < 0 ? -magnitude : magnitude;
+}
+
 function coordinatesGeocoder(query: string): CarmenGeojsonFeature[] {
-  // Matches "Lat: 12.34 Lng: 56.78", "12.34, 56.78", "12.34°N, 56.78°E", etc.
+  // Matches "Lat: 12.34 Lng: 56.78", "12.34, 56.78", "12.34°N, 56.78°E",
+  // "35°47'58.86\"N 36°47'54.61\"E", etc.
   const matches = query.match(COORDINATES_PATTERN);
   if (!matches) return [];
 
@@ -70,9 +84,9 @@ function coordinatesGeocoder(query: string): CarmenGeojsonFeature[] {
     } as CarmenGeojsonFeature;
   };
 
-  const [, v1Str, dir1Raw, v2Str, dir2Raw] = matches;
-  const v1 = Number(v1Str);
-  const v2 = Number(v2Str);
+  const [, deg1Str, min1Str, sec1Str, dir1Raw, deg2Str, min2Str, sec2Str, dir2Raw] = matches;
+  const v1 = dmsToDecimal(deg1Str, min1Str, sec1Str);
+  const v2 = dmsToDecimal(deg2Str, min2Str, sec2Str);
   const dir1 = dir1Raw?.toUpperCase();
   const dir2 = dir2Raw?.toUpperCase();
 
