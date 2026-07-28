@@ -19,7 +19,7 @@ import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
 import type { Bookmark } from "./bookmarks"
 import type { DrawLayer, GeoJSONFeature } from "@/components/TerrainControlPanel/TerraDrawSystem"
 import { persistVectorLayerFeatures, readPersistedVectorLayerFeatures } from "./opfs-vector-store"
-import { readPersistedCogFile, persistCogFile } from "./opfs-file-store"
+import { readPersistedCogFile, persistCogFile, estimateStorage, formatBytes } from "./opfs-file-store"
 import { isLocalFileUrl, localFileId, getRegisteredLocalFile } from "./local-file-store"
 
 export const PROJECT_EXPORT_VERSION = 1
@@ -301,7 +301,22 @@ export async function applyProjectImport(payload: ProjectExportPayload, cogBytes
           persistedCogIds.push(id)
         } else {
           failedCogIds.push(id)
-          console.warn(`[project-export] failed to persist local COG "${id}" on import — likely this machine's OPFS quota rejected it (large file); its settings were still imported, but you'll need to re-select the file.`)
+          // Diagnostic (2026-07-28): a non-secure origin (plain http:// on a
+          // LAN IP, as opposed to `localhost` — which browsers treat as a
+          // secure context even over http — or a real https:// deployment)
+          // gets a MUCH smaller storage quota in most browsers, and
+          // `navigator.storage.persist()` (called opportunistically right
+          // after a successful write, see opfs-file-store.ts) typically
+          // outright refuses to grant persistence at all outside a secure
+          // context. Logging isSecureContext + the real quota estimate here
+          // turns "likely quota" into a confirmed diagnosis instead of a guess.
+          const estimate = await estimateStorage()
+          console.warn(
+            `[project-export] failed to persist local COG "${id}" on import — its settings were still imported, but you'll need to re-select the file. `
+            + `Diagnostic: isSecureContext=${typeof window !== "undefined" ? window.isSecureContext : "?"}, origin=${typeof location !== "undefined" ? location.origin : "?"}, `
+            + `storage usage=${formatBytes(estimate.usageBytes)}, quota=${estimate.quotaBytes != null ? formatBytes(estimate.quotaBytes) : "unknown"}. `
+            + `A non-https, non-localhost origin (e.g. a plain LAN IP like http://192.168.x.x) commonly gets a far smaller quota and is denied persistent storage — serving over https (or accessing via localhost) usually fixes this.`,
+          )
         }
       }),
     )
