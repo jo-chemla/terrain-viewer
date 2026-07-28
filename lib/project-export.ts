@@ -42,6 +42,10 @@ export interface ProjectExportSelection {
   bookmarks: boolean
   drawings: boolean
   settings: boolean
+  /** The current nuqs view/viz-mode state (viewport + every visualization
+   *  toggle) — the same state a bookmark already captures as a query string,
+   *  but for "what's on screen right now" rather than a saved point. */
+  viewState: boolean
 }
 
 export interface ProjectExportPayload {
@@ -52,6 +56,9 @@ export interface ProjectExportPayload {
   bookmarks?: Bookmark[]
   drawings?: { layers: DrawLayer[]; features: GeoJSONFeature[] }
   settings?: Record<string, unknown>
+  /** Raw nuqs state object — applied via the query-state setter (not
+   *  localStorage) on import, see this module's header comment. */
+  viewState?: Record<string, unknown>
 }
 
 function readLocalJSON<T>(key: string, fallback: T): T {
@@ -103,7 +110,7 @@ export function hasLocalFileSources(sources?: ProjectExportPayload["sources"]): 
 
 export function buildProjectExport(
   selection: ProjectExportSelection,
-  live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[] },
+  live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[]; viewState: Record<string, unknown> },
 ): ProjectExportPayload {
   const payload: ProjectExportPayload = { version: PROJECT_EXPORT_VERSION, exportedAt: Date.now() }
 
@@ -123,6 +130,7 @@ export function buildProjectExport(
     }
     payload.settings = settings
   }
+  if (selection.viewState) payload.viewState = live.viewState
   return payload
 }
 

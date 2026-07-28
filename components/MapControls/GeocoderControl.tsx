@@ -92,8 +92,11 @@ function roleOf(dir?: string, axis?: string): 'lat' | 'lng' | undefined {
 function coordinatesGeocoder(query: string): CarmenGeojsonFeature[] {
   // Matches "Lat: 12.34 Lng: 56.78", "12.34, 56.78", "12.34°N, 56.78°E",
   // "35°47'58.86\"N 36°47'54.61\"E", "x: 36.8772 y: 34.9150" (ESRI Wayback),
-  // "45,5 7,2" (comma-decimal), etc.
-  const matches = query.match(COORDINATES_PATTERN);
+  // "45,5 7,2" (comma-decimal), etc. Trimmed first so a pasted value's
+  // leading/trailing whitespace (including tabs/newlines, not just plain
+  // spaces — COORDINATES_PATTERN's own `[ ]*` boundaries only cover the
+  // latter) doesn't stop the match.
+  const matches = query.trim().match(COORDINATES_PATTERN);
   if (!matches) return [];
 
   const coordinateFeature = (lng: number, lat: number): CarmenGeojsonFeature => {

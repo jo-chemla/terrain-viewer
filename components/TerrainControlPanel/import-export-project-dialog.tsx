@@ -1,19 +1,21 @@
 // Whole-project Import/Export — bundles BYOD sources, bookmarks, drawing
-// layers and jotai config settings (lib/project-export.ts) into one
-// downloadable JSON file, with a checkbox per category so the user can pick
-// what travels. Default checked: Sources + Bookmarks (the two most people
-// would want on a new browser/machine); default unchecked: Drawings
-// (potentially large/personal sketches) and Settings (API keys/local
-// toggles — mostly not something you want silently overwritten on import).
+// layers, jotai config settings and the current view/viz-mode state
+// (lib/project-export.ts) into one downloadable JSON file. Import is a
+// plain file picker (whatever categories the file contains are applied
+// as-is); Export opens a dialog with a checkbox per category so the user
+// can pick what travels. Default checked: Sources + Bookmarks + View/Viz
+// State (the three most people would want on a new browser/machine);
+// default unchecked: Drawings (potentially large/personal sketches) and
+// Settings (API keys/local toggles — mostly not something you want
+// silently overwritten on import).
 import type React from "react"
 import { useCallback, useMemo, useRef, useState } from "react"
 import { useAtomValue } from "jotai"
-import { Download, Upload, FolderSync } from "lucide-react"
+import { Download, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
-import { TooltipIconButton } from "./controls-components"
 import { bookmarksAtom } from "@/lib/bookmarks"
 import { drawingLayersAtom, drawingFeaturesAtom } from "./TerraDrawSystem"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
@@ -24,15 +26,18 @@ import {
 
 type Category = keyof ProjectExportSelection
 
-const CATEGORY_ORDER: Category[] = ["sources", "bookmarks", "drawings", "settings"]
-const DEFAULT_SELECTION: ProjectExportSelection = { sources: true, bookmarks: true, drawings: false, settings: false }
+const CATEGORY_ORDER: Category[] = ["sources", "bookmarks", "viewState", "drawings", "settings"]
+const CATEGORY_LABELS: Record<Category, string> = {
+  sources: "Sources", bookmarks: "Bookmarks", viewState: "View & Viz State", drawings: "Drawings", settings: "Settings",
+}
+const DEFAULT_SELECTION: ProjectExportSelection = { sources: true, bookmarks: true, viewState: true, drawings: false, settings: false }
 
-export function ImportExportProjectDialog() {
-  const [isOpen, setIsOpen] = useState(false)
+export function ImportExportProjectDialog({ state, setState }: { state: Record<string, unknown>; setState: (updates: Record<string, unknown>) => void }) {
+  const [isExportOpen, setIsExportOpen] = useState(false)
   const [selection, setSelection] = useState<ProjectExportSelection>(DEFAULT_SELECTION)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   const bookmarks = useAtomValue(bookmarksAtom)
   const drawingLayers = useAtomValue(drawingLayersAtom)
@@ -43,6 +48,7 @@ export function ImportExportProjectDialog() {
   const counts: Record<Category, string> = useMemo(() => ({
     sources: `${customTerrainSources.length} terrain, ${customBasemapSources.length} basemap`,
     bookmarks: `${bookmarks.length}`,
+    viewState: "current viewport + visualization toggles",
     drawings: `${drawingLayers.length} layer${drawingLayers.length === 1 ? "" : "s"}, ${drawingFeatures.length} feature${drawingFeatures.length === 1 ? "" : "s"}`,
     settings: "API keys, UI toggles, saved themes",
   }), [customTerrainSources, customBasemapSources, bookmarks, drawingLayers, drawingFeatures])
@@ -52,7 +58,7 @@ export function ImportExportProjectDialog() {
   const toggle = (category: Category) => setSelection((prev) => ({ ...prev, [category]: !prev[category] }))
 
   const handleExport = useCallback(() => {
-    const payload = buildProjectExport(selection, { bookmarks, drawingLayers, drawingFeatures })
+    const payload = buildProjectExport(selection, { bookmarks, drawingLayers, drawingFeatures, viewState: state })
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -61,7 +67,7 @@ export function ImportExportProjectDialog() {
     a.click()
     URL.revokeObjectURL(url)
     setStatus("Exported.")
-  }, [selection, bookmarks, drawingLayers, drawingFeatures])
+  }, [selection, bookmarks, drawingLayers, drawingFeatures, state])
 
   const handleImportFile = useCallback((file: File) => {
     setError(null)
@@ -80,6 +86,10 @@ export function ImportExportProjectDialog() {
       }
       const importedLocalFiles = hasLocalFileSources(payload.sources)
       await applyProjectImport(payload)
+      // viewState lives in the URL (nuqs), not localStorage — applied through
+      // the query-state setter so the URL carries it into the reload below,
+      // instead of through applyProjectImport's raw-localStorage path.
+      if (payload.viewState) setState(payload.viewState)
       setStatus(
         importedLocalFiles
           ? "Imported — reloading… (some sources reference local files you'll need to re-select)"
@@ -87,55 +97,15 @@ export function ImportExportProjectDialog() {
       )
       setTimeout(() => window.location.reload(), 600)
     })
-  }, [])
+  }, [setState])
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-sm font-medium">Import/Export</Label>
-        <DialogTrigger asChild>
-          <TooltipIconButton icon={FolderSync} tooltip="Import / Export Project" />
-        </DialogTrigger>
-      </div>
-      <DialogContent className="sm:max-w-md" showCloseButton={false}>
-        <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
-        <DialogHeader>
-          <DialogTitle>Import / Export Project</DialogTitle>
-          <DialogDescription>
-            Move BYOD sources, bookmarks, drawings and settings to another browser or machine as a single JSON file.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3">
-          {CATEGORY_ORDER.map((category) => (
-            <div key={category} className="flex items-start gap-2">
-              <Checkbox
-                id={`export-${category}`}
-                checked={selection[category]}
-                onCheckedChange={() => toggle(category)}
-                className="mt-0.5 cursor-pointer"
-              />
-              <div className="min-w-0">
-                <Label htmlFor={`export-${category}`} className="capitalize cursor-pointer">{category}</Label>
-                <p className="text-xs text-muted-foreground">{counts[category]}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {selection.sources && localFileWarning && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
-            One or more sources reference a locally-picked file — only the source's settings travel with the export,
-            not the file's bytes. Re-select the file after importing elsewhere.
-          </p>
-        )}
-
-        {status && <p className="text-xs text-muted-foreground">{status}</p>}
-        {error && <p className="text-xs text-destructive">{error}</p>}
-
-        <div className="flex gap-2 pt-1">
+        <Label className="text-sm font-medium">Project</Label>
+        <div className="flex rounded-md border overflow-hidden">
           <input
-            ref={fileInputRef}
+            ref={importInputRef}
             type="file"
             accept=".json"
             className="hidden"
@@ -145,20 +115,63 @@ export function ImportExportProjectDialog() {
               if (f) handleImportFile(f)
             }}
           />
-          <Button variant="outline" size="sm" className="flex-1 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+          <Button variant="ghost" size="sm" className="rounded-none cursor-pointer" onClick={() => importInputRef.current?.click()}>
             <Upload className="h-3.5 w-3.5 mr-1" /> Import
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 cursor-pointer"
-            disabled={!CATEGORY_ORDER.some((c) => selection[c])}
-            onClick={handleExport}
-          >
-            <Download className="h-3.5 w-3.5 mr-1" /> Export
-          </Button>
+          <Dialog open={isExportOpen} onOpenChange={setIsExportOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="rounded-none border-l cursor-pointer">
+                <Download className="h-3.5 w-3.5 mr-1" /> Export
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md" showCloseButton={false}>
+              <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
+              <DialogHeader>
+                <DialogTitle>Export Project</DialogTitle>
+                <DialogDescription>
+                  Bundle BYOD sources, bookmarks, drawings, settings and/or the current view into one JSON file.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3">
+                {CATEGORY_ORDER.map((category) => (
+                  <div key={category} className="flex items-start gap-2">
+                    <Checkbox
+                      id={`export-${category}`}
+                      checked={selection[category]}
+                      onCheckedChange={() => toggle(category)}
+                      className="mt-0.5 cursor-pointer"
+                    />
+                    <div className="min-w-0">
+                      <Label htmlFor={`export-${category}`} className="cursor-pointer">{CATEGORY_LABELS[category]}</Label>
+                      <p className="text-xs text-muted-foreground">{counts[category]}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {selection.sources && localFileWarning && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  One or more sources reference a locally-picked file — only the source's settings travel with the export,
+                  not the file's bytes. Re-select the file after importing elsewhere.
+                </p>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full cursor-pointer"
+                disabled={!CATEGORY_ORDER.some((c) => selection[c])}
+                onClick={handleExport}
+              >
+                <Download className="h-3.5 w-3.5 mr-1" /> Export
+              </Button>
+            </DialogContent>
+          </Dialog>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+      {status && <p className="text-xs text-muted-foreground text-right">{status}</p>}
+      {error && <p className="text-xs text-destructive text-right">{error}</p>}
+    </div>
   )
 }
