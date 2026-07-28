@@ -153,31 +153,49 @@ function collectLocalCogIds(sources?: ProjectExportPayload["sources"]): string[]
   return Array.from(ids)
 }
 
+export interface ProjectExportArchive {
+  bytes: Uint8Array
+  /** cog-local source ids whose bytes actually made it into the zip. */
+  bundledCogIds: string[]
+  /** cog-local source ids that COULDN'T be bundled — neither this session's
+   *  live registry nor the OPFS-persisted copy had them (never persisted,
+   *  evicted by opfs-file-store.ts's size-capped LRU — a large Alps/region-
+   *  wide DEM can easily exceed the 1.5GB store cap — OPFS unsupported, or
+   *  `persistLocalCogsAtom` was off when the file was added). These sources'
+   *  settings still travel via project.json; only the bytes are missing,
+   *  same end state as a plain (non-localCogs) export. */
+  missingCogIds: string[]
+}
+
 /** Builds a downloadable archive: `project.json` (the same payload
  *  buildProjectExport produces) plus, when `selection.localCogs` is set, one
  *  `<id>.cog.tiff` entry per locally-picked BYOD source referenced in it —
  *  read from whichever copy is freshest (this session's live registered
- *  File, falling back to the OPFS-persisted copy). An id with neither
- *  (never persisted, evicted, or OPFS unsupported) is silently skipped —
- *  its source's settings still travel via project.json, only the bytes are
- *  missing, same as a plain export (see hasLocalFileSources). Level 0 (store,
- *  no deflate) since COG bytes are already large binary data not worth
+ *  File, falling back to the OPFS-persisted copy). Level 0 (store, no
+ *  deflate) since COG bytes are already large binary data not worth
  *  spending CPU trying to compress. */
 export async function buildProjectExportArchive(
   selection: ProjectExportSelection,
   live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[]; viewState: Record<string, unknown> },
-): Promise<Uint8Array> {
+): Promise<ProjectExportArchive> {
   const payload = buildProjectExport(selection, live)
   const entries: Record<string, Uint8Array> = { [PROJECT_JSON_ENTRY]: strToU8(JSON.stringify(payload, null, 2)) }
+  const bundledCogIds: string[] = []
+  const missingCogIds: string[] = []
 
   if (selection.localCogs) {
     for (const id of collectLocalCogIds(payload.sources)) {
       const file = getRegisteredLocalFile(id) ?? (await readPersistedCogFile(id))
-      if (!file) continue
+      if (!file) {
+        missingCogIds.push(id)
+        console.warn(`[project-export] no bytes available for local COG source "${id}" — never persisted, evicted, or OPFS unsupported; only its settings will travel.`)
+        continue
+      }
       entries[`${id}.cog.tiff`] = new Uint8Array(await file.arrayBuffer())
+      bundledCogIds.push(id)
     }
   }
-  return zipSync(entries, { level: 0 })
+  return { bytes: zipSync(entries, { level: 0 }), bundledCogIds, missingCogIds }
 }
 
 /** Reverse of buildProjectExportArchive. `isZip` picks the parse path — a
@@ -214,8 +232,14 @@ export function parseProjectExportArchive(bytes: Uint8Array, isZip: boolean): { 
  *  hydrateAllPersistedCogs already reads from on app start — so once these
  *  sources are merged in above and the page reloads, the existing "local COG
  *  hydration" flow picks the bytes up exactly as if the file had been
- *  persisted on this machine originally, no separate wiring needed. */
-export async function applyProjectImport(payload: ProjectExportPayload, cogBytesById?: Map<string, Uint8Array>): Promise<void> {
+ *  persisted on this machine originally, no separate wiring needed.
+ *
+ *  Returns which cog-local ids actually got persisted here vs which failed
+ *  (e.g. this machine's own OPFS quota rejected a large DEM even though the
+ *  zip carried its bytes fine — opfs-file-store.ts's persist() never throws,
+ *  it just returns false) so the caller can tell the user which sources will
+ *  still need "Re-select file…" despite the bytes having been bundled. */
+export async function applyProjectImport(payload: ProjectExportPayload, cogBytesById?: Map<string, Uint8Array>): Promise<{ persistedCogIds: string[]; failedCogIds: string[] }> {
   if (payload.sources) {
     const existingTerrain = readLocalJSON<CustomTerrainSource[]>("customTerrainSources", [])
     const existingBasemap = readLocalJSON<CustomBasemapSource[]>("customBasemapSources", [])
@@ -252,6 +276,8 @@ export async function applyProjectImport(payload: ProjectExportPayload, cogBytes
     for (const [key, value] of Object.entries(payload.settings)) writeLocalJSON(key, value)
   }
 
+  const persistedCogIds: string[] = []
+  const failedCogIds: string[] = []
   if (cogBytesById && cogBytesById.size) {
     // `as BlobPart` — TS's DOM lib type for Blob's constructor wants a
     // Uint8Array<ArrayBuffer> specifically, but these bytes come back as the
@@ -260,7 +286,16 @@ export async function applyProjectImport(payload: ProjectExportPayload, cogBytes
     // type-level mismatch (same one import-export-project-dialog.tsx hits
     // wrapping zipSync's output).
     await Promise.all(
-      Array.from(cogBytesById.entries()).map(([id, bytes]) => persistCogFile(id, new Blob([bytes as BlobPart], { type: "image/tiff" }))),
+      Array.from(cogBytesById.entries()).map(async ([id, bytes]) => {
+        const ok = await persistCogFile(id, new Blob([bytes as BlobPart], { type: "image/tiff" }))
+        if (ok) {
+          persistedCogIds.push(id)
+        } else {
+          failedCogIds.push(id)
+          console.warn(`[project-export] failed to persist local COG "${id}" on import — likely this machine's OPFS quota rejected it (large file); its settings were still imported, but you'll need to re-select the file.`)
+        }
+      }),
     )
   }
+  return { persistedCogIds, failedCogIds }
 }

@@ -76,14 +76,18 @@ export function ImportExportProjectDialog({ state, setState }: { state: Record<s
     // Uint8Array<ArrayBuffer> specifically, but fflate's zipSync returns the
     // wider Uint8Array<ArrayBufferLike>; a plain Uint8Array is accepted by
     // Blob at runtime regardless, this is purely a type-level mismatch.
-    const blob = new Blob([archive as BlobPart], { type: zipped ? "application/zip" : "application/json" })
+    const blob = new Blob([archive.bytes as BlobPart], { type: zipped ? "application/zip" : "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
     a.download = `terrain-viewer-project-${Date.now()}.${zipped ? "zip" : "json"}`
     a.click()
     URL.revokeObjectURL(url)
-    setStatus("Exported.")
+    setStatus(
+      archive.missingCogIds.length
+        ? `Exported (${archive.missingCogIds.length} local file${archive.missingCogIds.length === 1 ? "" : "s"} couldn't be bundled — never persisted, evicted, or too large for this browser's storage; check the console for which).`
+        : "Exported.",
+    )
   }, [selection, bookmarks, drawingLayers, drawingFeatures, state])
 
   const handleImportFile = useCallback((file: File) => {
@@ -103,16 +107,22 @@ export function ImportExportProjectDialog({ state, setState }: { state: Record<s
         setError(`"${file.name}" doesn't look like a project export.`)
         return
       }
-      const stillMissingLocalFiles = hasLocalFileSources(payload.sources) && cogBytesById.size === 0
-      await applyProjectImport(payload, cogBytesById)
+      const { failedCogIds } = await applyProjectImport(payload, cogBytesById)
+      // Nothing bundled at all (plain export, or localCogs was left
+      // unchecked at export time) — the pre-existing generic warning still
+      // applies. A more specific one below covers bytes that WERE bundled
+      // but failed to persist on THIS machine (e.g. OPFS quota).
+      const nothingBundled = hasLocalFileSources(payload.sources) && cogBytesById.size === 0
       // viewState lives in the URL (nuqs), not localStorage — applied through
       // the query-state setter so the URL carries it into the reload below,
       // instead of through applyProjectImport's raw-localStorage path.
       if (payload.viewState) setState(payload.viewState)
       setStatus(
-        stillMissingLocalFiles
-          ? "Imported — reloading… (some sources reference local files you'll need to re-select)"
-          : "Imported — reloading…",
+        failedCogIds.length
+          ? `Imported — reloading… (${failedCogIds.length} local file${failedCogIds.length === 1 ? "" : "s"} failed to persist here — likely too large for this browser's storage; you'll need to re-select ${failedCogIds.length === 1 ? "it" : "them"})`
+          : nothingBundled
+            ? "Imported — reloading… (some sources reference local files you'll need to re-select)"
+            : "Imported — reloading…",
       )
       setTimeout(() => window.location.reload(), 600)
     })

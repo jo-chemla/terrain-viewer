@@ -465,9 +465,13 @@ export class PhongLiveLayer implements CustomLayerInterface {
       // pulls a higher zoom level (more, sharper tiles) — matching what
       // MapLibre's own native raster pipeline (3D Slow) does automatically, so
       // 2D Fast is no longer visibly softer than 3D Slow on hi-dpi displays.
+      // An extra /2 on top of that pulls one more zoom level still — confirmed
+      // (2026-07-28, once terrain-drape was live) visibly softer/lower-res
+      // than the native `hillshade` layer at the same viewport otherwise, even
+      // though both read the exact same upstream DEM tiles.
       const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1
       const tileIDs = map.coveringTiles({
-        tileSize: Math.max(1, Math.round(this.options.tileSize / dpr)),
+        tileSize: Math.max(1, Math.round(this.options.tileSize / dpr / 2)),
         minzoom: this.options.minzoom,
         maxzoom: this.options.maxzoom,
       })
