@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Section, SegmentedToggle } from "./controls-components"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
+import { ImportExportProjectDialog } from "./import-export-project-dialog"
 
 export const GeneralSettings: React.FC<{
   state: any; setState: (updates: any) => void;
@@ -42,6 +43,7 @@ export const GeneralSettings: React.FC<{
           />
         </div>
       )}
+      <ImportExportProjectDialog />
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
         <div className="space-y-1 pt-1">
           <div className="flex items-center justify-between">

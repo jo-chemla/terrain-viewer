@@ -47,7 +47,7 @@ export const FooterSection: React.FC<{
       <div>
         <p>Also see:</p>
         <ul className="list-disc pl-6 space-y-0.5">
-          <LinkRow href="https://rem.prod.heritagewatch.ai/">RiverREM by Iconem</LinkRow>
+          <LinkRow href="https://rem.prod.heritagewatch.ai/">RiverREM (Relative Elevation Model)</LinkRow>
           <LinkRow href="/maplibre-raster-dem-wms-float32-generic.html">French IGN LidarHD DTM/DSM raw WMS Float32</LinkRow>
         </ul>
       </div>
