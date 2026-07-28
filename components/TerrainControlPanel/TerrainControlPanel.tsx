@@ -32,6 +32,7 @@ import { TooltipIconButton, MacroSeparator } from "./controls-components"
 import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
 import {AnimationSection, parseAsSnapshot} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
+import { SunShadowCalculatorSection } from "./sun-shadow-calculator-section"
 import { SourceInfoSection, isProvenanceSource } from "./SourceInfoSection"
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
@@ -60,6 +61,7 @@ const SECTION_KEYS = [
   "background",
   "drawing",
   "elevationPicker",
+  "sunShadowCalculator",
   "animation",
   "sourceInfo",
   "footer"
@@ -85,6 +87,7 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
   background: false,
   drawing: false,
   elevationPicker: false,
+  sunShadowCalculator: false,
   animation: false,
   sourceInfo: false,
   footer: false,
@@ -554,6 +557,9 @@ export function TerrainControlPanel({
             <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
             {!hiddenSections.includes("elevationPicker") && (
               <ElevationPickerSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
+            )}
+            {!hiddenSections.includes("sunShadowCalculator") && (
+              <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
             )}
             <AnimationSection
               mapRef={mapRef}
