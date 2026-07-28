@@ -4,13 +4,15 @@ import maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import type { MapRef } from "react-map-gl/maplibre"
 import type { TerraDraw } from "terra-draw"
-import { Section } from "./controls-components"
+import { ChevronDown } from "lucide-react"
+import { Section, SliderControl } from "./controls-components"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LightDirectionControl } from "./light-direction-control"
-import { dayLength, formatHour } from "@/lib/solar-position"
+import { ColorAlphaSwatch } from "./color-picker"
+import { cn } from "@/lib/utils"
 import { track } from "@/lib/analytics"
 
 interface PickedPoint {
@@ -19,6 +21,8 @@ interface PickedPoint {
 }
 
 const MARKER_COLOR = "#f59e0b"
+const DEFAULT_LINE_COLOR = "#1e293b"
+const DEFAULT_LINE_WIDTH = 3
 // Anything past this is the sun grazing the horizon — the shadow is
 // technically infinite/off-screen, so it's clearer to say so than to draw a
 // wildly long line across the map.
@@ -36,6 +40,12 @@ export const SunShadowCalculatorSection: React.FC<{
   const [point, setPoint] = useState<PickedPoint | null>(null)
   const [height, setHeight] = useState(10)
   const [drawModeActive, setDrawModeActive] = useState(false)
+  // The shared light direction control is folded by default here — the
+  // calculator only needs it to set the date/time; Azimuth/Altitude are
+  // already implied by the Shadow length readout below.
+  const [showLightControls, setShowLightControls] = useState(false)
+  const [lineColor, setLineColor] = useState(DEFAULT_LINE_COLOR)
+  const [lineWidth, setLineWidth] = useState(DEFAULT_LINE_WIDTH)
   const markerRef = useRef<maplibregl.Marker | null>(null)
 
   // Same drawing-mode conflict guard as Elevation Picker — TerraDraw's own
@@ -141,7 +151,7 @@ export const SunShadowCalculatorSection: React.FC<{
           type: "line",
           source: SRC,
           layout: { "line-cap": "round" },
-          paint: { "line-width": 3, "line-color": "#1e293b", "line-dasharray": [2, 1.5] },
+          paint: { "line-width": lineWidth, "line-color": lineColor },
         })
       }
     }
@@ -152,7 +162,16 @@ export const SunShadowCalculatorSection: React.FC<{
       if (map.getLayer(LYR)) map.removeLayer(LYR)
       if (map.getSource(SRC)) map.removeSource(SRC)
     }
-  }, [isActive, point, shadowLength, azimuthDeg, mapRef])
+  }, [isActive, point, shadowLength, azimuthDeg, mapRef, lineColor, lineWidth])
+
+  // Color/width changes update the already-mounted layer's paint directly
+  // (no need to go through the redraw/addLayer path above for these).
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map || !map.getLayer("sun-shadow-calc-line")) return
+    map.setPaintProperty("sun-shadow-calc-line", "line-color", lineColor)
+    map.setPaintProperty("sun-shadow-calc-line", "line-width", lineWidth)
+  }, [lineColor, lineWidth, mapRef])
 
   const handleToggle = useCallback((checked: boolean) => {
     setIsActive(checked)
@@ -162,11 +181,6 @@ export const SunShadowCalculatorSection: React.FC<{
 
   const formatLatLng = (p: PickedPoint) => `${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`
   const formatLength = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${m.toFixed(1)} m`)
-
-  // Sunrise/sunset for the picked point's own latitude (dayLength is a cheap
-  // pure function of lat + day-of-year — no reason to settle for the
-  // viewport-center approximation here like illuminationAlt/Dir do above).
-  const dayRange = point ? dayLength(point.lat, state.lightDayOfYear) : null
 
   return (
     <Section title="Sun Shadow Calculator" isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -195,7 +209,28 @@ export const SunShadowCalculatorSection: React.FC<{
             Click the map to place an object and measure the shadow it casts at the current sun position.
           </p>
 
-          <LightDirectionControl state={state} setState={setState} sliderId="sun-shadow-calc" />
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowLightControls((v) => !v)}
+              className="flex items-center justify-between gap-2 w-full cursor-pointer"
+            >
+              <Label className="text-sm font-medium cursor-pointer">Light Direction</Label>
+              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", showLightControls && "rotate-180")} />
+            </button>
+            {showLightControls && (
+              <div className="pt-2">
+                <LightDirectionControl
+                  state={state}
+                  setState={setState}
+                  sliderId="sun-shadow-calc"
+                  debounceMs={0}
+                  forceDatetime
+                  timeStepMinutes={1}
+                />
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="sun-shadow-height" className="text-sm font-medium">Object height</Label>
@@ -213,6 +248,21 @@ export const SunShadowCalculatorSection: React.FC<{
             </div>
           </div>
 
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm font-medium">Line color</Label>
+            <ColorAlphaSwatch color={lineColor} onChange={setLineColor} title="Shadow line color" />
+          </div>
+          <SliderControl
+            label="Line width"
+            value={lineWidth}
+            onChange={setLineWidth}
+            min={1}
+            max={10}
+            step={1}
+            suffix="px"
+            sliderId="sun-shadow-calc-line-width"
+          />
+
           {point ? (
             <div className="space-y-1">
               <div className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-muted/50 text-sm">
@@ -221,10 +271,6 @@ export const SunShadowCalculatorSection: React.FC<{
                   Point
                 </span>
                 <span className="font-mono text-xs text-muted-foreground">{formatLatLng(point)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-muted/50 text-sm">
-                <span>Azimuth / Altitude</span>
-                <span className="font-mono text-xs">{azimuthDeg.toFixed(1)}° / {altitudeDeg.toFixed(1)}°</span>
               </div>
               <div className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-muted text-sm font-medium">
                 <span>Shadow length</span>
@@ -236,18 +282,6 @@ export const SunShadowCalculatorSection: React.FC<{
                       : formatLength(shadowLength)}
                 </span>
               </div>
-              {state.lightUseDatetime && dayRange && (
-                dayRange.polarDay ? (
-                  <p className="text-xs text-muted-foreground px-2">Polar day — sun does not set.</p>
-                ) : dayRange.polarNight ? (
-                  <p className="text-xs text-muted-foreground px-2">Polar night — sun does not rise.</p>
-                ) : (
-                  <div className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-muted/50 text-sm">
-                    <span>Sunrise / Sunset</span>
-                    <span className="font-mono text-xs">{formatHour(dayRange.sunrise)} / {formatHour(dayRange.sunset)}</span>
-                  </div>
-                )
-              )}
               <Button variant="outline" size="sm" onClick={() => setPoint(null)} className="w-full cursor-pointer">
                 Clear point
               </Button>

@@ -94,12 +94,22 @@ export const LightDirectionControl: React.FC<{
   padWidth?: number; padHeight?: number
   azimuthRange?: [number, number]; elevationRange?: [number, number]
   fixedAzimuth?: number | null; fixedElevation?: number | null
+  // Hides the Free/Datetime mode toggle and keeps the light pinned to
+  // Datetime — for callers (Sun Shadow Calculator) where a freely-dragged
+  // light direction wouldn't correspond to any real date/time/place.
+  forceDatetime?: boolean
+  // Granularity of the Time slider/popover — Hillshade/Phong default to
+  // quarter-hour steps, but a precise tool (Sun Shadow Calculator) wants
+  // real minute precision.
+  timeStepMinutes?: number
 }> = ({
   state, setState, sliderId,
   debounceMs = 150,
   padWidth = 200, padHeight = 200,
   azimuthRange = [0, 360], elevationRange = [0, 90],
   fixedAzimuth = null, fixedElevation = null,
+  forceDatetime = false,
+  timeStepMinutes = 15,
 }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   const dimWhenSliding = cn("transition-opacity duration-150", activeSlider !== null && "opacity-20")
@@ -154,20 +164,27 @@ export const LightDirectionControl: React.FC<{
     }, [setState, sunToIllum, state.lightUseDatetime, state.lightTimeOfDay]),
     debounceMs,
   )
+  // Granularity the Time slider/setter/popover all agree on — quarter-hour by
+  // default (Hillshade/Phong), or down to real minutes for a precise caller.
+  const stepsPerHour = 60 / timeStepMinutes
   const [timeOfDay, setTimeOfDay] = useDebouncedState(
     state.lightTimeOfDay,
     useCallback((v: number) => {
-      const t = Math.round(v * 4) / 4
+      const t = Math.round(v * stepsPerHour) / stepsPerHour
       setState({ lightTimeOfDay: t, ...(state.lightUseDatetime ? sunToIllum(state.lightDayOfYear, t) : {}) })
-    }, [setState, sunToIllum, state.lightUseDatetime, state.lightDayOfYear]),
+    }, [setState, sunToIllum, state.lightUseDatetime, state.lightDayOfYear, stepsPerHour]),
     debounceMs,
   )
-  // For the hour/minute Select popover — timeOfDay is always a quarter-hour
-  // multiple (slider step 0.25, and setTimeOfDay itself rounds to one), so
-  // timeMinute is always exactly one of 0/15/30/45. %24 folds the slider's
-  // reachable 24.0 (== 0:00, same instant) onto a normal 0-23 hour.
+  // For the hour/minute Select popover — timeOfDay is always a multiple of
+  // timeStepMinutes (slider step + setTimeOfDay's own rounding both agree).
+  // %24 folds the slider's reachable 24.0 (== 0:00, same instant) onto a
+  // normal 0-23 hour.
   const timeHour = Math.floor(timeOfDay) % 24
   const timeMinute = Math.round((timeOfDay - Math.floor(timeOfDay)) * 60)
+  const minuteOptions = useMemo(
+    () => Array.from({ length: stepsPerHour }, (_, i) => i * timeStepMinutes),
+    [stepsPerHour, timeStepMinutes],
+  )
 
   const dayRange = useMemo(() => dayLength(state.lat, state.lightDayOfYear), [state.lat, state.lightDayOfYear])
   // Sunrise/sunset from dayRange are in true solar time — convert onto the
@@ -194,20 +211,29 @@ export const LightDirectionControl: React.FC<{
     }
   }, [state.lightUseDatetime, sunToIllum, state.lightDayOfYear, state.lightTimeOfDay, state.illuminationDir, state.illuminationAlt, setState])
 
+  // forceDatetime callers (Sun Shadow Calculator) have no use for a freely
+  // dragged light — pin the shared mode to Datetime for as long as this
+  // instance is mounted.
+  useEffect(() => {
+    if (forceDatetime && !state.lightUseDatetime) setState({ lightUseDatetime: true })
+  }, [forceDatetime, state.lightUseDatetime, setState])
+
   return (
     <div className="space-y-3">
-      <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
-        <Label className="text-sm font-medium">Mode</Label>
-        <SegmentedToggle
-          className={SEG_WIDTH}
-          value={state.lightUseDatetime ? "datetime" : "free"}
-          onChange={(value) => setState({ lightUseDatetime: value === "datetime" })}
-          options={[
-            { value: "free", label: "Free", tooltip: "Drag the pad to set any light azimuth + elevation freely." },
-            { value: "datetime", label: "Datetime", tooltip: "Derive the light from the sun's position for a day + time at the viewport-center latitude/longitude." },
-          ]}
-        />
-      </div>
+      {!forceDatetime && (
+        <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+          <Label className="text-sm font-medium">Mode</Label>
+          <SegmentedToggle
+            className={SEG_WIDTH}
+            value={state.lightUseDatetime ? "datetime" : "free"}
+            onChange={(value) => setState({ lightUseDatetime: value === "datetime" })}
+            options={[
+              { value: "free", label: "Free", tooltip: "Drag the pad to set any light azimuth + elevation freely." },
+              { value: "datetime", label: "Datetime", tooltip: "Derive the light from the sun's position for a day + time at the viewport-center latitude/longitude." },
+            ]}
+          />
+        </div>
+      )}
 
       {state.lightUseDatetime && (
         <div className="space-y-3">
@@ -250,7 +276,7 @@ export const LightDirectionControl: React.FC<{
             label="Time"
             value={timeOfDay}
             onChange={setTimeOfDay}
-            min={0} max={24} step={0.25}
+            min={0} max={24} step={1 / stepsPerHour}
             sliderId={sliderId}
             displayValue={formatHour(timeOfDay)}
             displayNode={
@@ -275,7 +301,7 @@ export const LightDirectionControl: React.FC<{
                     <Select value={String(timeMinute)} onValueChange={(v) => setTimeOfDay(timeHour + Number(v) / 60)}>
                       <SelectTrigger className="w-[68px] cursor-pointer"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {[0, 15, 30, 45].map((m) => (
+                        {minuteOptions.map((m) => (
                           <SelectItem key={m} value={String(m)}>{String(m).padStart(2, "0")}</SelectItem>
                         ))}
                       </SelectContent>
@@ -302,7 +328,7 @@ export const LightDirectionControl: React.FC<{
                     onCheckedChange={(checked) => {
                       const mode = checked ? "utc" : "local"
                       const solarHour = solarHourFromUi(state.lightDayOfYear, state.lightTimeOfDay)
-                      const rebasedUiHour = Math.round(uiHourFromSolarHour(state.lightDayOfYear, solarHour, mode) * 4) / 4
+                      const rebasedUiHour = Math.round(uiHourFromSolarHour(state.lightDayOfYear, solarHour, mode) * stepsPerHour) / stepsPerHour
                       setState({ lightTimeMode: mode, lightTimeOfDay: rebasedUiHour })
                     }}
                     className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent"

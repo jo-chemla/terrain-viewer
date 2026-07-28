@@ -155,7 +155,7 @@ export async function validateLocalCogFile(file: File): Promise<LocalCogValidati
     const tiff = await fromBlob(file)
     const image = await tiff.getImage()
     const imageCount = await tiff.getImageCount()
-    const geoKeys = image.geoKeys as { ProjectedCSTypeGeoKey?: number; GeographicTypeGeoKey?: number } | undefined
+    const geoKeys = image.getGeoKeys()
     const epsg = geoKeys?.ProjectedCSTypeGeoKey ?? geoKeys?.GeographicTypeGeoKey ?? null
     return { isTiled: image.isTiled, hasOverviews: imageCount > 1, epsg }
   } catch {

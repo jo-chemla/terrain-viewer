@@ -558,7 +558,7 @@ export function TerrainControlPanel({
             {!hiddenSections.includes("elevationPicker") && (
               <ElevationPickerSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
             )}
-            {!hiddenSections.includes("sunShadowCalculator") && (
+            {!hiddenSections.includes("sunShadowCalculator") && state.sunShadowBeta && (
               <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
             )}
             <AnimationSection

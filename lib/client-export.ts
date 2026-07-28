@@ -118,7 +118,12 @@ export async function exportCogWindow(
   // COGs store raw altitude per pixel already — no terrainrgb/terrarium decoding
   // needed, just a windowed read at the requested bbox/resolution.
   const reqBbox = reprojectBboxToRasterCrs(image, bbox)
-  const rasters = await image.readRasters({ bbox: reqBbox, width, height, resampleMethod: "bilinear", signal })
+  // bbox-mode reads (with best-overview selection) only exist on the GeoTIFF
+  // container's own readRasters — GeoTIFFImage.readRasters has no `bbox`
+  // support at all and silently ignores it, falling back to its `window`
+  // default of the WHOLE image (confirmed against geotiffimage.js: it
+  // destructures window/width/height/etc. but never bbox).
+  const rasters = await tiff.readRasters({ bbox: reqBbox, width, height, resampleMethod: "bilinear", signal })
   const data = Float32Array.from(rasters[0] as ArrayLike<number>)
   return { data, width, height, bbox }
 }

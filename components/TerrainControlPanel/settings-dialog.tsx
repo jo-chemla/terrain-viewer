@@ -17,7 +17,8 @@ import {
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom,
   customThemesAtom,
   isSettingsAppearanceOpenAtom, isSettingsKeyboardShortcutsOpenAtom, isSettingsVisualizationModesOpenAtom,
-  isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsTellsDetectionOpenAtom,
+  isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
+  isSettingsTellsDetectionOpenAtom, isSettingsSunShadowOpenAtom,
   isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
   isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom, isSettingsGeomorphometryOpenAtom,
 } from "@/lib/settings-atoms"
@@ -517,31 +518,57 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </CollapsibleSection>
 
           <Separator />
-          <CollapsibleSection
-            title="Tells (Mound Candidates) Detection"
-            openAtom={isSettingsTellsDetectionOpenAtom}
-            contentClassName="space-y-2 pt-2"
-            headerExtra={
-              <div className="flex items-center gap-2">
-                <Label htmlFor="tells-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
-                <Switch
-                  id="tells-beta"
-                  checked={state.tellsBeta}
-                  className="cursor-pointer"
-                  onCheckedChange={(checked) => setState({ tellsBeta: checked })}
-                />
-              </div>
-            }
-          >
-            <p className="text-xs text-muted-foreground">
-              Computes a <span className="font-semibold text-foreground">Difference-of-Gaussians of the LRM</span>{" "}
-              (DoG-of-LRM) as the primary bump signal, keeps only its local maxima
-              (non-maximum suppression scaled to the configured tell size), then vetoes
-              candidates that fail any of three shape filters: <span className="font-semibold text-foreground">Blobness</span>{" "}
-              (structure-tensor peak/pit detector), <span className="font-semibold text-foreground">Plan Curvature / Divergence</span>{" "}
-              (rejects saddles and ridges where flow diverges outward across contours), and{" "}
-              <span className="font-semibold text-foreground">Det-Hessian</span> (rejects saddle points, keeps bowl/dome shapes).
-            </p>
+          <CollapsibleSection title="Beta" openAtom={isSettingsBetaOpenAtom} contentClassName="space-y-3 pt-2">
+            <CollapsibleSection
+              title="Tells (Mound Candidates) Detection"
+              openAtom={isSettingsTellsDetectionOpenAtom}
+              contentClassName="space-y-2 pt-2"
+              headerExtra={
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="tells-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
+                  <Switch
+                    id="tells-beta"
+                    checked={state.tellsBeta}
+                    className="cursor-pointer"
+                    onCheckedChange={(checked) => setState({ tellsBeta: checked })}
+                  />
+                </div>
+              }
+            >
+              <p className="text-xs text-muted-foreground">
+                Computes a <span className="font-semibold text-foreground">Difference-of-Gaussians of the LRM</span>{" "}
+                (DoG-of-LRM) as the primary bump signal, keeps only its local maxima
+                (non-maximum suppression scaled to the configured tell size), then vetoes
+                candidates that fail any of three shape filters: <span className="font-semibold text-foreground">Blobness</span>{" "}
+                (structure-tensor peak/pit detector), <span className="font-semibold text-foreground">Plan Curvature / Divergence</span>{" "}
+                (rejects saddles and ridges where flow diverges outward across contours), and{" "}
+                <span className="font-semibold text-foreground">Det-Hessian</span> (rejects saddle points, keeps bowl/dome shapes).
+              </p>
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              title="Sun Shadow Calculator"
+              openAtom={isSettingsSunShadowOpenAtom}
+              contentClassName="space-y-2 pt-2"
+              headerExtra={
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="sun-shadow-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
+                  <Switch
+                    id="sun-shadow-beta"
+                    checked={state.sunShadowBeta}
+                    className="cursor-pointer"
+                    onCheckedChange={(checked) => setState({ sunShadowBeta: checked })}
+                  />
+                </div>
+              }
+            >
+              <p className="text-xs text-muted-foreground">
+                Pick a point on the map and measure the shadow an object of a given
+                height casts at the current sun position/date/time (Tools section)
+                — reuses the shared date/time light direction control that
+                Hillshade/Phong/Shadows also drive.
+              </p>
+            </CollapsibleSection>
           </CollapsibleSection>
 
           <Separator />

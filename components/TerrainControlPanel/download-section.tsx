@@ -166,7 +166,9 @@ export const DownloadSection: React.FC<{
       PlanarConfiguration: 1,
       PhotometricInterpretation: 1,
     }
-    const outputArrayBuffer = await writeArrayBuffer(elevationData, metadata)
+    // geotiff.js's own .d.ts types `values` as `any[]` but at runtime accepts
+    // (and expects) a single TypedArray for a single-band raster like this.
+    const outputArrayBuffer = await writeArrayBuffer(elevationData as unknown as any[], metadata)
     const blob = new Blob([outputArrayBuffer], { type: "image/tiff" })
     saveAs(blob, `terrain-dtm-${Date.now()}.tif`)
   }, [])

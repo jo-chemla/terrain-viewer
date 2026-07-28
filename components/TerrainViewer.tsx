@@ -458,6 +458,8 @@ export const QUERY_STATE_PARSERS = {
     // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
     // clutter Visualization Modes for everyone by default.
     tellsBeta: parseAsBoolean.withDefault(false),
+    // Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator.
+    sunShadowBeta: parseAsBoolean.withDefault(false),
     // Master on/off (Visualization Modes' "Tells (Mound Detector)" checkbox) —
     // gates the sidebar's Mound Candidates section as well as the map layer.
     // Independent from tellsMarkersVisible below: this is "is the detector
