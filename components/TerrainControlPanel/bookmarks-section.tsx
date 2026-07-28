@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, TooltipButton, TooltipIconButton } from "./controls-components"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   bookmarksAtom, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, restoreBookmark, exportBookmarksJson,
   mergeImportedBookmarks, formatBookmarkDate, summarizeActiveVizModes, type Bookmark,
@@ -26,7 +27,7 @@ import { BookmarksGalleryModal } from "./bookmarks-gallery-modal"
 // a child while its parent project is already the active one leaves the
 // camera alone (lib/bookmarks.ts's restoreBookmark) — the active project row
 // gets a ring so that's visible, and whichever exact bookmark was last
-// restored gets a filled background.
+// restored gets a solid border (+ a touch more padding).
 export const BookmarksSection: React.FC<{
   state: any
   setState: (updates: any) => void
@@ -128,14 +129,14 @@ export const BookmarksSection: React.FC<{
     <div
       key={b.id}
       className={cn(
-        "flex items-center gap-2 min-w-0 rounded-md p-0.5",
+        "flex items-center gap-2 min-w-0 rounded-md border border-transparent p-0.5",
         isChild && "pl-4",
         // Reference project (its own row, or the currently-loaded project when
         // a child is active) — the one whose viewport a sibling/child restore
         // won't disturb.
         !isChild && activeProjectId === b.id && "ring-1 ring-primary/50",
         // Exact bookmark last restored, project or child.
-        activeBookmarkId === b.id && "bg-accent/60",
+        activeBookmarkId === b.id && "border-primary p-1.5",
       )}
     >
       <button
@@ -164,10 +165,15 @@ export const BookmarksSection: React.FC<{
           className="h-8 flex-1 min-w-0 text-sm"
         />
       ) : (
-        <button className="flex-1 min-w-0 text-left cursor-pointer" onClick={() => handleRestore(b)}>
-          <div className="text-sm truncate">{b.name}</div>
-          <div className="text-xs text-muted-foreground">{formatBookmarkDate(b.ts)}</div>
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button className="flex-1 min-w-0 text-left cursor-pointer" onClick={() => handleRestore(b)}>
+              <div className="text-sm truncate">{b.name}</div>
+              <div className="text-xs text-muted-foreground">{formatBookmarkDate(b.ts)}</div>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent><p>{b.name}</p></TooltipContent>
+        </Tooltip>
       )}
       {!isChild && (
         <TooltipIconButton

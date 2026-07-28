@@ -20,7 +20,14 @@ export async function reverseGeocodeLabel(lat: number, lng: number, signal?: Abo
     const data = await res.json()
     const p: PhotonProperties | undefined = data?.features?.[0]?.properties
     if (!p) return null
-    const region = p.city ?? p.state ?? p.county ?? p.name
+    // `city` is only populated on finer-grained results (an address/POI
+    // pointing at the city that contains it) — when the reverse lookup
+    // resolves directly to a city-level feature, that feature's own name
+    // lives in `name` instead, with `city` empty. Checking `name` before
+    // falling back further to `state`/`county` is what makes "France -
+    // Paris" show up instead of the broader, less useful "France -
+    // Île-de-France" whenever the point resolves right onto a city.
+    const region = p.city ?? p.name ?? p.state ?? p.county
     const country = p.country
     if (country && region && country !== region) return `${country} - ${region}`
     return country ?? region ?? null

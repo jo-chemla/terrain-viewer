@@ -116,7 +116,6 @@ const VIZ_MODE_SHORTHANDS: Array<{ master: string; flag: string; label: string }
   { master: "showLightingEffects", flag: "showPhong", label: "Phong" },
   { master: "showTellsDetector", flag: "showTellsDetector", label: "Tells" },
   { master: "showPlaneSlicer", flag: "showPlaneSlicer", label: "Plane Slicer" },
-  { master: "showBackground", flag: "showBackground", label: "Sky/Fog" },
 ]
 
 /** Shorthand summary of whichever viz modes/submodes are actually on right

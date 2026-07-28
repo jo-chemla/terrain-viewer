@@ -64,7 +64,17 @@ function patchStats(mode: SlowVizMode, patch: Partial<SlowModeStats>) {
  *  measures the actual ray-marching cost, not a cache hit — a hit still
  *  counts toward completedCount (that tile IS done, just near-instantly),
  *  just not toward the avgMs sample (it would otherwise drag the estimate
- *  down to near-zero and make "time remaining" meaningless). */
+ *  down to near-zero and make "time remaining" meaningless).
+ *
+ *  Parallelization / "thread count" note: maxConcurrency is NOT a real
+ *  worker/thread count — the actual per-tile compute in these modes is
+ *  single-threaded on the main thread; only the network fetch overlaps.
+ *  It's instead an empirical measurement: at every tile request we compute
+ *  requestedCount − completedCount (how many are genuinely in flight right
+ *  now) and keep a running max of that. slow-tile-progress.tsx's "time
+ *  remaining" estimate divides pending tiles by this observed concurrency
+ *  instead of assuming everything is strictly sequential — that's what
+ *  fixed the estimate being too conservative. */
 export function withSlowTileStats<
   T extends (params: { url: string }, abortController: AbortController) => Promise<{ data: Uint8Array }>,
 >(mode: SlowVizMode, inner: T): T {

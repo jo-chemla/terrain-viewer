@@ -5,6 +5,7 @@ import { Trash2, ImageOff, Pencil, Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { restoreBookmark, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, formatBookmarkDate, type Bookmark } from "@/lib/bookmarks"
 
@@ -72,7 +73,7 @@ export const BookmarksGalleryModal: React.FC<{
                 className={cn(
                   "group overflow-hidden rounded-lg border text-left transition-colors hover:border-foreground/40",
                   !b.parentId && activeProjectId === b.id && "ring-1 ring-primary/50",
-                  activeBookmarkId === b.id && "bg-accent/60",
+                  activeBookmarkId === b.id && "border-2 border-primary p-1",
                 )}
               >
                 <button className="relative block w-full cursor-pointer" onClick={() => handleRestore(b)}>
@@ -101,10 +102,15 @@ export const BookmarksGalleryModal: React.FC<{
                       className="h-6 flex-1 min-w-0 text-xs"
                     />
                   ) : (
-                    <button className="min-w-0 flex-1 text-left cursor-pointer" onClick={() => handleRestore(b)}>
-                      <div className="truncate text-xs font-medium">{b.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{formatBookmarkDate(b.ts)}</div>
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="min-w-0 flex-1 text-left cursor-pointer" onClick={() => handleRestore(b)}>
+                          <div className="truncate text-xs font-medium">{b.name}</div>
+                          <div className="text-[10px] text-muted-foreground">{formatBookmarkDate(b.ts)}</div>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>{b.name}</p></TooltipContent>
+                    </Tooltip>
                   )}
                   {editId === b.id ? (
                     <button onClick={() => { onRename?.(b.id, editName); setEditId(null) }} className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
