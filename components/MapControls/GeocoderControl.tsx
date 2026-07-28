@@ -44,30 +44,55 @@ function formatLatLng(lat: number, lng: number): string {
   return `${round6(lat)}°${ns} ${round6(lng)}°${ew}`;
 }
 
-// One "12.34", "12.34°N", "12.34 N" (decimal), or "35°47'58.86\"N" (DMS)
-// style token — degrees is required, minutes/seconds are each optional (and
-// only meaningful once degrees/minutes are present), and the trailing letter
-// (any of N/S/E/W) is optional. When present, the letter both fixes the
-// value's sign and says outright whether this token is the latitude or the
-// longitude, so two directioned tokens (in either order) never need the
-// magnitude-based guessing below. Minutes/seconds accept either the plain
-// ASCII quotes or the proper prime/double-prime marks some sources (e.g.
-// Google Earth's copy-coordinates output) use.
-const COORD_TOKEN = String.raw`(?:Lat: |Lng: )?(-?\d+\.?\d*)\s*°?\s*(?:(\d+\.?\d*)\s*['′]\s*(?:(\d+\.?\d*)\s*["″]\s*)?)?([NSEWnsew])?`;
+// A bare number token accepts either '.' or ',' as the decimal separator —
+// e.g. European-style "45,5 7,2" — normalized to '.' before Number() ever
+// sees it (see toNum below). The pair separator (comma and/or space between
+// the two tokens, see COORDINATES_PATTERN) still works even when both are
+// comma-decimals ("48,8566, 2,3522"): regex greediness consumes a token's own
+// decimal comma into that token's \d* before the separator group gets a
+// chance to claim it.
+const NUM = String.raw`-?\d+[.,]?\d*`;
+
+// One "12.34", "12.34°N", "12.34 N" (decimal), "35°47'58.86\"N" (DMS), or
+// "x: 36.8772" / "y: 34.9150" (ESRI Wayback-style axis label) style token —
+// degrees is required, minutes/seconds are each optional (and only
+// meaningful once degrees/minutes are present). Either a trailing N/S/E/W
+// letter OR a leading x:/y: label fixes which of the two tokens is the
+// latitude vs longitude (x/y also matches plain cartesian convention: x is
+// easting/longitude, y is northing/latitude) — see token1IsLat below, which
+// needs only one of the two tokens to carry either marker to resolve order
+// unambiguously, no magnitude-based guessing needed.
+const COORD_TOKEN = String.raw`(?:Lat:\s*|Lng:\s*|([xXyY]):\s*)?(${NUM})\s*°?\s*(?:(${NUM})\s*['′]\s*(?:(${NUM})\s*["″]\s*)?)?([NSEWnsew])?`;
 const COORDINATES_PATTERN = new RegExp(`^[ ]*${COORD_TOKEN}[, ]+${COORD_TOKEN}[ ]*$`, 'i');
+
+function toNum(str: string): number {
+  return Number(str.replace(',', '.'));
+}
 
 // Combines a token's degrees/minutes/seconds captures into one signed
 // decimal-degree value — magnitude comes from degrees+minutes/60+seconds/3600,
 // sign from the degrees value itself (direction-letter overrides, if any,
 // are applied by the caller the same way they already were for plain decimals).
 function dmsToDecimal(degStr: string, minStr?: string, secStr?: string): number {
-  const magnitude = Math.abs(Number(degStr)) + (minStr ? Number(minStr) / 60 : 0) + (secStr ? Number(secStr) / 3600 : 0);
-  return Number(degStr) < 0 ? -magnitude : magnitude;
+  const magnitude = Math.abs(toNum(degStr)) + (minStr ? toNum(minStr) / 60 : 0) + (secStr ? toNum(secStr) / 3600 : 0);
+  return toNum(degStr) < 0 ? -magnitude : magnitude;
+}
+
+/** 'lat'/'lng' when a token's direction letter or x:/y: axis label pins down
+ *  which coordinate it is, undefined when neither is present (falls back to
+ *  magnitude-based guessing in the caller). */
+function roleOf(dir?: string, axis?: string): 'lat' | 'lng' | undefined {
+  if (dir === 'N' || dir === 'S') return 'lat';
+  if (dir === 'E' || dir === 'W') return 'lng';
+  if (axis === 'Y') return 'lat';
+  if (axis === 'X') return 'lng';
+  return undefined;
 }
 
 function coordinatesGeocoder(query: string): CarmenGeojsonFeature[] {
   // Matches "Lat: 12.34 Lng: 56.78", "12.34, 56.78", "12.34°N, 56.78°E",
-  // "35°47'58.86\"N 36°47'54.61\"E", etc.
+  // "35°47'58.86\"N 36°47'54.61\"E", "x: 36.8772 y: 34.9150" (ESRI Wayback),
+  // "45,5 7,2" (comma-decimal), etc.
   const matches = query.match(COORDINATES_PATTERN);
   if (!matches) return [];
 
@@ -88,23 +113,28 @@ function coordinatesGeocoder(query: string): CarmenGeojsonFeature[] {
     } as CarmenGeojsonFeature;
   };
 
-  const [, deg1Str, min1Str, sec1Str, dir1Raw, deg2Str, min2Str, sec2Str, dir2Raw] = matches;
+  const [, axis1Raw, deg1Str, min1Str, sec1Str, dir1Raw, axis2Raw, deg2Str, min2Str, sec2Str, dir2Raw] = matches;
   const v1 = dmsToDecimal(deg1Str, min1Str, sec1Str);
   const v2 = dmsToDecimal(deg2Str, min2Str, sec2Str);
   const dir1 = dir1Raw?.toUpperCase();
   const dir2 = dir2Raw?.toUpperCase();
+  const axis1 = axis1Raw?.toUpperCase();
+  const axis2 = axis2Raw?.toUpperCase();
+  const role1 = roleOf(dir1, axis1);
+  const role2 = roleOf(dir2, axis2);
 
-  if (dir1 || dir2) {
+  if (role1 || role2) {
     // A direction letter forces the value's sign (S/W negative, N/E
-    // positive) — with no letter, keep whatever sign the number itself
+    // positive); an x:/y: axis label doesn't (cartesian coordinates carry
+    // their own sign) — with neither, keep whatever sign the number itself
     // already had.
     const withSign = (v: number, dir?: string) =>
       dir === 'S' || dir === 'W' ? -Math.abs(v) : dir === 'N' || dir === 'E' ? Math.abs(v) : v;
-    // token1 is the latitude unless it's explicitly marked E/W, or it's
-    // unmarked and token2 is explicitly marked E/W (leaving token1 as the
-    // latitude by elimination) — this reads correctly regardless of which
-    // token came first.
-    const token1IsLat = dir1 === 'N' || dir1 === 'S' || !(dir1 === 'E' || dir1 === 'W') && !(dir2 === 'N' || dir2 === 'S');
+    // token1 is the latitude unless it's explicitly marked lng (E/W or
+    // x:), or it's unmarked and token2 is explicitly marked lat (N/S or
+    // y:) — leaving token1 as the latitude by elimination. Reads correctly
+    // regardless of which token came first or which marker kind was used.
+    const token1IsLat = role1 === 'lat' || (role1 !== 'lng' && role2 !== 'lat');
     const lat = withSign(token1IsLat ? v1 : v2, token1IsLat ? dir1 : dir2);
     const lng = withSign(token1IsLat ? v2 : v1, token1IsLat ? dir2 : dir1);
     return [coordinateFeature(lng, lat)];
