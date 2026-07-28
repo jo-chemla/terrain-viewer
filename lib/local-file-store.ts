@@ -105,6 +105,14 @@ export function getLocalFileName(id: string): string | null {
   return files.get(id)?.name ?? null
 }
 
+/** This session's live File for a `local://<id>` source, if it's been
+ *  (re-)picked or already hydrated from OPFS — the freshest possible copy
+ *  for a project export bundling raw COG bytes (see project-export.ts's
+ *  buildProjectExportArchive), preferred over re-reading OPFS again. */
+export function getRegisteredLocalFile(id: string): File | null {
+  return files.get(id) ?? null
+}
+
 export interface LocalCogValidation {
   isTiled: boolean
   hasOverviews: boolean

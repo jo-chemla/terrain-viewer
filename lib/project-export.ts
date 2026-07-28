@@ -14,10 +14,13 @@
 // page after an import (see applyProjectImport's own note) since already-
 // mounted components/atoms won't pick up a raw localStorage write on their
 // own.
+import { zipSync, unzipSync, strToU8, strFromU8 } from "fflate"
 import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
 import type { Bookmark } from "./bookmarks"
 import type { DrawLayer, GeoJSONFeature } from "@/components/TerrainControlPanel/TerraDrawSystem"
 import { persistVectorLayerFeatures, readPersistedVectorLayerFeatures } from "./opfs-vector-store"
+import { readPersistedCogFile, persistCogFile } from "./opfs-file-store"
+import { isLocalFileUrl, localFileId, getRegisteredLocalFile } from "./local-file-store"
 
 export const PROJECT_EXPORT_VERSION = 1
 
@@ -46,6 +49,11 @@ export interface ProjectExportSelection {
    *  toggle) — the same state a bookmark already captures as a query string,
    *  but for "what's on screen right now" rather than a saved point. */
   viewState: boolean
+  /** Only meaningful when `sources` is also checked and at least one BYOD
+   *  source is a locally-picked file (see hasLocalFileSources) — bundles
+   *  each such file's raw bytes into a .zip alongside the JSON payload
+   *  instead of leaving just that source's settings behind. */
+  localCogs: boolean
 }
 
 export interface ProjectExportPayload {
@@ -134,6 +142,64 @@ export function buildProjectExport(
   return payload
 }
 
+const PROJECT_JSON_ENTRY = "project.json"
+
+function collectLocalCogIds(sources?: ProjectExportPayload["sources"]): string[] {
+  if (!sources) return []
+  const ids = new Set<string>()
+  for (const s of [...sources.customTerrainSources, ...sources.customBasemapSources]) {
+    if (s.type === "cog-local" && isLocalFileUrl(s.url)) ids.add(localFileId(s.url))
+  }
+  return Array.from(ids)
+}
+
+/** Builds a downloadable archive: `project.json` (the same payload
+ *  buildProjectExport produces) plus, when `selection.localCogs` is set, one
+ *  `<id>.cog.tiff` entry per locally-picked BYOD source referenced in it —
+ *  read from whichever copy is freshest (this session's live registered
+ *  File, falling back to the OPFS-persisted copy). An id with neither
+ *  (never persisted, evicted, or OPFS unsupported) is silently skipped —
+ *  its source's settings still travel via project.json, only the bytes are
+ *  missing, same as a plain export (see hasLocalFileSources). Level 0 (store,
+ *  no deflate) since COG bytes are already large binary data not worth
+ *  spending CPU trying to compress. */
+export async function buildProjectExportArchive(
+  selection: ProjectExportSelection,
+  live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[]; viewState: Record<string, unknown> },
+): Promise<Uint8Array> {
+  const payload = buildProjectExport(selection, live)
+  const entries: Record<string, Uint8Array> = { [PROJECT_JSON_ENTRY]: strToU8(JSON.stringify(payload, null, 2)) }
+
+  if (selection.localCogs) {
+    for (const id of collectLocalCogIds(payload.sources)) {
+      const file = getRegisteredLocalFile(id) ?? (await readPersistedCogFile(id))
+      if (!file) continue
+      entries[`${id}.cog.tiff`] = new Uint8Array(await file.arrayBuffer())
+    }
+  }
+  return zipSync(entries, { level: 0 })
+}
+
+/** Reverse of buildProjectExportArchive. `isZip` picks the parse path — a
+ *  plain (non-zip) export is still accepted for backward compatibility with
+ *  files exported before this bundling existed, or a fresh export with
+ *  `localCogs` left unchecked. */
+export function parseProjectExportArchive(bytes: Uint8Array, isZip: boolean): { payload: ProjectExportPayload; cogBytesById: Map<string, Uint8Array> } {
+  if (!isZip) {
+    return { payload: JSON.parse(strFromU8(bytes)), cogBytesById: new Map() }
+  }
+  const entries = unzipSync(bytes)
+  const projectEntry = entries[PROJECT_JSON_ENTRY]
+  if (!projectEntry) throw new Error("zip has no project.json entry")
+  const payload = JSON.parse(strFromU8(projectEntry))
+  const cogBytesById = new Map<string, Uint8Array>()
+  for (const [name, data] of Object.entries(entries)) {
+    if (name === PROJECT_JSON_ENTRY) continue
+    cogBytesById.set(name.replace(/\.cog\.tiff$/, ""), data)
+  }
+  return { payload, cogBytesById }
+}
+
 /** Applies an imported payload on top of whatever's already here — sources/
  *  bookmarks/drawing-layers upsert by id, a drawing layer's features merge
  *  into that layer's existing OPFS-persisted features, and settings values
@@ -141,8 +207,15 @@ export function buildProjectExport(
  *
  *  Writes straight to localStorage/OPFS rather than through jotai's atoms
  *  (see this module's own header comment) — callers MUST reload the page
- *  afterwards for already-mounted components to pick the change up. */
-export async function applyProjectImport(payload: ProjectExportPayload): Promise<void> {
+ *  afterwards for already-mounted components to pick the change up.
+ *
+ *  `cogBytesById` (from parseProjectExportArchive, empty for a plain-JSON
+ *  import) is persisted into the SAME OPFS store local-file-store.ts's own
+ *  hydrateAllPersistedCogs already reads from on app start — so once these
+ *  sources are merged in above and the page reloads, the existing "local COG
+ *  hydration" flow picks the bytes up exactly as if the file had been
+ *  persisted on this machine originally, no separate wiring needed. */
+export async function applyProjectImport(payload: ProjectExportPayload, cogBytesById?: Map<string, Uint8Array>): Promise<void> {
   if (payload.sources) {
     const existingTerrain = readLocalJSON<CustomTerrainSource[]>("customTerrainSources", [])
     const existingBasemap = readLocalJSON<CustomBasemapSource[]>("customBasemapSources", [])
@@ -177,5 +250,17 @@ export async function applyProjectImport(payload: ProjectExportPayload): Promise
 
   if (payload.settings) {
     for (const [key, value] of Object.entries(payload.settings)) writeLocalJSON(key, value)
+  }
+
+  if (cogBytesById && cogBytesById.size) {
+    // `as BlobPart` — TS's DOM lib type for Blob's constructor wants a
+    // Uint8Array<ArrayBuffer> specifically, but these bytes come back as the
+    // wider Uint8Array<ArrayBufferLike> (from fflate's unzipSync); a plain
+    // Uint8Array is accepted by Blob at runtime regardless, this is purely a
+    // type-level mismatch (same one import-export-project-dialog.tsx hits
+    // wrapping zipSync's output).
+    await Promise.all(
+      Array.from(cogBytesById.entries()).map(([id, bytes]) => persistCogFile(id, new Blob([bytes as BlobPart], { type: "image/tiff" }))),
+    )
   }
 }

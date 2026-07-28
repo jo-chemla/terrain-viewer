@@ -11,7 +11,7 @@
 import type React from "react"
 import { useCallback, useMemo, useRef, useState } from "react"
 import { useAtomValue } from "jotai"
-import { Download, Upload } from "lucide-react"
+import { Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -20,17 +20,29 @@ import { bookmarksAtom } from "@/lib/bookmarks"
 import { drawingLayersAtom, drawingFeaturesAtom } from "./TerraDrawSystem"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import {
-  buildProjectExport, applyProjectImport, hasLocalFileSources,
-  type ProjectExportSelection, type ProjectExportPayload,
+  buildProjectExportArchive, applyProjectImport, hasLocalFileSources, parseProjectExportArchive,
+  type ProjectExportSelection,
 } from "@/lib/project-export"
 
-type Category = keyof ProjectExportSelection
+// "localCogs" is a modifier of the Sources category (rendered as its own
+// nested checkbox below, only when there's actually a local file to bundle)
+// rather than a top-level category — excluded from CATEGORY_ORDER so it
+// doesn't get its own row in the main list or count toward "at least one
+// category checked".
+type Category = Exclude<keyof ProjectExportSelection, "localCogs">
 
 const CATEGORY_ORDER: Category[] = ["sources", "bookmarks", "viewState", "drawings", "settings"]
 const CATEGORY_LABELS: Record<Category, string> = {
   sources: "Sources", bookmarks: "Bookmarks", viewState: "View & Viz State", drawings: "Drawings", settings: "Settings",
 }
-const DEFAULT_SELECTION: ProjectExportSelection = { sources: true, bookmarks: true, viewState: true, drawings: false, settings: false }
+const DEFAULT_SELECTION: ProjectExportSelection = { sources: true, bookmarks: true, viewState: true, drawings: false, settings: false, localCogs: false }
+
+// Zip files start with a "PK" local-file-header signature — cheap way to
+// tell a .zip archive (project.json + optional .cog.tiff blobs) apart from
+// a plain-JSON export without trusting the file's extension.
+function looksLikeZip(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b
+}
 
 export function ImportExportProjectDialog({ state, setState }: { state: Record<string, unknown>; setState: (updates: Record<string, unknown>) => void }) {
   const [isExportOpen, setIsExportOpen] = useState(false)
@@ -55,15 +67,20 @@ export function ImportExportProjectDialog({ state, setState }: { state: Record<s
 
   const localFileWarning = hasLocalFileSources({ customTerrainSources, customBasemapSources })
 
-  const toggle = (category: Category) => setSelection((prev) => ({ ...prev, [category]: !prev[category] }))
+  const toggle = (category: keyof ProjectExportSelection) => setSelection((prev) => ({ ...prev, [category]: !prev[category] }))
 
-  const handleExport = useCallback(() => {
-    const payload = buildProjectExport(selection, { bookmarks, drawingLayers, drawingFeatures, viewState: state })
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
+  const handleExport = useCallback(async () => {
+    const archive = await buildProjectExportArchive(selection, { bookmarks, drawingLayers, drawingFeatures, viewState: state })
+    const zipped = selection.localCogs
+    // `as BlobPart` — TS's DOM lib type for Blob's constructor wants a
+    // Uint8Array<ArrayBuffer> specifically, but fflate's zipSync returns the
+    // wider Uint8Array<ArrayBufferLike>; a plain Uint8Array is accepted by
+    // Blob at runtime regardless, this is purely a type-level mismatch.
+    const blob = new Blob([archive as BlobPart], { type: zipped ? "application/zip" : "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `terrain-viewer-project-${Date.now()}.json`
+    a.download = `terrain-viewer-project-${Date.now()}.${zipped ? "zip" : "json"}`
     a.click()
     URL.revokeObjectURL(url)
     setStatus("Exported.")
@@ -72,26 +89,28 @@ export function ImportExportProjectDialog({ state, setState }: { state: Record<s
   const handleImportFile = useCallback((file: File) => {
     setError(null)
     setStatus(null)
-    file.text().then(async (text) => {
-      let payload: ProjectExportPayload
+    file.arrayBuffer().then(async (buf) => {
+      const bytes = new Uint8Array(buf)
+      let payload
+      let cogBytesById
       try {
-        payload = JSON.parse(text)
+        ({ payload, cogBytesById } = parseProjectExportArchive(bytes, looksLikeZip(bytes)))
       } catch {
-        setError(`"${file.name}" isn't valid JSON.`)
+        setError(`"${file.name}" isn't a valid project export.`)
         return
       }
       if (!payload || typeof payload !== "object" || !("version" in payload)) {
         setError(`"${file.name}" doesn't look like a project export.`)
         return
       }
-      const importedLocalFiles = hasLocalFileSources(payload.sources)
-      await applyProjectImport(payload)
+      const stillMissingLocalFiles = hasLocalFileSources(payload.sources) && cogBytesById.size === 0
+      await applyProjectImport(payload, cogBytesById)
       // viewState lives in the URL (nuqs), not localStorage — applied through
       // the query-state setter so the URL carries it into the reload below,
       // instead of through applyProjectImport's raw-localStorage path.
       if (payload.viewState) setState(payload.viewState)
       setStatus(
-        importedLocalFiles
+        stillMissingLocalFiles
           ? "Imported — reloading… (some sources reference local files you'll need to re-select)"
           : "Imported — reloading…",
       )
@@ -103,11 +122,11 @@ export function ImportExportProjectDialog({ state, setState }: { state: Record<s
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-medium">Project</Label>
-        <div className="flex rounded-md border overflow-hidden">
+        <div className="flex rounded-md border overflow-hidden w-[140px]">
           <input
             ref={importInputRef}
             type="file"
-            accept=".json"
+            accept=".json,.zip"
             className="hidden"
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               const f = e.target.files?.[0]
@@ -115,13 +134,13 @@ export function ImportExportProjectDialog({ state, setState }: { state: Record<s
               if (f) handleImportFile(f)
             }}
           />
-          <Button variant="ghost" size="sm" className="rounded-none cursor-pointer" onClick={() => importInputRef.current?.click()}>
-            <Upload className="h-3.5 w-3.5 mr-1" /> Import
+          <Button variant="ghost" size="sm" className="flex-1 rounded-none cursor-pointer" onClick={() => importInputRef.current?.click()}>
+            Import
           </Button>
           <Dialog open={isExportOpen} onOpenChange={setIsExportOpen}>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="rounded-none border-l cursor-pointer">
-                <Download className="h-3.5 w-3.5 mr-1" /> Export
+              <Button variant="ghost" size="sm" className="flex-1 rounded-none border-l cursor-pointer">
+                Export
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md" showCloseButton={false}>
@@ -151,10 +170,26 @@ export function ImportExportProjectDialog({ state, setState }: { state: Record<s
               </div>
 
               {selection.sources && localFileWarning && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  One or more sources reference a locally-picked file — only the source's settings travel with the export,
-                  not the file's bytes. Re-select the file after importing elsewhere.
-                </p>
+                <div className="space-y-2 pl-6">
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id="export-localCogs"
+                      checked={selection.localCogs}
+                      onCheckedChange={() => toggle("localCogs")}
+                      className="mt-0.5 cursor-pointer"
+                    />
+                    <div className="min-w-0">
+                      <Label htmlFor="export-localCogs" className="cursor-pointer">Include local COG files</Label>
+                      <p className="text-xs text-muted-foreground">Bundles each local file's raw bytes as a .zip — larger download, but re-importable elsewhere without re-selecting files.</p>
+                    </div>
+                  </div>
+                  {!selection.localCogs && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      One or more sources reference a locally-picked file — only the source's settings travel unless you check the
+                      box above; otherwise you'll need to re-select the file after importing elsewhere.
+                    </p>
+                  )}
+                </div>
               )}
 
               <Button
