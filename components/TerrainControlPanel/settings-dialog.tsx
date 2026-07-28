@@ -361,6 +361,8 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </p>
 
             <div className="pt-1 text-xs font-semibold text-foreground">Terrain Analysis</div>
+
+            <div className="pt-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Surface derivatives</div>
             <div className="space-y-1.5 text-xs text-muted-foreground">
               <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
               <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
@@ -374,13 +376,17 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   <li><span className="font-medium text-foreground">Casorati:</span> κ = √((κ₁²+κ₂²)/2) — RMS of the two principal curvatures (Koch, 1993); always ≥ 0, measures how curved the surface is regardless of shape (dome, ridge, saddle, valley and bowl all read the same), zero only on flat ground</li>
                 </ul>
               </div>
+            </div>
+
+            <div className="pt-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Neighborhood statistics</div>
+            <div className="space-y-1.5 text-xs text-muted-foreground">
               <div><span className="font-semibold text-foreground">TRI (Terrain Ruggedness Index):</span> mean elevation difference to neighbors</div>
               <div><span className="font-semibold text-foreground">TPI (Topographic Position Index):</span> elevation relative to neighborhood mean</div>
               <div><span className="font-semibold text-foreground">Roughness:</span> max−min elevation in a neighborhood</div>
               <div><span className="font-semibold text-foreground">Shape Index:</span> SI = (2/π)·atan2(κ₁+κ₂, κ₁−κ₂) — Koenderink &amp; van Doorn (1992); scale-free and bounded to [−1, 1] regardless of curvature magnitude: +1 dome/peak, +0.5 ridge, 0 saddle, −0.5 valley, −1 pit/bowl</div>
             </div>
 
-            <div className="pt-2 text-xs font-semibold text-foreground">Principal Components Analysis (PCA)</div>
+            <div className="pt-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Principal Components (PCA)</div>
             <p className="text-xs text-muted-foreground">
               A local 2D PCA of the window's gradient vectors, via the Förstner/Harris structure tensor
               (box-averaged Ixx/Iyy/Ixy over a 5×5 window) — the same tensor behind all three modes below.
@@ -403,6 +409,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             <div className="space-y-1.5 text-xs text-muted-foreground">
               <div><span className="font-semibold text-foreground">Matcap (material capture):</span> looks up a surface colour from a pre-lit sphere image using the surface normal as UV coordinates — a stylized, art-directable shading that doesn't depend on a directional light</div>
               <div><span className="font-semibold text-foreground">Phong:</span> real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; "3D Slow" drapes over terrain/globe via raster tiles, "2D Fast" is a live GPU shader (see the Lighting Effects panel)</div>
+              <div><span className="font-semibold text-foreground">Shadows:</span> hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light (a single-ray horizon-angle march toward the sun's azimuth); shares Phong/Hillshade's light direction, no separate control of its own beyond opacity and search radius</div>
               <div className="pt-1 italic">Neighborhood usually refers to a 3×3 kernel centered on the pixel.</div>
             </div>
 
