@@ -207,11 +207,14 @@ export const QUERY_STATE_PARSERS = {
     // "Light Anchor", ported from Phong's phongLightRelativeToCamera — only
     // meaningful in "live" (2D Fast): off (Absolute) keeps the reflected
     // ray's divergence tied to screen position + FOV only, ignoring how the
-    // camera itself is actually tilted/rotated; on (Camera) additionally
-    // rotates that ray by the camera's real pitch+bearing (see
-    // lib/matcap-live-gl-layer.ts's render()), so it reacts to viewport
-    // altitude/rotation like a real lens would.
-    matcapLightRelativeToCamera: parseAsBoolean.withDefault(false),
+    // camera itself is actually tilted/rotated; on (Camera, the default per
+    // the user's 2026-07-28 request — an earlier hand-derived-trig version
+    // "looked mostly correct" but was suspected inverted on pitch/bearing,
+    // since replaced with an unprojection through the real per-tile
+    // projection matrix instead — not yet re-verified) reacts to viewport
+    // altitude/rotation like a real lens would (see
+    // lib/matcap-live-gl-layer.ts's fragment shader).
+    matcapLightRelativeToCamera: parseAsBoolean.withDefault(true),
     // "Phong" sub-mode (lib/phong-protocol.ts) — a plain raster overlay doing
     // real ambient+diffuse+specular shading from a compass-fixed light
     // (state.illuminationDir/illuminationAlt below — the same fields the

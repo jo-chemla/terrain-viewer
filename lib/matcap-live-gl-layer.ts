@@ -90,12 +90,12 @@ export type MatcapLiveOptions = {
    *  screen-position-only divergence (the ray's direction depends on where
    *  a fragment sits on screen + the FOV, but not on how the camera itself
    *  is actually tilted/rotated in 3D) — camera-orientation-agnostic, the
-   *  original behavior. true ("Camera" / attached to camera) additionally
-   *  rotates that ray by the camera's REAL pitch+bearing (see render()'s
-   *  camera-basis derivation) so tilting or spinning the view changes which
-   *  part of the matcap sphere you see, the way a real lens would — reacts
-   *  to viewport altitude (pitch) and rotation (bearing), not just flat
-   *  screen position. */
+   *  original behavior. true ("Camera" / attached to camera, the default)
+   *  instead unprojects this fragment through the inverse of the SAME
+   *  per-tile projection matrix used to place the tile itself (see the
+   *  fragment shader) — the real camera's pitch/bearing/FOV are all already
+   *  baked into that one matrix, so this reacts to real 3D orientation with
+   *  no separately hand-derived trig (and its signs) to get wrong. */
   lightRelativeToCamera: boolean
 }
 
@@ -128,8 +128,12 @@ uniform float u_opacity;
 uniform float u_fov;
 uniform vec2 u_viewportSize;
 uniform bool u_lightRelativeToCamera;
-uniform float u_bearingRad;
-uniform float u_pitchRad;
+// Same name/type as the vertex shader's own uniform (declared in the
+// projection prelude spliced into buildVertexShader) — WebGL links same-
+// name uniforms across stages as one shared value, so this picks up
+// whatever gl.uniformMatrix4fv(bundle.uProjectionMatrix, ...) already sets
+// per-tile in render(), no separate binding needed.
+uniform mat4 u_projection_matrix;
 out vec4 fragColor;
 
 void main() {
@@ -158,24 +162,24 @@ void main() {
 
   vec3 viewDir;
   if (u_lightRelativeToCamera) {
-    // "Camera" (attached to camera): rotate localRay by the camera's ACTUAL
-    // pitch+bearing into world (x=east, y=south, z=up) space -- same
-    // convention the surface normal is already in -- via an orthonormal
-    // camera basis (right/up/forward) built from those two angles. Unlike
-    // the "Absolute" branch below, this reacts to real 3D orientation: at
-    // pitch 0 (looking straight down) forward=(0,0,-1); as pitch increases
-    // toward the horizon, forward tilts toward the compass direction
-    // bearing points; right only depends on bearing (pitch rotates
-    // around it). Reduces to the flat/Absolute case exactly when pitch=0
-    // and bearing=0.
-    float cBear = cos(u_bearingRad);
-    float sBear = sin(u_bearingRad);
-    float cPitch = cos(u_pitchRad);
-    float sPitch = sin(u_pitchRad);
-    vec3 right   = vec3(cBear, sBear, 0.0);
-    vec3 up      = vec3(cPitch * sBear, -cPitch * cBear, sPitch);
-    vec3 forward = vec3(sPitch * sBear, -sPitch * cBear, -cPitch);
-    viewDir = normalize(localRay.x * right + localRay.y * up - localRay.z * forward);
+    // "Camera" (attached to camera): rather than hand-deriving a
+    // pitch/bearing rotation (error-prone to get every sign right blind —
+    // an earlier version of this did and had them backwards), unproject
+    // THIS fragment's NDC position through the inverse of the SAME per-tile
+    // projection matrix (u_projection_matrix) the vertex shader used to
+    // place this tile — two points along the ray at different clip-space
+    // depths, in tile-local (x=east, y=south, elevation=up) space, the same
+    // frame the surface normal is already in. Their difference is the ray
+    // MapLibre's own real camera (pitch, bearing, fov all baked into that
+    // one matrix already) actually casts through this pixel — mathematically
+    // guaranteed self-consistent with how the tile itself was placed, no
+    // separately-derived trig to get wrong.
+    mat4 invProjection = inverse(u_projection_matrix);
+    vec4 nearH = invProjection * vec4(ndc, -1.0, 1.0);
+    vec4 farH  = invProjection * vec4(ndc,  1.0, 1.0);
+    vec3 nearP = nearH.xyz / nearH.w;
+    vec3 farP  = farH.xyz / farH.w;
+    viewDir = normalize(farP - nearP);
   } else {
     // "Absolute": the ray's direction still depends on screen position +
     // FOV (unlike the orthographic-matcap simplification's constant
@@ -235,8 +239,6 @@ interface ProgramBundle {
   uFov: WebGLUniformLocation | null
   uViewportSize: WebGLUniformLocation | null
   uLightRelativeToCamera: WebGLUniformLocation | null
-  uBearingRad: WebGLUniformLocation | null
-  uPitchRad: WebGLUniformLocation | null
   uTerrain: WebGLUniformLocation | null
   uTerrainDim: WebGLUniformLocation | null
   uTerrainMatrix: WebGLUniformLocation | null
@@ -357,8 +359,6 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       uFov: gl.getUniformLocation(program, "u_fov"),
       uViewportSize: gl.getUniformLocation(program, "u_viewportSize"),
       uLightRelativeToCamera: gl.getUniformLocation(program, "u_lightRelativeToCamera"),
-      uBearingRad: gl.getUniformLocation(program, "u_bearingRad"),
-      uPitchRad: gl.getUniformLocation(program, "u_pitchRad"),
       uTerrain: gl.getUniformLocation(program, "u_terrain"),
       uTerrainDim: gl.getUniformLocation(program, "u_terrain_dim"),
       uTerrainMatrix: gl.getUniformLocation(program, "u_terrain_matrix"),
@@ -481,8 +481,6 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       gl.uniform1f(bundle.uFov, args.fov)
       gl.uniform2f(bundle.uViewportSize, gl.drawingBufferWidth, gl.drawingBufferHeight)
       gl.uniform1i(bundle.uLightRelativeToCamera, this.options.lightRelativeToCamera ? 1 : 0)
-      gl.uniform1f(bundle.uBearingRad, (map.getBearing() * Math.PI) / 180)
-      gl.uniform1f(bundle.uPitchRad, (map.getPitch() * Math.PI) / 180)
 
       gl.activeTexture(gl.TEXTURE2)
       gl.bindTexture(gl.TEXTURE_2D, this.matcapTexture)
