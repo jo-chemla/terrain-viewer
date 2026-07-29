@@ -94,7 +94,7 @@ const DEFAULT_OPEN_STATE: SectionOpenState = {
 }
 
 export const sectionOpenAtom = atomWithStorage<SectionOpenState>("sectionOpen", DEFAULT_OPEN_STATE)
-export const sidebarScrollAtom = atomWithStorage("sidebarScroll", 0)
+const sidebarScrollAtom = atomWithStorage("sidebarScroll", 0)
 
 // Fold state for the labeled macro-group separators (Sources/Options/Detectors/
 // Tools) — each one collapses every section rendered between it and the next
@@ -104,7 +104,7 @@ export const sidebarScrollAtom = atomWithStorage("sidebarScroll", 0)
 const MACRO_GROUP_KEYS = ["Sources", "Options", "Detectors", "Tools"] as const
 type MacroGroupKey = (typeof MACRO_GROUP_KEYS)[number]
 type MacroGroupOpenState = Record<MacroGroupKey, boolean>
-export const macroGroupOpenAtom = atomWithStorage<MacroGroupOpenState>("macroGroupOpen", {
+const macroGroupOpenAtom = atomWithStorage<MacroGroupOpenState>("macroGroupOpen", {
   Sources: true, Options: true, Detectors: true, Tools: true,
 })
 

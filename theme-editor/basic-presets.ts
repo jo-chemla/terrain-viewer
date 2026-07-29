@@ -73,7 +73,7 @@ export const NAMED_HUES: NamedHue[] = [
 ]
 
 export const MENU_ACCENT_LEVELS = ["Subtle", "Medium", "Bold"] as const
-export type MenuAccentLevel = (typeof MENU_ACCENT_LEVELS)[number]
+type MenuAccentLevel = (typeof MENU_ACCENT_LEVELS)[number]
 const MENU_ACCENT_CHROMA_SCALE: Record<MenuAccentLevel, number> = { Subtle: 0.4, Medium: 0.7, Bold: 1.1 }
 
 export type BasicOptions = {

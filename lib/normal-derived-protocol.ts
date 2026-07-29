@@ -36,7 +36,7 @@ export type DecodedTile = { data: Float32Array; width: number; height: number }
 
 const TILE_CACHE_MAX = 400
 
-export function createTileCache() {
+function createTileCache() {
   return new Map<string, Promise<DecodedTile | null>>()
 }
 

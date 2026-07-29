@@ -141,7 +141,7 @@ const DEFAULT_LAYER: DrawLayer = {
 // layer id (read back from drawingLayersAtom) still resolves to a real layer
 // after a reload instead of a freshly re-rolled DEFAULT_LAYER.id every load.
 export const drawingLayersAtom = atomWithStorage<DrawLayer[]>('drawingLayers', [DEFAULT_LAYER])
-export const activeLayerIdAtom = atomWithStorage<string>('activeLayerId', DEFAULT_LAYER.id)
+const activeLayerIdAtom = atomWithStorage<string>('activeLayerId', DEFAULT_LAYER.id)
 
 /** User-facing opt-out for OPFS vector-layer persistence — on by default,
  *  mirrors persistLocalCogsAtom (local-file-store.ts). Turning it off only
@@ -695,7 +695,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
 
 // --- CONTROLS COMPONENT ---
 
-export function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
+function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
     const [activeDrawMode, setActiveDrawMode] = useState<string>('select')
 
     useEffect(() => {
@@ -769,7 +769,7 @@ export function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; ma
 
 // --- LAYERS COMPONENT ---
 
-export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
+function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
     const [layers, setLayers] = useAtom(drawingLayersAtom)
     const [activeLayerId, setActiveLayerId] = useAtom(activeLayerIdAtom)
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
@@ -1293,7 +1293,7 @@ function flattenFeatures(features: any[]): any[] {
     })
 }
 
-export function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
+function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
     const [layers, setLayers] = useAtom(drawingLayersAtom)
     const [, setActiveLayerId] = useAtom(activeLayerIdAtom)

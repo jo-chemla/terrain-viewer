@@ -40,7 +40,7 @@ export const localFileVersionAtom = atom(0)
  *  in settings-dialog.tsx for that). */
 export const persistLocalCogsAtom = atomWithStorage("persistLocalCogs", true)
 
-export const LOCAL_FILE_URL_PREFIX = "local://"
+const LOCAL_FILE_URL_PREFIX = "local://"
 
 export function isLocalFileUrl(url: string): boolean {
   return url.startsWith(LOCAL_FILE_URL_PREFIX)

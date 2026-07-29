@@ -52,7 +52,7 @@ const DIR_VECTORS: readonly (readonly [number, number])[] = Array.from(
 
 /** Nearest power-of-two octave exponent for a pixel radius, clamped so the UI's
  *  2..64 px range maps to octaves 1..6. */
-export function radiusToOctave(radiusPx: number): number {
+function radiusToOctave(radiusPx: number): number {
   return Math.min(6, Math.max(1, Math.round(Math.log2(Math.max(2, radiusPx)))))
 }
 

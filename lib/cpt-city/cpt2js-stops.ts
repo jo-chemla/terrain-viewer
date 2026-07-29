@@ -10,7 +10,7 @@ import type { Scale } from 'chroma-js';
 // fighting the namespace/module export mismatch. Palette/ParseOptions never existed
 // as chroma-js exports at all; PaletteColor/PaletteEntry/PaletteArray are this
 // module's own types, declared further down (see the "PARSE-TEXT.TS" section).
-export type InterpolationMode = "hcl" | "hsi" | "hsl" | "hsv" | "lab" | "lch" | "lrgb" | "oklab" | "oklch" | "rgb";
+type InterpolationMode = "hcl" | "hsi" | "hsl" | "hsv" | "lab" | "lch" | "lrgb" | "oklab" | "oklch" | "rgb";
 export type Palette = string | PaletteArray;
 export interface ParseOptions {
   bounds?: [number, number];
@@ -132,9 +132,9 @@ export function parsePalette(palette: Palette, { bounds = [0, 1] }: ParseOptions
 // PARSE-TEXT.TS
 // -----------------
 
-export type PaletteColor = string | number | [string, string, string] | [number, number, number] | [string, string, string, string] | [number, number, number, number];
-export type PaletteEntry = [string | number, PaletteColor];
-export type PaletteArray = PaletteEntry[];
+type PaletteColor = string | number | [string, string, string] | [number, number, number] | [string, string, string, string] | [number, number, number, number];
+type PaletteEntry = [string | number, PaletteColor];
+type PaletteArray = PaletteEntry[];
 
 const LINE_SEPARATOR_REGEX = /[ ,\t:]+/g;
 const COLOR_SEPARATOR_REGEX = /[\-\/]/g;
@@ -181,7 +181,7 @@ function splitColor(color: string): PaletteColor {
   return colorArray.length === 1 ? colorArray[0] : colorArray as PaletteColor;
 }
 
-export function parsePaletteTextInternal(paletteText: string): { paletteArray: PaletteArray, mode?: InterpolationMode } {
+function parsePaletteTextInternal(paletteText: string): { paletteArray: PaletteArray, mode?: InterpolationMode } {
   const lines = paletteText.split('\n')
     .map(line => line.trim());
   const isGmt4 = isGmt4Text(lines);

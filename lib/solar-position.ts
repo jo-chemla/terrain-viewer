@@ -17,7 +17,7 @@ const RAD = 180 / Math.PI
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
 
 /** Solar declination (degrees) for a day of year (1–365), Cooper's formula. */
-export function solarDeclination(dayOfYear: number): number {
+function solarDeclination(dayOfYear: number): number {
   return 23.45 * Math.sin(DEG * (360 * (284 + dayOfYear)) / 365)
 }
 
@@ -90,7 +90,7 @@ export function formatDayOfYear(dayOfYear: number, year = 2026): string {
 
 /** "YYYY-MM-DD" → day-of-year (1–365); ignores the year (month/day only).
  *  Returns null for an unparseable string. */
-export function dateStrToDayOfYear(str: string, year = 2026): number | null {
+function dateStrToDayOfYear(str: string, year = 2026): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str)
   if (!m) return null
   const month = Number(m[2]), day = Number(m[3])

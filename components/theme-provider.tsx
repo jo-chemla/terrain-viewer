@@ -141,4 +141,4 @@ export const useTheme = () => {
 };
 
 // Re-export theme values for convenience
-export { allThemeValues, DEFAULT_THEME };
+;

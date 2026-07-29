@@ -30,7 +30,7 @@ const BASE_URL = "https://raw.githubusercontent.com/potree/potree/develop/resour
 // every load — it's a fixed, unchanging image, no reason to pay the (small
 // but non-zero) generation cost every session, and every other texture here
 // is already just a fetched URL.
-export const NORMAL_SPHERE_MATCAP_URL = "/matcap-normal-sphere.png"
+const NORMAL_SPHERE_MATCAP_URL = "/matcap-normal-sphere.png"
 
 export const MATCAP_TEXTURES: MatcapTexture[] = [
   { id: "normal_sphere", name: "Normal Sphere", url: NORMAL_SPHERE_MATCAP_URL },

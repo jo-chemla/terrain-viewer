@@ -29,7 +29,7 @@ import { computeNormalPixelsGPU } from "./gpu-normal-compute"
 
 const NORMALS_URL_RE = /^normals:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
-export function buildNormalsProtocolUrl(upstreamTileTemplate: string, encoding: UpstreamEncoding, tileSize: number): string {
+function buildNormalsProtocolUrl(upstreamTileTemplate: string, encoding: UpstreamEncoding, tileSize: number): string {
   return buildProtocolUrl("normals", upstreamTileTemplate, encoding, tileSize)
 }
 

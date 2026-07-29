@@ -17,7 +17,7 @@ import {LAYER_SLOTS} from "./MapLayers"
 
 // ─── Layer definitions (moved here from MapLayers.tsx) ───────────────────────
 
-export const contourLinesLayerDef = (
+const contourLinesLayerDef = (
   showContours: boolean,
   theme: string,
   // Multiplies both major (1px) and minor (0.5px) widths, keeping their ratio —
@@ -41,7 +41,7 @@ export const contourLinesLayerDef = (
   },
 })
 
-export const contourLabelsLayerDef = (
+const contourLabelsLayerDef = (
   showContours: boolean,
   theme: string,
 ): LayerSpecification => ({

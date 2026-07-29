@@ -22,7 +22,7 @@ import { persistVectorLayerFeatures, readPersistedVectorLayerFeatures } from "./
 import { readPersistedCogFile, persistCogFile, estimateStorage, formatBytes } from "./opfs-file-store"
 import { isLocalFileUrl, localFileId, getRegisteredLocalFile } from "./local-file-store"
 
-export const PROJECT_EXPORT_VERSION = 1
+const PROJECT_EXPORT_VERSION = 1
 
 /** Curated jotai `atomWithStorage` keys exported/imported as "Settings" —
  *  deliberately excludes pure UI fold/scroll state (isSettings*Open,
@@ -31,7 +31,7 @@ export const PROJECT_EXPORT_VERSION = 1
  *  checkboxes already cover (customTerrainSources/customBasemapSources ->
  *  Sources, bookmarks -> Bookmarks, drawingLayers -> Drawings), keeping this
  *  bucket to values a user would actually want to carry to a new machine. */
-export const SETTINGS_STORAGE_KEYS = [
+const SETTINGS_STORAGE_KEYS = [
   "mapboxKey", "googleKey", "mapzenKey", "maptilerKey", "titilerEndpoint", "maxResolution",
   "colorRampType", "licenseFilter", "highResTerrain", "cacheVizTiles",
   "terrainAnalysisAdvanced", "reliefVisualizationAdvanced",
@@ -125,7 +125,7 @@ export function hasLocalFileSources(sources?: ProjectExportPayload["sources"]): 
   return sources.customTerrainSources.some((s) => s.type === "cog-local") || sources.customBasemapSources.some((s) => s.type === "cog-local")
 }
 
-export function buildProjectExport(
+function buildProjectExport(
   selection: ProjectExportSelection,
   live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[]; viewState: string },
 ): ProjectExportPayload {

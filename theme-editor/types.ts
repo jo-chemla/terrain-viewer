@@ -1,7 +1,7 @@
-export type ColorTokenDef = { key: string; label: string; type: "color" }
-export type LengthTokenDef = { key: string; label: string; type: "length"; unit: string; min: number; max: number; step: number }
-export type FontTokenDef = { key: string; label: string; type: "font" }
-export type ShadowTokenDef = { key: string; label: string; type: "shadow-color" | "shadow-opacity" | "shadow-length" | "shadow-offset"; min?: number; max?: number; step?: number }
+type ColorTokenDef = { key: string; label: string; type: "color" }
+type LengthTokenDef = { key: string; label: string; type: "length"; unit: string; min: number; max: number; step: number }
+type FontTokenDef = { key: string; label: string; type: "font" }
+type ShadowTokenDef = { key: string; label: string; type: "shadow-color" | "shadow-opacity" | "shadow-length" | "shadow-offset"; min?: number; max?: number; step?: number }
 
 export type TokenDef = ColorTokenDef | LengthTokenDef | FontTokenDef | ShadowTokenDef
 

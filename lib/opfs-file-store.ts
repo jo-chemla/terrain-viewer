@@ -51,7 +51,7 @@ export function isOpfsSupported(): boolean {
 // storage pressure. Origin-wide, not per-file/per-store — shared with
 // whatever else (IndexedDB, Cache API) this origin already stores. Safe to
 // call repeatedly; the browser no-ops if already persisted.
-export async function requestPersistentStorage(): Promise<boolean> {
+async function requestPersistentStorage(): Promise<boolean> {
   try {
     if (!navigator.storage?.persist) return false
     return await navigator.storage.persist()
@@ -339,7 +339,7 @@ export function createBlobStore(dirName: string, lruKey: string, maxTotalBytes =
 const COG_MAX_TOTAL_BYTES = 8 * 1024 * 1024 * 1024 // 8 GB
 const cogStore = createBlobStore("local-cogs", "opfsCogLru", COG_MAX_TOTAL_BYTES)
 
-export type PersistedCogEntry = PersistedBlobEntry
+type PersistedCogEntry = PersistedBlobEntry
 
 export const persistCogFile = cogStore.persist
 export const readPersistedCogFile = cogStore.read

@@ -84,7 +84,7 @@ const DIR_VECTORS: readonly (readonly [number, number])[] = Array.from(
  *  by Negative Openness, which is exactly Positive Openness computed on the
  *  terrain's mirror image (turns pits/valleys into the "peaks" the same
  *  formula highlights). */
-export function computeHorizonAngles(
+function computeHorizonAngles(
   sample: (dr: number, dc: number) => number,
   groundResolutionM: number,
   radiusPx: number,
@@ -133,7 +133,7 @@ export const RAD_TO_DEG = 180 / Math.PI
  *  every pixel to sampling one coarse pyramid ancestor ring per octave — see
  *  this file's header. Fixed rather than radius-dependent so the near field's
  *  accuracy guarantee doesn't shrink as the user drags the radius slider up. */
-export const FAST_NATIVE_RADIUS_PX = 8
+const FAST_NATIVE_RADIUS_PX = 8
 
 function octaveOf(radiusPx: number): number {
   return Math.min(6, Math.max(1, Math.round(Math.log2(Math.max(2, radiusPx)))))

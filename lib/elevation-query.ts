@@ -94,7 +94,7 @@ export async function sampleClientElevationAtPoint(
  *  fetches, not 150. COG has no cheap mosaic path, so it falls back to per-point
  *  windowed reads. Returns a raw elevation array aligned with the sample indices
  *  (the caller attaches lng/lat/distance); nulls mark no-data / out-of-coverage. */
-export async function sampleClientElevationProfile(
+async function sampleClientElevationProfile(
   source: ClientExportSource,
   a: { lng: number; lat: number },
   b: { lng: number; lat: number },

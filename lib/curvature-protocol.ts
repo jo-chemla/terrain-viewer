@@ -97,7 +97,7 @@ function computePrincipalCurvatures(w: ElevationWindow): { k1: number; k2: numbe
 // ground, regardless of dome/ridge/saddle/valley/bowl shape. κ1/κ2 are degree-1 in
 // r/t/s (same units as profile/plan's numerator), so this gets their ×100 scale
 // rather than det-hessian's ×10000 (which compensates for being a degree-2 product).
-export function computeCasorati(w: ElevationWindow): number {
+function computeCasorati(w: ElevationWindow): number {
   const { k1, k2 } = computePrincipalCurvatures(w)
   return Math.sqrt((k1 * k1 + k2 * k2) / 2) * 100
 }
@@ -112,7 +112,7 @@ export function computeCasorati(w: ElevationWindow): number {
 // atan2(0, 0) = 0 on a perfectly flat patch (κ1=κ2=0) — shape is undefined there,
 // and 0 (this file's universal "no feature" value, same as TPI/LRM/Openness)
 // is as good a fallback as any.
-export function computeShapeIndex(w: ElevationWindow): number {
+function computeShapeIndex(w: ElevationWindow): number {
   const { k1, k2 } = computePrincipalCurvatures(w)
   return (2 / Math.PI) * Math.atan2(k1 + k2, k1 - k2)
 }

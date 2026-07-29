@@ -48,7 +48,7 @@ const makeTerrariumColorFunction = (scale = 1, offset = 0, noData?: number) => (
 // Hook
 // -------------------------
 
-export function useCogMetadata(cogUrl: string | null): CogMetadata | null {
+function useCogMetadata(cogUrl: string | null): CogMetadata | null {
     const [metadata, setMetadata] = useState<CogMetadata | null>(null)
     useEffect(() => {
         // Without this reset, switching from a COG source to any other type (e.g. a
@@ -79,7 +79,7 @@ export interface TilejsonMetadata {
 
 // Most TileJSON DEM manifests (e.g. Mapterhorn's) declare their own "encoding" —
 // fetch it instead of asking the user to guess, same spirit as useCogMetadata above.
-export function useTilejsonMetadata(tilejsonUrl: string | null): TilejsonMetadata | null {
+function useTilejsonMetadata(tilejsonUrl: string | null): TilejsonMetadata | null {
     const [metadata, setMetadata] = useState<TilejsonMetadata | null>(null)
     useEffect(() => {
         if (!tilejsonUrl) { setMetadata(null); return }
@@ -149,7 +149,7 @@ function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number;
     }
 }
 
-export function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKey: string): string {
+function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKey: string): string {
     const config: TerrainSourceConfig = (terrainSources as any)[key]
     if (!config) return ""
     return (config.sourceConfig.tiles?.[0] ?? "")

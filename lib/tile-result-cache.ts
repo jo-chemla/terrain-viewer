@@ -20,7 +20,7 @@ let totalBytes = 0
 let enabled = true
 
 /** Diagnostic counters — entries/bytes held plus lifetime hit/miss totals. */
-export function getTileResultCacheStats() {
+function getTileResultCacheStats() {
   return { enabled, entries: lru.size, totalBytes, hits, misses }
 }
 

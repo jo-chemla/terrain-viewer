@@ -122,7 +122,7 @@ export interface TellsOptions {
   vetoResolution: "fine" | "coarse"
 }
 
-export const TELLS_DEFAULTS: TellsOptions = {
+const TELLS_DEFAULTS: TellsOptions = {
   tellSizeMeters: 100,
   radiusPx: 4,
   minReliefMeters: 1.5,

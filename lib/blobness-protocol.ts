@@ -108,7 +108,7 @@ export function computeBlobness(sample: (dr: number, dc: number) => number, grou
 // Ixx/Iyy/Ixy cancels out in this ratio (both eigenvalues scale by the same
 // factor), so — unlike computeBlobness — no BLOBNESS_SCALE-style correction is
 // needed here.
-export function computeBlobnessEigenRatio(sample: (dr: number, dc: number) => number, groundResolutionM: number): number {
+function computeBlobnessEigenRatio(sample: (dr: number, dc: number) => number, groundResolutionM: number): number {
   const { Ixx, Iyy, Ixy, trace } = computeStructureTensor(sample, groundResolutionM)
   if (trace < 1e-9) return 0 // flat ground — undefined shape, treat as maximally linear/0
   const disc = Math.sqrt((Ixx - Iyy) * (Ixx - Iyy) + 4 * Ixy * Ixy)
@@ -126,7 +126,7 @@ export function computeBlobnessEigenRatio(sample: (dr: number, dc: number) => nu
 // transform (mathDeg -> 90-mathDeg) purely for convention consistency with the
 // rest of this app's directional modes, then folded mod 180 (not 360) since only
 // the axis, not which end of it, is meaningful here.
-export function computeBlobnessOrientation(sample: (dr: number, dc: number) => number, groundResolutionM: number): number {
+function computeBlobnessOrientation(sample: (dr: number, dc: number) => number, groundResolutionM: number): number {
   const { Ixx, Iyy, Ixy, trace } = computeStructureTensor(sample, groundResolutionM)
   if (trace < 1e-9) return 0 // flat ground — no dominant axis
   const mathDeg = 0.5 * Math.atan2(2 * Ixy, Ixx - Iyy) * RAD_TO_DEG

@@ -12,7 +12,7 @@ export const vizActivationAtom = atom<Record<string, number>>({})
 
 export const mapboxKeyAtom = atomWithStorage("mapboxKey", "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw")
 export const googleKeyAtom = atomWithStorage("googleKey", "AIzaSyAo6DIOnhYdywBidl4clsPZPkQkXfq6QhI")
-export const mapzenKeyAtom = atomWithStorage("mapzenKey", "mapzen-xxxxxxx")
+const mapzenKeyAtom = atomWithStorage("mapzenKey", "mapzen-xxxxxxx")
 export const maptilerKeyAtom = atomWithStorage("maptilerKey", "FbPGGTCFE8IRiPECxIrp")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
@@ -165,14 +165,14 @@ export const transparentUiAtom = atomWithStorage("isTransparentUi", true)
 export const activeSliderAtom = atom<string | null>(null)
 
 
-export type RenderQuality = "quick" | "normal" | "hq"
+type RenderQuality = "quick" | "normal" | "hq"
 
-export interface ExportResolution {
+interface ExportResolution {
   label: string
   width: number
   height: number
 }
-export const EXPORT_RESOLUTIONS: ExportResolution[] = [
+const EXPORT_RESOLUTIONS: ExportResolution[] = [
   { label: "Quick 360p 16:9",  width: 640,  height: 360  },
   { label: "720p 16:9",        width: 1280, height: 720  },
   { label: "1080p FHD 16:9",   width: 1920, height: 1080 },
@@ -183,11 +183,11 @@ export const EXPORT_RESOLUTIONS: ExportResolution[] = [
 ]
 type ExportResolutionLabel = (typeof EXPORT_RESOLUTIONS)[number]['label']
 
-export const resolutionKeyAtom = atomWithStorage<ExportResolutionLabel> ('anim-resolution-key', '1080p FHD 16:9')
+const resolutionKeyAtom = atomWithStorage<ExportResolutionLabel> ('anim-resolution-key', '1080p FHD 16:9')
 
-export const renderQualityAtom = atomWithStorage<RenderQuality>('anim-render-quality', 'normal')
-export const fpsAtom = atomWithStorage('anim-fps', 60)
-export const targetSizeMBAtom = atomWithStorage('anim-target-size-mb', '')
+const renderQualityAtom = atomWithStorage<RenderQuality>('anim-render-quality', 'normal')
+const fpsAtom = atomWithStorage('anim-fps', 60)
+const targetSizeMBAtom = atomWithStorage('anim-target-size-mb', '')
 
 // One open/closed atom per top-level Settings dialog section (settings-dialog.tsx's
 // CollapsibleSection) — remembers what the user last folded, same as

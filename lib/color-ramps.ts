@@ -995,7 +995,7 @@ export const colorRampsFlat = Object.assign({}, ...Object.values(colorRamps));
 // console.log({cpt, palette, domain, colors})
 
 export const COLOR_RAMP_IDS = Object.keys(colorRampsFlat)
-export type ColorRampId = keyof typeof colorRampsFlat
+type ColorRampId = keyof typeof colorRampsFlat
 
 /** Data-driven (feature-property) variant of the color-relief ramp remap: the
  *  same ramp/min/max/invert treatment computeColorReliefPaint applies, but with

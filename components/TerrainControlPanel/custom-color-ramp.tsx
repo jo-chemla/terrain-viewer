@@ -80,7 +80,7 @@ export const ColorRampSelectWithCustom: React.FC<{
  *  afterward (individually, below) as any hand-built stop list. Deliberately
  *  not itself a persisted "ramp type" — it only ever writes into the same
  *  customStops array every mode already has. */
-export const QuickRampBuilder: React.FC<{
+const QuickRampBuilder: React.FC<{
   currentStops: CustomRampStop[]
   onApply: (stops: CustomRampStop[]) => void
 }> = ({ currentStops, onApply }) => {

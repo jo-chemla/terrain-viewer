@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
 
-export const ELEVATION_REFERENCE_TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer text-muted-foreground font-normal data-pressed:bg-white data-pressed:font-bold data-pressed:text-foreground"
+const ELEVATION_REFERENCE_TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer text-muted-foreground font-normal data-pressed:bg-white data-pressed:font-bold data-pressed:text-foreground"
 
 // Shared Absolute/LRM picker — introduced by Plane Slicer, now also driving
 // Contours and the Elevation Picker: all three ultimately read elevation off

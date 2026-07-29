@@ -77,7 +77,7 @@ import { track } from "@/lib/analytics"
  * any other query value — no extra base64 layer needed.
  */
 
-export interface CameraPose {
+interface CameraPose {
   lat: number
   lng: number
   zoom: number
@@ -135,7 +135,7 @@ const round6 = (n: number) => Math.round(n * 1e6) / 1e6
 
 // ─── Encode ─────────────────────────────────────────────────────────────────────
 
-export function encodeSnapshot(snap: AppSnapshot): string {
+function encodeSnapshot(snap: AppSnapshot): string {
   const pose: Partial<Record<keyof CameraPose, number>> = {}
   for (const k of POSE_KEYS) pose[k] = round6(snap.pose[k])
   const numericEntries = Object.entries(snap.numericState)
@@ -148,7 +148,7 @@ export function encodeSnapshot(snap: AppSnapshot): string {
 
 // ─── Decode ─────────────────────────────────────────────────────────────────────
 
-export function decodeSnapshot(encoded: string): AppSnapshot | null {
+function decodeSnapshot(encoded: string): AppSnapshot | null {
   try {
     const obj = JSON.parse(encoded)
     if (!obj || typeof obj !== "object" || !obj.pose || typeof obj.pose !== "object") return null
@@ -242,10 +242,10 @@ class RafEngine {
 }
 
 /** Keyframe animation (pose1 → pose2) RAF engine */
-export const animEngine = new RafEngine()
+const animEngine = new RafEngine()
 
 /** 360° spin RAF engine */
-export const spinEngine = new RafEngine()
+const spinEngine = new RafEngine()
 
 // Spin timing state lives here, module-level, alongside spinEngine itself — not as a
 // useRef inside CameraButtons. The RAF tick closure that reads it is created once by
@@ -257,7 +257,7 @@ export const spinEngine = new RafEngine()
 const spinState = { last: null as number | null, elapsed: 0, stoppingAt: null as number | null }
 
 /** FOV animation RAF engine */
-export const fovEngine = new RafEngine()
+const fovEngine = new RafEngine()
 
 
 
@@ -305,10 +305,10 @@ const RENDER_QUALITY_OPTIONS: { value: RenderQuality; label: string; extraFrames
 
 // ─── Persistent Atoms (Export Settings) ───────────────────────────────────────
 
-export const resolutionKeyAtom = atomWithStorage("anim-resolution-key", "1080p FHD 16:9")
-export const renderQualityAtom = atomWithStorage<RenderQuality>("anim-render-quality", "normal")
-export const fpsAtom = atomWithStorage("anim-fps", 60)
-export const targetSizeMBAtom = atomWithStorage("anim-target-size-mb", "")
+const resolutionKeyAtom = atomWithStorage("anim-resolution-key", "1080p FHD 16:9")
+const renderQualityAtom = atomWithStorage<RenderQuality>("anim-render-quality", "normal")
+const fpsAtom = atomWithStorage("anim-fps", 60)
+const targetSizeMBAtom = atomWithStorage("anim-target-size-mb", "")
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -606,7 +606,7 @@ interface CameraButtonsProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: CameraButtonsProps) {
+function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: CameraButtonsProps) {
 
   // ═══ URL-controlled state (nuqs) ═══════════════════════════════════════════
   const [animParams, setAnimParams] = useQueryStates({

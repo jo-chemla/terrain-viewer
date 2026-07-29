@@ -8,7 +8,7 @@ import projectsData from "./projects.json"
 // runtime dependency with settings-atoms.ts (which imports ProjectConfig from here).
 import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
 
-export type ProjectViewMode = "2d" | "globe" | "3d"
+type ProjectViewMode = "2d" | "globe" | "3d"
 
 export interface ProjectConfig {
   id: string

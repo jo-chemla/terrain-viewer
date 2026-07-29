@@ -16,7 +16,7 @@ import type { TerrainSource } from "./terrain-types"
 import type { CustomTerrainSource } from "./settings-atoms"
 import { resolveLocalFileUrl, localFileId } from "./local-file-store"
 
-export type ClientExportableType = "cog" | "terrainrgb" | "terrarium"
+type ClientExportableType = "cog" | "terrainrgb" | "terrarium"
 
 export interface ClientExportSource {
   type: ClientExportableType
@@ -25,7 +25,7 @@ export interface ClientExportSource {
   maxzoom: number
 }
 
-export function isClientExportSupported(type: string | undefined): type is ClientExportableType | "cog-local" {
+function isClientExportSupported(type: string | undefined): type is ClientExportableType | "cog-local" {
   return type === "cog" || type === "cog-local" || type === "terrainrgb" || type === "terrarium"
 }
 
@@ -104,7 +104,7 @@ function reprojectBboxToRasterCrs(
   return [minX, minY, maxX, maxY]
 }
 
-export async function exportCogWindow(
+async function exportCogWindow(
   url: string,
   bbox: [number, number, number, number],
   width: number,

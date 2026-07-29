@@ -18,20 +18,20 @@ export interface TileCoords {
   y: number
 }
 
-export interface AwsSourceEntry {
+interface AwsSourceEntry {
   /** Human-readable dataset name, resolved from the file's folder prefix (see AWS_SOURCE_PREFIXES). Falls back to the raw prefix (e.g. "ned13") if unrecognized — never the full filename. */
   name: string
   resolutionM: number | null
 }
 
-export interface AwsProvenanceResult {
+interface AwsProvenanceResult {
   kind: "aws"
   tile: TileCoords
   /** Deduplicated by dataset name, sorted by resolution ascending (finest first; unknown resolution sorts last). */
   sources: AwsSourceEntry[]
 }
 
-export interface MapterhornAttribution {
+interface MapterhornAttribution {
   source: string
   name: string
   website: string
@@ -41,7 +41,7 @@ export interface MapterhornAttribution {
   access_year: number
 }
 
-export interface MapterhornProvenanceResult {
+interface MapterhornProvenanceResult {
   kind: "mapterhorn"
   tile: TileCoords
   /** One entry per distinct source code found among the coverage tile's features, joined against attribution.json (undefined attribution if the code isn't listed there). */
@@ -128,7 +128,7 @@ function byResolutionAscending<T extends { resolutionM: number | null }>(a: T, b
   return a.resolutionM - b.resolutionM
 }
 
-export async function fetchAwsProvenance(lng: number, lat: number, startZoom: number): Promise<AwsProvenanceResult> {
+async function fetchAwsProvenance(lng: number, lat: number, startZoom: number): Promise<AwsProvenanceResult> {
   const { tile, res } = await fetchWithZoomFallback(
     lng, lat, startZoom,
     (t) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${t.z}/${t.x}/${t.y}.png`,
@@ -161,7 +161,7 @@ function fetchAttributionTable(): Promise<MapterhornAttribution[]> {
   return attributionCache
 }
 
-export async function fetchMapterhornProvenance(lng: number, lat: number, startZoom: number): Promise<MapterhornProvenanceResult> {
+async function fetchMapterhornProvenance(lng: number, lat: number, startZoom: number): Promise<MapterhornProvenanceResult> {
   const [{ tile, res }, attribution] = await Promise.all([
     fetchWithZoomFallback(
       lng, lat, startZoom,
