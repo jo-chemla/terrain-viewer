@@ -832,7 +832,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               </div>
           </CollapsibleSection>
           <Separator />
-          <CollapsibleSection title="Resources: Geomorphometry Scientific Literature and Tools" openAtom={isSettingsGeomorphometryOpenAtom}>
+          <CollapsibleSection title="Resources: Topography, Geomorphometry, Hydrology Scientific Literature and Tools" openAtom={isSettingsGeomorphometryOpenAtom}>
             <div className="space-y-2 text-sm">
                 <a href="https://www.whiteboxgeo.com/manuals/qgis/terrain-analysis.html" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
                   <span>WhiteboxTools Terrain Analysis Manual</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
