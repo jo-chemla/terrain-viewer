@@ -22,21 +22,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-      - uses: actions/setup-node@v2
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
       - name: Build
-        # npm ci
         run: |
           echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
-          npm i 
-          npm run build
+          pnpm build
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
-
+    
   # Deployment job
   deploy:
     environment:
