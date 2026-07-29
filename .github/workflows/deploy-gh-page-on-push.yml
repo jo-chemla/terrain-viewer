@@ -1,7 +1,8 @@
 name: Deploy static built site to Github Pages
 on:
   push:
-    branches: ["main"]
+    branches: 
+      - main
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -24,19 +25,24 @@ jobs:
       # Checkout and setup
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
       # Install, build, publish artifact
       - name: Install
         run: pnpm install --frozen-lockfile
+      - name: Create .env
+        shell: bash
+        run: |
+          cat <<EOF > .env
+          ${{ secrets.ENV_FILE_CONTENT }}
+          EOF
       - name: Build
         run: |
-          echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
           pnpm build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
