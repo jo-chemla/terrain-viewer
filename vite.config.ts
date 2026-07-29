@@ -1,9 +1,9 @@
 import { defineConfig } from "vite"
 import react from "@vitejs/plugin-react"
-import path from "path"
 import tailwindcss from "@tailwindcss/vite"
 import { devtools } from '@tanstack/devtools-vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import { fileURLToPath, URL } from "url"
 
 export default defineConfig({
   plugins: [
@@ -22,7 +22,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./"),
+    "@": fileURLToPath(new URL("./", import.meta.url)),
     },
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'], // Add this
   },
