@@ -51,7 +51,14 @@ function formatLatLng(lat: number, lng: number): string {
 // comma-decimals ("48,8566, 2,3522"): regex greediness consumes a token's own
 // decimal comma into that token's \d* before the separator group gets a
 // chance to claim it.
-const NUM = String.raw`-?\d+[.,]?\d*`;
+// The decimal digit after the separator is deliberately mandatory (not
+// `[.,]?\d*`, which lets `\d+` and `\d*` both claim the same plain digit
+// run) — that ambiguity is what let COORD_TOKEN's nested optional
+// degrees/minutes/seconds groups blow up into catastrophic backtracking on
+// a long unbroken digit run (e.g. a paste with an extra digits-only field,
+// or a near-miss DMS string using an unsupported quote character), hanging
+// the tab for whole seconds on real input lengths.
+const NUM = String.raw`-?\d+(?:[.,]\d+)?`;
 
 // One "12.34", "12.34°N", "12.34 N" (decimal), "35°47'58.86\"N" (DMS), or
 // "x: 36.8772" / "y: 34.9150" (ESRI Wayback-style axis label) style token —
