@@ -205,7 +205,7 @@ export const QUERY_STATE_PARSERS = {
     // GPU-uniform updates, zero refetch, drapes onto 3D terrain the same
     // way the live Phong layer does (see phongRenderer below), but not
     // globe; see lighting-effects-options-section.tsx for the UI toggle.
-    matcapRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("raster"),
+    matcapRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("live"),
     // "Light Anchor", ported from Phong's phongLightRelativeToCamera — only
     // meaningful in "live" (2D Fast): off (Absolute) keeps the reflected
     // ray's divergence tied to screen position + FOV only, ignoring how the
@@ -248,7 +248,7 @@ export const QUERY_STATE_PARSERS = {
     // file's header for the derivation. Still no globe support, so it's only
     // meaningful outside "globe" view mode; see lighting-effects-options-
     // section.tsx for the UI toggle exposing this trade-off directly.
-    phongRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("raster"),
+    phongRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("live"),
     // "Shadows" sub-mode (lib/shadow-protocol.ts) — a plain binary raster
     // mask: for each pixel, marches toward the sun's actual azimuth
     // (state.illuminationDir/illuminationAlt below — same shared light as
