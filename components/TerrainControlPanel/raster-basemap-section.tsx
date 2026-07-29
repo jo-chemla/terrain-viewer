@@ -58,7 +58,7 @@ export const RasterBasemapSection: React.FC<{
                 id="basemap-per-view"
                 checked={state.basemapPerView || false}
                 onCheckedChange={(checked) => setState({ basemapPerView: checked })}
-                className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+                className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
               />
               <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Split</Label>
             </div>

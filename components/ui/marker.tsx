@@ -1,6 +1,7 @@
 import * as React from "react"
+import { mergeProps } from "@base-ui/react/merge-props"
+import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
-import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
@@ -22,21 +23,26 @@ function Marker({
   className,
   variant = "default",
   asChild = false,
+  render,
+  children,
   ...props
-}: React.ComponentProps<"div"> &
+}: useRender.ComponentProps<"div"> &
   VariantProps<typeof markerVariants> & {
     asChild?: boolean
   }) {
-  const Comp = asChild ? Slot.Root : "div"
-
-  return (
-    <Comp
-      data-slot="marker"
-      data-variant={variant}
-      className={cn(markerVariants({ variant, className }))}
-      {...props}
-    />
-  )
+  return useRender({
+    defaultTagName: "div",
+    render: asChild ? (children as React.ReactElement) : render,
+    props: mergeProps<"div">(
+      {
+        "data-slot": "marker",
+        "data-variant": variant,
+        className: cn(markerVariants({ variant, className })),
+      } as Omit<React.ComponentProps<"div">, "ref">,
+      props as Omit<React.ComponentProps<"div">, "ref">,
+      asChild ? {} : ({ children } as Omit<React.ComponentProps<"div">, "ref">),
+    ),
+  })
 }
 
 function MarkerIcon({ className, ...props }: React.ComponentProps<"span">) {

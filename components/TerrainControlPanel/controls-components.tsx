@@ -54,9 +54,8 @@ export function SegmentedToggle<T extends string>({
 }) {
   return (
     <ToggleGroup
-      type="single"
-      value={value}
-      onValueChange={(v) => v && onChange(v as T)}
+      value={[value]}
+      onValueChange={([v]) => v && onChange(v as T)}
       disabled={disabled}
       className={cn("gap-0.5 rounded-md bg-muted p-0.5", className)}
     >
@@ -90,22 +89,21 @@ export const MobileSlider = forwardRef<
   const [, setActiveSlider] = useAtom(activeSliderAtom)
   const id = sliderId ?? (props as any)["aria-label"] ?? "slider"
 
-  // Radix's own Slider prop types are internally inconsistent here — its ref
-  // element type (ElementRef<typeof Slider>) is HTMLSpanElement, but its
-  // onPointerDown/Up/Cancel props expect PointerEvent<HTMLDivElement>. Same
-  // underlying DOM PointerEvent either way; the cast below only papers over
-  // that upstream generic-parameter mismatch, not an actual type difference.
+  // Base UI's Slider Root types onPointerDown/Up/Cancel as BaseUIEvent<PointerEvent>
+  // (a plain PointerEvent plus a preventBaseUIHandler() method Base UI attaches
+  // at runtime). We only forward the event through, never call that method, so
+  // the `any` cast is a safe pass-through rather than a real type mismatch.
   const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (transparentUi) setActiveSlider(id)
-    onPointerDown?.(e as unknown as React.PointerEvent<HTMLDivElement>)
+    onPointerDown?.(e as any)
   }
   const handlePointerUp = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (transparentUi) setActiveSlider(null)
-    onPointerUp?.(e as unknown as React.PointerEvent<HTMLDivElement>)
+    onPointerUp?.(e as any)
   }
   const handlePointerCancel = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (transparentUi) setActiveSlider(null)
-    onPointerCancel?.(e as unknown as React.PointerEvent<HTMLDivElement>)
+    onPointerCancel?.(e as any)
   }
 
   return (
@@ -344,7 +342,7 @@ export const SourceAbToggle: React.FC<{
       pressed={aActive}
       onPressedChange={(pressed) => { if (pressed) onSelectA() }}
       disabled={disabled}
-      className="px-3 rounded-none cursor-pointer data-[state=on]:font-bold"
+      className="px-3 rounded-none cursor-pointer data-pressed:font-bold"
     >
       A
     </Toggle>
@@ -352,7 +350,7 @@ export const SourceAbToggle: React.FC<{
       pressed={bActive}
       onPressedChange={(pressed) => { if (pressed) onSelectB() }}
       disabled={disabled}
-      className="px-3 rounded-none border-l cursor-pointer data-[state=on]:font-bold"
+      className="px-3 rounded-none border-l cursor-pointer data-pressed:font-bold"
     >
       B
     </Toggle>
@@ -476,7 +474,7 @@ export const CycleButtonGroup: React.FC<{
   // the row's top instead of vertically centered (an explicit cross-axis size
   // opts an item out of the default align-items: stretch).
   <div className="flex items-center gap-2">
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={(v) => v && onChange(v)}>
       <SelectTrigger className="flex-1 h-8 cursor-pointer"><SelectValue /></SelectTrigger>
       <SelectContent>
         {options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}

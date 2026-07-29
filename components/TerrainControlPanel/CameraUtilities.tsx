@@ -984,7 +984,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
           <Switch
             checked={smoothCamera}
             onCheckedChange={setSmoothCamera}
-            className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+            className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
           />
           <Label className="text-xs text-muted-foreground">Smooth</Label>
         </div>
@@ -1086,7 +1086,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
       <div className="flex gap-2 items-start">
         <div className="flex flex-col gap-1 flex-[2] min-w-0">
           <Label className="text-xs text-muted-foreground leading-none pb-[2px]">Resolution</Label>
-          <Select value={resolutionKey} onValueChange={setResolutionKey} disabled={exporting}>
+          <Select value={resolutionKey} onValueChange={(value) => value && setResolutionKey(value)} disabled={exporting}>
             <SelectTrigger className="h-8 text-xs w-full cursor-pointer leading-none"><SelectValue /></SelectTrigger>
             <SelectContent>
               {EXPORT_RESOLUTIONS.map(r => <SelectItem key={r.label} value={r.label}>{r.label}</SelectItem>)}

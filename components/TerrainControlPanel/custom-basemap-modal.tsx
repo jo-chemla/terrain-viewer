@@ -382,7 +382,7 @@ export const CustomBasemapModal: React.FC<{
                       <Link className="h-3.5 w-3.5" />
                       Linked Terrain Source{linkedTerrainId && " (set)"}
                     </Label>
-                    <Select value={linkedTerrainId || "none"} onValueChange={(value) => setLinkedTerrainId(value === "none" ? "" : value)}>
+                    <Select value={linkedTerrainId || "none"} onValueChange={(value) => value && setLinkedTerrainId(value === "none" ? "" : value)}>
                       <SelectTrigger id="basemap-linked-terrain" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">None</SelectItem>

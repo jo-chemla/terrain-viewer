@@ -1,7 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import * as ToggleGroupPrimitive from '@radix-ui/react-toggle-group'
+import { ToggleGroup as ToggleGroupPrimitive } from '@base-ui/react/toggle-group'
+import { Toggle as TogglePrimitive } from '@base-ui/react/toggle'
 import { type VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/utils'
@@ -14,17 +15,16 @@ const ToggleGroupContext = React.createContext<
   variant: 'default',
 })
 
-// forwardRef so wrapping a ToggleGroupItem in a shadcn <TooltipTrigger asChild>
-// (or any Radix Slot) can pass a ref through to the underlying primitive —
+// forwardRef so wrapping a ToggleGroupItem in a shadcn <TooltipTrigger render={...}>
+// (or any composed element) can pass a ref through to the underlying primitive —
 // otherwise React logs "Function components cannot be given refs" (seen on the
 // Phong 3D Slow/2D Fast toggles once they got real tooltips).
 const ToggleGroup = React.forwardRef<
-  React.ElementRef<typeof ToggleGroupPrimitive.Root>,
-  React.ComponentProps<typeof ToggleGroupPrimitive.Root> &
-    VariantProps<typeof toggleVariants>
+  HTMLDivElement,
+  ToggleGroupPrimitive.Props<string> & VariantProps<typeof toggleVariants>
 >(({ className, variant, size, children, ...props }, ref) => {
   return (
-    <ToggleGroupPrimitive.Root
+    <ToggleGroupPrimitive
       ref={ref}
       data-slot="toggle-group"
       data-variant={variant}
@@ -38,20 +38,19 @@ const ToggleGroup = React.forwardRef<
       <ToggleGroupContext.Provider value={{ variant, size }}>
         {children}
       </ToggleGroupContext.Provider>
-    </ToggleGroupPrimitive.Root>
+    </ToggleGroupPrimitive>
   )
 })
 ToggleGroup.displayName = 'ToggleGroup'
 
 const ToggleGroupItem = React.forwardRef<
-  React.ElementRef<typeof ToggleGroupPrimitive.Item>,
-  React.ComponentProps<typeof ToggleGroupPrimitive.Item> &
-    VariantProps<typeof toggleVariants>
+  HTMLButtonElement,
+  TogglePrimitive.Props<string> & VariantProps<typeof toggleVariants>
 >(({ className, children, variant, size, ...props }, ref) => {
   const context = React.useContext(ToggleGroupContext)
 
   return (
-    <ToggleGroupPrimitive.Item
+    <TogglePrimitive
       ref={ref}
       data-slot="toggle-group-item"
       data-variant={context.variant || variant}
@@ -67,7 +66,7 @@ const ToggleGroupItem = React.forwardRef<
       {...props}
     >
       {children}
-    </ToggleGroupPrimitive.Item>
+    </TogglePrimitive>
   )
 })
 ToggleGroupItem.displayName = 'ToggleGroupItem'

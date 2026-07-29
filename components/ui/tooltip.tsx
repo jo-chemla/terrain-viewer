@@ -1,41 +1,96 @@
 'use client'
 
 import * as React from 'react'
-import * as TooltipPrimitive from '@radix-ui/react-tooltip'
+import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
 
 import { cn } from '@/lib/utils'
 
 const TooltipProvider = TooltipPrimitive.Provider
 
-const Tooltip = ({
-  ...props
-}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root>) => (
-  <TooltipPrimitive.Root disableHoverableContent {...props} />
-)
+// Base UI moved the open/close delay from Tooltip.Root down to Tooltip.Trigger
+// (Root has no delay prop at all). This context lets `<Tooltip delayDuration>`
+// keep working as a single call-site prop even though Trigger is authored
+// separately by the consumer as a child.
+const TooltipDelayContext = React.createContext<number | undefined>(undefined)
 
-const TooltipTrigger = TooltipPrimitive.Trigger
+function Tooltip({
+  delayDuration,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Root> & {
+  delayDuration?: number
+}) {
+  return (
+    <TooltipDelayContext.Provider value={delayDuration}>
+      <TooltipPrimitive.Root disableHoverablePopup {...props} />
+    </TooltipDelayContext.Provider>
+  )
+}
+
+const TooltipTrigger = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<typeof TooltipPrimitive.Trigger> & {
+    asChild?: boolean
+  }
+>(({ asChild = false, render, children, delay, ...props }, ref) => {
+  const contextDelay = React.useContext(TooltipDelayContext)
+  return (
+    <TooltipPrimitive.Trigger
+      ref={ref}
+      delay={delay ?? contextDelay}
+      render={asChild ? (children as React.ReactElement) : render}
+      {...props}
+    >
+      {asChild ? undefined : children}
+    </TooltipPrimitive.Trigger>
+  )
+})
+TooltipTrigger.displayName = 'TooltipTrigger'
 
 const TooltipContent = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & {
-    disablePointerEvents?: boolean;
-  }
->(({ className, sideOffset = 4, disablePointerEvents = true, ...props }, ref) => (
-  <TooltipPrimitive.Portal container={document.body}>
-    <TooltipPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      className={cn(
-        'z-[9999] max-w-[240px] overflow-hidden rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
-        disablePointerEvents && 'pointer-events-none',
-        className
-      )}
-      {...props}
-    />
-  </TooltipPrimitive.Portal>
-))
-TooltipContent.displayName = TooltipPrimitive.Content.displayName
+  HTMLDivElement,
+  React.ComponentProps<typeof TooltipPrimitive.Popup> &
+    Pick<
+      React.ComponentProps<typeof TooltipPrimitive.Positioner>,
+      'side' | 'sideOffset' | 'align' | 'alignOffset'
+    > & {
+      disablePointerEvents?: boolean
+    }
+>(
+  (
+    {
+      className,
+      side,
+      sideOffset = 4,
+      align,
+      alignOffset,
+      disablePointerEvents = true,
+      ...props
+    },
+    ref,
+  ) => {
+    return (
+      <TooltipPrimitive.Portal>
+        <TooltipPrimitive.Positioner
+          side={side}
+          sideOffset={sideOffset}
+          align={align}
+          alignOffset={alignOffset}
+          className="z-[9999]"
+        >
+          <TooltipPrimitive.Popup
+            ref={ref}
+            className={cn(
+              'max-w-[240px] overflow-hidden rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md origin-(--transform-origin) transition-[transform,opacity] data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0',
+              disablePointerEvents && 'pointer-events-none',
+              className,
+            )}
+            {...props}
+          />
+        </TooltipPrimitive.Positioner>
+      </TooltipPrimitive.Portal>
+    )
+  },
+)
+TooltipContent.displayName = 'TooltipContent'
 
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
-
-

@@ -11,7 +11,7 @@ import { ElevationReferenceToggle } from "./elevation-reference-toggle"
 import { ColorAlphaSwatch } from "./color-picker"
 import { useTheme } from "@/lib/controls-utils"
 
-const WEIGHT_TOGGLE_ITEM_CLASS = "cursor-pointer px-2 text-xs data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+const WEIGHT_TOGGLE_ITEM_CLASS = "cursor-pointer px-2 text-xs text-muted-foreground font-normal data-pressed:bg-white data-pressed:font-bold data-pressed:text-foreground"
 
 // ── Contour snap tables ────────────────────────────────────────────────────
 const MINOR_INTERVALS = [0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]
@@ -123,9 +123,8 @@ export const ContourOptionsSection: React.FC<{
               <Label htmlFor="showContours" className="text-sm cursor-pointer">Show Contour Lines</Label>
             </div>
             <ToggleGroup
-              type="single"
-              value={String(Number(state.contourWeight) || 1)}
-              onValueChange={(value) => value && setState({ contourWeight: Number(value) })}
+              value={[String(Number(state.contourWeight) || 1)]}
+              onValueChange={([value]) => value && setState({ contourWeight: Number(value) })}
               disabled={!state.showContours}
               className="border rounded-md"
             >

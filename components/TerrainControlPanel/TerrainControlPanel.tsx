@@ -401,7 +401,7 @@ export function TerrainControlPanel({
 
   if (!isSidebarOpen) {
     return (
-      <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+      <TooltipProvider delay={0} timeout={0}>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="secondary" size="icon" className="absolute right-4 top-4 cursor-pointer" onClick={() => setIsSidebarOpen(true)}>
@@ -417,7 +417,7 @@ export function TerrainControlPanel({
   }
 
   return (
-    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+    <TooltipProvider delay={0} timeout={0}>
       {/* Mobile backdrop — tap outside to close */}
       {isMobile && isSidebarOpen &&  (
         <div

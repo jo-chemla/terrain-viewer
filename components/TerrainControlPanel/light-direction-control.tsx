@@ -337,7 +337,7 @@ export const LightDirectionControl: React.FC<{
                       const rebasedUiHour = Math.round(uiHourFromSolarHour(state.lightDayOfYear, solarHour, mode) * stepsPerHour) / stepsPerHour
                       setState({ lightTimeMode: mode, lightTimeOfDay: rebasedUiHour })
                     }}
-                    className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+                    className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
                   />
                   <Label className="text-xs text-muted-foreground">UTC</Label>
                 </div>

@@ -41,25 +41,25 @@ export const GdalTabs: React.FC<{
           <TabsList className="bg-transparent p-0 space-x-1">
             <TabsTrigger
               value="url"
-              className="px-3 py-1 text-xs font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground cursor-pointer rounded-md"
+              className="px-3 py-1 text-xs font-medium text-muted-foreground data-active:text-foreground cursor-pointer rounded-md"
             >
               URL Template
             </TabsTrigger>
             <TabsTrigger
               value="xml"
-              className="px-3 py-1 text-xs font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground cursor-pointer rounded-md"
+              className="px-3 py-1 text-xs font-medium text-muted-foreground data-active:text-foreground cursor-pointer rounded-md"
             >
               GDAL_WMS XML
             </TabsTrigger>
             <TabsTrigger
               value="cmd"
-              className="px-3 py-1 text-xs font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground cursor-pointer rounded-md"
+              className="px-3 py-1 text-xs font-medium text-muted-foreground data-active:text-foreground cursor-pointer rounded-md"
             >
               gdal_translate
             </TabsTrigger>
             <TabsTrigger
               value="gdaldem"
-              className="px-3 py-1 text-xs font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground cursor-pointer rounded-md"
+              className="px-3 py-1 text-xs font-medium text-muted-foreground data-active:text-foreground cursor-pointer rounded-md"
             >
               gdaldem
             </TabsTrigger>

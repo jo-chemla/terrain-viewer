@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { Slot } from '@radix-ui/react-slot'
+import { mergeProps } from '@base-ui/react/merge-props'
+import { useRender } from '@base-ui/react/use-render'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/utils'
@@ -56,19 +57,25 @@ function Item({
   variant = 'default',
   size = 'default',
   asChild = false,
+  render,
+  children,
   ...props
-}: React.ComponentProps<'div'> &
+}: useRender.ComponentProps<'div'> &
   VariantProps<typeof itemVariants> & { asChild?: boolean }) {
-  const Comp = asChild ? Slot : 'div'
-  return (
-    <Comp
-      data-slot="item"
-      data-variant={variant}
-      data-size={size}
-      className={cn(itemVariants({ variant, size, className }))}
-      {...props}
-    />
-  )
+  return useRender({
+    defaultTagName: 'div',
+    render: asChild ? (children as React.ReactElement) : render,
+    props: mergeProps<'div'>(
+      {
+        'data-slot': 'item',
+        'data-variant': variant,
+        'data-size': size,
+        className: cn(itemVariants({ variant, size, className })),
+      } as Omit<React.ComponentProps<'div'>, 'ref'>,
+      props as Omit<React.ComponentProps<'div'>, 'ref'>,
+      asChild ? {} : ({ children } as Omit<React.ComponentProps<'div'>, 'ref'>),
+    ),
+  })
 }
 
 const itemMediaVariants = cva(
