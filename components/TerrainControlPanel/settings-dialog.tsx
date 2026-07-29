@@ -540,7 +540,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                       : `${opfsSummary.count} file${opfsSummary.count === 1 ? "" : "s"} persisted — ${formatBytes(opfsSummary.bytes)}${opfsSummary.quotaBytes ? ` (browser storage quota for this site: ~${formatBytes(opfsSummary.quotaBytes)}, shared with everything else this site stores)` : ""}`}
                   </span>
                   {opfsSummary.count > 0 && (
-                    <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer text-muted-foreground hover:text-destructive" onClick={handleClearPersistedCogs}>
+                    <Button variant="ghost" size="sm" className="h-6 p-4 cursor-pointer text-muted-foreground hover:bg-transparent hover:text-destructive border hover:border-destructive" onClick={handleClearPersistedCogs}>
                       <Trash2 className="h-3 w-3 mr-1" /> Clear
                     </Button>
                   )}
@@ -575,7 +575,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                       : `${opfsVectorSummary.count} layer${opfsVectorSummary.count === 1 ? "" : "s"} persisted — ${formatBytes(opfsVectorSummary.bytes)}${opfsVectorSummary.quotaBytes ? ` (browser storage quota for this site: ~${formatBytes(opfsVectorSummary.quotaBytes)}, shared with everything else this site stores)` : ""}`}
                   </span>
                   {opfsVectorSummary.count > 0 && (
-                    <Button variant="ghost" size="sm" className="h-6 px-2 cursor-pointer text-muted-foreground hover:text-destructive" onClick={handleClearPersistedVectorLayers}>
+                    <Button variant="ghost" size="sm" className="h-6 p-4 cursor-pointer text-muted-foreground hover:bg-transparent hover:text-destructive border hover:border-destructive" onClick={handleClearPersistedVectorLayers}>
                       <Trash2 className="h-3 w-3 mr-1" /> Clear
                     </Button>
                   )}
