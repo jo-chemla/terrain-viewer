@@ -103,8 +103,9 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
       const bytes = new Uint8Array(buf)
       let payload
       let cogBytesById
+      let bookmarkThumbBytesById
       try {
-        ({ payload, cogBytesById } = parseProjectExportArchive(bytes, looksLikeZip(bytes)))
+        ({ payload, cogBytesById, bookmarkThumbBytesById } = parseProjectExportArchive(bytes, looksLikeZip(bytes)))
       } catch {
         setError(`"${file.name}" isn't a valid project export.`)
         return
@@ -113,7 +114,7 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
         setError(`"${file.name}" doesn't look like a project export.`)
         return
       }
-      const { failedCogIds } = await applyProjectImport(payload, cogBytesById)
+      const { failedCogIds } = await applyProjectImport(payload, cogBytesById, bookmarkThumbBytesById)
       // Nothing bundled at all (plain export, or localCogs was left
       // unchecked at export time) — the pre-existing generic warning still
       // applies. A more specific one below covers bytes that WERE bundled

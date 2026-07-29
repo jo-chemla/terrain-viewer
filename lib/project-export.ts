@@ -153,6 +153,46 @@ export function buildProjectExport(
 
 const PROJECT_JSON_ENTRY = "project.json"
 
+/** Subfolder holding one `<bookmark.id>.jpg` per exported bookmark that has a
+ *  thumbnail. In a plain export (`selection.localCogs` off) these sit
+ *  alongside project.json's own inlined base64 `thumb` — pure convenience so
+ *  the zip's contents are browsable as real image files without unpacking the
+ *  JSON, while the JSON itself stays fully self-contained. In a `localCogs`
+ *  export, where the user is already bundling large binary COG bytes into a
+ *  real multi-file zip, project.json's `thumb` field is instead REWRITTEN to
+ *  this relative path (see buildProjectExportArchive) rather than duplicating
+ *  the same ~100KB of image data twice (once as base64 text, ~33% larger, a
+ *  second time as the raw file) — parseProjectExportArchive/applyProjectImport
+ *  resolve that reference back into a real data URL on import. */
+const BOOKMARK_THUMBS_DIR = "bookmarks_thumbs"
+
+function bookmarkThumbEntryName(bookmarkId: string): string {
+  return `${BOOKMARK_THUMBS_DIR}/${bookmarkId}.jpg`
+}
+
+/** Decodes a `data:<mime>;base64,<...>` URL (the format
+ *  captureBookmarkThumbnail in controls-utils.tsx produces) into raw bytes.
+ *  Returns null for anything else (e.g. a future non-data-URL thumb format,
+ *  or the `bookmarks_thumbs/<id>.jpg` path reference a localCogs export
+ *  rewrites `thumb` to instead — see BOOKMARK_THUMBS_DIR). */
+function dataUrlToBytes(dataUrl: string): Uint8Array | null {
+  const match = /^data:[^;]+;base64,([\s\S]*)$/.exec(dataUrl)
+  if (!match) return null
+  const binary = atob(match[1])
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
+/** Inverse of dataUrlToBytes — used to resolve a `bookmarks_thumbs/<id>.jpg`
+ *  path reference (see BOOKMARK_THUMBS_DIR) back into the real data URL
+ *  Bookmark.thumb is expected to hold everywhere else in the app. */
+function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
+  let binary = ""
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return `data:${mime};base64,${btoa(binary)}`
+}
+
 function collectLocalCogIds(sources?: ProjectExportPayload["sources"]): string[] {
   if (!sources) return []
   const ids = new Set<string>()
@@ -177,20 +217,39 @@ export interface ProjectExportArchive {
 }
 
 /** Builds a downloadable archive: `project.json` (the same payload
- *  buildProjectExport produces) plus, when `selection.localCogs` is set, one
- *  `<id>.cog.tiff` entry per locally-picked BYOD source referenced in it —
- *  read from whichever copy is freshest (this session's live registered
- *  File, falling back to the OPFS-persisted copy). Level 0 (store, no
- *  deflate) since COG bytes are already large binary data not worth
- *  spending CPU trying to compress. */
+ *  buildProjectExport produces) plus one `bookmarks_thumbs/<id>.jpg` per
+ *  exported bookmark that has a thumbnail (see BOOKMARK_THUMBS_DIR). When
+ *  `selection.localCogs` is set, project.json's own `thumb` field is
+ *  rewritten to reference that file (`"bookmarks_thumbs/<id>.jpg"`) instead
+ *  of inlining the base64 a second time — the user is already bundling large
+ *  binary COG bytes into a real zip at that point, so it's worth not
+ *  duplicating thumbnail bytes too; otherwise (a plain, non-localCogs export)
+ *  the JSON keeps its base64 copy inline, self-contained.
+ *
+ *  Also bundles, when `selection.localCogs` is set, one `<id>.cog.tiff` entry
+ *  per locally-picked BYOD source referenced in it — read from whichever copy
+ *  is freshest (this session's live registered File, falling back to the
+ *  OPFS-persisted copy). Level 0 (store, no deflate) since COG bytes are
+ *  already large binary data not worth spending CPU trying to compress. */
 export async function buildProjectExportArchive(
   selection: ProjectExportSelection,
   live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[]; viewState: string },
 ): Promise<ProjectExportArchive> {
   const payload = buildProjectExport(selection, live)
-  const entries: Record<string, Uint8Array> = { [PROJECT_JSON_ENTRY]: strToU8(JSON.stringify(payload, null, 2)) }
+  const entries: Record<string, Uint8Array> = {}
   const bundledCogIds: string[] = []
   const missingCogIds: string[] = []
+
+  if (payload.bookmarks) {
+    payload.bookmarks = payload.bookmarks.map((bookmark) => {
+      const bytes = bookmark.thumb ? dataUrlToBytes(bookmark.thumb) : null
+      if (!bytes) return bookmark
+      entries[bookmarkThumbEntryName(bookmark.id)] = bytes
+      return selection.localCogs ? { ...bookmark, thumb: bookmarkThumbEntryName(bookmark.id) } : bookmark
+    })
+  }
+
+  entries[PROJECT_JSON_ENTRY] = strToU8(JSON.stringify(payload, null, 2))
 
   if (selection.localCogs) {
     for (const id of collectLocalCogIds(payload.sources)) {
@@ -210,21 +269,37 @@ export async function buildProjectExportArchive(
 /** Reverse of buildProjectExportArchive. `isZip` picks the parse path — a
  *  plain (non-zip) export is still accepted for backward compatibility with
  *  files exported before this bundling existed, or a fresh export with
- *  `localCogs` left unchecked. */
-export function parseProjectExportArchive(bytes: Uint8Array, isZip: boolean): { payload: ProjectExportPayload; cogBytesById: Map<string, Uint8Array> } {
+ *  `localCogs` left unchecked. `bookmarkThumbBytesById` is only ever
+ *  non-empty for a `localCogs` export, whose bookmarks reference
+ *  `bookmarks_thumbs/<id>.jpg` instead of inlining base64 — see
+ *  applyProjectImport, which resolves that reference back into a real data
+ *  URL using this map before writing bookmarks to localStorage. */
+export function parseProjectExportArchive(
+  bytes: Uint8Array,
+  isZip: boolean,
+): { payload: ProjectExportPayload; cogBytesById: Map<string, Uint8Array>; bookmarkThumbBytesById: Map<string, Uint8Array> } {
   if (!isZip) {
-    return { payload: JSON.parse(strFromU8(bytes)), cogBytesById: new Map() }
+    return { payload: JSON.parse(strFromU8(bytes)), cogBytesById: new Map(), bookmarkThumbBytesById: new Map() }
   }
   const entries = unzipSync(bytes)
   const projectEntry = entries[PROJECT_JSON_ENTRY]
   if (!projectEntry) throw new Error("zip has no project.json entry")
   const payload = JSON.parse(strFromU8(projectEntry))
   const cogBytesById = new Map<string, Uint8Array>()
+  const bookmarkThumbBytesById = new Map<string, Uint8Array>()
+  const bookmarkThumbPrefix = `${BOOKMARK_THUMBS_DIR}/`
   for (const [name, data] of Object.entries(entries)) {
     if (name === PROJECT_JSON_ENTRY) continue
+    if (name.startsWith(bookmarkThumbPrefix) && name.endsWith(".jpg")) {
+      bookmarkThumbBytesById.set(name.slice(bookmarkThumbPrefix.length, -".jpg".length), data)
+      continue
+    }
+    // Only `.cog.tiff` entries beyond this point are bytes to re-hydrate on
+    // import — anything else is purely a convenience extra, not re-imported.
+    if (!name.endsWith(".cog.tiff")) continue
     cogBytesById.set(name.replace(/\.cog\.tiff$/, ""), data)
   }
-  return { payload, cogBytesById }
+  return { payload, cogBytesById, bookmarkThumbBytesById }
 }
 
 /** Applies an imported payload on top of whatever's already here — sources/
@@ -247,8 +322,20 @@ export function parseProjectExportArchive(bytes: Uint8Array, isZip: boolean): { 
  *  (e.g. this machine's own OPFS quota rejected a large DEM even though the
  *  zip carried its bytes fine — opfs-file-store.ts's persist() never throws,
  *  it just returns false) so the caller can tell the user which sources will
- *  still need "Re-select file…" despite the bytes having been bundled. */
-export async function applyProjectImport(payload: ProjectExportPayload, cogBytesById?: Map<string, Uint8Array>): Promise<{ persistedCogIds: string[]; failedCogIds: string[] }> {
+ *  still need "Re-select file…" despite the bytes having been bundled.
+ *
+ *  `bookmarkThumbBytesById` (from parseProjectExportArchive, empty for a
+ *  plain-JSON import or a non-localCogs zip) resolves any bookmark whose
+ *  `thumb` is a `bookmarks_thumbs/<id>.jpg` path reference (see
+ *  BOOKMARK_THUMBS_DIR) back into a real data URL before it's written to
+ *  localStorage — every other reader of Bookmark.thumb in the app (the
+ *  sidebar list, the gallery modal) uses it directly as an `<img src>` and
+ *  has no reason to know a zip-relative-path form ever existed. */
+export async function applyProjectImport(
+  payload: ProjectExportPayload,
+  cogBytesById?: Map<string, Uint8Array>,
+  bookmarkThumbBytesById?: Map<string, Uint8Array>,
+): Promise<{ persistedCogIds: string[]; failedCogIds: string[] }> {
   if (payload.sources) {
     const existingTerrain = readLocalJSON<CustomTerrainSource[]>("customTerrainSources", [])
     const existingBasemap = readLocalJSON<CustomBasemapSource[]>("customBasemapSources", [])
@@ -258,7 +345,15 @@ export async function applyProjectImport(payload: ProjectExportPayload, cogBytes
 
   if (payload.bookmarks) {
     const existing = readLocalJSON<Bookmark[]>("bookmarks", [])
-    writeLocalJSON("bookmarks", mergeById(existing, payload.bookmarks))
+    const resolvedImported = payload.bookmarks.map((bookmark) => {
+      if (!bookmark.thumb || bookmark.thumb.startsWith("data:")) return bookmark
+      // A non-"data:" thumb is a bookmarks_thumbs/<id>.jpg reference (only
+      // ever produced by a localCogs export) — resolve it back to a real
+      // data URL, or drop it if this archive somehow didn't carry the file.
+      const bytes = bookmarkThumbBytesById?.get(bookmark.id)
+      return { ...bookmark, thumb: bytes ? bytesToDataUrl(bytes, "image/jpeg") : null }
+    })
+    writeLocalJSON("bookmarks", mergeById(existing, resolvedImported))
   }
 
   if (payload.drawings) {
