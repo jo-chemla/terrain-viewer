@@ -13,22 +13,9 @@ function Dialog({
 }
 
 function DialogTrigger({
-  asChild = false,
-  render,
-  children,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Trigger> & {
-  asChild?: boolean
-}) {
-  return (
-    <DialogPrimitive.Trigger
-      data-slot="dialog-trigger"
-      render={asChild ? (children as React.ReactElement) : render}
-      {...props}
-    >
-      {asChild ? undefined : children}
-    </DialogPrimitive.Trigger>
-  )
+}: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
 }
 
 function DialogPortal({
@@ -38,22 +25,9 @@ function DialogPortal({
 }
 
 function DialogClose({
-  asChild = false,
-  render,
-  children,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Close> & {
-  asChild?: boolean
-}) {
-  return (
-    <DialogPrimitive.Close
-      data-slot="dialog-close"
-      render={asChild ? (children as React.ReactElement) : render}
-      {...props}
-    >
-      {asChild ? undefined : children}
-    </DialogPrimitive.Close>
-  )
+}: React.ComponentProps<typeof DialogPrimitive.Close>) {
+  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
 const DialogOverlay = React.forwardRef<

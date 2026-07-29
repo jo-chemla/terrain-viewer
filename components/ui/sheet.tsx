@@ -11,41 +11,15 @@ function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
 }
 
 function SheetTrigger({
-  asChild = false,
-  render,
-  children,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Trigger> & {
-  asChild?: boolean
-}) {
-  return (
-    <SheetPrimitive.Trigger
-      data-slot="sheet-trigger"
-      render={asChild ? (children as React.ReactElement) : render}
-      {...props}
-    >
-      {asChild ? undefined : children}
-    </SheetPrimitive.Trigger>
-  )
+}: React.ComponentProps<typeof SheetPrimitive.Trigger>) {
+  return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />
 }
 
 function SheetClose({
-  asChild = false,
-  render,
-  children,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Close> & {
-  asChild?: boolean
-}) {
-  return (
-    <SheetPrimitive.Close
-      data-slot="sheet-close"
-      render={asChild ? (children as React.ReactElement) : render}
-      {...props}
-    >
-      {asChild ? undefined : children}
-    </SheetPrimitive.Close>
-  )
+}: React.ComponentProps<typeof SheetPrimitive.Close>) {
+  return <SheetPrimitive.Close data-slot="sheet-close" {...props} />
 }
 
 function SheetPortal({

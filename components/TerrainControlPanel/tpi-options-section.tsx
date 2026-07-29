@@ -102,8 +102,8 @@ export const TpiFields: React.FC<{
               min={0}
               max={100}
               step={1}
-              value={[magnitude]}
-              onValueChange={([v]) => setState({ tpiMin: -v, tpiMax: v })}
+              value={magnitude}
+              onValueChange={(v) => setState({ tpiMin: -v, tpiMax: v })}
               className="w-full cursor-pointer"
             />
           ) : (

@@ -136,6 +136,7 @@ export const CurvatureFields: React.FC<{
           <Select
             value={state.curvatureMode ?? "combined"}
             onValueChange={(value) => value && applyMode(value)}
+            items={CURVATURE_MODE_OPTIONS}
           >
             <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
               <SelectValue />
@@ -222,8 +223,8 @@ export const CurvatureFields: React.FC<{
               min={0}
               max={sliderMax}
               step={sliderStep}
-              value={[magnitude]}
-              onValueChange={([v]) => setState({ curvatureMin: -v, curvatureMax: v })}
+              value={magnitude}
+              onValueChange={(v) => setState({ curvatureMin: -v, curvatureMax: v })}
               className="w-full cursor-pointer"
             />
           ) : (

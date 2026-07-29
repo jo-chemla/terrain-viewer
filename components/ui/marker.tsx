@@ -22,17 +22,13 @@ const markerVariants = cva(
 function Marker({
   className,
   variant = "default",
-  asChild = false,
   render,
   children,
   ...props
-}: useRender.ComponentProps<"div"> &
-  VariantProps<typeof markerVariants> & {
-    asChild?: boolean
-  }) {
+}: useRender.ComponentProps<"div"> & VariantProps<typeof markerVariants>) {
   return useRender({
     defaultTagName: "div",
-    render: asChild ? (children as React.ReactElement) : render,
+    render,
     props: mergeProps<"div">(
       {
         "data-slot": "marker",
@@ -40,7 +36,7 @@ function Marker({
         className: cn(markerVariants({ variant, className })),
       } as Omit<React.ComponentProps<"div">, "ref">,
       props as Omit<React.ComponentProps<"div">, "ref">,
-      asChild ? {} : ({ children } as Omit<React.ComponentProps<"div">, "ref">),
+      { children } as Omit<React.ComponentProps<"div">, "ref">,
     ),
   })
 }

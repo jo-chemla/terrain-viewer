@@ -283,12 +283,14 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
         onOpenChange(open)
       }}
     >
-      <DialogTrigger asChild>
-        <TooltipIconButton
-          icon={Settings}
-          tooltip="Settings"
-        />
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <TooltipIconButton
+            icon={Settings}
+            tooltip="Settings"
+          />
+        }
+      />
 
       <DialogContent
         className="sm:max-w-2xl max-h-[80vh] overflow-y-auto"
@@ -708,7 +710,17 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </p>
             <div className="space-y-1">
               <Label>Mode</Label>
-              <Select value={state.maxBoundsMode} onValueChange={(value) => setState({ maxBoundsMode: value as MaxBoundsMode })}>
+              <Select
+                value={state.maxBoundsMode}
+                onValueChange={(value) => setState({ maxBoundsMode: value as MaxBoundsMode })}
+                items={{
+                  none: "None",
+                  terrain: "Terrain Source Bounds",
+                  raster: "Raster Basemap Bounds",
+                  union: "Union (Terrain + Raster)",
+                  custom: "Custom (WSNE)",
+                }}
+              >
                 <SelectTrigger className="w-full cursor-pointer">
                   <SelectValue />
                 </SelectTrigger>

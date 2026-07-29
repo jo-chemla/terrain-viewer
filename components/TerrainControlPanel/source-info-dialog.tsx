@@ -74,16 +74,16 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
 
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="cursor-pointer">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span><Info className="h-4 w-4" /></span>
-            </TooltipTrigger>
-            <TooltipContent>View source details</TooltipContent>
-          </Tooltip>
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button variant="ghost" size="icon" className="cursor-pointer">
+            <Tooltip>
+              <TooltipTrigger render={<span><Info className="h-4 w-4" /></span>} />
+              <TooltipContent>View source details</TooltipContent>
+            </Tooltip>
+          </Button>
+        }
+      />
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{config.name}</DialogTitle>

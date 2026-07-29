@@ -33,7 +33,14 @@ export const ColorRampSelectWithCustom: React.FC<{
   customStops: CustomRampStop[]
   customStopsDiscrete: boolean
 }> = ({ ramps, value, onValueChange, anchorKey, customStops, customStopsDiscrete }) => (
-  <Select value={value} onValueChange={(v) => v && onValueChange(v)}>
+  <Select
+    value={value}
+    onValueChange={(v) => v && onValueChange(v)}
+    items={[
+      ...Object.entries(ramps).map(([key, ramp]) => ({ value: key, label: ramp.name })),
+      { value: "custom", label: "-- Custom Colorramp Stops --" },
+    ]}
+  >
     <SelectTrigger className="w-full cursor-pointer">
       <SelectValue />
     </SelectTrigger>

@@ -78,7 +78,7 @@ const BookmarkCard: React.FC<{
           />
         ) : isNameTruncated ? (
           <Tooltip>
-            <TooltipTrigger asChild>{nameButton}</TooltipTrigger>
+            <TooltipTrigger render={nameButton} />
             <TooltipContent><p>{b.name}</p></TooltipContent>
           </Tooltip>
         ) : nameButton}
@@ -143,7 +143,11 @@ export const BookmarksGalleryModal: React.FC<{
         </DialogHeader>
 
         <div className="flex items-center justify-end gap-2 -mt-2">
-          <Select value={sort} onValueChange={(v) => setSort(v as Sort)}>
+          <Select
+            value={sort}
+            onValueChange={(v) => setSort(v as Sort)}
+            items={{ "recent-desc": "Most recent", "recent-asc": "Oldest first", name: "Name (A-Z)" }}
+          >
             <SelectTrigger size="sm" className="w-[140px] cursor-pointer text-xs">
               <SelectValue />
             </SelectTrigger>

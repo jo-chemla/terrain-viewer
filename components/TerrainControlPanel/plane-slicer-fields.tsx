@@ -58,15 +58,15 @@ export const PlaneSlicerFields: React.FC<{
       <Separator />
       <div className={cn("grid grid-cols-[1fr_1fr_auto] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Label htmlFor="plane-slicer" className="text-sm cursor-pointer">Plane Slicer</Label>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={<Label htmlFor="plane-slicer" className="text-sm cursor-pointer">Plane Slicer</Label>}
+          />
           <TooltipContent><p>Colors everything above or below a chosen elevation/height plane — a quick flood-level preview or ridge/valley cutoff.</p></TooltipContent>
         </Tooltip>
         <MobileSlider
           sliderId={fullId}
-          value={[state.planeSlicerOpacity]}
-          onValueChange={([v]) => setState({ planeSlicerOpacity: v })}
+          value={state.planeSlicerOpacity}
+          onValueChange={(v) => setState({ planeSlicerOpacity: v })}
           min={0} max={1} step={0.1}
           className="cursor-pointer"
           disabled={!state.showPlaneSlicer}
@@ -99,8 +99,8 @@ export const PlaneSlicerFields: React.FC<{
             </div>
             <MobileSlider
               sliderId="plane-slicer:value"
-              value={[value]}
-              onValueChange={([v]) => setState({ [valueField]: v })}
+              value={value}
+              onValueChange={(v) => setState({ [valueField]: v })}
               min={bounds.min}
               max={bounds.max}
               step={1}

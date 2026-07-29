@@ -73,8 +73,8 @@ export const AspectFields: React.FC<{
           min={0}
           max={360}
           step={1}
-          value={[shiftDegrees]}
-          onValueChange={([v]) => setState({ aspectShiftDegrees: v })}
+          value={shiftDegrees}
+          onValueChange={(v) => setState({ aspectShiftDegrees: v })}
           className="w-full cursor-pointer"
         />
       </div>

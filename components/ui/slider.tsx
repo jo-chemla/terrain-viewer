@@ -9,46 +9,30 @@ function Slider({
   className,
   defaultValue,
   value,
-  onValueChange,
-  onValueCommitted,
   min = 0,
   max = 100,
   ...props
-}: SliderPrimitive.Root.Props<number[]>) {
-  const thumbCount = value?.length ?? defaultValue?.length ?? 1
-
-  // Base UI decides whether to report a plain number or an array based on
-  // internal state that can end up out of sync with the `value`/`defaultValue`
-  // array we always pass in (see SliderRoot's `useControlled` + `range`
-  // check) — normalize here so every consumer's `([v]) => ...` /
-  // `([min, max]) => ...` destructuring keeps working no matter what shape
-  // Base UI hands back.
-  const handleValueChange = React.useCallback(
-    (newValue: number | number[], eventDetails: unknown) => {
-      ;(onValueChange as ((v: number[], d: unknown) => void) | undefined)?.(
-        Array.isArray(newValue) ? newValue : [newValue],
-        eventDetails,
-      )
-    },
-    [onValueChange],
-  )
-  const handleValueCommitted = React.useCallback(
-    (newValue: number | number[], eventDetails: unknown) => {
-      ;(onValueCommitted as ((v: number[], d: unknown) => void) | undefined)?.(
-        Array.isArray(newValue) ? newValue : [newValue],
-        eventDetails,
-      )
-    },
-    [onValueCommitted],
-  )
+}: SliderPrimitive.Root.Props) {
+  // The official pattern's `_values` fallback only accounts for array vs.
+  // "nothing passed" — it renders 2 <Thumb>s (`[min, max]`) whenever `value`/
+  // `defaultValue` isn't an array, even for a genuine single-thumb slider
+  // passing a plain number. Handle that case explicitly, or every single-value
+  // slider mounts two stacked (visually-identical) thumbs instead of one.
+  const _values = Array.isArray(value)
+    ? value
+    : Array.isArray(defaultValue)
+      ? defaultValue
+      : typeof value === 'number'
+        ? [value]
+        : typeof defaultValue === 'number'
+          ? [defaultValue]
+          : [min, max]
 
   return (
     <SliderPrimitive.Root
       data-slot="slider"
       defaultValue={defaultValue}
       value={value}
-      onValueChange={handleValueChange}
-      onValueCommitted={handleValueCommitted}
       min={min}
       max={max}
       thumbAlignment="edge"
@@ -71,11 +55,10 @@ function Slider({
             className="bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
           />
         </SliderPrimitive.Track>
-        {Array.from({ length: thumbCount }, (_, index) => (
+        {Array.from({ length: _values.length }, (_, index) => (
           <SliderPrimitive.Thumb
             data-slot="slider-thumb"
             key={index}
-            index={index}
             className="border-primary ring-ring/50 block size-4 shrink-0 rounded-full border bg-white shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden data-disabled:pointer-events-none"
           />
         ))}

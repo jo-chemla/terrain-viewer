@@ -56,15 +56,13 @@ function Item({
   className,
   variant = 'default',
   size = 'default',
-  asChild = false,
   render,
   children,
   ...props
-}: useRender.ComponentProps<'div'> &
-  VariantProps<typeof itemVariants> & { asChild?: boolean }) {
+}: useRender.ComponentProps<'div'> & VariantProps<typeof itemVariants>) {
   return useRender({
     defaultTagName: 'div',
-    render: asChild ? (children as React.ReactElement) : render,
+    render,
     props: mergeProps<'div'>(
       {
         'data-slot': 'item',
@@ -73,7 +71,7 @@ function Item({
         className: cn(itemVariants({ variant, size, className })),
       } as Omit<React.ComponentProps<'div'>, 'ref'>,
       props as Omit<React.ComponentProps<'div'>, 'ref'>,
-      asChild ? {} : ({ children } as Omit<React.ComponentProps<'div'>, 'ref'>),
+      { children } as Omit<React.ComponentProps<'div'>, 'ref'>,
     ),
   })
 }

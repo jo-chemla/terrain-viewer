@@ -326,33 +326,37 @@ export const HypsometricTintOptionsSection: React.FC<{
           <TooltipProvider>
             <div className="flex items-center gap-3">
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <a
-                    href="https://colorcet.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <span>CET</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </TooltipTrigger>
+                <TooltipTrigger
+                  render={
+                    <a
+                      href="https://colorcet.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <span>CET</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  }
+                />
                 <TooltipContent>
                   <p>Peter Kovesi&apos;s perceptually-uniform CET colormaps</p>
                 </TooltipContent>
               </Tooltip>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <a
-                    href="http://seaviewsensing.com/pub/cpt-city/index.html"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <span>cpt-city</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </TooltipTrigger>
+                <TooltipTrigger
+                  render={
+                    <a
+                      href="http://seaviewsensing.com/pub/cpt-city/index.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <span>cpt-city</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  }
+                />
                 <TooltipContent>
                   <p>Load advanced color ramps</p>
                 </TooltipContent>
@@ -401,7 +405,17 @@ export const HypsometricTintOptionsSection: React.FC<{
       <div className="space-y-4">
         <div className="space-y-2">
           <div className="flex gap-2">
-            <Select value={state.colorRamp} onValueChange={(value) => setState({ colorRamp: value })}>
+            <Select
+              value={state.colorRamp}
+              onValueChange={(value) => setState({ colorRamp: value })}
+              items={[
+                { value: "custom", label: "-- Custom Colorramp Stops --" },
+                ...Object.entries(filteredColorRamps).map(([key, ramp]: [string, any]) => ({
+                  value: key,
+                  label: `${!ramp.continuous ? ' (D) ' : ' (C) '}${ramp.name}`,
+                })),
+              ]}
+            >
               <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
                 <SelectValue className="min-w-0 truncate" />
               </SelectTrigger>
@@ -448,17 +462,26 @@ export const HypsometricTintOptionsSection: React.FC<{
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-sm font-medium">License Type</Label>
-            <Select value={licenseFilter} onValueChange={(value) => {
-              if (value) {
-                setLicenseFilter(value)
-                const filteredNow = filterColorRamps(colorRamps, colorRampType, value)
-                if (!filteredNow[state.colorRamp]) {
-                  const first = Object.values(filteredNow)[0].name
-                  // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
-                  setState({ colorRamp: first.toLowerCase() })
+            <Select
+              value={licenseFilter}
+              onValueChange={(value) => {
+                if (value) {
+                  setLicenseFilter(value)
+                  const filteredNow = filterColorRamps(colorRamps, colorRampType, value)
+                  if (!filteredNow[state.colorRamp]) {
+                    const first = Object.values(filteredNow)[0].name
+                    // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
+                    setState({ colorRamp: first.toLowerCase() })
+                  }
                 }
-              }
-            }}>
+              }}
+              items={{
+                all: "All",
+                "open-license-only": "Open License Only",
+                "distribute-ok": "Qgis-Distribute=Yes Only",
+                "open-distribute": "Open License & Distribute Yes",
+              }}
+            >
               <SelectTrigger className="h-8 w-[210px] cursor-pointer text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -497,9 +520,9 @@ export const HypsometricTintOptionsSection: React.FC<{
                   
                   <TooltipProvider>
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Label htmlFor="hypso-min-max" className="text-sm font-medium cursor-pointer">Min/Max</Label>
-                      </TooltipTrigger>
+                      <TooltipTrigger
+                        render={<Label htmlFor="hypso-min-max" className="text-sm font-medium cursor-pointer">Min/Max</Label>}
+                      />
                       <TooltipContent>
                         <p>Set custom bounds/elevation range for hypsometric tinting</p>
                       </TooltipContent>
@@ -601,7 +624,7 @@ const HypsoDoubleRangeSlider: React.FC<{
         // step={1}
         step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
         value={sliderValues}
-        onValueChange={handleSliderChange}
+        onValueChange={(v) => handleSliderChange(v as number[])}
         className="w-full cursor-pointer"
       />
         <div className="flex items-center justify-between gap-2 mt-1">

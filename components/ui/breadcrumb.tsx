@@ -33,24 +33,21 @@ function BreadcrumbItem({ className, ...props }: React.ComponentProps<'li'>) {
 }
 
 function BreadcrumbLink({
-  asChild,
   className,
   render,
   children,
   ...props
-}: useRender.ComponentProps<'a'> & {
-  asChild?: boolean
-}) {
+}: useRender.ComponentProps<'a'>) {
   return useRender({
     defaultTagName: 'a',
-    render: asChild ? (children as React.ReactElement) : render,
+    render,
     props: mergeProps<'a'>(
       {
         'data-slot': 'breadcrumb-link',
         className: cn('hover:text-foreground transition-colors', className),
       } as Omit<React.ComponentProps<'a'>, 'ref'>,
       props as Omit<React.ComponentProps<'a'>, 'ref'>,
-      asChild ? {} : ({ children } as Omit<React.ComponentProps<'a'>, 'ref'>),
+      { children } as Omit<React.ComponentProps<'a'>, 'ref'>,
     ),
   })
 }

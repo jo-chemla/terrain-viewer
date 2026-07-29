@@ -12,22 +12,9 @@ function Popover({
 }
 
 function PopoverTrigger({
-  asChild = false,
-  render,
-  children,
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Trigger> & {
-  asChild?: boolean
-}) {
-  return (
-    <PopoverPrimitive.Trigger
-      data-slot="popover-trigger"
-      render={asChild ? (children as React.ReactElement) : render}
-      {...props}
-    >
-      {asChild ? undefined : children}
-    </PopoverPrimitive.Trigger>
-  )
+}: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
+  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
 }
 
 // Base UI has no Anchor part (Positioner takes an `anchor` prop instead, and

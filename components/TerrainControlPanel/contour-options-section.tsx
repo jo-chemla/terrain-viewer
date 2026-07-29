@@ -104,12 +104,14 @@ export const ContourOptionsSection: React.FC<{
         <div className="space-y-2">
           {/* ── Contour Lines ──────────────────────────────────────────── */}
           <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="inline-flex items-center gap-1 cursor-help">
-                <GroupHeading>Contours</GroupHeading>
-                <Info className="h-3 w-3 text-muted-foreground" />
-              </div>
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={
+                <div className="inline-flex items-center gap-1 cursor-help">
+                  <GroupHeading>Contours</GroupHeading>
+                  <Info className="h-3 w-3 text-muted-foreground" />
+                </div>
+              }
+            />
             <TooltipContent><p>Only for TMS terrain, not BYOD COG</p></TooltipContent>
           </Tooltip>
           <div className="flex items-center justify-between gap-2">

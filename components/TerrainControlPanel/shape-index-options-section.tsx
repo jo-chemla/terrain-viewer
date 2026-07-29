@@ -110,8 +110,8 @@ export const ShapeIndexFields: React.FC<{
               min={0}
               max={1}
               step={0.02}
-              value={[magnitude]}
-              onValueChange={([v]) => setState({ shapeIndexMin: -v, shapeIndexMax: v })}
+              value={magnitude}
+              onValueChange={(v) => setState({ shapeIndexMin: -v, shapeIndexMax: v })}
               className="w-full cursor-pointer"
             />
           ) : (

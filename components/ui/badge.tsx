@@ -29,22 +29,20 @@ const badgeVariants = cva(
 function Badge({
   className,
   variant,
-  asChild = false,
   render,
   children,
   ...props
-}: useRender.ComponentProps<'span'> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
+}: useRender.ComponentProps<'span'> & VariantProps<typeof badgeVariants>) {
   return useRender({
     defaultTagName: 'span',
-    render: asChild ? (children as React.ReactElement) : render,
+    render,
     props: mergeProps<'span'>(
       {
         'data-slot': 'badge',
         className: cn(badgeVariants({ variant }), className),
       } as Omit<React.ComponentProps<'span'>, 'ref'>,
       props as Omit<React.ComponentProps<'span'>, 'ref'>,
-      asChild ? {} : ({ children } as Omit<React.ComponentProps<'span'>, 'ref'>),
+      { children } as Omit<React.ComponentProps<'span'>, 'ref'>,
     ),
   })
 }

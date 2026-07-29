@@ -28,10 +28,11 @@ export const SectionIdContext = createContext<string>("")
 // ─── SegmentedToggle ────────────────────────────────────────────────────────
 // iOS-style segmented control (muted track + one elevated "background" pill for
 // the active option). The active pill is driven by an explicit value match, NOT
-// data-[state=on]: when an item doubles as a TooltipTrigger asChild, the
-// tooltip's own data-state (open/closed) is merged onto the SAME element and
-// clobbers the toggle's on/off state, so data-[state=on]:… styling silently
-// never applies (this bit the old Phong toggles). Reads clearly in light + dark
+// data-pressed: with Base UI, Tooltip's own presence attribute (data-popup-open)
+// and Toggle's (data-pressed) no longer collide the way Radix's shared
+// data-state once did (this bit the old Phong toggles) — but the explicit
+// value-match check is simple and already proven, so left as-is. Reads
+// clearly in light + dark
 // where the previous data-[state=on]:bg-white pill was invisible on light.
 const SEG_ITEM_BASE = "flex-1 rounded-sm px-2 py-1 text-xs cursor-pointer transition-colors text-muted-foreground font-normal hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
 const SEG_ITEM_ACTIVE = "bg-background shadow-sm font-semibold text-foreground"
@@ -66,8 +67,8 @@ export function SegmentedToggle<T extends string>({
           </ToggleGroupItem>
         )
         return o.tooltip ? (
-          <Tooltip key={o.value} delayDuration={300}>
-            <TooltipTrigger asChild>{item}</TooltipTrigger>
+          <Tooltip key={o.value}>
+            <TooltipTrigger delay={300} render={item} />
             <TooltipContent><p>{o.tooltip}</p></TooltipContent>
           </Tooltip>
         ) : (
@@ -266,25 +267,27 @@ export const GroupHeading: React.FC<{ children: React.ReactNode; className?: str
 // collapsed to basic" — more explicit than an icon-swap once you already know
 // what the icon means.
 export const AdvancedModeToggle: React.FC<{ advanced: boolean; onToggle: () => void }> = ({ advanced, onToggle }) => (
-  <Tooltip delayDuration={0}>
-    {/* TooltipTrigger asChild merges its own data-state (tooltip open/closed)
-        onto its direct child — Toggle needs data-state (pressed on/off) for
-        its own styling, so it can't be that direct child or the two collide
-        and the tooltip's wins. A plain wrapping span (same trick TooltipButton
-        above uses) keeps them on separate elements. */}
-    <TooltipTrigger asChild>
-      <span>
-        <Toggle
-          pressed={!advanced}
-          onPressedChange={() => onToggle()}
-          size="sm"
-          aria-label={advanced ? "Collapse to basic — hide sub-mode options" : "Expand to advanced — show sub-mode options"}
-          className="cursor-pointer"
-        >
-          <ChevronsDownUp className="h-4 w-4" />
-        </Toggle>
-      </span>
-    </TooltipTrigger>
+  <Tooltip>
+    {/* Base UI's Toggle uses data-pressed and Tooltip's own presence attribute
+        is data-popup-open, so (unlike Radix, where both collided on
+        data-state) there's no real need for the extra wrapping span anymore
+        — kept anyway to avoid touching the render-prop composition twice. */}
+    <TooltipTrigger
+      delay={0}
+      render={
+        <span>
+          <Toggle
+            pressed={!advanced}
+            onPressedChange={() => onToggle()}
+            size="sm"
+            aria-label={advanced ? "Collapse to basic — hide sub-mode options" : "Expand to advanced — show sub-mode options"}
+            className="cursor-pointer"
+          >
+            <ChevronsDownUp className="h-4 w-4" />
+          </Toggle>
+        </span>
+      }
+    />
     <TooltipContent><p>{advanced ? "Collapse to basic (hide sub-mode options)" : "Expand to advanced (show sub-mode options)"}</p></TooltipContent>
   </Tooltip>
 )
@@ -298,22 +301,25 @@ export const AdvancedModeToggle: React.FC<{ advanced: boolean; onToggle: () => v
 // is deliberate: a ghost Button has no persistent on/off look, which read as a
 // harsh, always-black icon with no indication of pinned state.
 export const PinToggle: React.FC<{ pinned: boolean; onToggle: () => void; wiggleNonce?: number }> = ({ pinned, onToggle, wiggleNonce = 0 }) => (
-  <Tooltip delayDuration={0}>
-    <TooltipTrigger asChild>
-      <span>
-        <Toggle
-          pressed={pinned}
-          onPressedChange={() => onToggle()}
-          size="sm"
-          aria-label={pinned ? "Unpin — folds along with everything else" : "Pin open — stays expanded when folding all sections"}
-          className="cursor-pointer"
-        >
-          {/* key bump remounts the icon so the shake restarts on every blocked
-              attempt, not just the first (see .animate-pin-wiggle in index.css) */}
-          <Pin key={wiggleNonce} className={cn("h-4 w-4", wiggleNonce > 0 && "animate-pin-wiggle")} />
-        </Toggle>
-      </span>
-    </TooltipTrigger>
+  <Tooltip>
+    <TooltipTrigger
+      delay={0}
+      render={
+        <span>
+          <Toggle
+            pressed={pinned}
+            onPressedChange={() => onToggle()}
+            size="sm"
+            aria-label={pinned ? "Unpin — folds along with everything else" : "Pin open — stays expanded when folding all sections"}
+            className="cursor-pointer"
+          >
+            {/* key bump remounts the icon so the shake restarts on every blocked
+                attempt, not just the first (see .animate-pin-wiggle in index.css) */}
+            <Pin key={wiggleNonce} className={cn("h-4 w-4", wiggleNonce > 0 && "animate-pin-wiggle")} />
+          </Toggle>
+        </span>
+      }
+    />
     <TooltipContent><p>{pinned ? "Pinned open (stays expanded when folding all sections)" : "Not pinned (folds along with everything else)"}</p></TooltipContent>
   </Tooltip>
 )
@@ -422,7 +428,7 @@ export const SliderControl: React.FC<{
         <Label className="text-sm">{label}</Label>
         {!hideValue && <span className="text-sm text-muted-foreground">{value.toFixed(decimals)}{suffix}</span>}
       </div>
-      <MobileSlider sliderId={id} value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} />
+      <MobileSlider sliderId={id} value={value} onValueChange={(v) => onChange(v as number)} min={min} max={max} step={step} className="cursor-pointer" disabled={disabled} />
     </div>
   )
 }
@@ -449,12 +455,12 @@ export const CheckboxWithSlider: React.FC<{
       <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />
       {tooltip ? (
         <Tooltip>
-          <TooltipTrigger asChild>{labelEl}</TooltipTrigger>
+          <TooltipTrigger render={labelEl} />
           <TooltipContent><p>{tooltip}</p></TooltipContent>
         </Tooltip>
       ) : labelEl}
       {!hideSlider && (
-        <MobileSlider sliderId={fullId} value={[sliderValue]} onValueChange={([v]) => onSliderChange(v)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
+        <MobileSlider sliderId={fullId} value={sliderValue} onValueChange={(v) => onSliderChange(v as number)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
       )}
     </div>
   )
@@ -474,7 +480,7 @@ export const CycleButtonGroup: React.FC<{
   // the row's top instead of vertically centered (an explicit cross-axis size
   // opts an item out of the default align-items: stretch).
   <div className="flex items-center gap-2">
-    <Select value={value} onValueChange={(v) => v && onChange(v)}>
+    <Select value={value} onValueChange={(v) => v && onChange(v)} items={options}>
       <SelectTrigger className="flex-1 h-8 cursor-pointer"><SelectValue /></SelectTrigger>
       <SelectContent>
         {options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
@@ -513,23 +519,25 @@ export const TooltipButton: React.FC<TooltipButtonProps> = ({
 }) => {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        {/* Wrapping span keeps the tooltip working when disabled — a native disabled
-            button doesn't dispatch pointer/hover events, so the trigger would never
-            open if the Button itself were the trigger. */}
-        <span className={className}>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            className="cursor-pointer bg-transparent min-w-0 w-full"
-            onClick={onClick}
-          >
-            <Icon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" />
-            <span className="truncate text-xs sm:text-sm">{label}</span>
-          </Button>
-        </span>
-      </TooltipTrigger>
+      {/* Wrapping span keeps the tooltip working when disabled — a native disabled
+          button doesn't dispatch pointer/hover events, so the trigger would never
+          open if the Button itself were the trigger. */}
+      <TooltipTrigger
+        render={
+          <span className={className}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              className="cursor-pointer bg-transparent min-w-0 w-full"
+              onClick={onClick}
+            >
+              <Icon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" />
+              <span className="truncate text-xs sm:text-sm">{label}</span>
+            </Button>
+          </span>
+        }
+      />
       <TooltipContent>
         <p>{tooltip}</p>
       </TooltipContent>
@@ -559,19 +567,22 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
   size = "icon",
 }, ref) => {
   return (
-    <Tooltip delayDuration={0}>
-      <TooltipTrigger asChild>
-        <Button
-          ref={ref}  // ← forward to the actual button
-          variant={variant}
-          size={size}
-          onClick={onClick}
-          disabled={disabled}
-          className={`cursor-pointer ${className}`}
-        >
-          <Icon className="h-4 w-4" />
-        </Button>
-      </TooltipTrigger>
+    <Tooltip>
+      <TooltipTrigger
+        delay={0}
+        render={
+          <Button
+            ref={ref}  // ← forward to the actual button
+            variant={variant}
+            size={size}
+            onClick={onClick}
+            disabled={disabled}
+            className={`cursor-pointer ${className}`}
+          >
+            <Icon className="h-4 w-4" />
+          </Button>
+        }
+      />
       <TooltipContent>
         <p>{tooltip}</p>
       </TooltipContent>

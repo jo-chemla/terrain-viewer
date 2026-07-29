@@ -41,16 +41,13 @@ function ButtonGroup({
 
 function ButtonGroupText({
   className,
-  asChild = false,
   render,
   children,
   ...props
-}: useRender.ComponentProps<'div'> & {
-  asChild?: boolean
-}) {
+}: useRender.ComponentProps<'div'>) {
   return useRender({
     defaultTagName: 'div',
-    render: asChild ? (children as React.ReactElement) : render,
+    render,
     props: mergeProps<'div'>(
       {
         className: cn(
@@ -59,7 +56,7 @@ function ButtonGroupText({
         ),
       } as Omit<React.ComponentProps<'div'>, 'ref'>,
       props as Omit<React.ComponentProps<'div'>, 'ref'>,
-      asChild ? {} : ({ children } as Omit<React.ComponentProps<'div'>, 'ref'>),
+      { children } as Omit<React.ComponentProps<'div'>, 'ref'>,
     ),
   })
 }

@@ -111,8 +111,8 @@ export const SvfFields: React.FC<{
           min={2}
           max={32}
           step={1}
-          value={[radiusPx]}
-          onValueChange={([v]) => setState({ svfRadius: v })}
+          value={radiusPx}
+          onValueChange={(v) => setState({ svfRadius: v })}
           className="w-full cursor-pointer"
         />
       </div>

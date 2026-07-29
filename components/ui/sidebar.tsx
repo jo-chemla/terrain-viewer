@@ -396,14 +396,13 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<'div'>) {
 
 function SidebarGroupLabel({
   className,
-  asChild = false,
   render,
   children,
   ...props
-}: useRender.ComponentProps<'div'> & { asChild?: boolean }) {
+}: useRender.ComponentProps<'div'>) {
   return useRender({
     defaultTagName: 'div',
-    render: asChild ? (children as React.ReactElement) : render,
+    render,
     props: mergeProps<'div'>(
       {
         'data-slot': 'sidebar-group-label',
@@ -415,21 +414,20 @@ function SidebarGroupLabel({
         ),
       } as Omit<React.ComponentProps<'div'>, 'ref'>,
       props as Omit<React.ComponentProps<'div'>, 'ref'>,
-      asChild ? {} : ({ children } as Omit<React.ComponentProps<'div'>, 'ref'>),
+      { children } as Omit<React.ComponentProps<'div'>, 'ref'>,
     ),
   })
 }
 
 function SidebarGroupAction({
   className,
-  asChild = false,
   render,
   children,
   ...props
-}: useRender.ComponentProps<'button'> & { asChild?: boolean }) {
+}: useRender.ComponentProps<'button'>) {
   return useRender({
     defaultTagName: 'button',
-    render: asChild ? (children as React.ReactElement) : render,
+    render,
     props: mergeProps<'button'>(
       {
         'data-slot': 'sidebar-group-action',
@@ -443,7 +441,7 @@ function SidebarGroupAction({
         ),
       } as Omit<React.ComponentProps<'button'>, 'ref'>,
       props as Omit<React.ComponentProps<'button'>, 'ref'>,
-      asChild ? {} : ({ children } as Omit<React.ComponentProps<'button'>, 'ref'>),
+      { children } as Omit<React.ComponentProps<'button'>, 'ref'>,
     ),
   })
 }
@@ -507,7 +505,6 @@ const sidebarMenuButtonVariants = cva(
 )
 
 function SidebarMenuButton({
-  asChild = false,
   render,
   children,
   isActive = false,
@@ -517,7 +514,6 @@ function SidebarMenuButton({
   className,
   ...props
 }: useRender.ComponentProps<'button'> & {
-  asChild?: boolean
   isActive?: boolean
   tooltip?: string | React.ComponentProps<typeof TooltipContent>
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
@@ -525,7 +521,7 @@ function SidebarMenuButton({
 
   const button = useRender({
     defaultTagName: 'button',
-    render: asChild ? (children as React.ReactElement) : render,
+    render,
     props: mergeProps<'button'>(
       {
         'data-slot': 'sidebar-menu-button',
@@ -535,7 +531,7 @@ function SidebarMenuButton({
         className: cn(sidebarMenuButtonVariants({ variant, size }), className),
       } as Omit<React.ComponentProps<'button'>, 'ref'>,
       props as Omit<React.ComponentProps<'button'>, 'ref'>,
-      asChild ? {} : ({ children } as Omit<React.ComponentProps<'button'>, 'ref'>),
+      { children } as Omit<React.ComponentProps<'button'>, 'ref'>,
     ),
   })
 
@@ -551,7 +547,7 @@ function SidebarMenuButton({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipTrigger render={button} />
       <TooltipContent
         side="right"
         align="center"
@@ -564,18 +560,16 @@ function SidebarMenuButton({
 
 function SidebarMenuAction({
   className,
-  asChild = false,
   render,
   children,
   showOnHover = false,
   ...props
 }: useRender.ComponentProps<'button'> & {
-  asChild?: boolean
   showOnHover?: boolean
 }) {
   return useRender({
     defaultTagName: 'button',
-    render: asChild ? (children as React.ReactElement) : render,
+    render,
     props: mergeProps<'button'>(
       {
         'data-slot': 'sidebar-menu-action',
@@ -594,7 +588,7 @@ function SidebarMenuAction({
         ),
       } as Omit<React.ComponentProps<'button'>, 'ref'>,
       props as Omit<React.ComponentProps<'button'>, 'ref'>,
-      asChild ? {} : ({ children } as Omit<React.ComponentProps<'button'>, 'ref'>),
+      { children } as Omit<React.ComponentProps<'button'>, 'ref'>,
     ),
   })
 }
@@ -689,7 +683,6 @@ function SidebarMenuSubItem({
 }
 
 function SidebarMenuSubButton({
-  asChild = false,
   render,
   children,
   size = 'md',
@@ -697,13 +690,12 @@ function SidebarMenuSubButton({
   className,
   ...props
 }: useRender.ComponentProps<'a'> & {
-  asChild?: boolean
   size?: 'sm' | 'md'
   isActive?: boolean
 }) {
   return useRender({
     defaultTagName: 'a',
-    render: asChild ? (children as React.ReactElement) : render,
+    render,
     props: mergeProps<'a'>(
       {
         'data-slot': 'sidebar-menu-sub-button',
@@ -720,7 +712,7 @@ function SidebarMenuSubButton({
         ),
       } as Omit<React.ComponentProps<'a'>, 'ref'>,
       props as Omit<React.ComponentProps<'a'>, 'ref'>,
-      asChild ? {} : ({ children } as Omit<React.ComponentProps<'a'>, 'ref'>),
+      { children } as Omit<React.ComponentProps<'a'>, 'ref'>,
     ),
   })
 }

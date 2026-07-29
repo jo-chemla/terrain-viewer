@@ -6,46 +6,10 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-// Radix's <Select.Value> automatically displayed the matched item's ItemText
-// content. Base UI's <Select.Value> renders the raw value string instead,
-// unless Root is given an `items` lookup — so we walk the JSX children here to
-// build one automatically (value -> the item's rendered label), keeping every
-// existing `<SelectValue />` call site working without changes.
-function collectSelectItems(
-  children: React.ReactNode,
-): { value: unknown; label: string }[] {
-  const items: { value: unknown; label: string }[] = []
-  React.Children.forEach(children, (child) => {
-    if (!React.isValidElement(child)) return
-    const props = child.props as { value?: unknown; children?: React.ReactNode }
-    if (child.type === SelectItem) {
-      items.push({ value: props.value, label: extractSelectItemText(props.children) })
-    } else if (props.children) {
-      items.push(...collectSelectItems(props.children))
-    }
-  })
-  return items
-}
-
-function extractSelectItemText(node: React.ReactNode): string {
-  if (typeof node === 'string' || typeof node === 'number') return String(node)
-  if (Array.isArray(node)) return node.map(extractSelectItemText).join('')
-  if (React.isValidElement(node)) {
-    return extractSelectItemText((node.props as { children?: React.ReactNode }).children)
-  }
-  return ''
-}
-
 function Select({
-  children,
   ...props
 }: SelectPrimitive.Root.Props<string>) {
-  const items = React.useMemo(() => collectSelectItems(children), [children])
-  return (
-    <SelectPrimitive.Root data-slot="select" items={items} {...props}>
-      {children}
-    </SelectPrimitive.Root>
-  )
+  return <SelectPrimitive.Root data-slot="select" {...props} />
 }
 
 function SelectGroup({

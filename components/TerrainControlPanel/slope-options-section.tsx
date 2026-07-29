@@ -92,7 +92,10 @@ export const SlopeFields: React.FC<{
             max={90}
             step={1}
             value={[state.slopeMinDegrees ?? rampBounds.min, state.slopeMaxDegrees ?? rampBounds.max]}
-            onValueChange={([min, max]) => setState({ slopeMinDegrees: Math.min(min, max), slopeMaxDegrees: Math.max(min, max) })}
+            onValueChange={(v) => {
+              const [min, max] = v as number[]
+              setState({ slopeMinDegrees: Math.min(min, max), slopeMaxDegrees: Math.max(min, max) })
+            }}
             className="w-full cursor-pointer"
           />
         </div>

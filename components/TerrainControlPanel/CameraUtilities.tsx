@@ -836,8 +836,8 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
     })
   }, [mapRef, setPlaying])
 
-  const handleScrub = useCallback((vals: number[]) => {
-    const raw = vals[0] / 100
+  const handleScrub = useCallback((val: number) => {
+    const raw = val / 100
     const p1 = p1Ref.current; const p2 = p2Ref.current; const map = getMap(mapRef)
     if (!p1 || !p2 || !map) return
     setProgress(raw)
@@ -972,9 +972,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
         <div className="flex items-center gap-2 cursor-pointer">
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Label className="text-xs text-muted-foreground">Complete</Label>
-              </TooltipTrigger>
+              <TooltipTrigger render={<Label className="text-xs text-muted-foreground">Complete</Label>} />
               <TooltipContent className="text-xs max-w-xs">
                 Smooth: animates only camera poses.<br />
                 Complete: also animates numeric state (opacities, illumination, etc.)
@@ -1034,8 +1032,8 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
         </span>
         <Slider
           min={0} max={100} step={0.5}
-          value={[Math.round(progress * 100)]}
-          onValueChange={handleScrub}
+          value={Math.round(progress * 100)}
+          onValueChange={(v) => handleScrub(v as number)}
           disabled={!canPlay || exporting}
           className="flex-1 cursor-pointer"
         />
@@ -1070,7 +1068,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
         </div>
         <div className="flex flex-col gap-1">
           <Label className="text-xs text-muted-foreground">Loop</Label>
-          <Select value={loopMode} onValueChange={v => setLoopMode(v as LoopMode)} disabled={exporting}>
+          <Select value={loopMode} onValueChange={v => setLoopMode(v as LoopMode)} disabled={exporting} items={{ none: "None", forward: "Forward ↻", bounce: "Bounce ↔" }}>
             <SelectTrigger className="h-8 text-xs w-full cursor-pointer"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">None</SelectItem>
@@ -1101,7 +1099,7 @@ export function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }
         </div>
         <div className="flex flex-col gap-1 flex-[2] min-w-0">
           <Label className="text-xs text-muted-foreground leading-none pb-[2px]">Render quality</Label>
-          <Select value={renderQuality} onValueChange={v => setRenderQuality(v as RenderQuality)} disabled={exporting}>
+          <Select value={renderQuality} onValueChange={v => setRenderQuality(v as RenderQuality)} disabled={exporting} items={RENDER_QUALITY_OPTIONS}>
             <SelectTrigger className="h-8 text-xs w-full cursor-pointer leading-none"><SelectValue /></SelectTrigger>
             <SelectContent>
               {RENDER_QUALITY_OPTIONS.map(q => <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>)}

@@ -100,8 +100,8 @@ export const LrmFields: React.FC<{
           min={1}
           max={6}
           step={1}
-          value={[radiusToLevels(radiusPx)]}
-          onValueChange={([exp]) => setState({ lrmRadius: Math.pow(2, exp) })}
+          value={radiusToLevels(radiusPx)}
+          onValueChange={(exp) => setState({ lrmRadius: Math.pow(2, exp as number) })}
           className="w-full cursor-pointer"
         />
       </div>
@@ -144,8 +144,8 @@ export const LrmFields: React.FC<{
               min={0}
               max={100}
               step={1}
-              value={[magnitude]}
-              onValueChange={([v]) => setState({ lrmMin: -v, lrmMax: v })}
+              value={magnitude}
+              onValueChange={(v) => setState({ lrmMin: -v, lrmMax: v })}
               className="w-full cursor-pointer"
             />
           ) : (
