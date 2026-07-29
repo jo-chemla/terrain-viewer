@@ -44,6 +44,15 @@ function formatLatLng(lat: number, lng: number): string {
   return `${round6(lat)}°${ns} ${round6(lng)}°${ew}`;
 }
 
+// Alternative parsing libraries, not full feature parity with our needs
+// [parse-dms](https://github.com/gmaclennan/parse-dms) — dedicated DMS parser, 
+// handles hemisphere letters as prefix or suffix, falls back to lat/lon order 
+// when hemisphere letters are absent, explicitly built to handle "most weird 
+// ways that people write DMS."
+// [parse-coords](https://github.com/danielsiwiec/parse-coords) — broader: 
+// DD, DDM, DMS, and UTM, degree/minute/second symbols optional, N/S/E/W as 
+// prefix or suffix.
+
 // A bare number token accepts either '.' or ',' as the decimal separator —
 // e.g. European-style "45,5 7,2" — normalized to '.' before Number() ever
 // sees it (see toNum below). The pair separator (comma and/or space between
