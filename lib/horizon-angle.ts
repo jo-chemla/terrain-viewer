@@ -32,17 +32,25 @@
 // true horizon angle — a systematic *underestimate* of occlusion, a worse
 // failure mode than local dominance's smoothing bias.
 //
-// The compromise "fast" precision takes: march natively (full precision, every
-// pixel) out to FAST_NATIVE_RADIUS_PX — nearby obstructions dominate the horizon
-// angle and matter most to get right — then, only beyond that, fall back to
-// local dominance's one-ancestor-pixel-per-octave trick for the far field, where
-// a given ring's angular contribution is small anyway (atan(height/distance)
-// flattens with distance) and a missed peak costs less. Each far ring samples 3
-// angular sub-offsets (not local dominance's single sample) and takes their max,
-// not their mean — still a MAX operation, just a cheap hedge against the ring's
+// The compromise "fast" precision takes: within FAST_NATIVE_RADIUS_PX, only
+// visit powers-of-two radii (1, 2, 4, 8, ...) instead of every native pixel —
+// the same octave/pyramid idea as the far-field trick below, just one level
+// earlier, so near-field cost grows with log2(radius) instead of radius. r=1
+// (the single nearest, highest-leverage sample — largest angular contribution
+// per unit missed) is always visited, and the exact requested radius is
+// always visited too even if the doubling sequence overshoots it, so the
+// user's slider setting is still a hard boundary. This means "fast" no longer
+// exactly matches "precise" even at small radii the way it used to (it's a
+// genuine approximation everywhere now, not just past FAST_NATIVE_RADIUS_PX) —
+// beyond that radius, it additionally falls back to local dominance's
+// one-ancestor-pixel-per-octave trick for the far field, where a given ring's
+// angular contribution is small anyway (atan(height/distance) flattens with
+// distance) and a missed peak costs less. Each far ring samples 3 angular
+// sub-offsets (not local dominance's single sample) and takes their max, not
+// their mean — still a MAX operation, just a cheap hedge against the ring's
 // one sample point happening to land on a locally low spot in that direction.
-// This does NOT recover genuine sub-ancestor-pixel detail the way native
-// marching does — it's an approximation offered as an opt-in speed/precision
+// Neither trick recovers genuine sub-sample detail the way native marching
+// does — both are an approximation offered as an opt-in speed/precision
 // tradeoff, not a replacement for "precise".
 
 import {
@@ -81,11 +89,23 @@ export function computeHorizonAngles(
   groundResolutionM: number,
   radiusPx: number,
   sign: 1 | -1,
+  nearFieldExponential = false,
 ): number[] {
   const center = sample(0, 0)
+  // Precomputed once per pixel (not once per direction) — which native radii
+  // to visit along each ray. "precise" (and the far-field's own near grid at
+  // radii <= FAST_NATIVE_RADIUS_PX) walks every pixel; "fast" only visits
+  // powers of two plus the exact boundary radius — see this file's header.
+  const steps: number[] = []
+  if (nearFieldExponential) {
+    for (let r = 1; r <= radiusPx; r *= 2) steps.push(r)
+    if (steps[steps.length - 1] !== radiusPx) steps.push(radiusPx)
+  } else {
+    for (let r = 1; r <= radiusPx; r++) steps.push(r)
+  }
   return DIR_VECTORS.map(([dRow, dCol]) => {
     let maxAngle = -Infinity
-    for (let r = 1; r <= radiusPx; r++) {
+    for (const r of steps) {
       const rr = Math.round(r * dRow)
       const rc = Math.round(r * dCol)
       const dist = Math.sqrt(rr * rr + rc * rc) * groundResolutionM
@@ -131,6 +151,19 @@ interface FarRing {
 // alongside its nominal direction — see this file's header for why a single
 // coarse sample per far ring isn't trusted alone the way a native ray step is.
 const FAR_SUB_ANGLES = [-0.3, 0, 0.3]
+
+/** Precomputed once at module load: DIR_VECTORS rotated by each FAR_SUB_ANGLES
+ *  spread, as [rdRow, rdCol] pairs — indexed [direction][subAngle]. Both
+ *  inputs are fixed constants, so there's nothing to gain by recomputing
+ *  Math.cos/Math.sin(spread) and the rotation per pixel per far ring, which
+ *  is what runHorizonAngleProtocol's hot loop used to do (up to 8 directions
+ *  × 3 sub-angles × every far ring × every output pixel). */
+const FAR_DIR_OFFSETS: readonly (readonly [number, number])[][] = DIR_VECTORS.map(([dRow, dCol]) =>
+  FAR_SUB_ANGLES.map((spread) => {
+    const cosA = Math.cos(spread), sinA = Math.sin(spread)
+    return [dRow * cosA + dCol * sinA, dCol * cosA - dRow * sinA] as const // [rdRow, rdCol]
+  }),
+)
 
 export interface RunHorizonAngleProtocolParams {
   upstreamTemplate: string
@@ -208,18 +241,16 @@ export async function runHorizonAngleProtocol(params: RunHorizonAngleProtocolPar
       const sampleNative = (dr: number, dc: number) => padded[(pr + dr) * stride + (pc + dc)]
       const centerElevation = sampleNative(0, 0)
 
-      const angles = computeHorizonAngles(sampleNative, groundResolutionM, nearRadiusPx, sign)
+      const angles = computeHorizonAngles(sampleNative, groundResolutionM, nearRadiusPx, sign, precision === "fast")
 
       for (const ring of farRings) {
         const ancestorPxX = (ring.xOffsetTiles * n + col + 0.5) / ring.scale - 0.5
         const ancestorPxY = (ring.yOffsetTiles * n + row + 0.5) / ring.scale - 0.5
         for (let i = 0; i < DIR_VECTORS.length; i++) {
-          const [dRow, dCol] = DIR_VECTORS[i]
           let ringMax = -Infinity
-          for (const spread of FAR_SUB_ANGLES) {
-            const cosA = Math.cos(spread), sinA = Math.sin(spread)
-            const rdCol = dCol * cosA - dRow * sinA
-            const rdRow = dRow * cosA + dCol * sinA
+          const offsets = FAR_DIR_OFFSETS[i]
+          for (let j = 0; j < offsets.length; j++) {
+            const [rdRow, rdCol] = offsets[j]
             const elevDiff = (bilinearSamplePadded(ring.grid, ancestorPxX + rdCol, ancestorPxY + rdRow) - centerElevation) * sign
             const angle = Math.atan2(elevDiff, ring.distM)
             if (angle > ringMax) ringMax = angle

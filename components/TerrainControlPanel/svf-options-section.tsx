@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MobileSlider, DraftBoundInput, clampMinCommit, clampMaxCommit, SegmentedToggle } from "./controls-components"
-import { FAST_NATIVE_RADIUS_PX, type HorizonPrecision } from "@/lib/horizon-angle"
+import type { HorizonPrecision } from "@/lib/horizon-angle"
 import { ColorRampSelectWithCustom, CustomRampStopsEditor } from "./custom-color-ramp"
 import { colorRampsClassic, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 import { groundResolutionM } from "@/lib/normal-derived-protocol"
@@ -87,10 +87,10 @@ export const SvfFields: React.FC<{
           ]}
         />
         <p className="text-xs text-muted-foreground">
-          Fast marches every pixel only out to {FAST_NATIVE_RADIUS_PX}px, then switches to
-          sampling the coarse tile pyramid for the rest of a larger radius — cheaper for a
-          large radius, but identical to Precise (no difference at all) at {FAST_NATIVE_RADIUS_PX}px
-          or below, and can slightly underestimate occlusion from a narrow, distant ridge.
+          Fast only checks doubling radii near the center (1, 2, 4, 8px...), then switches to
+          sampling the coarse tile pyramid for the rest of a larger radius — cheaper at any
+          radius, but can slightly underestimate occlusion from a narrow ridge nearby or a
+          distant one.
         </p>
       </div>
 
