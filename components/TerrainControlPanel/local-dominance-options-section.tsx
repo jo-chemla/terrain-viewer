@@ -157,8 +157,8 @@ export const LocalDominanceFields: React.FC<{
               min={0}
               max={30}
               step={0.5}
-              value={[magnitude]}
-              onValueChange={([v]) => setState({ localDominanceMin: -v, localDominanceMax: v })}
+              value={magnitude}
+              onValueChange={(v) => setState({ localDominanceMin: -v, localDominanceMax: v })}
               className="w-full cursor-pointer"
             />
           ) : (

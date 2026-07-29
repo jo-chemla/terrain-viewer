@@ -237,9 +237,7 @@ const ShortenToggle: React.FC<{
         )}
         {state.status === "error" && (
           <Tooltip>
-            <TooltipTrigger asChild>
-              <AlertCircle className="h-3.5 w-3.5 text-destructive cursor-help" />
-            </TooltipTrigger>
+            <TooltipTrigger render={<AlertCircle className="h-3.5 w-3.5 text-destructive cursor-help" />} />
             <TooltipContent side="top" className="max-w-[200px] text-xs">
               {state.message}
             </TooltipContent>

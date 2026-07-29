@@ -108,11 +108,13 @@ export const BackgroundOptionsSection: React.FC<{
         />
         <div className="flex items-center flex-1 ml-2 gap-1">
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Label htmlFor="bg-layer-active" className="text-sm font-medium cursor-pointer">
-                Map Background Layer
-              </Label>
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={
+                <Label htmlFor="bg-layer-active" className="text-sm font-medium cursor-pointer">
+                  Map Background Layer
+                </Label>
+              }
+            />
             <TooltipContent>
               <p>Toggle off if layers have display issues</p>
             </TooltipContent>

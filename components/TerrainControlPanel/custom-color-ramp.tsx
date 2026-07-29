@@ -12,7 +12,7 @@ import {
 } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 
-const TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer text-xs data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+const TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer text-xs text-muted-foreground font-normal data-pressed:bg-white data-pressed:font-bold data-pressed:text-foreground"
 
 /** The Select for a mode's color ramp registry, with a synthetic "-- Custom
  *  Colorramp Stops --" entry injected right after `anchorKey` — same registry-
@@ -33,7 +33,14 @@ export const ColorRampSelectWithCustom: React.FC<{
   customStops: CustomRampStop[]
   customStopsDiscrete: boolean
 }> = ({ ramps, value, onValueChange, anchorKey, customStops, customStopsDiscrete }) => (
-  <Select value={value} onValueChange={onValueChange}>
+  <Select
+    value={value}
+    onValueChange={(v) => v && onValueChange(v)}
+    items={[
+      ...Object.entries(ramps).map(([key, ramp]) => ({ value: key, label: ramp.name })),
+      { value: "custom", label: "-- Custom Colorramp Stops --" },
+    ]}
+  >
     <SelectTrigger className="w-full cursor-pointer">
       <SelectValue />
     </SelectTrigger>
@@ -95,9 +102,8 @@ export const QuickRampBuilder: React.FC<{
     <div className="space-y-2 rounded-md border p-2">
       <Label className="text-xs font-medium text-muted-foreground">Quick Build</Label>
       <ToggleGroup
-        type="single"
-        value={shape}
-        onValueChange={(value) => value && setShape(value as QuickRampShape)}
+        value={[shape]}
+        onValueChange={([value]) => value && setShape(value as QuickRampShape)}
         className="border rounded-md w-full"
       >
         <ToggleGroupItem value="sequential" className={TOGGLE_ITEM_CLASS} title="One color, fading in from transparent (flip direction with Invert Ramp below).">
@@ -109,9 +115,8 @@ export const QuickRampBuilder: React.FC<{
       </ToggleGroup>
       {shape === "diverging" && (
         <ToggleGroup
-          type="single"
-          value={fade}
-          onValueChange={(value) => value && setFade(value as QuickRampFade)}
+          value={[fade]}
+          onValueChange={([value]) => value && setFade(value as QuickRampFade)}
           className="border rounded-md w-full"
         >
           <ToggleGroupItem value="center" className={TOGGLE_ITEM_CLASS} title="Color at both edges, transparent in the middle (e.g. a diverging curvature ramp).">
@@ -188,9 +193,8 @@ export const CustomRampStopsEditor: React.FC<{
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-medium">Custom Stops</Label>
         <ToggleGroup
-          type="single"
-          value={isDiscrete ? "discrete" : "continuous"}
-          onValueChange={(value) => value && onDiscreteChange(value === "discrete")}
+          value={[isDiscrete ? "discrete" : "continuous"]}
+          onValueChange={([value]) => value && onDiscreteChange(value === "discrete")}
           className="border rounded-md w-[170px]"
         >
           <ToggleGroupItem value="continuous" className={TOGGLE_ITEM_CLASS} title="Smoothly interpolate colors between stops.">

@@ -50,31 +50,37 @@ export const CustomSourceDetails: React.FC<{
           }}
         />
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              className="flex-1 justify-start text-sm truncate min-w-0 text-muted-foreground cursor-pointer h-8"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="h-4 w-4 mr-1 shrink-0" /> {source.name} — re-select file…
-            </Button>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                className="flex-1 justify-start text-sm truncate min-w-0 text-muted-foreground cursor-pointer h-8"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4 mr-1 shrink-0" /> {source.name} — re-select file…
+              </Button>
+            }
+          />
           <TooltipContent><p>This browser couldn't restore "{source.name}" locally (unsupported browser, storage limit, or it was cleared) — pick it again to use it this session</p></TooltipContent>
         </Tooltip>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleEditSource(source.id)}>
-              <Edit className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleEditSource(source.id)}>
+                <Edit className="h-4 w-4" />
+              </Button>
+            }
+          />
           <TooltipContent><p>Edit</p></TooltipContent>
         </Tooltip>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleDeleteCustomSource(source.id)}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleDeleteCustomSource(source.id)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            }
+          />
           <TooltipContent><p>Delete</p></TooltipContent>
         </Tooltip>
       </>
@@ -89,63 +95,67 @@ export const CustomSourceDetails: React.FC<{
         than a portable, shareable URL anyone else could open. */}
     {source.type === "cog-local" && (
       <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="shrink-0"><HardDrive className="h-3.5 w-3.5 text-muted-foreground" /></span>
-        </TooltipTrigger>
+        <TooltipTrigger render={<span className="shrink-0"><HardDrive className="h-3.5 w-3.5 text-muted-foreground" /></span>} />
         <TooltipContent><p>Local file — lives only in this browser's storage, not a shareable URL</p></TooltipContent>
       </Tooltip>
     )}
     {linkedSourceName && (
       <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="shrink-0"><Link className="h-3.5 w-3.5 text-muted-foreground" /></span>
-        </TooltipTrigger>
+        <TooltipTrigger render={<span className="shrink-0"><Link className="h-3.5 w-3.5 text-muted-foreground" /></span>} />
         <TooltipContent><p>Linked to "{linkedSourceName}" — selecting either one auto-selects the other</p></TooltipContent>
       </Tooltip>
     )}
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Label
-          htmlFor={`source-${source.id}`}
-          className={`flex-1 text-sm truncate min-w-0 ${isDisabledVrt ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-          onClick={() => {
-            if (isDisabledVrt) return
-            onSelect?.(source.id)
-            handleFitToBounds(source)
-          }}
-          >
-          {source.name}
-        </Label>
-      </TooltipTrigger>
+      <TooltipTrigger
+        render={
+          <Label
+            htmlFor={`source-${source.id}`}
+            className={`flex-1 text-sm truncate min-w-0 ${isDisabledVrt ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            onClick={() => {
+              if (isDisabledVrt) return
+              onSelect?.(source.id)
+              handleFitToBounds(source)
+            }}
+            >
+            {source.name}
+          </Label>
+        }
+      />
       <TooltipContent> <p>{isDisabledVrt ? "VRT only works in titiler streaming mode" : source.name}</p> </TooltipContent>
     </Tooltip>
 
     {(['cog', 'cog-local', 'vrt', 'tilejson'].includes(source.type) || !!source.bounds) && (
       <Tooltip>
-        <TooltipTrigger asChild>
-          {/* force=true: this button always fits, unlike the label click above which
-              only fits when smart-zoom decides the camera should actually move. */}
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" disabled={isDisabledVrt} onClick={() => handleFitToBounds(source, true)}>
-            <MapPin className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
+        {/* force=true: this button always fits, unlike the label click above which
+            only fits when smart-zoom decides the camera should actually move. */}
+        <TooltipTrigger
+          render={
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" disabled={isDisabledVrt} onClick={() => handleFitToBounds(source, true)}>
+              <MapPin className="h-4 w-4" />
+            </Button>
+          }
+        />
         <TooltipContent><p>Fit to bounds</p></TooltipContent>
       </Tooltip>
     )}
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleEditSource(source.id)}>
-          <Edit className="h-4 w-4" />
-        </Button>
-      </TooltipTrigger>
+      <TooltipTrigger
+        render={
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleEditSource(source.id)}>
+            <Edit className="h-4 w-4" />
+          </Button>
+        }
+      />
       <TooltipContent><p>Edit</p></TooltipContent>
     </Tooltip>
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleDeleteCustomSource(source.id)}>
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </TooltipTrigger>
+      <TooltipTrigger
+        render={
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleDeleteCustomSource(source.id)}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        }
+      />
       <TooltipContent><p>Delete</p></TooltipContent>
     </Tooltip>
     </>

@@ -226,7 +226,19 @@ export const CustomBasemapModal: React.FC<{
         <div className="space-y-4 min-w-0">
           <div className="space-y-2">
             <Label htmlFor="basemap-type">Type *</Label>
-            <Select value={type} onValueChange={(value: any) => setType(value)}>
+            <Select
+              value={type}
+              onValueChange={(value: any) => setType(value)}
+              items={{
+                tms: "TMS/XYZ (Raster Tile)",
+                cog: "COG (Cloud Optimized Geotiff)",
+                "cog-local": "Local COG file (this browser only)",
+                wms: "Raster (WMS / WMTS)",
+                tilejson: "TileJSON (Raster Basemap)",
+                "wms-picker": "WMS (list layers)",
+                qms: "NextGIS QMS (search)",
+              }}
+            >
               <SelectTrigger id="basemap-type" className="cursor-pointer w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -363,8 +375,8 @@ export const CustomBasemapModal: React.FC<{
                   min={0}
                   max={100}
                   step={1}
-                  value={[opacity]}
-                  onValueChange={([value]) => handleOpacityChange(value)}
+                  value={opacity}
+                  onValueChange={(value) => handleOpacityChange(value as number)}
                   className="cursor-pointer"
                 />
               </div>
@@ -382,7 +394,11 @@ export const CustomBasemapModal: React.FC<{
                       <Link className="h-3.5 w-3.5" />
                       Linked Terrain Source{linkedTerrainId && " (set)"}
                     </Label>
-                    <Select value={linkedTerrainId || "none"} onValueChange={(value) => setLinkedTerrainId(value === "none" ? "" : value)}>
+                    <Select
+                      value={linkedTerrainId || "none"}
+                      onValueChange={(value) => value && setLinkedTerrainId(value === "none" ? "" : value)}
+                      items={{ none: "None", ...Object.fromEntries(customTerrainSources.map((t) => [t.id, t.name])) }}
+                    >
                       <SelectTrigger id="basemap-linked-terrain" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">None</SelectItem>

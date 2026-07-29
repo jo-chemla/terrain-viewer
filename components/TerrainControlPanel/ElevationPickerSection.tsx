@@ -554,6 +554,7 @@ export const ElevationPickerSection: React.FC<{
                     setRouteMode(m)
                     if (isActive && m !== "straight") track("tools-elevation-picker", { mode: "routing", engine: m, profile: routeProfile })
                   }}
+                  items={{ straight: "Straight line", brouter: "BRouter", valhalla: "Valhalla" }}
                 >
                   <SelectTrigger className="h-7 w-[130px] text-xs cursor-pointer"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -566,7 +567,11 @@ export const ElevationPickerSection: React.FC<{
               {routeMode !== "straight" && (
                 <div className="flex items-center justify-between gap-2">
                   <Label className="text-sm font-medium">Routing profile</Label>
-                  <Select value={routeProfile} onValueChange={(v) => setRouteProfile(v as RoutingProfile)}>
+                  <Select
+                    value={routeProfile}
+                    onValueChange={(v) => setRouteProfile(v as RoutingProfile)}
+                    items={{ foot: "Hiking / foot", bike: "Bike / trekking", car: "Vehicle / car" }}
+                  >
                     <SelectTrigger className="h-7 w-[130px] text-xs cursor-pointer"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="foot">Hiking / foot</SelectItem>

@@ -132,8 +132,8 @@ export const OpennessFields: React.FC<{
           min={2}
           max={32}
           step={1}
-          value={[radiusPx]}
-          onValueChange={([v]) => setState({ opennessRadius: v })}
+          value={radiusPx}
+          onValueChange={(v) => setState({ opennessRadius: v })}
           className="w-full cursor-pointer"
         />
       </div>
@@ -179,8 +179,8 @@ export const OpennessFields: React.FC<{
               min={0}
               max={100}
               step={0.5}
-              value={[magnitude]}
-              onValueChange={([v]) => setState({ opennessMin: -v, opennessMax: v })}
+              value={magnitude}
+              onValueChange={(v) => setState({ opennessMin: -v, opennessMax: v })}
               className="w-full cursor-pointer"
             />
           ) : (

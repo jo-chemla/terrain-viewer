@@ -265,25 +265,36 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   }, [batchEditMode, batchApiKeys, mapboxKey, googleKey, maptilerKey, setMapboxKey, setGoogleKey, setMaptilerKey])
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <TooltipIconButton
-          icon={Settings}
-          tooltip="Settings"
-        />
-      </DialogTrigger>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open, eventDetails) => {
+        // The advanced theme editor is portaled to <body> as a sibling of this
+        // dialog (not inside its content), so a click inside it counts as
+        // "outside" and Base UI would dismiss the Settings dialog. Keep the
+        // dialog open when the interaction originates within the editor panel
+        // (.tec-panel).
+        if (!open && eventDetails.reason === "outside-press") {
+          const target = (eventDetails.event as Event | undefined)?.target as HTMLElement | null
+          if (target?.closest?.(".tec-panel")) {
+            eventDetails.cancel()
+            return
+          }
+        }
+        onOpenChange(open)
+      }}
+    >
+      <DialogTrigger
+        render={
+          <TooltipIconButton
+            icon={Settings}
+            tooltip="Settings"
+          />
+        }
+      />
 
       <DialogContent
         className="sm:max-w-2xl max-h-[80vh] overflow-y-auto"
         showCloseButton={false}
-        // The advanced theme editor is portaled to <body> as a sibling of this
-        // dialog (not inside its content), so a click inside it counts as
-        // "outside" and Radix would dismiss the Settings dialog. Keep the dialog
-        // open when the interaction originates within the editor panel (.tec-panel).
-        onInteractOutside={(e) => {
-          const target = (e.detail as any)?.originalEvent?.target as HTMLElement | null
-          if (target?.closest?.(".tec-panel")) e.preventDefault()
-        }}
       >
         <div className="absolute top-4 right-4 flex items-center gap-1">
           <TooltipIconButton
@@ -699,7 +710,17 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </p>
             <div className="space-y-1">
               <Label>Mode</Label>
-              <Select value={state.maxBoundsMode} onValueChange={(value) => setState({ maxBoundsMode: value as MaxBoundsMode })}>
+              <Select
+                value={state.maxBoundsMode}
+                onValueChange={(value) => setState({ maxBoundsMode: value as MaxBoundsMode })}
+                items={{
+                  none: "None",
+                  terrain: "Terrain Source Bounds",
+                  raster: "Raster Basemap Bounds",
+                  union: "Union (Terrain + Raster)",
+                  custom: "Custom (WSNE)",
+                }}
+              >
                 <SelectTrigger className="w-full cursor-pointer">
                   <SelectValue />
                 </SelectTrigger>

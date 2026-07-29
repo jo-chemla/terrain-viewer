@@ -81,8 +81,8 @@ export const TellsFields: React.FC<{
           min={1}
           max={6}
           step={1}
-          value={[radiusToLevels(radiusPx)]}
-          onValueChange={([exp]) => setState({ tellRadius: Math.pow(2, exp) })}
+          value={radiusToLevels(radiusPx)}
+          onValueChange={(exp) => setState({ tellRadius: Math.pow(2, exp as number) })}
           className="w-full cursor-pointer"
         />
         <p className="text-xs text-muted-foreground">

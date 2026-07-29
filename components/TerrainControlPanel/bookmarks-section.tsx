@@ -90,7 +90,7 @@ const BookmarkRow: React.FC<{
         />
       ) : isNameTruncated ? (
         <Tooltip>
-          <TooltipTrigger asChild>{nameButton}</TooltipTrigger>
+          <TooltipTrigger render={nameButton} />
           <TooltipContent><p>{b.name}</p></TooltipContent>
         </Tooltip>
       ) : nameButton}

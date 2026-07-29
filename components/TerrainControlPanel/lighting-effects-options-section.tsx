@@ -114,7 +114,11 @@ export const LightingEffectsOptionsSection: React.FC<{
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Material</Label>
                 <div className="flex gap-2">
-                  <Select value={state.matcapTextureId} onValueChange={(value) => setState({ matcapTextureId: value })}>
+                  <Select
+                    value={state.matcapTextureId}
+                    onValueChange={(value) => setState({ matcapTextureId: value })}
+                    items={MATCAP_TEXTURES.map((tex) => ({ value: tex.id, label: tex.name }))}
+                  >
                     <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
                       <SelectValue />
                     </SelectTrigger>

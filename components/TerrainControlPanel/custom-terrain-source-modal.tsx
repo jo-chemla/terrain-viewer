@@ -161,7 +161,20 @@ export const CustomTerrainSourceModal: React.FC<{
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="source-type">Type *</Label>
-            <Select value={type} onValueChange={(value: any) => setType(value)}>
+            <Select
+              value={type}
+              onValueChange={(value: any) => setType(value)}
+              items={{
+                cog: "COG (Cloud Optimized GeoTIFF)",
+                "cog-local": "Local COG file (this browser only)",
+                terrarium: "TMS (Terrarium)",
+                terrainrgb: "TMS (TerrainRGB)",
+                "wms-picker": "WMS (list layers)",
+                "wms-raw": "WMS (raw Float32 elevation)",
+                tilejson: "TileJSON",
+                vrt: `VRT${useCogProtocol ? " (titiler mode only)" : ""}`,
+              }}
+            >
               <SelectTrigger id="source-type" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="cog">COG (Cloud Optimized GeoTIFF)</SelectItem>
@@ -270,7 +283,11 @@ export const CustomTerrainSourceModal: React.FC<{
                       <Link className="h-3.5 w-3.5" />
                       Linked Basemap Source{linkedBasemapId && " (set)"}
                     </Label>
-                    <Select value={linkedBasemapId || "none"} onValueChange={(value) => setLinkedBasemapId(value === "none" ? "" : value)}>
+                    <Select
+                      value={linkedBasemapId || "none"}
+                      onValueChange={(value) => value && setLinkedBasemapId(value === "none" ? "" : value)}
+                      items={{ none: "None", ...Object.fromEntries(customBasemapSources.map((b) => [b.id, b.name])) }}
+                    >
                       <SelectTrigger id="source-linked-basemap" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">None</SelectItem>

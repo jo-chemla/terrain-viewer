@@ -258,8 +258,8 @@ export const SunShadowCalculatorSection: React.FC<{
             <Label className="text-sm font-medium">Width</Label>
             <MobileSlider
               sliderId="sun-shadow-calc-line-width"
-              value={[lineWidth]}
-              onValueChange={([v]) => setLineWidth(v)}
+              value={lineWidth}
+              onValueChange={(v) => setLineWidth(v as number)}
               min={1}
               max={10}
               step={1}

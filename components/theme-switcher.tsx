@@ -101,11 +101,14 @@ export function ColorThemeSelect() {
     [bySource, customThemes, defaultGroupThemes],
   );
 
-  // Radix's SelectTrigger opens the popup on ArrowUp/ArrowDown by default (see
-  // OPEN_KEYS in @radix-ui/react-select) — preventDefault here runs BEFORE that
-  // (composeEventHandlers calls the caller's onKeyDown first and skips its own
-  // handler if the event was prevented), so arrow keys instead just step the
-  // selection directly, like a native <select> closed-popup keyboard behavior.
+  // SelectTrigger opens the popup on ArrowUp/ArrowDown by default — preventDefault
+  // here runs before that (the user's onKeyDown fires before Base UI's own
+  // handler, which bails out if the event was already prevented), so arrow keys
+  // instead just step the selection directly, like a native closed-popup <select>.
+  // NOTE (post radix->base-ui migration): re-verify this in the browser — Base
+  // UI's Select.Trigger event-composition order was not independently confirmed
+  // to match Radix's here; if arrow keys start opening the popup again, this is
+  // the first place to look.
   const step = (delta: number) => {
     const index = orderedNames.indexOf(colorName);
     const next = orderedNames[Math.min(Math.max(index + delta, 0), orderedNames.length - 1)];
@@ -117,7 +120,7 @@ export function ColorThemeSelect() {
   };
 
   return (
-    <Select value={colorName} onValueChange={setTheme}>
+    <Select value={colorName} onValueChange={(value) => value && setTheme(value)}>
       <SelectTrigger className="w-full cursor-pointer" onKeyDown={handleTriggerKeyDown}>
         <SelectValue>
           <div className="flex items-center gap-2">

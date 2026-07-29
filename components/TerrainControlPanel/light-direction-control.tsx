@@ -57,7 +57,7 @@ const LightSlider: React.FC<{
         </div>
         {displayNode ?? <span className="text-sm text-muted-foreground tabular-nums">{displayValue}</span>}
       </div>
-      <MobileSlider sliderId={id} value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="cursor-pointer" />
+      <MobileSlider sliderId={id} value={value} onValueChange={(v) => onChange(v as number)} min={min} max={max} step={step} className="cursor-pointer" />
       {ticks && ticks.length > 0 && (
         <div className="relative h-3">
           {ticks.map((t) => {
@@ -255,12 +255,14 @@ export const LightDirectionControl: React.FC<{
             displayValue={formatDayOfYear(dayOfYear)}
             displayNode={
               <Popover>
-                <PopoverTrigger asChild>
-                  <button type="button" className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground" title="Pick a date">
-                    {formatDayOfYear(dayOfYear)}
-                    <CalendarDays className="h-3.5 w-3.5" />
-                  </button>
-                </PopoverTrigger>
+                <PopoverTrigger
+                  render={
+                    <button type="button" className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground" title="Pick a date">
+                      {formatDayOfYear(dayOfYear)}
+                      <CalendarDays className="h-3.5 w-3.5" />
+                    </button>
+                  }
+                />
                 <PopoverContent align="end" className="w-auto p-0">
                   <Calendar
                     mode="single"
@@ -287,15 +289,21 @@ export const LightDirectionControl: React.FC<{
             displayValue={formatHour(timeOfDay)}
             displayNode={
               <Popover>
-                <PopoverTrigger asChild>
-                  <button type="button" className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground" title="Pick a time">
-                    {formatHour(timeOfDay)}
-                    <Clock className="h-3.5 w-3.5" />
-                  </button>
-                </PopoverTrigger>
+                <PopoverTrigger
+                  render={
+                    <button type="button" className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground" title="Pick a time">
+                      {formatHour(timeOfDay)}
+                      <Clock className="h-3.5 w-3.5" />
+                    </button>
+                  }
+                />
                 <PopoverContent align="end" className="w-auto p-2">
                   <div className="flex items-center gap-1">
-                    <Select value={String(timeHour)} onValueChange={(v) => setTimeOfDay(Number(v) + timeMinute / 60)}>
+                    <Select
+                      value={String(timeHour)}
+                      onValueChange={(v) => setTimeOfDay(Number(v) + timeMinute / 60)}
+                      items={Object.fromEntries(Array.from({ length: 24 }, (_, h) => [String(h), String(h).padStart(2, "0")]))}
+                    >
                       <SelectTrigger className="w-[68px] cursor-pointer"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Array.from({ length: 24 }, (_, h) => (
@@ -304,7 +312,11 @@ export const LightDirectionControl: React.FC<{
                       </SelectContent>
                     </Select>
                     <span className="text-sm text-muted-foreground">:</span>
-                    <Select value={String(timeMinute)} onValueChange={(v) => setTimeOfDay(timeHour + Number(v) / 60)}>
+                    <Select
+                      value={String(timeMinute)}
+                      onValueChange={(v) => setTimeOfDay(timeHour + Number(v) / 60)}
+                      items={Object.fromEntries(minuteOptions.map((m) => [String(m), String(m).padStart(2, "0")]))}
+                    >
                       <SelectTrigger className="w-[68px] cursor-pointer"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {minuteOptions.map((m) => (
@@ -320,10 +332,11 @@ export const LightDirectionControl: React.FC<{
             labelExtra={
               <TooltipProvider>
                 <div className="flex items-center gap-1.5">
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <Label className="text-xs text-muted-foreground cursor-pointer">Local</Label>
-                    </TooltipTrigger>
+                  <Tooltip>
+                    <TooltipTrigger
+                      delay={300}
+                      render={<Label className="text-xs text-muted-foreground cursor-pointer">Local</Label>}
+                    />
                     <TooltipContent className="text-xs max-w-xs">
                       Local: the real civil clock at the viewport latitude/longitude, including that location's own daylight-saving rules.<br />
                       UTC: reads UTC directly, independent of viewport location.
@@ -337,7 +350,7 @@ export const LightDirectionControl: React.FC<{
                       const rebasedUiHour = Math.round(uiHourFromSolarHour(state.lightDayOfYear, solarHour, mode) * stepsPerHour) / stepsPerHour
                       setState({ lightTimeMode: mode, lightTimeOfDay: rebasedUiHour })
                     }}
-                    className="h-5 w-9 bg-muted data-[state=checked]:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+                    className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
                   />
                   <Label className="text-xs text-muted-foreground">UTC</Label>
                 </div>

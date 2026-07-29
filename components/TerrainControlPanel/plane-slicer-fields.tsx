@@ -12,7 +12,7 @@ import { ColorAlphaSwatch } from "./color-picker"
 import { activeSliderAtom } from "@/lib/settings-atoms"
 import { cn } from "@/lib/utils"
 
-const TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer data-[state=on]:bg-white data-[state=on]:font-bold data-[state=on]:text-foreground data-[state=off]:text-muted-foreground data-[state=off]:font-normal"
+const TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer text-muted-foreground font-normal data-pressed:bg-white data-pressed:font-bold data-pressed:text-foreground"
 
 // Paints everything above OR below a user-chosen elevation/height plane a
 // solid custom color — e.g. a quick flood-level preview (Absolute) or
@@ -58,15 +58,15 @@ export const PlaneSlicerFields: React.FC<{
       <Separator />
       <div className={cn("grid grid-cols-[1fr_1fr_auto] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Label htmlFor="plane-slicer" className="text-sm cursor-pointer">Plane Slicer</Label>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={<Label htmlFor="plane-slicer" className="text-sm cursor-pointer">Plane Slicer</Label>}
+          />
           <TooltipContent><p>Colors everything above or below a chosen elevation/height plane — a quick flood-level preview or ridge/valley cutoff.</p></TooltipContent>
         </Tooltip>
         <MobileSlider
           sliderId={fullId}
-          value={[state.planeSlicerOpacity]}
-          onValueChange={([v]) => setState({ planeSlicerOpacity: v })}
+          value={state.planeSlicerOpacity}
+          onValueChange={(v) => setState({ planeSlicerOpacity: v })}
           min={0} max={1} step={0.1}
           className="cursor-pointer"
           disabled={!state.showPlaneSlicer}
@@ -99,8 +99,8 @@ export const PlaneSlicerFields: React.FC<{
             </div>
             <MobileSlider
               sliderId="plane-slicer:value"
-              value={[value]}
-              onValueChange={([v]) => setState({ [valueField]: v })}
+              value={value}
+              onValueChange={(v) => setState({ [valueField]: v })}
               min={bounds.min}
               max={bounds.max}
               step={1}
@@ -111,9 +111,8 @@ export const PlaneSlicerFields: React.FC<{
           <div className="flex items-center justify-between gap-2">
             <Label className="text-sm font-medium">Paint Side</Label>
             <ToggleGroup
-              type="single"
-              value={state.planeSlicerSide}
-              onValueChange={(value) => value && setState({ planeSlicerSide: value })}
+              value={[state.planeSlicerSide]}
+              onValueChange={([value]) => value && setState({ planeSlicerSide: value })}
               className="border rounded-md w-[180px]"
             >
               <ToggleGroupItem value="below" className={TOGGLE_ITEM_CLASS} title="Paint the region below the plane.">

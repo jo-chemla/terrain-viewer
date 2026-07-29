@@ -979,37 +979,43 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                 <GroupHeading>Layers</GroupHeading>
                 <div className="flex items-center gap-1">
                     {multiLayerMode && (
-                        <Tooltip delayDuration={0}>
-                            <TooltipTrigger asChild>
-                                <span>
-                                    <Toggle
-                                        pressed={editMode}
-                                        onPressedChange={setEditMode}
-                                        size="sm"
-                                        aria-label={editMode ? 'Done editing layers' : 'Edit layer names, colors and width'}
-                                        className="cursor-pointer"
-                                    >
-                                        <Edit className="h-4 w-4" />
-                                    </Toggle>
-                                </span>
-                            </TooltipTrigger>
+                        <Tooltip>
+                            <TooltipTrigger
+                                delay={0}
+                                render={
+                                    <span>
+                                        <Toggle
+                                            pressed={editMode}
+                                            onPressedChange={setEditMode}
+                                            size="sm"
+                                            aria-label={editMode ? 'Done editing layers' : 'Edit layer names, colors and width'}
+                                            className="cursor-pointer"
+                                        >
+                                            <Edit className="h-4 w-4" />
+                                        </Toggle>
+                                    </span>
+                                }
+                            />
                             <TooltipContent><p>{editMode ? 'Done editing' : 'Edit layer names, colors and width'}</p></TooltipContent>
                         </Tooltip>
                     )}
-                    <Tooltip delayDuration={0}>
-                        <TooltipTrigger asChild>
-                            <span>
-                                <Toggle
-                                    pressed={multiLayerMode}
-                                    onPressedChange={setMultiLayerMode}
-                                    size="sm"
-                                    aria-label={multiLayerMode ? 'Switch to a single layer' : 'Enable multiple layers'}
-                                    className="cursor-pointer"
-                                >
-                                    <LayersIcon className="h-4 w-4" />
-                                </Toggle>
-                            </span>
-                        </TooltipTrigger>
+                    <Tooltip>
+                        <TooltipTrigger
+                            delay={0}
+                            render={
+                                <span>
+                                    <Toggle
+                                        pressed={multiLayerMode}
+                                        onPressedChange={setMultiLayerMode}
+                                        size="sm"
+                                        aria-label={multiLayerMode ? 'Switch to a single layer' : 'Enable multiple layers'}
+                                        className="cursor-pointer"
+                                    >
+                                        <LayersIcon className="h-4 w-4" />
+                                    </Toggle>
+                                </span>
+                            }
+                        />
                         <TooltipContent><p>{multiLayerMode ? 'Multiple layers (click for single layer)' : 'Single layer (click to enable multiple)'}</p></TooltipContent>
                     </Tooltip>
                 </div>
@@ -1066,8 +1072,8 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
 
                                 {editMode && (
                                     <Slider
-                                        value={[layer.strokeWidth]}
-                                        onValueChange={([v]) => setLayerStrokeWidth(layer.id, v)}
+                                        value={layer.strokeWidth}
+                                        onValueChange={(v) => setLayerStrokeWidth(layer.id, v as number)}
                                         min={0.5}
                                         max={5}
                                         step={0.5}
@@ -1078,42 +1084,44 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
 
                                 {!editMode && (
                                     <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 shrink-0 cursor-pointer"
-                                                disabled={featureCount(layer.id) === 0}
-                                                onClick={() => zoomToLayer(layer.id)}
-                                            >
-                                                <MapPin className="h-4 w-4" />
-                                            </Button>
-                                        </TooltipTrigger>
+                                        <TooltipTrigger
+                                            render={
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 shrink-0 cursor-pointer"
+                                                    disabled={featureCount(layer.id) === 0}
+                                                    onClick={() => zoomToLayer(layer.id)}
+                                                >
+                                                    <MapPin className="h-4 w-4" />
+                                                </Button>
+                                            }
+                                        />
                                         <TooltipContent><p>Zoom to layer bounds</p></TooltipContent>
                                     </Tooltip>
                                 )}
 
                                 {!editMode && (
                                     <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            {/* The extra span (matching every other disablable toggle in
-                                                this file) matters beyond just letting the tooltip fire
-                                                while disabled: TooltipTrigger's asChild forwards its OWN
-                                                data-state (tooltip open/closed) onto its direct child,
-                                                clobbering Toggle's on/off data-state the pressed styling
-                                                keys off — put the span between them so each keeps its own. */}
-                                            <span>
-                                                <Toggle
-                                                    pressed={iteratorLayerId === layer.id}
-                                                    onPressedChange={(pressed) => setIteratorLayerId(pressed ? layer.id : null)}
-                                                    size="sm"
-                                                    disabled={featureCount(layer.id) === 0}
-                                                    className="h-8 w-8 shrink-0 cursor-pointer p-0"
-                                                >
-                                                    <Repeat2 className="h-4 w-4" />
-                                                </Toggle>
-                                            </span>
-                                        </TooltipTrigger>
+                                        {/* The extra span (matching every other disablable toggle in this
+                                            file) keeps the tooltip firing while disabled — a native
+                                            disabled control doesn't dispatch pointer/hover events, so the
+                                            trigger would never open if Toggle itself were the render target. */}
+                                        <TooltipTrigger
+                                            render={
+                                                <span>
+                                                    <Toggle
+                                                        pressed={iteratorLayerId === layer.id}
+                                                        onPressedChange={(pressed) => setIteratorLayerId(pressed ? layer.id : null)}
+                                                        size="sm"
+                                                        disabled={featureCount(layer.id) === 0}
+                                                        className="h-8 w-8 shrink-0 cursor-pointer p-0"
+                                                    >
+                                                        <Repeat2 className="h-4 w-4" />
+                                                    </Toggle>
+                                                </span>
+                                            }
+                                        />
                                         <TooltipContent>
                                             {iteratorLayerId === layer.id ? <p>Stop Feature Iterator</p> : (
                                                 <p>
@@ -1127,17 +1135,19 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
 
                                 {editMode && (
                                     <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 shrink-0 cursor-pointer"
-                                                disabled={layers.length <= 1}
-                                                onClick={() => deleteLayer(layer.id)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </TooltipTrigger>
+                                        <TooltipTrigger
+                                            render={
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 shrink-0 cursor-pointer"
+                                                    disabled={layers.length <= 1}
+                                                    onClick={() => deleteLayer(layer.id)}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            }
+                                        />
                                         <TooltipContent><p>{layers.length <= 1 ? "Can't delete the only layer" : 'Delete layer (and its features)'}</p></TooltipContent>
                                     </Tooltip>
                                 )}
@@ -1147,13 +1157,16 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
 
                     {iteratorLayerId && iteratorTotal > 0 && (
                         <div className="space-y-2 rounded-md border p-2">
-                            <Tooltip delayDuration={0}>
-                                <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground cursor-default">
-                                        <Repeat2 className="h-3.5 w-3.5" />
-                                        Feature Iterator
-                                    </div>
-                                </TooltipTrigger>
+                            <Tooltip>
+                                <TooltipTrigger
+                                    delay={0}
+                                    render={
+                                        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground cursor-default">
+                                            <Repeat2 className="h-3.5 w-3.5" />
+                                            Feature Iterator
+                                        </div>
+                                    }
+                                />
                                 <TooltipContent>
                                     <p>
                                         Loop through this layer's features one at a time, auto-framing each on the map.<br />
@@ -1177,9 +1190,7 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                             </div>
                             <div className="flex items-center justify-center gap-1">
                                 <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Label className="text-xs text-muted-foreground shrink-0 cursor-default">Zoom</Label>
-                                    </TooltipTrigger>
+                                    <TooltipTrigger render={<Label className="text-xs text-muted-foreground shrink-0 cursor-default">Zoom</Label>} />
                                     <TooltipContent><p>Zoom level to center a point feature at — only applies to points (polylines/polygons always auto-fit to their own extent). Empty keeps whatever zoom the map is already at.</p></TooltipContent>
                                 </Tooltip>
                                 <DraftBoundInput
@@ -1190,44 +1201,50 @@ export function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapR
                                     step={0.5}
                                 />
                                 <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7 shrink-0 cursor-pointer"
-                                            onClick={() => {
-                                                const zoom = mapRef.current?.getMap()?.getZoom()
-                                                setIteratorZoom(zoom === undefined ? null : Math.round(zoom * 10) / 10)
-                                            }}
-                                        >
-                                            <Target className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </TooltipTrigger>
+                                    <TooltipTrigger
+                                        render={
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 shrink-0 cursor-pointer"
+                                                onClick={() => {
+                                                    const zoom = mapRef.current?.getMap()?.getZoom()
+                                                    setIteratorZoom(zoom === undefined ? null : Math.round(zoom * 10) / 10)
+                                                }}
+                                            >
+                                                <Target className="h-3.5 w-3.5" />
+                                            </Button>
+                                        }
+                                    />
                                     <TooltipContent><p>Set to the map's current zoom</p></TooltipContent>
                                 </Tooltip>
                                 <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
                                 <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7 shrink-0 cursor-pointer"
-                                            onClick={() => {
-                                                const feature = iteratorFeatures[iteratorIndex]
-                                                if (feature) flyToIteratorFeature(feature)
-                                            }}
-                                        >
-                                            <MapPin className="h-4 w-4" />
-                                        </Button>
-                                    </TooltipTrigger>
+                                    <TooltipTrigger
+                                        render={
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 shrink-0 cursor-pointer"
+                                                onClick={() => {
+                                                    const feature = iteratorFeatures[iteratorIndex]
+                                                    if (feature) flyToIteratorFeature(feature)
+                                                }}
+                                            >
+                                                <MapPin className="h-4 w-4" />
+                                            </Button>
+                                        }
+                                    />
                                     <TooltipContent><p>Zoom to this feature again (e.g. after panning away)</p></TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={deleteIteratorFeature}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </TooltipTrigger>
+                                    <TooltipTrigger
+                                        render={
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={deleteIteratorFeature}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        }
+                                    />
                                     <TooltipContent><p>Delete this feature (D)</p></TooltipContent>
                                 </Tooltip>
                             </div>

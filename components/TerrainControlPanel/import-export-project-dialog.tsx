@@ -157,11 +157,13 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
             Import
           </Button>
           <Dialog open={isExportOpen} onOpenChange={setIsExportOpen}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="flex-1 rounded-none border-l cursor-pointer">
-                Export
-              </Button>
-            </DialogTrigger>
+            <DialogTrigger
+              render={
+                <Button variant="ghost" size="sm" className="flex-1 rounded-none border-l cursor-pointer">
+                  Export
+                </Button>
+              }
+            />
             <DialogContent className="sm:max-w-md" showCloseButton={false}>
               <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
               <DialogHeader>
