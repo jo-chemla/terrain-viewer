@@ -27,10 +27,10 @@ importers:
         specifier: 2.0.4
         version: 2.0.4
       '@maplibre/maplibre-gl-geocoder':
-        specifier: latest
+        specifier: 1.9.4
         version: 1.9.4(maplibre-gl@5.24.0)
       '@remix-run/react':
-        specifier: latest
+        specifier: 2.17.5
         version: 2.17.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       '@tailwindcss/vite':
         specifier: ^4.1.17
@@ -69,7 +69,7 @@ importers:
         specifier: ^0.8.3
         version: 0.8.3
       file-saver:
-        specifier: latest
+        specifier: 2.0.5
         version: 2.0.5
       geogrid-maplibre-gl:
         specifier: ^0.2.4
@@ -78,19 +78,19 @@ importers:
         specifier: ^2.x
         version: 2.1.3
       jiti:
-        specifier: latest
+        specifier: 2.7.0
         version: 2.7.0
       jotai:
-        specifier: latest
+        specifier: 2.20.2
         version: 2.20.2(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@18.3.31)(react@18.3.1)
       lightningcss:
-        specifier: latest
+        specifier: 1.33.0
         version: 1.33.0
       lucide-react:
         specifier: ^0.454.0
         version: 0.454.0(react@18.3.1)
       maplibre-contour:
-        specifier: latest
+        specifier: 0.1.0
         version: 0.1.0
       maplibre-gl:
         specifier: ^5.24.0
@@ -99,7 +99,7 @@ importers:
         specifier: ^1.34.4
         version: 1.51.0
       modern-screenshot:
-        specifier: latest
+        specifier: 4.7.0
         version: 4.7.0
       nuqs:
         specifier: ^2.8.8
@@ -141,13 +141,13 @@ importers:
         specifier: ^1.3.0
         version: 1.4.1(maplibre-gl@5.24.0)(terra-draw@1.32.2)
       terser:
-        specifier: latest
+        specifier: 5.49.0
         version: 5.49.0
       tinycolor2:
         specifier: ^1.6.0
         version: 1.6.0
       tsx:
-        specifier: latest
+        specifier: 4.23.1
         version: 4.23.1
       tw-animate-css:
         specifier: ^1.4.0
@@ -171,15 +171,15 @@ importers:
         specifier: ^0.5.0
         version: 0.5.0
       yaml:
-        specifier: latest
+        specifier: 2.9.0
         version: 2.9.0
     devDependencies:
       '@types/chroma-js':
         specifier: ^3.1.2
         version: 3.1.2
       '@types/file-saver':
-        specifier: latest
-        version: 2.0.7
+        specifier: 2.0.5
+        version: 2.0.5
       '@types/node':
         specifier: ^22
         version: 22.20.1
@@ -1633,8 +1633,8 @@ packages:
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
 
-  '@types/file-saver@2.0.7':
-    resolution: {integrity: sha512-dNKVfHd/jk0SkR/exKGj2ggkB45MAkzvWCaqLUUgkyjITkGNzH8H+yUwr+BLJUBjZOe9w8X3wgmXhZDRg1ED6A==}
+  '@types/file-saver@2.0.5':
+    resolution: {integrity: sha512-zv9kNf3keYegP5oThGLaPk8E081DFDuwfqjtiTzm6PoxChdJ1raSuADf2YGCVIyrSynLrgc8JWv296s7Q7pQSQ==}
 
   '@types/geojson-vt@3.2.5':
     resolution: {integrity: sha512-qDO7wqtprzlpe8FfQ//ClPV9xiuoh2nkIgiouIptON9w5jvD/fA4szvP9GBlDVdJ5dldAl0kX/sy3URbWwLx0g==}
@@ -5393,7 +5393,7 @@ snapshots:
 
   '@types/estree@1.0.9': {}
 
-  '@types/file-saver@2.0.7': {}
+  '@types/file-saver@2.0.5': {}
 
   '@types/geojson-vt@3.2.5':
     dependencies:
