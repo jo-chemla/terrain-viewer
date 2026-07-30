@@ -15,7 +15,7 @@ import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, 
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useSetAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom,
+  mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom,
   activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
@@ -585,6 +585,7 @@ export function TerrainViewer() {
 
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
+  const [hereKey] = useAtom(hereKeyAtom)
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
   const bumpLocalFileVersion = useSetAtom(localFileVersionAtom)
@@ -982,9 +983,14 @@ export function TerrainViewer() {
       if (state.hillshadeMethod !== prev.hillshadeMethod) track("options-hillshade", { method: state.hillshadeMethod })
       if (state.curvatureMode !== prev.curvatureMode) track("options-terrain-analysis", { setting: "curvatureMode", value: state.curvatureMode })
       if (state.slopeSourceMode !== prev.slopeSourceMode) track("options-terrain-analysis", { setting: "slopeSourceMode", value: state.slopeSourceMode })
+      // svfPrecision/opennessPrecision used to be tracked here too, but the
+      // snapshot below never stored either field — prev.svfPrecision/
+      // opennessPrecision were permanently undefined, so the !== check was
+      // true on every render this effect ran (virtually every state change),
+      // not just on a real Precise/Fast toggle. That false signal dominated
+      // the event volume without being useful, so it's dropped rather than
+      // fixed — opennessMode above is the setting worth tracking here.
       if (state.opennessMode !== prev.opennessMode) track("options-relief-visualization", { setting: "opennessMode", value: state.opennessMode })
-      if (state.svfPrecision !== prev.svfPrecision) track("options-relief-visualization", { setting: "svfPrecision", value: state.svfPrecision })
-      if (state.opennessPrecision !== prev.opennessPrecision) track("options-relief-visualization", { setting: "opennessPrecision", value: state.opennessPrecision })
       // Free vs Datetime-derived light direction — shared by Hillshade and
       // Phong (see light-direction-control.tsx), so tracked under its own
       // event rather than folded into options-light-phong.
@@ -1811,6 +1817,7 @@ export function TerrainViewer() {
           <RasterBasemapSource
             basemapSource={isPrimary ? activeBasemapSourceA : activeBasemapSourceB}
             mapboxKey={mapboxKey}
+            hereKey={hereKey}
             customBasemapSources={customBasemapSources}
             titilerEndpoint={titilerEndpoint}
             onZoomRangeChange={isPrimary ? setZoomRangeBasemap : undefined}

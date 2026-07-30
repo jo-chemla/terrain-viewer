@@ -221,7 +221,7 @@ export const TerrainSourceSection: React.FC<{
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
             {state.splitScreen ? (
-              <>
+              <div className="space-y-1.5">
                 {Object.entries(terrainSources).map(([key, config]) => (
                   <div key={key} className="flex items-center gap-2 min-w-0">
                     <SourceAbToggle
@@ -234,7 +234,7 @@ export const TerrainSourceSection: React.FC<{
                     <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} />
                   </div>
                 ))}
-              </>
+              </div>
             ) : (
               <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">
                 {Object.entries(terrainSources).map(([key, config]) => (
@@ -279,9 +279,9 @@ export const TerrainSourceSection: React.FC<{
             </TooltipProvider>
 
             {customTerrainSources.length > 0 && (
-              <div className="space-y-2">
-                {state.splitScreen ? (
-                  customTerrainSources.map((source) => (
+              state.splitScreen ? (
+                <div className="space-y-1.5">
+                  {customTerrainSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
                       <SourceAbToggle
                         aActive={state.sourceA === source.id}
@@ -291,18 +291,18 @@ export const TerrainSourceSection: React.FC<{
                       />
                       <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, linkedSourceName: linkedBasemapName(source) }} />
                     </div>
-                  ))
-                ) : (
-                  <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">
-                    {customTerrainSources.map((source) => (
-                      <div key={source.id} className="flex items-center gap-2 min-w-0">
-                        <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
-                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
-                      </div>
-                    ))}
-                  </RadioGroup>
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">
+                  {customTerrainSources.map((source) => (
+                    <div key={source.id} className="flex items-center gap-2 min-w-0">
+                      <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
+                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
+                    </div>
+                  ))}
+                </RadioGroup>
+              )
             )}
           </CollapsibleContent>
         </Collapsible>

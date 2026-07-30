@@ -1,3 +1,17 @@
+// react-scan's own docs ask for this to be imported before react/react-dom so
+// it can hook into React's internals as early as possible. A dynamic import
+// (rather than a static one) keeps it out of the production bundle entirely:
+// import.meta.env.DEV is statically replaced at build time, so Rollup treats
+// this whole block as dead code and drops both it and the react-scan chunk.
+if (import.meta.env.DEV) {
+  // enabled: false keeps outline-drawing off by default; showToolbar must be
+  // passed explicitly (not just left at its own default) — scan() early-
+  // returns and skips creating the toolbar entirely if enabled is false and
+  // showToolbar isn't ALSO explicitly true in this same options object.
+  // Click the toolbar's play button to turn scanning back on.
+  import("react-scan").then(({ scan }) => scan({ enabled: false, showToolbar: true }))
+}
+
 import React from "react"
 import ReactDOM from "react-dom/client"
 import { NuqsAdapter } from "nuqs/adapters/react"

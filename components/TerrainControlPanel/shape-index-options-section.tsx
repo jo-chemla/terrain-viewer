@@ -107,7 +107,9 @@ export const ShapeIndexFields: React.FC<{
           {symmetric ? (
             <MobileSlider
               sliderId="shape-index:range"
-              min={0}
+              // A symmetric magnitude of exactly 0 collapses min/max to the same
+              // value (a degenerate, useless range) — floor it at the step instead.
+              min={0.02}
               max={1}
               step={0.02}
               value={magnitude}

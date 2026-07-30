@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom,
   customThemesAtom,
@@ -154,8 +154,9 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // const toggleTheme = useCallback(() => setTheme(theme === "light" ? "dark" : "light"), [theme, setTheme])
   
   const [mapboxKey, setMapboxKey] = useAtom(mapboxKeyAtom)
-  const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [maptilerKey, setMaptilerKey] = useAtom(maptilerKeyAtom)
+  const [hereKey, setHereKey] = useAtom(hereKeyAtom)
+  const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
   const [batchEditMode, setBatchEditMode] = useState(false)
   const [batchApiKeys, setBatchApiKeys] = useState("")
@@ -248,21 +249,25 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
     refreshOpfsVectorSummary()
   }, [refreshOpfsVectorSummary])
 
+  // Names match each var's VITE_-prefixed .env counterpart exactly (see .env) —
+  // so a key=value block can be copy-pasted either direction just by adding or
+  // stripping "VITE_", rather than needing a mental mapping between the two.
   const handleBatchToggle = useCallback(() => {
     if (!batchEditMode) {
-      setBatchApiKeys([`maptiler_api_key=${maptilerKey}`, `mapbox_access_token=${mapboxKey}`, `google_api_key=${googleKey}`].join("\n"))
+      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `GOOGLE_API_KEY=${googleKey}`].join("\n"))
     } else {
       batchApiKeys.split("\n").forEach((line) => {
         const [key, value] = line.split("=")
         if (key && value) {
-          if (key.trim() === "maptiler_api_key") setMaptilerKey(value.trim())
-          if (key.trim() === "mapbox_access_token") setMapboxKey(value.trim())
-          if (key.trim() === "google_api_key") setGoogleKey(value.trim())
+          if (key.trim() === "MAPBOX_ACCESS_TOKEN") setMapboxKey(value.trim())
+          if (key.trim() === "MAPTILER_API_KEY") setMaptilerKey(value.trim())
+          if (key.trim() === "HERE_API_KEY") setHereKey(value.trim())
+          if (key.trim() === "GOOGLE_API_KEY") setGoogleKey(value.trim())
         }
       })
     }
     setBatchEditMode(!batchEditMode)
-  }, [batchEditMode, batchApiKeys, mapboxKey, googleKey, maptilerKey, setMapboxKey, setGoogleKey, setMaptilerKey])
+  }, [batchEditMode, batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey])
 
   return (
     <Dialog
@@ -663,6 +668,16 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             ) : (
               <>
                 <div className="space-y-2">
+                  <Label htmlFor="mapbox-key">Mapbox Access Token</Label>
+                  <PasswordInput
+                    id="mapbox-key"
+                    value={mapboxKey}
+                    onChange={(e: any) => setMapboxKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="maptiler-key">MapTiler API Key</Label>
                   <PasswordInput
                     id="maptiler-key"
@@ -673,13 +688,16 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="mapbox-key">Mapbox Access Token</Label>
+                  <Label htmlFor="here-key">HERE Maps API Key</Label>
                   <PasswordInput
-                    id="mapbox-key"
-                    value={mapboxKey}
-                    onChange={(e: any) => setMapboxKey(e.target.value)}
+                    id="here-key"
+                    value={hereKey}
+                    onChange={(e: any) => setHereKey(e.target.value)}
                     className="cursor-text"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Unlocks HERE Satellite as a Basemap option — hidden until set.
+                  </p>
                 </div>
 
                 <div className="space-y-2">

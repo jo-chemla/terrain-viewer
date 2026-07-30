@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
 import { ChevronDown, Link, Settings2, Expand, Copy } from "lucide-react"
@@ -14,8 +14,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { SegmentedToggle } from "./controls-components"
 import { type CustomBasemapSource, customTerrainSourcesAtom } from "@/lib/settings-atoms"
-import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
+import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
+import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
 import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
 import { WmsPickerPanel } from "./wms-picker-panel"
 
@@ -40,6 +41,12 @@ export const CustomBasemapModal: React.FC<{
   const [description, setDescription] = useState("")
   const [role, setRole] = useState<CustomBasemapSource["role"]>("basemap")
   const [opacity, setOpacity] = useState(100)
+  // Unlike the terrain side, no basemap source type gets an auto-detected zoom
+  // range (RasterBasemapSource just reads customBasemap.minzoom/maxzoom with a
+  // 0/22 fallback — see MapSources.tsx) — so these are always user-settable
+  // here, not gated behind a showMaxzoomField-style type check.
+  const [minzoom, setMinzoom] = useState("")
+  const [maxzoom, setMaxzoom] = useState("")
   // Pairs this basemap/raster source with a terrain one (e.g. a fresco's
   // albedo photo COG paired with its own DTM) — "" means unlinked. See
   // CustomBasemapSource.linkedTerrainId; the reverse Select lives in
@@ -85,12 +92,16 @@ export const CustomBasemapModal: React.FC<{
       setRole(editingSource.role ?? "basemap")
       setOpacity(editingSource.opacity ?? 100)
       originalOpacityRef.current = editingSource.opacity ?? 100
+      setMinzoom(editingSource.minzoom === undefined ? "" : String(editingSource.minzoom))
+      setMaxzoom(editingSource.maxzoom === undefined ? "" : String(editingSource.maxzoom))
       setLinkedTerrainId(editingSource.linkedTerrainId ?? "")
       setBoundsWest(editingSource.bounds ? String(editingSource.bounds[0]) : "")
       setBoundsSouth(editingSource.bounds ? String(editingSource.bounds[1]) : "")
       setBoundsEast(editingSource.bounds ? String(editingSource.bounds[2]) : "")
       setBoundsNorth(editingSource.bounds ? String(editingSource.bounds[3]) : "")
-      setIsAdvancedOpen(!!editingSource.linkedTerrainId || !!editingSource.bounds)
+      // Description deliberately excluded — it alone shouldn't pop Advanced open;
+      // only fields whose value actually diverges from doing-nothing should.
+      setIsAdvancedOpen(editingSource.minzoom !== undefined || editingSource.maxzoom !== undefined || !!editingSource.linkedTerrainId || !!editingSource.bounds)
       // Re-opening the modal on an existing "cog-local" source: the File itself
       // only lives in-memory for the session it was picked in, so after a reload
       // this is null until the user picks the file again via the button below.
@@ -103,6 +114,8 @@ export const CustomBasemapModal: React.FC<{
       setDescription("")
       setRole("basemap")
       setOpacity(100)
+      setMinzoom("")
+      setMaxzoom("")
       setLinkedTerrainId("")
       setBoundsWest("")
       setBoundsSouth("")
@@ -173,11 +186,23 @@ export const CustomBasemapModal: React.FC<{
       : undefined
     onSave({
       id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role, opacity,
+      minzoom: minzoom === "" ? undefined : Number(minzoom),
+      maxzoom: maxzoom === "" ? undefined : Number(maxzoom),
       linkedTerrainId: linkedTerrainId || undefined,
       bounds: parsedBounds,
     })
     onOpenChange(false)
-  }, [name, url, type, description, role, opacity, linkedTerrainId, boundsWest, boundsSouth, boundsEast, boundsNorth, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, role, opacity, minzoom, maxzoom, linkedTerrainId, boundsWest, boundsSouth, boundsEast, boundsNorth, editingSource, onSave, onOpenChange])
+
+  // Unlike terrain, no basemap source type gets an auto-detected zoom range applied
+  // at render time (RasterBasemapSource just reads customBasemap.maxzoom with a 0/22
+  // fallback regardless of type — see MapSources.tsx) — so this inferred value is
+  // purely a starting point/hint here, not something already silently in effect.
+  const isCogType = type === "cog" || type === "cog-local"
+  const cogUrlForMetadata = !isCogType ? null : type === "cog-local" ? resolveLocalFileUrl(localFileId(url)) : (url || null)
+  const { data: cogMetadata, status: cogMetadataStatus } = useCogMetadata(cogUrlForMetadata)
+  const inferredCogZoomRange = useMemo(() => zoomRangeFromMetadata(cogMetadata), [cogMetadata])
+  const { data: cogResolution } = useCogResolution(cogUrlForMetadata)
 
   const url_placeholder = type === "cog" ?
     "https://example.com/basemap.cog.tiff" :
@@ -219,6 +244,17 @@ export const CustomBasemapModal: React.FC<{
           ✕
         </DialogClose>
         <div className="space-y-4 min-w-0">
+          <div className="space-y-2">
+            <Label htmlFor="basemap-name">Name *</Label>
+            <Input
+              id="basemap-name"
+              type="text"
+              placeholder="My Custom Basemap"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="cursor-text"
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="basemap-type">Type *</Label>
             <Select
@@ -264,25 +300,9 @@ export const CustomBasemapModal: React.FC<{
             />
           ) : (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="basemap-name">Name *</Label>
-                <Input
-                  id="basemap-name"
-                  type="text"
-                  placeholder="My Custom Basemap"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="cursor-text"
-                />
-              </div>
               {type === "cog-local" ? (
                 <div className="space-y-2">
                   <Label htmlFor="basemap-local-file">COG file *</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Must be a real COG (Cloud-Optimized GeoTIFF, internally tiled, with
-                    overviews) in CRS EPSG:3857 (Web Mercator) — the in-browser reader
-                    doesn't reproject, so any other CRS will show wrong bounds/zoom.
-                  </p>
                   <input
                     ref={fileInputRef}
                     id="basemap-local-file"
@@ -299,11 +319,19 @@ export const CustomBasemapModal: React.FC<{
                       {localFileName ?? "No file selected"}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Read directly from disk, never uploaded. This browser remembers it
-                    locally between sessions (via OPFS) when that's supported and there's
-                    room — otherwise you'll be asked to re-pick it next time.
-                  </p>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>Must be:</p>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                      <li>a real COG (Cloud-Optimized GeoTIFF, internally tiled, with overviews)</li>
+                      <li>in CRS EPSG:3857 (Web Mercator)</li>
+                    </ul>
+                    <p>
+                      No live reprojection is performed on the client, so any other CRS
+                      will show wrong bounds/zoom. Directly read from disk, never
+                      uploaded, and remembered locally between sessions (via OPFS) when
+                      there's room — otherwise you'll be asked to re-pick it next time.
+                    </p>
+                  </div>
                   {localFileWarning && (
                     <p className="text-xs text-amber-600 dark:text-amber-500">{localFileWarning}</p>
                   )}
@@ -355,19 +383,6 @@ export const CustomBasemapModal: React.FC<{
                   Overlays stack on top of the active basemap instead of replacing it — only available in Split/Radio basemap mode.
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="basemap-description">
-                  Description (optional)
-                </Label>
-                <Input
-                  id="basemap-description"
-                  type="text"
-                  placeholder="Custom basemap from..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="cursor-text"
-                />
-              </div>
               {/* Named "Style" (rather than folded into the fields above) so it
                   reads as a display preference belonging to this saved source —
                   not a live per-session slider like the main Raster Basemap
@@ -398,9 +413,61 @@ export const CustomBasemapModal: React.FC<{
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-2">
                   <div className="space-y-2">
+                    <Label htmlFor="basemap-description">
+                      Description (optional)
+                    </Label>
+                    <Input
+                      id="basemap-description"
+                      type="text"
+                      placeholder="Custom basemap from..."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      className="cursor-text"
+                    />
+                  </div>
+                  {isCogType && (
+                    <p className="text-xs text-muted-foreground">
+                      {cogUrlForMetadata === null
+                        ? "Inferred native resolution zoom appears once a file/URL is set."
+                        : cogMetadataStatus === "error"
+                        ? "Couldn't read this file's metadata (blocked by CORS, or a network error) — set Max Zoom manually below."
+                        : cogMetadata
+                        ? `Inferred native resolution: zoom ${inferredCogZoomRange.maxzoom}${cogResolution ? ` (~${formatGsd(cogResolution.meanGsd)} GSD)` : ""} — override below if it's wrong.`
+                        : "Detecting native resolution…"}
+                    </p>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="basemap-minzoom">Min Zoom (optional)</Label>
+                      <Input
+                        id="basemap-minzoom"
+                        type="number"
+                        min={0}
+                        max={24}
+                        placeholder={isCogType && cogMetadata ? `${inferredCogZoomRange.minzoom} (inferred)` : "0"}
+                        value={minzoom}
+                        onChange={(e) => setMinzoom(e.target.value)}
+                        className="cursor-text"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="basemap-maxzoom">Max Zoom (optional)</Label>
+                      <Input
+                        id="basemap-maxzoom"
+                        type="number"
+                        min={0}
+                        max={24}
+                        placeholder={isCogType && cogMetadata ? `${inferredCogZoomRange.maxzoom} (inferred)` : "Native resolution zoom level, e.g. 19"}
+                        value={maxzoom}
+                        onChange={(e) => setMaxzoom(e.target.value)}
+                        className="cursor-text"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
                     <Label className="flex items-center gap-1.5 text-sm">
-                      <Link className="h-3.5 w-3.5" />
                       Linked Terrain Source{linkedTerrainId && " (set)"}
+                      <Link className="h-3.5 w-3.5" />
                     </Label>
                     <Select
                       value={linkedTerrainId || "none"}

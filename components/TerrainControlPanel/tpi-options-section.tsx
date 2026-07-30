@@ -99,8 +99,10 @@ export const TpiFields: React.FC<{
           {symmetric ? (
             <MobileSlider
               sliderId="tpi:range"
-              min={0}
-              max={100}
+              // A symmetric magnitude of exactly 0 collapses min/max to the same
+              // value (a degenerate, useless range) — floor it at the step instead.
+              min={1}
+              max={50}
               step={1}
               value={magnitude}
               onValueChange={(v) => setState({ tpiMin: -v, tpiMax: v })}
@@ -109,8 +111,8 @@ export const TpiFields: React.FC<{
           ) : (
             <MobileSlider
               sliderId="tpi:range"
-              min={-100}
-              max={100}
+              min={-50}
+              max={50}
               step={1}
               value={[state.tpiMin ?? rampBounds.min, state.tpiMax ?? rampBounds.max]}
               onValueChange={([min, max]) => setState({ tpiMin: Math.min(min, max), tpiMax: Math.max(min, max) })}

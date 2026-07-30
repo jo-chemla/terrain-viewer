@@ -224,7 +224,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
             <GroupHeading>Basemap</GroupHeading>
             {state.basemapPerView ? (
               state.splitScreen ? (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {basemapRoleSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
                       <SourceAbToggle

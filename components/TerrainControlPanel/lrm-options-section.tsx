@@ -141,7 +141,9 @@ export const LrmFields: React.FC<{
           {symmetric ? (
             <MobileSlider
               sliderId="lrm:range"
-              min={0}
+              // A symmetric magnitude of exactly 0 collapses min/max to the same
+              // value (a degenerate, useless range) — floor it at the step instead.
+              min={1}
               max={100}
               step={1}
               value={magnitude}

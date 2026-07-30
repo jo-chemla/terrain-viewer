@@ -7,12 +7,8 @@ import { useCogProtocolVsTitilerAtom, highResTerrainAtom, type CustomTerrainSour
 import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { probeMaxZoomAt } from "@/lib/tile-max-zoom"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
-import { setColorFunction, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
-
-// The package exports getCogMetadata but not its return type — derive it instead
-// of hand-duplicating the shape (images[].zoom/.isMask, scale, offset, noData),
-// so a future geomatico upgrade can't silently drift out of sync with a stale copy.
-type CogMetadata = Awaited<ReturnType<typeof getCogMetadata>>
+import { setColorFunction } from '@geomatico/maplibre-cog-protocol'
+import { useCogMetadata, zoomRangeFromMetadata, type CogMetadata } from "@/lib/cog-metadata"
 import { elevationToTerrainrgb, elevationToTerrarium } from "@/lib/elevation-encoding"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
@@ -48,23 +44,6 @@ const makeTerrariumColorFunction = (scale = 1, offset = 0, noData?: number) => (
 // Hook
 // -------------------------
 
-function useCogMetadata(cogUrl: string | null): CogMetadata | null {
-    const [metadata, setMetadata] = useState<CogMetadata | null>(null)
-    useEffect(() => {
-        // Without this reset, switching from a COG source to any other type (e.g. a
-        // wms-raw IGN source) left `metadata` holding the PREVIOUS COG's bbox/zoom
-        // images — TerrainSources' onZoomRangeChange effect below doesn't gate on
-        // isCogProtocol being true, so it happily reported that stale COG's zoom
-        // range as if it belonged to the newly-selected (unrelated) source, causing
-        // an incorrect min/max zoom clamp and wrong "fit to bounds" behavior.
-        if (!cogUrl) { setMetadata(null); return }
-        let cancelled = false
-        getCogMetadata(cogUrl).then((m) => { if (!cancelled) setMetadata(m) }).catch(() => { if (!cancelled) setMetadata(null) })
-        return () => { cancelled = true }
-    }, [cogUrl])
-    return metadata
-}
-
 export interface TilejsonMetadata {
     encoding?: "terrarium" | "mapbox"
     bounds?: [number, number, number, number]
@@ -94,60 +73,21 @@ function useTilejsonMetadata(tilejsonUrl: string | null): TilejsonMetadata | nul
 // Raster basemap tile configs
 // -------------------------
 
+// maxzoom values mirror https://github.com/Iconem/historical-satellite/blob/main/src/utilities.tsx
 const rasterBasemaps: Record<string, { url: string; tileSize: number; maxzoom: number }> = {
     osm:       { url: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", tileSize: 256, maxzoom: 19 },
-    googlesat: { url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 20 },
-    google:    { url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 20 },
-    // maxzoom 18, not the service's nominal 19: plenty of regions have no z19
-    // imagery and Esri serves "Map Data Not Yet Available" placeholder tiles
-    // there instead of 404s — capping at 18 makes maplibre overzoom real z18
-    // pixels instead of fetching placeholders.
-    esri:      { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", tileSize: 256, maxzoom: 18 },
+    googlesat: { url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 21 },
+    google:    { url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 21 },
+    esri:      { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.jpg", tileSize: 256, maxzoom: 19 },
     mapbox:    { url: "https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token={API_KEY}", tileSize: 256, maxzoom: 22 },
-    bing:      { url: "https://t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=854&mkt=en-US&token=Atq2nTytWfkqXjxxCDSsSPeT3PXjAl_ODeu3bnJRN44i3HKXs2DDCmQPA5u0M9z1", tileSize: 256, maxzoom: 19 },
+    // Public quadkey endpoint (no session token to expire), same one historical-satellite uses.
+    bing:      { url: "https://t.ssl.ak.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=14603&n=z&prx=1", tileSize: 256, maxzoom: 21 },
+    here:      { url: "https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?style=satellite.day&apiKey={API_KEY}", tileSize: 256, maxzoom: 20 },
 }
 
 // -------------------------
 // Helpers
 // -------------------------
-
-// geomatico's zoomFromResolution (log2(earthCircumference / (256 * resolutionM)))
-// is uncapped — a real sub-meter/cm-resolution COG (a drone DSM/ortho export is
-// the common case for a *local* file) can estimate a "native" zoom well past
-// MapLibre's hard z25 tile-coordinate limit. Requesting DEM tiles that deep for
-// `map.setTerrain()`'s elevation sampling throws "z=27 outside of bounds...",
-// which was also cascading into "Attempting to run(), but is already running"
-// errors (an uncaught exception mid-render left maplibre's render loop in a
-// broken state for the next frame). Clamp to 22 — the ceiling this app already
-// treats as its practical max elsewhere (see e.g. client-export.ts's cog
-// maxzoom fallback) and comfortably clear of the z25 hard limit.
-const MAX_SAFE_COG_ZOOM = 22
-
-function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number; maxzoom: number } {
-    if (!metadata?.images?.length) return { minzoom: 0, maxzoom: 20 }
-    const zooms = metadata.images.filter(img => !img.isMask).map(img => img.zoom)
-    // Both bounds are clamped into the SAME [0, MAX_SAFE_COG_ZOOM] range (not just
-    // maxzoom from above) — a single-resolution-level COG (common for a local,
-    // un-tiled export) has minzoom === maxzoom === that one estimate, so clamping
-    // only maxzoom downward while leaving an over-22 minzoom unclamped produced
-    // an inverted minzoom > maxzoom range, which maplibre's setMinZoom/setMaxZoom
-    // then rejected outright ("minZoom must be between -2 and the current maxZoom").
-    //
-    // maxzoom specifically floors rather than rounds: zoomFromResolution gives a
-    // fractional estimate (e.g. z13.7), and rounding that UP to 14 tells maplibre
-    // "this source has clean z14 detail" when the real native resolution is closer
-    // to z13 — the protocol then has to upsample past what the data actually
-    // supports at every z14 request, which shows up as visible tile-grid/pixel-
-    // border artifacts (confirmed against a real custom COG source) rather than
-    // the harmless uniform blur of overzooming past a correctly-conservative
-    // maxzoom. minzoom isn't as sensitive (it only governs how far out the same
-    // pyramid is queried) but floors too for consistency.
-    const clamp = (z: number) => Math.max(0, Math.min(MAX_SAFE_COG_ZOOM, Math.floor(z)))
-    return {
-        minzoom: clamp(Math.min(...zooms)),
-        maxzoom: clamp(Math.max(...zooms)),
-    }
-}
 
 function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKey: string): string {
     const config: TerrainSourceConfig = (terrainSources as any)[key]
@@ -195,7 +135,7 @@ export const TerrainSources = memo(({
         ? (customSource ? resolveLocalFileUrl(localFileId(customSource.url)) : null)
         : (customSource?.url ?? null)
 
-    const metadata = useCogMetadata(isCogProtocol ? resolvedCogUrl : null)
+    const { data: metadata } = useCogMetadata(isCogProtocol ? resolvedCogUrl : null)
     const tilejsonMetadata = useTilejsonMetadata(isTilejson ? customSource.url : null)
     const { minzoom, maxzoom: detectedMaxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
     // A custom source's explicit maxzoom (e.g. WMS sources without COG metadata to auto-detect from)
@@ -334,11 +274,12 @@ TerrainSources.displayName = "TerrainSources"
 // -------------------------
 
 export const RasterBasemapSource = memo(({
-    // basemapSource, mapboxKey, customBasemapSources, titilerEndpoint,
-    basemapSource, mapboxKey, customBasemapSources, titilerEndpoint, onZoomRangeChange,
+    // basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint,
+    basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint, onZoomRangeChange,
 }: {
     basemapSource: string
     mapboxKey: string
+    hereKey?: string
     customBasemapSources: any[]
     titilerEndpoint: string
     onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom: boolean }) => void
@@ -372,9 +313,11 @@ export const RasterBasemapSource = memo(({
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         const tileUrl = basemapSource === "mapbox"
             ? basemap.url.replace("{API_KEY}", mapboxKey)
+            : basemapSource === "here"
+            ? basemap.url.replace("{API_KEY}", hereKey ?? "")
             : basemap.url
         return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom }
-    }, [customBasemap, basemapSource, useCogProtocol, titilerEndpoint, mapboxKey, isCogLocal, resolvedCogUrl])
+    }, [customBasemap, basemapSource, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
@@ -570,7 +513,7 @@ export const useClientDemUpstream = (
     const cogUrlForMetadata = isCogLocal
         ? resolveLocalFileUrl(localFileId(customSource!.url))
         : isCogRemote ? customSource!.url : null
-    const cogMetadata = useCogMetadata(cogUrlForMetadata)
+    const { data: cogMetadata } = useCogMetadata(cogUrlForMetadata)
     const cogZoomRange = useMemo(() => zoomRangeFromMetadata(cogMetadata), [cogMetadata])
 
     const baseUpstream = useMemo<ClientDemUpstream | null>(() => {

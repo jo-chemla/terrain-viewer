@@ -220,7 +220,9 @@ export const CurvatureFields: React.FC<{
           {symmetric ? (
             <MobileSlider
               sliderId="curvature:range"
-              min={0}
+              // A symmetric magnitude of exactly 0 collapses min/max to the same
+              // value (a degenerate, useless range) — floor it at the step instead.
+              min={sliderStep}
               max={sliderMax}
               step={sliderStep}
               value={magnitude}

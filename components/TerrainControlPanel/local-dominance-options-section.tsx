@@ -154,7 +154,9 @@ export const LocalDominanceFields: React.FC<{
           {symmetric ? (
             <MobileSlider
               sliderId="local-dominance:range"
-              min={0}
+              // A symmetric magnitude of exactly 0 collapses min/max to the same
+              // value (a degenerate, useless range) — floor it at the step instead.
+              min={0.5}
               max={30}
               step={0.5}
               value={magnitude}

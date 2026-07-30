@@ -6,19 +6,31 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
+import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, CycleButtonGroup, SliderControl, SourceAbToggle, GroupHeading } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
 
+// Kept as the full static list (including key-gated providers) so callers like
+// TerrainViewer's isKnownId check still recognize a persisted "here" selection
+// as built-in rather than an unknown/custom id — the API-key gate only affects
+// which options RasterBasemapSection actually offers below.
 export const BUILTIN_BASEMAP_OPTIONS = [
   { value: "google", label: "Google Hybrid" },
-  { value: "mapbox", label: "Mapbox Satellite" },
-  { value: "esri", label: "ESRI World Imagery" },
-  { value: "googlesat", label: "Google Satellite" },
   { value: "bing", label: "Bing Aerial" },
+  { value: "esri", label: "ESRI World Imagery" },
+  { value: "mapbox", label: "Mapbox Satellite" },
+  { value: "here", label: "HERE Satellite" },
+  { value: "googlesat", label: "Google Satellite" },
   { value: "osm", label: "OpenStreetMap" },
 ]
+
+// Providers that need an API key to actually load tiles — hidden from the
+// picker until a key is set (Settings > API Keys, or a local VITE_*_API_KEY/
+// VITE_MAPBOX_ACCESS_TOKEN in .env) so users don't select a basemap that just
+// fails to render. Both mapboxKeyAtom and hereKeyAtom default to "" unless
+// that local .env var is present — see settings-atoms.ts.
+const KEY_GATED_BASEMAPS = { here: hereKeyAtom, mapbox: mapboxKeyAtom } as const
 
 export const RasterBasemapSection: React.FC<{
   state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef>;
@@ -27,12 +39,20 @@ export const RasterBasemapSection: React.FC<{
   withSeparator?: boolean
 }> = ({ state, setState, mapRef, isOpen, onOpenChange, withSeparator }) => {
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
+  const [hereKey] = useAtom(hereKeyAtom)
+  const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
 
+  const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey }
+  const visibleBuiltinOptions = useMemo(
+    () => BUILTIN_BASEMAP_OPTIONS.filter((o) => !(o.value in KEY_GATED_BASEMAPS) || !!gatedKeyValues[o.value]),
+    [hereKey, mapboxKey],
+  )
+
   const basemapSourceOptions = useMemo(() => [
-    ...BUILTIN_BASEMAP_OPTIONS,
+    ...visibleBuiltinOptions,
     ...customBasemapSources.map(s => ({ value: s.id, label: s.name }))
-  ], [customBasemapSources])
+  ], [visibleBuiltinOptions, customBasemapSources])
 
   const sourceKeys = useMemo(() => basemapSourceOptions.map(b => b.value), [basemapSourceOptions])
 
@@ -41,8 +61,6 @@ export const RasterBasemapSection: React.FC<{
     const newIndex = (currentIndex + direction + sourceKeys.length) % sourceKeys.length
     setState({ basemapSource: sourceKeys[newIndex] })
   }, [state.basemapSource, sourceKeys, setState])
-
-  if (!state.showRasterBasemap) return null
 
   return (
     <Section title="Basemap" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator} pulseKey="showRasterBasemap">
@@ -80,8 +98,8 @@ export const RasterBasemapSection: React.FC<{
 
           {state.basemapPerView ? (
             state.splitScreen ? (
-              <div className="space-y-2">
-                {BUILTIN_BASEMAP_OPTIONS.map(({ value, label }) => (
+              <div className="space-y-1.5">
+                {visibleBuiltinOptions.map(({ value, label }) => (
                   <div key={value} className="flex items-center gap-2 min-w-0">
                     <SourceAbToggle
                       aActive={state.basemapSourceA === value}
@@ -95,8 +113,16 @@ export const RasterBasemapSection: React.FC<{
               </div>
             ) : (
               <RadioGroup value={state.basemapSourceA} onValueChange={(value) => setState({ basemapSourceA: value })} className="gap-2">
-                {BUILTIN_BASEMAP_OPTIONS.map(({ value, label }) => (
-                  <div key={value} className="flex items-center gap-2 min-w-0">
+                {/* py-1: unlike every other RadioGroup list in this app (terrain's
+                    rows carry two h-8 icon buttons via SourceDetails/CustomSourceDetails,
+                    and this same list's own split-mode rows carry SourceAbToggle's h-9
+                    A/B buttons), a builtin basemap row is just a bare radio + one-line
+                    Label — with no button padding to give it height, gap-2 alone reads
+                    as visibly more compact than every other list even though the gap
+                    value is identical. This restores that height without touching the
+                    shared gap. */}
+                {visibleBuiltinOptions.map(({ value, label }) => (
+                  <div key={value} className="flex items-center gap-2 min-w-0 py-1">
                     <RadioGroupItem value={value} id={`basemap-source-${value}`} className="cursor-pointer shrink-0" />
                     <Label htmlFor={`basemap-source-${value}`} className="flex-1 text-sm cursor-pointer truncate min-w-0">{label}</Label>
                   </div>

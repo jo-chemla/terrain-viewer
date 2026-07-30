@@ -10,10 +10,20 @@ import type { ProjectConfig } from "./project-config"
 // invisible from inside the freshly-mounted Section itself.
 export const vizActivationAtom = atom<Record<string, number>>({})
 
-export const mapboxKeyAtom = atomWithStorage("mapboxKey", "pk.eyJ1IjoiaWNvbmVtIiwiYSI6ImNpbXJycDBqODAwNG12cW0ydGF1NXZxa2sifQ.hgPcQvgkzpfYkHgfMRqcpw")
-export const googleKeyAtom = atomWithStorage("googleKey", "AIzaSyAo6DIOnhYdywBidl4clsPZPkQkXfq6QhI")
+// These were hardcoded literals committed here — all moved to local, gitignored
+// VITE_*_API_KEY / VITE_MAPBOX_ACCESS_TOKEN vars (see .env) instead, same pattern
+// as hereKeyAtom below. There is no GH Actions injection for any of them: nothing
+// in .github/ references mapbox/maptiler/google, so these had only ever lived here.
+export const mapboxKeyAtom = atomWithStorage("mapboxKey", import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ?? "")
+export const googleKeyAtom = atomWithStorage("googleKey", import.meta.env.VITE_GOOGLE_API_KEY ?? "")
 const mapzenKeyAtom = atomWithStorage("mapzenKey", "mapzen-xxxxxxx")
-export const maptilerKeyAtom = atomWithStorage("maptilerKey", "FbPGGTCFE8IRiPECxIrp")
+export const maptilerKeyAtom = atomWithStorage("maptilerKey", import.meta.env.VITE_MAPTILER_API_KEY ?? "")
+// Unlike mapbox/maptiler/google above, no public demo key is committed here — HERE
+// requires a paid account, so its default comes from a local, gitignored VITE_HERE_API_KEY
+// (see .env) instead of a hardcoded literal. Falls back to "" for anyone without that env
+// var; HERE Maps satellite only appears in BUILTIN_BASEMAP_OPTIONS (raster-basemap-
+// section.tsx) once a real key is set, whether from .env or pasted into Settings.
+export const hereKeyAtom = atomWithStorage("hereKey", import.meta.env.VITE_HERE_API_KEY ?? "")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
 

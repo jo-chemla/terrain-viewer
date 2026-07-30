@@ -42,7 +42,37 @@ export const ColorRampSelectWithCustom: React.FC<{
     ]}
   >
     <SelectTrigger className="w-full cursor-pointer">
-      <SelectValue />
+      {/* base-ui's SelectValue only renders plain text by default (unlike the
+          pre-migration radix Select, which showed the matched SelectItem's own
+          children) — this render-prop looks the picked ramp back up so the
+          gradient swatch shows in the closed trigger too, not just the open
+          dropdown. */}
+      <SelectValue>
+        {(v: string) => {
+          if (v === "custom") {
+            return (
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-12 h-4 rounded-sm"
+                  style={{ background: `linear-gradient(to right, ${getGradientColors(buildCustomRampColors(customStops, customStopsDiscrete))})` }}
+                />
+                <span>-- Custom Colorramp Stops --</span>
+              </div>
+            )
+          }
+          const ramp = ramps[v]
+          if (!ramp) return v
+          return (
+            <div className="flex items-center gap-2">
+              <div
+                className="w-12 h-4 rounded-sm"
+                style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
+              />
+              <span>{ramp.name}</span>
+            </div>
+          )
+        }}
+      </SelectValue>
     </SelectTrigger>
     <SelectContent>
       {Object.entries(ramps).map(([key, ramp]) => (

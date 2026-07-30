@@ -7,7 +7,7 @@ import { fileURLToPath, URL } from "url"
 
 export default defineConfig({
   plugins: [
-    devtools(),
+    devtools({ eventBusConfig: { port: 42169 } }),
     react(),
     tailwindcss(), 
     nodePolyfills({

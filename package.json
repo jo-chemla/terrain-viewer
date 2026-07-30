@@ -78,6 +78,7 @@
     "@types/tz-lookup": "^6.1.2",
     "@types/vt-pbf": "^3.1.1",
     "knip": "^6.29.0",
+    "react-scan": "^0.5.7",
     "tailwindcss": "^4.1.17",
     "typescript": "^5"
   }

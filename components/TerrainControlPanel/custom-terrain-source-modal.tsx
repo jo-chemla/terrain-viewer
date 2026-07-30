@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
 import { ChevronDown, Link, Settings2, Expand, Copy } from "lucide-react"
@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
-import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
+import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
+import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
 import { WmsPickerPanel } from "./wms-picker-panel"
 
 type TerrainFormType = CustomTerrainSource["type"] | "wms-picker"
@@ -65,7 +66,9 @@ export const CustomTerrainSourceModal: React.FC<{
       setBoundsSouth(editingSource.bounds ? String(editingSource.bounds[1]) : "")
       setBoundsEast(editingSource.bounds ? String(editingSource.bounds[2]) : "")
       setBoundsNorth(editingSource.bounds ? String(editingSource.bounds[3]) : "")
-      setIsAdvancedOpen(!!editingSource.linkedBasemapId || !!editingSource.bounds)
+      // Description deliberately excluded — it alone shouldn't pop Advanced open;
+      // only fields whose value actually diverges from doing-nothing should.
+      setIsAdvancedOpen(editingSource.maxzoom !== undefined || !!editingSource.linkedBasemapId || !!editingSource.bounds)
       // Re-opening the modal on an existing "cog-local" source: the File itself
       // only lives in-memory for the session it was picked in, so after a reload
       // this is null until the user picks the file again via the button below.
@@ -135,13 +138,21 @@ export const CustomTerrainSourceModal: React.FC<{
     onOpenChange(false)
   }, [name, url, type, description, maxzoom, linkedBasemapId, boundsWest, boundsSouth, boundsEast, boundsNorth, editingSource, onSave, onOpenChange])
 
-  // COG/VRT sources detect their own zoom range from file metadata; WMS/TMS/TileJSON
-  // sources (wms-raw, terrainrgb, terrarium, tilejson) have no such metadata, so they
-  // fall back to a generic 0-20 range unless the user overrides it here. TileJSON's
-  // manifest technically carries its own maxzoom, but MapLibre applies that as a hard
-  // tile-fetch ceiling rather than feeding it back into this app's zoom-range UI, so
-  // the override still matters here too.
-  const showMaxzoomField = type === "wms-raw" || type === "terrainrgb" || type === "terrarium" || type === "tilejson"
+  // COG/cog-local sources detect their own zoom range from file metadata via
+  // geomatico (below) rather than needing a manual field — but MapSources.tsx's
+  // TerrainSources already lets customSource.maxzoom win over that detected value
+  // (`customSource?.maxzoom ?? detectedMaxzoom`), so surfacing the field here too
+  // (with the inferred value as a starting point) just exposes an override that
+  // already worked, silently, before this. VRT has no such detection at all — it
+  // streams through titiler, which doesn't report back a native zoom — so it falls
+  // back to the same generic 0-20 range as WMS/TMS/TileJSON unless overridden here.
+  const showMaxzoomField = type === "wms-raw" || type === "terrainrgb" || type === "terrarium" || type === "tilejson" || type === "cog" || type === "cog-local"
+
+  const isCogType = type === "cog" || type === "cog-local"
+  const cogUrlForMetadata = !isCogType ? null : type === "cog-local" ? resolveLocalFileUrl(localFileId(url)) : (url || null)
+  const { data: cogMetadata, status: cogMetadataStatus } = useCogMetadata(cogUrlForMetadata)
+  const inferredCogZoomRange = useMemo(() => zoomRangeFromMetadata(cogMetadata), [cogMetadata])
+  const { data: cogResolution } = useCogResolution(cogUrlForMetadata)
 
   const url_placeholder = type === "cog" ?
     "https://example.com/terrain-dtm.cog.tiff" :
@@ -164,6 +175,10 @@ export const CustomTerrainSourceModal: React.FC<{
         </DialogHeader>
         <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="source-name">Name *</Label>
+            <Input id="source-name" type="text" placeholder="My Custom Terrain" value={name} onChange={(e) => setName(e.target.value)} className="cursor-text" />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="source-type">Type *</Label>
             <Select
@@ -212,18 +227,9 @@ export const CustomTerrainSourceModal: React.FC<{
             />
           ) : (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="source-name">Name *</Label>
-                <Input id="source-name" type="text" placeholder="My Custom Terrain" value={name} onChange={(e) => setName(e.target.value)} className="cursor-text" />
-              </div>
               {type === "cog-local" ? (
                 <div className="space-y-2">
                   <Label htmlFor="source-local-file">COG file *</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Must be a real COG (Cloud-Optimized GeoTIFF, internally tiled, with
-                    overviews) in CRS EPSG:3857 (Web Mercator) — the in-browser reader
-                    doesn't reproject, so any other CRS will show wrong bounds/zoom.
-                  </p>
                   <input
                     ref={fileInputRef}
                     id="source-local-file"
@@ -240,11 +246,19 @@ export const CustomTerrainSourceModal: React.FC<{
                       {localFileName ?? "No file selected"}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Read directly from disk, never uploaded. This browser remembers it
-                    locally between sessions (via OPFS) when that's supported and there's
-                    room — otherwise you'll be asked to re-pick it next time.
-                  </p>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>Must be:</p>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                      <li>a real COG (Cloud-Optimized GeoTIFF, internally tiled, with overviews)</li>
+                      <li>in CRS EPSG:3857 (Web Mercator)</li>
+                    </ul>
+                    <p>
+                      No live reprojection is performed on the client, so any other CRS
+                      will show wrong bounds/zoom. Directly read from disk, never
+                      uploaded, and remembered locally between sessions (via OPFS) when
+                      there's room — otherwise you'll be asked to re-pick it next time.
+                    </p>
+                  </div>
                   {localFileWarning && (
                     <p className="text-xs text-amber-600 dark:text-amber-500">{localFileWarning}</p>
                   )}
@@ -270,25 +284,6 @@ export const CustomTerrainSourceModal: React.FC<{
                   <Input id="source-url" type="text" placeholder={url_placeholder} value={url} onChange={(e) => setUrl(e.target.value)} className="cursor-text" />
                 </div>
               )}
-              {showMaxzoomField && (
-                <div className="space-y-2">
-                  <Label htmlFor="source-maxzoom">Max Zoom (optional)</Label>
-                  <Input
-                    id="source-maxzoom"
-                    type="number"
-                    min={0}
-                    max={24}
-                    placeholder="Native resolution zoom level, e.g. 17"
-                    value={maxzoom}
-                    onChange={(e) => setMaxzoom(e.target.value)}
-                    className="cursor-text"
-                  />
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="source-description">Description (optional)</Label>
-                <Input id="source-description" type="text" placeholder="Custom terrain data from..." value={description} onChange={(e) => setDescription(e.target.value)} className="cursor-text" />
-              </div>
               <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
                 <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
                   <span className="flex items-center gap-1.5">
@@ -299,9 +294,39 @@ export const CustomTerrainSourceModal: React.FC<{
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-2">
                   <div className="space-y-2">
+                    <Label htmlFor="source-description">Description (optional)</Label>
+                    <Input id="source-description" type="text" placeholder="Custom terrain data from..." value={description} onChange={(e) => setDescription(e.target.value)} className="cursor-text" />
+                  </div>
+                  {showMaxzoomField && (
+                    <div className="space-y-2">
+                      <Label htmlFor="source-maxzoom">Max Zoom (optional)</Label>
+                      {isCogType && (
+                        <p className="text-xs text-muted-foreground">
+                          {cogUrlForMetadata === null
+                            ? "Inferred native resolution zoom appears once a file/URL is set."
+                            : cogMetadataStatus === "error"
+                            ? "Couldn't read this file's metadata (blocked by CORS, or a network error) — set Max Zoom manually below."
+                            : cogMetadata
+                            ? `Inferred native resolution: zoom ${inferredCogZoomRange.maxzoom}${cogResolution ? ` (~${formatGsd(cogResolution.meanGsd)} GSD)` : ""} — override below if it's wrong.`
+                            : "Detecting native resolution…"}
+                        </p>
+                      )}
+                      <Input
+                        id="source-maxzoom"
+                        type="number"
+                        min={0}
+                        max={24}
+                        placeholder={isCogType && cogMetadata ? `${inferredCogZoomRange.maxzoom} (inferred)` : "Native resolution zoom level, e.g. 17"}
+                        value={maxzoom}
+                        onChange={(e) => setMaxzoom(e.target.value)}
+                        className="cursor-text"
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-2">
                     <Label className="flex items-center gap-1.5 text-sm">
-                      <Link className="h-3.5 w-3.5" />
                       Linked Basemap Source{linkedBasemapId && " (set)"}
+                      <Link className="h-3.5 w-3.5" />
                     </Label>
                     <Select
                       value={linkedBasemapId || "none"}

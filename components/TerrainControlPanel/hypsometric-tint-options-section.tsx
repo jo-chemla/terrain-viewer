@@ -417,7 +417,38 @@ export const HypsometricTintOptionsSection: React.FC<{
               ]}
             >
               <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
-                <SelectValue className="min-w-0 truncate" />
+                {/* See custom-color-ramp.tsx's matching comment — base-ui's
+                    SelectValue needs this render-prop to show the gradient
+                    swatch in the closed trigger, not just the open dropdown. */}
+                <SelectValue className="min-w-0 truncate">
+                  {(v: string) => {
+                    if (v === "custom") {
+                      return (
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className="w-12 h-4 rounded-sm shrink-0"
+                            style={{ background: `linear-gradient(to right, ${getGradientColors(buildCustomRampColors(customStops, isDiscrete))})` }}
+                          />
+                          <span className="truncate">-- Custom Colorramp Stops --</span>
+                        </div>
+                      )
+                    }
+                    const ramp = (filteredColorRamps as any)[v]
+                    if (!ramp) return v
+                    return (
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          className="w-12 h-4 rounded-sm shrink-0"
+                          style={{ background: `linear-gradient(to right, ${getGradientColors(ramp.colors)})` }}
+                        />
+                        <span className="truncate">
+                          {!ramp.continuous ? ' (D) ' : ' (C) '}
+                          {ramp.name}
+                        </span>
+                      </div>
+                    )
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {/* Pinned at the top regardless of which category tab is active —
