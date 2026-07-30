@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
 import maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useSourceConfig } from "@/lib/controls-utils"
 import { customTerrainSourcesAtom } from "@/lib/settings-atoms"
+import { activeDrawModeAtom } from "./TerraDrawSystem"
 import { getClientExportSource, type ClientExportSource } from "@/lib/client-export"
 import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint, sampleClientElevationPath, type ProfilePoint } from "@/lib/elevation-query"
 import { buildLrmProtocolUrl, lrmFetchTileBlob } from "@/lib/lrm-protocol"
@@ -91,7 +92,14 @@ export const ElevationPickerSection: React.FC<{
 }> = ({ state, setState, mapRef, draw, isOpen, onOpenChange }) => {
   const [isActive, setIsActive] = useState(false)
   const [points, setPoints] = useState<PickedPoint[]>([])
-  const [drawModeActive, setDrawModeActive] = useState(false)
+  // Derived from the shared activeDrawModeAtom (TerraDrawSystem.tsx) rather
+  // than a local mirror kept in sync via draw's own 'change' event — that
+  // event only fires on feature store mutations, never from a bare
+  // draw.setMode() call, so a listener-only copy goes stale the moment the
+  // user switches back to Select without the store itself changing (e.g.
+  // right after drawing something), permanently disabling this toggle.
+  const activeDrawMode = useAtomValue(activeDrawModeAtom)
+  const drawModeActive = activeDrawMode !== "select"
   // Profile / line-of-sight sub-tool: samples the DEM along the line between the
   // two picked points and charts it, flagging terrain that blocks the direct
   // sight line (with an optional equal mast/pole height at each end).
@@ -120,18 +128,8 @@ export const ElevationPickerSection: React.FC<{
   // idle "select" mode) is armed, and keep it off until drawing mode returns to
   // select, mirroring TerraDrawControls' own mode tracking (TerraDrawSystem.tsx).
   useEffect(() => {
-    if (!draw) return
-    const update = () => {
-      try {
-        const mode = draw.getMode()
-        const isDrawing = !!mode && mode !== "select"
-        setDrawModeActive(isDrawing)
-        if (isDrawing) setIsActive(false)
-      } catch { /* ignore */ }
-    }
-    draw.on("change", update)
-    return () => { try { draw.off("change", update) } catch { /* ignore */ } }
-  }, [draw])
+    if (drawModeActive) setIsActive(false)
+  }, [drawModeActive])
 
   // Click handling is registered once per toggle-on, so the handler needs live
   // access to state/customTerrainSources without re-subscribing map.on('click').

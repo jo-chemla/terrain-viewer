@@ -1,5 +1,5 @@
 import type React from "react"
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useAtom } from "jotai"
 import { Trash2, ImageOff, Pencil, Check } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useIsTruncated } from "@/hooks/use-is-truncated"
 import { cn } from "@/lib/utils"
-import { restoreBookmark, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, formatBookmarkDate, type Bookmark } from "@/lib/bookmarks"
+import { restoreBookmark, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, type Bookmark } from "@/lib/bookmarks"
 
 // Fullscreen gallery — the other half of bookmarks-section.tsx's sidebar
 // list. Built on the same Dialog primitives as settings-dialog.tsx (rather
@@ -39,7 +39,6 @@ const BookmarkCard: React.FC<{
   const nameButton = (
     <button className="min-w-0 flex-1 text-left cursor-pointer" onClick={() => onRestore(b)}>
       <div ref={nameRef} className="truncate text-xs font-medium">{b.name}</div>
-      <div className="text-[10px] text-muted-foreground">{formatBookmarkDate(b.ts)}</div>
     </button>
   )
 
@@ -61,11 +60,6 @@ const BookmarkCard: React.FC<{
             </div>
           )}
         </div>
-        {b.parentId && (
-          <span className="absolute left-1.5 top-1.5 rounded bg-background/80 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground backdrop-blur-sm">
-            child
-          </span>
-        )}
       </button>
       <div className="flex items-center gap-1.5 px-2 py-2">
         {editId === b.id ? (
@@ -116,12 +110,39 @@ export const BookmarksGalleryModal: React.FC<{
   const [activeProjectId, setActiveProjectId] = useAtom(activeBookmarkProjectIdAtom)
   const [activeBookmarkId, setActiveBookmarkId] = useAtom(activeBookmarkIdAtom)
 
-  const sorted = useMemo(() => {
-    const arr = [...bookmarks]
-    if (sort === "name") arr.sort((a, b) => a.name.localeCompare(b.name))
-    else arr.sort((a, b) => (sort === "recent-asc" ? a.ts - b.ts : b.ts - a.ts))
-    return arr
-  }, [bookmarks, sort])
+  const compareBookmarks = useCallback((a: Bookmark, b: Bookmark) => {
+    if (sort === "name") return a.name.localeCompare(b.name)
+    return sort === "recent-asc" ? a.ts - b.ts : b.ts - a.ts
+  }, [sort])
+
+  // Groups children under their parent project without rendering the parent
+  // itself as a card (it's just an organizational anchor, not a viewport
+  // worth previewing separately — same reasoning as bookmarks-section.tsx's
+  // BookmarkGroupHeader). A project with no children yet, or a child whose
+  // parent was since deleted, has nothing to group under — it renders as its
+  // own standalone card instead of silently vanishing.
+  const groups = useMemo(() => {
+    const byId = new Map(bookmarks.map((b) => [b.id, b]))
+    const childrenByParent = new Map<string, Bookmark[]>()
+    for (const b of bookmarks) {
+      if (!b.parentId || !byId.has(b.parentId)) continue
+      const siblings = childrenByParent.get(b.parentId) ?? []
+      siblings.push(b)
+      childrenByParent.set(b.parentId, siblings)
+    }
+    const result: { key: string; parent: Bookmark | null; items: Bookmark[] }[] = []
+    for (const b of bookmarks) {
+      if (b.parentId && byId.has(b.parentId)) continue // handled as a child below, via its parent
+      const children = childrenByParent.get(b.id)
+      result.push(
+        children && children.length > 0
+          ? { key: b.id, parent: b, items: [...children].sort(compareBookmarks) }
+          : { key: b.id, parent: null, items: [b] },
+      )
+    }
+    result.sort((g1, g2) => compareBookmarks(g1.parent ?? g1.items[0], g2.parent ?? g2.items[0]))
+    return result
+  }, [bookmarks, compareBookmarks])
 
   const handleRestore = (b: Bookmark) => {
     restoreBookmark(b, setState, activeProjectId, setActiveProjectId, setActiveBookmarkId, mapRef)
@@ -159,26 +180,37 @@ export const BookmarksGalleryModal: React.FC<{
           </Select>
         </div>
 
-        {sorted.length === 0 ? (
+        {groups.length === 0 ? (
           <p className="text-sm text-muted-foreground">No bookmarks yet — save your current view from the Bookmarks panel.</p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {sorted.map((b) => (
-              <BookmarkCard
-                key={b.id}
-                bookmark={b}
-                isReferenceProject={!b.parentId && activeProjectId === b.id}
-                isActive={activeBookmarkId === b.id}
-                editId={editId}
-                editName={editName}
-                onRestore={handleRestore}
-                onEditNameChange={setEditName}
-                onCommitRename={commitRename}
-                onStartEdit={(bm) => { setEditId(bm.id); setEditName(bm.name) }}
-                onCancelEdit={() => setEditId(null)}
-                onDelete={onDelete}
-                onRename={onRename}
-              />
+          <div className="space-y-4">
+            {groups.map((group) => (
+              <div key={group.key}>
+                {group.parent && (
+                  <h3 className="mb-1.5 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.parent.name}
+                  </h3>
+                )}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {group.items.map((b) => (
+                    <BookmarkCard
+                      key={b.id}
+                      bookmark={b}
+                      isReferenceProject={!b.parentId && activeProjectId === b.id}
+                      isActive={activeBookmarkId === b.id}
+                      editId={editId}
+                      editName={editName}
+                      onRestore={handleRestore}
+                      onEditNameChange={setEditName}
+                      onCommitRename={commitRename}
+                      onStartEdit={(bm) => { setEditId(bm.id); setEditName(bm.name) }}
+                      onCancelEdit={() => setEditId(null)}
+                      onDelete={onDelete}
+                      onRename={onRename}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}

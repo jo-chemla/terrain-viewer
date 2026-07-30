@@ -54,6 +54,13 @@ export interface ProjectExportSelection {
    *  each such file's raw bytes into a .zip alongside the JSON payload
    *  instead of leaving just that source's settings behind. */
   localCogs: boolean
+  /** Only meaningful when `bookmarks` is also checked and at least one
+   *  bookmark has a thumbnail — forces a zip archive (same
+   *  `bookmarks_thumbs/<id>.jpg` layout `localCogs` already produces) purely
+   *  to externalize thumbnail bytes out of project.json, independent of
+   *  whether there's any local COG to bundle. See buildProjectExportArchive's
+   *  `shouldZip`. */
+  bookmarkThumbsInZip: boolean
 }
 
 export interface ProjectExportPayload {
@@ -154,20 +161,28 @@ function buildProjectExport(
 const PROJECT_JSON_ENTRY = "project.json"
 
 /** Subfolder holding one `<bookmark.id>.jpg` per exported bookmark that has a
- *  thumbnail. In a plain export (`selection.localCogs` off) these sit
- *  alongside project.json's own inlined base64 `thumb` — pure convenience so
- *  the zip's contents are browsable as real image files without unpacking the
- *  JSON, while the JSON itself stays fully self-contained. In a `localCogs`
- *  export, where the user is already bundling large binary COG bytes into a
- *  real multi-file zip, project.json's `thumb` field is instead REWRITTEN to
- *  this relative path (see buildProjectExportArchive) rather than duplicating
- *  the same ~100KB of image data twice (once as base64 text, ~33% larger, a
- *  second time as the raw file) — parseProjectExportArchive/applyProjectImport
- *  resolve that reference back into a real data URL on import. */
+ *  thumbnail, only ever created for a `localCogs` export (see
+ *  buildProjectExportArchive) — a plain export has no zip wrapper at all, so
+ *  its bookmarks keep their inlined base64 `thumb` as-is. In the zip case,
+ *  project.json's `thumb` field is REWRITTEN to this relative path instead of
+ *  duplicating the same ~100KB of image data twice (once as base64 text,
+ *  ~33% larger, a second time as the raw file) —
+ *  parseProjectExportArchive/applyProjectImport resolve that reference back
+ *  into a real data URL on import. */
 const BOOKMARK_THUMBS_DIR = "bookmarks_thumbs"
+
+/** Subfolder holding one `<id>.cog.tiff` per bundled local COG source — kept
+ *  out of the zip root so the archive reads as a real project bundle (a
+ *  project.json, a bookmarks_thumbs/ folder, a local-cogs/ folder) rather
+ *  than dumping large binary files next to it. */
+const LOCAL_COGS_DIR = "local-cogs"
 
 function bookmarkThumbEntryName(bookmarkId: string): string {
   return `${BOOKMARK_THUMBS_DIR}/${bookmarkId}.jpg`
+}
+
+function localCogEntryName(cogId: string): string {
+  return `${LOCAL_COGS_DIR}/${cogId}.cog.tiff`
 }
 
 /** Decodes a `data:<mime>;base64,<...>` URL (the format
@@ -204,6 +219,14 @@ function collectLocalCogIds(sources?: ProjectExportPayload["sources"]): string[]
 
 export interface ProjectExportArchive {
   bytes: Uint8Array
+  /** True when `bytes` is a zip archive (project.json + optional
+   *  bookmarks_thumbs/ + optional local-cogs/) rather than a bare JSON
+   *  document — true exactly when `selection.localCogs` or
+   *  `selection.bookmarkThumbsInZip` was set. Callers (the export dialog) key
+   *  the download's file extension/MIME off this instead of re-deriving it
+   *  from `selection` themselves, so it can never drift out of sync with what
+   *  `bytes` actually contains. */
+  isZip: boolean
   /** cog-local source ids whose bytes actually made it into the zip. */
   bundledCogIds: string[]
   /** cog-local source ids that COULDN'T be bundled — neither this session's
@@ -216,26 +239,31 @@ export interface ProjectExportArchive {
   missingCogIds: string[]
 }
 
-/** Builds a downloadable archive: `project.json` (the same payload
- *  buildProjectExport produces) plus one `bookmarks_thumbs/<id>.jpg` per
- *  exported bookmark that has a thumbnail (see BOOKMARK_THUMBS_DIR). When
- *  `selection.localCogs` is set, project.json's own `thumb` field is
- *  rewritten to reference that file (`"bookmarks_thumbs/<id>.jpg"`) instead
- *  of inlining the base64 a second time — the user is already bundling large
- *  binary COG bytes into a real zip at that point, so it's worth not
- *  duplicating thumbnail bytes too; otherwise (a plain, non-localCogs export)
- *  the JSON keeps its base64 copy inline, self-contained.
- *
- *  Also bundles, when `selection.localCogs` is set, one `<id>.cog.tiff` entry
- *  per locally-picked BYOD source referenced in it — read from whichever copy
- *  is freshest (this session's live registered File, falling back to the
- *  OPFS-persisted copy). Level 0 (store, no deflate) since COG bytes are
- *  already large binary data not worth spending CPU trying to compress. */
+/** Builds the downloadable payload. Without `selection.localCogs` or
+ *  `selection.bookmarkThumbsInZip` there's nothing binary worth a zip
+ *  wrapper for, so this is just the bare JSON document buildProjectExport
+ *  produces (bookmark thumbnails stay inlined as base64). With either set, it
+ *  becomes a real zip: `project.json`, one `bookmarks_thumbs/<id>.jpg` per
+ *  exported bookmark that has a thumbnail (project.json's own `thumb` field
+ *  is rewritten to reference that relative path instead of duplicating the
+ *  same ~100KB of image data twice — once as base64 text, ~33% larger, a
+ *  second time as the raw file), and — only when `selection.localCogs` is
+ *  set — one `local-cogs/<id>.cog.tiff` per locally-picked BYOD source
+ *  referenced in it, read from whichever copy is freshest (this session's
+ *  live registered File, falling back to the OPFS-persisted copy). Level 0
+ *  (store, no deflate) since COG bytes are already large binary data not
+ *  worth spending CPU trying to compress. */
 export async function buildProjectExportArchive(
   selection: ProjectExportSelection,
   live: { bookmarks: Bookmark[]; drawingLayers: DrawLayer[]; drawingFeatures: GeoJSONFeature[]; viewState: string },
 ): Promise<ProjectExportArchive> {
   const payload = buildProjectExport(selection, live)
+  const shouldZip = selection.localCogs || selection.bookmarkThumbsInZip
+
+  if (!shouldZip) {
+    return { bytes: strToU8(JSON.stringify(payload, null, 2)), isZip: false, bundledCogIds: [], missingCogIds: [] }
+  }
+
   const entries: Record<string, Uint8Array> = {}
   const bundledCogIds: string[] = []
   const missingCogIds: string[] = []
@@ -245,25 +273,28 @@ export async function buildProjectExportArchive(
       const bytes = bookmark.thumb ? dataUrlToBytes(bookmark.thumb) : null
       if (!bytes) return bookmark
       entries[bookmarkThumbEntryName(bookmark.id)] = bytes
-      return selection.localCogs ? { ...bookmark, thumb: bookmarkThumbEntryName(bookmark.id) } : bookmark
+      return { ...bookmark, thumb: bookmarkThumbEntryName(bookmark.id) }
     })
   }
 
   entries[PROJECT_JSON_ENTRY] = strToU8(JSON.stringify(payload, null, 2))
 
-  if (selection.localCogs) {
-    for (const id of collectLocalCogIds(payload.sources)) {
-      const file = getRegisteredLocalFile(id) ?? (await readPersistedCogFile(id))
-      if (!file) {
-        missingCogIds.push(id)
-        console.warn(`[project-export] no bytes available for local COG source "${id}" — never persisted, evicted, or OPFS unsupported; only its settings will travel.`)
-        continue
-      }
-      entries[`${id}.cog.tiff`] = new Uint8Array(await file.arrayBuffer())
-      bundledCogIds.push(id)
-    }
+  if (!selection.localCogs) {
+    return { bytes: zipSync(entries, { level: 0 }), isZip: true, bundledCogIds, missingCogIds }
   }
-  return { bytes: zipSync(entries, { level: 0 }), bundledCogIds, missingCogIds }
+
+  for (const id of collectLocalCogIds(payload.sources)) {
+    const file = getRegisteredLocalFile(id) ?? (await readPersistedCogFile(id))
+    if (!file) {
+      missingCogIds.push(id)
+      console.warn(`[project-export] no bytes available for local COG source "${id}" — never persisted, evicted, or OPFS unsupported; only its settings will travel.`)
+      continue
+    }
+    entries[localCogEntryName(id)] = new Uint8Array(await file.arrayBuffer())
+    bundledCogIds.push(id)
+  }
+
+  return { bytes: zipSync(entries, { level: 0 }), isZip: true, bundledCogIds, missingCogIds }
 }
 
 /** Reverse of buildProjectExportArchive. `isZip` picks the parse path — a
@@ -288,14 +319,21 @@ export function parseProjectExportArchive(
   const cogBytesById = new Map<string, Uint8Array>()
   const bookmarkThumbBytesById = new Map<string, Uint8Array>()
   const bookmarkThumbPrefix = `${BOOKMARK_THUMBS_DIR}/`
+  const localCogPrefix = `${LOCAL_COGS_DIR}/`
   for (const [name, data] of Object.entries(entries)) {
     if (name === PROJECT_JSON_ENTRY) continue
     if (name.startsWith(bookmarkThumbPrefix) && name.endsWith(".jpg")) {
       bookmarkThumbBytesById.set(name.slice(bookmarkThumbPrefix.length, -".jpg".length), data)
       continue
     }
-    // Only `.cog.tiff` entries beyond this point are bytes to re-hydrate on
-    // import — anything else is purely a convenience extra, not re-imported.
+    if (name.startsWith(localCogPrefix) && name.endsWith(".cog.tiff")) {
+      cogBytesById.set(name.slice(localCogPrefix.length, -".cog.tiff".length), data)
+      continue
+    }
+    // Bare `<id>.cog.tiff` at the zip root — a pre-local-cogs/-subfolder
+    // export (see LOCAL_COGS_DIR) — kept readable for backward compat.
+    // Anything else beyond this point is purely a convenience extra, not
+    // re-imported.
     if (!name.endsWith(".cog.tiff")) continue
     cogBytesById.set(name.replace(/\.cog\.tiff$/, ""), data)
   }

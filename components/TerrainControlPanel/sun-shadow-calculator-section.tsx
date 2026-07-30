@@ -1,5 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useEffect, useRef } from "react"
+import { useAtomValue } from "jotai"
 import maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { LightDirectionControl } from "./light-direction-control"
 import { ColorAlphaSwatch } from "./color-picker"
 import { track } from "@/lib/analytics"
+import { activeDrawModeAtom } from "./TerraDrawSystem"
 
 interface PickedPoint {
   lng: number
@@ -44,26 +46,23 @@ export const SunShadowCalculatorSection: React.FC<{
   const [isActive, setIsActive] = useState(false)
   const [point, setPoint] = useState<PickedPoint | null>(null)
   const [height, setHeight] = useState(10)
-  const [drawModeActive, setDrawModeActive] = useState(false)
   const [lineColor, setLineColor] = useState(DEFAULT_LINE_COLOR)
   const [lineWidth, setLineWidth] = useState(DEFAULT_LINE_WIDTH)
   const markerRef = useRef<maplibregl.Marker | null>(null)
 
   // Same drawing-mode conflict guard as Elevation Picker — TerraDraw's own
-  // click handling would otherwise fight with ours.
+  // click handling would otherwise fight with ours. Derived from the shared
+  // activeDrawModeAtom (TerraDrawSystem.tsx) rather than a local mirror kept
+  // in sync via draw's own 'change' event — that event only fires on feature
+  // store mutations, never from a bare draw.setMode() call, so a
+  // listener-only copy goes stale the moment the user switches back to
+  // Select without the store itself changing, permanently disabling this
+  // toggle.
+  const activeDrawMode = useAtomValue(activeDrawModeAtom)
+  const drawModeActive = activeDrawMode !== "select"
   useEffect(() => {
-    if (!draw) return
-    const update = () => {
-      try {
-        const mode = draw.getMode()
-        const isDrawing = !!mode && mode !== "select"
-        setDrawModeActive(isDrawing)
-        if (isDrawing) setIsActive(false)
-      } catch { /* ignore */ }
-    }
-    draw.on("change", update)
-    return () => { try { draw.off("change", update) } catch { /* ignore */ } }
-  }, [draw])
+    if (drawModeActive) setIsActive(false)
+  }, [drawModeActive])
 
   const handleMapClick = useCallback((e: MapMouseEvent) => {
     setPoint({ lng: e.lngLat.lng, lat: e.lngLat.lat })

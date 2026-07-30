@@ -2,7 +2,7 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
-import { ChevronDown, Link, Settings2, Expand } from "lucide-react"
+import { ChevronDown, Link, Settings2, Expand, Copy } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
+import { copyToClipboard } from "@/lib/controls-utils"
 import { WmsPickerPanel } from "./wms-picker-panel"
 
 type TerrainFormType = CustomTerrainSource["type"] | "wms-picker"
@@ -150,6 +151,10 @@ export const CustomTerrainSourceModal: React.FC<{
     "https://example.com/terrain-tilejson.json" :
     "https://example.com/tms/{z}/{x}/{y}.png"
 
+  let helper_text = ""
+  if (type === "terrarium" || type === "terrainrgb") helper_text = "/{z}/{x}/{y}.png"
+  else if (type === "wms-raw") helper_text = "BBOX={bbox-epsg-3857}"
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
@@ -246,7 +251,22 @@ export const CustomTerrainSourceModal: React.FC<{
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Label htmlFor="source-url">URL *</Label>
+                  <Label htmlFor="source-url">
+                    URL * {helper_text && (
+                      <span className="select-text inline-flex items-center">
+                        (hint: {helper_text}
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(helper_text)}
+                          className="ml-1.5 cursor-pointer hover:opacity-70"
+                          title="Copy template"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                        )
+                      </span>
+                    )}
+                  </Label>
                   <Input id="source-url" type="text" placeholder={url_placeholder} value={url} onChange={(e) => setUrl(e.target.value)} className="cursor-text" />
                 </div>
               )}

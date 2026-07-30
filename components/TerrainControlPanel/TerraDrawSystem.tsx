@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { atom, useAtom, useAtomValue } from 'jotai'
+import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import type { MapRef } from 'react-map-gl/maplibre'
 import {
@@ -68,6 +68,18 @@ export interface GeoJSONFeature {
 }
 
 export const drawingFeaturesAtom = atom<GeoJSONFeature[]>([])
+
+// Single source of truth for "which TerraDraw mode is currently active",
+// written at every point draw.setMode() itself is called (TerraDrawControls'
+// mode buttons, its Escape-to-select handler) rather than re-derived by each
+// consumer from TerraDraw's own 'change' event — that event only fires on
+// feature store mutations (add/update/delete), never from a bare setMode()
+// call, so a listener-only mirror of "is a drawing mode active" (as
+// ElevationPickerSection/sun-shadow-calculator-section used to keep locally)
+// goes stale the moment the user switches back to Select without the store
+// itself changing, permanently disabling their own toggle until some
+// unrelated feature mutation happens to fire 'change' again.
+export const activeDrawModeAtom = atom<string>('select')
 
 // --- LAYERS ---
 
@@ -437,6 +449,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
     const [layers] = useAtom(drawingLayersAtom)
     const [activeLayerId] = useAtom(activeLayerIdAtom)
+    const setActiveDrawMode = useSetAtom(activeDrawModeAtom)
     const featuresRef = useRef(features)
     const layersRef = useRef(layers)
     const activeLayerIdRef = useRef(activeLayerId)
@@ -587,6 +600,12 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
                 })
                 newDraw.start()
                 newDraw.setMode('select')
+                // A fresh instance (e.g. a mapRef swap) always resets to
+                // 'select' internally regardless of whatever mode the old
+                // instance was last left in — keep the shared atom in sync so
+                // ElevationPickerSection/sun-shadow-calculator-section don't
+                // stay stuck thinking a drawing mode is still active.
+                setActiveDrawMode('select')
 
                 // Freehand drawing (point/line/polygon tools) only ever updated TerraDraw's
                 // own internal store — nothing synced it back to drawingFeaturesAtom, so
@@ -696,14 +715,23 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
 // --- CONTROLS COMPONENT ---
 
 function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
-    const [activeDrawMode, setActiveDrawMode] = useState<string>('select')
+    // Shared with ElevationPickerSection/sun-shadow-calculator-section (see
+    // activeDrawModeAtom's own comment) — written here at every point
+    // draw.setMode() itself is called, not re-derived from draw's 'change'
+    // event (which never fires from a bare setMode() call, only from feature
+    // store mutations).
+    const [activeDrawMode, setActiveDrawMode] = useAtom(activeDrawModeAtom)
 
     useEffect(() => {
         if (!draw) return
+        // Fallback only — covers any mode change this component didn't itself
+        // initiate (there currently is none, but this keeps the atom honest
+        // if one gets added later without also being routed through
+        // setActiveDrawMode).
         const update = () => { try { const m = draw.getMode(); if (m) setActiveDrawMode(m) } catch { } }
         draw.on('change', update)
         return () => { try { draw.off('change', update) } catch { } }
-    }, [draw])
+    }, [draw, setActiveDrawMode])
 
     // Terra Draw's own modes already default to a crosshair cursor on start(),
     // but maplibre's drag-pan handler keeps re-setting the canvas cursor during

@@ -154,6 +154,11 @@ export const isHillshadeXYPadOpenAtom = atomWithStorage("isHillshadeXYPadOpen", 
 // User-dragged height (px) of the Bookmarks list's scroll area (bookmarks-section.tsx's
 // drag handle below it) — null means "use the default max-h-64 clamp".
 export const bookmarksListHeightAtom = atomWithStorage<number | null>("bookmarksListHeight", null)
+// Ids of "project" (root) bookmarks whose children are currently folded away —
+// bookmarks-section.tsx's file-tree-style collapse. Absent from the array =
+// expanded (matches the pre-existing always-expanded behavior for anyone
+// upgrading with bookmarks already saved).
+export const collapsedBookmarkGroupsAtom = atomWithStorage<string[]>("collapsedBookmarkGroups", [])
 // Pins Visualization Modes open through "Fold all sections" (TerrainControlPanel.tsx)
 // — that's the master on/off switchboard for every viz layer, so folding it away
 // along with everything else hides the controls someone's most likely to want

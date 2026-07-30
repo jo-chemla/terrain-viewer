@@ -2,9 +2,13 @@ import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { useAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
-import { Bookmark as BookmarkIcon, Trash2, Pencil, Maximize2, Upload, Download as DownloadIcon, ImageOff, Plus } from "lucide-react"
+import {
+  Bookmark as BookmarkIcon, Trash2, Pencil, Maximize2, Upload, Download as DownloadIcon, ImageOff, Plus, ChevronDown,
+  ChevronsDownUp, ChevronsUpDown, Edit,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Toggle } from "@/components/ui/toggle"
 import { cn } from "@/lib/utils"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, TooltipButton, TooltipIconButton } from "./controls-components"
@@ -12,9 +16,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useIsTruncated } from "@/hooks/use-is-truncated"
 import {
   bookmarksAtom, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, restoreBookmark, exportBookmarksJson,
-  mergeImportedBookmarks, formatBookmarkDate, summarizeActiveVizModes, type Bookmark,
+  mergeImportedBookmarks, summarizeActiveVizModes, type Bookmark,
 } from "@/lib/bookmarks"
-import { bookmarksListHeightAtom } from "@/lib/settings-atoms"
+import { bookmarksListHeightAtom, collapsedBookmarkGroupsAtom } from "@/lib/settings-atoms"
 import { reverseGeocodeLabel } from "@/lib/geocode"
 import { captureBookmarkThumbnail } from "@/lib/controls-utils"
 import { BookmarksGalleryModal } from "./bookmarks-gallery-modal"
@@ -22,8 +26,8 @@ import { BookmarksGalleryModal } from "./bookmarks-gallery-modal"
 const BookmarkRow: React.FC<{
   bookmark: Bookmark
   isChild: boolean
-  isReferenceProject: boolean
   isActive: boolean
+  editMode: boolean
   editId: string | null
   editName: string
   isSaving: boolean
@@ -34,35 +38,45 @@ const BookmarkRow: React.FC<{
   onCancelEdit: () => void
   onSaveChild: (id: string) => void
   onDelete: (id: string) => void
+  onDragStartItem: (id: string) => void
+  onDropOnItem: (id: string) => void
+  canDropOn: (id: string) => boolean
+  // Set on the last child of an expanded project while a sibling PROJECT is
+  // being dragged over that project's block — see the per-project wrapper's
+  // own drag handlers below. Shows the same bottom-edge bar this row already
+  // renders for its own (child-child) drag-over, just for a different reason.
+  forceShowDropIndicator?: boolean
 }> = ({
-  bookmark: b, isChild, isReferenceProject, isActive, editId, editName, isSaving,
+  bookmark: b, isChild, isActive, editMode, editId, editName, isSaving,
   onRestore, onStartEdit, onEditNameChange, onCommitRename, onCancelEdit, onSaveChild, onDelete,
+  onDragStartItem, onDropOnItem, canDropOn, forceShowDropIndicator,
 }) => {
   const [nameRef, isNameTruncated] = useIsTruncated<HTMLDivElement>()
+  const [isDragOver, setIsDragOver] = useState(false)
 
   const nameButton = (
     <button className="flex-1 min-w-0 text-left cursor-pointer" onClick={() => onRestore(b)}>
       <div ref={nameRef} className="text-sm truncate">{b.name}</div>
-      <div className="text-xs text-muted-foreground">{formatBookmarkDate(b.ts)}</div>
     </button>
   )
 
   return (
     <div
+      draggable
+      onDragStart={() => onDragStartItem(b.id)}
+      onDragOver={(e) => { if (!canDropOn(b.id)) return; e.preventDefault(); setIsDragOver(true) }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={(e) => { if (!canDropOn(b.id)) return; e.preventDefault(); setIsDragOver(false); onDropOnItem(b.id) }}
       className={cn(
-        "flex items-center gap-2 min-w-0 rounded-md border border-transparent p-0.5",
-        // Reference project (its own row, or the currently-loaded project when
-        // a child is active) — the one whose viewport a sibling/child restore
-        // won't disturb.
-        isReferenceProject && "ring-1 ring-primary/50",
+        "relative flex items-center gap-1 min-w-0 rounded-md border-2 border-transparent p-0.5 cursor-grab active:cursor-grabbing",
         // Exact bookmark last restored, project or child.
         isActive && "border-primary p-1.5",
-        // Applied last so a child's indent always wins over the (all-sides)
-        // padding bump above — twMerge lets a later, more specific side
-        // utility (pl-4) override just that one side of an earlier shorthand.
-        isChild && "pl-4",
       )}
     >
+      {/* Same width as BookmarkGroupHeader's collapse chevron button (+ the
+          row's own gap-1) so a child's thumbnail lines up directly under its
+          project's thumbnail instead of sitting further right or left of it. */}
+      {isChild && <span className="h-8 w-6 shrink-0" />}
       <button
         className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
         onClick={() => onRestore(b)}
@@ -103,20 +117,181 @@ const BookmarkRow: React.FC<{
           className="h-8 w-8 shrink-0"
         />
       )}
-      <TooltipIconButton
-        icon={Pencil}
-        tooltip="Rename"
-        onClick={() => onStartEdit(b)}
-        className="h-8 w-8 shrink-0"
-      />
-      <TooltipIconButton
-        icon={Trash2}
-        tooltip="Delete"
-        onClick={() => onDelete(b.id)}
-        className="h-8 w-8 shrink-0"
-      />
+      {editMode && (
+        <>
+          <TooltipIconButton
+            icon={Pencil}
+            tooltip="Rename"
+            onClick={() => onStartEdit(b)}
+            className="h-8 w-8 shrink-0"
+          />
+          <TooltipIconButton
+            icon={Trash2}
+            tooltip="Delete"
+            onClick={() => onDelete(b.id)}
+            className="h-8 w-8 shrink-0"
+          />
+        </>
+      )}
+      {/* Insertion indicator — a highlighted bar just below the hovered row,
+          rather than outlining/circling the row itself (that read as "this
+          row is selected", not "drop here"). Same visual regardless of
+          whether the drop will reorder or reparent the dragged item. */}
+      {(isDragOver || forceShowDropIndicator) && (
+        <div className="pointer-events-none absolute inset-x-1 -bottom-0.5 h-0.5 rounded-full bg-primary" />
+      )}
     </div>
   )
+}
+
+// A project (root) row rendered as a foldable group header — the collapse
+// chevron, its geocoded name/view-count (still the click target to restore
+// that viewport), and the add-child/rename/delete actions. `showThumbnail`
+// (see the caller — tied to this group's own collapse state) shows the first
+// child's thumbnail as a stand-in preview only while collapsed; once
+// expanded, its children (BookmarkRow, isChild) already show their own
+// thumbnails right below it, so the header's copy would be redundant.
+const BookmarkGroupHeader: React.FC<{
+  bookmark: Bookmark
+  childCount: number
+  thumb: string | null
+  showThumbnail: boolean
+  isCollapsed: boolean
+  onToggleCollapse: () => void
+  isActive: boolean
+  editMode: boolean
+  editId: string | null
+  editName: string
+  isSaving: boolean
+  onRestore: (b: Bookmark) => void
+  onStartEdit: (b: Bookmark) => void
+  onEditNameChange: (name: string) => void
+  onCommitRename: () => void
+  onCancelEdit: () => void
+  onSaveChild: (id: string) => void
+  onDelete: (id: string) => void
+  onDragStartItem: (id: string) => void
+  // Drop-target handling for reordering PROJECTS lives on the shared wrapper
+  // around this header + its children (see the per-project block in the
+  // main render loop) rather than here — hovering anywhere in an expanded
+  // project's block should count as hovering that whole project, not just
+  // its header, and a plain sibling <div> can't express that on its own.
+  // showDropIndicator is that wrapper's own isDragOver, computed only for
+  // the case where this header is the right place to show it (collapsed, or
+  // no children at all — see the caller).
+  showDropIndicator: boolean
+}> = ({
+  bookmark: b, childCount, thumb, showThumbnail, isCollapsed, onToggleCollapse, isActive, editMode, editId, editName, isSaving,
+  onRestore, onStartEdit, onEditNameChange, onCommitRename, onCancelEdit, onSaveChild, onDelete,
+  onDragStartItem, showDropIndicator,
+}) => {
+  const [nameRef, isNameTruncated] = useIsTruncated<HTMLDivElement>()
+
+  const nameButton = (
+    <button className="flex-1 min-w-0 text-left cursor-pointer" onClick={() => onRestore(b)}>
+      <div ref={nameRef} className="text-sm font-medium truncate">{b.name}</div>
+      <div className="text-xs text-muted-foreground">{childCount} view{childCount === 1 ? "" : "s"}</div>
+    </button>
+  )
+
+  return (
+    <div
+      draggable
+      onDragStart={() => onDragStartItem(b.id)}
+      className={cn(
+        "relative flex items-center gap-1 min-w-0 rounded-md border-2 border-transparent p-0.5 cursor-grab active:cursor-grabbing",
+        isActive && "border-primary p-1.5",
+      )}
+    >
+      <button
+        onClick={onToggleCollapse}
+        disabled={childCount === 0}
+        className="flex h-8 w-6 shrink-0 items-center justify-center text-muted-foreground disabled:opacity-30 cursor-pointer"
+        title={childCount === 0 ? "No child views yet" : isCollapsed ? "Expand" : "Collapse"}
+      >
+        <ChevronDown className={cn("h-4 w-4 transition-transform", isCollapsed && "-rotate-90")} />
+      </button>
+      {showThumbnail && (
+        <button
+          className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
+          onClick={() => onRestore(b)}
+          title="Load this view"
+        >
+          {thumb ? (
+            <img src={thumb} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+              <ImageOff className="h-3.5 w-3.5" />
+            </div>
+          )}
+        </button>
+      )}
+      {editId === b.id ? (
+        <Input
+          autoFocus
+          value={editName}
+          onChange={(e) => onEditNameChange(e.target.value)}
+          onBlur={onCommitRename}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+            if (e.key === "Escape") onCancelEdit()
+          }}
+          className="h-8 flex-1 min-w-0 text-sm"
+        />
+      ) : isNameTruncated ? (
+        <Tooltip>
+          <TooltipTrigger render={nameButton} />
+          <TooltipContent><p>{b.name}</p></TooltipContent>
+        </Tooltip>
+      ) : nameButton}
+      <TooltipIconButton
+        icon={Plus}
+        tooltip="Save current view as a child of this project"
+        onClick={() => onSaveChild(b.id)}
+        disabled={isSaving}
+        className="h-8 w-8 shrink-0"
+      />
+      {editMode && (
+        <>
+          <TooltipIconButton
+            icon={Pencil}
+            tooltip="Rename"
+            onClick={() => onStartEdit(b)}
+            className="h-8 w-8 shrink-0"
+          />
+          <TooltipIconButton
+            icon={Trash2}
+            tooltip="Delete"
+            onClick={() => onDelete(b.id)}
+            className="h-8 w-8 shrink-0"
+          />
+        </>
+      )}
+      {showDropIndicator && <div className="pointer-events-none absolute inset-x-1 -bottom-0.5 h-0.5 rounded-full bg-primary" />}
+    </div>
+  )
+}
+
+// Reorders (or reparents) bookmarks by dragging one onto another — `matches`
+// picks out the sibling group both belong to (all roots, or all children of
+// one particular parent); everything outside that group stays at its own
+// array index untouched. Used both for a plain within-group reorder and,
+// after reparenting a child (rewriting its parentId first), to also drop it
+// at roughly the position it was dragged to rather than wherever the
+// reparent left it.
+function moveWithinGroup(list: Bookmark[], matches: (b: Bookmark) => boolean, fromId: string, toId: string): Bookmark[] {
+  const indices: number[] = []
+  list.forEach((item, i) => { if (matches(item)) indices.push(i) })
+  const group = indices.map((i) => list[i])
+  const fromPos = group.findIndex((b) => b.id === fromId)
+  const toPos = group.findIndex((b) => b.id === toId)
+  if (fromPos === -1 || toPos === -1 || fromPos === toPos) return list
+  const reordered = [...group]
+  const [moved] = reordered.splice(fromPos, 1)
+  reordered.splice(toPos, 0, moved)
+  const result = [...list]
+  indices.forEach((idx, i) => { result[idx] = reordered[i] })
+  return result
 }
 
 // Saved-view bookmarks — see lib/bookmarks.ts for the data model/restore
@@ -128,9 +303,8 @@ const BookmarkRow: React.FC<{
 // "view mode child" (parentId set, saved at that same project's viewport) —
 // rendered as a project row with its children indented beneath it. Restoring
 // a child while its parent project is already the active one leaves the
-// camera alone (lib/bookmarks.ts's restoreBookmark) — the active project row
-// gets a ring so that's visible, and whichever exact bookmark was last
-// restored gets a solid border (+ a touch more padding).
+// camera alone (lib/bookmarks.ts's restoreBookmark) — whichever exact
+// bookmark was last restored gets a solid border (+ a touch more padding).
 export const BookmarksSection: React.FC<{
   state: any
   setState: (updates: any) => void
@@ -145,7 +319,64 @@ export const BookmarksSection: React.FC<{
   const [isGalleryOpen, setIsGalleryOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
+  // Gates the rename/delete buttons on every row — same "Edit layer names…"
+  // convention as TerraDrawSystem.tsx's own layers editMode toggle, so
+  // day-to-day use (restore a view, add a new one) isn't cluttered by them.
+  const [editMode, setEditMode] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Which project (root) rows currently have their children folded away —
+  // see collapsedBookmarkGroupsAtom's own comment.
+  const [collapsedGroups, setCollapsedGroups] = useAtom(collapsedBookmarkGroupsAtom)
+  const toggleGroupCollapse = useCallback((id: string) => {
+    setCollapsedGroups((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }, [setCollapsedGroups])
+
+  // Plain HTML5 drag-and-drop, no library: a project dropped on another
+  // project reorders the roots; a child dropped on a sibling reorders within
+  // its own parent. Deliberately NOT cross-project (a child dropped on a
+  // different project's header/children, or a project dropped on any child
+  // row) — canDropOn below is what a dragged row's onDragOver checks before
+  // even calling preventDefault, so those combinations never light up the
+  // drop indicator and the browser's own "not allowed" cursor shows instead;
+  // see moveWithinGroup above for the actual reorder.
+  const draggedIdRef = useRef<string | null>(null)
+  const handleDragStartItem = useCallback((id: string) => { draggedIdRef.current = id }, [])
+  // Which project is the current drop target while dragging another project
+  // over it — tracked here (not as local state inside the header row) since
+  // hovering ANY of that project's children while it's expanded should also
+  // count, and those live in sibling DOM nodes the header can't see into.
+  // The per-project wrapper below sets/clears this; BookmarkGroupHeader only
+  // renders the indicator itself when there's nowhere else to put it
+  // (collapsed, or no children), otherwise the LAST child renders it instead.
+  const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null)
+  const canDropOn = useCallback((targetId: string): boolean => {
+    const draggedId = draggedIdRef.current
+    if (!draggedId || draggedId === targetId) return false
+    const dragged = bookmarks.find((b) => b.id === draggedId)
+    const target = bookmarks.find((b) => b.id === targetId)
+    if (!dragged || !target) return false
+    // Dragging a project — only another project header is a valid target.
+    if (!dragged.parentId) return !target.parentId
+    // Dragging a child — only a sibling under the same project is valid.
+    return target.parentId === dragged.parentId
+  }, [bookmarks])
+  const handleDropOnItem = useCallback((targetId: string) => {
+    const draggedId = draggedIdRef.current
+    draggedIdRef.current = null
+    if (!draggedId || draggedId === targetId) return
+    setBookmarks((prev) => {
+      const dragged = prev.find((b) => b.id === draggedId)
+      const target = prev.find((b) => b.id === targetId)
+      if (!dragged || !target) return prev
+      if (!dragged.parentId) {
+        if (target.parentId) return prev // guarded by canDropOn already; kept defensive
+        return moveWithinGroup(prev, (b) => !b.parentId, draggedId, targetId)
+      }
+      if (target.parentId !== dragged.parentId) return prev // guarded by canDropOn already; kept defensive
+      return moveWithinGroup(prev, (b) => b.parentId === dragged.parentId, draggedId, targetId)
+    })
+  }, [setBookmarks])
 
   // Drag-to-resize the bookmark list's scroll area — same pointer-based
   // approach as theme-editor/ThemeEditorPanel.tsx's own resize handle, minus
@@ -183,6 +414,16 @@ export const BookmarksSection: React.FC<{
     (id: string) => bookmarks.filter((b) => b.parentId === id),
     [bookmarks],
   )
+
+  // "Fold all" toggles based on whether every group with at least one child
+  // is currently collapsed — so it always reads as a clean expand/collapse
+  // pair instead of getting stuck once some groups are collapsed and others
+  // aren't.
+  const foldableRootIds = useMemo(() => roots.filter((r) => childrenOf(r.id).length > 0).map((r) => r.id), [roots, childrenOf])
+  const allGroupsCollapsed = foldableRootIds.length > 0 && foldableRootIds.every((id) => collapsedGroups.includes(id))
+  const handleToggleFoldAll = useCallback(() => {
+    setCollapsedGroups(allGroupsCollapsed ? [] : foldableRootIds)
+  }, [allGroupsCollapsed, foldableRootIds, setCollapsedGroups])
 
   const saveBookmark = useCallback(async (parentId?: string) => {
     setIsSaving(true)
@@ -241,8 +482,15 @@ export const BookmarksSection: React.FC<{
   }, [editId, editName, handleRename])
 
   const handleRestore = useCallback((b: Bookmark) => {
-    restoreBookmark(b, setState, activeProjectId, setActiveProjectId, setActiveBookmarkId, mapRef)
-  }, [setState, activeProjectId, setActiveProjectId, setActiveBookmarkId, mapRef])
+    // Clicking a project restores whatever its current first child (by
+    // display order — the same one the header's own thumbnail shows, so
+    // dragging a different child to the front changes both together)
+    // represents, rather than the project's own frozen search snapshot —
+    // that first child IS "the project's view" as far as the list shows it.
+    // Falls back to the project itself if it has no children.
+    const target = !b.parentId ? (childrenOf(b.id)[0] ?? b) : b
+    restoreBookmark(target, setState, activeProjectId, setActiveProjectId, setActiveBookmarkId, mapRef)
+  }, [setState, activeProjectId, setActiveProjectId, setActiveBookmarkId, mapRef, childrenOf])
 
   const handleExport = useCallback(() => {
     const blob = new Blob([exportBookmarksJson(bookmarks)], { type: "application/json" })
@@ -278,13 +526,40 @@ export const BookmarksSection: React.FC<{
             disabled={isSaving}
             className="flex-1"
           />
-          <TooltipIconButton
+          <TooltipButton
             icon={Maximize2}
+            label="Gallery"
             tooltip="Open full gallery"
             onClick={() => setIsGalleryOpen(true)}
-            variant="outline"
             disabled={bookmarks.length === 0}
+            className="flex-1"
           />
+          <TooltipIconButton
+            icon={allGroupsCollapsed ? ChevronsUpDown : ChevronsDownUp}
+            tooltip={allGroupsCollapsed ? "Expand all projects" : "Fold all projects"}
+            onClick={handleToggleFoldAll}
+            variant="outline"
+            disabled={foldableRootIds.length === 0}
+          />
+          <Tooltip>
+            <TooltipTrigger
+              delay={0}
+              render={
+                <span>
+                  <Toggle
+                    pressed={editMode}
+                    onPressedChange={setEditMode}
+                    variant="outline"
+                    aria-label={editMode ? "Done editing bookmarks" : "Rename or delete bookmarks"}
+                    className="cursor-pointer"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Toggle>
+                </span>
+              }
+            />
+            <TooltipContent><p>{editMode ? "Done editing" : "Rename or delete bookmarks"}</p></TooltipContent>
+          </Tooltip>
         </div>
 
         {roots.length > 0 && (
@@ -294,31 +569,39 @@ export const BookmarksSection: React.FC<{
               className="space-y-1 overflow-y-auto"
               style={{ height: listHeight ?? 256 }}
             >
-              {roots.map((project) => (
-                <div key={project.id} className="space-y-1">
-                  <BookmarkRow
-                    bookmark={project}
-                    isChild={false}
-                    isReferenceProject={activeProjectId === project.id}
-                    isActive={activeBookmarkId === project.id}
-                    editId={editId}
-                    editName={editName}
-                    isSaving={isSaving}
-                    onRestore={handleRestore}
-                    onStartEdit={(bm) => { setEditId(bm.id); setEditName(bm.name) }}
-                    onEditNameChange={setEditName}
-                    onCommitRename={commitRename}
-                    onCancelEdit={() => setEditId(null)}
-                    onSaveChild={saveBookmark}
-                    onDelete={handleDelete}
-                  />
-                  {childrenOf(project.id).map((child) => (
-                    <BookmarkRow
-                      key={child.id}
-                      bookmark={child}
-                      isChild
-                      isReferenceProject={false}
-                      isActive={activeBookmarkId === child.id}
+              {roots.map((project) => {
+                const children = childrenOf(project.id)
+                const isCollapsed = collapsedGroups.includes(project.id)
+                const isDragOverProject = dragOverProjectId === project.id
+                return (
+                  <div
+                    key={project.id}
+                    className="space-y-1"
+                    // Reordering PROJECTS is scoped to this whole block (header
+                    // + every visible child), not just the header row — a
+                    // child's own onDragOver already rejects a dragged project
+                    // (canDropOn) and returns without stopping propagation, so
+                    // it bubbles up to here; this is what actually decides
+                    // "hovering anywhere in project X's expanded group counts
+                    // as hovering project X".
+                    onDragOver={(e) => { if (!canDropOn(project.id)) return; e.preventDefault(); setDragOverProjectId(project.id) }}
+                    onDragLeave={() => setDragOverProjectId((prev) => (prev === project.id ? null : prev))}
+                    onDrop={(e) => {
+                      if (!canDropOn(project.id)) return
+                      e.preventDefault()
+                      setDragOverProjectId(null)
+                      handleDropOnItem(project.id)
+                    }}
+                  >
+                    <BookmarkGroupHeader
+                      bookmark={project}
+                      childCount={children.length}
+                      thumb={children[0]?.thumb ?? null}
+                      showThumbnail={isCollapsed}
+                      isCollapsed={isCollapsed}
+                      onToggleCollapse={() => toggleGroupCollapse(project.id)}
+                      isActive={activeBookmarkId === project.id}
+                      editMode={editMode}
                       editId={editId}
                       editName={editName}
                       isSaving={isSaving}
@@ -329,10 +612,38 @@ export const BookmarksSection: React.FC<{
                       onCancelEdit={() => setEditId(null)}
                       onSaveChild={saveBookmark}
                       onDelete={handleDelete}
+                      onDragStartItem={handleDragStartItem}
+                      // Nothing to show below the header when it's collapsed
+                      // or has no children — otherwise the last child (below)
+                      // renders it instead, at the bottom of the open group.
+                      showDropIndicator={isDragOverProject && (isCollapsed || children.length === 0)}
                     />
-                  ))}
-                </div>
-              ))}
+                    {!isCollapsed && children.map((child, childIndex) => (
+                      <BookmarkRow
+                        key={child.id}
+                        bookmark={child}
+                        isChild
+                        isActive={activeBookmarkId === child.id}
+                        editMode={editMode}
+                        editId={editId}
+                        editName={editName}
+                        isSaving={isSaving}
+                        onRestore={handleRestore}
+                        onStartEdit={(bm) => { setEditId(bm.id); setEditName(bm.name) }}
+                        onEditNameChange={setEditName}
+                        onCommitRename={commitRename}
+                        onCancelEdit={() => setEditId(null)}
+                        onSaveChild={saveBookmark}
+                        onDelete={handleDelete}
+                        onDragStartItem={handleDragStartItem}
+                        onDropOnItem={handleDropOnItem}
+                        canDropOn={canDropOn}
+                        forceShowDropIndicator={isDragOverProject && childIndex === children.length - 1}
+                      />
+                    ))}
+                  </div>
+                )
+              })}
             </div>
             <div
               className="mx-auto mt-1 h-2 w-10 cursor-ns-resize touch-none rounded-full bg-border hover:bg-muted-foreground/50"

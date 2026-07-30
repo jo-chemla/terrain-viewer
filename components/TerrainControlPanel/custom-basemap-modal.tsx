@@ -2,7 +2,7 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
-import { ChevronDown, Link, Settings2, Expand } from "lucide-react"
+import { ChevronDown, Link, Settings2, Expand, Copy } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { SegmentedToggle } from "./controls-components"
 import { type CustomBasemapSource, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile } from "@/lib/local-file-store"
+import { copyToClipboard } from "@/lib/controls-utils"
 import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
 import { WmsPickerPanel } from "./wms-picker-panel"
 
@@ -192,21 +193,15 @@ export const CustomBasemapModal: React.FC<{
   if (type === "tms") helper_text = '/{z}/{x}/{y}.png'
   else if (type === "wms") helper_text = 'bbox={bbox-epsg-3857}'
   
-  // Only WMS URLs need this — re-serializing via `new URL(...).toString()` percent-
-  // encodes literal `{`/`}` characters, which would corrupt a TMS/XYZ/TileJSON URL's
-  // `{z}/{x}/{y}` placeholders (e.g. tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png
-  // failing to fetch because its braces got encoded to %7Bz%7D etc).
+  // Only WMS URLs need this. A plain string replace, not `new URL(...
+  // ).toString()` — re-serializing through the URL API percent-encodes every
+  // literal `{`/`}` in the ENTIRE url, not just the bbox value being
+  // normalized, which corrupted any `{z}/{x}/{y}`-style template elsewhere in
+  // the same url (e.g. a WMTS REST endpoint) into %7Bz%7D etc. Mirrors
+  // lib/wms-client.ts's own bbox-param rewrite.
   const normalizeBboxParam = (input: string) => {
     if (type !== "wms") return input
-    try {
-      const parsedUrl = new URL(input);
-      if (parsedUrl.searchParams.has("bbox")) {
-        parsedUrl.searchParams.set("bbox", "{bbox-epsg-3857}");
-      }
-      return parsedUrl.toString();
-    } catch {
-      return input;
-    }
+    return input.replace(/([?&]bbox=)[^&]*/i, "$1{bbox-epsg-3857}")
   };
 
   return (
@@ -316,7 +311,20 @@ export const CustomBasemapModal: React.FC<{
               ) : (
                 <div className="space-y-2">
                   <Label htmlFor="basemap-url">
-                    URL * {helper_text && <span className="select-text">(hint: {helper_text})</span>}
+                    URL * {helper_text && (
+                      <span className="select-text inline-flex items-center">
+                        (hint: {helper_text}
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(helper_text)}
+                          className="ml-1.5 cursor-pointer hover:opacity-70"
+                          title="Copy template"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                        )
+                      </span>
+                    )}
                   </Label>
                   <Input
                     id="basemap-url"

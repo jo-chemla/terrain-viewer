@@ -24,18 +24,20 @@ import {
   type ProjectExportSelection,
 } from "@/lib/project-export"
 
-// "localCogs" is a modifier of the Sources category (rendered as its own
-// nested checkbox below, only when there's actually a local file to bundle)
-// rather than a top-level category — excluded from CATEGORY_ORDER so it
-// doesn't get its own row in the main list or count toward "at least one
-// category checked".
-type Category = Exclude<keyof ProjectExportSelection, "localCogs">
+// "localCogs" and "bookmarkThumbsInZip" are modifiers of the Sources/
+// Bookmarks categories (each rendered as its own nested checkbox below, only
+// when relevant) rather than top-level categories — excluded from
+// CATEGORY_ORDER so neither gets its own row in the main list or counts
+// toward "at least one category checked".
+type Category = Exclude<keyof ProjectExportSelection, "localCogs" | "bookmarkThumbsInZip">
 
-const CATEGORY_ORDER: Category[] = ["sources", "bookmarks", "viewState", "drawings", "settings"]
+const CATEGORY_ORDER: Category[] = ["viewState", "sources", "bookmarks", "drawings", "settings"]
 const CATEGORY_LABELS: Record<Category, string> = {
   sources: "Sources", bookmarks: "Bookmarks", viewState: "View & Viz State", drawings: "Drawings", settings: "Settings",
 }
-const DEFAULT_SELECTION: ProjectExportSelection = { sources: true, bookmarks: true, viewState: true, drawings: false, settings: false, localCogs: false }
+const DEFAULT_SELECTION: ProjectExportSelection = {
+  sources: true, bookmarks: true, viewState: true, drawings: false, settings: false, localCogs: false, bookmarkThumbsInZip: false,
+}
 
 // Zip files start with a "PK" local-file-header signature — cheap way to
 // tell a .zip archive (project.json + optional .cog.tiff blobs) apart from
@@ -66,6 +68,7 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
   }), [customTerrainSources, customBasemapSources, bookmarks, drawingLayers, drawingFeatures])
 
   const localFileWarning = hasLocalFileSources({ customTerrainSources, customBasemapSources })
+  const hasBookmarkThumbs = bookmarks.some((b) => b.thumb)
 
   const toggle = (category: keyof ProjectExportSelection) => setSelection((prev) => ({ ...prev, [category]: !prev[category] }))
 
@@ -77,16 +80,15 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
     // the URL length limit.
     const viewState = window.location.search.replace(/^\?/, "")
     const archive = await buildProjectExportArchive(selection, { bookmarks, drawingLayers, drawingFeatures, viewState })
-    const zipped = selection.localCogs
     // `as BlobPart` — TS's DOM lib type for Blob's constructor wants a
     // Uint8Array<ArrayBuffer> specifically, but fflate's zipSync returns the
     // wider Uint8Array<ArrayBufferLike>; a plain Uint8Array is accepted by
     // Blob at runtime regardless, this is purely a type-level mismatch.
-    const blob = new Blob([archive.bytes as BlobPart], { type: zipped ? "application/zip" : "application/json" })
+    const blob = new Blob([archive.bytes as BlobPart], { type: archive.isZip ? "application/zip" : "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `terrain-viewer-project-${Date.now()}.${zipped ? "zip" : "json"}`
+    a.download = `terrain-viewer-project-${Date.now()}.${archive.isZip ? "zip" : "json"}`
     a.click()
     URL.revokeObjectURL(url)
     setStatus(
@@ -175,43 +177,66 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
 
               <div className="space-y-3">
                 {CATEGORY_ORDER.map((category) => (
-                  <div key={category} className="flex items-start gap-2">
-                    <Checkbox
-                      id={`export-${category}`}
-                      checked={selection[category]}
-                      onCheckedChange={() => toggle(category)}
-                      className="mt-0.5 cursor-pointer"
-                    />
-                    <div className="min-w-0">
-                      <Label htmlFor={`export-${category}`} className="cursor-pointer">{CATEGORY_LABELS[category]}</Label>
-                      <p className="text-xs text-muted-foreground">{counts[category]}</p>
+                  <div key={category}>
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        id={`export-${category}`}
+                        checked={selection[category]}
+                        onCheckedChange={() => toggle(category)}
+                        className="mt-0.5 cursor-pointer"
+                      />
+                      <div className="min-w-0">
+                        <Label htmlFor={`export-${category}`} className="cursor-pointer">{CATEGORY_LABELS[category]}</Label>
+                        <p className="text-xs text-muted-foreground">{counts[category]}</p>
+                      </div>
                     </div>
+
+                    {category === "sources" && selection.sources && localFileWarning && (
+                      <div className="mt-2 space-y-2 pl-6">
+                        <div className="flex items-start gap-2">
+                          <Checkbox
+                            id="export-localCogs"
+                            checked={selection.localCogs}
+                            onCheckedChange={() => toggle("localCogs")}
+                            className="mt-0.5 cursor-pointer"
+                          />
+                          <div className="min-w-0">
+                            <Label htmlFor="export-localCogs" className="cursor-pointer">Include local COG files</Label>
+                            <p className="text-xs text-muted-foreground">Bundles each local file's raw bytes as a .zip — larger download, but re-importable elsewhere without re-selecting files.</p>
+                          </div>
+                        </div>
+                        {!selection.localCogs && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            One or more sources reference a locally-picked file — only the source's settings travel unless you check the
+                            box above; otherwise you'll need to re-select the file after importing elsewhere.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {category === "bookmarks" && selection.bookmarks && hasBookmarkThumbs && !selection.localCogs && (
+                      <div className="mt-2 space-y-2 pl-6">
+                        <div className="flex items-start gap-2">
+                          <Checkbox
+                            id="export-bookmarkThumbsInZip"
+                            checked={selection.bookmarkThumbsInZip}
+                            onCheckedChange={() => toggle("bookmarkThumbsInZip")}
+                            className="mt-0.5 cursor-pointer"
+                          />
+                          <div className="min-w-0">
+                            <Label htmlFor="export-bookmarkThumbsInZip" className="cursor-pointer">Bookmark thumbnails as a .zip</Label>
+                            <p className="text-xs text-muted-foreground">
+                              {selection.bookmarkThumbsInZip
+                                ? "Thumbnails travel as separate files in a bookmarks_thumbs/ folder instead of inlined base64."
+                                : "Thumbnails stay inlined as base64 in project.json — check this to externalize them into a .zip instead."}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-
-              {selection.sources && localFileWarning && (
-                <div className="space-y-2 pl-6">
-                  <div className="flex items-start gap-2">
-                    <Checkbox
-                      id="export-localCogs"
-                      checked={selection.localCogs}
-                      onCheckedChange={() => toggle("localCogs")}
-                      className="mt-0.5 cursor-pointer"
-                    />
-                    <div className="min-w-0">
-                      <Label htmlFor="export-localCogs" className="cursor-pointer">Include local COG files</Label>
-                      <p className="text-xs text-muted-foreground">Bundles each local file's raw bytes as a .zip — larger download, but re-importable elsewhere without re-selecting files.</p>
-                    </div>
-                  </div>
-                  {!selection.localCogs && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      One or more sources reference a locally-picked file — only the source's settings travel unless you check the
-                      box above; otherwise you'll need to re-select the file after importing elsewhere.
-                    </p>
-                  )}
-                </div>
-              )}
 
               <Button
                 variant="outline"
