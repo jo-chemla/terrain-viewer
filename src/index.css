@@ -226,9 +226,26 @@
    override surface is visible in one place.
    ============================================================ */
 
+/* var(--radius) (not a fixed value) so switching color presets with very
+   square (e.g. neo-brutalism, radius 0) or very round (e.g. soft-pop)
+   corners actually carries over to these controls instead of always
+   showing the same fixed rounding regardless of the active preset. */
 .maplibregl-ctrl-group,
 .maplibregl-ctrl-geocoder {
-  border-radius: 0.25rem !important;
+  border-radius: var(--radius) !important;
+}
+
+/* Vendor hardcodes this to a plain white background — unlike the geocoder
+   below (which already reads --card), the zoom/compass/geolocate group
+   never picked up the active theme/preset's own card color outside of
+   dark mode, so it always looked like plain white even when the search
+   box next to it correctly matched the theme. */
+.maplibregl-ctrl-group {
+  background-color: var(--card);
+}
+
+.maplibregl-ctrl-group button:hover {
+  background-color: var(--accent);
 }
 
 /* Zoom in/out, compass, and geolocate icons are portaled real lucide-react
@@ -288,7 +305,7 @@
 .maplibregl-ctrl-geocoder--input {
   background-color: transparent !important;
   color: var(--foreground) !important;
-  border-radius: 0.25rem !important;
+  border-radius: var(--radius) !important;
   height: 32px !important;
   padding: 6px 32px !important;
 }
@@ -302,7 +319,7 @@
 }
 
 .maplibregl-ctrl-geocoder .suggestions {
-  border-radius: 0.25rem !important;
+  border-radius: var(--radius) !important;
   background-color: var(--card);
 }
 
@@ -398,33 +415,19 @@
 }
 
 /* ── Dark mode ──────────────────────────────────────────────────────── */
+/* Background/border-radius above already read --card/--radius directly, so
+   they carry over to dark mode automatically — no separate override
+   needed. Only things that are genuinely dark-specific live here. */
 
-.dark .maplibregl-ctrl-group,
-.dark .maplibregl-ctrl-geocoder {
-  background-color: var(--card) !important;
-  border-color: var(--border) !important;
-}
-
-/* Group buttons and the geocoder input are already `background:
-   transparent` above (inheriting their container's --card), so only
-   text color needs a dark override here — not background-color. */
 .dark .maplibregl-ctrl-group button,
 .dark .maplibregl-ctrl-geocoder input {
   color: var(--foreground) !important;
-}
-
-.dark .maplibregl-ctrl-group button:hover {
-  background-color: var(--accent) !important;
 }
 
 /* Divider line between stacked zoom in/out buttons — vendor hardcodes
    #ddd, invisible against a dark group background. */
 .dark .maplibregl-ctrl-group button + button {
   border-top-color: var(--border) !important;
-}
-
-.dark .maplibregl-ctrl-geocoder .suggestions {
-  background-color: var(--card);
 }
 
 .dark .maplibregl-ctrl-geocoder .suggestions > li > a {
