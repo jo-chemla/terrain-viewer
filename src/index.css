@@ -310,43 +310,90 @@
   padding: 6px 32px !important;
 }
 
-.maplibregl-ctrl-geocoder--icon-search {
-  fill: var(--muted-foreground);
+/* Search/clear glyphs: the vendor's own bold filled path (baked into the
+   svg's innerHTML, see maplibre-gl-geocoder's createIcon()) doesn't match
+   the thin currentColor-stroke lucide icons used everywhere else in the app
+   (NavigationControlThemed, GeolocateControlThemed) — hidden entirely here,
+   with a real lucide <Search>/<X> portaled by GeocoderControl.tsx into each
+   icon's plain HTML parent (the container div for search, the clear button
+   for close) instead. A nested lucide <svg> inside the vendor's own <svg>
+   was tried first, but percentage-based sizing/positioning on a *nested*
+   svg resolves against its immediate SVG parent's viewBox coordinate space
+   rather than its rendered pixel box, which pushed the icon off toward a
+   corner — portaling into an ordinary HTML element sidesteps that
+   entirely and behaves exactly like the other themed controls. */
+.maplibregl-ctrl-geocoder--icon-search,
+.maplibregl-ctrl-geocoder--icon-close {
+  display: none;
 }
 
-.maplibregl-ctrl-geocoder--icon-close {
-  fill: var(--muted-foreground);
+.geocoder-search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+/* Mirrors .geocoder-collapsed's own centering of the vendor search icon
+   (below) now that our portaled icon is what needs to move to the middle
+   of the collapsed 29x29 button instead. */
+.maplibregl-ctrl-geocoder.geocoder-collapsed .geocoder-search-icon {
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 /* Clear (×) button: vendor hardcodes its background to a plain #fff with no
-   dark-mode variant, and hardcodes its own hover fill (`#909090`) on the
-   icon inside — both bypass every other themed control's --card/--accent
+   dark-mode variant — bypasses every other themed control's --card/--accent
    tokens, so this reads as mismatched (a bright white square in dark mode,
-   or any colored preset's card ever being non-white) and generic-grey on
-   hover instead of the app's own hover color. */
+   or any colored preset's card ever being non-white). No `display` here —
+   the button's actual shown/hidden/flex state is fully decided below (by
+   vendor's own higher-specificity `display: none` at rest, and by this
+   file's `!important` override once there's a result to clear), so setting
+   it here too would just be dead weight always losing that cascade. */
 .maplibregl-ctrl-geocoder--button {
   background-color: var(--card);
+  color: var(--muted-foreground);
+  align-items: center;
+  justify-content: center;
+  /* Vendor never resets this — left at the UA default, some browsers paint
+     a native button "pressed/hover" chrome underneath our own background
+     on top of a plain unstyled <button>, which can read as an odd invert-
+     like flash on hover. */
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .maplibregl-ctrl-geocoder--button:hover {
   background-color: var(--accent);
+  color: var(--accent-foreground);
 }
 
-.maplibregl-ctrl-geocoder--button:hover .maplibregl-ctrl-geocoder--icon-close {
-  fill: var(--accent-foreground);
+/* Vendor's own fixed top:7px (tuned for its own ~50px-tall default input)
+   sits visibly above center in our 32px-tall input (see
+   .maplibregl-ctrl-geocoder--input above) — top:50% + a matching
+   translateY recenters it regardless of input height. Targets `> *`
+   (not just the button) since the loading spinner is this same pin-right
+   container's other child and needs the identical treatment. */
+.maplibregl-ctrl-geocoder--pin-right > * {
+  top: 50% !important;
+  transform: translateY(-50%);
 }
 
 /* Vendor's own JS actively fights the theming above: picking a result
    (`_onChange`) sets this button's inline `display: none`, and a
    `mouseenter`/`mouseleave` pair on the container only flips it back to
-   `block` while the cursor happens to be over the control — so right after
-   selecting a result the clear button is invisible until hovered.
-   `!important` is required to beat that inline style. Scoped to
-   `:not(:placeholder-shown)` (the input always carries a real `placeholder`
-   attribute, set by MaplibreGeocoder itself in setPlaceholder()) so a still-
-   empty input doesn't show a clear button with nothing to clear. */
+   inline `display: block` while the cursor happens to be over the control —
+   so right after selecting a result the clear button is invisible until
+   hovered. `!important` is required to beat that inline style (a plain,
+   non-!important `display` here would lose to it regardless of selector
+   specificity). Scoped to `:not(:placeholder-shown)` (the input always
+   carries a real `placeholder` attribute, set by MaplibreGeocoder itself in
+   setPlaceholder()) so a still-empty input doesn't show a clear button with
+   nothing to clear. */
 .maplibregl-ctrl-geocoder--input:not(:placeholder-shown) ~ .maplibregl-ctrl-geocoder--pin-right .maplibregl-ctrl-geocoder--button {
-  display: block !important;
+  display: flex !important;
 }
 
 .maplibregl-ctrl-geocoder .suggestions {
@@ -407,18 +454,6 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
-}
-
-/* The vendor CSS positions this icon with a fixed top/left (tuned for its
-   own default input height, and overridden again at its own mobile
-   breakpoint) — neither offset happens to center a 20-23px icon inside our
-   29px square button. Centering via top/left 50% + translate is robust to
-   whichever of the vendor's own sizes actually applies, rather than
-   hardcoding pixel offsets that only match one of them. */
-.maplibregl-ctrl-geocoder.geocoder-collapsed .maplibregl-ctrl-geocoder--icon-search {
-  top: 50% !important;
-  left: 50% !important;
-  transform: translate(-50%, -50%);
 }
 
 .maplibregl-ctrl-top-left .maplibregl-ctrl {

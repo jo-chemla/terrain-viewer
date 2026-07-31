@@ -1,7 +1,9 @@
 /* global fetch */
 import * as React from 'react';
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useControl, Marker, MarkerProps, ControlPosition } from 'react-map-gl/maplibre';
+import { Search, X } from 'lucide-react';
 import MaplibreGeocoder, {
   MaplibreGeocoderApi,
   MaplibreGeocoderOptions,
@@ -235,6 +237,14 @@ export default function GeocoderControl({
 }: GeocoderControlProps) {
 
   const [markerEl, setMarkerEl] = useState<React.ReactNode>(null);
+  // Vendor's search/clear glyphs are bold filled paths baked into their own
+  // svgs' innerHTML (see maplibre-gl-geocoder's createIcon()), unlike the
+  // thin currentColor-stroke lucide icons used everywhere else in the app —
+  // those vendor svgs are hidden via CSS (src/index.css) and a real lucide
+  // <Search>/<X> is portaled into each icon's plain HTML parent instead
+  // (the container div for search, the clear button for close), same
+  // technique as NavigationControlThemed/GeolocateControlThemed.
+  const [icons, setIcons] = useState<{ container?: HTMLElement; clearButton?: HTMLElement }>({});
 
   const geocoder = useControl<MaplibreGeocoder>(
     ({ mapLib }) => {
@@ -383,6 +393,10 @@ export default function GeocoderControl({
           inputEl?.focus();
         });
         setExpanded(false);
+        setIcons({
+          container,
+          clearButton: container.querySelector<HTMLElement>(".maplibregl-ctrl-geocoder--button") ?? undefined,
+        });
         return container;
       };
 
@@ -430,5 +444,11 @@ export default function GeocoderControl({
     }
   }
 
-  return markerEl;
+  return (
+    <>
+      {markerEl}
+      {icons.container && createPortal(<Search size={14} className="geocoder-search-icon" />, icons.container)}
+      {icons.clearButton && createPortal(<X size={14} />, icons.clearButton)}
+    </>
+  );
 }
