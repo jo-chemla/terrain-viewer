@@ -357,17 +357,20 @@
   color: var(--muted-foreground);
   align-items: center;
   justify-content: center;
-  /* Vendor never resets this — left at the UA default, some browsers paint
-     a native button "pressed/hover" chrome underneath our own background
-     on top of a plain unstyled <button>, which can read as an odd invert-
-     like flash on hover. */
+  /* Vendor never resets this — a normal reset against native OS button
+     chrome for a custom-styled <button>. */
   appearance: none;
   -webkit-appearance: none;
 }
 
+/* Background-only on hover — matches .maplibregl-ctrl-group button:hover
+   (NavigationControlThemed/GeolocateControlThemed), which never changes
+   icon color on hover either. Swapping both background AND icon color at
+   once (var(--card)/var(--muted-foreground) -> var(--accent)/
+   var(--accent-foreground) — two colors trading polarity together) reads
+   as an invert-filter flash rather than a normal hover highlight. */
 .maplibregl-ctrl-geocoder--button:hover {
   background-color: var(--accent);
-  color: var(--accent-foreground);
 }
 
 /* Vendor's own fixed top:7px (tuned for its own ~50px-tall default input)
