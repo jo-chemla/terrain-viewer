@@ -299,6 +299,18 @@
   transition: opacity 120ms ease;
 }
 
+/* The vendor CSS positions this icon with a fixed top/left (tuned for its
+   own default input height, and overridden again at its own mobile
+   breakpoint) — neither offset happens to center a 20-23px icon inside our
+   29px square button. Centering via top/left 50% + translate is robust to
+   whichever of the vendor's own sizes actually applies, rather than
+   hardcoding pixel offsets that only match one of them. */
+.maplibregl-ctrl-geocoder.geocoder-collapsed .maplibregl-ctrl-geocoder--icon-search {
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%);
+}
+
 .maplibregl-ctrl-geocoder input {
   height: 32px !important;
   padding: 6px 32px !important;
