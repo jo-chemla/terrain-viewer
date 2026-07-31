@@ -2,7 +2,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import { useControl } from "react-map-gl/maplibre"
 import { GeolocateControl as MaplibreGeolocateControl, type GeolocateControlOptions } from "maplibre-gl"
-import { LocateFixed } from "lucide-react"
+import { Locate } from "lucide-react"
 import type { ControlPosition } from "react-map-gl/maplibre"
 
 interface GeolocateControlThemedProps extends GeolocateControlOptions {
@@ -34,5 +34,5 @@ export default function GeolocateControlThemed({ position, ...options }: Geoloca
     { position }
   )
 
-  return iconEl ? createPortal(<LocateFixed size={16} />, iconEl) : null
+  return iconEl ? createPortal(<Locate size={16} />, iconEl) : null
 }

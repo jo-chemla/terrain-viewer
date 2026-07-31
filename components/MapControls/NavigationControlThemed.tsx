@@ -2,7 +2,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import { useControl } from "react-map-gl/maplibre"
 import { NavigationControl as MaplibreNavigationControl } from "maplibre-gl"
-import { Plus, Minus, Navigation } from "lucide-react"
+import { Plus, Minus, Navigation2 } from "lucide-react"
 import type { ControlPosition } from "react-map-gl/maplibre"
 
 interface NavigationControlThemedProps {
@@ -59,7 +59,7 @@ export default function NavigationControlThemed({
     <>
       {icons.zoomIn && createPortal(<Plus size={16} />, icons.zoomIn)}
       {icons.zoomOut && createPortal(<Minus size={16} />, icons.zoomOut)}
-      {icons.compass && createPortal(<Navigation size={16} />, icons.compass)}
+      {icons.compass && createPortal(<Navigation2 size={16} />, icons.compass)}
     </>
   )
 }
