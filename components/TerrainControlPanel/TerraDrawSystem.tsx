@@ -1723,10 +1723,10 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
             </div>
 
             <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer flex-1 min-w-0" title="Import GeoJSON, KML, or GeoPackage">
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer flex-[2] min-w-0" title="Import GeoJSON, KML, or GeoPackage">
                     <Upload className="h-4 w-4 mr-1 shrink-0" /> <span className="truncate">Import</span>
                 </Button>
-                <div className="flex flex-1 min-w-0">
+                <div className="flex flex-[3] min-w-0">
                     <Button
                         variant="outline"
                         size="sm"

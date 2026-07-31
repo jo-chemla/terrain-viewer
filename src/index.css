@@ -275,9 +275,14 @@
      a cross-origin stylesheet, so its rules can't be introspected from JS,
      but the browser still applies it, clamping width/max-width right back
      up to 240px without this. */
-  min-width: 36px !important;
-  width: 36px !important;
-  max-width: 36px !important;
+  /* 29x29 matches maplibre's own .maplibregl-ctrl-group button size exactly
+     (not the 32px input height used while expanded), so the collapsed
+     search icon reads as just another native control button rather than an
+     oddly-sized one next to +/- zoom and geolocate. */
+  min-width: 29px !important;
+  width: 29px !important;
+  max-width: 29px !important;
+  height: 29px !important;
   overflow: hidden;
   cursor: pointer;
   background-color: #fff;
