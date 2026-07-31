@@ -318,6 +318,37 @@
   fill: var(--muted-foreground);
 }
 
+/* Clear (×) button: vendor hardcodes its background to a plain #fff with no
+   dark-mode variant, and hardcodes its own hover fill (`#909090`) on the
+   icon inside — both bypass every other themed control's --card/--accent
+   tokens, so this reads as mismatched (a bright white square in dark mode,
+   or any colored preset's card ever being non-white) and generic-grey on
+   hover instead of the app's own hover color. */
+.maplibregl-ctrl-geocoder--button {
+  background-color: var(--card);
+}
+
+.maplibregl-ctrl-geocoder--button:hover {
+  background-color: var(--accent);
+}
+
+.maplibregl-ctrl-geocoder--button:hover .maplibregl-ctrl-geocoder--icon-close {
+  fill: var(--accent-foreground);
+}
+
+/* Vendor's own JS actively fights the theming above: picking a result
+   (`_onChange`) sets this button's inline `display: none`, and a
+   `mouseenter`/`mouseleave` pair on the container only flips it back to
+   `block` while the cursor happens to be over the control — so right after
+   selecting a result the clear button is invisible until hovered.
+   `!important` is required to beat that inline style. Scoped to
+   `:not(:placeholder-shown)` (the input always carries a real `placeholder`
+   attribute, set by MaplibreGeocoder itself in setPlaceholder()) so a still-
+   empty input doesn't show a clear button with nothing to clear. */
+.maplibregl-ctrl-geocoder--input:not(:placeholder-shown) ~ .maplibregl-ctrl-geocoder--pin-right .maplibregl-ctrl-geocoder--button {
+  display: block !important;
+}
+
 .maplibregl-ctrl-geocoder .suggestions {
   border-radius: var(--radius) !important;
   background-color: var(--card);
@@ -438,14 +469,6 @@
 .dark .maplibregl-ctrl-geocoder .suggestions > li > a:hover {
   background-color: var(--accent);
   color: var(--accent-foreground);
-}
-
-/* The vendor CSS hardcodes .maplibregl-ctrl-geocoder--button (the "clear
-   input" X) to a plain white background with no dark-mode variant of its
-   own — left alone, it stays a bright white square sitting inside an
-   otherwise dark input in dark mode. */
-.dark .maplibregl-ctrl-geocoder--button {
-  background-color: var(--card) !important;
 }
 
 /* GEOGRID */
