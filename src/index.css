@@ -255,7 +255,6 @@
   font-size: 14px !important;
   font-family: var(--default-font-family);
   transition: width 180ms ease;
-  overflow: hidden;
 }
 
 /* Expanding search (GeocoderControl.tsx toggles this class) — collapsed to
@@ -265,7 +264,11 @@
    for one control). The icon itself is a plain absolutely-positioned SVG from
    the geocoder's own markup (no button element), so the click-to-expand
    affordance is a plain `cursor: pointer` + a JS click listener on the
-   container in GeocoderControl.tsx, not a CSS-only interaction. */
+   container in GeocoderControl.tsx, not a CSS-only interaction.
+   `overflow: hidden` is scoped to JUST this collapsed variant, never the
+   base rule above — the suggestions dropdown (.suggestions-wrapper) is a
+   child of this same container and needs to overflow below the input box
+   to be visible at all while expanded. */
 .maplibregl-ctrl-geocoder.geocoder-collapsed {
   /* min-width override is load-bearing: the vendor's own CDN-loaded
      maplibre-gl-geocoder.css sets `min-width: 240px` on this same class —
@@ -275,7 +278,13 @@
   min-width: 36px !important;
   width: 36px !important;
   max-width: 36px !important;
+  overflow: hidden;
   cursor: pointer;
+  background-color: #fff;
+}
+
+.dark .maplibregl-ctrl-geocoder.geocoder-collapsed {
+  background-color: oklch(0.145 0 0);
 }
 
 .maplibregl-ctrl-geocoder.geocoder-collapsed .maplibregl-ctrl-geocoder--input,
