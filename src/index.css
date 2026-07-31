@@ -376,6 +376,18 @@
   color: hsl(var(--foreground));
 }
 
+/* The vendor CSS hardcodes .maplibregl-ctrl-geocoder--button (the "clear
+   input" X) to a plain white background with no dark-mode variant of its
+   own — left alone, it stays a bright white square sitting inside an
+   otherwise dark input in dark mode. */
+.dark .maplibregl-ctrl-geocoder--button {
+  background-color: oklch(0.145 0 0) !important;
+}
+
+.dark .maplibregl-ctrl-geocoder--icon-close {
+  fill: oklch(0.708 0 0);
+}
+
 /* Map control groups */
 .maplibregl-ctrl-group {
   border-radius: var(--radius) !important;
