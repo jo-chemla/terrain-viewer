@@ -13,7 +13,7 @@ import { SphericalXYPad } from "./XYPad"
 import { useDebouncedState, useDebouncedLightDir } from "./use-debounced-state"
 import { cn } from "@/lib/utils"
 import { activeSliderAtom } from "@/lib/settings-atoms"
-import { solarPosition, dayLength, formatDayOfYear, formatHour, dayOfYearToDate, dayOfYearFromDate } from "@/lib/solar-position"
+import { solarPosition, inverseSunPosition, dayLength, formatDayOfYear, formatHour, dayOfYearToDate, dayOfYearFromDate } from "@/lib/solar-position"
 import { utcOffsetHoursAt, utcInstantForDayOfYear } from "@/lib/timezone"
 
 const SEG_WIDTH = "w-[200px]"
@@ -82,11 +82,17 @@ const LightSlider: React.FC<{
 // share the same "Free vs Datetime" mode and day/time state (lightUseDatetime/
 // lightDayOfYear/lightTimeOfDay) rather than each keeping an independent copy.
 //
-// "Free": drag the pad to set azimuth + elevation directly.
-// "Datetime": solarPosition() (plus the viewport-center lat/lng) computes a
-// physically-plausible sun azimuth + altitude for a day-of-year + time-of-day,
-// written into illuminationDir/illuminationAlt — the pad then just displays
-// the result (read-only, greyed out) instead of accepting drags.
+// "Free": drag the pad to set azimuth + elevation directly. No Date/Time
+// sliders are shown, so the caption under the pad is the only place the
+// back-solved closest-matching day/time shows up.
+// "Datetime": a full bidirectional binding between the Date/Time sliders and
+// the pad — moving a slider computes the matching sun azimuth/altitude
+// forward via solarPosition() (see sunToIllum below) and updates the pad;
+// dragging the pad instead back-solves the closest matching day/time via
+// inverseSunPosition and updates the sliders. Both directions write into the
+// SAME shared illuminationDir/illuminationAlt/lightDayOfYear/lightTimeOfDay
+// fields, so whichever control the user touches last is the one "driving" —
+// there's no separate read-only/write-only state to reconcile.
 export const LightDirectionControl: React.FC<{
   state: any; setState: (updates: any) => void
   sliderId: string
@@ -94,10 +100,6 @@ export const LightDirectionControl: React.FC<{
   padWidth?: number; padHeight?: number
   azimuthRange?: [number, number]; elevationRange?: [number, number]
   fixedAzimuth?: number | null; fixedElevation?: number | null
-  // Hides the Free/Datetime mode toggle and keeps the light pinned to
-  // Datetime — for callers (Sun Shadow Calculator) where a freely-dragged
-  // light direction wouldn't correspond to any real date/time/place.
-  forceDatetime?: boolean
   // Granularity of the Time slider/popover — Hillshade/Phong default to
   // quarter-hour steps, but a precise tool (Sun Shadow Calculator) wants
   // real minute precision.
@@ -112,19 +114,20 @@ export const LightDirectionControl: React.FC<{
   padWidth = 200, padHeight = 200,
   azimuthRange = [0, 360], elevationRange = [0, 90],
   fixedAzimuth = null, fixedElevation = null,
-  forceDatetime = false,
   timeStepMinutes = 15,
   padFoldable = false,
 }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
-  const [showPad, setShowPad] = useState(!padFoldable)
+  // Expanded by default even when foldable — padFoldable only controls
+  // whether the fold toggle exists at all, not the pad's initial visibility.
+  const [showPad, setShowPad] = useState(true)
   const dimWhenSliding = cn("transition-opacity duration-150", activeSlider !== null && "opacity-20")
 
-  const [lightDir, setLightDir] = useDebouncedLightDir(
-    state.illuminationDir, state.illuminationAlt,
-    useCallback((v: { azimuthDeg: number; elevationDeg: number }) => setState({ illuminationDir: v.azimuthDeg, illuminationAlt: v.elevationDeg }), [setState]),
-    debounceMs,
-  )
+  // Granularity the Time slider/setter/popover all agree on — quarter-hour by
+  // default (Hillshade/Phong), or down to real minutes for a precise caller.
+  // Computed up front since both lightDir's inverse-lookup below and the
+  // Date/Time setters further down need it.
+  const stepsPerHour = 60 / timeStepMinutes
 
   // state.lightTimeOfDay ("uiHour") is displayed/edited in whichever clock
   // convention state.lightTimeMode picks — "utc" (raw UTC) or "local" (the
@@ -148,6 +151,29 @@ export const LightDirectionControl: React.FC<{
     return wrap24(solarHour - state.lng / 15 + offsetH)
   }, [state.lat, state.lng])
 
+  const [lightDir, setLightDir] = useDebouncedLightDir(
+    state.illuminationDir, state.illuminationAlt,
+    useCallback((v: { azimuthDeg: number; elevationDeg: number }) => {
+      // A dragged direction isn't set FROM a date/time, but it still
+      // corresponds — generically twice a year — to a real sun position.
+      // Back-solve the closest matching day/time (see inverseSunPosition's
+      // own doc comment for the two-solution/closest-match reasoning) and
+      // write it alongside the direction itself, in BOTH modes: in Datetime
+      // mode this is what keeps the Date/Time sliders in sync with a pad
+      // drag (the other direction — sliders driving the pad — is sunToIllum
+      // below), and in Free mode it's the only place the equivalent day/time
+      // shows up at all (the caption below the pad).
+      const inv = inverseSunPosition(state.lat, v.azimuthDeg, v.elevationDeg, state.lightDayOfYear)
+      setState({
+        illuminationDir: v.azimuthDeg,
+        illuminationAlt: v.elevationDeg,
+        lightDayOfYear: inv.dayOfYear,
+        lightTimeOfDay: Math.round(uiHourFromSolarHour(inv.dayOfYear, inv.hourLocalSolar, state.lightTimeMode) * stepsPerHour) / stepsPerHour,
+      })
+    }, [setState, state.lat, state.lightDayOfYear, state.lightTimeMode, uiHourFromSolarHour, stepsPerHour]),
+    debounceMs,
+  )
+
   // sunToIllum computes the (azimuth, altitude) pair for a given day+uiHour so
   // the Date/Time setters can write the day/time AND the resulting light
   // direction in ONE setState — a single re-render / terrain re-drape instead
@@ -170,9 +196,6 @@ export const LightDirectionControl: React.FC<{
     }, [setState, sunToIllum, state.lightUseDatetime, state.lightTimeOfDay]),
     debounceMs,
   )
-  // Granularity the Time slider/setter/popover all agree on — quarter-hour by
-  // default (Hillshade/Phong), or down to real minutes for a precise caller.
-  const stepsPerHour = 60 / timeStepMinutes
   const [timeOfDay, setTimeOfDay] = useDebouncedState(
     state.lightTimeOfDay,
     useCallback((v: number) => {
@@ -217,29 +240,20 @@ export const LightDirectionControl: React.FC<{
     }
   }, [state.lightUseDatetime, sunToIllum, state.lightDayOfYear, state.lightTimeOfDay, state.illuminationDir, state.illuminationAlt, setState])
 
-  // forceDatetime callers (Sun Shadow Calculator) have no use for a freely
-  // dragged light — pin the shared mode to Datetime for as long as this
-  // instance is mounted.
-  useEffect(() => {
-    if (forceDatetime && !state.lightUseDatetime) setState({ lightUseDatetime: true })
-  }, [forceDatetime, state.lightUseDatetime, setState])
-
   return (
     <div className="space-y-3">
-      {!forceDatetime && (
-        <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
-          <Label className="text-sm font-medium">Mode</Label>
-          <SegmentedToggle
-            className={SEG_WIDTH}
-            value={state.lightUseDatetime ? "datetime" : "free"}
-            onChange={(value) => setState({ lightUseDatetime: value === "datetime" })}
-            options={[
-              { value: "free", label: "Free", tooltip: "Drag the pad to set any light azimuth + elevation freely." },
-              { value: "datetime", label: "Datetime", tooltip: "Derive the light from the sun's position for a day + time at the viewport-center latitude/longitude." },
-            ]}
-          />
-        </div>
-      )}
+      <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+        <Label className="text-sm font-medium">Mode</Label>
+        <SegmentedToggle
+          className={SEG_WIDTH}
+          value={state.lightUseDatetime ? "datetime" : "free"}
+          onChange={(value) => setState({ lightUseDatetime: value === "datetime" })}
+          options={[
+            { value: "free", label: "Free", tooltip: "Drag the pad to set any light azimuth + elevation freely — the closest matching day/time is back-solved and shown below the pad." },
+            { value: "datetime", label: "Datetime", tooltip: "Set the day + time with the sliders, or drag the pad directly — either one updates the other, using the viewport-center latitude/longitude." },
+          ]}
+        />
+      </div>
 
       {state.lightUseDatetime && (
         <div className="space-y-3">
@@ -350,7 +364,7 @@ export const LightDirectionControl: React.FC<{
                       const rebasedUiHour = Math.round(uiHourFromSolarHour(state.lightDayOfYear, solarHour, mode) * stepsPerHour) / stepsPerHour
                       setState({ lightTimeMode: mode, lightTimeOfDay: rebasedUiHour })
                     }}
-                    className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+                    className="cursor-pointer"
                   />
                   <Label className="text-xs text-muted-foreground">UTC</Label>
                 </div>
@@ -370,28 +384,30 @@ export const LightDirectionControl: React.FC<{
           <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", showPad && "rotate-180")} />
         </button>
       )}
-      {/* In datetime mode the pad is a read-only visualization of the
-          computed sun direction (the sliders drive it), so pointer events are
-          disabled and it's greyed (desaturated + dimmed) to read as "display
-          only" while still showing the light direction. Shares `sliderId`
-          with the datetime sliders so it stays lit while they're edited. */}
+      {/* Fully interactive in both modes now — dragging it always writes
+          both the direction AND the back-solved day/time (see setLightDir
+          above), so in Datetime mode a drag updates the Date/Time sliders
+          in place rather than being a read-only display of them. Shares
+          `sliderId` with the datetime sliders so it stays lit while either
+          is being edited. */}
       {showPad && (
-        <div className={cn("flex flex-col items-center gap-1", state.lightUseDatetime && "pointer-events-none")}>
-          <div className={cn(state.lightUseDatetime && "opacity-60 grayscale")}>
-            <SphericalXYPad
-              width={padWidth}
-              height={padHeight}
-              azimuthRange={azimuthRange}
-              elevationRange={elevationRange}
-              sliderId={sliderId}
-              value={lightDir}
-              onChange={setLightDir}
-              fixedAzimuth={fixedAzimuth}
-              fixedElevation={fixedElevation}
-            />
-          </div>
-          {state.lightUseDatetime && (
-            <span className="text-[10px] text-muted-foreground italic">Set by date &amp; time · display only</span>
+        <div className="flex flex-col items-center gap-1">
+          <SphericalXYPad
+            width={padWidth}
+            height={padHeight}
+            azimuthRange={azimuthRange}
+            elevationRange={elevationRange}
+            sliderId={sliderId}
+            value={lightDir}
+            onChange={setLightDir}
+            fixedAzimuth={fixedAzimuth}
+            fixedElevation={fixedElevation}
+            sunEnvelopeLat={state.lightUseDatetime ? state.lat : undefined}
+          />
+          {!state.lightUseDatetime && (
+            <span className="text-[10px] text-muted-foreground italic">
+              ≈ {formatDayOfYear(state.lightDayOfYear)} · {formatHour(state.lightTimeOfDay)} {state.lightTimeMode === "utc" ? "UTC" : "local"} · closest match
+            </span>
           )}
         </div>
       )}

@@ -230,7 +230,6 @@ export const SunShadowCalculatorSection: React.FC<{
             setState={setState}
             sliderId="sun-shadow-calc"
             debounceMs={0}
-            forceDatetime
             timeStepMinutes={1}
             padFoldable
           />

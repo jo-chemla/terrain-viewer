@@ -1,8 +1,14 @@
-import { useState, useRef, useEffect, useContext } from "react";
+import { useState, useRef, useEffect, useContext, useMemo } from "react";
 import { useAtom } from "jotai"
 import { SectionIdContext } from "./controls-components"
 import { cn } from "@/lib/utils"
 import { transparentUiAtom, activeSliderAtom } from "@/lib/settings-atoms"
+import { yearlySunEnvelope, isSunPositionReachable, type AzElPoint } from "@/lib/solar-position"
+
+// Degrees of declination slack for the pill's unreachable-border check (see
+// isSunPositionReachable's own doc comment) — small enough to stay a "right
+// on the line" allowance, not a visible loosening of the actual boundary.
+const UNREACHABLE_TOLERANCE_DEG = 2;
 
 interface SphericalXYPadProps {
   width: number;
@@ -17,6 +23,16 @@ interface SphericalXYPadProps {
   sliderId?: string;
   fixedAzimuth?: number | null; // Fix azimuth to this value (degrees), allows only elevation changes
   fixedElevation?: number | null; // Fix elevation to this value (degrees), allows only azimuth changes
+  // Datetime-mode backdrop (see light-direction-control.tsx): when a latitude
+  // is given, hatches every position the sun can NEVER reach at that
+  // latitude, leaving the reachable lens plain — hatching the excluded area
+  // (rather than tinting the included one) reads unambiguously as "off
+  // limits," where a plain fill over the reachable area could just as easily
+  // be misread as "restricted" instead of "available." Also drives a live
+  // reachability check while dragging (see isUnreachable below): the pill's
+  // border turns destructive-red the moment the pointer is over a direction
+  // the real sun never actually reaches at this latitude.
+  sunEnvelopeLat?: number;
 }
 
 export function SphericalXYPad({
@@ -32,6 +48,7 @@ export function SphericalXYPad({
   sliderId = "xypad",
   fixedAzimuth = null,
   fixedElevation = null,
+  sunEnvelopeLat,
 }: SphericalXYPadProps) {
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
   
@@ -64,6 +81,17 @@ export function SphericalXYPad({
     }
     const az = ((90 - normalizedAz) * Math.PI) / 180;
     const el = (constrainedElevation * Math.PI) / 180;
+    const r = Math.cos(el);
+    return { x: r * Math.cos(az), y: -r * Math.sin(az) };
+  };
+
+  // Same projection as degToXY (r = cos(elevation), compass-to-math angle
+  // conversion) but without degToXY's fixedAzimuth/fixedElevation overrides —
+  // the sun-envelope backdrop below plots real astronomy, not the pad's own
+  // drag constraints.
+  const azElToXY = ({ azimuth, elevation }: AzElPoint) => {
+    const az = ((90 - azimuth) * Math.PI) / 180;
+    const el = (elevation * Math.PI) / 180;
     const r = Math.cos(el);
     return { x: r * Math.cos(az), y: -r * Math.sin(az) };
   };
@@ -165,6 +193,53 @@ export function SphericalXYPad({
     ? ((90 - fixedAzimuth) * Math.PI) / 180
     : null;
 
+  // Same normalized-xy → pixel mapping as pillX/pillY above, factored out so
+  // the sun-envelope path below uses the exact same coordinate frame (it'd
+  // otherwise silently drift out of alignment with the pill).
+  const toPx = (x: number, y: number) => ({
+    px: ((x + 1) / 2) * (width - 2 * margin) + margin,
+    py: ((y + 1) / 2) * (height - 2 * margin) + margin,
+  });
+
+  const sunEnvelope = useMemo(() => {
+    if (sunEnvelopeLat === undefined) return null;
+    const { upper, lower } = yearlySunEnvelope(sunEnvelopeLat);
+    if (!upper.length) return null;
+    const toPoint = (p: AzElPoint) => {
+      const { x, y } = azElToXY(p);
+      const { px, py } = toPx(x, y);
+      return `${px.toFixed(2)} ${py.toFixed(2)}`;
+    };
+    // The reachable lens itself, as a plain outline (no fill — the hatch
+    // below carries the visual weight, this is just a crisp boundary line).
+    const lensPath =
+      upper.map((p, i) => `${i === 0 ? "M" : "L"} ${toPoint(p)}`).join(" ") +
+      " " +
+      [...lower].reverse().map((p) => `L ${toPoint(p)}`).join(" ") +
+      " Z";
+    // Outer pad circle MINUS the lens, via fill-rule="evenodd": one subpath
+    // traces the full outer circle, the other traces the same lens polygon
+    // above — evenodd fills between the two (the unreachable area) and
+    // leaves the lens itself a genuine hole, rather than painting over it
+    // with a solid color that could mismatch the pad's own background.
+    const outerCirclePath = `M ${centerX + minElevationRadius} ${centerY} A ${minElevationRadius} ${minElevationRadius} 0 1 0 ${centerX - minElevationRadius} ${centerY} A ${minElevationRadius} ${minElevationRadius} 0 1 0 ${centerX + minElevationRadius} ${centerY} Z`;
+    return { lensPath, hatchPath: `${outerCirclePath} ${lensPath}` };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sunEnvelopeLat, width, height, margin]);
+
+  // Live "is this exact drag position ever reached by the real sun" check —
+  // O(1) closed-form test (see isSunPositionReachable's own doc comment),
+  // recomputed from the pill's own live (unconstrained) position, not the
+  // debounced `value` prop, so the red-border feedback below is instant.
+  // A small tolerance keeps the border primary right on/near the boundary
+  // (e.g. a value carried over from a slightly different latitude, or just
+  // float rounding) rather than flip-flopping red the instant it's a
+  // fraction of a degree past the true edge.
+  const currentDeg = xyToDeg(pos.x, pos.y);
+  const isUnreachable = sunEnvelopeLat !== undefined && !isSunPositionReachable(sunEnvelopeLat, currentDeg.azimuthDeg, currentDeg.elevationDeg, UNREACHABLE_TOLERANCE_DEG);
+
+  const hatchId = `sun-unreachable-hatch-${sliderId}`;
+
   return (
       <div
         ref={containerRef}
@@ -222,6 +297,22 @@ export function SphericalXYPad({
         />
       )}
 
+      {/* Datetime-mode sun backdrop: hatches the region the sun can NEVER
+          reach at this latitude (see light-direction-control.tsx), leaving
+          the reachable lens a plain hole — see sunEnvelope's own comment for
+          why hatching the excluded area, not tinting the included one. */}
+      {sunEnvelope && (
+        <svg className="absolute inset-0 pointer-events-none" style={{ width, height }}>
+          <defs>
+            <pattern id={hatchId} width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="6" stroke="var(--foreground)" strokeOpacity={0.35} strokeWidth={1} />
+            </pattern>
+          </defs>
+          <path d={sunEnvelope.hatchPath} fill={`url(#${hatchId})`} fillRule="evenodd" />
+          <path d={sunEnvelope.lensPath} fill="none" stroke="var(--foreground)" strokeOpacity={0.35} strokeWidth={1} />
+        </svg>
+      )}
+
       {/* Fixed elevation constraint circle */}
       {constraintCircleRadius !== null && (
         <div
@@ -274,9 +365,15 @@ export function SphericalXYPad({
         />
       </svg>
 
-      {/* Draggable pill */}
+      {/* Draggable pill — border turns destructive-red while the live drag
+          position is somewhere the real sun never reaches at this latitude
+          (see isUnreachable above), independent of the hatch fill so it's
+          readable even mid-drag before the hatch pattern registers visually. */}
       <div
-        className="absolute rounded-full bg-background border-2 border-primary shadow-sm hover:shadow-md transition-shadow pointer-events-none cursor-pointer"
+        className={cn(
+          "absolute rounded-full bg-background border-2 shadow-sm hover:shadow-md transition-shadow pointer-events-none cursor-pointer",
+          isUnreachable ? "border-destructive" : "border-primary",
+        )}
         style={{
           width: pillRadius * 2,
           height: pillRadius * 2,
