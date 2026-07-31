@@ -254,6 +254,35 @@
   max-width: 240px !important;
   font-size: 14px !important;
   font-family: var(--default-font-family);
+  transition: width 180ms ease;
+  overflow: hidden;
+}
+
+/* Expanding search (GeocoderControl.tsx toggles this class) — collapsed to
+   just the search icon until clicked/focused/typed into, per
+   https://www.interior.dev/docs/expanding-search's behavior model (reimplemented
+   with plain CSS transitions here rather than pulling in the "motion" library
+   for one control). The icon itself is a plain absolutely-positioned SVG from
+   the geocoder's own markup (no button element), so the click-to-expand
+   affordance is a plain `cursor: pointer` + a JS click listener on the
+   container in GeocoderControl.tsx, not a CSS-only interaction. */
+.maplibregl-ctrl-geocoder.geocoder-collapsed {
+  /* min-width override is load-bearing: the vendor's own CDN-loaded
+     maplibre-gl-geocoder.css sets `min-width: 240px` on this same class —
+     a cross-origin stylesheet, so its rules can't be introspected from JS,
+     but the browser still applies it, clamping width/max-width right back
+     up to 240px without this. */
+  min-width: 36px !important;
+  width: 36px !important;
+  max-width: 36px !important;
+  cursor: pointer;
+}
+
+.maplibregl-ctrl-geocoder.geocoder-collapsed .maplibregl-ctrl-geocoder--input,
+.maplibregl-ctrl-geocoder.geocoder-collapsed .maplibregl-ctrl-geocoder--pin-right {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
 }
 
 .maplibregl-ctrl-geocoder input {

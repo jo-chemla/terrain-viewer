@@ -304,6 +304,11 @@ export default function GeocoderControl({
       ctrl.on("result", evt => {
         selectFirstOnResults = false; // a manual pick supersedes a pending auto-select
         onResult(evt);
+        // A picked result sets _inputEl.value directly (both the library's own
+        // click-a-suggestion path and selectFirst() above) rather than typing
+        // it in, so it never fires a native "input" event — the listener
+        // below alone would miss "stay expanded once there's a result".
+        setExpanded(true);
 
         const { result } = evt;
         const location =
@@ -329,6 +334,51 @@ export default function GeocoderControl({
       // state exists — without this, clearing the input left the previous
       // result's marker/pill sitting on the map. It does emit "clear" though.
       ctrl.on("clear", () => setMarkerEl(null));
+
+      // ── Expanding search ──────────────────────────────────────────────────
+      // Collapsed to just the search icon (src/index.css's .geocoder-collapsed)
+      // until clicked, focused, typed into, or a result is picked — modeled on
+      // https://www.interior.dev/docs/expanding-search, reimplemented with a
+      // plain CSS width/opacity transition instead of pulling in the "motion"
+      // library for one control. `_inputEl`'s parent IS the
+      // `.maplibregl-ctrl-geocoder` container (see this file's other private-
+      // member reads above, e.g. `g._inputEl`/`g._typeahead`).
+      const geocoderEl = () => (ctrl as any)._inputEl?.parentElement as HTMLElement | undefined;
+      const setExpanded = (next: boolean) => {
+        geocoderEl()?.classList.toggle("geocoder-collapsed", !next);
+      };
+      // `_inputEl` doesn't exist yet here — MaplibreGeocoder only builds its
+      // DOM inside onAdd(map), which react-map-gl's useControl calls AFTER
+      // this factory returns `ctrl`. Wrapping onAdd (rather than attaching
+      // listeners directly in this factory) is what actually gets a real
+      // input element to attach to.
+      const originalOnAdd = ctrl.onAdd.bind(ctrl);
+      (ctrl as any).onAdd = (map: unknown) => {
+        const container = originalOnAdd(map as any);
+        const inputEl = (ctrl as any)._inputEl as HTMLInputElement | undefined;
+        inputEl?.addEventListener("focus", () => setExpanded(true));
+        inputEl?.addEventListener("input", () => {
+          if (inputEl.value.length > 0) setExpanded(true);
+        });
+        // Only collapses on blur while empty — picking a suggestion (mousedown
+        // on the list before blur) or clicking the Clear (×) button both blur
+        // the input too, so this is deferred just enough for either to finish
+        // first: a pick already called setExpanded(true) above by then, and a
+        // clear leaves the value genuinely empty, which should collapse.
+        inputEl?.addEventListener("blur", () => {
+          setTimeout(() => {
+            if (inputEl && inputEl.value.length === 0) setExpanded(false);
+          }, 150);
+        });
+        geocoderEl()?.addEventListener("click", () => {
+          if (!geocoderEl()?.classList.contains("geocoder-collapsed")) return;
+          setExpanded(true);
+          inputEl?.focus();
+        });
+        setExpanded(false);
+        return container;
+      };
+
       return ctrl;
     },
     {
