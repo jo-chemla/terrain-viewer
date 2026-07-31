@@ -231,6 +231,38 @@
   border-radius: 0.25rem !important;
 }
 
+/* Zoom in/out, compass, and geolocate icons are portaled real lucide-react
+   icons now (NavigationControlThemed.tsx / GeolocateControlThemed.tsx),
+   not the vendor's background-image data URIs — `background-image: none`
+   drops the original glyph, and `color` lets the portaled SVG (which uses
+   `stroke="currentColor"` like every other icon in the app) follow the
+   theme automatically in both light and dark, no separate .dark override
+   or invert() filter needed. The span itself is left alone as a flex
+   centering box; it's also the exact node maplibre-gl sets
+   `style.transform` on directly for compass rotation, so centering it here
+   doesn't fight that. */
+.maplibregl-ctrl-icon {
+  background-image: none !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  color: var(--foreground);
+}
+
+/* Geolocate's own state classes (set by maplibre-gl itself) still convey
+   meaning through color — active tracking is blue, a permission/position
+   error is red — independent of the app's theme so they read the same
+   regardless of which color preset is active. */
+.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active .maplibregl-ctrl-icon,
+.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-background .maplibregl-ctrl-icon {
+  color: #3b82f6;
+}
+
+.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active-error .maplibregl-ctrl-icon,
+.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-background-error .maplibregl-ctrl-icon {
+  color: #ef4444;
+}
+
 /* Geocoder container: matches --card/--foreground instead of the
    vendor's hardcoded #fff, and reuses .maplibregl-ctrl-group's own
    box-shadow ring (rather than a real `border`) so it reads as the
@@ -389,23 +421,6 @@
    #ddd, invisible against a dark group background. */
 .dark .maplibregl-ctrl-group button + button {
   border-top-color: var(--border) !important;
-}
-
-/* Vendor icons are background-image data URIs (not inline SVG/DOM
-   elements), so `fill`/`currentColor` can't reach them — inverting is
-   the only CSS-only way to flip their hardcoded dark-gray to something
-   visible on a dark control. Scoped away from geolocate's own
-   meaningful colored states (active/error) below, which keep their
-   real color instead of being inverted into something else. */
-.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
-  filter: invert(1) brightness(1.2);
-}
-
-.dark .maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active .maplibregl-ctrl-icon,
-.dark .maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active-error .maplibregl-ctrl-icon,
-.dark .maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-background .maplibregl-ctrl-icon,
-.dark .maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-background-error .maplibregl-ctrl-icon {
-  filter: none;
 }
 
 .dark .maplibregl-ctrl-geocoder .suggestions {

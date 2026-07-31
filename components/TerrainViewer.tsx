@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral, parseAsArrayOf } from "nuqs"
 import Map, {
-  NavigationControl,
-  GeolocateControl,
   type MapRef,
   ScaleControl,
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
+import NavigationControlThemed from "./MapControls/NavigationControlThemed"
+import GeolocateControlThemed from "./MapControls/GeolocateControlThemed"
 import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, DEFAULT_SHAPE_INDEX_CUSTOM_STOPS, rampSessionOverridesAtom, type CustomRampStop } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useSetAtom } from "jotai"
@@ -2292,10 +2292,10 @@ export function TerrainViewer() {
                 />
               )}
               {!activeProjectConfig?.hideMapControls?.includes("zoom") && (
-                <NavigationControl position="top-left" />
+                <NavigationControlThemed position="top-left" />
               )}
               {!activeProjectConfig?.hideMapControls?.includes("geolocate") && (
-                <GeolocateControl position="top-left" />
+                <GeolocateControlThemed position="top-left" />
               )}
 
               {!activeProjectConfig?.hideMapControls?.includes("scale") && (
