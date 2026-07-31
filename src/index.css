@@ -286,6 +286,12 @@
   overflow: hidden;
   cursor: pointer;
   background-color: #fff;
+  /* Matches .maplibregl-ctrl-group's own outline exactly (a box-shadow ring,
+     not a real border — maplibre's default control style) — !important since
+     the vendor's own geocoder.css sets box-shadow: none at its mobile
+     breakpoint, which this viewport's width already triggers. */
+  border: none !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) !important;
 }
 
 .dark .maplibregl-ctrl-geocoder.geocoder-collapsed {

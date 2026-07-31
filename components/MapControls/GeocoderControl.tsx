@@ -274,6 +274,13 @@ export default function GeocoderControl({
         if (g._inputEl) g._inputEl.value = first.place_name ?? first.text ?? g._inputEl.value;
         g._onChange();
         g._typeahead.clear?.();
+        // Suggestions.clear() above only empties the data/items arrays — unlike
+        // the library's own click/arrow-Enter paths (List.handleMouseUp calls
+        // clear() *then* draw(), which hides the list once it sees zero items),
+        // nothing here ever re-renders the list, so the now-stale dropdown stays
+        // visually on screen until the next keystroke. Hiding it directly closes
+        // the gap.
+        g._typeahead.list?.hide?.();
         return true;
       };
       // Document-level capture (the input doesn't exist until onAdd, and capture

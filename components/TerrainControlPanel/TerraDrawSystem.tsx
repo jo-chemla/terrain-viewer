@@ -1769,7 +1769,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                         render={
                             <Button
                                 variant="outline"
-                                size="icon"
+                                size="icon-sm"
                                 onClick={clearDrawings}
                                 disabled={features.length === 0}
                                 className="cursor-pointer shrink-0"
