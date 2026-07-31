@@ -68,6 +68,8 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
   }), [customTerrainSources, customBasemapSources, bookmarks, drawingLayers, drawingFeatures])
 
   const localFileWarning = hasLocalFileSources({ customTerrainSources, customBasemapSources })
+  const localCogCount = customTerrainSources.filter((s) => s.type === "cog-local").length
+    + customBasemapSources.filter((s) => s.type === "cog-local").length
   const hasBookmarkThumbs = bookmarks.some((b) => b.thumb)
 
   const toggle = (category: keyof ProjectExportSelection) => setSelection((prev) => ({ ...prev, [category]: !prev[category] }))
@@ -201,7 +203,9 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
                             className="mt-0.5 cursor-pointer"
                           />
                           <div className="min-w-0">
-                            <Label htmlFor="export-localCogs" className="cursor-pointer">Include local COG files</Label>
+                            <Label htmlFor="export-localCogs" className="cursor-pointer">
+                              Include local COG files ({localCogCount})
+                            </Label>
                             <p className="text-xs text-muted-foreground">Bundles each local file's raw bytes as a .zip — larger download, but re-importable elsewhere without re-selecting files.</p>
                           </div>
                         </div>

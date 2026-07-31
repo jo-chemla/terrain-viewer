@@ -468,8 +468,11 @@ export const BookmarksSection: React.FC<{
     }
   }, [mapRef, state, setBookmarks, setActiveProjectId, setActiveBookmarkId])
 
+  // Deleting a project (parent) also deletes its view-mode children — only
+  // an orphan whose parent bookmark is missing entirely (e.g. a partial
+  // import) floats up to root instead of vanishing (see `roots` above).
   const handleDelete = useCallback((id: string) => {
-    setBookmarks((prev) => prev.filter((b) => b.id !== id))
+    setBookmarks((prev) => prev.filter((b) => b.id !== id && b.parentId !== id))
   }, [setBookmarks])
 
   const handleRename = useCallback((id: string, name: string) => {

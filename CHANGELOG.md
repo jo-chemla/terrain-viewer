@@ -1,3 +1,22 @@
+# Changelog — July 31, 2026
+
+### Features
+- **Bookmarks gallery** — flatten toggle (now default-on) shows every view as one continuous grid with two-line "Project" / "View" labels, instead of one grid per project leaving empty slots when a project isn't a multiple of 3 or has just one view.
+- **Live colorramp session editor** — a pencil next to every named-ramp picker opens a live stops editor (same alpha-aware color picker as layer colors) for the currently selected ramp; edits are session-only (a plain jotai atom, never persisted to localStorage or the URL) and revert on reload. A Paintbrush toggle next to it swaps the ramp's (near-)black or white stop to transparent, no-op if it has neither.
+- **TerraDraw export** — now a split button: the main button exports immediately with the last-used setting; its chevron opens a small popover with a "split export by layer" toggle (one `.geojson` per layer, bundled into a `.zip`, instead of every layer flattened into one file).
+- **Mapbox/MapTiler terrain sources** are now hidden from the picker until their API key is set, matching the existing Mapbox/HERE basemap gating.
+- **shadcn/ui** — `components.json` style moved to `base-vega` (Base UI's renamed "classic" preset); `package.json` gained a `shadcn:add` script pinned to `-b base` so the CLI can't silently fall back to Radix.
+
+### Bug Fixes
+- **Beta toggle persistence** — the Tells and Sun Shadow beta gates were URL-only (nuqs), with no localStorage backing, so they silently reset to off on every reload without an explicit `?tellsBeta=`/`?sunShadowBeta=` param. Fixed by mirroring the last value into a small `atomWithStorage` and restoring it on first load unless the URL already overrides it — the two-system split (nuqs for the shareable gate, jotai for "what I last had it set to") is a bit of an odd shape, but keeps `?tellsBeta=true` links working exactly as before while fixing the reload case.
+- **Phong/Matcap tile redraw churn** — the "Terrain Exaggeration" slider (and, less visibly, `matcapRotationDeg`/`phongDiffuseStrength`/`phongSpecularStrength`) fed straight into the `matcap://`/`phong://` tile URL undebounced, so dragging it re-fetched every visible raster tile on every animation frame. All four now go through the same read-side debounce already used for light direction (0ms in the GPU-uniform "live" renderer, 150ms in "raster").
+- **Openness/SVF tiles not caching on toggle** — their ray-marched compute yields to the main thread for responsiveness, and the yield point doubled as an abort checkpoint: toggling the mode off mid-tile threw the in-flight result away instead of caching it, which fast (never-yielding) modes never hit. Removed the abort-throw so an already-fetched tile's remaining (bounded) CPU work always finishes and lands in the cache.
+- **Bookmark deletion** now cascades to a project's children instead of leaving them orphaned.
+- **Copy-template button** (TMS/WMS URL hint) shows a checkmark instead of the green copy icon for 1s after clicking.
+- **Sky/horizon/fog colors** moved from an entirely unpersisted plain jotai atom (lost on every reload) to URL/nuqs state, consistent with every other viz-mode setting — also makes them shareable via URL/bookmark like everything else, not just locally remembered.
+- Keyframes "Complete vs Smooth" toggle now uses the app's default small `Switch` instead of a custom oversized one.
+- Export modal shows a count of local BYOD COG sources next to "Include local COG files".
+
 # Changelog — July 30, 2026
 
 ### Features

@@ -454,8 +454,11 @@ export async function runWindowedProtocol(
 
   const outData = new Uint8ClampedArray(n * n * 4)
   for (let row = 0; row < n; row++) {
+    // See the identical note in horizon-angle.ts's own row loop: not bailing
+    // out on abort here so a toggle-off mid-tile still finishes and lands in
+    // withTileResultCache instead of being thrown away — the upstream fetch
+    // (the only genuinely cancel-worthy part) is already done by this point.
     if (row > 0 && row % YIELD_EVERY_ROWS === 0) {
-      if (abortController.signal.aborted) throw new Error("Aborted")
       await yieldToMainThread()
     }
     const pr = row + halo

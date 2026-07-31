@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Terrain Viewer</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Purple favicon everywhere except the real production domain (any local
+         dev port, preview/staging deploy, etc.) so an open prod tab is never
+         visually confusable with a dev one. Inline + synchronous (not a React
+         effect) so it swaps before first paint, no flash of the wrong icon. -->
+    <script>
+      (function () {
+        if (location.hostname === "terrain-viewer.iconem.com") return
+        var link = document.querySelector('link[rel="icon"]')
+        if (link) link.href = "/favicon-dev.svg"
+      })()
+    </script>
     <!-- HeritageWatch AI brand fonts (Bebas Neue headings + Inter body) — only
          actually applied when the HWAI theme is active; harmless otherwise. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

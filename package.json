@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "zip": "del dist.zip && vite build && \"C:\\Program Files\\7-Zip\\7z.exe\" a dist.zip dist",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "shadcn:add": "shadcn add -b base"
   },
   "packageManager": "pnpm@10.20.0",
   "dependencies": {

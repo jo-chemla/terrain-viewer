@@ -231,8 +231,18 @@ export async function runHorizonAngleProtocol(params: RunHorizonAngleProtocolPar
 
   const outData = new Uint8ClampedArray(n * n * 4)
   for (let row = 0; row < n; row++) {
+    // Deliberately NOT bailing out on signal.aborted here (unlike the fetch
+    // phase above, which still honors it): by this point the upstream fetch
+    // is already done, so all that's left is bounded, already-in-flight CPU
+    // work over data already in hand. Throwing away that work on abort is
+    // exactly why toggling SVF/Openness off mid-tile used to make
+    // withTileResultCache (lib/tile-result-cache.ts) look like it wasn't
+    // caching them at all — a rejected promise is never cached, and their
+    // ray-marched halo is heavy enough that a toggle-off routinely lands
+    // mid-tile, unlike every other (un-yielded, so un-abortable) mode. Still
+    // yields every YIELD_EVERY_ROWS rows for responsiveness, just doesn't
+    // abandon the result once yielded.
     if (row > 0 && row % YIELD_EVERY_ROWS === 0) {
-      if (signal.aborted) throw new Error("Aborted")
       await yieldToMainThread()
     }
     const pr = row + nearRadiusPx

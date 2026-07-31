@@ -7,9 +7,12 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { useIsTruncated } from "@/hooks/use-is-truncated"
 import { cn } from "@/lib/utils"
 import { restoreBookmark, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, type Bookmark } from "@/lib/bookmarks"
+import { galleryFlattenGroupsAtom } from "@/lib/settings-atoms"
 
 // Fullscreen gallery — the other half of bookmarks-section.tsx's sidebar
 // list. Built on the same Dialog primitives as settings-dialog.tsx (rather
@@ -19,6 +22,12 @@ type Sort = "recent-desc" | "recent-asc" | "name"
 
 const BookmarkCard: React.FC<{
   bookmark: Bookmark
+  /** Flattened view only — the project this bookmark belongs to, display-only
+   *  and never fed into rename (which always edits the bookmark's own real
+   *  name). Rendered on its own (smaller, muted) line above the name rather
+   *  than combined into one "Project — view" string, which ran long enough
+   *  to truncate almost immediately at this card width. */
+  parentName?: string
   isReferenceProject: boolean
   isActive: boolean
   editId: string | null
@@ -31,14 +40,20 @@ const BookmarkCard: React.FC<{
   onDelete: (id: string) => void
   onRename?: (id: string, name: string) => void
 }> = ({
-  bookmark: b, isReferenceProject, isActive, editId, editName,
+  bookmark: b, parentName, isReferenceProject, isActive, editId, editName,
   onRestore, onEditNameChange, onCommitRename, onStartEdit, onCancelEdit, onDelete, onRename,
 }) => {
   const [nameRef, isNameTruncated] = useIsTruncated<HTMLDivElement>()
+  const [parentNameRef, isParentNameTruncated] = useIsTruncated<HTMLDivElement>()
+  const isTruncated = isNameTruncated || isParentNameTruncated
+  const label = parentName ? `${parentName} — ${b.name}` : b.name
 
   const nameButton = (
     <button className="min-w-0 flex-1 text-left cursor-pointer" onClick={() => onRestore(b)}>
-      <div ref={nameRef} className="truncate text-xs font-medium">{b.name}</div>
+      {parentName && (
+        <div ref={parentNameRef} className="truncate text-[10px] leading-tight text-muted-foreground">{parentName}</div>
+      )}
+      <div ref={nameRef} className="truncate text-xs font-medium leading-tight">{b.name}</div>
     </button>
   )
 
@@ -70,10 +85,10 @@ const BookmarkCard: React.FC<{
             onKeyDown={(e) => { if (e.key === "Enter") { onCommitRename(b.id, editName) } if (e.key === "Escape") onCancelEdit() }}
             className="h-6 flex-1 min-w-0 text-xs"
           />
-        ) : isNameTruncated ? (
+        ) : isTruncated ? (
           <Tooltip>
             <TooltipTrigger render={nameButton} />
-            <TooltipContent><p>{b.name}</p></TooltipContent>
+            <TooltipContent><p>{label}</p></TooltipContent>
           </Tooltip>
         ) : nameButton}
         {editId === b.id ? (
@@ -109,6 +124,7 @@ export const BookmarksGalleryModal: React.FC<{
   const [editName, setEditName] = useState("")
   const [activeProjectId, setActiveProjectId] = useAtom(activeBookmarkProjectIdAtom)
   const [activeBookmarkId, setActiveBookmarkId] = useAtom(activeBookmarkIdAtom)
+  const [flattenGroups, setFlattenGroups] = useAtom(galleryFlattenGroupsAtom)
 
   const compareBookmarks = useCallback((a: Bookmark, b: Bookmark) => {
     if (sort === "name") return a.name.localeCompare(b.name)
@@ -144,6 +160,18 @@ export const BookmarksGalleryModal: React.FC<{
     return result
   }, [bookmarks, compareBookmarks])
 
+  // Flattened view: same cards `groups` already resolved (so a childless
+  // project or an orphaned child still shows up exactly once), just
+  // re-sorted as one continuous list instead of per-group grids — that's
+  // what actually removes the wasted row space a group of 1, or one that
+  // isn't a multiple of 3, leaves behind. Each card's label gets its
+  // project name prefixed back on since the grouping heading it would have
+  // sat under is gone.
+  const flatItems = useMemo(() => {
+    const items = groups.flatMap((g) => g.items.map((b) => ({ bookmark: b, parentName: g.parent?.name })))
+    return items.sort((a, z) => compareBookmarks(a.bookmark, z.bookmark))
+  }, [groups, compareBookmarks])
+
   const handleRestore = (b: Bookmark) => {
     restoreBookmark(b, setState, activeProjectId, setActiveProjectId, setActiveBookmarkId, mapRef)
     onClose()
@@ -163,7 +191,22 @@ export const BookmarksGalleryModal: React.FC<{
           <DialogDescription>Every saved view — click a thumbnail to load it.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center justify-end gap-2 -mt-2">
+        <div className="flex items-center justify-end gap-3 -mt-2">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="gallery-flatten" className="text-xs text-muted-foreground cursor-pointer">Flatten</Label>
+                  <Switch id="gallery-flatten" checked={flattenGroups} onCheckedChange={setFlattenGroups} className="cursor-pointer" />
+                </div>
+              }
+            />
+            <TooltipContent>
+              <p>{flattenGroups
+                ? "One continuous grid — no per-project row breaks or leftover empty slots"
+                : "Grouped by project, one grid per group"}</p>
+            </TooltipContent>
+          </Tooltip>
           <Select
             value={sort}
             onValueChange={(v) => setSort(v as Sort)}
@@ -182,6 +225,27 @@ export const BookmarksGalleryModal: React.FC<{
 
         {groups.length === 0 ? (
           <p className="text-sm text-muted-foreground">No bookmarks yet — save your current view from the Bookmarks panel.</p>
+        ) : flattenGroups ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {flatItems.map(({ bookmark: b, parentName }) => (
+              <BookmarkCard
+                key={b.id}
+                bookmark={b}
+                parentName={parentName}
+                isReferenceProject={!b.parentId && activeProjectId === b.id}
+                isActive={activeBookmarkId === b.id}
+                editId={editId}
+                editName={editName}
+                onRestore={handleRestore}
+                onEditNameChange={setEditName}
+                onCommitRename={commitRename}
+                onStartEdit={(bm) => { setEditId(bm.id); setEditName(bm.name) }}
+                onCancelEdit={() => setEditId(null)}
+                onDelete={onDelete}
+                onRename={onRename}
+              />
+            ))}
+          </div>
         ) : (
           <div className="space-y-4">
             {groups.map((group) => (

@@ -1,8 +1,9 @@
 import {cpt_city_views} from "./cpt-city/cpt-city-views"
 import {colorRampsCet} from "./cpt-city/cet-colormaps"
 import {colorRampsSdr} from "./cpt-city/sdr-colormaps"
-import type { Scale } from 'chroma-js';
+import chroma, { type Scale } from 'chroma-js';
 import { createParser } from "nuqs"
+import { atom } from "jotai"
 
 // import { parsePalette, colorRampCanvas } from 'cpt2js';
 import {parsePalette} from './cpt-city/cpt2js-stops';
@@ -132,6 +133,69 @@ export function buildCustomRampColors(stops: CustomRampStop[], discrete = false)
   }
   for (const stop of usable) colors.push(stop.value, stop.color)
   return colors
+}
+
+// ─── Session-only ramp overrides ────────────────────────────────────────────
+// Lets any NAMED ramp (colorRampsFlat entry — hand-built or cpt-city-derived
+// alike) be tweaked live for the rest of the current page session, without
+// touching the mode's own persisted colorRamp/customStops nuqs fields — a
+// reload always reverts to the real registry entry. Distinct from the
+// existing per-mode "-- Custom Colorramp Stops --" option (which IS
+// persisted): this overrides a PRESET ramp in place, keyed by its registry
+// key, so picking that same preset anywhere else in the session sees the
+// tweak too.
+export interface RampOverride {
+  /** Undefined = keep the ramp's own real stops, just apply
+   *  transparentBlackWhite (if set) on top of them. */
+  stops?: CustomRampStop[]
+  discrete?: boolean
+  /** Swaps whichever stop sits at (near-)pure black or white to fully
+   *  transparent — a no-op if the ramp has neither. */
+  transparentBlackWhite?: boolean
+}
+
+export const rampSessionOverridesAtom = atom<Record<string, RampOverride>>({})
+
+/** Reverses buildCustomRampColors: pulls the (value, color) pairs back out of
+ *  a flat maplibre "interpolate" color-relief expression so ANY named ramp —
+ *  hand-built or cpt-city-derived, a handful of stops or a few hundred —
+ *  loads into the exact same CustomRampStopsEditor a mode's own persisted
+ *  custom-stops option already uses. */
+export function colorsToCustomRampStops(colors: any[]): CustomRampStop[] {
+  const stops: CustomRampStop[] = []
+  for (let i = 3; i < colors.length; i += 2) {
+    stops.push({ value: colors[i], color: colors[i + 1] })
+  }
+  return stops
+}
+
+// Real ramp colors are rarely EXACT #000/#fff (cpt-city gradients especially),
+// so black/white detection tolerates a few 255ths either way.
+const BLACK_WHITE_TOLERANCE = 4
+
+function isNearBlackOrWhite(color: string): boolean {
+  try {
+    const [r, g, b] = chroma(color).rgb()
+    return (r <= BLACK_WHITE_TOLERANCE && g <= BLACK_WHITE_TOLERANCE && b <= BLACK_WHITE_TOLERANCE)
+      || (r >= 255 - BLACK_WHITE_TOLERANCE && g >= 255 - BLACK_WHITE_TOLERANCE && b >= 255 - BLACK_WHITE_TOLERANCE)
+  } catch {
+    return false
+  }
+}
+
+/** Swaps any (near-)pure-black or -white stop in a flat color-relief
+ *  expression to fully transparent, keeping every other stop untouched.
+ *  No-op if the ramp has neither — matches the toggle's "always shown,
+ *  no-op if irrelevant" design (see RampOverride.transparentBlackWhite). */
+export function applyBlackWhiteTransparent(colors: any[]): any[] {
+  const next = [...colors]
+  for (let i = 4; i < next.length; i += 2) {
+    if (typeof next[i] === "string" && isNearBlackOrWhite(next[i])) {
+      const [r, g, b] = chroma(next[i]).rgb()
+      next[i] = `rgba(${r}, ${g}, ${b}, 0)`
+    }
+  }
+  return next
 }
 
 // URL-persisted custom stops — same createParser approach as CameraUtilities.tsx's

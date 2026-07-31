@@ -3,7 +3,7 @@ import { Layer, type MapRef } from "react-map-gl/maplibre"
 import maplibregl, { type MapMouseEvent } from "maplibre-gl"
 import { useAtom } from "jotai"
 import { highResTerrainAtom } from "@/lib/settings-atoms"
-import { colorRampsFlat, remapColorRampStops, shiftCyclicRampStops, buildCustomRampColors, extractStops, DEFAULT_SLOPE_CUSTOM_STOPS, type CustomRampStop } from "@/lib/color-ramps"
+import { colorRampsFlat, remapColorRampStops, shiftCyclicRampStops, buildCustomRampColors, extractStops, applyBlackWhiteTransparent, DEFAULT_SLOPE_CUSTOM_STOPS, type CustomRampStop, type RampOverride } from "@/lib/color-ramps"
 
 export const LAYER_SLOTS = {
   BACKGROUND: "slot-background",
@@ -876,6 +876,12 @@ export type ColorReliefConfig = {
   // rescaling it — only meaningful for a wraparound domain like Aspect's compass
   // degrees. See shiftCyclicRampStops in lib/color-ramps.ts.
   shiftDegrees?: number
+  // Session-only live tweak of the NAMED ramp `colorRamp` points at (see
+  // rampSessionOverridesAtom in lib/color-ramps.ts) — never touches
+  // colorRampsFlat itself, so this is purely additive on top of the lookup
+  // below. Not meaningful (and ignored) when colorRamp === "custom", which
+  // already has its own always-persisted stops via customStops above.
+  sessionOverride?: RampOverride
 }
 
 export const computeColorReliefPaint = ({
@@ -888,6 +894,7 @@ export const computeColorReliefPaint = ({
   colorReliefOpacity = 1.0,
   invertColorRamp = false,
   shiftDegrees = 0,
+  sessionOverride,
 }: ColorReliefConfig) => {
   if (colorRamp === "custom") {
     // The user's own explicit (value, color) stops ARE the intended values —
@@ -915,14 +922,24 @@ export const computeColorReliefPaint = ({
   }
 
   const ramp = colorRamp ? colorRampsFlat[colorRamp] : undefined
-  if (!ramp) return {}
+  if (!ramp && !sessionOverride?.stops) return {}
+
+  // A session override's own edited stops replace the registry lookup
+  // entirely; otherwise fall back to the real ramp exactly as before.
+  const baseColors = sessionOverride?.stops
+    ? buildCustomRampColors(sessionOverride.stops, sessionOverride.discrete ?? false)
+    : ramp!.colors
 
   let colors = customHypsoMinMax
-    ? remapColorRampStops(ramp.colors, minElevation, maxElevation, invertColorRamp)
-    : ramp.colors
+    ? remapColorRampStops(baseColors, minElevation, maxElevation, invertColorRamp)
+    : baseColors
 
   if (shiftDegrees) {
     colors = shiftCyclicRampStops(colors, shiftDegrees, minElevation ?? 0, maxElevation ?? 360)
+  }
+
+  if (sessionOverride?.transparentBlackWhite) {
+    colors = applyBlackWhiteTransparent(colors)
   }
 
   return {

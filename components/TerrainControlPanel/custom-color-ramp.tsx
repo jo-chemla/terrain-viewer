@@ -1,14 +1,20 @@
 import type React from "react"
 import { Fragment, useState } from "react"
-import { Plus, Trash2 } from "lucide-react"
+import { useAtom } from "jotai"
+import { Plus, Trash2, Pencil, RotateCcw, Paintbrush } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Toggle } from "@/components/ui/toggle"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DraftBoundInput } from "./controls-components"
+import { ColorAlphaSwatch } from "./color-picker"
 import {
-  buildCustomRampColors, buildQuickRampStops, type CustomRampStop, type QuickRampShape, type QuickRampFade,
+  buildCustomRampColors, buildQuickRampStops, colorsToCustomRampStops, rampSessionOverridesAtom,
+  type CustomRampStop, type QuickRampShape, type QuickRampFade, type RampOverride,
 } from "@/lib/color-ramps"
 import { getGradientColors } from "@/lib/controls-utils"
 
@@ -32,7 +38,10 @@ export const ColorRampSelectWithCustom: React.FC<{
   anchorKey: string
   customStops: CustomRampStop[]
   customStopsDiscrete: boolean
-}> = ({ ramps, value, onValueChange, anchorKey, customStops, customStopsDiscrete }) => (
+}> = ({ ramps, value, onValueChange, anchorKey, customStops, customStopsDiscrete }) => {
+  const activeRamp = value !== "custom" ? ramps[value] : undefined
+  return (
+  <div className="flex items-center gap-1.5">
   <Select
     value={value}
     onValueChange={(v) => v && onValueChange(v)}
@@ -101,7 +110,10 @@ export const ColorRampSelectWithCustom: React.FC<{
       ))}
     </SelectContent>
   </Select>
-)
+  {activeRamp && <RampSessionEditButton rampKey={value} baseColors={activeRamp.colors} />}
+  </div>
+  )
+}
 
 /** One-shot generator for the two "shapes" behind most of this app's own
  *  hand-built diverging/sequential ramps (see buildQuickRampStops) — Apply
@@ -235,19 +247,23 @@ export const CustomRampStopsEditor: React.FC<{
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-      {/* space-y-0 + borderless, square, zero-padding color inputs make the
-          swatches abut top-to-bottom into one continuous strip (previewing
-          the ramp itself) — deliberately kept as the plain native color input,
-          not the ColorAlphaSwatch popover used elsewhere, so this list stays
-          exactly as it was. */}
+      {/* space-y-0 + borderless, square, zero-padding swatches make them abut
+          top-to-bottom into one continuous strip (previewing the ramp
+          itself). Uses the same alpha-aware ColorAlphaSwatch popover every
+          other per-layer color picker in the app uses (react-colorful's
+          HexAlphaColorPicker) instead of the plain native <input type=color>
+          this used to be — that one can't carry an alpha channel at all, and
+          a fully transparent ramp stop (see RAMP_TRANSPARENT / the "Custom
+          Colorramp Stops" quick-build shapes) needs one. */}
       <div className="space-y-0">
         {customStops.map((stop, i) => (
           <div key={i} className="flex items-center gap-2">
-            <Input
-              type="color"
-              value={stop.color}
-              onChange={(e) => updateStop(i, { color: e.target.value })}
-              className="h-8 w-8 p-0 cursor-pointer border-none rounded-none shrink-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-none [&::-webkit-color-swatch-wrapper]:p-0"
+            <ColorAlphaSwatch
+              color={stop.color}
+              onChange={(hex) => updateStop(i, { color: hex })}
+              title="Stop color"
+              size="h-8 w-8"
+              className="rounded-none border-none"
             />
             <DraftBoundInput
               value={stop.value}
@@ -270,6 +286,90 @@ export const CustomRampStopsEditor: React.FC<{
       <Button variant="outline" size="sm" className="w-full cursor-pointer" onClick={addStop}>
         <Plus className="h-3.5 w-3.5 mr-1" /> Add Stop
       </Button>
+    </div>
+  )
+}
+
+/** Pencil (live-edit this named ramp's stops) + Paintbrush toggle (transparent
+ *  black/white endpoint) pair, next to ColorRampSelectWithCustom's own Select —
+ *  reads/writes rampSessionOverridesAtom directly (see its header in
+ *  lib/color-ramps.ts) rather than through props, since every mode section
+ *  using ColorRampSelectWithCustom gets this for free without threading
+ *  anything new through its own state. Both edits are keyed by `rampKey`
+ *  (the currently selected named ramp), never persisted, and revert on
+ *  reload or picking a different ramp and back. */
+const RampSessionEditButton: React.FC<{
+  rampKey: string
+  baseColors: any[]
+}> = ({ rampKey, baseColors }) => {
+  const [overrides, setOverrides] = useAtom(rampSessionOverridesAtom)
+  const override = overrides[rampKey]
+  const hasEditedStops = override?.stops !== undefined
+  const stops = override?.stops ?? colorsToCustomRampStops(baseColors)
+  const discrete = override?.discrete ?? false
+  const transparentBW = override?.transparentBlackWhite ?? false
+
+  const patchOverride = (patch: Partial<RampOverride>) => {
+    setOverrides((prev) => ({ ...prev, [rampKey]: { ...prev[rampKey], ...patch } }))
+  }
+  const resetOverride = () => {
+    setOverrides((prev) => {
+      const next = { ...prev }
+      delete next[rampKey]
+      return next
+    })
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span>
+              <Toggle
+                pressed={transparentBW}
+                onPressedChange={(pressed) => patchOverride({ transparentBlackWhite: pressed })}
+                size="sm"
+                aria-label={transparentBW ? "Undo transparent black/white" : "Make black/white transparent"}
+                className="cursor-pointer"
+              >
+                <Paintbrush className="h-3.5 w-3.5" />
+              </Toggle>
+            </span>
+          }
+        />
+        <TooltipContent><p>Make this ramp's (near-)black or white stop transparent — this session only (no-op if it has neither)</p></TooltipContent>
+      </Tooltip>
+      <Popover>
+        <PopoverTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 cursor-pointer"
+              title="Live-edit this ramp's stops for the current session (not saved)"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          }
+        />
+        <PopoverContent className="w-72 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs font-medium text-muted-foreground">Session-only edit</Label>
+            {hasEditedStops && (
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs cursor-pointer" onClick={resetOverride}>
+                <RotateCcw className="h-3 w-3 mr-1" /> Reset
+              </Button>
+            )}
+          </div>
+          <CustomRampStopsEditor
+            customStops={stops}
+            onStopsChange={(next) => patchOverride({ stops: next })}
+            isDiscrete={discrete}
+            onDiscreteChange={(next) => patchOverride({ discrete: next })}
+          />
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

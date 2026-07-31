@@ -55,27 +55,11 @@ export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
 export const terrainAnalysisAdvancedAtom = atomWithStorage("terrainAnalysisAdvanced", true)
 export const reliefVisualizationAdvancedAtom = atomWithStorage("reliefVisualizationAdvanced", true)
 
-type SkyConfig = {
-  skyColor: string
-  skyHorizonBlend: number
-  horizonColor: string
-  horizonFogBlend: number
-  fogColor: string
-  fogGroundBlend: number
-  matchThemeColors: boolean
-  backgroundLayerActive: boolean
-}
-
-export const skyConfigAtom = atom<SkyConfig>({
-  skyColor: '#80ccff',
-  skyHorizonBlend: 0.5,
-  horizonColor: '#ccddff',
-  horizonFogBlend: 0.5,
-  fogColor: '#fcf0dd',
-  fogGroundBlend: 0.2,
-  matchThemeColors: true,
-  backgroundLayerActive: true,
-})
+// Sky/horizon/fog colors used to live here as a plain (unpersisted) atom —
+// moved to URL/nuqs state instead (components/TerrainViewer.tsx's
+// QUERY_STATE_PARSERS: skyColor/skyHorizonBlend/horizonColor/etc.) so they're
+// shareable via URL/bookmark the same way every other viz-mode setting is,
+// rather than a silent per-browser localStorage preference.
 
 export interface CustomTerrainSource {
   id: string
@@ -222,3 +206,25 @@ export const isSettingsMapBoundsOpenAtom = atomWithStorage("isSettingsMapBoundsO
 export const isSettingsSaveProjectOpenAtom = atomWithStorage("isSettingsSaveProjectOpen", false)
 export const isSettingsResourcesOpenAtom = atomWithStorage("isSettingsResourcesOpen", false)
 export const isSettingsGeomorphometryOpenAtom = atomWithStorage("isSettingsGeomorphometryOpen", false)
+
+// Mirrors of TerrainViewer's tellsBeta/sunShadowBeta nuqs fields (the actual
+// gates the app reads) — those live in the URL so a `?tellsBeta=true` link
+// still works, but with no localStorage backing they silently reset to off on
+// every reload without the param. These atoms are the "last value the user
+// picked in Settings" and get applied as a stateOverride on first load
+// whenever the URL doesn't already specify the param (see TerrainViewer's
+// embed-config effect), then kept in sync any time the nuqs field changes.
+// getOnInit: true, same reasoning as customTerrainSourcesAtom above — these are
+// read synchronously in TerrainViewer's first-load stateOverrides effect, which
+// would otherwise see the pre-hydration default instead of the real stored value.
+export const tellsBetaEnabledAtom = atomWithStorage("tellsBetaEnabled", false, undefined, { getOnInit: true })
+export const sunShadowBetaEnabledAtom = atomWithStorage("sunShadowBetaEnabled", false, undefined, { getOnInit: true })
+
+// Bookmarks gallery modal: on (default) flattens every group's cards into one
+// continuous grid (each card's label prefixed with its project name) so
+// nothing but the real bookmark count determines how much of the last row is
+// empty. Off groups children under their parent project's own grid instead,
+// one grid per group — a project with e.g. 4 children (or a single-view
+// project) leaves a visibly empty row/near-empty row before the next group's
+// heading.
+export const galleryFlattenGroupsAtom = atomWithStorage("galleryFlattenGroups", true)

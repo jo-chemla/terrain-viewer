@@ -982,7 +982,7 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
           <Switch
             checked={smoothCamera}
             onCheckedChange={setSmoothCamera}
-            className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+            className="cursor-pointer"
           />
           <Label className="text-xs text-muted-foreground">Smooth</Label>
         </div>

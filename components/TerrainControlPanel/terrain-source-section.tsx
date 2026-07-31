@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { useAtom } from "jotai"
 import { ChevronDown, Plus, Edit, TestTube, RotateCcw, Lightbulb } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   isByodOpenAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
-  titilerEndpointAtom, useCogProtocolVsTitilerAtom,
+  titilerEndpointAtom, useCogProtocolVsTitilerAtom, mapboxKeyAtom, maptilerKeyAtom,
   type CustomTerrainSource
 } from "@/lib/settings-atoms"
 import { terrainSources } from "@/lib/terrain-sources"
@@ -47,6 +47,19 @@ export const TerrainSourceSection: React.FC<{
   const [batchEditError, setBatchEditError] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
+  const [mapboxKey] = useAtom(mapboxKeyAtom)
+  const [maptilerKey] = useAtom(maptilerKeyAtom)
+
+  // Mapbox/MapTiler terrain need a real access token/key (see getTilesUrl's
+  // {API_KEY} substitution in controls-utils.tsx) — without one their tiles
+  // just 401, so they're hidden from the picker until a key is set, same
+  // convention as KEY_GATED_BASEMAPS in raster-basemap-section.tsx.
+  const visibleTerrainSources = useMemo(
+    () => Object.entries(terrainSources).filter(([key]) => (
+      (key !== "mapbox" || !!mapboxKey) && (key !== "maptiler" || !!maptilerKey)
+    )),
+    [mapboxKey, maptilerKey],
+  )
 
   const linkCallback = useCallback((link: string) => () => window.open(templateLink(link, state.lat, state.lng), "_blank"), [state.lat, state.lng])
 
@@ -222,7 +235,7 @@ export const TerrainSourceSection: React.FC<{
           <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
             {state.splitScreen ? (
               <div className="space-y-1.5">
-                {Object.entries(terrainSources).map(([key, config]) => (
+                {visibleTerrainSources.map(([key, config]) => (
                   <div key={key} className="flex items-center gap-2 min-w-0">
                     <SourceAbToggle
                       disabled={config.encoding === "3dtiles"}
@@ -237,7 +250,7 @@ export const TerrainSourceSection: React.FC<{
               </div>
             ) : (
               <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">
-                {Object.entries(terrainSources).map(([key, config]) => (
+                {visibleTerrainSources.map(([key, config]) => (
                   <div key={key} className="flex items-center gap-2 min-w-0">
                     <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer shrink-0" disabled={config.encoding === "3dtiles"} />
                     <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} />

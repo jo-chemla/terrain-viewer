@@ -2,7 +2,7 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
-import { ChevronDown, Link, Settings2, Expand, Copy } from "lucide-react"
+import { ChevronDown, Link, Settings2, Expand, Copy, Check } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -26,6 +26,14 @@ export const CustomTerrainSourceModal: React.FC<{
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
   const [type, setType] = useState<TerrainFormType>("cog")
+  // Brief "copied!" confirmation on the template hint's copy button — same
+  // 2s-timeout pattern as ShareSection's CopyUrlButton.
+  const [templateCopied, setTemplateCopied] = useState(false)
+  const handleCopyTemplate = useCallback((text: string) => {
+    copyToClipboard(text)
+    setTemplateCopied(true)
+    setTimeout(() => setTemplateCopied(false), 1000)
+  }, [])
   const [description, setDescription] = useState("")
   const [maxzoom, setMaxzoom] = useState("")
   // Pairs this terrain source with a basemap/raster one (e.g. a fresco's DTM
@@ -271,11 +279,15 @@ export const CustomTerrainSourceModal: React.FC<{
                         (hint: {helper_text}
                         <button
                           type="button"
-                          onClick={() => copyToClipboard(helper_text)}
+                          onClick={() => handleCopyTemplate(helper_text)}
                           className="ml-1.5 cursor-pointer hover:opacity-70"
-                          title="Copy template"
+                          title={templateCopied ? "Copied!" : "Copy template"}
                         >
-                          <Copy className="h-3 w-3" />
+                          {templateCopied ? (
+                            <Check className="h-3 w-3" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
                         </button>
                         )
                       </span>

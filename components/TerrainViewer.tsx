@@ -11,12 +11,12 @@ import Map, {
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
-import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, DEFAULT_SHAPE_INDEX_CUSTOM_STOPS, type CustomRampStop } from "@/lib/color-ramps"
+import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, DEFAULT_SHAPE_INDEX_CUSTOM_STOPS, rampSessionOverridesAtom, type CustomRampStop } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useSetAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, skyConfigAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom,
+  mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
+  activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -493,6 +493,21 @@ export const QUERY_STATE_PARSERS = {
     showGraticules: parseAsBoolean.withDefault(false),
     showRasterBasemap: parseAsBoolean.withDefault(false),
     showBackground: parseAsBoolean.withDefault(false),
+    // Sky/horizon/fog colors for the Background + Fog/Sky mode (background-
+    // options-section.tsx) — URL-shareable state like every other viz-mode
+    // field, not a localStorage preference (was previously a plain, entirely
+    // unpersisted jotai atom — skyConfigAtom — lost on every reload; moved
+    // here rather than to atomWithStorage so a shared/bookmarked URL carries
+    // the exact same sky look, consistent with color ramps and every other
+    // per-mode setting).
+    matchThemeColors: parseAsBoolean.withDefault(true),
+    skyColor: parseAsColor().withDefault("#80ccff"),
+    skyHorizonBlend: parseAsFloat.withDefault(0.5),
+    horizonColor: parseAsColor().withDefault("#ccddff"),
+    horizonFogBlend: parseAsFloat.withDefault(0.5),
+    fogColor: parseAsColor().withDefault("#fcf0dd"),
+    fogGroundBlend: parseAsFloat.withDefault(0.2),
+    backgroundLayerActive: parseAsBoolean.withDefault(true),
     // Viz-mode master opacity (the "Raster Basemap" checkbox's own slider) — composites
     // (multiplies) with basemapSourceOpacity below for the single/split basemap layer,
     // same pattern as Slope-and-More's master-vs-submode opacity. Overlay layers use
@@ -633,7 +648,11 @@ export function TerrainViewer() {
   })
 
 
-  const [skyConfig] = useAtom(skyConfigAtom)
+  // Session-only (never persisted) live ramp tweaks — see rampSessionOverridesAtom's
+  // own header. Read once here and threaded into every computeColorReliefPaint call
+  // below via each mode's own `sessionOverride: rampOverrides[state.xColorRamp]`, so
+  // editing one ramp only invalidates the useMemo(s) actually keyed to it.
+  const [rampOverrides] = useAtom(rampSessionOverridesAtom)
 
   // Compute hillshade paint with useMemo to prevent recalculation
   const hillshadePaint = useMemo(
@@ -642,8 +661,8 @@ export function TerrainViewer() {
   )
 
   const colorReliefPaint = useMemo(
-    () => computeColorReliefPaint(state),
-    [ state.colorRamp, state.customStops, state.customStopsDiscrete, state.customHypsoMinMax, state.minElevation, state.maxElevation, state.colorReliefOpacity, state.invertColorRamp ]
+    () => computeColorReliefPaint({ ...state, sessionOverride: rampOverrides[state.colorRamp] }),
+    [ state.colorRamp, state.customStops, state.customStopsDiscrete, state.customHypsoMinMax, state.minElevation, state.maxElevation, state.colorReliefOpacity, state.invertColorRamp, rampOverrides[state.colorRamp] ]
   )
 
   // Slope reuses the exact same paint-computation as the hypsometric tint above — a
@@ -662,8 +681,9 @@ export function TerrainViewer() {
       maxElevation: state.slopeMaxDegrees,
       colorReliefOpacity: state.slopeOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.slopeInvertColorRamp,
+      sessionOverride: rampOverrides[state.slopeColorRamp],
     }),
-    [ state.slopeColorRamp, state.slopeCustomStops, state.slopeCustomStopsDiscrete, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.terrainAnalysisOpacity, state.slopeInvertColorRamp ]
+    [ state.slopeColorRamp, state.slopeCustomStops, state.slopeCustomStopsDiscrete, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.terrainAnalysisOpacity, state.slopeInvertColorRamp, rampOverrides[state.slopeColorRamp] ]
   )
 
   // Aspect/TRI/curvature: same trick as slope above, just with their own state fields.
@@ -678,8 +698,9 @@ export function TerrainViewer() {
       colorReliefOpacity: state.aspectOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.aspectInvertColorRamp,
       shiftDegrees: state.aspectShiftDegrees,
+      sessionOverride: rampOverrides[state.aspectColorRamp],
     }),
-    [ state.aspectColorRamp, state.aspectCustomStops, state.aspectCustomStopsDiscrete, state.aspectMinDegrees, state.aspectMaxDegrees, state.aspectOpacity, state.terrainAnalysisOpacity, state.aspectInvertColorRamp, state.aspectShiftDegrees ]
+    [ state.aspectColorRamp, state.aspectCustomStops, state.aspectCustomStopsDiscrete, state.aspectMinDegrees, state.aspectMaxDegrees, state.aspectOpacity, state.terrainAnalysisOpacity, state.aspectInvertColorRamp, state.aspectShiftDegrees, rampOverrides[state.aspectColorRamp] ]
   )
 
   const triReliefPaint = useMemo(
@@ -692,8 +713,9 @@ export function TerrainViewer() {
       maxElevation: state.triMax,
       colorReliefOpacity: state.triOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.triInvertColorRamp,
+      sessionOverride: rampOverrides[state.triColorRamp],
     }),
-    [ state.triColorRamp, state.triCustomStops, state.triCustomStopsDiscrete, state.triMin, state.triMax, state.triOpacity, state.terrainAnalysisOpacity, state.triInvertColorRamp ]
+    [ state.triColorRamp, state.triCustomStops, state.triCustomStopsDiscrete, state.triMin, state.triMax, state.triOpacity, state.terrainAnalysisOpacity, state.triInvertColorRamp, rampOverrides[state.triColorRamp] ]
   )
 
   const curvatureReliefPaint = useMemo(
@@ -712,8 +734,9 @@ export function TerrainViewer() {
       maxElevation: state.curvatureMax * CURVATURE_ENCODE_SCALE,
       colorReliefOpacity: state.curvatureOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.curvatureInvertColorRamp,
+      sessionOverride: rampOverrides[state.curvatureColorRamp],
     }),
-    [ state.curvatureColorRamp, state.curvatureCustomStops, state.curvatureCustomStopsDiscrete, state.curvatureMin, state.curvatureMax, state.curvatureOpacity, state.terrainAnalysisOpacity, state.curvatureInvertColorRamp ]
+    [ state.curvatureColorRamp, state.curvatureCustomStops, state.curvatureCustomStopsDiscrete, state.curvatureMin, state.curvatureMax, state.curvatureOpacity, state.terrainAnalysisOpacity, state.curvatureInvertColorRamp, rampOverrides[state.curvatureColorRamp] ]
   )
 
   const tpiReliefPaint = useMemo(
@@ -726,8 +749,9 @@ export function TerrainViewer() {
       maxElevation: state.tpiMax,
       colorReliefOpacity: state.tpiOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.tpiInvertColorRamp,
+      sessionOverride: rampOverrides[state.tpiColorRamp],
     }),
-    [ state.tpiColorRamp, state.tpiCustomStops, state.tpiCustomStopsDiscrete, state.tpiMin, state.tpiMax, state.tpiOpacity, state.terrainAnalysisOpacity, state.tpiInvertColorRamp ]
+    [ state.tpiColorRamp, state.tpiCustomStops, state.tpiCustomStopsDiscrete, state.tpiMin, state.tpiMax, state.tpiOpacity, state.terrainAnalysisOpacity, state.tpiInvertColorRamp, rampOverrides[state.tpiColorRamp] ]
   )
 
   const lrmReliefPaint = useMemo(
@@ -740,8 +764,9 @@ export function TerrainViewer() {
       maxElevation: state.lrmMax,
       colorReliefOpacity: state.lrmOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.lrmInvertColorRamp,
+      sessionOverride: rampOverrides[state.lrmColorRamp],
     }),
-    [ state.lrmColorRamp, state.lrmCustomStops, state.lrmCustomStopsDiscrete, state.lrmMin, state.lrmMax, state.lrmOpacity, state.reliefVisualizationOpacity, state.lrmInvertColorRamp ]
+    [ state.lrmColorRamp, state.lrmCustomStops, state.lrmCustomStopsDiscrete, state.lrmMin, state.lrmMax, state.lrmOpacity, state.reliefVisualizationOpacity, state.lrmInvertColorRamp, rampOverrides[state.lrmColorRamp] ]
   )
 
   const planeSlicerPaint = useMemo(
@@ -764,8 +789,9 @@ export function TerrainViewer() {
       maxElevation: state.roughnessMax,
       colorReliefOpacity: state.roughnessOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.roughnessInvertColorRamp,
+      sessionOverride: rampOverrides[state.roughnessColorRamp],
     }),
-    [ state.roughnessColorRamp, state.roughnessCustomStops, state.roughnessCustomStopsDiscrete, state.roughnessMin, state.roughnessMax, state.roughnessOpacity, state.terrainAnalysisOpacity, state.roughnessInvertColorRamp ]
+    [ state.roughnessColorRamp, state.roughnessCustomStops, state.roughnessCustomStopsDiscrete, state.roughnessMin, state.roughnessMax, state.roughnessOpacity, state.terrainAnalysisOpacity, state.roughnessInvertColorRamp, rampOverrides[state.roughnessColorRamp] ]
   )
 
   const shapeIndexReliefPaint = useMemo(
@@ -785,8 +811,9 @@ export function TerrainViewer() {
       maxElevation: state.shapeIndexMax * CURVATURE_ENCODE_SCALE,
       colorReliefOpacity: state.shapeIndexOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.shapeIndexInvertColorRamp,
+      sessionOverride: rampOverrides[state.shapeIndexColorRamp],
     }),
-    [ state.shapeIndexColorRamp, state.shapeIndexCustomStops, state.shapeIndexCustomStopsDiscrete, state.shapeIndexMin, state.shapeIndexMax, state.shapeIndexOpacity, state.terrainAnalysisOpacity, state.shapeIndexInvertColorRamp ]
+    [ state.shapeIndexColorRamp, state.shapeIndexCustomStops, state.shapeIndexCustomStopsDiscrete, state.shapeIndexMin, state.shapeIndexMax, state.shapeIndexOpacity, state.terrainAnalysisOpacity, state.shapeIndexInvertColorRamp, rampOverrides[state.shapeIndexColorRamp] ]
   )
 
   const blobnessReliefPaint = useMemo(
@@ -799,8 +826,9 @@ export function TerrainViewer() {
       maxElevation: state.blobnessMax,
       colorReliefOpacity: state.blobnessOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.blobnessInvertColorRamp,
+      sessionOverride: rampOverrides[state.blobnessColorRamp],
     }),
-    [ state.blobnessColorRamp, state.blobnessCustomStops, state.blobnessCustomStopsDiscrete, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.terrainAnalysisOpacity, state.blobnessInvertColorRamp ]
+    [ state.blobnessColorRamp, state.blobnessCustomStops, state.blobnessCustomStopsDiscrete, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.terrainAnalysisOpacity, state.blobnessInvertColorRamp, rampOverrides[state.blobnessColorRamp] ]
   )
 
   const eigenRatioReliefPaint = useMemo(
@@ -813,8 +841,9 @@ export function TerrainViewer() {
       maxElevation: state.eigenRatioMax,
       colorReliefOpacity: state.eigenRatioOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.eigenRatioInvertColorRamp,
+      sessionOverride: rampOverrides[state.eigenRatioColorRamp],
     }),
-    [ state.eigenRatioColorRamp, state.eigenRatioCustomStops, state.eigenRatioCustomStopsDiscrete, state.eigenRatioMin, state.eigenRatioMax, state.eigenRatioOpacity, state.terrainAnalysisOpacity, state.eigenRatioInvertColorRamp ]
+    [ state.eigenRatioColorRamp, state.eigenRatioCustomStops, state.eigenRatioCustomStopsDiscrete, state.eigenRatioMin, state.eigenRatioMax, state.eigenRatioOpacity, state.terrainAnalysisOpacity, state.eigenRatioInvertColorRamp, rampOverrides[state.eigenRatioColorRamp] ]
   )
 
   const orientationReliefPaint = useMemo(
@@ -827,8 +856,9 @@ export function TerrainViewer() {
       maxElevation: state.orientationMax,
       colorReliefOpacity: state.orientationOpacity * state.terrainAnalysisOpacity,
       invertColorRamp: state.orientationInvertColorRamp,
+      sessionOverride: rampOverrides[state.orientationColorRamp],
     }),
-    [ state.orientationColorRamp, state.orientationCustomStops, state.orientationCustomStopsDiscrete, state.orientationMin, state.orientationMax, state.orientationOpacity, state.terrainAnalysisOpacity, state.orientationInvertColorRamp ]
+    [ state.orientationColorRamp, state.orientationCustomStops, state.orientationCustomStopsDiscrete, state.orientationMin, state.orientationMax, state.orientationOpacity, state.terrainAnalysisOpacity, state.orientationInvertColorRamp, rampOverrides[state.orientationColorRamp] ]
   )
 
   const svfReliefPaint = useMemo(
@@ -841,8 +871,9 @@ export function TerrainViewer() {
       maxElevation: state.svfMax,
       colorReliefOpacity: state.svfOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.svfInvertColorRamp,
+      sessionOverride: rampOverrides[state.svfColorRamp],
     }),
-    [ state.svfColorRamp, state.svfCustomStops, state.svfCustomStopsDiscrete, state.svfMin, state.svfMax, state.svfOpacity, state.reliefVisualizationOpacity, state.svfInvertColorRamp ]
+    [ state.svfColorRamp, state.svfCustomStops, state.svfCustomStopsDiscrete, state.svfMin, state.svfMax, state.svfOpacity, state.reliefVisualizationOpacity, state.svfInvertColorRamp, rampOverrides[state.svfColorRamp] ]
   )
 
   const opennessReliefPaint = useMemo(
@@ -855,8 +886,9 @@ export function TerrainViewer() {
       maxElevation: state.opennessMax,
       colorReliefOpacity: state.opennessOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.opennessInvertColorRamp,
+      sessionOverride: rampOverrides[state.opennessColorRamp],
     }),
-    [ state.opennessColorRamp, state.opennessCustomStops, state.opennessCustomStopsDiscrete, state.opennessMin, state.opennessMax, state.opennessOpacity, state.reliefVisualizationOpacity, state.opennessInvertColorRamp ]
+    [ state.opennessColorRamp, state.opennessCustomStops, state.opennessCustomStopsDiscrete, state.opennessMin, state.opennessMax, state.opennessOpacity, state.reliefVisualizationOpacity, state.opennessInvertColorRamp, rampOverrides[state.opennessColorRamp] ]
   )
 
   const localDominanceReliefPaint = useMemo(
@@ -869,8 +901,9 @@ export function TerrainViewer() {
       maxElevation: state.localDominanceMax,
       colorReliefOpacity: state.localDominanceOpacity * state.reliefVisualizationOpacity,
       invertColorRamp: state.localDominanceInvertColorRamp,
+      sessionOverride: rampOverrides[state.localDominanceColorRamp],
     }),
-    [ state.localDominanceColorRamp, state.localDominanceCustomStops, state.localDominanceCustomStopsDiscrete, state.localDominanceMin, state.localDominanceMax, state.localDominanceOpacity, state.reliefVisualizationOpacity, state.localDominanceInvertColorRamp ]
+    [ state.localDominanceColorRamp, state.localDominanceCustomStops, state.localDominanceCustomStopsDiscrete, state.localDominanceMin, state.localDominanceMax, state.localDominanceOpacity, state.reliefVisualizationOpacity, state.localDominanceInvertColorRamp, rampOverrides[state.localDominanceColorRamp] ]
   )
 
   // circle-color expressions for the tells color-by marker styles, built from
@@ -1077,6 +1110,18 @@ export function TerrainViewer() {
     setTileResultCacheEnabled(cacheVizTiles)
   }, [cacheVizTiles])
 
+  // Persist the beta gates' last value so re-opening the app without their
+  // `?tellsBeta=`/`?sunShadowBeta=` URL param doesn't silently reset to off
+  // (see stateOverrides application below, and the atoms' own comment).
+  const [tellsBetaEnabled, setTellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
+  const [sunShadowBetaEnabled, setSunShadowBetaEnabled] = useAtom(sunShadowBetaEnabledAtom)
+  useEffect(() => {
+    setTellsBetaEnabled(state.tellsBeta)
+  }, [state.tellsBeta, setTellsBetaEnabled])
+  useEffect(() => {
+    setSunShadowBetaEnabled(state.sunShadowBeta)
+  }, [state.sunShadowBeta, setSunShadowBetaEnabled])
+
   // Applies a `?project=` preset (lib/projects.json) and/or terrainUrl/basemapUrl
   // convenience params on first load only — guarded by the ref so it never fights
   // the user's own subsequent state changes or section toggles.
@@ -1098,6 +1143,11 @@ export function TerrainViewer() {
     if (projectConfig?.initialViewMode && !searchParams.has("viewMode")) {
       stateOverrides.viewMode = projectConfig.initialViewMode
     }
+
+    // Restore the beta gates from their persisted last value, unless the URL
+    // itself already carries an explicit override.
+    if (!searchParams.has("tellsBeta") && tellsBetaEnabled) stateOverrides.tellsBeta = true
+    if (!searchParams.has("sunShadowBeta") && sunShadowBetaEnabled) stateOverrides.sunShadowBeta = true
 
     // terrainUrl/basemapUrl can carry either an id of a source the visitor's browser
     // (or the sample library) already knows about, or a raw tile/COG URL to
@@ -1328,17 +1378,17 @@ export function TerrainViewer() {
   
   // const effectiveGraticuleColor = state.graticuleColor ?? themeColor
 
-  // matchThemeColors only overrides the *applied* color here — the atom's
+  // matchThemeColors only overrides the *applied* color here — state's own
   // skyColor/horizonColor/fogColor always keep the user's last custom picks, so
   // toggling this off restores them instead of losing them (see
   // background-options-section.tsx's handleMatchThemeToggle).
   const getSkyConfig = () => ({
-    'sky-color': skyConfig.matchThemeColors ? themeColor : skyConfig.skyColor,
-    'sky-horizon-blend': skyConfig.skyHorizonBlend,
-    'horizon-color': skyConfig.matchThemeColors ? themeColor : skyConfig.horizonColor,
-    'horizon-fog-blend': skyConfig.horizonFogBlend,
-    'fog-color': skyConfig.matchThemeColors ? themeColor : skyConfig.fogColor,
-    'fog-ground-blend': skyConfig.fogGroundBlend,
+    'sky-color': state.matchThemeColors ? themeColor : state.skyColor,
+    'sky-horizon-blend': state.skyHorizonBlend,
+    'horizon-color': state.matchThemeColors ? themeColor : state.horizonColor,
+    'horizon-fog-blend': state.horizonFogBlend,
+    'fog-color': state.matchThemeColors ? themeColor : state.fogColor,
+    'fog-ground-blend': state.fogGroundBlend,
   })
 
   const getNoSkyConfig = () => ({
@@ -1680,6 +1730,49 @@ export function TerrainViewer() {
   const shadowLightDir = useDebouncedValue(state.illuminationDir, 150)
   const shadowLightAlt = useDebouncedValue(state.illuminationAlt, 150)
 
+  // Same read-side debounce, for the global "Terrain Exaggeration" slider —
+  // also baked directly into the matcap:// / phong:// tile URL (see
+  // use-debounced-state.ts's header, which already named this field), but
+  // was never actually routed through a debounce: dragging that slider —
+  // unrelated to Lighting Effects entirely — was re-fetching every Matcap/
+  // Phong raster tile on every pointer-move frame. The Live (2D Fast) GL
+  // layers push exaggeration straight to their shader via updateOptions(),
+  // not a tile URL, so they keep reading state.exaggeration directly and are
+  // unaffected either way.
+  const matcapRasterExaggerationDebounceMs = state.matcapRenderer === "raster" ? 150 : 0
+  const matcapRasterExaggeration = useDebouncedValue(state.exaggeration, matcapRasterExaggerationDebounceMs)
+  const phongRasterExaggerationDebounceMs = state.phongRenderer === "raster" ? 150 : 0
+  const phongRasterExaggeration = useDebouncedValue(state.exaggeration, phongRasterExaggerationDebounceMs)
+
+  // matcapRotationDeg/phongDiffuseStrength/phongSpecularStrength are also
+  // baked into the matcap://phong:// tile URL, and each already gets a
+  // write-side debounce from its own slider (lighting-effects-options-
+  // section.tsx's useDebouncedState) — safe today only because each
+  // currently has exactly one writer. That's the same fragile assumption
+  // that caused the exaggeration bug above (a write-side debounce only
+  // protects against ITS OWN control, not a second writer of the same
+  // field), so these get the identical read-side treatment for parity/
+  // future-proofing rather than waiting for a second writer to appear.
+  const matcapRasterRotationDeg = useDebouncedValue(state.matcapRotationDeg, matcapRasterExaggerationDebounceMs)
+  const phongRasterDiffuseStrength = useDebouncedValue(state.phongDiffuseStrength, phongRasterExaggerationDebounceMs)
+  const phongRasterSpecularStrength = useDebouncedValue(state.phongSpecularStrength, phongRasterExaggerationDebounceMs)
+
+  // A "color-relief" layer's color ramp is a GPU-side lookup texture, not a
+  // per-pixel uniform — some maplibre-gl versions don't mark the map dirty
+  // on a bare setPaintProperty("color-relief-color", ...) the way they do
+  // for plain fill/line paint props, so a ramp edit with no OTHER map
+  // interaction (no pan/zoom to incidentally repaint) can silently sit one
+  // frame stale until something else nudges the renderer — same class of
+  // issue the CustomLayerInterface live layers (matcap/phong-live-gl-layer.ts)
+  // already work around with their own triggerRepaint() calls. Session ramp
+  // overrides (the pencil editor's live stops/transparent-B&W edits) are
+  // exactly this "isolated click, no other map interaction" case, so force
+  // a repaint on both maps whenever they change.
+  useEffect(() => {
+    mapARef.current?.getMap()?.triggerRepaint()
+    mapBRef.current?.getMap()?.triggerRepaint()
+  }, [rampOverrides])
+
   const renderMap = useCallback(
     (source: TerrainSource | string, mapId: string) => {
       const isPrimary = mapId === "map-a"
@@ -1967,13 +2060,13 @@ export function TerrainViewer() {
           <MatcapSource
             enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "raster"}
             matcapUrl={matcapUrlFor(state.matcapTextureId)}
-            rotationDeg={state.matcapRotationDeg}
+            rotationDeg={matcapRasterRotationDeg}
             // Reapplied live to the cached (unexaggerated) normal map inside
             // matcapProtocol regardless of view mode — even flat 2D shading
             // should get correspondingly stronger contrast at higher
             // exaggeration, same reasoning as MatcapGlLayer's own historical
             // drapeEnabled/exaggeration split.
-            exaggeration={state.exaggeration}
+            exaggeration={matcapRasterExaggeration}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -1996,8 +2089,8 @@ export function TerrainViewer() {
           />
           <PhongSource
             enabled={state.showLightingEffects && state.showPhong && effectivePhongRenderer === "raster"}
-            diffuseStrength={state.phongDiffuseStrength}
-            specularStrength={state.phongSpecularStrength}
+            diffuseStrength={phongRasterDiffuseStrength}
+            specularStrength={phongRasterSpecularStrength}
             // 3D Slow (raster) is always ABSOLUTE — a per-frame camera headlamp
             // isn't possible here (it would bake the settled bearing into every
             // tile URL and re-fetch on each rotate, not a real headlamp), so the
@@ -2006,7 +2099,7 @@ export function TerrainViewer() {
             // layer honours phongLightRelativeToCamera.
             lightDir={phongLightDir}
             lightAlt={phongLightAlt}
-            exaggeration={state.exaggeration}
+            exaggeration={phongRasterExaggeration}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2071,7 +2164,7 @@ export function TerrainViewer() {
           {/* Layers */}
           <LayerOrderSlots />
 
-          {skyConfig.backgroundLayerActive && (
+          {state.backgroundLayerActive && (
             <BackgroundLayer theme={theme as any} mapRef={mapARef as any} />
           )}
           <RasterLayer
@@ -2313,8 +2406,8 @@ export function TerrainViewer() {
       svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
       mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,
-      skyConfig.skyColor, skyConfig.skyHorizonBlend, skyConfig.horizonColor, skyConfig.horizonFogBlend,
-      skyConfig.fogColor, skyConfig.fogGroundBlend, skyConfig.matchThemeColors, skyConfig.backgroundLayerActive,
+      state.skyColor, state.skyHorizonBlend, state.horizonColor, state.horizonFogBlend,
+      state.fogColor, state.fogGroundBlend, state.matchThemeColors, state.backgroundLayerActive,
       activeProjectConfig,
       themeColor,
       setZoomRangeBasemap, resolvedMaxBounds

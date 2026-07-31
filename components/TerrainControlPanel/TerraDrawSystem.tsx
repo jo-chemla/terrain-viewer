@@ -7,21 +7,23 @@ import {
     TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawCircleMode, TerraDrawSelectMode
 } from 'terra-draw'
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
-import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, Target } from 'lucide-react'
+import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, ChevronDown, Target } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { Toggle } from '@/components/ui/toggle'
+import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ColorAlphaSwatch } from './color-picker'
 import bbox from '@turf/bbox'
 import { v4 as uuidv4 } from 'uuid'
 import { Section, CheckboxWithSlider, GroupHeading, DraftBoundInput } from './controls-components'
 import { truncate as turf_truncate } from '@turf/truncate'
-import { downloadGeoJSON } from "@/lib/download-geojson"
+import { downloadGeoJSON, downloadGeoJSONByLayer } from "@/lib/download-geojson"
 import { track } from "@/lib/analytics"
 import { persistVectorLayerFeatures, readPersistedVectorLayerFeatures, deletePersistedVectorLayer } from "@/lib/opfs-vector-store"
 
@@ -68,6 +70,15 @@ export interface GeoJSONFeature {
 }
 
 export const drawingFeaturesAtom = atom<GeoJSONFeature[]>([])
+
+// exportGeoJSON toggle (TerraDrawActions below): off (default) exports every
+// layer's features flattened into one FeatureCollection — the existing
+// behavior, and still the right default for "keep drawing into the same
+// layer, export it all as one file" workflows. On splits by layer instead,
+// one .geojson per layer bundled into a .zip (see downloadGeoJSONByLayer in
+// lib/download-geojson.ts) — useful when layers represent genuinely separate
+// deliverables that should stay separate files after export.
+export const drawingExportPerLayerAtom = atomWithStorage("drawingExportPerLayer", false)
 
 // Single source of truth for "which TerraDraw mode is currently active",
 // written at every point draw.setMode() itself is called (TerraDrawControls'
@@ -1325,6 +1336,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
     const [layers, setLayers] = useAtom(drawingLayersAtom)
     const [, setActiveLayerId] = useAtom(activeLayerIdAtom)
+    const [exportPerLayer, setExportPerLayer] = useAtom(drawingExportPerLayerAtom)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [visible, setVisible] = useState(true)
     const [opacity, setOpacity] = useState(1)
@@ -1356,8 +1368,9 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
     }
 
     const exportGeoJSON = () => {
-        track("tools-drawing", { action: "export", features: features.length })
-        downloadGeoJSON(features, 'drawings')
+        track("tools-drawing", { action: "export", features: features.length, perLayer: exportPerLayer })
+        if (exportPerLayer) downloadGeoJSONByLayer(features, layers, 'drawings')
+        else downloadGeoJSON(features, 'drawings')
     }
 
     const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1708,17 +1721,65 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
             <div className="space-y-2">
                 <CheckboxWithSlider id="td-visible" checked={visible} onCheckedChange={(checked) => handleVisibilityChange(checked === true)} label="Show drawings" sliderValue={opacity} onSliderChange={handleOpacityChange}  />
             </div>
-            
-            <div className="grid grid-cols-3 gap-2">
-                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer" title="Import GeoJSON, KML, or GeoPackage">
+
+            <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer shrink-0" title="Import GeoJSON, KML, or GeoPackage">
                     <Upload className="h-4 w-4 mr-1" /> Import
                 </Button>
-                <Button variant="outline" size="sm" onClick={exportGeoJSON} disabled={features.length === 0} className="cursor-pointer">
-                    <Download className="h-4 w-4 mr-1" /> Export
-                </Button>
-                <Button variant="outline" size="sm" onClick={clearDrawings} disabled={features.length === 0} className="cursor-pointer">
-                    <Trash2 className="h-4 w-4 mr-1" /> Clear
-                </Button>
+                <div className="flex flex-1 min-w-0">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={exportGeoJSON}
+                        disabled={features.length === 0}
+                        className="cursor-pointer flex-1 min-w-0 rounded-r-none border-r-0"
+                        title={exportPerLayer ? "Export — one .geojson per layer, bundled into a .zip" : "Export — every layer flattened into one .geojson"}
+                    >
+                        <Download className="h-4 w-4 mr-1 shrink-0" /> <span className="truncate">Export</span>
+                    </Button>
+                    <Popover>
+                        <PopoverTrigger
+                            render={
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={features.length === 0}
+                                    className="cursor-pointer rounded-l-none px-1.5 shrink-0"
+                                    title="Export options"
+                                >
+                                    <ChevronDown className="h-4 w-4" />
+                                </Button>
+                            }
+                        />
+                        <PopoverContent className="w-64 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                                <Label htmlFor="td-export-per-layer" className="text-xs font-medium cursor-pointer">Split export by layer</Label>
+                                <Switch id="td-export-per-layer" checked={exportPerLayer} onCheckedChange={setExportPerLayer} className="cursor-pointer" />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                {exportPerLayer
+                                    ? "Exports one .geojson per layer, bundled into a .zip"
+                                    : "Exports every layer flattened into one .geojson"}
+                            </p>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={clearDrawings}
+                                disabled={features.length === 0}
+                                className="cursor-pointer shrink-0"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        }
+                    />
+                    <TooltipContent><p>Clear all vector drawings</p></TooltipContent>
+                </Tooltip>
             </div>
             <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml" onChange={importFile} className="hidden" />
             {/* <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml,.gpkg" onChange={importFile} className="hidden" /> */}

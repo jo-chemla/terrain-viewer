@@ -1,9 +1,7 @@
 import type React from "react"
-import { useAtom } from "jotai"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { skyConfigAtom } from "@/lib/settings-atoms"
 import { Section, SliderControl } from "./controls-components"
 import { ColorAlphaSwatch } from "./color-picker"
 
@@ -12,15 +10,13 @@ export const BackgroundOptionsSection: React.FC<{
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, theme = 'light', isOpen, onOpenChange }) => {
-  const [skyConfig, setSkyConfig] = useAtom(skyConfigAtom)
-
   if (!state.showBackground) return null
 
   // Only flips the flag — never overwrites skyColor/horizonColor/fogColor, so the
   // user's custom colors survive a toggle-on-then-off round trip. TerrainViewer.tsx's
   // getSkyConfig() resolves the actual applied color (theme vs. custom) at render time.
   const handleMatchThemeToggle = (checked: boolean | string) => {
-    setSkyConfig({ ...skyConfig, matchThemeColors: checked === true })
+    setState({ matchThemeColors: checked === true })
   }
 
   return (
@@ -28,7 +24,7 @@ export const BackgroundOptionsSection: React.FC<{
       <div className="flex items-center justify-between py-0.5">
         <Checkbox
           id="match-theme"
-          checked={skyConfig.matchThemeColors}
+          checked={state.matchThemeColors}
           onCheckedChange={handleMatchThemeToggle}
           className="cursor-pointer"
         />
@@ -38,24 +34,24 @@ export const BackgroundOptionsSection: React.FC<{
       </div>
 
       <div className="space-y-2 pt-1">
-        {skyConfig.matchThemeColors ? (
-          <SliderControl label="Fog Blend" value={skyConfig.fogGroundBlend * 100} onChange={(v) =>
-            setSkyConfig({ ...skyConfig, fogGroundBlend: v / 100 })}
+        {state.matchThemeColors ? (
+          <SliderControl label="Fog Blend" value={state.fogGroundBlend * 100} onChange={(v) =>
+            setState({ fogGroundBlend: v / 100 })}
             min={0} max={100} step={1} suffix="%" />
         ) : (
           <>
             <div className="flex gap-3">
               <ColorAlphaSwatch
                 title="Sky color"
-                color={skyConfig.skyColor}
-                onChange={(hex) => setSkyConfig({ ...skyConfig, skyColor: hex })}
+                color={state.skyColor}
+                onChange={(hex) => setState({ skyColor: hex })}
                 className="rounded shrink-0"
               />
               <div className="grow">
                 <SliderControl
                   label="Sky Color Blend"
-                  value={skyConfig.skyHorizonBlend * 100}
-                  onChange={(v) => setSkyConfig({ ...skyConfig, skyHorizonBlend: v / 100 })}
+                  value={state.skyHorizonBlend * 100}
+                  onChange={(v) => setState({ skyHorizonBlend: v / 100 })}
                   min={0} max={100} step={1} suffix="%"
                 />
               </div>
@@ -63,15 +59,15 @@ export const BackgroundOptionsSection: React.FC<{
             <div className="flex gap-3">
               <ColorAlphaSwatch
                 title="Horizon color"
-                color={skyConfig.horizonColor}
-                onChange={(hex) => setSkyConfig({ ...skyConfig, horizonColor: hex })}
+                color={state.horizonColor}
+                onChange={(hex) => setState({ horizonColor: hex })}
                 className="rounded shrink-0"
               />
               <div className="grow">
                 <SliderControl
                   label="Horizon Color Blend"
-                  value={skyConfig.horizonFogBlend * 100}
-                  onChange={(v) => setSkyConfig({ ...skyConfig, horizonFogBlend: v / 100 })}
+                  value={state.horizonFogBlend * 100}
+                  onChange={(v) => setState({ horizonFogBlend: v / 100 })}
                   min={0} max={100} step={1} suffix="%"
                 />
               </div>
@@ -79,15 +75,15 @@ export const BackgroundOptionsSection: React.FC<{
             <div className="flex gap-3">
               <ColorAlphaSwatch
                 title="Fog color"
-                color={skyConfig.fogColor}
-                onChange={(hex) => setSkyConfig({ ...skyConfig, fogColor: hex })}
+                color={state.fogColor}
+                onChange={(hex) => setState({ fogColor: hex })}
                 className="rounded shrink-0"
               />
               <div className="grow">
                 <SliderControl
                   label="Fog Color Blend"
-                  value={skyConfig.fogGroundBlend * 100}
-                  onChange={(v) => setSkyConfig({ ...skyConfig, fogGroundBlend: v / 100 })}
+                  value={state.fogGroundBlend * 100}
+                  onChange={(v) => setState({ fogGroundBlend: v / 100 })}
                   min={0} max={100} step={1} suffix="%"
                 />
               </div>
@@ -100,9 +96,9 @@ export const BackgroundOptionsSection: React.FC<{
       <div className="flex items-center justify-between py-0.5">
         <Checkbox
           id="bg-layer-active"
-          checked={skyConfig.backgroundLayerActive}
+          checked={state.backgroundLayerActive}
           onCheckedChange={(checked) =>
-            setSkyConfig({ ...skyConfig, backgroundLayerActive: checked === true })
+            setState({ backgroundLayerActive: checked === true })
           }
           className="cursor-pointer"
         />
