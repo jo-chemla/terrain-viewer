@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsStringLiteral, parseAsArrayOf } from "nuqs"
+import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsInteger, parseAsStringLiteral, parseAsArrayOf } from "nuqs"
 import Map, {
   type MapRef,
   ScaleControl,
@@ -15,8 +15,8 @@ import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, 
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useSetAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom,
+  mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
+  activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -29,6 +29,8 @@ import { useTheme } from "@/lib/controls-utils"
 import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS } from "./TerrainControlPanel/raster-basemap-section"
+import { HistoricalTimelinePanel } from "./TerrainControlPanel/historical-timeline-panel"
+import { isHistoricalSourceActive } from "@/lib/historical-sources"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
 
@@ -169,6 +171,37 @@ export const QUERY_STATE_PARSERS = {
     // basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B,
     // only meaningful in split-or-radio basemap mode (basemapPerView).
     overlayBasemapIds: parseAsArrayOf(parseAsString).withDefault([]),
+    // ESRI Wayback's own release number (see lib/wayback.ts) for whichever of
+    // basemapSource/basemapSourceA/basemapSourceB is currently "wayback" — 0
+    // means "not yet picked", resolved to the newest available release once
+    // the release catalog loads (see historical-timeline-panel.tsx). Mirrors
+    // the plain/A/B triple above it since wayback needs the same three
+    // "which mode is active" slots, just for a release number instead of a
+    // basemap id.
+    waybackRelease: parseAsInteger.withDefault(0),
+    waybackReleaseA: parseAsInteger.withDefault(0),
+    waybackReleaseB: parseAsInteger.withDefault(0),
+    // Same plain/A/B triple, for HLS's date (epoch ms) instead of a wayback
+    // release number — see lib/hls.ts. 0 means "not yet picked".
+    hlsDate: parseAsInteger.withDefault(0),
+    hlsDateA: parseAsInteger.withDefault(0),
+    hlsDateB: parseAsInteger.withDefault(0),
+    // Same plain/A/B triple, for Google Earth Historical's capture date
+    // (epoch ms) — see lib/ge-historical.ts. 0 means "not yet picked".
+    geDate: parseAsInteger.withDefault(0),
+    geDateA: parseAsInteger.withDefault(0),
+    geDateB: parseAsInteger.withDefault(0),
+    // Same plain/A/B triple, for Planet's monthly mosaic date (epoch ms,
+    // truncated to month) — see lib/planet.ts. 0 means "not yet picked".
+    planetDate: parseAsInteger.withDefault(0),
+    planetDateA: parseAsInteger.withDefault(0),
+    planetDateB: parseAsInteger.withDefault(0),
+    // Which historical sources' ticks are aggregated onto the shared timeline
+    // (pill toggles in historical-timeline-panel.tsx) — independent of which
+    // single source is actually "active"/rendered on the map. "planet" is
+    // deliberately left out of the default — it needs an API key, so it only
+    // shows up here once a user with a key explicitly toggles its pill on.
+    timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "hls", "ge-historical"]),
     // colorRamp: parseAsString.withDefault("mby"),
     colorRamp: parseAsStringLiteral(COLOR_RAMP_IDS).withDefault("mby"),
     customStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
@@ -460,6 +493,9 @@ export const QUERY_STATE_PARSERS = {
     tellsBeta: parseAsBoolean.withDefault(false),
     // Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator.
     sunShadowBeta: parseAsBoolean.withDefault(false),
+    // Same opt-in-beta gate as tellsBeta above, for the historical-imagery
+    // basemaps (Wayback/HLS/GE Historical/Planet) + bottom timeline panel.
+    historicalBeta: parseAsBoolean.withDefault(false),
     // Master on/off (Visualization Modes' "Tells (Mound Detector)" checkbox) —
     // gates the sidebar's Mound Candidates section as well as the map layer.
     // Independent from tellsMarkersVisible below: this is "is the detector
@@ -601,6 +637,7 @@ export function TerrainViewer() {
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
   const [hereKey] = useAtom(hereKeyAtom)
+  const [planetKey] = useAtom(planetKeyAtom)
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
   const bumpLocalFileVersion = useSetAtom(localFileVersionAtom)
@@ -1115,12 +1152,16 @@ export function TerrainViewer() {
   // (see stateOverrides application below, and the atoms' own comment).
   const [tellsBetaEnabled, setTellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
   const [sunShadowBetaEnabled, setSunShadowBetaEnabled] = useAtom(sunShadowBetaEnabledAtom)
+  const [historicalBetaEnabled, setHistoricalBetaEnabled] = useAtom(historicalBetaEnabledAtom)
   useEffect(() => {
     setTellsBetaEnabled(state.tellsBeta)
   }, [state.tellsBeta, setTellsBetaEnabled])
   useEffect(() => {
     setSunShadowBetaEnabled(state.sunShadowBeta)
   }, [state.sunShadowBeta, setSunShadowBetaEnabled])
+  useEffect(() => {
+    setHistoricalBetaEnabled(state.historicalBeta)
+  }, [state.historicalBeta, setHistoricalBetaEnabled])
 
   // Applies a `?project=` preset (lib/projects.json) and/or terrainUrl/basemapUrl
   // convenience params on first load only — guarded by the ref so it never fights
@@ -1148,6 +1189,7 @@ export function TerrainViewer() {
     // itself already carries an explicit override.
     if (!searchParams.has("tellsBeta") && tellsBetaEnabled) stateOverrides.tellsBeta = true
     if (!searchParams.has("sunShadowBeta") && sunShadowBetaEnabled) stateOverrides.sunShadowBeta = true
+    if (!searchParams.has("historicalBeta") && historicalBetaEnabled) stateOverrides.historicalBeta = true
 
     // terrainUrl/basemapUrl can carry either an id of a source the visitor's browser
     // (or the sample library) already knows about, or a raw tile/COG URL to
@@ -1583,6 +1625,20 @@ export function TerrainViewer() {
   // mode, basemapSource otherwise.
   const activeBasemapSourceA = state.basemapPerView ? state.basemapSourceA : state.basemapSource
   const activeBasemapSourceB = state.basemapPerView ? state.basemapSourceB : state.basemapSource
+  // Same plain/A/B mode split as the basemap id itself, just for the wayback
+  // release number (see waybackRelease/waybackReleaseA/waybackReleaseB above).
+  const activeWaybackReleaseA = state.basemapPerView ? state.waybackReleaseA : state.waybackRelease
+  const activeWaybackReleaseB = state.basemapPerView ? state.waybackReleaseB : state.waybackRelease
+  const activeHlsDateA = state.basemapPerView ? state.hlsDateA : state.hlsDate
+  const activeHlsDateB = state.basemapPerView ? state.hlsDateB : state.hlsDate
+  const activeGeDateA = state.basemapPerView ? state.geDateA : state.geDate
+  const activeGeDateB = state.basemapPerView ? state.geDateB : state.geDate
+  const activePlanetDateA = state.basemapPerView ? state.planetDateA : state.planetDate
+  const activePlanetDateB = state.basemapPerView ? state.planetDateB : state.planetDate
+  // Drives the minimap's bottom offset below — the timeline panel docks to
+  // the same bottom-left area the minimap (a MapLibre IControl, only ever
+  // mounted on the primary/map-a pane) would otherwise occupy.
+  const historicalTimelineVisible = state.historicalBeta && isHistoricalSourceActive(state)
   const isBasemapCustom = customBasemapSources.some(s => s.id === activeBasemapSourceA)
 
   // Linked terrain/basemap pairs (e.g. a fresco's DTM + its own albedo photo
@@ -1911,6 +1967,12 @@ export function TerrainViewer() {
             basemapSource={isPrimary ? activeBasemapSourceA : activeBasemapSourceB}
             mapboxKey={mapboxKey}
             hereKey={hereKey}
+            waybackReleaseNum={isPrimary ? activeWaybackReleaseA : activeWaybackReleaseB}
+            hlsDate={isPrimary ? activeHlsDateA : activeHlsDateB}
+            geDate={isPrimary ? activeGeDateA : activeGeDateB}
+            planetDate={isPrimary ? activePlanetDateA : activePlanetDateB}
+            planetKey={planetKey}
+            historicalBeta={state.historicalBeta}
             customBasemapSources={customBasemapSources}
             titilerEndpoint={titilerEndpoint}
             onZoomRangeChange={isPrimary ? setZoomRangeBasemap : undefined}
@@ -2400,7 +2462,7 @@ export function TerrainViewer() {
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor, state.contourMinorLrm, state.contourMajorLrm, state.contourReferenceMode, state.contourWeight,
       state.contourColor, state.graticuleColor,
-      activeBasemapSourceA, activeBasemapSourceB,
+      activeBasemapSourceA, activeBasemapSourceB, activeWaybackReleaseA, activeWaybackReleaseB, activeHlsDateA, activeHlsDateB, activeGeDateA, activeGeDateB, activePlanetDateA, activePlanetDateB, planetKey, state.historicalBeta,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint,
       svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,
@@ -2424,7 +2486,10 @@ export function TerrainViewer() {
       }}
     >
       <div className="absolute inset-0 flex">
-        <div className={state.splitScreen ? "flex-1" : "w-full"}>
+        <div
+          className={`${state.splitScreen ? "flex-1" : "w-full"} [&_.maplibregl-ctrl-bottom-left]:!bottom-[var(--minimap-offset)] [&_.maplibregl-ctrl-bottom-left]:transition-[bottom] [&_.maplibregl-ctrl-bottom-left]:duration-200`}
+          style={{ ["--minimap-offset" as any]: historicalTimelineVisible ? "8rem" : "10px" }}
+        >
           {renderMap(state.sourceA, "map-a")}
         </div>
         {state.splitScreen && (
@@ -2432,6 +2497,7 @@ export function TerrainViewer() {
         )}
       </div>
       <LightControlOverlay state={state} setState={setState} mapRef={mapARef as any} />
+      <HistoricalTimelinePanel state={state} setState={setState} />
       <TerrainControlPanel
         state={state}
         setState={setState}

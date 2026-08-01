@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, titilerEndpointAtom,
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom,
   customThemesAtom,
@@ -156,6 +156,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [mapboxKey, setMapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey, setMaptilerKey] = useAtom(maptilerKeyAtom)
   const [hereKey, setHereKey] = useAtom(hereKeyAtom)
+  const [planetKey, setPlanetKey] = useAtom(planetKeyAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
   const [batchEditMode, setBatchEditMode] = useState(false)
@@ -254,7 +255,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // stripping "VITE_", rather than needing a mental mapping between the two.
   const handleBatchToggle = useCallback(() => {
     if (!batchEditMode) {
-      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `GOOGLE_API_KEY=${googleKey}`].join("\n"))
+      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`].join("\n"))
     } else {
       batchApiKeys.split("\n").forEach((line) => {
         const [key, value] = line.split("=")
@@ -262,12 +263,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           if (key.trim() === "MAPBOX_ACCESS_TOKEN") setMapboxKey(value.trim())
           if (key.trim() === "MAPTILER_API_KEY") setMaptilerKey(value.trim())
           if (key.trim() === "HERE_API_KEY") setHereKey(value.trim())
+          if (key.trim() === "PLANET_API_KEY") setPlanetKey(value.trim())
           if (key.trim() === "GOOGLE_API_KEY") setGoogleKey(value.trim())
         }
       })
     }
     setBatchEditMode(!batchEditMode)
-  }, [batchEditMode, batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey])
+  }, [batchEditMode, batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey])
 
   return (
     <Dialog
@@ -637,6 +639,28 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 Hillshade/Phong/Shadows also drive.
               </p>
             </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold">Historical Imagery Sources</h4>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="historical-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
+                  <Switch
+                    id="historical-beta"
+                    checked={state.historicalBeta}
+                    className="cursor-pointer"
+                    onCheckedChange={(checked) => setState({ historicalBeta: checked })}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Adds <span className="font-semibold text-foreground">ESRI Wayback, HLS (Landsat/Sentinel), Google Earth Historical, and Planet Monthly Mosaic</span>{" "}
+                as basemap options plus a bottom timeline scrubber for picking a capture
+                date per source (Basemap section).
+              </p>
+            </div>
           </CollapsibleSection>
 
           <Separator />
@@ -697,6 +721,19 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   />
                   <p className="text-xs text-muted-foreground">
                     Unlocks HERE Satellite as a Basemap option — hidden until set.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="planet-key">Planet API Key</Label>
+                  <PasswordInput
+                    id="planet-key"
+                    value={planetKey}
+                    onChange={(e: any) => setPlanetKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Unlocks Planet Monthly Mosaics as a historical Basemap option — hidden until set.
                   </p>
                 </div>
 

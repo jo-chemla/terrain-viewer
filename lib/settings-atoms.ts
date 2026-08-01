@@ -24,6 +24,11 @@ export const maptilerKeyAtom = atomWithStorage("maptilerKey", import.meta.env.VI
 // var; HERE Maps satellite only appears in BUILTIN_BASEMAP_OPTIONS (raster-basemap-
 // section.tsx) once a real key is set, whether from .env or pasted into Settings.
 export const hereKeyAtom = atomWithStorage("hereKey", import.meta.env.VITE_HERE_API_KEY ?? "")
+// Same gating pattern as hereKeyAtom — Planet's monthly mosaics require a paid
+// account, so "planet" only appears as a Basemap option (raster-basemap-
+// section.tsx) once a real key is set, from a local VITE_PLANET_API_KEY or
+// pasted into Settings.
+export const planetKeyAtom = atomWithStorage("planetKey", import.meta.env.VITE_PLANET_API_KEY ?? "")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
 
@@ -219,6 +224,7 @@ export const isSettingsGeomorphometryOpenAtom = atomWithStorage("isSettingsGeomo
 // would otherwise see the pre-hydration default instead of the real stored value.
 export const tellsBetaEnabledAtom = atomWithStorage("tellsBetaEnabled", false, undefined, { getOnInit: true })
 export const sunShadowBetaEnabledAtom = atomWithStorage("sunShadowBetaEnabled", false, undefined, { getOnInit: true })
+export const historicalBetaEnabledAtom = atomWithStorage("historicalBetaEnabled", false, undefined, { getOnInit: true })
 
 // Bookmarks gallery modal: on (default) flattens every group's cards into one
 // continuous grid (each card's label prefixed with its project name) so

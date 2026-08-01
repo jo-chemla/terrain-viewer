@@ -1,0 +1,78 @@
+// Thin wrapper around the local Google Earth "Time Machine" historical
+// imagery library (lib/ge-timemachine/ge-historical.js — Iconem's own
+// reverse-engineered client, https://github.com/Iconem/GE_TimeMachine),
+// mirroring the shape of lib/wayback.ts and lib/hls.ts so it slots into the
+// same RasterBasemapSource / historical-timeline-panel pattern.
+//
+// Unlike Wayback's global release catalog or HLS's synthetic monthly ticks,
+// GE genuinely has one real per-tile capture-date list (Google's own
+// IMAGERY_HISTORY quadtree layer) — no separate "local changes" query needed.
+//
+// GE_TimeMachine's own docs assume khmdb.google.com/kh.google.com need a CORS
+// proxy, but a direct browser fetch() against both (confirmed 2026-08-01,
+// including a full dbRoot+tile round-trip) succeeds — they already send a
+// permissive Access-Control-Allow-Origin. No proxy needed, in dev OR
+// production, so none is used here.
+import { useEffect, useState } from "react"
+import maplibregl from "maplibre-gl"
+import { registerGEHistorical } from "./ge-timemachine/ge-historical.js"
+
+let geInstance: ReturnType<typeof registerGEHistorical> | null = null
+
+/** Registers the `gehist://` MapLibre protocol exactly once, module-wide —
+ *  mirrors the other in-house protocols' single addProtocol registration
+ *  (see TerrainViewer.tsx), just lazily on first use instead of on mount. */
+function getGe() {
+  if (!geInstance) {
+    geInstance = registerGEHistorical(maplibregl, {})
+  }
+  return geInstance
+}
+
+export function geHistoricalTileSource(dateMs: number): { tiles: string[]; tileSize: number; maxzoom: number } {
+  const ge = getGe()
+  const d = new Date(dateMs)
+  const spec = ge.makeRasterSource({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() })
+  return { tiles: spec.tiles, tileSize: spec.tileSize, maxzoom: spec.maxzoom }
+}
+
+const LOCAL_DATES_DEBOUNCE_MS = 400
+
+/** Real per-location capture dates from Google's own IMAGERY_HISTORY layer
+ *  for the Keyhole tile at (latitude, longitude, zoom) — not synthetic,
+ *  unlike lib/hls.ts's placeholder ticks. */
+export function useGeHistoricalDates(latitude: number, longitude: number, zoom: number): { items: { dateMs: number; label: string }[]; loading: boolean } {
+  const [items, setItems] = useState<{ dateMs: number; label: string }[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const timer = setTimeout(async () => {
+      try {
+        const ge = getGe()
+        await ge.ready()
+        const level = Math.max(1, Math.min(23, Math.round(zoom)))
+        const { path } = ge.keyholePathAtLngLat(longitude, latitude, level)
+        const dated = await ge.getDatesForPath(path)
+        if (cancelled) return
+        // packed === 0 is the "current default imagery, no history" sentinel
+        // (see ge-historical.js's _computeDatesForPath) — not a real date.
+        const mapped = dated
+          .filter((d: any) => d.packed)
+          .map((d: any) => ({
+            dateMs: Date.UTC(d.year, d.month - 1, d.day),
+            label: `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`,
+          }))
+          .sort((a: any, b: any) => a.dateMs - b.dateMs)
+        setItems(mapped)
+        setLoading(false)
+      } catch {
+        if (!cancelled) setLoading(false)
+      }
+    }, LOCAL_DATES_DEBOUNCE_MS)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [latitude, longitude, zoom])
+
+  return { items, loading }
+}

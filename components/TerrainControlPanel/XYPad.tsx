@@ -17,6 +17,10 @@ interface SphericalXYPadProps {
   sliderId?: string;
   fixedAzimuth?: number | null; // Fix azimuth to this value (degrees), allows only elevation changes
   fixedElevation?: number | null; // Fix elevation to this value (degrees), allows only azimuth changes
+  // Static analemma overlay — the sun's (azimuth, elevation) across the year
+  // at one fixed clock time, e.g. one point per few days for Jan 1 – Dec 31.
+  // Purely decorative/read-only: never affected by fixedAzimuth/fixedElevation.
+  analemmaPoints?: { azimuthDeg: number; elevationDeg: number }[];
 }
 
 export function SphericalXYPad({
@@ -32,6 +36,7 @@ export function SphericalXYPad({
   sliderId = "xypad",
   fixedAzimuth = null,
   fixedElevation = null,
+  analemmaPoints,
 }: SphericalXYPadProps) {
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
   
@@ -79,6 +84,20 @@ export function SphericalXYPad({
     let elevationDeg = (elevation * 180) / Math.PI;
     elevationDeg = Math.max(minElevationDeg, Math.min(maxElevationDeg, elevationDeg));
     return { azimuthDeg, elevationDeg };
+  };
+
+  // Same projection as degToXY, minus the fixedAzimuth/fixedElevation
+  // substitution — the analemma plots real per-day sun positions and must
+  // never get collapsed onto whatever fixed value the pill itself is locked to.
+  const projectPoint = (azimuthDeg: number, elevationDeg: number) => {
+    let normalizedAz = azimuthDeg;
+    if (azimuthRange[0] === -180) {
+      normalizedAz = azimuthDeg < 0 ? azimuthDeg + 360 : azimuthDeg;
+    }
+    const az = ((90 - normalizedAz) * Math.PI) / 180;
+    const el = (Math.max(minElevationDeg, Math.min(maxElevationDeg, elevationDeg)) * Math.PI) / 180;
+    const r = Math.cos(el);
+    return { x: r * Math.cos(az), y: -r * Math.sin(az) };
   };
 
   const [pos, setPos] = useState(() => degToXY(value));
@@ -248,6 +267,28 @@ export function SphericalXYPad({
             strokeOpacity="0.5"
             strokeWidth="2"
             strokeDasharray="4 4"
+          />
+        </svg>
+      )}
+
+      {/* Sun analemma — the figure-8 traced by the sun's position at this
+          same clock time across the whole year (see light-direction-control's
+          analemmaPoints memo). Rendered under the cardinal labels/pill. */}
+      {analemmaPoints && analemmaPoints.length > 1 && (
+        <svg className="absolute inset-0 pointer-events-none" style={{ width, height }}>
+          <polyline
+            points={analemmaPoints.map(({ azimuthDeg, elevationDeg }) => {
+              const { x, y } = projectPoint(azimuthDeg, elevationDeg);
+              const px = ((x + 1) / 2) * (width - 2 * margin) + margin;
+              const py = ((y + 1) / 2) * (height - 2 * margin) + margin;
+              return `${px},${py}`;
+            }).join(" ")}
+            fill="none"
+            stroke="#f59e0b"
+            strokeWidth="1.5"
+            strokeOpacity="0.75"
+            strokeDasharray="2 3"
+            strokeLinecap="round"
           />
         </svg>
       )}

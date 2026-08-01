@@ -192,6 +192,22 @@ export const LightDirectionControl: React.FC<{
     [stepsPerHour, timeStepMinutes],
   )
 
+  // Sun analemma: the (azimuth, elevation) the sun sits at for THIS same
+  // clock time (state.lightTimeOfDay, in whichever UTC/Local convention is
+  // selected) across every ~5th day of the year — recomputing solarHourFromUi
+  // per sampled day (not just once for the current day) so a Local-mode
+  // analemma correctly reflects each day's own DST offset.
+  const ANALEMMA_DAY_STEP = 5
+  const analemmaPoints = useMemo(() => {
+    if (!state.lightUseDatetime) return undefined
+    const points: { azimuthDeg: number; elevationDeg: number }[] = []
+    for (let d = 1; d <= 365; d += ANALEMMA_DAY_STEP) {
+      const s = solarPosition(state.lat, state.lng, d, solarHourFromUi(d, state.lightTimeOfDay))
+      points.push({ azimuthDeg: ((s.azimuth % 360) + 360) % 360, elevationDeg: s.altitude })
+    }
+    return points
+  }, [state.lightUseDatetime, state.lat, state.lng, state.lightTimeOfDay, solarHourFromUi])
+
   const dayRange = useMemo(() => dayLength(state.lat, state.lightDayOfYear), [state.lat, state.lightDayOfYear])
   // Sunrise/sunset from dayRange are in true solar time — convert onto the
   // Time slider's own (uiHour) axis so the ticks line up with what the slider
@@ -388,6 +404,7 @@ export const LightDirectionControl: React.FC<{
               onChange={setLightDir}
               fixedAzimuth={fixedAzimuth}
               fixedElevation={fixedElevation}
+              analemmaPoints={analemmaPoints}
             />
           </div>
           {state.lightUseDatetime && (

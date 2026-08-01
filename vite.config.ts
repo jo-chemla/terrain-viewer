@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     devtools({ eventBusConfig: { port: 42169 } }),
     react(),
-    tailwindcss(), 
+    tailwindcss(),
     nodePolyfills({
       include: ['buffer', 'fs', 'path', 'crypto', 'stream', 'util'],
     }),
