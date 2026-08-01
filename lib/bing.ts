@@ -29,8 +29,9 @@ function lngLatToTile(lng: number, lat: number, zoom: number): { x: number; y: n
 
 const BING_DEBOUNCE_MS = 400
 
-export function useBingCaptureDate(latitude: number, longitude: number, zoom: number): { label: string | null } {
+export function useBingCaptureDate(latitude: number, longitude: number, zoom: number): { label: string | null; dateMs: number | null } {
   const [label, setLabel] = useState<string | null>(null)
+  const [dateMs, setDateMs] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -42,16 +43,22 @@ export function useBingCaptureDate(latitude: number, longitude: number, zoom: nu
         const res = await fetch(`https://t.ssl.ak.tiles.virtualearth.net/tiles/a${quad}.jpeg?g=14603&n=z&prx=1`)
         const range = res.headers.get("X-Ve-Tilemeta-Capturedatesrange")
         if (cancelled) return
-        if (!range) { setLabel(null); return }
+        if (!range) { setLabel(null); setDateMs(null); return }
         const [, to] = range.split("-")
         const d = to ? new Date(to) : null
-        setLabel(d && !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : range)
+        if (d && !isNaN(d.getTime())) {
+          setLabel(d.toISOString().slice(0, 10))
+          setDateMs(d.getTime())
+        } else {
+          setLabel(range)
+          setDateMs(null)
+        }
       } catch {
-        if (!cancelled) setLabel(null)
+        if (!cancelled) { setLabel(null); setDateMs(null) }
       }
     }, BING_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
   }, [latitude, longitude, zoom])
 
-  return { label }
+  return { label, dateMs }
 }

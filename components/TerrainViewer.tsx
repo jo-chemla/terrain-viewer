@@ -196,12 +196,25 @@ export const QUERY_STATE_PARSERS = {
     planetDate: parseAsInteger.withDefault(0),
     planetDateA: parseAsInteger.withDefault(0),
     planetDateB: parseAsInteger.withDefault(0),
+    // Same plain/A/B triple, for Bing's single "current" capture date (epoch
+    // ms) — see lib/bing.ts. Bing only ever has one real tick (its mosaic
+    // isn't a browsable historical archive), but this still needs a field so
+    // historical-timeline-panel.tsx's generic per-source bookkeeping (which
+    // side has "picked" a tick yet) works the same way as the other sources.
+    bingDate: parseAsInteger.withDefault(0),
+    bingDateA: parseAsInteger.withDefault(0),
+    bingDateB: parseAsInteger.withDefault(0),
     // Which historical sources' ticks are aggregated onto the shared timeline
     // (pill toggles in historical-timeline-panel.tsx) — independent of which
     // single source is actually "active"/rendered on the map. "planet" is
     // deliberately left out of the default — it needs an API key, so it only
     // shows up here once a user with a key explicitly toggles its pill on.
     timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "hls", "ge-historical"]),
+    // Resolution-class filter alongside the source pills above — "vhr"
+    // (Wayback/GE Historical/Bing, sub-meter-ish) vs "medium" (HLS's 10-30m
+    // Landsat/Sentinel-2, Planet's ~4.7m monthly mosaic) — see SOURCE_CONFIG's
+    // resClass in historical-timeline-panel.tsx. Both on by default.
+    resolutionClasses: parseAsArrayOf(parseAsString).withDefault(["vhr", "medium"]),
     // colorRamp: parseAsString.withDefault("mby"),
     colorRamp: parseAsStringLiteral(COLOR_RAMP_IDS).withDefault("mby"),
     customStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),

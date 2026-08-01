@@ -8,6 +8,7 @@ import { useWaybackItemsWithLocalChanges, useWaybackCaptureDate, sortByDateAscen
 import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
 import { planetMonthlyTicks } from "@/lib/planet"
+import { useBingCaptureDate } from "@/lib/bing"
 import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
 import { planetKeyAtom } from "@/lib/settings-atoms"
 
@@ -30,13 +31,23 @@ const MIN_YEAR_LABEL_GAP_PX = 32
 // Registry of aggregatable timeline sources — the pill row below toggles
 // membership in state.timelineSources, and each tick is colored by its
 // source so a merged wayback+HLS timeline still reads as two distinct series.
-const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
-  wayback: { label: "Wayback", color: "#64748b" },
-  hls: { label: "HLS", color: "#8b5cf6" },
-  "ge-historical": { label: "GE Historical", color: "#f97316" },
-  planet: { label: "Planet", color: "#14b8a6" },
+// resClass is a coarse, per-SOURCE (not per-tile) resolution bucket used by
+// the VHR/Medium chips below — Wayback/GE Historical/Bing are all sub-meter-
+// ish "very high resolution" mosaics, while HLS (Landsat/Sentinel-2, 10-30m)
+// and Planet (~4.7m PlanetScope) read as coarser "medium" imagery next to them.
+const SOURCE_CONFIG: Record<string, { label: string; color: string; resClass: "vhr" | "medium" }> = {
+  wayback: { label: "Wayback", color: "#64748b", resClass: "vhr" },
+  hls: { label: "HLS", color: "#8b5cf6", resClass: "medium" },
+  "ge-historical": { label: "GE Historical", color: "#f97316", resClass: "vhr" },
+  planet: { label: "Planet", color: "#14b8a6", resClass: "medium" },
+  bing: { label: "Bing", color: "#0078d4", resClass: "vhr" },
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
+
+const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
+  { id: "vhr", label: "VHR" },
+  { id: "medium", label: "Medium res" },
+]
 
 type TimelineTick = { source: string; key: number; dateMs: number; label: string }
 
@@ -95,9 +106,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => (hasPlanetKey ? planetMonthlyTicks().map((t) => ({ source: "planet", key: t.dateMs, dateMs: t.dateMs, label: t.label })) : []),
     [hasPlanetKey],
   )
+  // Bing has no browsable historical archive — just its single "current"
+  // mosaic — so this is always at most a one-item pool: the real capture
+  // date for the current view center (see lib/bing.ts), keyed by that same
+  // date so releaseForSide/findTick below work identically to every other
+  // source even though there's nothing to actually scrub through.
+  const { label: bingCaptureLabel, dateMs: bingCaptureDateMs } = useBingCaptureDate(state.lat, state.lng, state.zoom)
+  const bingTicks = useMemo<TimelineTick[]>(
+    () => (bingCaptureDateMs ? [{ source: "bing", key: bingCaptureDateMs, dateMs: bingCaptureDateMs, label: bingCaptureLabel ?? "" }] : []),
+    [bingCaptureDateMs, bingCaptureLabel],
+  )
   const allTicks = useMemo(
-    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks].sort((a, b) => a.dateMs - b.dateMs),
-    [waybackTicks, hlsTicks, geTicks, planetTicks],
+    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks].sort((a, b) => a.dateMs - b.dateMs),
+    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks],
   )
   const findTick = useCallback(
     (source: string, key: number) => allTicks.find((t) => t.source === source && t.key === key) ?? null,
@@ -115,12 +136,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     setState({ timelineSources: set.size ? Array.from(set) : [id] })
   }, [timelineSources, setState])
 
+  const resolutionClasses: string[] = state.resolutionClasses?.length ? state.resolutionClasses : ["vhr", "medium"]
+  const toggleResolutionClass = useCallback((id: string) => {
+    const set = new Set(resolutionClasses)
+    if (set.has(id)) set.delete(id)
+    else set.add(id)
+    // Same "never allow zero" rule as toggleSource above.
+    setState({ resolutionClasses: set.size ? Array.from(set) : [id] })
+  }, [resolutionClasses, setState])
+
   // Ticks/gridlines only ever show sources currently toggled on via the pill
-  // row — but a side's OWN active handle (below) still resolves against
-  // allTicks, so switching a pill off doesn't strand an already-picked date.
+  // row (both the source pills and the VHR/Medium res chips) — but a side's
+  // OWN active handle (below) still resolves against allTicks, so switching a
+  // pill off doesn't strand an already-picked date.
   const items = useMemo(
-    () => allTicks.filter((t) => timelineSources.includes(t.source)),
-    [allTicks, timelineSources],
+    () => allTicks.filter((t) => timelineSources.includes(t.source) && resolutionClasses.includes(SOURCE_CONFIG[t.source]?.resClass)),
+    [allTicks, timelineSources, resolutionClasses],
   )
 
   const releaseForSide = useCallback((side: "A" | "B"): number => {
@@ -137,13 +168,17 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     if (basemapSource === "planet") {
       return side === "A" ? (state.basemapPerView ? state.planetDateA : state.planetDate) : state.planetDateB
     }
+    if (basemapSource === "bing") {
+      return side === "A" ? (state.basemapPerView ? state.bingDateA : state.bingDate) : state.bingDateB
+    }
     return 0
-  }, [activeBasemapSourceA, activeBasemapSourceB, state.basemapPerView, state.waybackRelease, state.waybackReleaseA, state.waybackReleaseB, state.hlsDate, state.hlsDateA, state.hlsDateB, state.geDate, state.geDateA, state.geDateB, state.planetDate, state.planetDateA, state.planetDateB])
+  }, [activeBasemapSourceA, activeBasemapSourceB, state.basemapPerView, state.waybackRelease, state.waybackReleaseA, state.waybackReleaseB, state.hlsDate, state.hlsDateA, state.hlsDateB, state.geDate, state.geDateA, state.geDateB, state.planetDate, state.planetDateA, state.planetDateB, state.bingDate, state.bingDateA, state.bingDateB])
 
   const dateFieldFor = useCallback((source: string, side: "A" | "B") => {
     if (source === "wayback") return side === "A" ? (state.basemapPerView ? "waybackReleaseA" : "waybackRelease") : "waybackReleaseB"
     if (source === "hls") return side === "A" ? (state.basemapPerView ? "hlsDateA" : "hlsDate") : "hlsDateB"
     if (source === "ge-historical") return side === "A" ? (state.basemapPerView ? "geDateA" : "geDate") : "geDateB"
+    if (source === "bing") return side === "A" ? (state.basemapPerView ? "bingDateA" : "bingDate") : "bingDateB"
     return side === "A" ? (state.basemapPerView ? "planetDateA" : "planetDate") : "planetDateB"
   }, [state.basemapPerView])
 
@@ -272,6 +307,23 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 style={active ? { backgroundColor: cfg.color } : undefined}
               >
                 {cfg.label}
+              </button>
+            )
+          })}
+          <div className="w-px self-stretch bg-border mx-0.5" />
+          {RESOLUTION_CLASSES.map(({ id, label }) => {
+            const active = resolutionClasses.includes(id)
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => toggleResolutionClass(id)}
+                className={cn(
+                  "cursor-pointer rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  active ? "bg-accent text-accent-foreground border-border" : "text-muted-foreground border-border/60 hover:bg-accent",
+                )}
+              >
+                {label}
               </button>
             )
           })}

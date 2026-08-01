@@ -2,7 +2,7 @@
 // used to gate the sidebar's "Historical Basemaps" group, the bottom timeline
 // panel's visibility, and the minimap's bottom-left offset so they all agree
 // on the same definition as new sources (HLS, GE historical) are added.
-export const HISTORICAL_BASEMAP_IDS = new Set(["wayback", "hls", "ge-historical", "planet"])
+export const HISTORICAL_BASEMAP_IDS = new Set(["wayback", "hls", "ge-historical", "planet", "bing"])
 
 export function isHistoricalSourceActive(state: {
   basemapPerView?: boolean

@@ -127,7 +127,12 @@ export const RasterBasemapSection: React.FC<{
                           onSelectA={() => setState({ basemapSourceA: value })}
                           onSelectB={() => setState({ basemapSourceB: value })}
                         />
-                        <Label className="flex-1 text-sm truncate min-w-0">{label}</Label>
+                        <Label className="flex-1 text-sm truncate min-w-0">
+                          {label}
+                          {value === "bing" && bingCaptureLabel && (
+                            <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
+                          )}
+                        </Label>
                       </div>
                     ))}
                   </div>
@@ -142,12 +147,7 @@ export const RasterBasemapSection: React.FC<{
                         onSelectA={() => setState({ basemapSourceA: value })}
                         onSelectB={() => setState({ basemapSourceB: value })}
                       />
-                      <Label className="flex-1 text-sm truncate min-w-0">
-                        {label}
-                        {value === "bing" && bingCaptureLabel && (
-                          <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
-                        )}
-                      </Label>
+                      <Label className="flex-1 text-sm truncate min-w-0">{label}</Label>
                     </div>
                   ))}
                 </div>
@@ -161,7 +161,12 @@ export const RasterBasemapSection: React.FC<{
                       {historicalOptions.map(({ value, label }) => (
                         <div key={value} className="flex items-center gap-2 min-w-0 py-1">
                           <RadioGroupItem value={value} id={`basemap-source-${value}`} className="cursor-pointer shrink-0" />
-                          <Label htmlFor={`basemap-source-${value}`} className="flex-1 text-sm cursor-pointer truncate min-w-0">{label}</Label>
+                          <Label htmlFor={`basemap-source-${value}`} className="flex-1 text-sm cursor-pointer truncate min-w-0">
+                            {label}
+                            {value === "bing" && bingCaptureLabel && (
+                              <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
+                            )}
+                          </Label>
                         </div>
                       ))}
                     </RadioGroup>
@@ -181,12 +186,7 @@ export const RasterBasemapSection: React.FC<{
                     {otherBuiltinOptions.map(({ value, label }) => (
                       <div key={value} className="flex items-center gap-2 min-w-0 py-1">
                         <RadioGroupItem value={value} id={`basemap-source-${value}`} className="cursor-pointer shrink-0" />
-                        <Label htmlFor={`basemap-source-${value}`} className="flex-1 text-sm cursor-pointer truncate min-w-0">
-                          {label}
-                          {value === "bing" && bingCaptureLabel && (
-                            <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
-                          )}
-                        </Label>
+                        <Label htmlFor={`basemap-source-${value}`} className="flex-1 text-sm cursor-pointer truncate min-w-0">{label}</Label>
                       </div>
                     ))}
                   </RadioGroup>
