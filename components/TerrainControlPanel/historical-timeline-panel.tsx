@@ -9,7 +9,7 @@ import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
 import { planetMonthlyTicks } from "@/lib/planet"
 import { useBingCaptureDate } from "@/lib/bing"
-import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
+import { TIMELINE_SOURCE_IDS } from "@/lib/historical-sources"
 import { planetKeyAtom } from "@/lib/settings-atoms"
 
 // Hardcoded (not var(--primary)/theme tokens) deliberately — same reasoning
@@ -62,8 +62,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
 
   const activeBasemapSourceA = state.basemapPerView ? state.basemapSourceA : state.basemapSource
   const activeBasemapSourceB = state.basemapPerView ? state.basemapSourceB : state.basemapSource
-  const aIsHistorical = HISTORICAL_BASEMAP_IDS.has(activeBasemapSourceA)
-  const bIsHistorical = HISTORICAL_BASEMAP_IDS.has(activeBasemapSourceB)
+  const aIsHistorical = TIMELINE_SOURCE_IDS.has(activeBasemapSourceA)
+  const bIsHistorical = TIMELINE_SOURCE_IDS.has(activeBasemapSourceB)
   // A and B only ever show as independently-draggable when they're genuinely
   // independent views (per-view basemap AND split-screen both on) — in every
   // other mode activeBasemapSourceA === activeBasemapSourceB by construction
