@@ -20,6 +20,17 @@ const HLS_WINDOW_DAYS = 15
 // hard cutoff for what dates can be requested.
 const HLS_COVERAGE_START_MS = Date.parse("2016-01-01T00:00:00Z")
 
+// HLS surface reflectance bands are stored as raw scaled int16 DNs (scale
+// factor 0.0001 → reflectance 0-1, so valid land-surface values top out
+// around 3000-4000 out of a theoretical 0-10000 range) — titiler-cmr's
+// /rasterio/tiles endpoint does NOT infer a sensible display range on its
+// own; omitting `rescale` entirely left it stretching against the full
+// int16 domain, crushing real reflectance values down to near-black. One
+// `rescale=min,max` per requested band (titiler's own documented repeatable
+// query-param format) fixes this — 0-3000 is the conventional natural-color
+// stretch for Sentinel-2/HLS surface reflectance.
+const HLS_RESCALE_RANGE = "0,3000"
+
 /** Builds a MapLibre raster tile URL template for a true-color HLS mosaic
  *  centered on `centerDateMs`, compositing granules within a +/-15 day window. */
 export function hlsTileUrl(centerDateMs: number): string {
@@ -34,6 +45,9 @@ export function hlsTileUrl(centerDateMs: number): string {
   params.append("assets", "B04")
   params.append("assets", "B03")
   params.append("assets", "B02")
+  params.append("rescale", HLS_RESCALE_RANGE)
+  params.append("rescale", HLS_RESCALE_RANGE)
+  params.append("rescale", HLS_RESCALE_RANGE)
   return `${TITILER_CMR_BASE}/rasterio/tiles/WebMercatorQuad/{z}/{x}/{y}?${params.toString()}`
 }
 

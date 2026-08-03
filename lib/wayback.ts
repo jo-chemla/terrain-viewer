@@ -73,6 +73,28 @@ export function useWaybackItemsWithLocalChanges(latitude: number, longitude: num
   return { items, loading }
 }
 
+// Module-level cache for per-tick tooltip lookups (historical-timeline-
+// panel.tsx hovers a tick and wants its real capture date without refetching
+// every time the same tick is re-hovered in a session). Keyed coarsely (3
+// decimal places / rounded zoom) since a release's imagery doesn't vary at
+// that granularity.
+const captureLabelCache = new Map<string, string | null>()
+
+/** Plain (non-hook) fetch + cache, used both by useWaybackCaptureDate below
+ *  and by a tick tooltip's lazy on-hover fetch. */
+export async function fetchWaybackCaptureLabel(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<string | null> {
+  const key = `${releaseNumber}:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
+  if (captureLabelCache.has(key)) return captureLabelCache.get(key)!
+  try {
+    const meta = await getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber)
+    const label = meta ? new Date(meta.date).toISOString().slice(0, 10) : null
+    captureLabelCache.set(key, label)
+    return label
+  } catch {
+    return null
+  }
+}
+
 /**
  * The REAL per-tile acquisition date for one release at one location — a
  * release's own releaseDateLabel is a catalog-wide publish date, not
@@ -89,9 +111,8 @@ export function useWaybackCaptureDate(latitude: number, longitude: number, zoom:
     if (!releaseNumber) { setLabel(null); return }
     let cancelled = false
     const timer = setTimeout(() => {
-      getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber)
-        .then((meta) => { if (!cancelled) setLabel(meta ? new Date(meta.date).toISOString().slice(0, 10) : null) })
-        .catch(() => { if (!cancelled) setLabel(null) })
+      fetchWaybackCaptureLabel(latitude, longitude, zoom, releaseNumber)
+        .then((result) => { if (!cancelled) setLabel(result) })
     }, LOCAL_CHANGES_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
   }, [latitude, longitude, zoom, releaseNumber])

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsInteger, parseAsStringLiteral, parseAsArrayOf } from "nuqs"
 import Map, {
   type MapRef,
@@ -30,7 +30,7 @@ import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS } from "./TerrainControlPanel/raster-basemap-section"
 import { HistoricalTimelinePanel } from "./TerrainControlPanel/historical-timeline-panel"
-import { isHistoricalSourceActive } from "@/lib/historical-sources"
+import { isHistoricalSourceActive, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
 
@@ -38,7 +38,11 @@ const SAMPLE_TERRAIN_SOURCES = customSourcesData["SAMPLE_TERRAIN_SOURCES"] as Cu
 const SAMPLE_BASEMAP_SOURCES = customSourcesData["SAMPLE_BASEMAPS_SOURCES"] as CustomBasemapSource[]
 import { MinimapControl } from "./MapControls/MinimapControl";
 import { LightControlOverlay } from "./MapControls/LightControlOverlay";
+import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
+import { SplitResizeHandle } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
+import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp } from "@/lib/layout-constants"
+import { cn } from "@/lib/utils"
 
 import maplibregl from 'maplibre-gl'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
@@ -204,12 +208,34 @@ export const QUERY_STATE_PARSERS = {
     bingDate: parseAsInteger.withDefault(0),
     bingDateA: parseAsInteger.withDefault(0),
     bingDateB: parseAsInteger.withDefault(0),
+    // Which concrete underlying source (wayback/hls/ge-historical/planet)
+    // actually renders when basemapSource(A/B) === "historical" — the sidebar
+    // only ever exposes one combined "Historical Imagery" entry; picking a
+    // tick on the timeline for a source that isn't Bing sets both the
+    // relevant date field AND this field (see historical-timeline-panel.tsx's
+    // setTickForSide). Bing bypasses this: its tick sets basemapSource(A/B)
+    // = "bing" directly, never "historical".
+    historicalActiveSource: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet"] as const).withDefault("wayback"),
+    historicalActiveSourceA: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet"] as const).withDefault("wayback"),
+    historicalActiveSourceB: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet"] as const).withDefault("wayback"),
     // Which historical sources' ticks are aggregated onto the shared timeline
     // (pill toggles in historical-timeline-panel.tsx) — independent of which
     // single source is actually "active"/rendered on the map. "planet" is
     // deliberately left out of the default — it needs an API key, so it only
     // shows up here once a user with a key explicitly toggles its pill on.
-    timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "hls", "ge-historical"]),
+    // HLS also starts off by default (its ticks are synthetic monthly
+    // placeholders, not real capture dates, per lib/hls.ts).
+    timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    // Per-side variants of timelineSources above — only meaningful when both
+    // basemapPerView AND splitScreen are on (dualMode) AND the timeline's
+    // sync toggle is off, letting map A and map B each aggregate a different
+    // subset of sources (e.g. Wayback+GE for A, HLS+Bing for B). When sync is
+    // on (the default) both sides share timelineSources instead.
+    timelineSourcesA: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    timelineSourcesB: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    // Whether the historical timeline's full bar (header + track) is
+    // collapsed down to just the small floating clock-icon toggle button.
+    historicalTimelineCollapsed: parseAsBoolean.withDefault(false),
     // Resolution-class filter alongside the source pills above — "vhr"
     // (Wayback/GE Historical/Bing, sub-meter-ish) vs "medium" (HLS's 10-30m
     // Landsat/Sentinel-2, Planet's ~4.7m monthly mosaic) — see SOURCE_CONFIG's
@@ -646,6 +672,33 @@ export function TerrainViewer() {
   const [mapBLoaded, setMapBLoaded] = useState(false)
   const viewStateUpdateTimer = useRef<NodeJS.Timeout | null>(null)
   const isMobile = useIsMobile()
+
+  // Split-screen A/B divider — tracked in real pixels (not a flex ratio) so
+  // the divider can sit at a persisted fraction of the space actually
+  // available for map content (viewport minus the floating sidebar's
+  // footprint when open), and be user-draggable. Seeded synchronously from
+  // getBoundingClientRect on mount (see effect below) to avoid a 0-width
+  // flash before the first ResizeObserver callback fires.
+  const splitContainerRef = useRef<HTMLDivElement>(null)
+  const [splitContainerWidth, setSplitContainerWidth] = useState(0)
+  const [splitRatio, setSplitRatio] = useAtom(splitRatioAtom)
+  // Reported by HistoricalTimelinePanel itself (its rendered height varies
+  // with content), so the minimap's bottom offset can clear it exactly
+  // instead of guessing a fixed height.
+  const [timelinePanelHeight, setTimelinePanelHeight] = useState(0)
+  useLayoutEffect(() => {
+    const el = splitContainerRef.current
+    // mapLibreReady gates the entire return (see "if (!mapLibreReady) return
+    // null" below) — this div doesn't exist in the DOM at all until then, so
+    // this effect (deliberately re-run when mapLibreReady flips, not just on
+    // an empty-deps mount) would otherwise measure a null ref once and never
+    // retry once the real layout actually mounts.
+    if (!el) return
+    setSplitContainerWidth(el.getBoundingClientRect().width)
+    const observer = new ResizeObserver((entries) => setSplitContainerWidth(entries[0].contentRect.width))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [mapLibreReady])
 
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
@@ -1636,8 +1689,15 @@ export function TerrainViewer() {
   // effectiveMinZoom/effectiveMaxZoom below are driven by the primary map only, so the
   // "active basemap" for zoom purposes is always map A's — basemapSourceA in per-view
   // mode, basemapSource otherwise.
-  const activeBasemapSourceA = state.basemapPerView ? state.basemapSourceA : state.basemapSource
-  const activeBasemapSourceB = state.basemapPerView ? state.basemapSourceB : state.basemapSource
+  const rawBasemapSourceA = state.basemapPerView ? state.basemapSourceA : state.basemapSource
+  const rawBasemapSourceB = state.basemapPerView ? state.basemapSourceB : state.basemapSource
+  // rawBasemapSourceA/B is either a normal basemap id or the single combined
+  // "historical" entry — resolve the latter down to whichever concrete
+  // source (wayback/hls/ge-historical/planet) is actually active for that
+  // side before it reaches RasterBasemapSource, which never needs to know
+  // "historical" exists as a sidebar-level concept.
+  const activeBasemapSourceA = resolveActiveHistoricalSource(rawBasemapSourceA, state.basemapPerView ? state.historicalActiveSourceA : state.historicalActiveSource)
+  const activeBasemapSourceB = resolveActiveHistoricalSource(rawBasemapSourceB, state.basemapPerView ? state.historicalActiveSourceB : state.historicalActiveSource)
   // Same plain/A/B mode split as the basemap id itself, just for the wayback
   // release number (see waybackRelease/waybackReleaseA/waybackReleaseB above).
   const activeWaybackReleaseA = state.basemapPerView ? state.waybackReleaseA : state.waybackRelease
@@ -1651,7 +1711,8 @@ export function TerrainViewer() {
   // Drives the minimap's bottom offset below — the timeline panel docks to
   // the same bottom-left area the minimap (a MapLibre IControl, only ever
   // mounted on the primary/map-a pane) would otherwise occupy.
-  const historicalTimelineVisible = state.historicalBeta && isHistoricalSourceActive(state)
+  const historicalTimelineActive = state.historicalBeta && isHistoricalSourceActive(state)
+  const historicalTimelineVisible = historicalTimelineActive && !state.historicalTimelineCollapsed
   const isBasemapCustom = customBasemapSources.some(s => s.id === activeBasemapSourceA)
 
   // Linked terrain/basemap pairs (e.g. a fresco's DTM + its own albedo photo
@@ -1675,7 +1736,7 @@ export function TerrainViewer() {
   // portion of the map when the floating sidebar covers the right edge.
   // Widths match the sidebar's own w-96/right-4 (desktop) and w-80 (mobile) classes.
   const mapPadding = useMemo(
-    () => ({ top: 0, bottom: 0, left: 0, right: isSidebarOpen ? (isMobile ? 320 : 400) : 0 }),
+    () => ({ top: 0, bottom: 0, left: 0, right: getSidebarFootprintPx(isSidebarOpen, isMobile) }),
     [isSidebarOpen, isMobile],
   )
 
@@ -2373,10 +2434,6 @@ export function TerrainViewer() {
                 <GeolocateControlThemed position="top-left" />
               )}
 
-              {!activeProjectConfig?.hideMapControls?.includes("scale") && (
-                <ScaleControl position="bottom-left" unit="metric" maxWidth={250} />
-              )}
-
               {/* Minimap — no parentMap prop: it picks up the parent map via react-map-gl's
                   useMap() context, which is available as soon as the Map mounts rather than
                   waiting for mapALoaded (the 'load' event). Gating on mapALoaded needlessly
@@ -2443,6 +2500,17 @@ export function TerrainViewer() {
 
             </>
           )}
+          {/* Scale bar always lands at the true bottom-right edge of the whole
+              viewport, not per-split-half: mounted on whichever map currently
+              occupies that visual position — map B when split (its own
+              bottom-right IS the screen's rightmost edge), map A otherwise
+              (full width). Exactly one of renderMap("map-a")/("map-b") can
+              ever satisfy this per render, by construction (map-b only
+              renders at all when splitScreen is true), so this always mounts
+              exactly one ScaleControl. */}
+          {!activeProjectConfig?.hideMapControls?.includes("scale") && mapId === (state.splitScreen ? "map-b" : "map-a") && (
+            <ScaleControl position="bottom-right" unit="metric" maxWidth={250} />
+          )}
         </Map>
       )
     },
@@ -2491,26 +2559,83 @@ export function TerrainViewer() {
 
   if (!mapLibreReady) return null
 
+  // Bottom-left corner (minimap, always map A) needs headroom for: the full
+  // expanded timeline panel (its own measured height + its own bottom-4
+  // margin + one more edge-margin gap above it, so the minimap sits "just
+  // above with the margin the timeline panel [uses]"), just the small
+  // collapsed-timeline toggle button sitting below it (button height + gap),
+  // or neither (the unified 16px control margin) when historical imagery
+  // isn't even active.
+  const minimapBottomOffset = historicalTimelineVisible
+    ? `${timelinePanelHeight + MAP_CTRL_EDGE_MARGIN_PX * 2}px`
+    : historicalTimelineActive ? "3.5rem" : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  // Bottom-right corner (scale bar, on whichever map is currently rightmost)
+  // only ever needs to clear the expanded timeline panel's own height — the
+  // collapsed toggle button lives bottom-LEFT, not here.
+  const scaleBottomOffset = historicalTimelineVisible ? `${timelinePanelHeight + MAP_CTRL_EDGE_MARGIN_PX * 2}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
+  const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+
+  // Split-ratio math: map A gets an explicit pixel width (a fraction of the
+  // space actually available once the floating sidebar's footprint is
+  // excluded), map B fills the remainder via flex-1 — so B naturally keeps
+  // extending under the sidebar overlay exactly as it always has.
+  const availableSplitWidth = Math.max(0, splitContainerWidth - (isSidebarOpen && !isMobile ? sidebarFootprintPx : 0))
+  const mapAWidthPx = state.splitScreen ? Math.round(availableSplitWidth * clamp(splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX)) : undefined
+
   return (
-    <div 
+    <div
       className="relative w-full"
       style={{
         height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : '100vh'
       }}
     >
-      <div className="absolute inset-0 flex">
+      <div ref={splitContainerRef} className="absolute inset-0 flex">
         <div
-          className={`${state.splitScreen ? "flex-1" : "w-full"} [&_.maplibregl-ctrl-bottom-left]:!bottom-[var(--minimap-offset)] [&_.maplibregl-ctrl-bottom-left]:transition-[bottom] [&_.maplibregl-ctrl-bottom-left]:duration-200`}
-          style={{ ["--minimap-offset" as any]: historicalTimelineVisible ? "8rem" : "10px" }}
+          className={cn(
+            state.splitScreen ? "shrink-0" : "w-full",
+            "[&_.maplibregl-ctrl-bottom-left]:!bottom-[var(--minimap-offset)] [&_.maplibregl-ctrl-bottom-left]:transition-[bottom] [&_.maplibregl-ctrl-bottom-left]:duration-200",
+            !state.splitScreen && "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
+          )}
+          style={{
+            width: state.splitScreen ? mapAWidthPx : undefined,
+            ["--minimap-offset" as any]: minimapBottomOffset,
+            ["--scale-offset" as any]: scaleBottomOffset,
+            ["--scale-right-offset" as any]: scaleRightOffset,
+          }}
         >
           {renderMap(state.sourceA, "map-a")}
         </div>
         {state.splitScreen && (
-          <div className="flex-1">{renderMap(state.sourceB, "map-b")}</div>
+          <>
+            <SplitResizeHandle
+              ratio={splitRatio}
+              onRatioChange={setSplitRatio}
+              availableWidthPx={availableSplitWidth}
+              min={SPLIT_RATIO_MIN}
+              max={SPLIT_RATIO_MAX}
+            />
+            <div
+              className={cn(
+                "flex-1",
+                "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)]",
+                "[&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
+              )}
+              style={{
+                ["--scale-offset" as any]: scaleBottomOffset,
+                ["--scale-right-offset" as any]: scaleRightOffset,
+              }}
+            >
+              {renderMap(state.sourceB, "map-b")}
+            </div>
+          </>
         )}
       </div>
       <LightControlOverlay state={state} setState={setState} mapRef={mapARef as any} />
-      <HistoricalTimelinePanel state={state} setState={setState} />
+      <HistoricalTimelinePanel state={state} setState={setState} onHeightChange={setTimelinePanelHeight} />
+      {historicalTimelineActive && state.historicalTimelineCollapsed && (
+        <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : 260} />
+      )}
       <TerrainControlPanel
         state={state}
         setState={setState}

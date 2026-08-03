@@ -1,16 +1,18 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Play, Pause, SkipBack, SkipForward } from "lucide-react"
+import { ChevronDown, Link2, Link2Off } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useWaybackItemsWithLocalChanges, useWaybackCaptureDate, sortByDateAscending } from "@/lib/wayback"
+import { useWaybackItemsWithLocalChanges, useWaybackCaptureDate, fetchWaybackCaptureLabel, sortByDateAscending } from "@/lib/wayback"
 import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
 import { planetMonthlyTicks } from "@/lib/planet"
 import { useBingCaptureDate } from "@/lib/bing"
-import { TIMELINE_SOURCE_IDS } from "@/lib/historical-sources"
+import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom } from "@/lib/settings-atoms"
+import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 // Hardcoded (not var(--primary)/theme tokens) deliberately — same reasoning
 // as the geolocate control's active/error state colors (src/index.css): A/B
@@ -21,26 +23,26 @@ import { planetKeyAtom } from "@/lib/settings-atoms"
 const COLOR_A = "#3b82f6"
 const COLOR_B = "#22c55e"
 
-const PLAY_INTERVAL_MS = 900
-
 // Minimum pixel gap between two adjacent year labels before the later one is
 // dropped — same idea as a chart axis thinning its tick labels, so a dense
 // multi-decade range never renders overlapping text.
 const MIN_YEAR_LABEL_GAP_PX = 32
 
 // Registry of aggregatable timeline sources — the pill row below toggles
-// membership in state.timelineSources, and each tick is colored by its
-// source so a merged wayback+HLS timeline still reads as two distinct series.
-// resClass is a coarse, per-SOURCE (not per-tile) resolution bucket used by
-// the VHR/Medium chips below — Wayback/GE Historical/Bing are all sub-meter-
-// ish "very high resolution" mosaics, while HLS (Landsat/Sentinel-2, 10-30m)
-// and Planet (~4.7m PlanetScope) read as coarser "medium" imagery next to them.
+// membership in state.timelineSources (or its per-side A/B variants), and
+// each tick is colored by its source so a merged wayback+HLS timeline still
+// reads as two distinct series. resClass is a coarse, per-SOURCE (not
+// per-tile) resolution bucket used by the VHR/Medium chips below —
+// Wayback/GE Historical/Bing are all sub-meter-ish "very high resolution"
+// mosaics, while HLS (Landsat/Sentinel-2, 10-30m) and Planet (~4.7m
+// PlanetScope) read as coarser "medium" imagery next to them. Object order
+// here is also the pill row's display order.
 const SOURCE_CONFIG: Record<string, { label: string; color: string; resClass: "vhr" | "medium" }> = {
-  wayback: { label: "Wayback", color: "#64748b", resClass: "vhr" },
-  hls: { label: "HLS", color: "#8b5cf6", resClass: "medium" },
-  "ge-historical": { label: "GE Historical", color: "#f97316", resClass: "vhr" },
-  planet: { label: "Planet", color: "#14b8a6", resClass: "medium" },
-  bing: { label: "Bing", color: "#0078d4", resClass: "vhr" },
+  wayback: { label: "ESRI Wayback", color: "#64748b", resClass: "vhr" },
+  "ge-historical": { label: "Google Earth Historical", color: "#f97316", resClass: "vhr" },
+  bing: { label: "Bing Dated", color: "#0078d4", resClass: "vhr" },
+  planet: { label: "Planet Monthly", color: "#14b8a6", resClass: "medium" },
+  hls: { label: "Harmonized Landsat Sentinel", color: "#8b5cf6", resClass: "medium" },
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 
@@ -51,17 +53,87 @@ const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
 
 type TimelineTick = { source: string; key: number; dateMs: number; label: string }
 
-export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
-  const [collapsed, setCollapsed] = useState(false)
-  const [activeHandle, setActiveHandle] = useState<"A" | "B">("A")
-  const [playing, setPlaying] = useState(false)
+// Zoom-window bounds for the mousewheel handler below — a floor so the
+// visible span never collapses to near-nothing (even Wayback rarely has
+// multiple releases closer than ~2 weeks apart at one spot), a factor
+// controlling how much each wheel tick zooms by.
+const MIN_VISIBLE_SPAN_MS = 1000 * 60 * 60 * 24 * 14
+const ZOOM_FACTOR = 0.85
+
+// A Wayback tick's own release/mosaic label (t.label, from releaseDateLabel)
+// is a catalog-wide publish date — the REAL per-tile imagery date can differ
+// (see lib/wayback.ts). Fetched lazily on tooltip hover-open rather than for
+// every tick up front: a location can have a dozen+ distinct releases, and
+// prefetching all of them would fire that many network requests for ticks
+// the user may never inspect. fetchWaybackCaptureLabel's own module-level
+// cache makes repeat hovers of the same tick free.
+const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; lat: number; lng: number; zoom: number }> = ({ tick, leftPct, lat, lng, zoom }) => {
+  const [captureLabel, setCaptureLabel] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const handleOpenChange = useCallback((open: boolean) => {
+    if (!open || captureLabel || loading) return
+    setLoading(true)
+    fetchWaybackCaptureLabel(lat, lng, zoom, tick.key).then((label) => {
+      setCaptureLabel(label)
+      setLoading(false)
+    })
+  }, [captureLabel, loading, lat, lng, zoom, tick.key])
+
+  return (
+    <Tooltip onOpenChange={handleOpenChange}>
+      <TooltipTrigger
+        render={
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-help"
+            style={{ left: `${leftPct}%` }}
+          >
+            <div
+              className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
+              style={{ backgroundColor: SOURCE_CONFIG.wayback.color, opacity: 0.85 }}
+            />
+          </div>
+        }
+      />
+      <TooltipContent>
+        <div>{captureLabel ?? (loading ? "Loading…" : tick.label)}</div>
+        <div className="text-[10px] text-gray-400 mt-0.5">Mosaic: {tick.label}</div>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void; onHeightChange?: (height: number) => void }> = ({ state, setState, onHeightChange }) => {
+  const collapsed = !!state.historicalTimelineCollapsed
+  const setCollapsed = useCallback((v: boolean) => setState({ historicalTimelineCollapsed: v }), [setState])
+  const [activeSide, setActiveSide] = useState<"A" | "B">("A")
+  const [syncEnabled, setSyncEnabled] = useState(true)
   const [trackWidth, setTrackWidth] = useState(0)
+  // null = full extent (no zoom applied) — see the wheel-zoom handler below.
+  const [viewWindow, setViewWindow] = useState<{ min: number; max: number } | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // Reports this panel's own rendered height to the parent (TerrainViewer),
+  // which uses it to keep the minimap positioned just above this panel with
+  // a consistent margin — instead of a hardcoded guess at the panel's height.
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el || !onHeightChange) return
+    onHeightChange(el.getBoundingClientRect().height)
+    const observer = new ResizeObserver((entries) => onHeightChange(entries[0].contentRect.height))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [onHeightChange])
   const [planetKey] = useAtom(planetKeyAtom)
   const hasPlanetKey = !!planetKey
+  const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
+  const isMobile = useIsMobile()
 
-  const activeBasemapSourceA = state.basemapPerView ? state.basemapSourceA : state.basemapSource
-  const activeBasemapSourceB = state.basemapPerView ? state.basemapSourceB : state.basemapSource
+  const rawBasemapSourceA = state.basemapPerView ? state.basemapSourceA : state.basemapSource
+  const rawBasemapSourceB = state.basemapPerView ? state.basemapSourceB : state.basemapSource
+  const activeBasemapSourceA = resolveActiveHistoricalSource(rawBasemapSourceA, state.basemapPerView ? state.historicalActiveSourceA : state.historicalActiveSource)
+  const activeBasemapSourceB = resolveActiveHistoricalSource(rawBasemapSourceB, state.basemapPerView ? state.historicalActiveSourceB : state.historicalActiveSource)
   const aIsHistorical = TIMELINE_SOURCE_IDS.has(activeBasemapSourceA)
   const bIsHistorical = TIMELINE_SOURCE_IDS.has(activeBasemapSourceB)
   // A and B only ever show as independently-draggable when they're genuinely
@@ -71,6 +143,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const dualMode = state.basemapPerView && state.splitScreen
   const showA = aIsHistorical
   const showB = dualMode && bIsHistorical
+  // When synced, both sides always land on the same tick by construction (see
+  // applyTick below) — render one shared handle instead of two overlapping
+  // color-coded ones.
+  const showBothSynced = showA && showB && syncEnabled
+  const dualUnsynced = dualMode && !syncEnabled
 
   useEffect(() => {
     const el = trackRef.current
@@ -126,15 +203,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   )
 
   const visibleSourceIds = useMemo(() => SOURCE_IDS.filter((id) => id !== "planet" || hasPlanetKey), [hasPlanetKey])
-  const timelineSources: string[] = state.timelineSources?.length ? state.timelineSources : visibleSourceIds
+
+  // Which pill-toggle array the source/resolution chips edit: the shared
+  // state.timelineSources when synced (or single-view), or whichever side is
+  // currently active (via the A|B picker below) when in dual mode with sync
+  // off — letting each side aggregate a different subset of sources (e.g.
+  // Wayback+GE for map A, HLS+Bing for map B).
+  const pillsField = dualUnsynced ? (activeSide === "A" ? "timelineSourcesA" : "timelineSourcesB") : "timelineSources"
+  const timelineSourcesForPills: string[] = state[pillsField]?.length ? state[pillsField] : visibleSourceIds
   const toggleSource = useCallback((id: string) => {
-    const set = new Set(timelineSources)
+    const set = new Set(timelineSourcesForPills)
     if (set.has(id)) set.delete(id)
     else set.add(id)
     // Never allow zero sources selected — collapsing to none would make the
     // timeline unusable with no way back in through the UI.
-    setState({ timelineSources: set.size ? Array.from(set) : [id] })
-  }, [timelineSources, setState])
+    setState({ [pillsField]: set.size ? Array.from(set) : [id] })
+  }, [timelineSourcesForPills, pillsField, setState])
 
   const resolutionClasses: string[] = state.resolutionClasses?.length ? state.resolutionClasses : ["vhr", "medium"]
   const toggleResolutionClass = useCallback((id: string) => {
@@ -148,10 +232,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Ticks/gridlines only ever show sources currently toggled on via the pill
   // row (both the source pills and the VHR/Medium res chips) — but a side's
   // OWN active handle (below) still resolves against allTicks, so switching a
-  // pill off doesn't strand an already-picked date.
+  // pill off doesn't strand an already-picked date. When unsynced in dual
+  // mode, this is scoped to whichever side is currently active (activeSide) —
+  // clicking "A" shows only A's chosen sources' ticks, clicking "B" shows
+  // only B's, per the user's request (not a union of both).
   const items = useMemo(
-    () => allTicks.filter((t) => timelineSources.includes(t.source) && resolutionClasses.includes(SOURCE_CONFIG[t.source]?.resClass)),
-    [allTicks, timelineSources, resolutionClasses],
+    () => allTicks.filter((t) => timelineSourcesForPills.includes(t.source) && resolutionClasses.includes(SOURCE_CONFIG[t.source]?.resClass)),
+    [allTicks, timelineSourcesForPills, resolutionClasses],
   )
 
   const releaseForSide = useCallback((side: "A" | "B"): number => {
@@ -182,10 +269,37 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     return side === "A" ? (state.basemapPerView ? "planetDateA" : "planetDate") : "planetDateB"
   }, [state.basemapPerView])
 
-  const setTickForSide = useCallback((side: "A" | "B", tick: TimelineTick) => {
+  // A side's basemapSource(A/B) is either a normal basemap id or the single
+  // combined "historical" entry. Picking a non-Bing tick sets that field to
+  // "historical" plus records WHICH concrete source is now active for that
+  // side (historicalActiveSource(A/B)) — Bing bypasses the indirection
+  // entirely and is written directly, same as any other plain basemap id.
+  const buildTickUpdates = useCallback((side: "A" | "B", tick: TimelineTick): Record<string, any> => {
     const sourceField = side === "A" ? (state.basemapPerView ? "basemapSourceA" : "basemapSource") : "basemapSourceB"
-    setState({ [sourceField]: tick.source, [dateFieldFor(tick.source, side)]: tick.key })
-  }, [state.basemapPerView, dateFieldFor, setState])
+    const updates: Record<string, any> = { [dateFieldFor(tick.source, side)]: tick.key }
+    if (tick.source === "bing") {
+      updates[sourceField] = "bing"
+    } else {
+      updates[sourceField] = "historical"
+      const activeSourceField = side === "A" ? (state.basemapPerView ? "historicalActiveSourceA" : "historicalActiveSource") : "historicalActiveSourceB"
+      updates[activeSourceField] = tick.source
+    }
+    return updates
+  }, [state.basemapPerView, dateFieldFor])
+
+  const setTickForSide = useCallback((side: "A" | "B", tick: TimelineTick) => {
+    setState(buildTickUpdates(side, tick))
+  }, [buildTickUpdates, setState])
+
+  // Absent an explicit pointer target (e.g. a keyboard step), which side an
+  // action applies to: the only historical side when just one is showing,
+  // otherwise whichever side the user last touched (activeSide).
+  const resolveSide = useCallback((): "A" | "B" => {
+    if (!dualMode) return "A"
+    if (showA && !showB) return "A"
+    if (showB && !showA) return "B"
+    return activeSide
+  }, [dualMode, showA, showB, activeSide])
 
   // First time either side lands on a historical source with no date picked
   // yet, jump straight to the newest available tick for THAT side's active
@@ -201,25 +315,45 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
   }, [showA, showB, activeBasemapSourceA, activeBasemapSourceB, allTicks, releaseForSide, setTickForSide])
 
-  const minDate = items[0]?.dateMs ?? 0
-  const maxDate = items[items.length - 1]?.dateMs ?? minDate + 1
-  const dateSpan = Math.max(1, maxDate - minDate)
-  const fracForTick = useCallback((tick: TimelineTick) => Math.min(1, Math.max(0, (tick.dateMs - minDate) / dateSpan)), [minDate, dateSpan])
+  const fullMin = items[0]?.dateMs ?? 0
+  const fullMax = items[items.length - 1]?.dateMs ?? fullMin + 1
+
+  // Re-clamp a zoomed window whenever the full extent itself shifts (e.g. a
+  // pill toggle shrinks the dataset) so a stale window can't reference dates
+  // outside the new full range.
+  useEffect(() => {
+    if (!viewWindow) return
+    const min = Math.max(fullMin, viewWindow.min)
+    const max = Math.min(fullMax, viewWindow.max)
+    if (max <= min) { setViewWindow(null); return }
+    if (min !== viewWindow.min || max !== viewWindow.max) setViewWindow({ min, max })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullMin, fullMax])
+
+  const effectiveMin = viewWindow ? Math.max(fullMin, viewWindow.min) : fullMin
+  const effectiveMax = viewWindow ? Math.min(fullMax, viewWindow.max) : fullMax
+  const effectiveSpan = Math.max(1, effectiveMax - effectiveMin)
+  const fracForTick = useCallback((tick: TimelineTick) => Math.min(1, Math.max(0, (tick.dateMs - effectiveMin) / effectiveSpan)), [effectiveMin, effectiveSpan])
+
+  // Only ticks inside the current zoom window actually render — clamping
+  // their frac to [0,1] instead (piling up out-of-window ticks at the edges)
+  // would misleadingly suggest they're at the boundary.
+  const visibleItems = useMemo(() => items.filter((t) => t.dateMs >= effectiveMin && t.dateMs <= effectiveMax), [items, effectiveMin, effectiveMax])
 
   // Full-year gridlines/labels, independent of where actual ticks fall —
   // reads as a normal calendar axis rather than one tick per release.
   const yearMarks = useMemo(() => {
     if (!items.length) return [] as { frac: number; label: string }[]
-    const startYear = new Date(minDate).getFullYear()
-    const endYear = new Date(maxDate).getFullYear()
+    const startYear = new Date(effectiveMin).getFullYear()
+    const endYear = new Date(effectiveMax).getFullYear()
     const marks: { frac: number; label: string }[] = []
     for (let y = startYear; y <= endYear; y++) {
       const t = new Date(y, 0, 1).getTime()
-      if (t < minDate || t > maxDate) continue
-      marks.push({ frac: (t - minDate) / dateSpan, label: String(y) })
+      if (t < effectiveMin || t > effectiveMax) continue
+      marks.push({ frac: (t - effectiveMin) / effectiveSpan, label: String(y) })
     }
     return marks
-  }, [items.length, minDate, maxDate, dateSpan])
+  }, [items.length, effectiveMin, effectiveMax, effectiveSpan])
 
   const visibleYearMarks = useMemo(() => {
     if (!trackWidth) return yearMarks
@@ -232,6 +366,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     return out
   }, [yearMarks, trackWidth])
 
+  // Nearest-tick search still considers the FULL (pill-filtered but not
+  // zoom-windowed) items list — a background click near the zoomed-in
+  // track's edge can still jump to a tick just outside the current view.
   const nearestTickForClientX = useCallback((clientX: number): TimelineTick | null => {
     const rect = trackRef.current?.getBoundingClientRect()
     if (!rect || !items.length) return null
@@ -245,27 +382,49 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     return best
   }, [items, fracForTick])
 
+  // If a zoomed window is active and the tick just applied falls outside it,
+  // recenter (keeping the same span) so the newly-active selection never
+  // strands itself off-screen.
+  const maybeRecenterWindow = useCallback((dateMs: number) => {
+    if (!viewWindow) return
+    if (dateMs >= effectiveMin && dateMs <= effectiveMax) return
+    const span = effectiveMax - effectiveMin
+    let newMin = dateMs - span / 2
+    newMin = Math.max(fullMin, Math.min(fullMax - span, newMin))
+    setViewWindow({ min: newMin, max: newMin + span })
+  }, [viewWindow, effectiveMin, effectiveMax, fullMin, fullMax])
+
+  // The single entry point for "a tick was picked", whether by click, drag,
+  // or arrow-key step. When both sides are historical and sync is on, both
+  // sides land on the identical tick in one setState call; otherwise it
+  // applies to whichever single side is targeted (explicit, from a pointer
+  // event, or resolved from context for a keyboard step).
+  const applyTick = useCallback((tick: TimelineTick, explicitSide?: "A" | "B") => {
+    if (dualMode && syncEnabled && showA && showB) {
+      setState({ ...buildTickUpdates("A", tick), ...buildTickUpdates("B", tick) })
+    } else {
+      const which = explicitSide ?? resolveSide()
+      setActiveSide(which)
+      setTickForSide(which, tick)
+    }
+    maybeRecenterWindow(tick.dateMs)
+  }, [dualMode, syncEnabled, showA, showB, buildTickUpdates, setState, resolveSide, setTickForSide, maybeRecenterWindow])
+
   const scrubTo = useCallback((which: "A" | "B", clientX: number) => {
     const tick = nearestTickForClientX(clientX)
-    if (tick) setTickForSide(which, tick)
-  }, [nearestTickForClientX, setTickForSide])
+    if (tick) applyTick(tick, which)
+  }, [nearestTickForClientX, applyTick])
 
   const step = useCallback((direction: number) => {
-    const which = activeHandle === "B" && showB ? "B" : "A"
+    const which = resolveSide()
     const source = which === "A" ? activeBasemapSourceA : activeBasemapSourceB
     const key = releaseForSide(which)
     const idx = items.findIndex((t) => t.source === source && t.key === key)
     if (idx === -1) return
     const newIdx = idx + direction
-    if (newIdx < 0 || newIdx >= items.length) { setPlaying(false); return }
-    setTickForSide(which, items[newIdx])
-  }, [activeHandle, showB, activeBasemapSourceA, activeBasemapSourceB, releaseForSide, items, setTickForSide])
-
-  useEffect(() => {
-    if (!playing) return
-    const id = setInterval(() => step(1), PLAY_INTERVAL_MS)
-    return () => clearInterval(id)
-  }, [playing, step])
+    if (newIdx < 0 || newIdx >= items.length) return
+    applyTick(items[newIdx])
+  }, [resolveSide, activeBasemapSourceA, activeBasemapSourceB, releaseForSide, items, applyTick])
 
   // The REAL per-tile acquisition date for the active wayback release at this
   // exact spot — a release's own label is a catalog-wide publish date, which
@@ -276,7 +435,51 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const { label: waybackCaptureLabelA } = useWaybackCaptureDate(state.lat, state.lng, state.zoom, activeBasemapSourceA === "wayback" ? releaseForSide("A") : 0)
   const { label: waybackCaptureLabelB } = useWaybackCaptureDate(state.lat, state.lng, state.zoom, activeBasemapSourceB === "wayback" ? releaseForSide("B") : 0)
 
-  if (!state.historicalBeta || (!showA && !showB)) return null
+  const panelVisible = state.historicalBeta && (showA || showB) && !collapsed
+
+  // Arrow-key stepping — replaces the old play/pause/prev/next buttons.
+  // Listens globally (not just while the track has focus) but ignores the
+  // event whenever an editable element elsewhere on the page has focus.
+  useEffect(() => {
+    if (!panelVisible) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
+      const el = document.activeElement
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || (el as HTMLElement).isContentEditable)) return
+      e.preventDefault()
+      step(e.key === "ArrowLeft" ? -1 : 1)
+    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [panelVisible, step])
+
+  // Mousewheel zoom — narrows/widens the visible date window, keeping the
+  // date under the cursor fixed, bounded between MIN_VISIBLE_SPAN_MS and the
+  // true full extent (saturating back to viewWindow=null, i.e. "no zoom", at
+  // that upper bound). Attached imperatively (not a JSX onWheel) so
+  // preventDefault reliably blocks page-scroll — React treats wheel listeners
+  // as passive by default.
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el || !panelVisible) return
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+      const cursorDate = effectiveMin + frac * effectiveSpan
+      const factor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR
+      const fullSpan = Math.max(1, fullMax - fullMin)
+      const newSpan = Math.min(fullSpan, Math.max(MIN_VISIBLE_SPAN_MS, effectiveSpan * factor))
+      let newMin = cursorDate - frac * newSpan
+      newMin = Math.max(fullMin, Math.min(fullMax - newSpan, newMin))
+      const newMax = newMin + newSpan
+      setViewWindow(newSpan >= fullSpan ? null : { min: newMin, max: newMax })
+    }
+    el.addEventListener("wheel", handleWheel, { passive: false })
+    return () => el.removeEventListener("wheel", handleWheel)
+  }, [panelVisible, effectiveMin, effectiveSpan, fullMin, fullMax])
+
+  if (!panelVisible) return null
 
   const tickA = showA ? findTick(activeBasemapSourceA, releaseForSide("A")) : null
   const tickB = showB ? findTick(activeBasemapSourceB, releaseForSide("B")) : null
@@ -284,16 +487,20 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const captionLabelB = tickB && tickB.source === "wayback" && waybackCaptureLabelB ? waybackCaptureLabelB : tickB?.label
 
   return (
-    <div className={cn(
-      "fixed z-10 backdrop-blur-[2px] border border-border bg-background/95 shadow-sm transition-[background-color] duration-150",
-      "bottom-0 left-0 right-0 rounded-none",
-      "sm:bottom-4 sm:left-4 sm:right-[26rem] sm:rounded-xl",
-    )}>
+    <div
+      ref={panelRef}
+      className={cn(
+        "fixed z-10 backdrop-blur-[2px] border border-border bg-background/95 shadow-sm transition-[background-color,right] duration-150",
+        "bottom-0 left-0 right-0 rounded-none",
+        "sm:bottom-4 sm:left-4 sm:right-[var(--timeline-right-offset)] sm:rounded-xl",
+      )}
+      style={{ ["--timeline-right-offset" as any]: isSidebarOpen && !isMobile ? "26rem" : "1rem" }}
+    >
       <div className="flex items-center justify-between px-4 pt-3 pb-3 border-b gap-3">
         <h2 className="text-sm font-semibold shrink-0">Historical Timeline</h2>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {visibleSourceIds.map((id) => {
-            const active = timelineSources.includes(id)
+            const active = timelineSourcesForPills.includes(id)
             const cfg = SOURCE_CONFIG[id]
             return (
               <button
@@ -328,127 +535,179 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             )
           })}
         </div>
-        <button
-          type="button"
-          onClick={() => setCollapsed((v) => !v)}
-          className="cursor-pointer p-1 text-muted-foreground hover:text-foreground shrink-0"
-          aria-label={collapsed ? "Expand timeline" : "Collapse timeline"}
-        >
-          <ChevronDown className={cn("h-4 w-4 transition-transform", collapsed && "rotate-180")} />
-        </button>
+        {/* Grouped into one flex item (not separate siblings of the header's
+            own justify-between) so the sync toggle always sits immediately
+            left of the collapse button regardless of how much space the
+            pills above take — justify-between would otherwise spread N
+            siblings evenly across the whole row instead of keeping this
+            trailing cluster adjacent. */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {dualMode && !syncEnabled && (
+            <div className="flex items-center rounded-md border border-border overflow-hidden">
+              {(["A", "B"] as const).map((side) => (
+                <button
+                  key={side}
+                  type="button"
+                  onClick={() => setActiveSide(side)}
+                  className={cn(
+                    "cursor-pointer px-2 py-0.5 text-[11px] font-semibold transition-colors",
+                    activeSide === side ? "text-white" : "text-muted-foreground hover:bg-accent",
+                  )}
+                  style={activeSide === side ? { backgroundColor: side === "A" ? COLOR_A : COLOR_B } : undefined}
+                >
+                  {side}
+                </button>
+              ))}
+            </div>
+          )}
+          {dualMode && (
+            <button
+              type="button"
+              onClick={() => setSyncEnabled((v) => !v)}
+              className="cursor-pointer p-1 text-muted-foreground hover:text-foreground shrink-0"
+              aria-label={syncEnabled ? "Unsync map A/B historical source" : "Sync map A/B historical source"}
+              title={syncEnabled ? "Synced — applies to both A and B" : "Not synced — applies to the selected side only"}
+            >
+              {syncEnabled ? <Link2 className="h-4 w-4" /> : <Link2Off className="h-4 w-4" />}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            className="cursor-pointer p-1 text-muted-foreground hover:text-foreground shrink-0"
+            aria-label="Collapse timeline"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      {!collapsed && (
-        <div className="px-4 py-3 space-y-1">
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => step(-1)} className="cursor-pointer p-1.5 rounded hover:bg-accent" aria-label="Previous date">
-              <SkipBack className="h-4 w-4" />
-            </button>
-            <button type="button" onClick={() => setPlaying((v) => !v)} className="cursor-pointer p-1.5 rounded hover:bg-accent" aria-label={playing ? "Pause" : "Play"}>
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </button>
-            <button type="button" onClick={() => step(1)} className="cursor-pointer p-1.5 rounded hover:bg-accent" aria-label="Next date">
-              <SkipForward className="h-4 w-4" />
-            </button>
-
-            <div
-              ref={trackRef}
-              className="relative flex-1 h-8 mx-2 cursor-pointer touch-none"
-              onPointerDown={(e) => {
-                const which = showA && !showB ? "A" : showB && !showA ? "B" : activeHandle
-                setActiveHandle(which)
-                scrubTo(which, e.clientX)
-              }}
-            >
-              <div className="absolute left-0 right-0 top-1/2 h-px bg-border" />
-              {yearMarks.map((mark) => (
-                <div
-                  key={`grid-${mark.label}`}
-                  className="absolute top-0 bottom-0 w-px bg-border/70 pointer-events-none"
-                  style={{ left: `${mark.frac * 100}%` }}
-                />
-              ))}
-              {items.map((t) => (
+      <div className="px-4 py-3 space-y-1">
+        <div className="flex items-center gap-2">
+          <div
+            ref={trackRef}
+            className="relative flex-1 h-12 mx-2 cursor-pointer touch-none"
+            onPointerDown={(e) => {
+              const which = showA && !showB ? "A" : showB && !showA ? "B" : activeSide
+              setActiveSide(which)
+              scrubTo(which, e.clientX)
+            }}
+          >
+            <div className="absolute left-0 right-0 top-1/2 h-px bg-border" />
+            {yearMarks.map((mark) => (
+              <div
+                key={`grid-${mark.label}`}
+                className="absolute top-0 bottom-0 w-px bg-border/70 pointer-events-none"
+                style={{ left: `${mark.frac * 100}%` }}
+              />
+            ))}
+            {visibleItems.map((t) => (
+              t.source === "wayback" ? (
+                <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={fracForTick(t) * 100} lat={state.lat} lng={state.lng} zoom={state.zoom} />
+              ) : (
                 <Tooltip key={`${t.source}-${t.key}`}>
                   <TooltipTrigger
                     render={
                       <div
-                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1 h-3 cursor-help"
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-help"
                         style={{ left: `${fracForTick(t) * 100}%` }}
                       >
                         <div
-                          className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2.5 mx-auto w-px"
-                          style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)", opacity: 0.6 }}
+                          className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
+                          style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)", opacity: 0.85 }}
                         />
                       </div>
                     }
                   />
                   <TooltipContent>{SOURCE_CONFIG[t.source]?.label ?? t.source}: {t.label}</TooltipContent>
                 </Tooltip>
-              ))}
-              {showA && tickA && (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <div
-                        onPointerDown={(e: React.PointerEvent) => {
-                          e.stopPropagation()
-                          e.currentTarget.setPointerCapture(e.pointerId)
-                          setActiveHandle("A")
-                          scrubTo("A", e.clientX)
-                        }}
-                        onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("A", e.clientX) }}
-                        onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
-                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
-                        style={{ left: `${fracForTick(tickA) * 100}%`, backgroundColor: COLOR_A }}
-                      />
-                    }
-                  />
-                  <TooltipContent>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</TooltipContent>
-                </Tooltip>
-              )}
-              {showB && tickB && (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <div
-                        onPointerDown={(e: React.PointerEvent) => {
-                          e.stopPropagation()
-                          e.currentTarget.setPointerCapture(e.pointerId)
-                          setActiveHandle("B")
-                          scrubTo("B", e.clientX)
-                        }}
-                        onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("B", e.clientX) }}
-                        onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
-                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
-                        style={{ left: `${fracForTick(tickB) * 100}%`, backgroundColor: COLOR_B }}
-                      />
-                    }
-                  />
-                  <TooltipContent>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-          </div>
-
-          <div className="relative h-3">
-            {visibleYearMarks.map((mark) => (
-              <span
-                key={mark.label}
-                className="absolute -translate-x-1/2 text-[9px] text-muted-foreground tabular-nums"
-                style={{ left: `calc(104px + ${mark.frac} * (100% - 104px))` }}
-              >
-                {mark.label}
-              </span>
+              )
             ))}
-          </div>
-
-          <div className="flex justify-between text-[10px] tabular-nums pl-[104px]">
-            {showA ? <span style={{ color: COLOR_A }}>A: {tickA ? `${SOURCE_CONFIG[tickA.source]?.label} ${captionLabelA}` : "—"}</span> : <span />}
-            {showB ? <span style={{ color: COLOR_B }}>B: {tickB ? `${SOURCE_CONFIG[tickB.source]?.label} ${captionLabelB}` : "—"}</span> : <span />}
+            {showBothSynced && tickA && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <div
+                      onPointerDown={(e: React.PointerEvent) => {
+                        e.stopPropagation()
+                        e.currentTarget.setPointerCapture(e.pointerId)
+                        scrubTo("A", e.clientX)
+                      }}
+                      onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("A", e.clientX) }}
+                      onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
+                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
+                      style={{ left: `${fracForTick(tickA) * 100}%`, background: `linear-gradient(90deg, ${COLOR_A} 50%, ${COLOR_B} 50%)` }}
+                    />
+                  }
+                />
+                <TooltipContent>A/B (synced) — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</TooltipContent>
+              </Tooltip>
+            )}
+            {!showBothSynced && showA && tickA && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <div
+                      onPointerDown={(e: React.PointerEvent) => {
+                        e.stopPropagation()
+                        e.currentTarget.setPointerCapture(e.pointerId)
+                        setActiveSide("A")
+                        scrubTo("A", e.clientX)
+                      }}
+                      onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("A", e.clientX) }}
+                      onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
+                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
+                      style={{ left: `${fracForTick(tickA) * 100}%`, backgroundColor: COLOR_A }}
+                    />
+                  }
+                />
+                <TooltipContent>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</TooltipContent>
+              </Tooltip>
+            )}
+            {!showBothSynced && showB && tickB && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <div
+                      onPointerDown={(e: React.PointerEvent) => {
+                        e.stopPropagation()
+                        e.currentTarget.setPointerCapture(e.pointerId)
+                        setActiveSide("B")
+                        scrubTo("B", e.clientX)
+                      }}
+                      onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("B", e.clientX) }}
+                      onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
+                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
+                      style={{ left: `${fracForTick(tickB) * 100}%`, backgroundColor: COLOR_B }}
+                    />
+                  }
+                />
+                <TooltipContent>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Aligned to the track's own inset (mx-2 = 0.5rem on both sides,
+            now that the removed play/pause/prev/next buttons no longer push
+            the track's left edge in further than that). */}
+        <div className="relative h-3 mx-2">
+          {visibleYearMarks.map((mark) => (
+            <span
+              key={mark.label}
+              className="absolute -translate-x-1/2 text-[9px] text-muted-foreground tabular-nums"
+              style={{ left: `${mark.frac * 100}%` }}
+            >
+              {mark.label}
+            </span>
+          ))}
+        </div>
+
+        <div className="flex justify-between text-[10px] tabular-nums mx-2">
+          {showA ? <span style={{ color: COLOR_A }}>A: {tickA ? `${SOURCE_CONFIG[tickA.source]?.label} ${captionLabelA}` : "—"}</span> : <span />}
+          {showB ? <span style={{ color: COLOR_B }}>B: {tickB ? `${SOURCE_CONFIG[tickB.source]?.label} ${captionLabelB}` : "—"}</span> : <span />}
+        </div>
+      </div>
     </div>
   )
 }

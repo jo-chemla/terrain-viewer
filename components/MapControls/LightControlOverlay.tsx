@@ -4,20 +4,13 @@ import { useAtom } from "jotai"
 import type { MapRef } from "react-map-gl/maplibre"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { getSidebarFootprintPx } from "@/lib/layout-constants"
 
 // Visual diameter of the light dome overlay, centered in the available
 // viewport space — the drag itself isn't bounded to this circle (see
 // applyFromPointer below), it's just where the indicator is drawn.
 const PAD_SIZE = 300
 const RADIUS = PAD_SIZE / 2
-
-// Mirrors the sidebar Card's own sizing in TerrainControlPanel.tsx
-// ("right-0 w-80" mobile, "sm:right-4 sm:w-96" desktop) — used to compute how
-// much width it occupies so the dome can center itself in the space actually
-// left over, rather than querying the DOM for the rendered Card's bounds.
-const SIDEBAR_WIDTH_MOBILE = 320 // w-80
-const SIDEBAR_WIDTH_DESKTOP = 384 // sm:w-96
-const SIDEBAR_GAP_DESKTOP = 16 // sm:right-4
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false
@@ -156,9 +149,7 @@ export const LightControlOverlay: React.FC<{
     }
   }, [active, mapRef])
 
-  const sidebarWidth = isSidebarOpen
-    ? (isMobile ? SIDEBAR_WIDTH_MOBILE : SIDEBAR_WIDTH_DESKTOP + SIDEBAR_GAP_DESKTOP)
-    : 0
+  const sidebarWidth = getSidebarFootprintPx(isSidebarOpen, isMobile)
 
   const pos = lightToXY(state.illuminationDir ?? 315, state.illuminationAlt ?? 45)
   const dotX = RADIUS + pos.x * RADIUS
