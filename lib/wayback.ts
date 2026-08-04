@@ -73,26 +73,70 @@ export function useWaybackItemsWithLocalChanges(latitude: number, longitude: num
   return { items, loading }
 }
 
-// Module-level cache for per-tick tooltip lookups (historical-timeline-
-// panel.tsx hovers a tick and wants its real capture date without refetching
-// every time the same tick is re-hovered in a session). Keyed coarsely (3
-// decimal places / rounded zoom) since a release's imagery doesn't vary at
-// that granularity.
-const captureLabelCache = new Map<string, string | null>()
+// Module-level cache for per-tick real-capture-date lookups — both the
+// timeline's tick POSITIONS (every release at this location, fetched once
+// per location settle — see useWaybackRealCaptureDates below) and a tick
+// tooltip's lazy on-hover fetch share this. Keyed coarsely (3 decimal
+// places / rounded zoom) since a release's imagery doesn't vary at that
+// granularity.
+const captureMetaCache = new Map<string, { dateMs: number; label: string } | null>()
 
-/** Plain (non-hook) fetch + cache, used both by useWaybackCaptureDate below
- *  and by a tick tooltip's lazy on-hover fetch. */
-export async function fetchWaybackCaptureLabel(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<string | null> {
+/** Plain (non-hook) fetch + cache of the REAL per-tile capture date/label for
+ *  one release at one location. */
+async function fetchWaybackCaptureMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<{ dateMs: number; label: string } | null> {
   const key = `${releaseNumber}:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
-  if (captureLabelCache.has(key)) return captureLabelCache.get(key)!
+  if (captureMetaCache.has(key)) return captureMetaCache.get(key)!
   try {
     const meta = await getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber)
-    const label = meta ? new Date(meta.date).toISOString().slice(0, 10) : null
-    captureLabelCache.set(key, label)
-    return label
+    const result = meta ? { dateMs: meta.date, label: new Date(meta.date).toISOString().slice(0, 10) } : null
+    captureMetaCache.set(key, result)
+    return result
   } catch {
     return null
   }
+}
+
+/** Plain (non-hook) fetch + cache, used by useWaybackCaptureDate below and by
+ *  a tick tooltip's lazy on-hover fetch — just the label half of
+ *  fetchWaybackCaptureMeta. */
+export async function fetchWaybackCaptureLabel(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<string | null> {
+  const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, releaseNumber)
+  return meta?.label ?? null
+}
+
+/**
+ * REAL per-tile capture dates for EVERY release in `items` at this location,
+ * fetched in parallel and cached — used to position timeline ticks at the
+ * date the imagery was actually taken, not each release's own catalog-wide
+ * publish date (releaseDatetime/releaseDateLabel). Releases whose real date
+ * hasn't resolved yet (or failed) fall back to their own releaseDatetime so
+ * a tick still has SOME position rather than being dropped.
+ */
+export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: number, longitude: number, zoom: number): Record<number, { dateMs: number; label: string }> {
+  const [resolved, setResolved] = useState<Record<number, { dateMs: number; label: string }>>({})
+
+  useEffect(() => {
+    if (!items.length) { setResolved({}); return }
+    let cancelled = false
+    Promise.all(items.map(async (item) => {
+      const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum)
+      return [item.releaseNum, meta] as const
+    })).then((pairs) => {
+      if (cancelled) return
+      const map: Record<number, { dateMs: number; label: string }> = {}
+      for (const [releaseNum, meta] of pairs) if (meta) map[releaseNum] = meta
+      setResolved(map)
+    })
+    return () => { cancelled = true }
+    // items is a fresh array identity every render of its own caller — keying
+    // off latitude/longitude/zoom (which only change when the view actually
+    // settles) plus items.length (a new release appearing/disappearing) is
+    // enough to refetch exactly when the real candidate set changes, without
+    // needing items itself in the dependency array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latitude, longitude, zoom, items.length])
+
+  return resolved
 }
 
 /**

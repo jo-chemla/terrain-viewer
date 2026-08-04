@@ -4,7 +4,7 @@ import { useAtom } from "jotai"
 import { ChevronDown, Link2, Link2Off, Settings2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useWaybackItemsWithLocalChanges, useWaybackCaptureDate, fetchWaybackCaptureLabel, sortByDateAscending } from "@/lib/wayback"
+import { useWaybackItemsWithLocalChanges, useWaybackCaptureDate, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
 import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
 import { planetMonthlyTicks } from "@/lib/planet"
@@ -41,21 +41,21 @@ const MIN_YEAR_LABEL_GAP_PX = 32
 // PlanetScope) read as coarser "medium" imagery next to them. Object order
 // here is also the pill row's display order.
 //
-// Colors are each source's own brand color, pastelized (blended toward white)
-// rather than 5-6 arbitrary hexes — so the hue itself stays recognizable
-// (Esri green, Google blue, Bing teal, Planet teal-blue) while reading as
-// one coherent soft/pastel family. HLS (a NASA/USGS Landsat + ESA Sentinel
-// blend, no single owning brand) and EOX (Sentinel-2 Cloudless, a third-
-// party mosaic of Copernicus/ESA data) get neutral picks instead. Pill
-// "active" text uses a dark slate instead of white (see the pill button
-// below) since white-on-pastel has poor contrast.
+// Colors are each source's own brand color where one applies, pastelized
+// (Esri green, Google blue) — Bing's own teal read too close to both of
+// those side by side, so it takes the purple originally picked for HLS
+// instead; HLS/Planet/EOX (none with one clean owning brand, or whose real
+// brand color would've clashed) get distinct neutral pastels — orange,
+// pink, red — chosen so all 6 remain clearly distinguishable next to each
+// other. Pill "active" text uses a dark slate instead of white (see the
+// pill button below) since white-on-pastel has poor contrast.
 const SOURCE_CONFIG: Record<string, { label: string; color: string; resClass: "vhr" | "medium" }> = {
   wayback: { label: "ESRI Wayback", color: "#cbe4bd", resClass: "vhr" }, // Esri green (#7ebc59), pastelized
   "ge-historical": { label: "Google Earth Historical", color: "#aecbfa", resClass: "vhr" }, // Google's own Material "blue-100"
-  bing: { label: "Bing Dated", color: "#7fc1b9", resClass: "vhr" }, // Bing teal (#008373), pastelized
-  planet: { label: "Planet Monthly", color: "#7fced2", resClass: "medium" }, // Planet teal-blue (#009da5), pastelized
-  "eox-s2": { label: "Sentinel-2 Cloudless", color: "#bae6fd", resClass: "medium" }, // neutral sky blue (Copernicus/Sentinel imagery, no single brand owner)
-  hls: { label: "Harmonized Landsat Sentinel", color: "#c4b5fd", resClass: "medium" }, // neutral violet (Landsat+Sentinel blend, no single brand owner)
+  bing: { label: "Bing Dated", color: "#c4b5fd", resClass: "vhr" }, // pastel purple (too close to Esri/Google's own teal otherwise)
+  planet: { label: "Planet Monthly", color: "#fdba74", resClass: "medium" }, // pastel orange
+  "eox-s2": { label: "Sentinel-2 Cloudless", color: "#fca5a5", resClass: "medium" }, // pastel red
+  hls: { label: "Harmonized Landsat Sentinel", color: "#f9a8d4", resClass: "medium" }, // pastel pink
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 
@@ -75,26 +75,12 @@ const ZOOM_FACTOR = 0.85
 
 // A Wayback tick's own release/mosaic label (t.label, from releaseDateLabel)
 // is a catalog-wide publish date — the REAL per-tile imagery date can differ
-// (see lib/wayback.ts). Fetched lazily on tooltip hover-open rather than for
-// every tick up front: a location can have a dozen+ distinct releases, and
-// prefetching all of them would fire that many network requests for ticks
-// the user may never inspect. fetchWaybackCaptureLabel's own module-level
-// cache makes repeat hovers of the same tick free.
-const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; lat: number; lng: number; zoom: number }> = ({ tick, leftPct, lat, lng, zoom }) => {
-  const [captureLabel, setCaptureLabel] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  const handleOpenChange = useCallback((open: boolean) => {
-    if (!open || captureLabel || loading) return
-    setLoading(true)
-    fetchWaybackCaptureLabel(lat, lng, zoom, tick.key).then((label) => {
-      setCaptureLabel(label)
-      setLoading(false)
-    })
-  }, [captureLabel, loading, lat, lng, zoom, tick.key])
-
+// (see lib/wayback.ts) and is now what the tick is actually POSITIONED at
+// (see useWaybackRealCaptureDates in the parent), so it's already resolved
+// by the time this renders — no separate per-hover fetch needed anymore.
+const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; realLabel: string | null }> = ({ tick, leftPct, realLabel }) => {
   return (
-    <Tooltip onOpenChange={handleOpenChange}>
+    <Tooltip>
       <TooltipTrigger
         render={
           <div
@@ -109,7 +95,7 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; lat: numb
         }
       />
       <TooltipContent>
-        <div>{captureLabel ?? (loading ? "Loading…" : tick.label)}</div>
+        <div>{realLabel ?? tick.label}</div>
         <div className="text-[10px] text-gray-400 mt-0.5">Mosaic: {tick.label}</div>
       </TooltipContent>
     </Tooltip>
@@ -180,11 +166,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => rawWaybackItems.reduce<number | null>((max, item) => (max === null || item.releaseNum > max ? item.releaseNum : max), null),
     [rawWaybackItems],
   )
+  // REAL per-tile imagery capture dates for every release at this location —
+  // ticks are positioned by these (the actual date the imagery was taken),
+  // not each release's own releaseDatetime (a catalog-wide publish date that
+  // can differ significantly from the real capture date). Falls back to
+  // releaseDatetime for any release whose real date hasn't resolved yet.
+  const waybackRealDates = useWaybackRealCaptureDates(rawWaybackItems, state.lat, state.lng, state.zoom)
   const waybackTicks = useMemo<TimelineTick[]>(
-    () => sortByDateAscending(rawWaybackItems).map((item) => ({
-      source: "wayback", key: item.releaseNum, dateMs: item.releaseDatetime, label: item.releaseDateLabel,
-    })),
-    [rawWaybackItems],
+    () => sortByDateAscending(rawWaybackItems).map((item) => {
+      const real = waybackRealDates[item.releaseNum]
+      return {
+        source: "wayback", key: item.releaseNum,
+        dateMs: real?.dateMs ?? item.releaseDatetime,
+        label: item.releaseDateLabel,
+      }
+    }),
+    [rawWaybackItems, waybackRealDates],
   )
   // No per-location catalog exists for HLS — these are evenly-spaced
   // placeholder monthly points (see lib/hls.ts), not verified real capture
@@ -502,6 +499,21 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       const rect = el.getBoundingClientRect()
+      // A trackpad's two-finger swipe fires wheel events with deltaX
+      // dominant (vs. deltaY for a mouse wheel / vertical scroll gesture) —
+      // treat that as PAN instead of zoom, matching how every other
+      // horizontally-zoomed surface (a browser page, a chart) responds to
+      // the same gesture. Only meaningful once already zoomed in — at full
+      // extent there's nowhere to pan to.
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        if (!viewWindow) return
+        const span = effectiveMax - effectiveMin
+        const deltaMs = (e.deltaX / rect.width) * effectiveSpan
+        let newMin = effectiveMin + deltaMs
+        newMin = Math.max(fullMin, Math.min(fullMax - span, newMin))
+        setViewWindow({ min: newMin, max: newMin + span })
+        return
+      }
       const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
       const cursorDate = effectiveMin + frac * effectiveSpan
       const factor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR
@@ -513,7 +525,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
     el.addEventListener("wheel", handleWheel, { passive: false })
     return () => el.removeEventListener("wheel", handleWheel)
-  }, [panelVisible, effectiveMin, effectiveSpan, fullMin, fullMax])
+  }, [panelVisible, effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow])
 
   if (!panelVisible) return null
 
@@ -526,10 +538,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // near-same date, they'd render as two perfectly overlapping circles —
   // whichever is later in the DOM would eat 100% of pointer events at that
   // pixel, making the other one literally impossible to grab. Nudge them
-  // apart symmetrically once they're closer than one handle's own diameter,
-  // so both stay independently clickable/draggable; this only ever shifts
-  // where the dot is DRAWN, never the underlying date each one represents.
-  const HANDLE_DECLUTTER_PX = 16
+  // apart symmetrically once they're closer than this, so both stay
+  // independently clickable/draggable; this only ever shifts where the dot
+  // is DRAWN, never the underlying date each one represents. Bigger than one
+  // handle's own diameter (16px) on purpose — separating them by EXACTLY
+  // their own width still left the two circles' edges touching, reading as
+  // one blob rather than two distinct, independently-grabbable handles.
+  const HANDLE_DECLUTTER_PX = 24
   let handleLeftPctA = tickA ? fracForTick(tickA) * 100 : 0
   let handleLeftPctB = tickB ? fracForTick(tickB) * 100 : 0
   if (!showBothSynced && showA && showB && tickA && tickB && trackWidth > 0) {
@@ -601,7 +616,6 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               trailing cluster adjacent. Sync/A-B only exist while the
               controls are expanded — hidden along with the pills otherwise. */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} />
             {dualMode && !syncEnabled && (
               <div className="flex items-center rounded-md border border-border overflow-hidden">
                 {(["A", "B"] as const).map((side) => (
@@ -699,7 +713,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             ))}
             {visibleItems.map((t) => (
               t.source === "wayback" ? (
-                <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={fracForTick(t) * 100} lat={state.lat} lng={state.lng} zoom={state.zoom} />
+                <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={fracForTick(t) * 100} realLabel={waybackRealDates[t.key]?.label ?? null} />
               ) : (
                 <Tooltip key={`${t.source}-${t.key}`}>
                   <TooltipTrigger
@@ -784,51 +798,55 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
           </div>
         </div>
 
-        {/* Horizontal pan gutter — only shown once zoomed in (mousewheel over
-            the track), since at full extent there's nowhere to pan to. The
-            track's own click/drag is already claimed by tick-scrubbing, so
-            panning lives here instead: drag the thumb (sized/positioned to
-            represent the current zoomed window's share of the full date
-            range) to shift the view, or click the gutter background to jump
-            the window there. */}
-        {viewWindow && (
+        {/* Horizontal pan gutter — always rendered (so the panel's own height
+            never changes between zoomed and not), just transparent/inert at
+            full extent since there's nowhere to pan to then. The track's own
+            click/drag is already claimed by tick-scrubbing, so panning lives
+            here instead: drag the thumb (sized/positioned to represent the
+            current zoomed window's share of the full date range) to shift
+            the view, or click the gutter background to jump the window
+            there. */}
+        <div
+          className={cn("relative h-1.5 mx-2 rounded-full", viewWindow ? "bg-border/60 cursor-pointer" : "bg-transparent pointer-events-none")}
+          onPointerDown={(e) => {
+            if (!viewWindow) return
+            const rect = e.currentTarget.getBoundingClientRect()
+            const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+            const span = effectiveMax - effectiveMin
+            const newMin = Math.max(fullMin, Math.min(fullMax - span, fullMin + frac * fullSpan - span / 2))
+            setViewWindow({ min: newMin, max: newMin + span })
+          }}
+        >
           <div
-            className="relative h-1.5 mx-2 rounded-full bg-border/60 cursor-pointer"
-            onPointerDown={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect()
-              const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+            onPointerDown={(e: React.PointerEvent) => {
+              if (!viewWindow) return
+              e.stopPropagation()
+              e.currentTarget.setPointerCapture(e.pointerId)
+              gutterDragRef.current = {
+                startClientX: e.clientX,
+                startMin: effectiveMin,
+                gutterWidthPx: e.currentTarget.parentElement!.getBoundingClientRect().width,
+              }
+            }}
+            onPointerMove={(e: React.PointerEvent) => {
+              const drag = gutterDragRef.current
+              if (!drag || !e.currentTarget.hasPointerCapture(e.pointerId)) return
+              const deltaMs = ((e.clientX - drag.startClientX) / drag.gutterWidthPx) * fullSpan
               const span = effectiveMax - effectiveMin
-              const newMin = Math.max(fullMin, Math.min(fullMax - span, fullMin + frac * fullSpan - span / 2))
+              const newMin = Math.max(fullMin, Math.min(fullMax - span, drag.startMin + deltaMs))
               setViewWindow({ min: newMin, max: newMin + span })
             }}
-          >
-            <div
-              onPointerDown={(e: React.PointerEvent) => {
-                e.stopPropagation()
-                e.currentTarget.setPointerCapture(e.pointerId)
-                gutterDragRef.current = {
-                  startClientX: e.clientX,
-                  startMin: effectiveMin,
-                  gutterWidthPx: e.currentTarget.parentElement!.getBoundingClientRect().width,
-                }
-              }}
-              onPointerMove={(e: React.PointerEvent) => {
-                const drag = gutterDragRef.current
-                if (!drag || !e.currentTarget.hasPointerCapture(e.pointerId)) return
-                const deltaMs = ((e.clientX - drag.startClientX) / drag.gutterWidthPx) * fullSpan
-                const span = effectiveMax - effectiveMin
-                const newMin = Math.max(fullMin, Math.min(fullMax - span, drag.startMin + deltaMs))
-                setViewWindow({ min: newMin, max: newMin + span })
-              }}
-              onPointerUp={(e: React.PointerEvent) => { e.currentTarget.releasePointerCapture(e.pointerId); gutterDragRef.current = null }}
-              className="absolute top-0 bottom-0 rounded-full bg-muted-foreground/50 hover:bg-muted-foreground/70 cursor-grab active:cursor-grabbing touch-none"
-              style={{
-                left: `${((effectiveMin - fullMin) / fullSpan) * 100}%`,
-                width: `${Math.max(4, (effectiveSpan / fullSpan) * 100)}%`,
-              }}
-            />
-          </div>
-        )}
+            onPointerUp={(e: React.PointerEvent) => { e.currentTarget.releasePointerCapture(e.pointerId); gutterDragRef.current = null }}
+            className={cn(
+              "absolute top-0 bottom-0 rounded-full touch-none",
+              viewWindow ? "bg-muted-foreground/50 hover:bg-muted-foreground/70 cursor-grab active:cursor-grabbing" : "bg-transparent",
+            )}
+            style={{
+              left: viewWindow ? `${((effectiveMin - fullMin) / fullSpan) * 100}%` : "0%",
+              width: viewWindow ? `${Math.max(4, (effectiveSpan / fullSpan) * 100)}%` : "100%",
+            }}
+          />
+        </div>
 
         {/* Aligned to the track's own inset (mx-2 = 0.5rem on both sides,
             now that the removed play/pause/prev/next buttons no longer push
@@ -845,9 +863,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
           ))}
         </div>
 
-        <div className="flex justify-between text-[10px] tabular-nums mx-2">
-          {showA ? <span style={{ color: COLOR_A }}>A: {tickA ? `${SOURCE_CONFIG[tickA.source]?.label} ${captionLabelA}` : "—"}</span> : <span />}
-          {showB ? <span style={{ color: COLOR_B }}>B: {tickB ? `${SOURCE_CONFIG[tickB.source]?.label} ${captionLabelB}` : "—"}</span> : <span />}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[10px] tabular-nums mx-2">
+          <span className="text-left" style={showA ? { color: COLOR_A } : undefined}>
+            {showA ? `A: ${tickA ? `${SOURCE_CONFIG[tickA.source]?.label} ${captionLabelA}` : "—"}` : ""}
+          </span>
+          <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} />
+          <span className="text-right" style={showB ? { color: COLOR_B } : undefined}>
+            {showB ? `B: ${tickB ? `${SOURCE_CONFIG[tickB.source]?.label} ${captionLabelB}` : "—"}` : ""}
+          </span>
         </div>
       </div>
     </div>

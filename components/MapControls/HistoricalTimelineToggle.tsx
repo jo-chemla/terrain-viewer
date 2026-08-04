@@ -18,7 +18,7 @@ export const HistoricalTimelineToggle: React.FC<{ onExpand: () => void; widthPx?
       <TooltipTrigger
         render={
           <Button
-            variant="secondary"
+            variant="default"
             size="icon"
             className="fixed z-10 left-4 bottom-4 cursor-pointer shadow"
             style={widthPx ? { width: widthPx } : undefined}

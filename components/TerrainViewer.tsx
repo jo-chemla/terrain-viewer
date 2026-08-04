@@ -1767,14 +1767,21 @@ export function TerrainViewer() {
     [sidebarPaddingPx],
   )
 
-  // Ease the padding change imperatively (matching the sidebar's own CSS transition
-  // duration) rather than passing `padding` as a declarative prop — react-map-gl applies
-  // prop changes via an instant jumpTo, which snaps the vanishing point instead of easing it.
+  // Apply padding instantly (duration: 0), NOT eased — a real bug, found via
+  // live debugging: with any nonzero duration, split mode's A/B camera-sync
+  // (onMoveA/onMoveB below) races the in-progress padding transition. Every
+  // 'move' event the easing itself fires while animating gets picked up by
+  // the OTHER map's sync handler, which calls that other map's own jumpTo —
+  // and MapLibre's jumpTo() unconditionally calls this.stop() first (it has
+  // to, to jump instantly), aborting whichever map's padding easeTo was
+  // still mid-flight. Confirmed live: with duration: 300 the effect fires
+  // with the correct target value but getPadding() reads back {0,0,0,0}
+  // seconds later; with duration: 0 it reliably sticks.
   useEffect(() => {
-    if (mapALoaded && mapARef.current) mapARef.current.getMap().easeTo({ padding: mapPaddingA, duration: 300 })
+    if (mapALoaded && mapARef.current) mapARef.current.getMap().easeTo({ padding: mapPaddingA, duration: 0 })
   }, [mapPaddingA, mapALoaded])
   useEffect(() => {
-    if (mapBLoaded && mapBRef.current) mapBRef.current.getMap().easeTo({ padding: mapPaddingB, duration: 300 })
+    if (mapBLoaded && mapBRef.current) mapBRef.current.getMap().easeTo({ padding: mapPaddingB, duration: 0 })
   }, [mapPaddingB, mapBLoaded])
 
   const effectiveMaxZoom = useMemo(() => {
@@ -2615,14 +2622,14 @@ export function TerrainViewer() {
     ? `${MAP_CTRL_EDGE_MARGIN_PX}px`
     : state.historicalTimelineCollapsed
       ? "3.5rem"
-      : state.historicalControlsExpanded ? "13rem" : "10rem"
+      : state.historicalControlsExpanded ? "13rem" : "8rem"
   // Bottom-right corner (attribution+scale, on whichever map is currently
   // rightmost) only ever needs to clear the timeline panel's own height when
   // the FULL panel (not just the bottom-left floating toggle button) is
   // visible — nothing at bottom-right needs clearing just because the panel
   // collapsed down to that small bottom-left-only button.
   const scaleBottomOffset = historicalTimelineVisible
-    ? (state.historicalControlsExpanded ? "13rem" : "10rem")
+    ? (state.historicalControlsExpanded ? "13rem" : "8rem")
     : `${MAP_CTRL_EDGE_MARGIN_PX}px`
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`

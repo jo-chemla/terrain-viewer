@@ -24,12 +24,10 @@ type OpenInDestination = {
 
 // Viewport-aware "open the same spot in another historical-imagery viewer"
 // launcher — URL templates adapted from Iconem's own historical-satellite
-// LinksSection reference component. Two destinations from that reference
-// (Histogram Matching JS, NextGIS QMS, Google Timelapse, GitHub/credit links)
-// are deliberately left out — only the ones the user explicitly asked for.
-// "Iconem Search-EO" isn't included: no confirmed URL for it, so rather than
-// guess one and ship a broken/wrong link, it's left out until that URL is
-// known.
+// LinksSection reference component (Google Earth Web, ESRI Wayback, BBBike
+// MapCompare, Qiusheng Wu's Timelapse tool) plus two more Iconem tools
+// (historical-satellite.iconem.com, search-eo-imagery.iconem.com), both
+// using a #zoom/lat/lng URL fragment.
 export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
   {
     id: "google-earth-web",
@@ -62,8 +60,13 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
   },
   {
     id: "iconem-historical",
-    label: "Iconem Historical (GE Time Machine)",
-    buildUrl: () => "https://ge-timemachine.prod.heritagewatch.ai/",
+    label: "Iconem Historical Satellite",
+    buildUrl: ({ lat, lng, zoom }) => `https://historical-satellite.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
+  },
+  {
+    id: "iconem-search-eo",
+    label: "Iconem Search-EO",
+    buildUrl: ({ lat, lng, zoom }) => `https://search-eo-imagery.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
   },
 ]
 
@@ -77,6 +80,31 @@ export const OpenInLinksButton: React.FC<{
 }> = ({ state, mapRef, waybackLatestRelease }) => {
   const [selectedIds, setSelectedIds] = useAtom(openInSelectedAtom)
 
+  const buildContext = useCallback((): OpenInContext => {
+    const bounds = mapRef.current?.getMap()?.getBounds()
+    return {
+      lat: state.lat,
+      lng: state.lng,
+      zoom: state.zoom,
+      bounds: bounds ? { west: bounds.getWest(), south: bounds.getSouth(), east: bounds.getEast(), north: bounds.getNorth() } : null,
+      latestWaybackRelease: waybackLatestRelease,
+    }
+  }, [mapRef, state.lat, state.lng, state.zoom, waybackLatestRelease])
+
+  // Opens each of the given destination ids in its own new tab. Multiple
+  // window.open() calls made synchronously within one click handler (as
+  // this always is) aren't treated as popups by Chrome/Firefox — only calls
+  // made outside a direct user gesture get blocked — so opening several at
+  // once works fine.
+  const openDestinations = useCallback((ids: string[]) => {
+    const ctx = buildContext()
+    for (const id of ids) {
+      const dest = OPEN_IN_DESTINATIONS.find((d) => d.id === id)
+      const url = dest?.buildUrl(ctx)
+      if (url) window.open(url, "_blank", "noopener,noreferrer")
+    }
+  }, [buildContext])
+
   const toggle = useCallback((id: string, checked: boolean) => {
     setSelectedIds((prev) => {
       const set = new Set(prev)
@@ -88,21 +116,15 @@ export const OpenInLinksButton: React.FC<{
     })
   }, [setSelectedIds])
 
-  const handleOpen = useCallback(() => {
-    const bounds = mapRef.current?.getMap()?.getBounds()
-    const ctx: OpenInContext = {
-      lat: state.lat,
-      lng: state.lng,
-      zoom: state.zoom,
-      bounds: bounds ? { west: bounds.getWest(), south: bounds.getSouth(), east: bounds.getEast(), north: bounds.getNorth() } : null,
-      latestWaybackRelease: waybackLatestRelease,
-    }
-    for (const dest of OPEN_IN_DESTINATIONS) {
-      if (!selectedIds.includes(dest.id)) continue
-      const url = dest.buildUrl(ctx)
-      if (url) window.open(url, "_blank", "noopener,noreferrer")
-    }
-  }, [mapRef, state.lat, state.lng, state.zoom, waybackLatestRelease, selectedIds])
+  // Clicking a destination's own label (not its checkbox) opens THAT ONE
+  // right away and remembers it as the sole selection — so next time the
+  // user just clicks the main button instead of reopening the chevron.
+  const openAndRemember = useCallback((id: string) => {
+    openDestinations([id])
+    setSelectedIds([id])
+  }, [openDestinations, setSelectedIds])
+
+  const handleOpen = useCallback(() => openDestinations(selectedIds), [openDestinations, selectedIds])
 
   const buttonLabel = selectedIds.length === 1
     ? (OPEN_IN_DESTINATIONS.find((d) => d.id === selectedIds[0])?.label ?? "Multiple")
@@ -113,7 +135,7 @@ export const OpenInLinksButton: React.FC<{
       <button
         type="button"
         onClick={handleOpen}
-        className="cursor-pointer flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground max-w-[130px]"
+        className="cursor-pointer flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground max-w-[130px]"
         title={`Open in ${buttonLabel}`}
       >
         <SquareArrowOutUpRight className="h-3 w-3 shrink-0" />
@@ -124,9 +146,7 @@ export const OpenInLinksButton: React.FC<{
           render={
             <button
               type="button"
-              className={cn(
-                "cursor-pointer px-1 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground border-l border-border",
-              )}
+              className="cursor-pointer px-1 py-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground border-l border-border"
               aria-label="Choose destination(s)"
             >
               <ChevronDown className="h-3 w-3" />
@@ -134,15 +154,23 @@ export const OpenInLinksButton: React.FC<{
           }
         />
         <PopoverContent className="w-72 p-2 space-y-1">
+          <p className="text-[10px] text-muted-foreground px-1 pb-1">Check to include in "Open in Multiple" — click a name to open it now and use it next time.</p>
           {OPEN_IN_DESTINATIONS.map((dest) => (
-            <label key={dest.id} className="flex items-center gap-2 text-xs cursor-pointer py-1 px-1 rounded hover:bg-accent">
+            <div key={dest.id} className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-accent">
               <Checkbox
                 checked={selectedIds.includes(dest.id)}
                 onCheckedChange={(checked) => toggle(dest.id, !!checked)}
+                onClick={(e) => e.stopPropagation()}
                 className="cursor-pointer"
               />
-              {dest.label}
-            </label>
+              <button
+                type="button"
+                onClick={() => openAndRemember(dest.id)}
+                className={cn("flex-1 text-left cursor-pointer")}
+              >
+                {dest.label}
+              </button>
+            </div>
           ))}
         </PopoverContent>
       </Popover>
