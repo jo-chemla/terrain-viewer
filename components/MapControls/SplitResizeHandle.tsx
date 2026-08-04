@@ -43,10 +43,15 @@ export const SplitResizeHandle: React.FC<{
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       className={cn(
-        "relative z-10 w-1.5 shrink-0 cursor-col-resize select-none touch-none",
-        "before:absolute before:inset-y-0 before:-left-1.5 before:-right-1.5 before:content-['']",
-        "after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-px after:bg-border after:content-['']",
-        isDragging && "after:w-0.5 after:bg-primary",
+        // The box itself takes up NO real layout width — map A and map B
+        // sit flush against each other with no visible seam at rest — but
+        // the ::before pseudo-element still gives it the same ~18px total
+        // grabbable hit-area it always had (9px either side of the true
+        // boundary), invisible until a drag is in progress.
+        "relative z-10 w-0 shrink-0 cursor-col-resize select-none touch-none",
+        "before:absolute before:inset-y-0 before:-left-[9px] before:-right-[9px] before:content-['']",
+        "after:absolute after:inset-y-0 after:left-0 after:w-px after:content-['']",
+        isDragging ? "after:w-0.5 after:-translate-x-px after:bg-primary" : "after:bg-transparent",
       )}
     />
   )

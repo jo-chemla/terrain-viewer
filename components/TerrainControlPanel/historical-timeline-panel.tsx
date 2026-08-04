@@ -1,7 +1,7 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Link2, Link2Off } from "lucide-react"
+import { ChevronDown, Link2, Link2Off, Settings2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWaybackItemsWithLocalChanges, useWaybackCaptureDate, fetchWaybackCaptureLabel, sortByDateAscending } from "@/lib/wayback"
@@ -108,6 +108,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const setCollapsed = useCallback((v: boolean) => setState({ historicalTimelineCollapsed: v }), [setState])
   const [activeSide, setActiveSide] = useState<"A" | "B">("A")
   const [syncEnabled, setSyncEnabled] = useState(true)
+  // Minimal-by-default header: no title, no source/resolution pills — just
+  // the track plus a small top-right cluster (cog to reveal the pills,
+  // collapse to hide the whole panel down to the floating clock button).
+  const [controlsExpanded, setControlsExpanded] = useState(false)
   const [trackWidth, setTrackWidth] = useState(0)
   // null = full extent (no zoom applied) — see the wheel-zoom handler below.
   const [viewWindow, setViewWindow] = useState<{ min: number; max: number } | null>(null)
@@ -486,6 +490,28 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const captionLabelA = tickA && tickA.source === "wayback" && waybackCaptureLabelA ? waybackCaptureLabelA : tickA?.label
   const captionLabelB = tickB && tickB.source === "wayback" && waybackCaptureLabelB ? waybackCaptureLabelB : tickB?.label
 
+  // When A and B are independent (unsynced) handles landing on the same or
+  // near-same date, they'd render as two perfectly overlapping circles —
+  // whichever is later in the DOM would eat 100% of pointer events at that
+  // pixel, making the other one literally impossible to grab. Nudge them
+  // apart symmetrically once they're closer than one handle's own diameter,
+  // so both stay independently clickable/draggable; this only ever shifts
+  // where the dot is DRAWN, never the underlying date each one represents.
+  const HANDLE_DECLUTTER_PX = 16
+  let handleLeftPctA = tickA ? fracForTick(tickA) * 100 : 0
+  let handleLeftPctB = tickB ? fracForTick(tickB) * 100 : 0
+  if (!showBothSynced && showA && showB && tickA && tickB && trackWidth > 0) {
+    const pxA = (handleLeftPctA / 100) * trackWidth
+    const pxB = (handleLeftPctB / 100) * trackWidth
+    const dist = Math.abs(pxB - pxA)
+    if (dist < HANDLE_DECLUTTER_PX) {
+      const shiftPx = (HANDLE_DECLUTTER_PX - dist) / 2
+      const dir = pxB >= pxA ? 1 : -1
+      handleLeftPctA -= (dir * shiftPx / trackWidth) * 100
+      handleLeftPctB += (dir * shiftPx / trackWidth) * 100
+    }
+  }
+
   return (
     <div
       ref={panelRef}
@@ -496,45 +522,46 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       )}
       style={{ ["--timeline-right-offset" as any]: isSidebarOpen && !isMobile ? "26rem" : "1rem" }}
     >
-      <div className="flex items-center justify-between px-4 pt-3 pb-3 border-b gap-3">
-        <h2 className="text-sm font-semibold shrink-0">Historical Timeline</h2>
-        <div className="flex items-center gap-1.5 flex-wrap justify-end">
-          {visibleSourceIds.map((id) => {
-            const active = timelineSourcesForPills.includes(id)
-            const cfg = SOURCE_CONFIG[id]
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => toggleSource(id)}
-                className={cn(
-                  "cursor-pointer rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-                  active ? "text-white border-transparent" : "text-muted-foreground border-border hover:bg-accent",
-                )}
-                style={active ? { backgroundColor: cfg.color } : undefined}
-              >
-                {cfg.label}
-              </button>
-            )
-          })}
-          <div className="w-px self-stretch bg-border mx-0.5" />
-          {RESOLUTION_CLASSES.map(({ id, label }) => {
-            const active = resolutionClasses.includes(id)
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => toggleResolutionClass(id)}
-                className={cn(
-                  "cursor-pointer rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors",
-                  active ? "bg-accent text-accent-foreground border-border" : "text-muted-foreground border-border/60 hover:bg-accent",
-                )}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
+      <div className={cn("flex items-center px-4 pt-3 pb-3 border-b gap-3", controlsExpanded ? "justify-between" : "justify-end")}>
+        {controlsExpanded && (
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            {visibleSourceIds.map((id) => {
+              const active = timelineSourcesForPills.includes(id)
+              const cfg = SOURCE_CONFIG[id]
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => toggleSource(id)}
+                  className={cn(
+                    "cursor-pointer rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                    active ? "text-white border-transparent" : "text-muted-foreground border-border hover:bg-accent",
+                  )}
+                  style={active ? { backgroundColor: cfg.color } : undefined}
+                >
+                  {cfg.label}
+                </button>
+              )
+            })}
+            <div className="w-px self-stretch bg-border mx-0.5" />
+            {RESOLUTION_CLASSES.map(({ id, label }) => {
+              const active = resolutionClasses.includes(id)
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => toggleResolutionClass(id)}
+                  className={cn(
+                    "cursor-pointer rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                    active ? "bg-accent text-accent-foreground border-border" : "text-muted-foreground border-border/60 hover:bg-accent",
+                  )}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
         {/* Grouped into one flex item (not separate siblings of the header's
             own justify-between) so the sync toggle always sits immediately
             left of the collapse button regardless of how much space the
@@ -571,6 +598,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               {syncEnabled ? <Link2 className="h-4 w-4" /> : <Link2Off className="h-4 w-4" />}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setControlsExpanded((v) => !v)}
+            className={cn(
+              "cursor-pointer p-1 shrink-0",
+              controlsExpanded ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+            )}
+            aria-label={controlsExpanded ? "Hide source/resolution controls" : "Show source/resolution controls"}
+            title="Sources & resolution"
+          >
+            <Settings2 className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={() => setCollapsed(true)}
@@ -657,7 +696,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                       onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("A", e.clientX) }}
                       onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
                       className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
-                      style={{ left: `${fracForTick(tickA) * 100}%`, backgroundColor: COLOR_A }}
+                      style={{ left: `${handleLeftPctA}%`, backgroundColor: COLOR_A }}
                     />
                   }
                 />
@@ -678,7 +717,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                       onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("B", e.clientX) }}
                       onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
                       className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
-                      style={{ left: `${fracForTick(tickB) * 100}%`, backgroundColor: COLOR_B }}
+                      style={{ left: `${handleLeftPctB}%`, backgroundColor: COLOR_B }}
                     />
                   }
                 />

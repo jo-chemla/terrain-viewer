@@ -5,6 +5,7 @@ import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsInt
 import Map, {
   type MapRef,
   ScaleControl,
+  AttributionControl,
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 
@@ -1732,21 +1733,39 @@ export function TerrainViewer() {
   // there's only ever one setState call per click, containing exactly the
   // fields that one action should touch.
 
-  // Shift the vanishing point left so it stays centered in the visible (non-obscured)
-  // portion of the map when the floating sidebar covers the right edge.
-  // Widths match the sidebar's own w-96/right-4 (desktop) and w-80 (mobile) classes.
-  const mapPadding = useMemo(
-    () => ({ top: 0, bottom: 0, left: 0, right: getSidebarFootprintPx(isSidebarOpen, isMobile) }),
-    [isSidebarOpen, isMobile],
+  // Shift the vanishing point left so it stays centered in the visible
+  // (non-obscured) portion of the map when the floating sidebar covers the
+  // right edge — but the sidebar only ever overlaps ONE map's own box:
+  // - not split: map A fills the whole viewport, so the sidebar sits within
+  //   A's own right edge → A needs the padding.
+  // - split: map A's box ends at the divider (well left of the sidebar), so
+  //   nothing obscures it → A needs NO padding. Map B's box extends from the
+  //   divider to the true viewport right edge, which DOES include the
+  //   sidebar-covered region → B needs the padding instead.
+  // Applying the same padding to both regardless of split state (as this
+  // used to) shifted A's vanishing point for an obstruction that isn't
+  // actually over A, while B's own shift was sized against a wider box than
+  // its own visible portion — so the same lat/lng/zoom looked centered at
+  // visibly different points on A vs B. Two independent paddings fixes that.
+  const sidebarPaddingPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
+  const mapPaddingA = useMemo(
+    () => ({ top: 0, bottom: 0, left: 0, right: state.splitScreen ? 0 : sidebarPaddingPx }),
+    [state.splitScreen, sidebarPaddingPx],
+  )
+  const mapPaddingB = useMemo(
+    () => ({ top: 0, bottom: 0, left: 0, right: sidebarPaddingPx }),
+    [sidebarPaddingPx],
   )
 
   // Ease the padding change imperatively (matching the sidebar's own CSS transition
   // duration) rather than passing `padding` as a declarative prop — react-map-gl applies
   // prop changes via an instant jumpTo, which snaps the vanishing point instead of easing it.
   useEffect(() => {
-    if (mapALoaded && mapARef.current) mapARef.current.getMap().easeTo({ padding: mapPadding, duration: 300 })
-    if (mapBLoaded && mapBRef.current) mapBRef.current.getMap().easeTo({ padding: mapPadding, duration: 300 })
-  }, [mapPadding, mapALoaded, mapBLoaded])
+    if (mapALoaded && mapARef.current) mapARef.current.getMap().easeTo({ padding: mapPaddingA, duration: 300 })
+  }, [mapPaddingA, mapALoaded])
+  useEffect(() => {
+    if (mapBLoaded && mapBRef.current) mapBRef.current.getMap().easeTo({ padding: mapPaddingB, duration: 300 })
+  }, [mapPaddingB, mapBLoaded])
 
   const effectiveMaxZoom = useMemo(() => {
       const candidates = [
@@ -1916,6 +1935,11 @@ export function TerrainViewer() {
         <Map
           ref={isPrimary ? mapARef : mapBRef}
           mapLib={maplibregl}
+          // Disabled here (added explicitly below, after ScaleControl) so we
+          // control its stacking order in the bottom-right corner instead of
+          // MapLibre's own default (added internally during Map construction,
+          // i.e. always before — visually above — anything React adds later).
+          attributionControl={false}
           initialViewState={{
             latitude: state.lat,
             longitude: state.lng,
@@ -2433,6 +2457,15 @@ export function TerrainViewer() {
               {!activeProjectConfig?.hideMapControls?.includes("geolocate") && (
                 <GeolocateControlThemed position="top-left" />
               )}
+
+              {/* Inverted from MapLibre's own default (attribution bottom-
+                  right, alongside scale) — attribution now lives at
+                  bottom-left with the minimap (map A only, both in split and
+                  non-split mode map A's own bottom-left IS the true
+                  viewport bottom-left, so no rightmost-map gating is needed
+                  here the way scale's bottom-right position required),
+                  leaving scale alone at bottom-right. */}
+              <AttributionControl compact position="bottom-left" />
 
               {/* Minimap — no parentMap prop: it picks up the parent map via react-map-gl's
                   useMap() context, which is available as soon as the Map mounts rather than
