@@ -2609,28 +2609,28 @@ export function TerrainViewer() {
   )
 
   // Bottom-left corner (minimap, always map A) needs headroom for: the full
-  // timeline panel — taller in its expanded (title+pills+track) mode than
-  // its minimal (track-only) mode — just the small collapsed-timeline
-  // toggle button sitting below it, or neither (the unified 16px control
-  // margin) when historical imagery isn't even active. Static values (not
-  // derived from the panel's own measured height) deliberately — a dynamic
-  // height-based offset was tried and, despite computing correctly, never
-  // reliably reached the rendered corner element in testing; these are the
-  // originally-shipped, confirmed-working values, now with a 3rd case for
-  // the panel's own expanded/minimal modes.
+  // timeline panel, just the small collapsed-timeline toggle button sitting
+  // below it, or neither (the unified 16px control margin) when historical
+  // imagery isn't even active. One fixed clearance value regardless of the
+  // panel's own expanded/minimal (header row shown or not) mode — using two
+  // different values (taller for expanded, shorter for minimal) looked
+  // backwards/inconsistent, since the same "how far above the panel" margin
+  // should read the same either way. Static (not derived from the panel's
+  // own measured height) deliberately — a dynamic height-based offset was
+  // tried and, despite computing correctly, never reliably reached the
+  // rendered corner element in testing; this is the originally-shipped,
+  // confirmed-working value.
   const minimapBottomOffset = !historicalTimelineActive
     ? `${MAP_CTRL_EDGE_MARGIN_PX}px`
     : state.historicalTimelineCollapsed
       ? "3.5rem"
-      : state.historicalControlsExpanded ? "13rem" : "8rem"
+      : "13rem"
   // Bottom-right corner (attribution+scale, on whichever map is currently
   // rightmost) only ever needs to clear the timeline panel's own height when
   // the FULL panel (not just the bottom-left floating toggle button) is
   // visible — nothing at bottom-right needs clearing just because the panel
   // collapsed down to that small bottom-left-only button.
-  const scaleBottomOffset = historicalTimelineVisible
-    ? (state.historicalControlsExpanded ? "13rem" : "8rem")
-    : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  const scaleBottomOffset = historicalTimelineVisible ? "13rem" : `${MAP_CTRL_EDGE_MARGIN_PX}px`
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 

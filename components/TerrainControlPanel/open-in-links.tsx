@@ -4,8 +4,12 @@ import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { SquareArrowOutUpRight, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu"
 import type { MapRef } from "react-map-gl/maplibre"
 
 type OpenInContext = {
@@ -25,9 +29,9 @@ type OpenInDestination = {
 // Viewport-aware "open the same spot in another historical-imagery viewer"
 // launcher — URL templates adapted from Iconem's own historical-satellite
 // LinksSection reference component (Google Earth Web, ESRI Wayback, BBBike
-// MapCompare, Qiusheng Wu's Timelapse tool) plus two more Iconem tools
-// (historical-satellite.iconem.com, search-eo-imagery.iconem.com), both
-// using a #zoom/lat/lng URL fragment.
+// MapCompare) plus two more Iconem tools (historical-satellite.iconem.com,
+// search-eo-imagery.iconem.com), both using a #zoom/lat/lng fragment.
+// Qiusheng Wu's Timelapse tool was dropped per request.
 export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
   {
     id: "google-earth-web",
@@ -40,9 +44,9 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
   {
     id: "esri-wayback",
     label: "ESRI Wayback Machine",
-    buildUrl: ({ bounds, latestWaybackRelease }) => {
-      if (!bounds || !latestWaybackRelease) return null
-      return `https://livingatlas.arcgis.com/wayback/#active=${latestWaybackRelease}&ext=${bounds.west},${bounds.south},${bounds.east},${bounds.north}&localChangesOnly=true`
+    buildUrl: ({ lat, lng, zoom, latestWaybackRelease }) => {
+      if (!latestWaybackRelease) return null
+      return `https://livingatlas.arcgis.com/wayback/#mapCenter=${lng}%2C${lat}%2C${Math.round(zoom)}&mode=explore&active=${latestWaybackRelease}`
     },
   },
   {
@@ -50,13 +54,6 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
     label: "BBBike MapCompare",
     buildUrl: ({ lat, lng, zoom }) =>
       `https://mc.bbbike.org/mc/?lon=${lng}&lat=${lat}&zoom=${Math.round(zoom)}&num=4&mt0=mapnik-german&mt1=cyclemap&mt2=bing-hybrid`,
-  },
-  {
-    id: "qiusheng-timelapse",
-    label: "Qiusheng Wu Landsat/Sentinel Timelapse",
-    // Not viewport-parameterized in the reference implementation either —
-    // this tool doesn't accept lat/lng/zoom query params.
-    buildUrl: () => "https://giswqs-streamlit.hf.space/Timelapse",
   },
   {
     id: "iconem-historical",
@@ -116,9 +113,9 @@ export const OpenInLinksButton: React.FC<{
     })
   }, [setSelectedIds])
 
-  // Clicking a destination's own label (not its checkbox) opens THAT ONE
-  // right away and remembers it as the sole selection — so next time the
-  // user just clicks the main button instead of reopening the chevron.
+  // Clicking a destination's own trailing "open" icon opens THAT ONE right
+  // away and remembers it as the sole selection — so next time the user
+  // just clicks the main button instead of reopening the dropdown.
   const openAndRemember = useCallback((id: string) => {
     openDestinations([id])
     setSelectedIds([id])
@@ -131,49 +128,53 @@ export const OpenInLinksButton: React.FC<{
     : "Multiple"
 
   return (
-    <div className="flex items-center rounded-md border border-border overflow-hidden shrink-0">
+    <div className="flex items-center rounded-md border border-border bg-background overflow-hidden shrink-0">
       <button
         type="button"
         onClick={handleOpen}
-        className="cursor-pointer flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground max-w-[130px]"
+        className="cursor-pointer flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-accent-foreground"
         title={`Open in ${buttonLabel}`}
       >
         <SquareArrowOutUpRight className="h-3 w-3 shrink-0" />
-        <span className="truncate">Open in {buttonLabel}</span>
+        <span>Open in {buttonLabel}</span>
       </button>
-      <Popover>
-        <PopoverTrigger
+      <DropdownMenu>
+        <DropdownMenuTrigger
           render={
             <button
               type="button"
-              className="cursor-pointer px-1 py-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground border-l border-border"
+              className={cn(
+                "cursor-pointer h-full px-1 py-0.5 rounded-r-md text-muted-foreground border-l border-border",
+                "hover:bg-accent hover:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground",
+              )}
               aria-label="Choose destination(s)"
             >
               <ChevronDown className="h-3 w-3" />
             </button>
           }
         />
-        <PopoverContent className="w-72 p-2 space-y-1">
-          <p className="text-[10px] text-muted-foreground px-1 pb-1">Check to include in "Open in Multiple" — click a name to open it now and use it next time.</p>
+        <DropdownMenuContent align="end" className="w-80">
+          <p className="text-[10px] text-muted-foreground px-2 py-1.5">Check to include in "Open in Multiple" — use the open icon to open now and use it next time.</p>
           {OPEN_IN_DESTINATIONS.map((dest) => (
-            <div key={dest.id} className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-accent">
-              <Checkbox
-                checked={selectedIds.includes(dest.id)}
-                onCheckedChange={(checked) => toggle(dest.id, !!checked)}
-                onClick={(e) => e.stopPropagation()}
-                className="cursor-pointer"
-              />
+            <DropdownMenuCheckboxItem
+              key={dest.id}
+              checked={selectedIds.includes(dest.id)}
+              onCheckedChange={(checked) => toggle(dest.id, !!checked)}
+              className="pr-1"
+            >
+              <span className="flex-1">{dest.label}</span>
               <button
                 type="button"
-                onClick={() => openAndRemember(dest.id)}
-                className={cn("flex-1 text-left cursor-pointer")}
+                onClick={(e) => { e.stopPropagation(); openAndRemember(dest.id) }}
+                className="cursor-pointer p-1 rounded hover:bg-background text-muted-foreground hover:text-foreground shrink-0"
+                title={`Open ${dest.label} now`}
               >
-                {dest.label}
+                <SquareArrowOutUpRight className="h-3.5 w-3.5" />
               </button>
-            </div>
+            </DropdownMenuCheckboxItem>
           ))}
-        </PopoverContent>
-      </Popover>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

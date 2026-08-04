@@ -12,19 +12,23 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 // controls, 40px) — when the minimap is fully expanded (260px), stretching
 // this button to the same width would look oversized for a plain icon
 // button, so it keeps its own natural size instead (widthPx omitted).
+// Same "secondary" (light background) treatment as the sidebar's own
+// reopen button (TerrainControlPanel.tsx), with the icon itself tinted the
+// theme's primary color — a light/white pill with a colored icon, not a
+// solid-primary pill with a white icon.
 export const HistoricalTimelineToggle: React.FC<{ onExpand: () => void; widthPx?: number }> = ({ onExpand, widthPx }) => (
   <TooltipProvider delay={0} timeout={0}>
     <Tooltip>
       <TooltipTrigger
         render={
           <Button
-            variant="default"
+            variant="secondary"
             size="icon"
             className="fixed z-10 left-4 bottom-4 cursor-pointer shadow"
             style={widthPx ? { width: widthPx } : undefined}
             onClick={onExpand}
           >
-            <Clock className="h-5 w-5" />
+            <Clock className="h-5 w-5 text-primary" />
           </Button>
         }
       />

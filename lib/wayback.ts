@@ -112,12 +112,14 @@ export async function fetchWaybackCaptureLabel(latitude: number, longitude: numb
  * hasn't resolved yet (or failed) fall back to their own releaseDatetime so
  * a tick still has SOME position rather than being dropped.
  */
-export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: number, longitude: number, zoom: number): Record<number, { dateMs: number; label: string }> {
+export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: number, longitude: number, zoom: number): { resolved: Record<number, { dateMs: number; label: string }>; loading: boolean } {
   const [resolved, setResolved] = useState<Record<number, { dateMs: number; label: string }>>({})
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!items.length) { setResolved({}); return }
+    if (!items.length) { setResolved({}); setLoading(false); return }
     let cancelled = false
+    setLoading(true)
     Promise.all(items.map(async (item) => {
       const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum)
       return [item.releaseNum, meta] as const
@@ -126,6 +128,7 @@ export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: numbe
       const map: Record<number, { dateMs: number; label: string }> = {}
       for (const [releaseNum, meta] of pairs) if (meta) map[releaseNum] = meta
       setResolved(map)
+      setLoading(false)
     })
     return () => { cancelled = true }
     // items is a fresh array identity every render of its own caller — keying
@@ -136,7 +139,7 @@ export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: numbe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latitude, longitude, zoom, items.length])
 
-  return resolved
+  return { resolved, loading }
 }
 
 /**

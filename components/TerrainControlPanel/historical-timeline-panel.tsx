@@ -1,7 +1,8 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Link2, Link2Off, Settings2 } from "lucide-react"
+import { atomWithStorage } from "jotai/utils"
+import { ChevronDown, Link2, Link2Off, Settings2, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWaybackItemsWithLocalChanges, useWaybackCaptureDate, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
@@ -16,6 +17,12 @@ import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainContr
 import { useIsMobile } from "@/hooks/use-mobile"
 import { OpenInLinksButton } from "@/components/TerrainControlPanel/open-in-links"
 import type { MapRef } from "react-map-gl/maplibre"
+
+// Persisted (not plain local state) — this was the actual cause behind "no
+// matter what I do, dragging one side always drags the other": sync
+// defaulted to on every fresh page load/reload, so turning it off in one
+// session silently reverted on the next. Now an explicit "off" sticks.
+const historicalTimelineSyncAtom = atomWithStorage("historicalTimelineSync", true)
 
 // Hardcoded (not var(--primary)/theme tokens) deliberately — same reasoning
 // as the geolocate control's active/error state colors (src/index.css): A/B
@@ -52,9 +59,9 @@ const MIN_YEAR_LABEL_GAP_PX = 32
 const SOURCE_CONFIG: Record<string, { label: string; color: string; resClass: "vhr" | "medium" }> = {
   wayback: { label: "ESRI Wayback", color: "#cbe4bd", resClass: "vhr" }, // Esri green (#7ebc59), pastelized
   "ge-historical": { label: "Google Earth Historical", color: "#aecbfa", resClass: "vhr" }, // Google's own Material "blue-100"
-  bing: { label: "Bing Dated", color: "#c4b5fd", resClass: "vhr" }, // pastel purple (too close to Esri/Google's own teal otherwise)
+  bing: { label: "Bing Single", color: "#c4b5fd", resClass: "vhr" }, // pastel purple (too close to Esri/Google's own teal otherwise)
   planet: { label: "Planet Monthly", color: "#fdba74", resClass: "medium" }, // pastel orange
-  "eox-s2": { label: "Sentinel-2 Cloudless", color: "#fca5a5", resClass: "medium" }, // pastel red
+  "eox-s2": { label: "EOX Sentinel-2 Yearly", color: "#fca5a5", resClass: "medium" }, // pastel red
   hls: { label: "Harmonized Landsat Sentinel", color: "#f9a8d4", resClass: "medium" }, // pastel pink
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
@@ -106,7 +113,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const collapsed = !!state.historicalTimelineCollapsed
   const setCollapsed = useCallback((v: boolean) => setState({ historicalTimelineCollapsed: v }), [setState])
   const [activeSide, setActiveSide] = useState<"A" | "B">("A")
-  const [syncEnabled, setSyncEnabled] = useState(true)
+  const [syncEnabled, setSyncEnabled] = useAtom(historicalTimelineSyncAtom)
   // Expanded by default: title + source/resolution pills + sync/A-B shown.
   // Toggled off via the cog button for a minimal header (just a small
   // floating cog+collapse cluster hovering over the track's top-right
@@ -170,10 +177,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // ticks are positioned by these (the actual date the imagery was taken),
   // not each release's own releaseDatetime (a catalog-wide publish date that
   // can differ significantly from the real capture date). Falls back to
-  // releaseDatetime for any release whose real date hasn't resolved yet.
-  const waybackRealDates = useWaybackRealCaptureDates(rawWaybackItems, state.lat, state.lng, state.zoom)
+  // releaseDatetime for any release whose real date hasn't resolved yet —
+  // EXCEPT ticks aren't actually rendered until they resolve (see the
+  // waybackDatesLoading gate below): showing them at the wrong (layer-date)
+  // position first and then jumping to the real position a moment later
+  // read as more confusing than a brief "computing…" gap.
+  const { resolved: waybackRealDates, loading: waybackDatesLoading } = useWaybackRealCaptureDates(rawWaybackItems, state.lat, state.lng, state.zoom)
   const waybackTicks = useMemo<TimelineTick[]>(
-    () => sortByDateAscending(rawWaybackItems).map((item) => {
+    () => waybackDatesLoading ? [] : sortByDateAscending(rawWaybackItems).map((item) => {
       const real = waybackRealDates[item.releaseNum]
       return {
         source: "wayback", key: item.releaseNum,
@@ -181,7 +192,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         label: item.releaseDateLabel,
       }
     }),
-    [rawWaybackItems, waybackRealDates],
+    [rawWaybackItems, waybackRealDates, waybackDatesLoading],
   )
   // No per-location catalog exists for HLS — these are evenly-spaced
   // placeholder monthly points (see lib/hls.ts), not verified real capture
@@ -369,6 +380,29 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // their frac to [0,1] instead (piling up out-of-window ticks at the edges)
   // would misleadingly suggest they're at the boundary.
   const visibleItems = useMemo(() => items.filter((t) => t.dateMs >= effectiveMin && t.dateMs <= effectiveMax), [items, effectiveMin, effectiveMax])
+
+  // Ticks from DIFFERENT sources can legitimately land on the same or
+  // near-same date (e.g. Planet's and HLS's synthetic monthly ticks both
+  // falling on the 1st) and would otherwise render pixel-on-pixel. A small
+  // left-to-right sweep nudges each one just far enough from its immediate
+  // left neighbor to stay visually distinct — a few pixels' worth of "a very
+  // little", not a real repositioning; only used for DRAWING, the
+  // underlying date each tick represents is untouched.
+  const MIN_TICK_GAP_PX = 5
+  const nudgedLeftPct = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!trackWidth) return map
+    const sorted = [...visibleItems].sort((a, b) => fracForTick(a) - fracForTick(b))
+    let lastPx = -Infinity
+    for (const t of sorted) {
+      let px = fracForTick(t) * trackWidth
+      if (px - lastPx < MIN_TICK_GAP_PX) px = lastPx + MIN_TICK_GAP_PX
+      map.set(`${t.source}-${t.key}`, (px / trackWidth) * 100)
+      lastPx = px
+    }
+    return map
+  }, [visibleItems, fracForTick, trackWidth])
+  const tickLeftPct = useCallback((t: TimelineTick) => nudgedLeftPct.get(`${t.source}-${t.key}`) ?? fracForTick(t) * 100, [nudgedLeftPct, fracForTick])
 
   // Full-year gridlines/labels, independent of where actual ticks fall —
   // reads as a normal calendar axis rather than one tick per release. Rather
@@ -581,12 +615,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                   type="button"
                   onClick={() => toggleSource(id)}
                   className={cn(
-                    "cursor-pointer rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                    "cursor-pointer flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
                     active ? "text-slate-900 border-transparent" : "text-muted-foreground border-border hover:bg-accent",
                   )}
                   style={active ? { backgroundColor: cfg.color } : undefined}
                 >
                   {cfg.label}
+                  {/* Real per-tile imagery date (vs. release/layer date) is
+                      still being computed for every candidate release — its
+                      ticks aren't drawn yet either (see waybackDatesLoading
+                      above), so this spinner is the only visible sign
+                      anything's happening. */}
+                  {id === "wayback" && waybackDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                 </button>
               )
             })}
@@ -713,14 +753,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             ))}
             {visibleItems.map((t) => (
               t.source === "wayback" ? (
-                <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={fracForTick(t) * 100} realLabel={waybackRealDates[t.key]?.label ?? null} />
+                <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} realLabel={waybackRealDates[t.key]?.label ?? null} />
               ) : (
                 <Tooltip key={`${t.source}-${t.key}`}>
                   <TooltipTrigger
                     render={
                       <div
                         className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-help"
-                        style={{ left: `${fracForTick(t) * 100}%` }}
+                        style={{ left: `${tickLeftPct(t)}%` }}
                       >
                         <div
                           className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
