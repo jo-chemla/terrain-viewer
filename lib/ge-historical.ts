@@ -29,11 +29,14 @@ function getGe() {
   return geInstance
 }
 
-export function geHistoricalTileSource(dateMs: number): { tiles: string[]; tileSize: number; maxzoom: number } {
+export function geHistoricalTileSource(dateMs: number): { tiles: string[]; tileSize: number; maxzoom: number; attribution: string } {
   const ge = getGe()
   const d = new Date(dateMs)
   const spec = ge.makeRasterSource({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() })
-  return { tiles: spec.tiles, tileSize: spec.tileSize, maxzoom: spec.maxzoom }
+  // attribution was previously dropped here — makeRasterSource's own
+  // "Imagery © Google" never reached the <Source> component, so MapLibre's
+  // attribution control had nothing to show while GE Historical was active.
+  return { tiles: spec.tiles, tileSize: spec.tileSize, maxzoom: spec.maxzoom, attribution: spec.attribution }
 }
 
 const LOCAL_DATES_DEBOUNCE_MS = 400

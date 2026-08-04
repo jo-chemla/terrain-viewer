@@ -683,10 +683,6 @@ export function TerrainViewer() {
   const splitContainerRef = useRef<HTMLDivElement>(null)
   const [splitContainerWidth, setSplitContainerWidth] = useState(0)
   const [splitRatio, setSplitRatio] = useAtom(splitRatioAtom)
-  // Reported by HistoricalTimelinePanel itself (its rendered height varies
-  // with content), so the minimap's bottom offset can clear it exactly
-  // instead of guessing a fixed height.
-  const [timelinePanelHeight, setTimelinePanelHeight] = useState(0)
   useLayoutEffect(() => {
     const el = splitContainerRef.current
     // mapLibreReady gates the entire return (see "if (!mapLibreReady) return
@@ -2590,22 +2586,19 @@ export function TerrainViewer() {
     ],
   )
 
-  if (!mapLibreReady) return null
-
   // Bottom-left corner (minimap, always map A) needs headroom for: the full
-  // expanded timeline panel (its own measured height + its own bottom-4
-  // margin + one more edge-margin gap above it, so the minimap sits "just
-  // above with the margin the timeline panel [uses]"), just the small
-  // collapsed-timeline toggle button sitting below it (button height + gap),
-  // or neither (the unified 16px control margin) when historical imagery
-  // isn't even active.
-  const minimapBottomOffset = historicalTimelineVisible
-    ? `${timelinePanelHeight + MAP_CTRL_EDGE_MARGIN_PX * 2}px`
-    : historicalTimelineActive ? "3.5rem" : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  // expanded timeline panel, just the small collapsed-timeline toggle button
+  // sitting below it, or neither (the unified 16px control margin) when
+  // historical imagery isn't even active. Static values (not derived from
+  // the panel's own measured height) deliberately — a dynamic height-based
+  // offset was tried and, despite computing correctly, never reliably
+  // reached the rendered corner element in testing; this static pair is the
+  // originally-shipped, confirmed-working version.
+  const minimapBottomOffset = historicalTimelineVisible ? "13rem" : historicalTimelineActive ? "3.5rem" : `${MAP_CTRL_EDGE_MARGIN_PX}px`
   // Bottom-right corner (scale bar, on whichever map is currently rightmost)
   // only ever needs to clear the expanded timeline panel's own height — the
   // collapsed toggle button lives bottom-LEFT, not here.
-  const scaleBottomOffset = historicalTimelineVisible ? `${timelinePanelHeight + MAP_CTRL_EDGE_MARGIN_PX * 2}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  const scaleBottomOffset = historicalTimelineVisible ? "13rem" : `${MAP_CTRL_EDGE_MARGIN_PX}px`
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 
@@ -2615,6 +2608,8 @@ export function TerrainViewer() {
   // extending under the sidebar overlay exactly as it always has.
   const availableSplitWidth = Math.max(0, splitContainerWidth - (isSidebarOpen && !isMobile ? sidebarFootprintPx : 0))
   const mapAWidthPx = state.splitScreen ? Math.round(availableSplitWidth * clamp(splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX)) : undefined
+
+  if (!mapLibreReady) return null
 
   return (
     <div
@@ -2665,9 +2660,9 @@ export function TerrainViewer() {
         )}
       </div>
       <LightControlOverlay state={state} setState={setState} mapRef={mapARef as any} />
-      <HistoricalTimelinePanel state={state} setState={setState} onHeightChange={setTimelinePanelHeight} />
+      <HistoricalTimelinePanel state={state} setState={setState} />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
-        <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : 260} />
+        <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} />
       )}
       <TerrainControlPanel
         state={state}

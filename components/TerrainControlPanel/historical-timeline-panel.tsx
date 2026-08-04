@@ -37,12 +37,19 @@ const MIN_YEAR_LABEL_GAP_PX = 32
 // mosaics, while HLS (Landsat/Sentinel-2, 10-30m) and Planet (~4.7m
 // PlanetScope) read as coarser "medium" imagery next to them. Object order
 // here is also the pill row's display order.
+//
+// Colors are Tailwind's own "-300" shade for each hue (slate/orange/blue/
+// teal/violet) — a single systematic recipe (same lightness/chroma tier,
+// different hue) rather than 5 independently-picked hardcoded hexes, so the
+// set reads as one coherent pastel family instead of arbitrary colors that
+// happen to be soft. Pill "active" text uses a dark slate instead of white
+// (see the pill button below) since white-on-pastel has poor contrast.
 const SOURCE_CONFIG: Record<string, { label: string; color: string; resClass: "vhr" | "medium" }> = {
-  wayback: { label: "ESRI Wayback", color: "#64748b", resClass: "vhr" },
-  "ge-historical": { label: "Google Earth Historical", color: "#f97316", resClass: "vhr" },
-  bing: { label: "Bing Dated", color: "#0078d4", resClass: "vhr" },
-  planet: { label: "Planet Monthly", color: "#14b8a6", resClass: "medium" },
-  hls: { label: "Harmonized Landsat Sentinel", color: "#8b5cf6", resClass: "medium" },
+  wayback: { label: "ESRI Wayback", color: "#cbd5e1", resClass: "vhr" }, // slate-300
+  "ge-historical": { label: "Google Earth Historical", color: "#fdba74", resClass: "vhr" }, // orange-300
+  bing: { label: "Bing Dated", color: "#93c5fd", resClass: "vhr" }, // blue-300
+  planet: { label: "Planet Monthly", color: "#5eead4", resClass: "medium" }, // teal-300
+  hls: { label: "Harmonized Landsat Sentinel", color: "#c4b5fd", resClass: "medium" }, // violet-300
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 
@@ -103,32 +110,20 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; lat: numb
   )
 }
 
-export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void; onHeightChange?: (height: number) => void }> = ({ state, setState, onHeightChange }) => {
+export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
   const collapsed = !!state.historicalTimelineCollapsed
   const setCollapsed = useCallback((v: boolean) => setState({ historicalTimelineCollapsed: v }), [setState])
   const [activeSide, setActiveSide] = useState<"A" | "B">("A")
   const [syncEnabled, setSyncEnabled] = useState(true)
-  // Minimal-by-default header: no title, no source/resolution pills — just
-  // the track plus a small top-right cluster (cog to reveal the pills,
-  // collapse to hide the whole panel down to the floating clock button).
-  const [controlsExpanded, setControlsExpanded] = useState(false)
+  // Expanded by default: title + source/resolution pills + sync/A-B shown.
+  // Toggled off via the cog button for a minimal header (just a small
+  // floating cog+collapse cluster hovering over the track's top-right
+  // corner, no separate title/pills row at all).
+  const [controlsExpanded, setControlsExpanded] = useState(true)
   const [trackWidth, setTrackWidth] = useState(0)
   // null = full extent (no zoom applied) — see the wheel-zoom handler below.
   const [viewWindow, setViewWindow] = useState<{ min: number; max: number } | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  // Reports this panel's own rendered height to the parent (TerrainViewer),
-  // which uses it to keep the minimap positioned just above this panel with
-  // a consistent margin — instead of a hardcoded guess at the panel's height.
-  useEffect(() => {
-    const el = panelRef.current
-    if (!el || !onHeightChange) return
-    onHeightChange(el.getBoundingClientRect().height)
-    const observer = new ResizeObserver((entries) => onHeightChange(entries[0].contentRect.height))
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [onHeightChange])
   const [planetKey] = useAtom(planetKeyAtom)
   const hasPlanetKey = !!planetKey
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
@@ -514,7 +509,6 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
 
   return (
     <div
-      ref={panelRef}
       className={cn(
         "fixed z-10 backdrop-blur-[2px] border border-border bg-background/95 shadow-sm transition-[background-color,right] duration-150",
         "bottom-0 left-0 right-0 rounded-none",
@@ -522,8 +516,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       )}
       style={{ ["--timeline-right-offset" as any]: isSidebarOpen && !isMobile ? "26rem" : "1rem" }}
     >
-      <div className={cn("flex items-center px-4 pt-3 pb-3 border-b gap-3", controlsExpanded ? "justify-between" : "justify-end")}>
-        {controlsExpanded && (
+      {controlsExpanded ? (
+        <div className="flex items-center justify-between px-4 pt-3 pb-3 border-b gap-3">
+          <h2 className="text-sm font-semibold shrink-0">Historical Timeline</h2>
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             {visibleSourceIds.map((id) => {
               const active = timelineSourcesForPills.includes(id)
@@ -535,7 +530,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                   onClick={() => toggleSource(id)}
                   className={cn(
                     "cursor-pointer rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-                    active ? "text-white border-transparent" : "text-muted-foreground border-border hover:bg-accent",
+                    active ? "text-slate-900 border-transparent" : "text-muted-foreground border-border hover:bg-accent",
                   )}
                   style={active ? { backgroundColor: cfg.color } : undefined}
                 >
@@ -561,51 +556,75 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               )
             })}
           </div>
-        )}
-        {/* Grouped into one flex item (not separate siblings of the header's
-            own justify-between) so the sync toggle always sits immediately
-            left of the collapse button regardless of how much space the
-            pills above take — justify-between would otherwise spread N
-            siblings evenly across the whole row instead of keeping this
-            trailing cluster adjacent. */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {dualMode && !syncEnabled && (
-            <div className="flex items-center rounded-md border border-border overflow-hidden">
-              {(["A", "B"] as const).map((side) => (
-                <button
-                  key={side}
-                  type="button"
-                  onClick={() => setActiveSide(side)}
-                  className={cn(
-                    "cursor-pointer px-2 py-0.5 text-[11px] font-semibold transition-colors",
-                    activeSide === side ? "text-white" : "text-muted-foreground hover:bg-accent",
-                  )}
-                  style={activeSide === side ? { backgroundColor: side === "A" ? COLOR_A : COLOR_B } : undefined}
-                >
-                  {side}
-                </button>
-              ))}
-            </div>
-          )}
-          {dualMode && (
+          {/* Grouped into one flex item (not separate siblings of the header's
+              own justify-between) so the sync toggle always sits immediately
+              left of the collapse button regardless of how much space the
+              pills above take — justify-between would otherwise spread N
+              siblings evenly across the whole row instead of keeping this
+              trailing cluster adjacent. Sync/A-B only exist while the
+              controls are expanded — hidden along with the pills otherwise. */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {dualMode && !syncEnabled && (
+              <div className="flex items-center rounded-md border border-border overflow-hidden">
+                {(["A", "B"] as const).map((side) => (
+                  <button
+                    key={side}
+                    type="button"
+                    onClick={() => setActiveSide(side)}
+                    className={cn(
+                      "cursor-pointer px-2 py-0.5 text-[11px] font-semibold transition-colors",
+                      activeSide === side ? "text-white" : "text-muted-foreground hover:bg-accent",
+                    )}
+                    style={activeSide === side ? { backgroundColor: side === "A" ? COLOR_A : COLOR_B } : undefined}
+                  >
+                    {side}
+                  </button>
+                ))}
+              </div>
+            )}
+            {dualMode && (
+              <button
+                type="button"
+                onClick={() => setSyncEnabled((v) => !v)}
+                className="cursor-pointer p-1 text-muted-foreground hover:text-foreground shrink-0"
+                aria-label={syncEnabled ? "Unsync map A/B historical source" : "Sync map A/B historical source"}
+                title={syncEnabled ? "Synced — applies to both A and B" : "Not synced — applies to the selected side only"}
+              >
+                {syncEnabled ? <Link2 className="h-4 w-4" /> : <Link2Off className="h-4 w-4" />}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setSyncEnabled((v) => !v)}
-              className="cursor-pointer p-1 text-muted-foreground hover:text-foreground shrink-0"
-              aria-label={syncEnabled ? "Unsync map A/B historical source" : "Sync map A/B historical source"}
-              title={syncEnabled ? "Synced — applies to both A and B" : "Not synced — applies to the selected side only"}
+              onClick={() => setControlsExpanded((v) => !v)}
+              className={cn(
+                "cursor-pointer p-1 rounded shrink-0",
+                controlsExpanded ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+              aria-label={controlsExpanded ? "Hide source/resolution controls" : "Show source/resolution controls"}
+              title="Sources & resolution"
             >
-              {syncEnabled ? <Link2 className="h-4 w-4" /> : <Link2Off className="h-4 w-4" />}
+              <Settings2 className="h-4 w-4" />
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => setCollapsed(true)}
+              className="cursor-pointer p-1 text-muted-foreground hover:text-foreground shrink-0"
+              aria-label="Collapse timeline"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        // Minimal mode: no dedicated header row at all — just a small
+        // floating chip hovering over the track's own top-right corner, so
+        // the panel doesn't grow a whole extra line just to hold 2 buttons.
+        <div className="absolute top-2 right-3 z-20 flex items-center gap-0.5 rounded-md border border-border bg-background/90 backdrop-blur-sm shadow-sm px-0.5 py-0.5">
           <button
             type="button"
             onClick={() => setControlsExpanded((v) => !v)}
-            className={cn(
-              "cursor-pointer p-1 shrink-0",
-              controlsExpanded ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-            )}
-            aria-label={controlsExpanded ? "Hide source/resolution controls" : "Show source/resolution controls"}
+            className="cursor-pointer p-1 rounded text-muted-foreground hover:text-foreground shrink-0"
+            aria-label="Show source/resolution controls"
             title="Sources & resolution"
           >
             <Settings2 className="h-4 w-4" />
@@ -619,7 +638,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             <ChevronDown className="h-4 w-4" />
           </button>
         </div>
-      </div>
+      )}
 
       <div className="px-4 py-3 space-y-1">
         <div className="flex items-center gap-2">

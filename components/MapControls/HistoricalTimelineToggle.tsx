@@ -7,11 +7,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 // while it's collapsed — sits bottom-left, just below the minimap (see
 // TerrainViewer.tsx's --minimap-offset: it grows from the unified 16px
 // control margin to 3.5rem whenever this button is showing, to leave room
-// for it below the minimap control). widthPx matches the minimap's OWN
-// current width (260 expanded / 40 minimized, see MinimapControl.tsx) so the
-// two stack as a visually consistent column instead of a narrow icon button
-// under a much wider (or, when minimized, differently-sized) minimap.
-export const HistoricalTimelineToggle: React.FC<{ onExpand: () => void; widthPx: number }> = ({ onExpand, widthPx }) => (
+// for it below the minimap control). widthPx only matches the minimap when
+// IT is also minimized (both read as a matched pair of small icon-sized
+// controls, 40px) — when the minimap is fully expanded (260px), stretching
+// this button to the same width would look oversized for a plain icon
+// button, so it keeps its own natural size instead (widthPx omitted).
+export const HistoricalTimelineToggle: React.FC<{ onExpand: () => void; widthPx?: number }> = ({ onExpand, widthPx }) => (
   <TooltipProvider delay={0} timeout={0}>
     <Tooltip>
       <TooltipTrigger
@@ -20,7 +21,7 @@ export const HistoricalTimelineToggle: React.FC<{ onExpand: () => void; widthPx:
             variant="secondary"
             size="icon"
             className="fixed z-10 left-4 bottom-4 cursor-pointer shadow"
-            style={{ width: widthPx }}
+            style={widthPx ? { width: widthPx } : undefined}
             onClick={onExpand}
           >
             <Clock className="h-5 w-5" />
