@@ -31,6 +31,7 @@ import { useWaybackItems, waybackTileUrl } from "@/lib/wayback"
 import { hlsTileUrl } from "@/lib/hls"
 import { geHistoricalTileSource } from "@/lib/ge-historical"
 import { planetTileUrl, PLANET_TILE_SIZE, PLANET_MAXZOOM } from "@/lib/planet"
+import { eoxS2CloudlessTileUrl, EOX_S2_TILE_SIZE, EOX_S2_MAXZOOM } from "@/lib/eox-s2-cloudless"
 import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
@@ -293,15 +294,15 @@ TerrainSources.displayName = "TerrainSources"
 
 export const RasterBasemapSource = memo(({
     // basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint,
-    basemapSource, mapboxKey, hereKey, planetKey, waybackReleaseNum, hlsDate, geDate, planetDate, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
+    basemapSource, mapboxKey, hereKey, planetKey, waybackReleaseNum, hlsDate, geDate, planetDate, eoxS2Date, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
 }: {
     basemapSource: string
     mapboxKey: string
     hereKey?: string
     planetKey?: string
     /** Settings > Beta > "Historical Imagery Sources" gate — when false, the
-     *  historical sources (wayback/hls/ge-historical/planet) render nothing
-     *  even if somehow still selected (e.g. a stale `?basemapSource=` URL). */
+     *  historical sources (wayback/hls/ge-historical/planet/eox-s2) render
+     *  nothing even if somehow still selected (e.g. a stale `?basemapSource=` URL). */
     historicalBeta?: boolean
     /** ESRI Wayback's own release number (see lib/wayback.ts) — only read when
      *  basemapSource === "wayback"; ignored otherwise. */
@@ -315,6 +316,9 @@ export const RasterBasemapSource = memo(({
     /** Epoch ms (truncated to month) for the Planet monthly mosaic (see
      *  lib/planet.ts) — only read when basemapSource === "planet"; ignored otherwise. */
     planetDate?: number
+    /** Epoch ms (truncated to year) for the EOX Sentinel-2 Cloudless mosaic
+     *  (see lib/eox-s2-cloudless.ts) — only read when basemapSource === "eox-s2"; ignored otherwise. */
+    eoxS2Date?: number
     customBasemapSources: any[]
     titilerEndpoint: string
     onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom: boolean }) => void
@@ -375,6 +379,11 @@ export const RasterBasemapSource = memo(({
             return { tiles: [planetTileUrl(planetDate, planetKey)], tileSize: PLANET_TILE_SIZE, maxzoom: PLANET_MAXZOOM }
         }
 
+        if (basemapSource === "eox-s2") {
+            if (!eoxS2Date) return null
+            return { tiles: [eoxS2CloudlessTileUrl(new Date(eoxS2Date).getUTCFullYear())], tileSize: EOX_S2_TILE_SIZE, maxzoom: EOX_S2_MAXZOOM }
+        }
+
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         const tileUrl = basemapSource === "mapbox"
             ? basemap.url.replace("{API_KEY}", mapboxKey)
@@ -382,7 +391,7 @@ export const RasterBasemapSource = memo(({
             ? basemap.url.replace("{API_KEY}", hereKey ?? "")
             : basemap.url
         return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom }
-    }, [customBasemap, basemapSource, historicalBeta, waybackReleaseNum, waybackItems, hlsDate, geDate, planetDate, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
+    }, [customBasemap, basemapSource, historicalBeta, waybackReleaseNum, waybackItems, hlsDate, geDate, planetDate, eoxS2Date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
@@ -391,6 +400,7 @@ export const RasterBasemapSource = memo(({
         if (basemapSource === "hls") return { minzoom: 0, maxzoom: HLS_MAXZOOM, isCustom: false }
         if (basemapSource === "ge-historical") return { minzoom: 0, maxzoom: 23, isCustom: false }
         if (basemapSource === "planet") return { minzoom: 0, maxzoom: PLANET_MAXZOOM, isCustom: false }
+        if (basemapSource === "eox-s2") return { minzoom: 0, maxzoom: EOX_S2_MAXZOOM, isCustom: false }
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         return { minzoom: 0, maxzoom: basemap.maxzoom, isCustom: false }
     }, [customBasemap, basemapSource, historicalBeta])

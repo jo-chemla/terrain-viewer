@@ -7,7 +7,7 @@
 // alongside Google/HERE/Mapbox/ESRI — see TIMELINE_SOURCE_IDS below for where
 // it's still included (its pill still works inside the combined historical
 // entry's timeline, it just isn't itself one of the 4 nested sources).
-export const HISTORICAL_BASEMAP_IDS = new Set(["wayback", "hls", "ge-historical", "planet"])
+export const HISTORICAL_BASEMAP_IDS = new Set(["wayback", "hls", "ge-historical", "planet", "eox-s2"])
 
 // Superset of HISTORICAL_BASEMAP_IDS that also includes Bing — used only for
 // "should the bottom timeline panel/minimap-offset react to this basemap

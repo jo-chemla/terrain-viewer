@@ -9,10 +9,13 @@ import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
 import { planetMonthlyTicks } from "@/lib/planet"
 import { useBingCaptureDate } from "@/lib/bing"
+import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom } from "@/lib/settings-atoms"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { OpenInLinksButton } from "@/components/TerrainControlPanel/open-in-links"
+import type { MapRef } from "react-map-gl/maplibre"
 
 // Hardcoded (not var(--primary)/theme tokens) deliberately — same reasoning
 // as the geolocate control's active/error state colors (src/index.css): A/B
@@ -38,18 +41,21 @@ const MIN_YEAR_LABEL_GAP_PX = 32
 // PlanetScope) read as coarser "medium" imagery next to them. Object order
 // here is also the pill row's display order.
 //
-// Colors are Tailwind's own "-300" shade for each hue (slate/orange/blue/
-// teal/violet) — a single systematic recipe (same lightness/chroma tier,
-// different hue) rather than 5 independently-picked hardcoded hexes, so the
-// set reads as one coherent pastel family instead of arbitrary colors that
-// happen to be soft. Pill "active" text uses a dark slate instead of white
-// (see the pill button below) since white-on-pastel has poor contrast.
+// Colors are each source's own brand color, pastelized (blended toward white)
+// rather than 5-6 arbitrary hexes — so the hue itself stays recognizable
+// (Esri green, Google blue, Bing teal, Planet teal-blue) while reading as
+// one coherent soft/pastel family. HLS (a NASA/USGS Landsat + ESA Sentinel
+// blend, no single owning brand) and EOX (Sentinel-2 Cloudless, a third-
+// party mosaic of Copernicus/ESA data) get neutral picks instead. Pill
+// "active" text uses a dark slate instead of white (see the pill button
+// below) since white-on-pastel has poor contrast.
 const SOURCE_CONFIG: Record<string, { label: string; color: string; resClass: "vhr" | "medium" }> = {
-  wayback: { label: "ESRI Wayback", color: "#cbd5e1", resClass: "vhr" }, // slate-300
-  "ge-historical": { label: "Google Earth Historical", color: "#fdba74", resClass: "vhr" }, // orange-300
-  bing: { label: "Bing Dated", color: "#93c5fd", resClass: "vhr" }, // blue-300
-  planet: { label: "Planet Monthly", color: "#5eead4", resClass: "medium" }, // teal-300
-  hls: { label: "Harmonized Landsat Sentinel", color: "#c4b5fd", resClass: "medium" }, // violet-300
+  wayback: { label: "ESRI Wayback", color: "#cbe4bd", resClass: "vhr" }, // Esri green (#7ebc59), pastelized
+  "ge-historical": { label: "Google Earth Historical", color: "#aecbfa", resClass: "vhr" }, // Google's own Material "blue-100"
+  bing: { label: "Bing Dated", color: "#7fc1b9", resClass: "vhr" }, // Bing teal (#008373), pastelized
+  planet: { label: "Planet Monthly", color: "#7fced2", resClass: "medium" }, // Planet teal-blue (#009da5), pastelized
+  "eox-s2": { label: "Sentinel-2 Cloudless", color: "#bae6fd", resClass: "medium" }, // neutral sky blue (Copernicus/Sentinel imagery, no single brand owner)
+  hls: { label: "Harmonized Landsat Sentinel", color: "#c4b5fd", resClass: "medium" }, // neutral violet (Landsat+Sentinel blend, no single brand owner)
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 
@@ -110,7 +116,7 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; lat: numb
   )
 }
 
-export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
+export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
   const collapsed = !!state.historicalTimelineCollapsed
   const setCollapsed = useCallback((v: boolean) => setState({ historicalTimelineCollapsed: v }), [setState])
   const [activeSide, setActiveSide] = useState<"A" | "B">("A")
@@ -118,12 +124,23 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Expanded by default: title + source/resolution pills + sync/A-B shown.
   // Toggled off via the cog button for a minimal header (just a small
   // floating cog+collapse cluster hovering over the track's top-right
-  // corner, no separate title/pills row at all).
-  const [controlsExpanded, setControlsExpanded] = useState(true)
+  // corner, no separate title/pills row at all). Lifted to shared state
+  // (not local) — TerrainViewer needs to know it too, since the panel is
+  // visibly shorter in minimal mode and the minimap/scale/attribution
+  // clearance above it differs between the two.
+  const controlsExpanded = state.historicalControlsExpanded !== false
+  const setControlsExpanded = useCallback((updater: boolean | ((v: boolean) => boolean)) => {
+    const next = typeof updater === "function" ? updater(controlsExpanded) : updater
+    setState({ historicalControlsExpanded: next })
+  }, [controlsExpanded, setState])
   const [trackWidth, setTrackWidth] = useState(0)
   // null = full extent (no zoom applied) — see the wheel-zoom handler below.
   const [viewWindow, setViewWindow] = useState<{ min: number; max: number } | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
+  // Drag state for the horizontal pan gutter below the track — a plain ref
+  // (not state) since it only needs to survive across pointermove events
+  // within one drag gesture, not trigger renders itself.
+  const gutterDragRef = useRef<{ startClientX: number; startMin: number; gutterWidthPx: number } | null>(null)
   const [planetKey] = useAtom(planetKeyAtom)
   const hasPlanetKey = !!planetKey
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
@@ -157,6 +174,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   }, [])
 
   const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom)
+  // Newest release at this location — used by the "Open in..." ESRI Wayback
+  // link (lib/open-in-links.tsx) instead of a hardcoded release id.
+  const latestWaybackRelease = useMemo(
+    () => rawWaybackItems.reduce<number | null>((max, item) => (max === null || item.releaseNum > max ? item.releaseNum : max), null),
+    [rawWaybackItems],
+  )
   const waybackTicks = useMemo<TimelineTick[]>(
     () => sortByDateAscending(rawWaybackItems).map((item) => ({
       source: "wayback", key: item.releaseNum, dateMs: item.releaseDatetime, label: item.releaseDateLabel,
@@ -192,9 +215,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => (bingCaptureDateMs ? [{ source: "bing", key: bingCaptureDateMs, dateMs: bingCaptureDateMs, label: bingCaptureLabel ?? "" }] : []),
     [bingCaptureDateMs, bingCaptureLabel],
   )
+  // Real yearly mosaics (see lib/eox-s2-cloudless.ts) — a fixed, known list of
+  // published years, free/no-key like Wayback/GE Historical/Bing.
+  const eoxS2Ticks = useMemo<TimelineTick[]>(
+    () => eoxS2CloudlessTicks().map((t) => ({ source: "eox-s2", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
+    [],
+  )
   const allTicks = useMemo(
-    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks].sort((a, b) => a.dateMs - b.dateMs),
-    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks],
+    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks].sort((a, b) => a.dateMs - b.dateMs),
+    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks],
   )
   const findTick = useCallback(
     (source: string, key: number) => allTicks.find((t) => t.source === source && t.key === key) ?? null,
@@ -257,14 +286,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     if (basemapSource === "bing") {
       return side === "A" ? (state.basemapPerView ? state.bingDateA : state.bingDate) : state.bingDateB
     }
+    if (basemapSource === "eox-s2") {
+      return side === "A" ? (state.basemapPerView ? state.eoxS2DateA : state.eoxS2Date) : state.eoxS2DateB
+    }
     return 0
-  }, [activeBasemapSourceA, activeBasemapSourceB, state.basemapPerView, state.waybackRelease, state.waybackReleaseA, state.waybackReleaseB, state.hlsDate, state.hlsDateA, state.hlsDateB, state.geDate, state.geDateA, state.geDateB, state.planetDate, state.planetDateA, state.planetDateB, state.bingDate, state.bingDateA, state.bingDateB])
+  }, [activeBasemapSourceA, activeBasemapSourceB, state.basemapPerView, state.waybackRelease, state.waybackReleaseA, state.waybackReleaseB, state.hlsDate, state.hlsDateA, state.hlsDateB, state.geDate, state.geDateA, state.geDateB, state.planetDate, state.planetDateA, state.planetDateB, state.bingDate, state.bingDateA, state.bingDateB, state.eoxS2Date, state.eoxS2DateA, state.eoxS2DateB])
 
   const dateFieldFor = useCallback((source: string, side: "A" | "B") => {
     if (source === "wayback") return side === "A" ? (state.basemapPerView ? "waybackReleaseA" : "waybackRelease") : "waybackReleaseB"
     if (source === "hls") return side === "A" ? (state.basemapPerView ? "hlsDateA" : "hlsDate") : "hlsDateB"
     if (source === "ge-historical") return side === "A" ? (state.basemapPerView ? "geDateA" : "geDate") : "geDateB"
     if (source === "bing") return side === "A" ? (state.basemapPerView ? "bingDateA" : "bingDate") : "bingDateB"
+    if (source === "eox-s2") return side === "A" ? (state.basemapPerView ? "eoxS2DateA" : "eoxS2Date") : "eoxS2DateB"
     return side === "A" ? (state.basemapPerView ? "planetDateA" : "planetDate") : "planetDateB"
   }, [state.basemapPerView])
 
@@ -316,6 +349,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
 
   const fullMin = items[0]?.dateMs ?? 0
   const fullMax = items[items.length - 1]?.dateMs ?? fullMin + 1
+  const fullSpan = Math.max(1, fullMax - fullMin)
 
   // Re-clamp a zoomed window whenever the full extent itself shifts (e.g. a
   // pill toggle shrinks the dataset) so a stale window can't reference dates
@@ -340,30 +374,34 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const visibleItems = useMemo(() => items.filter((t) => t.dateMs >= effectiveMin && t.dateMs <= effectiveMax), [items, effectiveMin, effectiveMax])
 
   // Full-year gridlines/labels, independent of where actual ticks fall —
-  // reads as a normal calendar axis rather than one tick per release.
+  // reads as a normal calendar axis rather than one tick per release. Rather
+  // than generating one mark per year and then greedily dropping whichever
+  // ones end up too close together (which still leaves a cluttered "every
+  // year, several missing" axis on a multi-decade span), this picks a nice
+  // round step (1/2/5/10/20/25/50/100 years) up front — the smallest step
+  // whose marks are guaranteed at least MIN_YEAR_LABEL_GAP_PX apart — so a
+  // long span reads as a clean "every 5 years" or "every 10 years" axis
+  // instead of a sparse, irregular subset of individual years.
+  const YEAR_STEPS = [1, 2, 5, 10, 20, 25, 50, 100]
   const yearMarks = useMemo(() => {
-    if (!items.length) return [] as { frac: number; label: string }[]
+    if (!items.length || !trackWidth) return [] as { frac: number; label: string }[]
     const startYear = new Date(effectiveMin).getFullYear()
     const endYear = new Date(effectiveMax).getFullYear()
+    const msPerYear = 365.25 * 86_400_000
+    const pxPerYear = trackWidth / (effectiveSpan / msPerYear)
+    let step = YEAR_STEPS[YEAR_STEPS.length - 1]
+    for (const s of YEAR_STEPS) {
+      if (pxPerYear * s >= MIN_YEAR_LABEL_GAP_PX) { step = s; break }
+    }
     const marks: { frac: number; label: string }[] = []
-    for (let y = startYear; y <= endYear; y++) {
+    const firstMarkYear = Math.ceil(startYear / step) * step
+    for (let y = firstMarkYear; y <= endYear; y += step) {
       const t = new Date(y, 0, 1).getTime()
       if (t < effectiveMin || t > effectiveMax) continue
       marks.push({ frac: (t - effectiveMin) / effectiveSpan, label: String(y) })
     }
     return marks
-  }, [items.length, effectiveMin, effectiveMax, effectiveSpan])
-
-  const visibleYearMarks = useMemo(() => {
-    if (!trackWidth) return yearMarks
-    const out: typeof yearMarks = []
-    let lastPx = -Infinity
-    for (const mark of yearMarks) {
-      const px = mark.frac * trackWidth
-      if (px - lastPx >= MIN_YEAR_LABEL_GAP_PX) { out.push(mark); lastPx = px }
-    }
-    return out
-  }, [yearMarks, trackWidth])
+  }, [items.length, effectiveMin, effectiveMax, effectiveSpan, trackWidth])
 
   // Nearest-tick search still considers the FULL (pill-filtered but not
   // zoom-windowed) items list — a background click near the zoomed-in
@@ -467,7 +505,6 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
       const cursorDate = effectiveMin + frac * effectiveSpan
       const factor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR
-      const fullSpan = Math.max(1, fullMax - fullMin)
       const newSpan = Math.min(fullSpan, Math.max(MIN_VISIBLE_SPAN_MS, effectiveSpan * factor))
       let newMin = cursorDate - frac * newSpan
       newMin = Math.max(fullMin, Math.min(fullMax - newSpan, newMin))
@@ -564,6 +601,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               trailing cluster adjacent. Sync/A-B only exist while the
               controls are expanded — hidden along with the pills otherwise. */}
           <div className="flex items-center gap-1.5 shrink-0">
+            <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} />
             {dualMode && !syncEnabled && (
               <div className="flex items-center rounded-md border border-border overflow-hidden">
                 {(["A", "B"] as const).map((side) => (
@@ -746,11 +784,57 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
           </div>
         </div>
 
+        {/* Horizontal pan gutter — only shown once zoomed in (mousewheel over
+            the track), since at full extent there's nowhere to pan to. The
+            track's own click/drag is already claimed by tick-scrubbing, so
+            panning lives here instead: drag the thumb (sized/positioned to
+            represent the current zoomed window's share of the full date
+            range) to shift the view, or click the gutter background to jump
+            the window there. */}
+        {viewWindow && (
+          <div
+            className="relative h-1.5 mx-2 rounded-full bg-border/60 cursor-pointer"
+            onPointerDown={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect()
+              const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+              const span = effectiveMax - effectiveMin
+              const newMin = Math.max(fullMin, Math.min(fullMax - span, fullMin + frac * fullSpan - span / 2))
+              setViewWindow({ min: newMin, max: newMin + span })
+            }}
+          >
+            <div
+              onPointerDown={(e: React.PointerEvent) => {
+                e.stopPropagation()
+                e.currentTarget.setPointerCapture(e.pointerId)
+                gutterDragRef.current = {
+                  startClientX: e.clientX,
+                  startMin: effectiveMin,
+                  gutterWidthPx: e.currentTarget.parentElement!.getBoundingClientRect().width,
+                }
+              }}
+              onPointerMove={(e: React.PointerEvent) => {
+                const drag = gutterDragRef.current
+                if (!drag || !e.currentTarget.hasPointerCapture(e.pointerId)) return
+                const deltaMs = ((e.clientX - drag.startClientX) / drag.gutterWidthPx) * fullSpan
+                const span = effectiveMax - effectiveMin
+                const newMin = Math.max(fullMin, Math.min(fullMax - span, drag.startMin + deltaMs))
+                setViewWindow({ min: newMin, max: newMin + span })
+              }}
+              onPointerUp={(e: React.PointerEvent) => { e.currentTarget.releasePointerCapture(e.pointerId); gutterDragRef.current = null }}
+              className="absolute top-0 bottom-0 rounded-full bg-muted-foreground/50 hover:bg-muted-foreground/70 cursor-grab active:cursor-grabbing touch-none"
+              style={{
+                left: `${((effectiveMin - fullMin) / fullSpan) * 100}%`,
+                width: `${Math.max(4, (effectiveSpan / fullSpan) * 100)}%`,
+              }}
+            />
+          </div>
+        )}
+
         {/* Aligned to the track's own inset (mx-2 = 0.5rem on both sides,
             now that the removed play/pause/prev/next buttons no longer push
             the track's left edge in further than that). */}
         <div className="relative h-3 mx-2">
-          {visibleYearMarks.map((mark) => (
+          {yearMarks.map((mark) => (
             <span
               key={mark.label}
               className="absolute -translate-x-1/2 text-[9px] text-muted-foreground tabular-nums"

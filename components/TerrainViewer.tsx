@@ -209,16 +209,21 @@ export const QUERY_STATE_PARSERS = {
     bingDate: parseAsInteger.withDefault(0),
     bingDateA: parseAsInteger.withDefault(0),
     bingDateB: parseAsInteger.withDefault(0),
-    // Which concrete underlying source (wayback/hls/ge-historical/planet)
-    // actually renders when basemapSource(A/B) === "historical" — the sidebar
-    // only ever exposes one combined "Historical Imagery" entry; picking a
-    // tick on the timeline for a source that isn't Bing sets both the
-    // relevant date field AND this field (see historical-timeline-panel.tsx's
-    // setTickForSide). Bing bypasses this: its tick sets basemapSource(A/B)
-    // = "bing" directly, never "historical".
-    historicalActiveSource: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet"] as const).withDefault("wayback"),
-    historicalActiveSourceA: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet"] as const).withDefault("wayback"),
-    historicalActiveSourceB: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet"] as const).withDefault("wayback"),
+    // Same plain/A/B triple, for EOX Sentinel-2 Cloudless's yearly mosaic
+    // date (epoch ms, truncated to year) — see lib/eox-s2-cloudless.ts.
+    eoxS2Date: parseAsInteger.withDefault(0),
+    eoxS2DateA: parseAsInteger.withDefault(0),
+    eoxS2DateB: parseAsInteger.withDefault(0),
+    // Which concrete underlying source (wayback/hls/ge-historical/planet/
+    // eox-s2) actually renders when basemapSource(A/B) === "historical" — the
+    // sidebar only ever exposes one combined "Historical Imagery" entry;
+    // picking a tick on the timeline for a source that isn't Bing sets both
+    // the relevant date field AND this field (see historical-timeline-
+    // panel.tsx's setTickForSide). Bing bypasses this: its tick sets
+    // basemapSource(A/B) = "bing" directly, never "historical".
+    historicalActiveSource: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
+    historicalActiveSourceA: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
+    historicalActiveSourceB: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
     // Which historical sources' ticks are aggregated onto the shared timeline
     // (pill toggles in historical-timeline-panel.tsx) — independent of which
     // single source is actually "active"/rendered on the map. "planet" is
@@ -226,17 +231,24 @@ export const QUERY_STATE_PARSERS = {
     // shows up here once a user with a key explicitly toggles its pill on.
     // HLS also starts off by default (its ticks are synthetic monthly
     // placeholders, not real capture dates, per lib/hls.ts).
-    timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
     // Per-side variants of timelineSources above — only meaningful when both
     // basemapPerView AND splitScreen are on (dualMode) AND the timeline's
     // sync toggle is off, letting map A and map B each aggregate a different
     // subset of sources (e.g. Wayback+GE for A, HLS+Bing for B). When sync is
     // on (the default) both sides share timelineSources instead.
-    timelineSourcesA: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
-    timelineSourcesB: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    timelineSourcesA: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
+    timelineSourcesB: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
     // Whether the historical timeline's full bar (header + track) is
     // collapsed down to just the small floating clock-icon toggle button.
     historicalTimelineCollapsed: parseAsBoolean.withDefault(false),
+    // Whether the timeline's title/source-pills/resolution-chips header row
+    // is shown (true) or the panel is in its minimal, track-only mode with
+    // just a small floating cog+collapse chip (false). Lifted up (not local
+    // state in the panel component) because TerrainViewer needs to know it
+    // too — the panel is visibly shorter in minimal mode, so the minimap/
+    // scale/attribution clearance above it differs between the two.
+    historicalControlsExpanded: parseAsBoolean.withDefault(true),
     // Resolution-class filter alongside the source pills above — "vhr"
     // (Wayback/GE Historical/Bing, sub-meter-ish) vs "medium" (HLS's 10-30m
     // Landsat/Sentinel-2, Planet's ~4.7m monthly mosaic) — see SOURCE_CONFIG's
@@ -1705,6 +1717,8 @@ export function TerrainViewer() {
   const activeGeDateB = state.basemapPerView ? state.geDateB : state.geDate
   const activePlanetDateA = state.basemapPerView ? state.planetDateA : state.planetDate
   const activePlanetDateB = state.basemapPerView ? state.planetDateB : state.planetDate
+  const activeEoxS2DateA = state.basemapPerView ? state.eoxS2DateA : state.eoxS2Date
+  const activeEoxS2DateB = state.basemapPerView ? state.eoxS2DateB : state.eoxS2Date
   // Drives the minimap's bottom offset below — the timeline panel docks to
   // the same bottom-left area the minimap (a MapLibre IControl, only ever
   // mounted on the primary/map-a pane) would otherwise occupy.
@@ -2065,6 +2079,7 @@ export function TerrainViewer() {
             hlsDate={isPrimary ? activeHlsDateA : activeHlsDateB}
             geDate={isPrimary ? activeGeDateA : activeGeDateB}
             planetDate={isPrimary ? activePlanetDateA : activePlanetDateB}
+            eoxS2Date={isPrimary ? activeEoxS2DateA : activeEoxS2DateB}
             planetKey={planetKey}
             historicalBeta={state.historicalBeta}
             customBasemapSources={customBasemapSources}
@@ -2454,15 +2469,6 @@ export function TerrainViewer() {
                 <GeolocateControlThemed position="top-left" />
               )}
 
-              {/* Inverted from MapLibre's own default (attribution bottom-
-                  right, alongside scale) — attribution now lives at
-                  bottom-left with the minimap (map A only, both in split and
-                  non-split mode map A's own bottom-left IS the true
-                  viewport bottom-left, so no rightmost-map gating is needed
-                  here the way scale's bottom-right position required),
-                  leaving scale alone at bottom-right. */}
-              <AttributionControl compact position="bottom-left" />
-
               {/* Minimap — no parentMap prop: it picks up the parent map via react-map-gl's
                   useMap() context, which is available as soon as the Map mounts rather than
                   waiting for mapALoaded (the 'load' event). Gating on mapALoaded needlessly
@@ -2540,6 +2546,15 @@ export function TerrainViewer() {
           {!activeProjectConfig?.hideMapControls?.includes("scale") && mapId === (state.splitScreen ? "map-b" : "map-a") && (
             <ScaleControl position="bottom-right" unit="metric" maxWidth={250} />
           )}
+          {/* Mounted after ScaleControl so it's the later-added of the two —
+              for bottom corners MapLibre inserts new controls at the FRONT
+              of the corner container, so the later one ends up visually
+              topmost (attribution above scale, closer to the corner is
+              scale). Both bottom-right, both map-A-when-not-split /
+              map-B-when-split (same rightmost-map gating as scale). */}
+          {mapId === (state.splitScreen ? "map-b" : "map-a") && (
+            <AttributionControl compact position="bottom-right" />
+          )}
         </Map>
       )
     },
@@ -2572,7 +2587,7 @@ export function TerrainViewer() {
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor, state.contourMinorLrm, state.contourMajorLrm, state.contourReferenceMode, state.contourWeight,
       state.contourColor, state.graticuleColor,
-      activeBasemapSourceA, activeBasemapSourceB, activeWaybackReleaseA, activeWaybackReleaseB, activeHlsDateA, activeHlsDateB, activeGeDateA, activeGeDateB, activePlanetDateA, activePlanetDateB, planetKey, state.historicalBeta,
+      activeBasemapSourceA, activeBasemapSourceB, activeWaybackReleaseA, activeWaybackReleaseB, activeHlsDateA, activeHlsDateB, activeGeDateA, activeGeDateB, activePlanetDateA, activePlanetDateB, activeEoxS2DateA, activeEoxS2DateB, planetKey, state.historicalBeta,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint,
       svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,
@@ -2587,18 +2602,28 @@ export function TerrainViewer() {
   )
 
   // Bottom-left corner (minimap, always map A) needs headroom for: the full
-  // expanded timeline panel, just the small collapsed-timeline toggle button
-  // sitting below it, or neither (the unified 16px control margin) when
-  // historical imagery isn't even active. Static values (not derived from
-  // the panel's own measured height) deliberately — a dynamic height-based
-  // offset was tried and, despite computing correctly, never reliably
-  // reached the rendered corner element in testing; this static pair is the
-  // originally-shipped, confirmed-working version.
-  const minimapBottomOffset = historicalTimelineVisible ? "13rem" : historicalTimelineActive ? "3.5rem" : `${MAP_CTRL_EDGE_MARGIN_PX}px`
-  // Bottom-right corner (scale bar, on whichever map is currently rightmost)
-  // only ever needs to clear the expanded timeline panel's own height — the
-  // collapsed toggle button lives bottom-LEFT, not here.
-  const scaleBottomOffset = historicalTimelineVisible ? "13rem" : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  // timeline panel — taller in its expanded (title+pills+track) mode than
+  // its minimal (track-only) mode — just the small collapsed-timeline
+  // toggle button sitting below it, or neither (the unified 16px control
+  // margin) when historical imagery isn't even active. Static values (not
+  // derived from the panel's own measured height) deliberately — a dynamic
+  // height-based offset was tried and, despite computing correctly, never
+  // reliably reached the rendered corner element in testing; these are the
+  // originally-shipped, confirmed-working values, now with a 3rd case for
+  // the panel's own expanded/minimal modes.
+  const minimapBottomOffset = !historicalTimelineActive
+    ? `${MAP_CTRL_EDGE_MARGIN_PX}px`
+    : state.historicalTimelineCollapsed
+      ? "3.5rem"
+      : state.historicalControlsExpanded ? "13rem" : "10rem"
+  // Bottom-right corner (attribution+scale, on whichever map is currently
+  // rightmost) only ever needs to clear the timeline panel's own height when
+  // the FULL panel (not just the bottom-left floating toggle button) is
+  // visible — nothing at bottom-right needs clearing just because the panel
+  // collapsed down to that small bottom-left-only button.
+  const scaleBottomOffset = historicalTimelineVisible
+    ? (state.historicalControlsExpanded ? "13rem" : "10rem")
+    : `${MAP_CTRL_EDGE_MARGIN_PX}px`
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 
@@ -2660,7 +2685,7 @@ export function TerrainViewer() {
         )}
       </div>
       <LightControlOverlay state={state} setState={setState} mapRef={mapARef as any} />
-      <HistoricalTimelinePanel state={state} setState={setState} />
+      <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapARef as any} />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
         <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} />
       )}
