@@ -112,6 +112,16 @@ export async function fetchWaybackCaptureLabel(latitude: number, longitude: numb
  * hasn't resolved yet (or failed) fall back to their own releaseDatetime so
  * a tick still has SOME position rather than being dropped.
  *
+ * `resolved` is updated INCREMENTALLY, one release at a time, as each of its
+ * own getMetadata() calls completes — not batched behind Promise.all. A
+ * single slow/laggy response from Esri's metadata service (which does
+ * happen — this is what makes Wayback loading feel occasionally slow)
+ * previously blocked every OTHER already-resolved release from showing too,
+ * since Promise.all only settles once its slowest member does. The caller
+ * (historical-timeline-panel.tsx) renders whatever's in `resolved` so far,
+ * so ticks now populate progressively as each one's real date actually
+ * arrives, instead of all-or-nothing.
+ *
  * Debounced (same LOCAL_CHANGES_DEBOUNCE_MS window as the rest of this file)
  * — @esri/wayback-core's getMetadata has no AbortSignal/cancellation option
  * at all, so an in-flight request genuinely can't be aborted once started;
@@ -126,18 +136,18 @@ export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: numbe
   useEffect(() => {
     if (!items.length) { setResolved({}); setLoading(false); return }
     let cancelled = false
+    setResolved({})
     setLoading(true)
     const timer = setTimeout(() => {
-      Promise.all(items.map(async (item) => {
-        const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum)
-        return [item.releaseNum, meta] as const
-      })).then((pairs) => {
-        if (cancelled) return
-        const map: Record<number, { dateMs: number; label: string }> = {}
-        for (const [releaseNum, meta] of pairs) if (meta) map[releaseNum] = meta
-        setResolved(map)
-        setLoading(false)
-      })
+      let remaining = items.length
+      for (const item of items) {
+        fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum).then((meta) => {
+          if (cancelled) return
+          if (meta) setResolved((prev) => ({ ...prev, [item.releaseNum]: meta }))
+          remaining -= 1
+          if (remaining === 0) setLoading(false)
+        })
+      }
     }, LOCAL_CHANGES_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
     // items is a fresh array identity every render of its own caller — keying
