@@ -176,44 +176,19 @@ export const QUERY_STATE_PARSERS = {
     // basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B,
     // only meaningful in split-or-radio basemap mode (basemapPerView).
     overlayBasemapIds: parseAsArrayOf(parseAsString).withDefault([]),
-    // ESRI Wayback's own release number (see lib/wayback.ts) for whichever of
-    // basemapSource/basemapSourceA/basemapSourceB is currently "wayback" — 0
-    // means "not yet picked", resolved to the newest available release once
-    // the release catalog loads (see historical-timeline-panel.tsx). Mirrors
-    // the plain/A/B triple above it since wayback needs the same three
-    // "which mode is active" slots, just for a release number instead of a
-    // basemap id.
-    waybackRelease: parseAsInteger.withDefault(0),
-    waybackReleaseA: parseAsInteger.withDefault(0),
-    waybackReleaseB: parseAsInteger.withDefault(0),
-    // Same plain/A/B triple, for HLS's date (epoch ms) instead of a wayback
-    // release number — see lib/hls.ts. 0 means "not yet picked".
-    hlsDate: parseAsInteger.withDefault(0),
-    hlsDateA: parseAsInteger.withDefault(0),
-    hlsDateB: parseAsInteger.withDefault(0),
-    // Same plain/A/B triple, for Google Earth Historical's capture date
-    // (epoch ms) — see lib/ge-historical.ts. 0 means "not yet picked".
-    geDate: parseAsInteger.withDefault(0),
-    geDateA: parseAsInteger.withDefault(0),
-    geDateB: parseAsInteger.withDefault(0),
-    // Same plain/A/B triple, for Planet's monthly mosaic date (epoch ms,
-    // truncated to month) — see lib/planet.ts. 0 means "not yet picked".
-    planetDate: parseAsInteger.withDefault(0),
-    planetDateA: parseAsInteger.withDefault(0),
-    planetDateB: parseAsInteger.withDefault(0),
-    // Same plain/A/B triple, for Bing's single "current" capture date (epoch
-    // ms) — see lib/bing.ts. Bing only ever has one real tick (its mosaic
-    // isn't a browsable historical archive), but this still needs a field so
-    // historical-timeline-panel.tsx's generic per-source bookkeeping (which
-    // side has "picked" a tick yet) works the same way as the other sources.
-    bingDate: parseAsInteger.withDefault(0),
-    bingDateA: parseAsInteger.withDefault(0),
-    bingDateB: parseAsInteger.withDefault(0),
-    // Same plain/A/B triple, for EOX Sentinel-2 Cloudless's yearly mosaic
-    // date (epoch ms, truncated to year) — see lib/eox-s2-cloudless.ts.
-    eoxS2Date: parseAsInteger.withDefault(0),
-    eoxS2DateA: parseAsInteger.withDefault(0),
-    eoxS2DateB: parseAsInteger.withDefault(0),
+    // The ONE scrubbed date (epoch ms) for whichever concrete historical
+    // source is active on this side (historicalActiveSource(A/B) below) —
+    // Wayback/HLS/GE-Historical/Planet/EOX-S2/Bing all share this single
+    // field now, instead of a separate date field per source. Wayback is the
+    // one source whose own tile lookup isn't directly keyed by a timestamp
+    // (its releases are addressed by a release NUMBER); lib/wayback.ts's
+    // useResolvedWaybackRelease resolves this date to the nearest actual
+    // release at render time, so that indirection never needs to leak into
+    // app state. 0 means "not yet picked", resolved to the newest available
+    // tick once its catalog loads (see historical-timeline-panel.tsx).
+    date: parseAsInteger.withDefault(0),
+    dateA: parseAsInteger.withDefault(0),
+    dateB: parseAsInteger.withDefault(0),
     // Which concrete underlying source (wayback/hls/ge-historical/planet/
     // eox-s2) actually renders when basemapSource(A/B) === "historical" — the
     // sidebar only ever exposes one combined "Historical Imagery" entry;
@@ -1708,18 +1683,10 @@ export function TerrainViewer() {
   // "historical" exists as a sidebar-level concept.
   const activeBasemapSourceA = resolveActiveHistoricalSource(rawBasemapSourceA, state.basemapPerView ? state.historicalActiveSourceA : state.historicalActiveSource)
   const activeBasemapSourceB = resolveActiveHistoricalSource(rawBasemapSourceB, state.basemapPerView ? state.historicalActiveSourceB : state.historicalActiveSource)
-  // Same plain/A/B mode split as the basemap id itself, just for the wayback
-  // release number (see waybackRelease/waybackReleaseA/waybackReleaseB above).
-  const activeWaybackReleaseA = state.basemapPerView ? state.waybackReleaseA : state.waybackRelease
-  const activeWaybackReleaseB = state.basemapPerView ? state.waybackReleaseB : state.waybackRelease
-  const activeHlsDateA = state.basemapPerView ? state.hlsDateA : state.hlsDate
-  const activeHlsDateB = state.basemapPerView ? state.hlsDateB : state.hlsDate
-  const activeGeDateA = state.basemapPerView ? state.geDateA : state.geDate
-  const activeGeDateB = state.basemapPerView ? state.geDateB : state.geDate
-  const activePlanetDateA = state.basemapPerView ? state.planetDateA : state.planetDate
-  const activePlanetDateB = state.basemapPerView ? state.planetDateB : state.planetDate
-  const activeEoxS2DateA = state.basemapPerView ? state.eoxS2DateA : state.eoxS2Date
-  const activeEoxS2DateB = state.basemapPerView ? state.eoxS2DateB : state.eoxS2Date
+  // Same plain/A/B mode split as the basemap id itself, just for the single
+  // scrubbed date (see date/dateA/dateB above).
+  const activeDateA = state.basemapPerView ? state.dateA : state.date
+  const activeDateB = state.basemapPerView ? state.dateB : state.date
   // Drives the minimap's bottom offset below — the timeline panel docks to
   // the same bottom-left area the minimap (a MapLibre IControl, only ever
   // mounted on the primary/map-a pane) would otherwise occupy.
@@ -2083,11 +2050,10 @@ export function TerrainViewer() {
             basemapSource={isPrimary ? activeBasemapSourceA : activeBasemapSourceB}
             mapboxKey={mapboxKey}
             hereKey={hereKey}
-            waybackReleaseNum={isPrimary ? activeWaybackReleaseA : activeWaybackReleaseB}
-            hlsDate={isPrimary ? activeHlsDateA : activeHlsDateB}
-            geDate={isPrimary ? activeGeDateA : activeGeDateB}
-            planetDate={isPrimary ? activePlanetDateA : activePlanetDateB}
-            eoxS2Date={isPrimary ? activeEoxS2DateA : activeEoxS2DateB}
+            date={isPrimary ? activeDateA : activeDateB}
+            latitude={state.lat}
+            longitude={state.lng}
+            zoom={state.zoom}
             planetKey={planetKey}
             historicalBeta={state.historicalBeta}
             customBasemapSources={customBasemapSources}
@@ -2595,7 +2561,7 @@ export function TerrainViewer() {
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
       state.sourceA, state.contourMinor, state.contourMajor, state.contourMinorLrm, state.contourMajorLrm, state.contourReferenceMode, state.contourWeight,
       state.contourColor, state.graticuleColor,
-      activeBasemapSourceA, activeBasemapSourceB, activeWaybackReleaseA, activeWaybackReleaseB, activeHlsDateA, activeHlsDateB, activeGeDateA, activeGeDateB, activePlanetDateA, activePlanetDateB, activeEoxS2DateA, activeEoxS2DateB, planetKey, state.historicalBeta,
+      activeBasemapSourceA, activeBasemapSourceB, activeDateA, activeDateB, planetKey, state.historicalBeta,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint,
       svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,

@@ -5,7 +5,7 @@
 // catalog and per-location "real change" dates as React hooks, plus the one
 // URL-template fixup MapLibre needs.
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { getWaybackItems, getWaybackItemsWithLocalChanges, getMetadata, type WaybackItem } from "@esri/wayback-core"
 
 export type { WaybackItem }
@@ -38,6 +38,37 @@ export function useWaybackItems(): { items: WaybackItem[]; loading: boolean } {
 // intermediate frame of a pan/zoom, only once the view has actually settled.
 const LOCAL_CHANGES_DEBOUNCE_MS = 400
 
+// Local-changes detection is per-(lat,lng,zoom) and genuinely expensive (it
+// compares candidate tiles across the whole release catalog at this exact
+// spot) — shared across every caller at the same rounded location/zoom via a
+// keyed cache of in-flight/resolved promises, the same idea as
+// cachedItemsPromise above. This matters because MORE than one thing needs
+// this now: the timeline panel (to draw ticks) AND each side's own
+// RasterBasemapSource (to resolve state.dateA/dateB to an actual release
+// number, see useResolvedWaybackRelease below) — without sharing, dual-mode
+// with both sides on Wayback would trigger this same expensive scan 3x over
+// for one location.
+const localChangesPromiseCache = new Map<string, Promise<WaybackItem[]>>()
+function getCachedLocalChanges(latitude: number, longitude: number, zoom: number): Promise<WaybackItem[]> {
+  const key = `${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
+  let promise = localChangesPromiseCache.get(key)
+  if (!promise) {
+    promise = getWaybackItemsWithLocalChanges(
+      { latitude, longitude },
+      Math.round(zoom),
+      // Trades a small chance of missing a genuinely-unique-but-same-tile-
+      // size release for a much cheaper check (no image data fetch per
+      // candidate) — worth it for a query that reruns on every pan.
+      { onlyUseSizeToFilterDuplicates: true },
+    )
+    localChangesPromiseCache.set(key, promise)
+    // Don't cache a failure — a transient network error shouldn't poison
+    // this location for the rest of the session.
+    promise.catch(() => localChangesPromiseCache.delete(key))
+  }
+  return promise
+}
+
 /**
  * Releases with a REAL, distinct tile at this exact location — a small
  * subset of the full release catalog, since most releases repeat the same
@@ -50,24 +81,13 @@ export function useWaybackItemsWithLocalChanges(latitude: number, longitude: num
 
   useEffect(() => {
     let cancelled = false
-    const controller = new AbortController()
     setLoading(true)
     const timer = setTimeout(() => {
-      getWaybackItemsWithLocalChanges(
-        { latitude, longitude },
-        Math.round(zoom),
-        {
-          signal: controller.signal,
-          // Trades a small chance of missing a genuinely-unique-but-same-
-          // tile-size release for a much cheaper check (no image data fetch
-          // per candidate) — worth it for a query that reruns on every pan.
-          onlyUseSizeToFilterDuplicates: true,
-        },
-      )
+      getCachedLocalChanges(latitude, longitude, zoom)
         .then((result) => { if (!cancelled) { setItems(result); setLoading(false) } })
         .catch(() => { if (!cancelled) setLoading(false) })
     }, LOCAL_CHANGES_DEBOUNCE_MS)
-    return () => { cancelled = true; clearTimeout(timer); controller.abort() }
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [latitude, longitude, zoom])
 
   return { items, loading }
@@ -191,6 +211,35 @@ export function useWaybackCaptureDate(latitude: number, longitude: number, zoom:
  *  (same fixup historical-satellite's own useWaybackUrl hook applies). */
 export function waybackTileUrl(item: WaybackItem): string {
   return item.itemURL.replace("{level}", "{z}").replace("{row}", "{y}").replace("{col}", "{x}")
+}
+
+/**
+ * Resolves a plain epoch-ms date (state.dateA/dateB) to the actual Wayback
+ * release whose REAL per-tile capture date is closest to it, for this
+ * location. Every other historical source's date is directly usable to
+ * build a tile URL — Wayback is the one exception, since its releases are
+ * addressed by a release NUMBER (a foreign key into its own catalog), not a
+ * timestamp. This is the one place that indirection gets resolved, so the
+ * rest of the app (state, the timeline panel's tick model) can treat
+ * Wayback exactly like every other source: a single date, nothing more.
+ */
+export function useResolvedWaybackRelease(latitude: number, longitude: number, zoom: number, targetDateMs: number): { item: WaybackItem | null; loading: boolean } {
+  const { items, loading: itemsLoading } = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
+  const { resolved, loading: datesLoading } = useWaybackRealCaptureDates(items, latitude, longitude, zoom)
+
+  const item = useMemo(() => {
+    if (!targetDateMs || !items.length) return null
+    let best: WaybackItem | null = null
+    let bestDist = Infinity
+    for (const it of items) {
+      const realDateMs = resolved[it.releaseNum]?.dateMs ?? it.releaseDatetime
+      const dist = Math.abs(realDateMs - targetDateMs)
+      if (dist < bestDist) { bestDist = dist; best = it }
+    }
+    return best
+  }, [items, resolved, targetDateMs])
+
+  return { item, loading: itemsLoading || datesLoading }
 }
 
 /** getWaybackItems/getWaybackItemsWithLocalChanges both return newest-first

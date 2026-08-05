@@ -5,7 +5,7 @@ import { atomWithStorage } from "jotai/utils"
 import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useWaybackItemsWithLocalChanges, useWaybackCaptureDate, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
+import { useWaybackItemsWithLocalChanges, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
 import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
 import { planetMonthlyTicks } from "@/lib/planet"
@@ -238,13 +238,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // file) still reflects waybackDatesLoading, so there's still a visible
   // sign more are on the way.
   const { resolved: waybackRealDates, loading: waybackDatesLoading } = useWaybackRealCaptureDates(rawWaybackItems, state.lat, state.lng, state.zoom)
+  // key is the tick's real dateMs (same convention as every other source
+  // now — see the state.date/dateA/dateB consolidation) rather than the
+  // release number; lib/wayback.ts's useResolvedWaybackRelease is what
+  // turns a date back into the actual release to fetch, entirely inside
+  // MapSources.tsx, so this panel's own tick model never needs to think in
+  // release numbers at all.
   const waybackTicks = useMemo<TimelineTick[]>(
     () => sortByDateAscending(rawWaybackItems)
       .filter((item) => waybackRealDates[item.releaseNum])
       .map((item) => {
         const real = waybackRealDates[item.releaseNum]
         return {
-          source: "wayback", key: item.releaseNum,
+          source: "wayback", key: real.dateMs,
           dateMs: real.dateMs,
           label: item.releaseDateLabel,
         }
@@ -273,7 +279,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Bing has no browsable historical archive — just its single "current"
   // mosaic — so this is always at most a one-item pool: the real capture
   // date for the current view center (see lib/bing.ts), keyed by that same
-  // date so releaseForSide/findTick below work identically to every other
+  // date so dateForSide/findTick below work identically to every other
   // source even though there's nothing to actually scrub through.
   const { label: bingCaptureLabel, dateMs: bingCaptureDateMs, loading: bingLoading } = useBingCaptureDate(state.lat, state.lng, state.zoom)
   const bingTicks = useMemo<TimelineTick[]>(
@@ -334,28 +340,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     setState({ resolutionClasses: set.size ? Array.from(set) : [id] })
   }, [resolutionClasses, setState])
 
-  const releaseForSide = useCallback((side: "A" | "B"): number => {
-    const basemapSource = side === "A" ? displaySourceA : displaySourceB
-    if (basemapSource === "wayback") {
-      return side === "A" ? (state.basemapPerView ? state.waybackReleaseA : state.waybackRelease) : state.waybackReleaseB
-    }
-    if (basemapSource === "hls") {
-      return side === "A" ? (state.basemapPerView ? state.hlsDateA : state.hlsDate) : state.hlsDateB
-    }
-    if (basemapSource === "ge-historical") {
-      return side === "A" ? (state.basemapPerView ? state.geDateA : state.geDate) : state.geDateB
-    }
-    if (basemapSource === "planet") {
-      return side === "A" ? (state.basemapPerView ? state.planetDateA : state.planetDate) : state.planetDateB
-    }
-    if (basemapSource === "bing") {
-      return side === "A" ? (state.basemapPerView ? state.bingDateA : state.bingDate) : state.bingDateB
-    }
-    if (basemapSource === "eox-s2") {
-      return side === "A" ? (state.basemapPerView ? state.eoxS2DateA : state.eoxS2Date) : state.eoxS2DateB
-    }
-    return 0
-  }, [displaySourceA, displaySourceB, state.basemapPerView, state.waybackRelease, state.waybackReleaseA, state.waybackReleaseB, state.hlsDate, state.hlsDateA, state.hlsDateB, state.geDate, state.geDateA, state.geDateB, state.planetDate, state.planetDateA, state.planetDateB, state.bingDate, state.bingDateA, state.bingDateB, state.eoxS2Date, state.eoxS2DateA, state.eoxS2DateB])
+  // The one scrubbed date for a side, regardless of which concrete source is
+  // active — every source (including Wayback, whose real tile lookup keys
+  // off a release NUMBER internally, see lib/wayback.ts's
+  // useResolvedWaybackRelease) shares the same state.date/dateA/dateB field
+  // now. Named for what it returns (a plain epoch-ms date, or 0 for "not yet
+  // picked"), not "release", since it's no longer wayback-specific.
+  const dateForSide = useCallback((side: "A" | "B"): number => {
+    return side === "A" ? (state.basemapPerView ? state.dateA : state.date) : state.dateB
+  }, [state.basemapPerView, state.date, state.dateA, state.dateB])
 
   // Falls back to the newest tick for a source when no date has ever been
   // recorded for it yet — lets a side that isn't historical yet (showA/showB
@@ -373,8 +366,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // something sensible to render and click.
   const resolveDisplayTick = useCallback((side: "A" | "B"): TimelineTick | null => {
     const source = side === "A" ? displaySourceA : displaySourceB
-    return findTick(source, releaseForSide(side)) ?? newestTickFor(source)
-  }, [displaySourceA, displaySourceB, findTick, releaseForSide, newestTickFor])
+    return findTick(source, dateForSide(side)) ?? newestTickFor(source)
+  }, [displaySourceA, displaySourceB, findTick, dateForSide, newestTickFor])
 
   // Ticks/gridlines show sources currently toggled on via the pill row (both
   // the source pills and the VHR/Medium res chips). When unsynced in dual
@@ -400,23 +393,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     return extra.length ? [...filtered, ...extra].sort((a, b) => a.dateMs - b.dateMs) : filtered
   }, [allTicks, timelineSourcesForPills, resolutionClasses, showA, showB, resolveDisplayTick])
 
-  const dateFieldFor = useCallback((source: string, side: "A" | "B") => {
-    if (source === "wayback") return side === "A" ? (state.basemapPerView ? "waybackReleaseA" : "waybackRelease") : "waybackReleaseB"
-    if (source === "hls") return side === "A" ? (state.basemapPerView ? "hlsDateA" : "hlsDate") : "hlsDateB"
-    if (source === "ge-historical") return side === "A" ? (state.basemapPerView ? "geDateA" : "geDate") : "geDateB"
-    if (source === "bing") return side === "A" ? (state.basemapPerView ? "bingDateA" : "bingDate") : "bingDateB"
-    if (source === "eox-s2") return side === "A" ? (state.basemapPerView ? "eoxS2DateA" : "eoxS2Date") : "eoxS2DateB"
-    return side === "A" ? (state.basemapPerView ? "planetDateA" : "planetDate") : "planetDateB"
-  }, [state.basemapPerView])
-
   // A side's basemapSource(A/B) is either a normal basemap id or the single
   // combined "historical" entry. Picking a non-Bing tick sets that field to
   // "historical" plus records WHICH concrete source is now active for that
   // side (historicalActiveSource(A/B)) — Bing bypasses the indirection
   // entirely and is written directly, same as any other plain basemap id.
+  // The date field itself is just dateA/dateB (or date, single-view) now,
+  // the same one regardless of source — no more per-source field name to
+  // resolve.
   const buildTickUpdates = useCallback((side: "A" | "B", tick: TimelineTick): Record<string, any> => {
     const sourceField = side === "A" ? (state.basemapPerView ? "basemapSourceA" : "basemapSource") : "basemapSourceB"
-    const updates: Record<string, any> = { [dateFieldFor(tick.source, side)]: tick.key }
+    const dateField = side === "A" ? (state.basemapPerView ? "dateA" : "date") : "dateB"
+    const updates: Record<string, any> = { [dateField]: tick.dateMs }
     if (tick.source === "bing") {
       updates[sourceField] = "bing"
     } else {
@@ -425,7 +413,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       updates[activeSourceField] = tick.source
     }
     return updates
-  }, [state.basemapPerView, dateFieldFor])
+  }, [state.basemapPerView])
 
   const setTickForSide = useCallback((side: "A" | "B", tick: TimelineTick) => {
     setState(buildTickUpdates(side, tick))
@@ -453,15 +441,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // already renders a sensible proposed tick for that case without writing
   // any state, only actually committing once the user clicks/drags it.
   useEffect(() => {
-    if (aIsHistorical && !releaseForSide("A")) {
+    if (aIsHistorical && !dateForSide("A")) {
       const pool = allTicks.filter((t) => t.source === displaySourceA)
       if (pool.length) setTickForSide("A", pool[pool.length - 1])
     }
-    if (bIsHistorical && !releaseForSide("B")) {
+    if (bIsHistorical && !dateForSide("B")) {
       const pool = allTicks.filter((t) => t.source === displaySourceB)
       if (pool.length) setTickForSide("B", pool[pool.length - 1])
     }
-  }, [aIsHistorical, bIsHistorical, displaySourceA, displaySourceB, allTicks, releaseForSide, setTickForSide])
+  }, [aIsHistorical, bIsHistorical, displaySourceA, displaySourceB, allTicks, dateForSide, setTickForSide])
 
   const fullMin = items[0]?.dateMs ?? 0
   const fullMax = items[items.length - 1]?.dateMs ?? fullMin + 1
@@ -635,22 +623,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const step = useCallback((direction: number) => {
     const which = resolveSide()
     const source = which === "A" ? displaySourceA : displaySourceB
-    const key = releaseForSide(which)
+    const key = dateForSide(which)
     const idx = items.findIndex((t) => t.source === source && t.key === key)
     if (idx === -1) return
     const newIdx = idx + direction
     if (newIdx < 0 || newIdx >= items.length) return
     applyTick(items[newIdx])
-  }, [resolveSide, displaySourceA, displaySourceB, releaseForSide, items, applyTick])
-
-  // The REAL per-tile acquisition date for the active wayback release at this
-  // exact spot — a release's own label is a catalog-wide publish date, which
-  // can differ from when this specific tile's imagery was actually taken
-  // (see lib/wayback.ts's useWaybackCaptureDate). Queried unconditionally
-  // (hooks can't be called conditionally); the hook itself no-ops when the
-  // release number is 0 (i.e. this side isn't currently on wayback).
-  const { label: waybackCaptureLabelA } = useWaybackCaptureDate(state.lat, state.lng, state.zoom, displaySourceA === "wayback" ? releaseForSide("A") : 0)
-  const { label: waybackCaptureLabelB } = useWaybackCaptureDate(state.lat, state.lng, state.zoom, displaySourceB === "wayback" ? releaseForSide("B") : 0)
+  }, [resolveSide, displaySourceA, displaySourceB, dateForSide, items, applyTick])
 
   const panelVisible = state.historicalBeta && (showA || showB) && !collapsed
   // The primary basemap SOURCE is always mounted regardless of this toggle
@@ -722,8 +701,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
 
   const tickA = showA ? resolveDisplayTick("A") : null
   const tickB = showB ? resolveDisplayTick("B") : null
-  const captionLabelA = tickA && tickA.source === "wayback" && waybackCaptureLabelA ? waybackCaptureLabelA : tickA?.label
-  const captionLabelB = tickB && tickB.source === "wayback" && waybackCaptureLabelB ? waybackCaptureLabelB : tickB?.label
+  // A wayback tick's own dateMs IS already the real resolved capture date
+  // (see waybackTicks above) — no separate lookup needed, unlike before the
+  // state.date/dateA/dateB consolidation.
+  const captionLabelA = tickA?.source === "wayback" ? new Date(tickA.dateMs).toISOString().slice(0, 10) : tickA?.label
+  const captionLabelB = tickB?.source === "wayback" ? new Date(tickB.dateMs).toISOString().slice(0, 10) : tickB?.label
 
   // A and B can genuinely land on the same date (e.g. both set to Planet
   // Monthly 2023-12) and render as two overlapping circles — rather than
