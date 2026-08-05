@@ -279,7 +279,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Bing has no browsable historical archive — just its single "current"
   // mosaic — so this is always at most a one-item pool: the real capture
   // date for the current view center (see lib/bing.ts), keyed by that same
-  // date so dateForSide/findTick below work identically to every other
+  // date so dateForSide/findNearestTick below work identically to every other
   // source even though there's nothing to actually scrub through.
   const { label: bingCaptureLabel, dateMs: bingCaptureDateMs, loading: bingLoading } = useBingCaptureDate(state.lat, state.lng, state.zoom)
   const bingTicks = useMemo<TimelineTick[]>(
@@ -296,10 +296,27 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks].sort((a, b) => a.dateMs - b.dateMs),
     [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks],
   )
-  const findTick = useCallback(
-    (source: string, key: number) => allTicks.find((t) => t.source === source && t.key === key) ?? null,
-    [allTicks],
-  )
+  // NEAREST match, not exact equality — a stored date (state.dateA/dateB)
+  // and a wayback tick's own real.dateMs both ultimately come from Esri's
+  // getMetadata() at slightly different times/locations (the map can pan a
+  // hair between the original pick and a later re-render, re-triggering
+  // useWaybackRealCaptureDates with marginally different coordinates), so
+  // requiring bit-for-bit equality could genuinely miss the intended tick
+  // and silently fall back elsewhere — reading as "the handle jumped to a
+  // different mark". Nearest-match is also just the semantically correct
+  // behavior for a date-based lookup: the source closest to that timestamp,
+  // exactly as historicalActiveSource(A/B) already documents.
+  const findNearestTick = useCallback((source: string, targetDateMs: number): TimelineTick | null => {
+    if (!targetDateMs) return null
+    let best: TimelineTick | null = null
+    let bestDist = Infinity
+    for (const t of allTicks) {
+      if (t.source !== source) continue
+      const dist = Math.abs(t.dateMs - targetDateMs)
+      if (dist < bestDist) { bestDist = dist; best = t }
+    }
+    return best
+  }, [allTicks])
 
   const visibleSourceIds = useMemo(() => SOURCE_IDS.filter((id) => id !== "planet" || hasPlanetKey), [hasPlanetKey])
 
@@ -366,8 +383,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // something sensible to render and click.
   const resolveDisplayTick = useCallback((side: "A" | "B"): TimelineTick | null => {
     const source = side === "A" ? displaySourceA : displaySourceB
-    return findTick(source, dateForSide(side)) ?? newestTickFor(source)
-  }, [displaySourceA, displaySourceB, findTick, dateForSide, newestTickFor])
+    return findNearestTick(source, dateForSide(side)) ?? newestTickFor(source)
+  }, [displaySourceA, displaySourceB, findNearestTick, dateForSide, newestTickFor])
 
   // Ticks/gridlines show sources currently toggled on via the pill row (both
   // the source pills and the VHR/Medium res chips). When unsynced in dual
@@ -657,17 +674,34 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     return () => window.removeEventListener("keydown", handler)
   }, [panelVisible, step])
 
-  // Mousewheel zoom — narrows/widens the visible date window, keeping the
-  // date under the cursor fixed, bounded between MIN_VISIBLE_SPAN_MS and the
-  // true full extent (saturating back to viewWindow=null, i.e. "no zoom", at
-  // that upper bound). Attached imperatively (not a JSX onWheel) so
-  // preventDefault reliably blocks page-scroll — React treats wheel listeners
-  // as passive by default.
+  // Mousewheel zoom/pan reads effectiveMin/Max/Span, fullMin/Max/Span and
+  // viewWindow — all of which change on EVERY wheel tick once zoomed in.
+  // Keeping those in the listener effect's own dependency array (as before)
+  // meant the effect tore down and re-added the native "wheel" listener on
+  // every single scroll step — during a fast trackpad pan (many events per
+  // frame), that teardown/re-add churn could miss or reorder events between
+  // the old listener being removed and the new one attaching, reading from
+  // whichever closure happened to still be attached at that instant. That's
+  // consistent with two related reports: a multi-second "freeze" during
+  // fast horizontal panning, and stray tick marks that stopped tracking
+  // further pans (rendered once against a stale effectiveMin/Max, then
+  // never touched again if their listener generation got skipped). A ref
+  // lets the listener itself be attached exactly ONCE (whenever
+  // panelVisible flips true) while always reading the LATEST values on each
+  // event, regardless of how fast they arrive.
+  const wheelStateRef = useRef({ effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow })
+  useEffect(() => {
+    wheelStateRef.current = { effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow }
+  })
+
+  // Attached imperatively (not a JSX onWheel) so preventDefault reliably
+  // blocks page-scroll — React treats wheel listeners as passive by default.
   useEffect(() => {
     const el = trackRef.current
     if (!el || !panelVisible) return
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
+      const { effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow } = wheelStateRef.current
       const rect = el.getBoundingClientRect()
       // A trackpad's two-finger swipe fires wheel events with deltaX
       // dominant (vs. deltaY for a mouse wheel / vertical scroll gesture) —
@@ -695,7 +729,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
     el.addEventListener("wheel", handleWheel, { passive: false })
     return () => el.removeEventListener("wheel", handleWheel)
-  }, [panelVisible, effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow])
+  }, [panelVisible])
 
   if (!panelVisible) return null
 
@@ -726,6 +760,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const handlesCoincide = !!(showA && showB && tickA && tickB && Math.abs(handleLeftPctA - handleLeftPctB) < 0.05)
   const handleBgA = handlesCoincide ? `linear-gradient(90deg, ${COLOR_A} 50%, ${COLOR_B} 50%)` : COLOR_A
   const handleBgB = handlesCoincide ? `linear-gradient(90deg, ${COLOR_A} 50%, ${COLOR_B} 50%)` : COLOR_B
+  // A handle's own date can fall outside the current zoomed viewWindow
+  // (mousewheel zoom) while fracForTick still clamps its POSITION to
+  // [0,1] — rendering the round handle pinned at the edge at the same time
+  // as a separate off-screen indicator collided visually. Instead, off-
+  // screen replaces the round handle entirely with one combined rect chip
+  // (letter + chevron, see the JSX below) — never both at once.
+  const dirA = tickA && (tickA.dateMs < effectiveMin ? "left" : tickA.dateMs > effectiveMax ? "right" : null)
+  const dirB = tickB && (tickB.dateMs < effectiveMin ? "left" : tickB.dateMs > effectiveMax ? "right" : null)
 
   return (
     <div
@@ -753,13 +795,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                         onClick={() => toggleSource(id)}
                         className={cn(
                           "cursor-pointer flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-                          // Active pills use the same text-primary-foreground as
-                          // an inactive pill's hover state (not the previous
-                          // hardcoded text-slate-900) — same font color for
-                          // both signals "this is togglable here", whether
-                          // you're about to turn it ON (hover) or OFF (already
-                          // active).
-                          active ? "text-primary-foreground border-transparent" : "text-muted-foreground border-border hover:bg-primary hover:text-primary-foreground hover:border-transparent",
+                          // Active pills keep their original dark-slate text at
+                          // rest (readable against the pastel background) —
+                          // only switching to text-primary-foreground on hover,
+                          // to signal "hovering this will toggle it off"
+                          // without changing the resting appearance.
+                          active ? "text-slate-900 border-transparent hover:text-primary-foreground" : "text-muted-foreground border-border hover:bg-primary hover:text-primary-foreground hover:border-transparent",
                         )}
                         style={active ? { backgroundColor: cfg.color } : undefined}
                       >
@@ -969,101 +1010,123 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 )
               })}
             </div>
+            {/* Off-screen (dirA/dirB set): ONE combined rounded-rect chip —
+                letter + chevron pointing which way to look, e.g. "A>" or
+                "<A" — replacing the round handle entirely rather than
+                rendering both at the same clamped edge position (which
+                collided visually). Clicking recenters the view on that
+                handle's actual date. In-bounds: the normal round handle,
+                draggable as before. */}
             {showA && tickA && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <div
-                      onPointerDown={(e: React.PointerEvent) => {
-                        e.stopPropagation()
-                        e.currentTarget.setPointerCapture(e.pointerId)
-                        setActiveSide("A")
-                        scrubTo("A", e.clientX)
-                      }}
-                      onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("A", e.clientX) }}
-                      onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
-                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
-                      style={{ left: `${handleLeftPctA}%`, background: handleBgA }}
-                    >
-                      <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold leading-none text-white pointer-events-none select-none">A</span>
-                    </div>
-                  }
-                />
-                <TooltipContent>
-                  {handlesCoincide ? (
-                    <>
-                      <div>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</div>
-                      {tickB && <div>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</div>}
-                    </>
-                  ) : (
-                    <>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</>
-                  )}
-                </TooltipContent>
-              </Tooltip>
+              dirA ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={() => maybeRecenterWindow(tickA.dateMs)}
+                        className={cn(
+                          "absolute top-1/2 -translate-y-1/2 z-10 cursor-pointer flex items-center rounded-md border-2 border-background shadow px-0.5 h-4 text-[8px] font-bold leading-none text-white",
+                          dirA === "left" ? "left-0" : "right-0",
+                        )}
+                        style={{ background: handleBgA }}
+                      >
+                        {dirA === "left" && <ChevronLeft className="h-3 w-3" />}
+                        A
+                        {dirA === "right" && <ChevronRight className="h-3 w-3" />}
+                      </button>
+                    }
+                  />
+                  <TooltipContent>A — off-screen ({captionLabelA}), click to bring into view</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <div
+                        onPointerDown={(e: React.PointerEvent) => {
+                          e.stopPropagation()
+                          e.currentTarget.setPointerCapture(e.pointerId)
+                          setActiveSide("A")
+                          scrubTo("A", e.clientX)
+                        }}
+                        onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("A", e.clientX) }}
+                        onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
+                        style={{ left: `${handleLeftPctA}%`, background: handleBgA }}
+                      >
+                        <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold leading-none text-white pointer-events-none select-none">A</span>
+                      </div>
+                    }
+                  />
+                  <TooltipContent>
+                    {handlesCoincide ? (
+                      <>
+                        <div>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</div>
+                        {tickB && <div>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</div>}
+                      </>
+                    ) : (
+                      <>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              )
             )}
             {showB && tickB && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <div
-                      onPointerDown={(e: React.PointerEvent) => {
-                        e.stopPropagation()
-                        e.currentTarget.setPointerCapture(e.pointerId)
-                        setActiveSide("B")
-                        scrubTo("B", e.clientX)
-                      }}
-                      onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("B", e.clientX) }}
-                      onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
-                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
-                      style={{ left: `${handleLeftPctB}%`, background: handleBgB }}
-                    >
-                      <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold leading-none text-white pointer-events-none select-none">B</span>
-                    </div>
-                  }
-                />
-                <TooltipContent>
-                  {handlesCoincide ? (
-                    <>
-                      {tickA && <div>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</div>}
-                      <div>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</div>
-                    </>
-                  ) : (
-                    <>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {/* Off-screen indicators — a handle's actual date can fall
-                outside the current zoomed viewWindow (mousewheel zoom, see
-                below) while its date/caption keep updating normally; without
-                this there'd be no visible sign the handle still exists just
-                off to one side. Colored per-side, clickable to recenter the
-                view on that handle (reusing the same recenter used when a
-                fresh tick pick lands outside the window). */}
-            {(["A", "B"] as const).map((side) => {
-              const show = side === "A" ? showA : showB
-              const tick = side === "A" ? tickA : tickB
-              if (!show || !tick) return null
-              const dir = tick.dateMs < effectiveMin ? "left" : tick.dateMs > effectiveMax ? "right" : null
-              if (!dir) return null
-              const color = side === "A" ? COLOR_A : COLOR_B
-              const Icon = dir === "left" ? ChevronLeft : ChevronRight
-              return (
-                <button
-                  key={`offscreen-${side}`}
-                  type="button"
-                  onClick={() => maybeRecenterWindow(tick.dateMs)}
-                  className={cn(
-                    "absolute top-1/2 -translate-y-1/2 z-10 cursor-pointer rounded-full bg-background/90 shadow",
-                    dir === "left" ? "left-0" : "right-0",
-                  )}
-                  style={{ color }}
-                  title={`${side} is off-screen — click to bring it into view`}
-                >
-                  <Icon className="h-4 w-4" />
-                </button>
+              dirB ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={() => maybeRecenterWindow(tickB.dateMs)}
+                        className={cn(
+                          "absolute top-1/2 -translate-y-1/2 z-10 cursor-pointer flex items-center rounded-md border-2 border-background shadow px-0.5 h-4 text-[8px] font-bold leading-none text-white",
+                          dirB === "left" ? "left-0" : "right-0",
+                        )}
+                        style={{ background: handleBgB }}
+                      >
+                        {dirB === "left" && <ChevronLeft className="h-3 w-3" />}
+                        B
+                        {dirB === "right" && <ChevronRight className="h-3 w-3" />}
+                      </button>
+                    }
+                  />
+                  <TooltipContent>B — off-screen ({captionLabelB}), click to bring into view</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <div
+                        onPointerDown={(e: React.PointerEvent) => {
+                          e.stopPropagation()
+                          e.currentTarget.setPointerCapture(e.pointerId)
+                          setActiveSide("B")
+                          scrubTo("B", e.clientX)
+                        }}
+                        onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("B", e.clientX) }}
+                        onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
+                        style={{ left: `${handleLeftPctB}%`, background: handleBgB }}
+                      >
+                        <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold leading-none text-white pointer-events-none select-none">B</span>
+                      </div>
+                    }
+                  />
+                  <TooltipContent>
+                    {handlesCoincide ? (
+                      <>
+                        {tickA && <div>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</div>}
+                        <div>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</div>
+                      </>
+                    ) : (
+                      <>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
               )
-            })}
+            )}
           </div>
         </div>
 
