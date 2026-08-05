@@ -33,6 +33,7 @@ import { geHistoricalTileSource } from "@/lib/ge-historical"
 import { planetTileUrl, PLANET_TILE_SIZE, PLANET_MAXZOOM } from "@/lib/planet"
 import { eoxS2CloudlessTileUrl, EOX_S2_TILE_SIZE, EOX_S2_MAXZOOM } from "@/lib/eox-s2-cloudless"
 import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -292,9 +293,21 @@ TerrainSources.displayName = "TerrainSources"
 // RasterBasemapSource
 // -------------------------
 
+// Dragging the historical timeline's scrubber handle across many ticks
+// (possibly belonging to several different sources at once, e.g. Wayback
+// and HLS ticks interleaved on the same track) fires a state update — and so
+// a new basemapSource/date prop pair here — on every intermediate pointer
+// move. Each one would otherwise trigger a real tile source reload (or, when
+// basemapSource itself flips between sources, a full <Source> remount via
+// its key below) for a position the user is just passing through, not
+// stopping on. Debounced just long enough to coalesce a fast drag's burst of
+// intermediate values into the one the user actually lands on, short enough
+// that a single deliberate click/step still feels instant.
+const RASTER_SOURCE_DEBOUNCE_MS = 150
+
 export const RasterBasemapSource = memo(({
     // basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint,
-    basemapSource, mapboxKey, hereKey, planetKey, waybackReleaseNum, hlsDate, geDate, planetDate, eoxS2Date, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
+    basemapSource: rawBasemapSource, mapboxKey, hereKey, planetKey, waybackReleaseNum: rawWaybackReleaseNum, hlsDate: rawHlsDate, geDate: rawGeDate, planetDate: rawPlanetDate, eoxS2Date: rawEoxS2Date, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
 }: {
     basemapSource: string
     mapboxKey: string
@@ -331,6 +344,13 @@ export const RasterBasemapSource = memo(({
     // from both map A and B's own RasterBasemapSource instance even when
     // neither is actually showing wayback.
     const { items: waybackItems } = useWaybackItems()
+
+    const basemapSource = useDebouncedValue(rawBasemapSource, RASTER_SOURCE_DEBOUNCE_MS)
+    const waybackReleaseNum = useDebouncedValue(rawWaybackReleaseNum, RASTER_SOURCE_DEBOUNCE_MS)
+    const hlsDate = useDebouncedValue(rawHlsDate, RASTER_SOURCE_DEBOUNCE_MS)
+    const geDate = useDebouncedValue(rawGeDate, RASTER_SOURCE_DEBOUNCE_MS)
+    const planetDate = useDebouncedValue(rawPlanetDate, RASTER_SOURCE_DEBOUNCE_MS)
+    const eoxS2Date = useDebouncedValue(rawEoxS2Date, RASTER_SOURCE_DEBOUNCE_MS)
 
     const customBasemap = customBasemapSources.find((s) => s.id === basemapSource)
     // A local file can only ever stream via the in-browser geomatico protocol —

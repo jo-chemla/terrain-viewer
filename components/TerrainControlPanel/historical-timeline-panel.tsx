@@ -1,5 +1,5 @@
 import type React from "react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { ChevronDown, Link2, Link2Off, Settings2, Loader2 } from "lucide-react"
@@ -180,9 +180,17 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // TerrainViewer's clearance above it is exact) — expanded vs. minimal mode
   // and the pill row wrapping onto a second line all change this, so a
   // static guessed constant elsewhere was never right for every case.
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) deliberately — a plain effect only runs
+  // AFTER the browser paints, so the panel's first-ever frame (or the frame
+  // right after toggling expanded/minimal) would briefly paint using the
+  // unmeasured 13rem fallback in TerrainViewer before the observer's
+  // callback fires and corrects it one frame later — a real, if brief,
+  // "wrong margin" flash. Measuring synchronously before paint (here) plus
+  // keeping the observer for subsequent size changes avoids that.
+  useLayoutEffect(() => {
     const el = panelRef.current
     if (!el) return
+    setPanelHeight(el.getBoundingClientRect().height)
     const observer = new ResizeObserver(() => setPanelHeight(el.getBoundingClientRect().height))
     observer.observe(el)
     return () => observer.disconnect()
@@ -420,13 +428,36 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const map = new Map<string, number>()
     if (!trackWidth) return map
     const sorted = [...visibleItems].sort((a, b) => fracForTick(a) - fracForTick(b))
-    let lastPx = -Infinity
-    for (const t of sorted) {
-      let px = fracForTick(t) * trackWidth
-      if (px - lastPx < MIN_TICK_GAP_PX) px = lastPx + MIN_TICK_GAP_PX
-      map.set(`${t.source}-${t.key}`, (px / trackWidth) * 100)
-      lastPx = px
+    const positions = sorted.map((t) => fracForTick(t) * trackWidth)
+    // Forward pass: push each tick at least MIN_TICK_GAP_PX right of its
+    // predecessor.
+    for (let i = 1; i < positions.length; i++) {
+      if (positions[i] - positions[i - 1] < MIN_TICK_GAP_PX) positions[i] = positions[i - 1] + MIN_TICK_GAP_PX
     }
+    // A long run of tightly-packed ticks near the right edge had nothing
+    // stopping the forward pass above from pushing the tail PAST the
+    // track's own right boundary — since the track sits inside a fixed-
+    // position panel with no clipping, an overflowing tick rendered fully
+    // outside it, visibly floating over the map. Backward pass: clamp the
+    // last tick to the track width, then walk backward pulling any tick
+    // that's now within MIN_TICK_GAP_PX of its right neighbor left just
+    // enough to keep the gap — compressing spacing below the ideal minimum
+    // only under genuinely extreme crowding, but never overflowing.
+    if (positions.length) {
+      positions[positions.length - 1] = Math.min(positions[positions.length - 1], trackWidth)
+      for (let i = positions.length - 2; i >= 0; i--) {
+        if (positions[i + 1] - positions[i] < MIN_TICK_GAP_PX) positions[i] = positions[i + 1] - MIN_TICK_GAP_PX
+      }
+    }
+    sorted.forEach((t, i) => {
+      // Final hard clamp — if there are simply more ticks than trackWidth /
+      // MIN_TICK_GAP_PX can fit, the backward pass above can still drive
+      // early positions negative; clamping to [0, trackWidth] guarantees no
+      // tick ever renders outside the track no matter how crowded, even if
+      // that means some neighbors end up overlapping.
+      const px = Math.max(0, Math.min(trackWidth, positions[i]))
+      map.set(`${t.source}-${t.key}`, (px / trackWidth) * 100)
+    })
     return map
   }, [visibleItems, fracForTick, trackWidth])
   const tickLeftPct = useCallback((t: TimelineTick) => nudgedLeftPct.get(`${t.source}-${t.key}`) ?? fracForTick(t) * 100, [nudgedLeftPct, fracForTick])
@@ -791,36 +822,48 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               scrubTo(which, e.clientX)
             }}
           >
-            <div className="absolute left-0 right-0 top-1/2 h-px bg-border" />
-            {yearMarks.map((mark) => (
-              <div
-                key={`grid-${mark.label}`}
-                className="absolute top-0 bottom-0 w-px bg-border/70 pointer-events-none"
-                style={{ left: `${mark.frac * 100}%` }}
-              />
-            ))}
-            {visibleItems.map((t) => (
-              t.source === "wayback" ? (
-                <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} realLabel={waybackRealDates[t.key]?.label ?? null} />
-              ) : (
-                <Tooltip key={`${t.source}-${t.key}`}>
-                  <TooltipTrigger
-                    render={
-                      <div
-                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-help"
-                        style={{ left: `${tickLeftPct(t)}%` }}
-                      >
+            {/* overflow-hidden here (not on the outer track div) is a
+                deliberate backstop, not just cosmetic — the track sits
+                inside a fixed-position panel with no other clipping, so a
+                tick position that's ever wrong (nudged past the edge, a
+                stale calc, etc.) must never be able to render outside the
+                track and appear to float over the map. Scoped to just the
+                gridlines/ticks (not the whole track) so the A/B handles
+                below — always correctly clamped to [0,100] via
+                fracForTick's own min/max — don't get clipped in half when
+                sitting exactly at the oldest/newest edge. */}
+            <div className="absolute inset-0 overflow-hidden">
+              <div className="absolute left-0 right-0 top-1/2 h-px bg-border" />
+              {yearMarks.map((mark) => (
+                <div
+                  key={`grid-${mark.label}`}
+                  className="absolute top-0 bottom-0 w-px bg-border/70 pointer-events-none"
+                  style={{ left: `${mark.frac * 100}%` }}
+                />
+              ))}
+              {visibleItems.map((t) => (
+                t.source === "wayback" ? (
+                  <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} realLabel={waybackRealDates[t.key]?.label ?? null} />
+                ) : (
+                  <Tooltip key={`${t.source}-${t.key}`}>
+                    <TooltipTrigger
+                      render={
                         <div
-                          className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
-                          style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)", opacity: 0.85 }}
-                        />
-                      </div>
-                    }
-                  />
-                  <TooltipContent>{SOURCE_CONFIG[t.source]?.label ?? t.source}: {t.label}</TooltipContent>
-                </Tooltip>
-              )
-            ))}
+                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-help"
+                          style={{ left: `${tickLeftPct(t)}%` }}
+                        >
+                          <div
+                            className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
+                            style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)", opacity: 0.85 }}
+                          />
+                        </div>
+                      }
+                    />
+                    <TooltipContent>{SOURCE_CONFIG[t.source]?.label ?? t.source}: {t.label}</TooltipContent>
+                  </Tooltip>
+                )
+              ))}
+            </div>
             {showA && tickA && (
               <Tooltip>
                 <TooltipTrigger

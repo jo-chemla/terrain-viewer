@@ -127,7 +127,16 @@ export const OpenInLinksButton: React.FC<{
             <button
               type="button"
               className={cn(
-                "cursor-pointer h-full px-1 py-0.5 rounded-r-md text-muted-foreground border-l border-border/60",
+                // No explicit height class here deliberately — the wrapper's
+                // own height is content-driven (not an explicit px/rem
+                // value), so a child's "height: 100%" (h-full) can't resolve
+                // against it and silently falls back to auto (a classic CSS
+                // percentage-height footgun), leaving this button shorter
+                // than its sibling and the hover background clipped to just
+                // the icon. Omitting it lets the wrapper's own
+                // items-stretch do its job instead, sizing this button to
+                // match the row's actual height.
+                "cursor-pointer flex items-center px-1 py-0.5 rounded-r-md text-muted-foreground border-l border-border/60",
                 "hover:bg-accent hover:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground",
               )}
               aria-label="Choose destination"
