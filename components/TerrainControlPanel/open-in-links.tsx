@@ -1,5 +1,5 @@
 import type React from "react"
-import { useCallback } from "react"
+import { useCallback, useState } from "react"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { SquareArrowOutUpRight, ChevronDown } from "lucide-react"
@@ -81,6 +81,10 @@ export const OpenInLinksButton: React.FC<{
   waybackLatestRelease: number | null
 }> = ({ state, mapRef, waybackLatestRelease }) => {
   const [selectedId, setSelectedId] = useAtom(openInSelectedAtom)
+  // Controlled (not left to the menu's own default close-on-select) — the
+  // popup should close as soon as a destination is picked, not linger while
+  // window.open() spins up the new tab.
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const buildContext = useCallback((): OpenInContext => {
     const bounds = mapRef.current?.getMap()?.getBounds()
@@ -101,8 +105,12 @@ export const OpenInLinksButton: React.FC<{
 
   // Picking a destination from the dropdown both opens it immediately AND
   // remembers it as the default — so next time, just click the main button.
+  // Closes the popup FIRST, before window.open() — a new tab stealing focus
+  // can otherwise race the popup's own closing animation and leave it stuck
+  // open behind the new tab.
   const selectAndOpen = useCallback((id: string) => {
     setSelectedId(id)
+    setMenuOpen(false)
     openDestination(id)
   }, [setSelectedId, openDestination])
 
@@ -121,7 +129,7 @@ export const OpenInLinksButton: React.FC<{
         <SquareArrowOutUpRight className="h-3 w-3 shrink-0" />
         <span>Open in {buttonLabel}</span>
       </button>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger
           render={
             <button
