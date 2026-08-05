@@ -57,11 +57,17 @@ export function hlsTileUrl(centerDateMs: number): string {
  *  NOT verified real capture dates at any given spot (unlike Wayback's
  *  getWaybackItemsWithLocalChanges), just a placeholder cadence until
  *  per-tile CMR granule search is wired up as a follow-up. */
+// Day 3 of the month (not day 1) — see the matching comment in
+// lib/planet.ts: each synthetic monthly/yearly source uses a different
+// day-of-month offset so their otherwise-identical cadences never land on
+// the exact same tick date. hlsTileUrl only ever uses this as the CENTER of
+// a +/-15 day search window, so a couple days' shift is immaterial to which
+// granules actually get composited.
 export function syntheticHlsTicks(): { dateMs: number; label: string }[] {
   const nowMs = Date.now()
   const ticks: { dateMs: number; label: string }[] = []
   const d = new Date(HLS_COVERAGE_START_MS)
-  d.setUTCDate(1)
+  d.setUTCDate(3)
   while (d.getTime() <= nowMs) {
     ticks.push({ dateMs: d.getTime(), label: d.toISOString().slice(0, 7) })
     d.setUTCMonth(d.getUTCMonth() + 1)

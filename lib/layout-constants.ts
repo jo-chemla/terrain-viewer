@@ -4,6 +4,7 @@
 // flex sibling, so anything that needs to react to "how much space does it
 // currently occupy" has to keep its own copy of these numbers in sync with
 // the sidebar Card's own Tailwind classes (w-80 / sm:right-4 sm:w-96).
+import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 
 export const SIDEBAR_WIDTH_MOBILE = 320 // w-80
@@ -33,3 +34,13 @@ export const SPLIT_RESIZER_WIDTH_PX = 6
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
+
+// The historical timeline panel's own measured height (its outer bordered
+// box, via ResizeObserver — see historical-timeline-panel.tsx), so
+// TerrainViewer.tsx can clear it above the minimap/scale/attribution
+// controls exactly, whatever that height actually is — expanded (title bar
+// + pills) and minimal (no header row) modes render at genuinely different
+// heights, so a single guessed constant was always wrong for one of them.
+// Starts at 0 (panel not mounted yet / collapsed); TerrainViewer's own
+// consumers fall back to a small static button-clearance value in that case.
+export const historicalTimelinePanelHeightAtom = atom(0)

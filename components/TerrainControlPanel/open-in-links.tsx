@@ -111,7 +111,7 @@ export const OpenInLinksButton: React.FC<{
   const buttonLabel = OPEN_IN_DESTINATIONS.find((d) => d.id === selectedId)?.label ?? OPEN_IN_DESTINATIONS[0].label
 
   return (
-    <div className="flex items-center rounded-md border border-border/60 overflow-hidden shrink-0">
+    <div className="flex items-stretch rounded-md border border-border/60 overflow-hidden shrink-0">
       <button
         type="button"
         onClick={handleOpen}

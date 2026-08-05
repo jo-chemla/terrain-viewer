@@ -14,7 +14,7 @@ import NavigationControlThemed from "./MapControls/NavigationControlThemed"
 import GeolocateControlThemed from "./MapControls/GeolocateControlThemed"
 import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, DEFAULT_SHAPE_INDEX_CUSTOM_STOPS, rampSessionOverridesAtom, type CustomRampStop } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
-import { useAtom, useSetAtom } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
@@ -42,7 +42,7 @@ import { LightControlOverlay } from "./MapControls/LightControlOverlay";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
 import { SplitResizeHandle } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
-import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp } from "@/lib/layout-constants"
+import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom } from "@/lib/layout-constants"
 import { cn } from "@/lib/utils"
 
 import maplibregl from 'maplibre-gl'
@@ -746,6 +746,7 @@ export function TerrainViewer() {
   // way tying the source's `enabled` directly to either flag would.
   const [tellsEverActivated, setTellsEverActivated] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
+  const historicalTimelinePanelHeightPx = useAtomValue(historicalTimelinePanelHeightAtom)
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
   const [, setSectionOpen] = useAtom(sectionOpenAtom)
   const hasAppliedEmbedConfig = useRef(false)
@@ -2611,26 +2612,31 @@ export function TerrainViewer() {
   // Bottom-left corner (minimap, always map A) needs headroom for: the full
   // timeline panel, just the small collapsed-timeline toggle button sitting
   // below it, or neither (the unified 16px control margin) when historical
-  // imagery isn't even active. One fixed clearance value regardless of the
-  // panel's own expanded/minimal (header row shown or not) mode — using two
-  // different values (taller for expanded, shorter for minimal) looked
-  // backwards/inconsistent, since the same "how far above the panel" margin
-  // should read the same either way. Static (not derived from the panel's
-  // own measured height) deliberately — a dynamic height-based offset was
-  // tried and, despite computing correctly, never reliably reached the
-  // rendered corner element in testing; this is the originally-shipped,
-  // confirmed-working value.
+  // imagery isn't even active. Derived from the panel's own MEASURED height
+  // (historicalTimelinePanelHeightAtom, written by a ResizeObserver in
+  // historical-timeline-panel.tsx) plus a 16px gap, rather than a guessed
+  // static rem value — expanded (title bar + pills) and minimal (no header
+  // row) modes render at genuinely different heights, so any single
+  // hardcoded constant was always wrong for one of the two, leaving either a
+  // gap or an overlap. (An earlier attempt at this dynamic approach was
+  // wrongly rolled back after appearing not to reach the rendered corner
+  // element — that was a background-tab rAF-throttling test artifact, not a
+  // real mechanism failure; the CSS-var + Tailwind wiring below does work.)
+  const PANEL_CLEARANCE_GAP_PX = 16
+  const measuredPanelClearance = historicalTimelinePanelHeightPx > 0
+    ? `${Math.round(historicalTimelinePanelHeightPx + PANEL_CLEARANCE_GAP_PX)}px`
+    : "13rem" // panel hasn't reported a real height yet (first paint) — reasonable fallback
   const minimapBottomOffset = !historicalTimelineActive
     ? `${MAP_CTRL_EDGE_MARGIN_PX}px`
     : state.historicalTimelineCollapsed
       ? "3.5rem"
-      : "13rem"
+      : measuredPanelClearance
   // Bottom-right corner (attribution+scale, on whichever map is currently
   // rightmost) only ever needs to clear the timeline panel's own height when
   // the FULL panel (not just the bottom-left floating toggle button) is
   // visible — nothing at bottom-right needs clearing just because the panel
   // collapsed down to that small bottom-left-only button.
-  const scaleBottomOffset = historicalTimelineVisible ? "13rem" : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  const scaleBottomOffset = historicalTimelineVisible ? measuredPanelClearance : `${MAP_CTRL_EDGE_MARGIN_PX}px`
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 

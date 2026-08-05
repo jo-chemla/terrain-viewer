@@ -1,6 +1,6 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { ChevronDown, Link2, Link2Off, Settings2, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -13,6 +13,7 @@ import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom } from "@/lib/settings-atoms"
+import { historicalTimelinePanelHeightAtom } from "@/lib/layout-constants"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { OpenInLinksButton } from "@/components/TerrainControlPanel/open-in-links"
@@ -56,13 +57,17 @@ const MIN_YEAR_LABEL_GAP_PX = 32
 // pink, red — chosen so all 6 remain clearly distinguishable next to each
 // other. Pill "active" text uses a dark slate instead of white (see the
 // pill button below) since white-on-pastel has poor contrast.
-const SOURCE_CONFIG: Record<string, { label: string; color: string; resClass: "vhr" | "medium" }> = {
-  wayback: { label: "ESRI Wayback", color: "#cbe4bd", resClass: "vhr" }, // Esri green (#7ebc59), pastelized
-  "ge-historical": { label: "Google Earth Historical", color: "#aecbfa", resClass: "vhr" }, // Google's own Material "blue-100"
-  bing: { label: "Bing Single", color: "#c4b5fd", resClass: "vhr" }, // pastel purple (too close to Esri/Google's own teal otherwise)
-  planet: { label: "Planet Monthly", color: "#fdba74", resClass: "medium" }, // pastel orange
-  "eox-s2": { label: "EOX Sentinel-2 Yearly", color: "#fca5a5", resClass: "medium" }, // pastel red
-  hls: { label: "Harmonized Landsat Sentinel", color: "#f9a8d4", resClass: "medium" }, // pastel pink
+// label is the short pill/caption text; fullLabel is what shows in the
+// pill's own hover tooltip — a few of these (Google Earth, EOX, HLS) got
+// shortened to keep the pill row from wrapping, so the full descriptive
+// name needs to live somewhere still discoverable.
+const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; color: string; resClass: "vhr" | "medium" }> = {
+  wayback: { label: "ESRI Wayback", fullLabel: "ESRI World Imagery Wayback", color: "#cbe4bd", resClass: "vhr" }, // Esri green (#7ebc59), pastelized
+  "ge-historical": { label: "Google Earth", fullLabel: "Google Earth Historical", color: "#aecbfa", resClass: "vhr" }, // Google's own Material "blue-100"
+  bing: { label: "Bing Single", fullLabel: "Bing Maps (single current mosaic)", color: "#c4b5fd", resClass: "vhr" }, // pastel purple (too close to Esri/Google's own teal otherwise)
+  planet: { label: "Planet Monthly", fullLabel: "Planet Global Monthly Basemap", color: "#fdba74", resClass: "medium" }, // pastel orange
+  "eox-s2": { label: "EOX Sentinel 2", fullLabel: "EOX Sentinel-2 Cloudless (Yearly)", color: "#fca5a5", resClass: "medium" }, // pastel red
+  hls: { label: "NASA HLS", fullLabel: "NASA Harmonized Landsat Sentinel-2", color: "#f9a8d4", resClass: "medium" }, // pastel pink
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 
@@ -127,6 +132,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     setState({ historicalControlsExpanded: next })
   }, [controlsExpanded, setState])
   const [trackWidth, setTrackWidth] = useState(0)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const setPanelHeight = useSetAtom(historicalTimelinePanelHeightAtom)
   // null = full extent (no zoom applied) — see the wheel-zoom handler below.
   const [viewWindow, setViewWindow] = useState<{ min: number; max: number } | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -168,6 +175,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
+
+  // Reports the panel's own actual rendered height (border box, so
+  // TerrainViewer's clearance above it is exact) — expanded vs. minimal mode
+  // and the pill row wrapping onto a second line all change this, so a
+  // static guessed constant elsewhere was never right for every case.
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => setPanelHeight(el.getBoundingClientRect().height))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [setPanelHeight])
 
   const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom)
   // Newest release at this location — used by the "Open in..." ESRI Wayback
@@ -439,24 +458,41 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       if (t < effectiveMin || t > effectiveMax) continue
       marks.push({ frac: (t - effectiveMin) / effectiveSpan, label: String(y) })
     }
+    // A zoomed-in window can span a single year without ever containing that
+    // year's Jan 1 boundary (e.g. zoomed to Mar-Sep 2020) — the step logic
+    // above only places marks AT those boundaries, so it can come up
+    // completely empty and read as "the year label just disappeared". Always
+    // show at least the window's own start year, anchored to the left edge.
+    if (!marks.length) marks.push({ frac: 0, label: String(startYear) })
     return marks
   }, [items.length, effectiveMin, effectiveMax, effectiveSpan, trackWidth])
 
   // Nearest-tick search still considers the FULL (pill-filtered but not
   // zoom-windowed) items list — a background click near the zoomed-in
   // track's edge can still jump to a tick just outside the current view.
+  //
+  // Distance is measured against each tick's NUDGED draw position
+  // (tickLeftPct), not its raw chronological position (fracForTick) — a tick
+  // that got nudged a few px away from its true date to stay visually
+  // distinct from a same-day neighbor was still being hit-tested at its
+  // true (unnudged) position, so clicking/dragging exactly onto the visible
+  // dot could resolve to the WRONG tick (whichever was truly closest by
+  // date), reading as "can't select the tick that's right there". Ticks
+  // outside the current zoom window have no nudged position (tickLeftPct
+  // falls back to fracForTick for those), which is fine since they aren't
+  // rendered anyway — only an approximate "jump near the edge" target.
   const nearestTickForClientX = useCallback((clientX: number): TimelineTick | null => {
     const rect = trackRef.current?.getBoundingClientRect()
     if (!rect || !items.length) return null
     const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
     let best = items[0]
-    let bestDist = Math.abs(fracForTick(items[0]) - frac)
+    let bestDist = Math.abs(tickLeftPct(items[0]) / 100 - frac)
     for (const t of items) {
-      const d = Math.abs(fracForTick(t) - frac)
+      const d = Math.abs(tickLeftPct(t) / 100 - frac)
       if (d < bestDist) { best = t; bestDist = d }
     }
     return best
-  }, [items, fracForTick])
+  }, [items, tickLeftPct])
 
   // If a zoomed window is active and the tick just applied falls outside it,
   // recenter (keeping the same span) so the newly-active selection never
@@ -583,9 +619,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // arrow-key step on the other side) reveals it normally.
   const handleLeftPctA = tickA ? fracForTick(tickA) * 100 : 0
   const handleLeftPctB = tickB ? fracForTick(tickB) * 100 : 0
+  // When both land on (essentially) the same date, B's solid green fully
+  // covers A's handle — previously there was NO visible sign A was even
+  // there. Both handles switch to a half-and-half A/B split so hovering
+  // either one still reads as "both sides are here", regardless of which is
+  // on top.
+  const handlesCoincide = !!(showA && showB && tickA && tickB && Math.abs(handleLeftPctA - handleLeftPctB) < 0.05)
+  const handleBgA = handlesCoincide ? `linear-gradient(90deg, ${COLOR_A} 50%, ${COLOR_B} 50%)` : COLOR_A
+  const handleBgB = handlesCoincide ? `linear-gradient(90deg, ${COLOR_A} 50%, ${COLOR_B} 50%)` : COLOR_B
 
   return (
     <div
+      ref={panelRef}
       className={cn(
         "fixed z-10 backdrop-blur-[2px] border border-border bg-background/95 shadow-sm transition-[background-color,right] duration-150",
         "bottom-0 left-0 right-0 rounded-none",
@@ -601,24 +646,30 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               const active = timelineSourcesForPills.includes(id)
               const cfg = SOURCE_CONFIG[id]
               return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => toggleSource(id)}
-                  className={cn(
-                    "cursor-pointer flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-                    active ? "text-slate-900 border-transparent" : "text-muted-foreground border-border hover:bg-accent",
-                  )}
-                  style={active ? { backgroundColor: cfg.color } : undefined}
-                >
-                  {cfg.label}
-                  {/* Real per-tile imagery date (vs. release/layer date) is
-                      still being computed for every candidate release — its
-                      ticks aren't drawn yet either (see waybackDatesLoading
-                      above), so this spinner is the only visible sign
-                      anything's happening. */}
-                  {id === "wayback" && waybackDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-                </button>
+                <Tooltip key={id}>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={() => toggleSource(id)}
+                        className={cn(
+                          "cursor-pointer flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                          active ? "text-slate-900 border-transparent" : "text-muted-foreground border-border hover:bg-accent",
+                        )}
+                        style={active ? { backgroundColor: cfg.color } : undefined}
+                      >
+                        {cfg.label}
+                        {/* Real per-tile imagery date (vs. release/layer date) is
+                            still being computed for every candidate release — its
+                            ticks aren't drawn yet either (see waybackDatesLoading
+                            above), so this spinner is the only visible sign
+                            anything's happening. */}
+                        {id === "wayback" && waybackDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                      </button>
+                    }
+                  />
+                  <TooltipContent>{cfg.fullLabel}</TooltipContent>
+                </Tooltip>
               )
             })}
             <div className="w-px self-stretch bg-border mx-0.5" />
@@ -784,11 +835,20 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                       onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("A", e.clientX) }}
                       onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
                       className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
-                      style={{ left: `${handleLeftPctA}%`, backgroundColor: COLOR_A }}
+                      style={{ left: `${handleLeftPctA}%`, background: handleBgA }}
                     />
                   }
                 />
-                <TooltipContent>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</TooltipContent>
+                <TooltipContent>
+                  {handlesCoincide ? (
+                    <>
+                      <div>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</div>
+                      {tickB && <div>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</div>}
+                    </>
+                  ) : (
+                    <>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</>
+                  )}
+                </TooltipContent>
               </Tooltip>
             )}
             {showB && tickB && (
@@ -805,11 +865,20 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                       onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("B", e.clientX) }}
                       onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
                       className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
-                      style={{ left: `${handleLeftPctB}%`, backgroundColor: COLOR_B }}
+                      style={{ left: `${handleLeftPctB}%`, background: handleBgB }}
                     />
                   }
                 />
-                <TooltipContent>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</TooltipContent>
+                <TooltipContent>
+                  {handlesCoincide ? (
+                    <>
+                      {tickA && <div>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</div>}
+                      <div>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</div>
+                    </>
+                  ) : (
+                    <>B — {SOURCE_CONFIG[tickB.source]?.label ?? tickB.source}: {captionLabelB}</>
+                  )}
+                </TooltipContent>
               </Tooltip>
             )}
           </div>

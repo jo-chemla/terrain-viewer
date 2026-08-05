@@ -20,7 +20,12 @@ export function eoxS2CloudlessTileUrl(year: number): string {
   return `${EOX_S2_BASE}/s2cloudless-${year}_3857/default/g/{z}/{y}/{x}.jpg`
 }
 
-/** One tick per published year (Jan 1 of that year), oldest first. */
+/** One tick per published year, oldest first. Jan 4 (not Jan 1) — see the
+ *  matching comment in lib/planet.ts: each synthetic monthly/yearly source
+ *  uses a different day-of-month offset so their cadences never land on the
+ *  exact same tick date (Planet/HLS's monthly ticks both include Jan 1 of
+ *  every year). eoxS2CloudlessTileUrl only ever reads the year, so this is
+ *  purely a display/positioning nudge. */
 export function eoxS2CloudlessTicks(): { dateMs: number; label: string }[] {
-  return EOX_S2_YEARS.map((year) => ({ dateMs: Date.UTC(year, 0, 1), label: String(year) }))
+  return EOX_S2_YEARS.map((year) => ({ dateMs: Date.UTC(year, 0, 4), label: String(year) }))
 }
