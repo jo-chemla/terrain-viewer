@@ -29,12 +29,14 @@ function lngLatToTile(lng: number, lat: number, zoom: number): { x: number; y: n
 
 const BING_DEBOUNCE_MS = 400
 
-export function useBingCaptureDate(latitude: number, longitude: number, zoom: number): { label: string | null; dateMs: number | null } {
+export function useBingCaptureDate(latitude: number, longitude: number, zoom: number): { label: string | null; dateMs: number | null; loading: boolean } {
   const [label, setLabel] = useState<string | null>(null)
   const [dateMs, setDateMs] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
     const timer = setTimeout(async () => {
       try {
         const z = Math.max(1, Math.min(21, Math.round(zoom)))
@@ -55,10 +57,12 @@ export function useBingCaptureDate(latitude: number, longitude: number, zoom: nu
         }
       } catch {
         if (!cancelled) { setLabel(null); setDateMs(null) }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }, BING_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
   }, [latitude, longitude, zoom])
 
-  return { label, dateMs }
+  return { label, dateMs, loading }
 }

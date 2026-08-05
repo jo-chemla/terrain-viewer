@@ -2,7 +2,7 @@ import type React from "react"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { ChevronDown, Link2, Settings2, Loader2 } from "lucide-react"
+import { ChevronDown, Link2, Settings2, Loader2, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWaybackItemsWithLocalChanges, useWaybackCaptureDate, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
@@ -231,7 +231,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => syntheticHlsTicks().map((t) => ({ source: "hls", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [],
   )
-  const { items: rawGeItems } = useGeHistoricalDates(state.lat, state.lng, state.zoom)
+  const { items: rawGeItems, loading: geDatesLoading } = useGeHistoricalDates(state.lat, state.lng, state.zoom)
   const geTicks = useMemo<TimelineTick[]>(
     () => rawGeItems.map((t) => ({ source: "ge-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [rawGeItems],
@@ -248,7 +248,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // date for the current view center (see lib/bing.ts), keyed by that same
   // date so releaseForSide/findTick below work identically to every other
   // source even though there's nothing to actually scrub through.
-  const { label: bingCaptureLabel, dateMs: bingCaptureDateMs } = useBingCaptureDate(state.lat, state.lng, state.zoom)
+  const { label: bingCaptureLabel, dateMs: bingCaptureDateMs, loading: bingLoading } = useBingCaptureDate(state.lat, state.lng, state.zoom)
   const bingTicks = useMemo<TimelineTick[]>(
     () => (bingCaptureDateMs ? [{ source: "bing", key: bingCaptureDateMs, dateMs: bingCaptureDateMs, label: bingCaptureLabel ?? "" }] : []),
     [bingCaptureDateMs, bingCaptureLabel],
@@ -307,18 +307,6 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     setState({ resolutionClasses: set.size ? Array.from(set) : [id] })
   }, [resolutionClasses, setState])
 
-  // Ticks/gridlines only ever show sources currently toggled on via the pill
-  // row (both the source pills and the VHR/Medium res chips) — but a side's
-  // OWN active handle (below) still resolves against allTicks, so switching a
-  // pill off doesn't strand an already-picked date. When unsynced in dual
-  // mode, this is scoped to whichever side is currently active (activeSide) —
-  // clicking "A" shows only A's chosen sources' ticks, clicking "B" shows
-  // only B's, per the user's request (not a union of both).
-  const items = useMemo(
-    () => allTicks.filter((t) => timelineSourcesForPills.includes(t.source) && resolutionClasses.includes(SOURCE_CONFIG[t.source]?.resClass)),
-    [allTicks, timelineSourcesForPills, resolutionClasses],
-  )
-
   const releaseForSide = useCallback((side: "A" | "B"): number => {
     const basemapSource = side === "A" ? activeBasemapSourceA : activeBasemapSourceB
     if (basemapSource === "wayback") {
@@ -341,6 +329,30 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
     return 0
   }, [activeBasemapSourceA, activeBasemapSourceB, state.basemapPerView, state.waybackRelease, state.waybackReleaseA, state.waybackReleaseB, state.hlsDate, state.hlsDateA, state.hlsDateB, state.geDate, state.geDateA, state.geDateB, state.planetDate, state.planetDateA, state.planetDateB, state.bingDate, state.bingDateA, state.bingDateB, state.eoxS2Date, state.eoxS2DateA, state.eoxS2DateB])
+
+  // Ticks/gridlines show sources currently toggled on via the pill row (both
+  // the source pills and the VHR/Medium res chips). When unsynced in dual
+  // mode, this is scoped to whichever side is currently active (activeSide)
+  // — clicking "A" shows only A's chosen sources' ticks, clicking "B" shows
+  // only B's, per the user's request (not a union of both).
+  //
+  // BUT a side's own actively-selected tick is always unioned in even if its
+  // source isn't part of that filter — otherwise, since fullMin/fullMax
+  // below are derived from this same list, a handle whose source falls
+  // outside the currently-toggled pills (e.g. A is scrubbing Planet/EOX-S2
+  // while B actually sits on a Google Earth date not in A's pill set) still
+  // got positioned against an axis that never accounted for its own date,
+  // landing it away from any visible mark — reading as "the pill doesn't
+  // attach to a mark" even though the caption below was reading the correct
+  // tick all along (captions don't depend on this filtered/scaled list).
+  const items = useMemo(() => {
+    const filtered = allTicks.filter((t) => timelineSourcesForPills.includes(t.source) && resolutionClasses.includes(SOURCE_CONFIG[t.source]?.resClass))
+    const activeTickA = showA ? findTick(activeBasemapSourceA, releaseForSide("A")) : null
+    const activeTickB = showB ? findTick(activeBasemapSourceB, releaseForSide("B")) : null
+    const seen = new Set(filtered.map((t) => `${t.source}-${t.key}`))
+    const extra = [activeTickA, activeTickB].filter((t): t is TimelineTick => !!t && !seen.has(`${t.source}-${t.key}`))
+    return extra.length ? [...filtered, ...extra].sort((a, b) => a.dateMs - b.dateMs) : filtered
+  }, [allTicks, timelineSourcesForPills, resolutionClasses, showA, showB, activeBasemapSourceA, activeBasemapSourceB, releaseForSide, findTick])
 
   const dateFieldFor = useCallback((source: string, side: "A" | "B") => {
     if (source === "wayback") return side === "A" ? (state.basemapPerView ? "waybackReleaseA" : "waybackRelease") : "waybackReleaseB"
@@ -587,6 +599,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const { label: waybackCaptureLabelB } = useWaybackCaptureDate(state.lat, state.lng, state.zoom, activeBasemapSourceB === "wayback" ? releaseForSide("B") : 0)
 
   const panelVisible = state.historicalBeta && (showA || showB) && !collapsed
+  // The primary basemap SOURCE is always mounted regardless of this toggle
+  // (RasterBasemapSource in MapSources.tsx) — but its LAYER's visibility is
+  // separately gated by state.showRasterBasemap (MapLayers.tsx), and that
+  // defaults to OFF. So it's entirely possible to be actively scrubbing
+  // through historical dates here while nothing is actually visible on the
+  // map — worth flagging rather than leaving the user to wonder why nothing
+  // changed.
+  const rasterBasemapOff = !state.showRasterBasemap
 
   // Arrow-key stepping — replaces the old play/pause/prev/next buttons.
   // Listens globally (not just while the track has focus) but ignores the
@@ -697,7 +717,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                         onClick={() => toggleSource(id)}
                         className={cn(
                           "cursor-pointer flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-                          active ? "text-slate-900 border-transparent" : "text-muted-foreground border-border hover:bg-accent",
+                          active ? "text-slate-900 border-transparent" : "text-muted-foreground border-border hover:bg-primary hover:text-primary-foreground hover:border-transparent",
                         )}
                         style={active ? { backgroundColor: cfg.color } : undefined}
                       >
@@ -706,8 +726,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                             still being computed for every candidate release — its
                             ticks aren't drawn yet either (see waybackDatesLoading
                             above), so this spinner is the only visible sign
-                            anything's happening. */}
+                            anything's happening. Same idea for Google Earth
+                            (fetching its own per-tile IMAGERY_HISTORY dates) and
+                            Bing (fetching the current tile's capture-date-range
+                            header) — both a real network round-trip per
+                            location, not instant. */}
                         {id === "wayback" && waybackDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {id === "ge-historical" && geDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {id === "bing" && bingLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                       </button>
                     }
                   />
@@ -776,6 +802,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 <Link2 className="h-4 w-4" />
               </button>
             )}
+            {rasterBasemapOff && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={<TriangleAlert className="h-4 w-4 text-primary shrink-0" />}
+                />
+                <TooltipContent>Raster Basemap is off (Visualization Modes) — historical imagery won't be visible on the map</TooltipContent>
+              </Tooltip>
+            )}
             <button
               type="button"
               onClick={() => setControlsExpanded((v) => !v)}
@@ -803,6 +837,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         // floating chip hovering over the track's own top-right corner, so
         // the panel doesn't grow a whole extra line just to hold 2 buttons.
         <div className="absolute top-2 right-3 z-20 flex items-center gap-0.5 rounded-md border border-border bg-background/90 backdrop-blur-sm shadow-sm px-0.5 py-0.5">
+          {rasterBasemapOff && (
+            <Tooltip>
+              <TooltipTrigger
+                render={<TriangleAlert className="h-4 w-4 text-primary shrink-0 mx-1" />}
+              />
+              <TooltipContent>Raster Basemap is off (Visualization Modes) — historical imagery won't be visible on the map</TooltipContent>
+            </Tooltip>
+          )}
           <button
             type="button"
             onClick={() => setControlsExpanded((v) => !v)}
