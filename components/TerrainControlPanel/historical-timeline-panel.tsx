@@ -152,10 +152,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const dualMode = state.basemapPerView && state.splitScreen
   const showA = aIsHistorical
   const showB = dualMode && bIsHistorical
-  // When synced, both sides always land on the same tick by construction (see
-  // applyTick below) — render one shared handle instead of two overlapping
-  // color-coded ones.
-  const showBothSynced = showA && showB && syncEnabled
+  // Sync only ever governs which SOURCE/RESOLUTION PILLS are toggled on
+  // (shared vs. per-side, see pillsField below) — it has never applied to
+  // the actual scrubber selection (which tick/date is active). A and B
+  // always get their own independent handle and their own independent
+  // date, full stop, even if they happen to coincide (e.g. both set to
+  // Planet Monthly 2023-12) — that's just two handles landing on the same
+  // spot, not a "linked" state.
   const dualUnsynced = dualMode && !syncEnabled
 
   useEffect(() => {
@@ -388,7 +391,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // left neighbor to stay visually distinct — a few pixels' worth of "a very
   // little", not a real repositioning; only used for DRAWING, the
   // underlying date each tick represents is untouched.
-  const MIN_TICK_GAP_PX = 5
+  // Each tick's hit-box/mark is 8px wide (w-2, centered via -translate-x-1/2)
+  // — a 5px gap between centers still left two neighbors' 8px-wide marks
+  // overlapping by ~3px, which is why this read as "not working" on a real
+  // EOX/Planet January collision. 10px clears the full tick width plus a
+  // couple pixels of visible daylight between them.
+  const MIN_TICK_GAP_PX = 10
   const nudgedLeftPct = useMemo(() => {
     const map = new Map<string, number>()
     if (!trackWidth) return map
@@ -463,20 +471,16 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   }, [viewWindow, effectiveMin, effectiveMax, fullMin, fullMax])
 
   // The single entry point for "a tick was picked", whether by click, drag,
-  // or arrow-key step. When both sides are historical and sync is on, both
-  // sides land on the identical tick in one setState call; otherwise it
-  // applies to whichever single side is targeted (explicit, from a pointer
-  // event, or resolved from context for a keyboard step).
+  // or arrow-key step — always applies to exactly ONE side (explicit, from a
+  // pointer event targeting a specific handle, or resolved from context for
+  // a keyboard step/background click). Sync never affects this — see the
+  // dualUnsynced comment above.
   const applyTick = useCallback((tick: TimelineTick, explicitSide?: "A" | "B") => {
-    if (dualMode && syncEnabled && showA && showB) {
-      setState({ ...buildTickUpdates("A", tick), ...buildTickUpdates("B", tick) })
-    } else {
-      const which = explicitSide ?? resolveSide()
-      setActiveSide(which)
-      setTickForSide(which, tick)
-    }
+    const which = explicitSide ?? resolveSide()
+    setActiveSide(which)
+    setTickForSide(which, tick)
     maybeRecenterWindow(tick.dateMs)
-  }, [dualMode, syncEnabled, showA, showB, buildTickUpdates, setState, resolveSide, setTickForSide, maybeRecenterWindow])
+  }, [resolveSide, setTickForSide, maybeRecenterWindow])
 
   const scrubTo = useCallback((which: "A" | "B", clientX: number) => {
     const tick = nearestTickForClientX(clientX)
@@ -568,30 +572,17 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const captionLabelA = tickA && tickA.source === "wayback" && waybackCaptureLabelA ? waybackCaptureLabelA : tickA?.label
   const captionLabelB = tickB && tickB.source === "wayback" && waybackCaptureLabelB ? waybackCaptureLabelB : tickB?.label
 
-  // When A and B are independent (unsynced) handles landing on the same or
-  // near-same date, they'd render as two perfectly overlapping circles —
-  // whichever is later in the DOM would eat 100% of pointer events at that
-  // pixel, making the other one literally impossible to grab. Nudge them
-  // apart symmetrically once they're closer than this, so both stay
-  // independently clickable/draggable; this only ever shifts where the dot
-  // is DRAWN, never the underlying date each one represents. Bigger than one
-  // handle's own diameter (16px) on purpose — separating them by EXACTLY
-  // their own width still left the two circles' edges touching, reading as
-  // one blob rather than two distinct, independently-grabbable handles.
-  const HANDLE_DECLUTTER_PX = 24
-  let handleLeftPctA = tickA ? fracForTick(tickA) * 100 : 0
-  let handleLeftPctB = tickB ? fracForTick(tickB) * 100 : 0
-  if (!showBothSynced && showA && showB && tickA && tickB && trackWidth > 0) {
-    const pxA = (handleLeftPctA / 100) * trackWidth
-    const pxB = (handleLeftPctB / 100) * trackWidth
-    const dist = Math.abs(pxB - pxA)
-    if (dist < HANDLE_DECLUTTER_PX) {
-      const shiftPx = (HANDLE_DECLUTTER_PX - dist) / 2
-      const dir = pxB >= pxA ? 1 : -1
-      handleLeftPctA -= (dir * shiftPx / trackWidth) * 100
-      handleLeftPctB += (dir * shiftPx / trackWidth) * 100
-    }
-  }
+  // A and B can genuinely land on the same date (e.g. both set to Planet
+  // Monthly 2023-12) and render as two overlapping circles — rather than
+  // artificially nudging them apart (which read as fundamentally weird:
+  // the dot's position implying a date it doesn't actually have), B's own
+  // handle is declared after A's in the JSX below, so it's on top and
+  // naturally captures the click/drag first; each handle's own
+  // stopPropagation() keeps that click from also reaching A's handle or the
+  // track background underneath. Dragging A out from under B (or an
+  // arrow-key step on the other side) reveals it normally.
+  const handleLeftPctA = tickA ? fracForTick(tickA) * 100 : 0
+  const handleLeftPctB = tickB ? fracForTick(tickB) * 100 : 0
 
   return (
     <div
@@ -656,7 +647,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               trailing cluster adjacent. Sync/A-B only exist while the
               controls are expanded — hidden along with the pills otherwise. */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {dualMode && !syncEnabled && (
+            {/* Which side subsequent tick clicks (on the track background,
+                not directly on a handle)/arrow-key steps target, AND —
+                only while sync is off — which side's pill selection the
+                source/resolution chips above edit. Always available in
+                dual mode regardless of sync, since picking a scrubber
+                target is a separate concern from the pill sync below. */}
+            {dualMode && (
               <div className="flex items-center rounded-md border border-border overflow-hidden">
                 {(["A", "B"] as const).map((side) => (
                   <button
@@ -679,8 +676,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 type="button"
                 onClick={() => setSyncEnabled((v) => !v)}
                 className="cursor-pointer p-1 text-muted-foreground hover:text-foreground shrink-0"
-                aria-label={syncEnabled ? "Unsync map A/B historical source" : "Sync map A/B historical source"}
-                title={syncEnabled ? "Synced — applies to both A and B" : "Not synced — applies to the selected side only"}
+                aria-label={syncEnabled ? "Unsync A/B source & resolution pills" : "Sync A/B source & resolution pills"}
+                title={syncEnabled ? "Source/resolution pills shared between A and B — the scrubbed date is always independent per side" : "Source/resolution pills set independently per side (use A/B above to pick which)"}
               >
                 {syncEnabled ? <Link2 className="h-4 w-4" /> : <Link2Off className="h-4 w-4" />}
               </button>
@@ -773,27 +770,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 </Tooltip>
               )
             ))}
-            {showBothSynced && tickA && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <div
-                      onPointerDown={(e: React.PointerEvent) => {
-                        e.stopPropagation()
-                        e.currentTarget.setPointerCapture(e.pointerId)
-                        scrubTo("A", e.clientX)
-                      }}
-                      onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo("A", e.clientX) }}
-                      onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
-                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
-                      style={{ left: `${fracForTick(tickA) * 100}%`, background: `linear-gradient(90deg, ${COLOR_A} 50%, ${COLOR_B} 50%)` }}
-                    />
-                  }
-                />
-                <TooltipContent>A/B (synced) — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</TooltipContent>
-              </Tooltip>
-            )}
-            {!showBothSynced && showA && tickA && (
+            {showA && tickA && (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -814,7 +791,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 <TooltipContent>A — {SOURCE_CONFIG[tickA.source]?.label ?? tickA.source}: {captionLabelA}</TooltipContent>
               </Tooltip>
             )}
-            {!showBothSynced && showB && tickB && (
+            {showB && tickB && (
               <Tooltip>
                 <TooltipTrigger
                   render={

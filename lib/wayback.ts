@@ -111,6 +111,13 @@ export async function fetchWaybackCaptureLabel(latitude: number, longitude: numb
  * publish date (releaseDatetime/releaseDateLabel). Releases whose real date
  * hasn't resolved yet (or failed) fall back to their own releaseDatetime so
  * a tick still has SOME position rather than being dropped.
+ *
+ * Debounced (same LOCAL_CHANGES_DEBOUNCE_MS window as the rest of this file)
+ * — @esri/wayback-core's getMetadata has no AbortSignal/cancellation option
+ * at all, so an in-flight request genuinely can't be aborted once started;
+ * debouncing is the closest practical equivalent, making sure a quick
+ * "zoom out to the world, zoom back into a location" never actually STARTS
+ * a batch of requests for the transient in-between viewport.
  */
 export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: number, longitude: number, zoom: number): { resolved: Record<number, { dateMs: number; label: string }>; loading: boolean } {
   const [resolved, setResolved] = useState<Record<number, { dateMs: number; label: string }>>({})
@@ -120,17 +127,19 @@ export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: numbe
     if (!items.length) { setResolved({}); setLoading(false); return }
     let cancelled = false
     setLoading(true)
-    Promise.all(items.map(async (item) => {
-      const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum)
-      return [item.releaseNum, meta] as const
-    })).then((pairs) => {
-      if (cancelled) return
-      const map: Record<number, { dateMs: number; label: string }> = {}
-      for (const [releaseNum, meta] of pairs) if (meta) map[releaseNum] = meta
-      setResolved(map)
-      setLoading(false)
-    })
-    return () => { cancelled = true }
+    const timer = setTimeout(() => {
+      Promise.all(items.map(async (item) => {
+        const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum)
+        return [item.releaseNum, meta] as const
+      })).then((pairs) => {
+        if (cancelled) return
+        const map: Record<number, { dateMs: number; label: string }> = {}
+        for (const [releaseNum, meta] of pairs) if (meta) map[releaseNum] = meta
+        setResolved(map)
+        setLoading(false)
+      })
+    }, LOCAL_CHANGES_DEBOUNCE_MS)
+    return () => { cancelled = true; clearTimeout(timer) }
     // items is a fresh array identity every render of its own caller — keying
     // off latitude/longitude/zoom (which only change when the view actually
     // settles) plus items.length (a new release appearing/disappearing) is
