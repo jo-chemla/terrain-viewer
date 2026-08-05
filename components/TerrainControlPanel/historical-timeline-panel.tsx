@@ -2,7 +2,7 @@ import type React from "react"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { ChevronDown, Link2, Link2Off, Settings2, Loader2 } from "lucide-react"
+import { ChevronDown, Link2, Settings2, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWaybackItemsWithLocalChanges, useWaybackCaptureDate, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
@@ -285,6 +285,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     // timeline unusable with no way back in through the UI.
     setState({ [pillsField]: set.size ? Array.from(set) : [id] })
   }, [timelineSourcesForPills, pillsField, setState])
+
+  // Re-enabling sync switches the pill row's source back to the shared
+  // state.timelineSources field — but that field sits untouched the whole
+  // time sync is off (edits go to timelineSourcesA/B instead), so it can
+  // hold a stale value from before the user ever unsynced. Without this,
+  // toggling sync back on could silently swap the visible pills to that old
+  // set instead of whatever the user was just looking at — adopt the
+  // currently-active side's live selection as the new shared value instead.
+  const toggleSync = useCallback(() => {
+    if (!syncEnabled) setState({ timelineSources: timelineSourcesForPills })
+    setSyncEnabled(!syncEnabled)
+  }, [syncEnabled, timelineSourcesForPills, setState, setSyncEnabled])
 
   const resolutionClasses: string[] = state.resolutionClasses?.length ? state.resolutionClasses : ["vhr", "medium"]
   const toggleResolutionClass = useCallback((id: string) => {
@@ -729,13 +741,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               trailing cluster adjacent. Sync/A-B only exist while the
               controls are expanded — hidden along with the pills otherwise. */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Which side subsequent tick clicks (on the track background,
-                not directly on a handle)/arrow-key steps target, AND —
-                only while sync is off — which side's pill selection the
-                source/resolution chips above edit. Always available in
-                dual mode regardless of sync, since picking a scrubber
-                target is a separate concern from the pill sync below. */}
-            {dualMode && (
+            {/* Which side's pill selection the source/resolution chips above
+                edit — only meaningful (and only shown) while sync is off,
+                since a shared pill state has no separate "side" to pick. */}
+            {dualMode && !syncEnabled && (
               <div className="flex items-center rounded-md border border-border overflow-hidden">
                 {(["A", "B"] as const).map((side) => (
                   <button
@@ -756,12 +765,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             {dualMode && (
               <button
                 type="button"
-                onClick={() => setSyncEnabled((v) => !v)}
-                className="cursor-pointer p-1 text-muted-foreground hover:text-foreground shrink-0"
+                onClick={toggleSync}
+                className={cn(
+                  "cursor-pointer p-1 rounded shrink-0",
+                  syncEnabled ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
                 aria-label={syncEnabled ? "Unsync A/B source & resolution pills" : "Sync A/B source & resolution pills"}
                 title={syncEnabled ? "Source/resolution pills shared between A and B — the scrubbed date is always independent per side" : "Source/resolution pills set independently per side (use A/B above to pick which)"}
               >
-                {syncEnabled ? <Link2 className="h-4 w-4" /> : <Link2Off className="h-4 w-4" />}
+                <Link2 className="h-4 w-4" />
               </button>
             )}
             <button
