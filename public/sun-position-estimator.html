@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Sun Position Estimator — day/night boundary, analemma &amp; shadow-length solver</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: #0f1626;
+    --border: rgba(140,160,210,0.14);
+    --border-strong: rgba(140,160,210,0.25);
+    --text: #e8ecf5;
+    --muted: #8b93a7;
+    --accent: #46e0b7;
+    --grid: rgba(210,220,240,0.10);
+    --horizon: rgba(200,210,230,0.45);
+    --destructive: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(ellipse 120% 80% at 50% -10%, #121b32 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    padding: 36px 24px 60px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  .kicker {
+    font-family: monospace; font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 10px;
+  }
+  h1 { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 8px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+  .lede { color: var(--muted); font-size: 14.5px; line-height: 1.55; max-width: 640px; margin: 0; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px 22px 18px; margin-top: 20px;
+  }
+  .card p.desc { color: var(--muted); font-size: 13px; margin: 0 0 14px; line-height: 1.55; }
+  label.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
+  input[type="text"], input[type="number"] {
+    background: #0a0e1a; border: 1px solid var(--border-strong); border-radius: 6px;
+    padding: 6px 10px; color: var(--text); font-size: 13px; font-family: monospace;
+  }
+  button {
+    font-size: 12.5px; color: var(--bg); background: var(--accent); font-weight: 600;
+    border: none; border-radius: 6px; padding: 7px 16px; cursor: pointer;
+  }
+  button.ghost {
+    color: var(--muted); background: transparent; border: 1px solid var(--border-strong);
+    font-weight: 400;
+  }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .row-gap { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  svg text { font-family: monospace; }
+  .legend { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; justify-content: center; font-size: 13px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: middle; }
+  .loc-row { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 3px 0; }
+  .loc-row input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .readout {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 6px 10px; border-radius: 6px; background: rgba(140,160,210,0.08);
+    font-size: 13px; margin-bottom: 6px;
+  }
+  .readout .val { font-family: monospace; color: var(--muted); }
+  .readout.result { background: rgba(70,224,183,0.10); font-weight: 600; }
+  .readout.result .val { color: var(--accent); }
+  .warn { color: #ffa94d; font-size: 11.5px; line-height: 1.5; }
+  pre.formula {
+    background: rgba(140,160,210,0.08); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; font-size: 12.5px; line-height: 1.6;
+    overflow-x: auto; margin: 8px 0 16px;
+  }
+  code { font-family: monospace; }
+  .formula-section h3 { font-size: 13px; margin: 18px 0 6px; color: #c8d0e0; }
+  .formula-section p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">Solar geometry · closed-form</p>
+  <h1>Day/night boundary, the analemma &amp; a shadow-length solver</h1>
+  <p class="lede">
+    Declination, equation of time, hour angle — the same closed-form spherical-astronomy identities,
+    forward (date/time → sun position) and inverse (sun position → date/time). Standard/solar time
+    throughout unless noted.
+  </p>
+
+  <!-- Locations -->
+  <div class="card" id="locations-card">
+    <h2>Locations</h2>
+    <div id="loc-list" style="margin-top:10px"></div>
+    <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border)">
+      <div class="row-gap" style="margin-bottom:8px">
+        <input type="text" id="new-name" placeholder="Name" style="width:110px">
+        <input type="number" id="new-lat" placeholder="Lat" step="0.0001" min="-90" max="90" style="width:150px">
+        <input type="number" id="new-lon" placeholder="Lon" step="0.0001" min="-180" max="180" style="width:150px">
+        <button id="add-loc-btn">+ Add</button>
+      </div>
+      <p class="warn">Timezone offset for added locations is estimated from longitude (round(lon/15)), not authoritative — this tool otherwise ignores civil timezones/DST entirely and always shows solar or UTC time.</p>
+    </div>
+  </div>
+
+  <!-- Chart 1: sunrise/sunset -->
+  <div class="card">
+    <h2>Sunrise / sunset vs. day of year</h2>
+    <p class="desc">x = day of year · y = UTC hour · solid = sunrise · dashed = sunset.</p>
+    <svg id="chart-daylength" viewBox="0 0 900 380" style="width:100%; height:auto; display:block"></svg>
+  </div>
+
+  <!-- Isoline control -->
+  <div class="card" style="padding:16px 22px">
+    <label class="row">
+      <span>Isoline time: <strong id="isoline-label" style="font-family:monospace; color:var(--accent)">12:00</strong> UTC <span style="color:var(--muted)">(drives the two analemma charts below)</span></span>
+      <input type="range" id="isoline-slider" min="0" max="24" step="0.25" value="12" style="flex:1; margin: 0 14px">
+      <button class="ghost" id="isoline-reset">reset to noon</button>
+    </label>
+  </div>
+
+  <div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:20px">
+    <!-- Chart 2: analemma cartesian -->
+    <div class="card" style="flex:1 1 420px; min-width:320px; margin-top:0">
+      <h2>Analemma — azimuth vs. elevation</h2>
+      <p class="desc">Same clock time every day of the year, traced across the year.</p>
+      <svg id="chart-analemma" viewBox="0 0 460 420" style="width:100%; height:auto; display:block"></svg>
+    </div>
+
+    <!-- Chart 3: sun-path polar -->
+    <div class="card" style="flex:1 1 420px; min-width:320px; margin-top:0">
+      <h2>Sun-path diagram — compass projection</h2>
+      <p class="desc">Azimuth = angle (N = top, clockwise), elevation = radius (center = zenith, ring = horizon).</p>
+      <svg id="chart-polar" viewBox="0 0 440 440" style="width:100%; max-width:440px; height:auto; display:block; margin:0 auto"></svg>
+      <div class="legend" id="legend-polar"></div>
+    </div>
+  </div>
+
+  <!-- Chart 4: yearly envelope -->
+  <div class="card">
+    <h2>Full-year sun-position coverage</h2>
+    <p class="desc">
+      Every (azimuth, elevation) reachable at any hour of any day of the year, at this latitude — closed form:
+      <code>sin(δ) = sin(φ)sin(El) + cos(φ)cos(El)cos(Az)</code>, reachable exactly when
+      <code>|sin(φ)sin(El) + cos(φ)cos(El)cos(Az)| ≤ sin(23.45°)</code>.
+    </p>
+    <svg id="chart-envelope" viewBox="0 0 440 440" style="width:100%; max-width:440px; height:auto; display:block; margin:0 auto"></svg>
+    <div class="legend" id="legend-envelope"></div>
+  </div>
+
+  <!-- Shadow estimator -->
+  <div class="card" id="shadow-card">
+    <h2>Shadow-length solver — infer the day/time from a shadow</h2>
+    <p class="desc">
+      Set an object's height and its shadow's length + direction (click the compass to set the direction the
+      shadow points, or type it) — this fully determines a light azimuth/elevation, which is back-solved into
+      the closest matching day-of-year + time-of-day. Generically <b>two</b> candidate days per year satisfy any
+      given (azimuth, elevation) at a location — one before and one after a solstice — so whichever is nearer
+      the reference day below is picked.
+    </p>
+    <div class="row-gap" style="margin-bottom:14px">
+      <label class="row" style="gap:6px"><span style="color:var(--muted)">Location</span>
+        <select id="shadow-loc-select" style="background:#0a0e1a;color:var(--text);border:1px solid var(--border-strong);border-radius:6px;padding:6px 10px;font-family:monospace;font-size:13px"></select>
+      </label>
+    </div>
+    <div style="display:flex; gap:20px; flex-wrap:wrap">
+      <div style="flex:1 1 260px; min-width:240px">
+        <label class="row" style="margin-bottom:10px">Object height (m)
+          <input type="number" id="shadow-height" value="10" min="0.01" step="0.5" style="width:90px; text-align:right">
+        </label>
+        <label class="row" style="margin-bottom:10px">Shadow length (m)
+          <input type="number" id="shadow-length" value="15" min="0" step="0.5" style="width:90px; text-align:right">
+        </label>
+        <label class="row" style="margin-bottom:10px">Shadow bearing (°, direction it points)
+          <input type="number" id="shadow-bearing" value="315" min="0" max="359" step="1" style="width:90px; text-align:right">
+        </label>
+        <label class="row" style="margin-bottom:10px">Reference day of year
+          <input type="number" id="shadow-refday" value="172" min="1" max="365" step="1" style="width:90px; text-align:right">
+        </label>
+        <p class="warn">Bearing is the compass direction the shadow points AWAY from the object (i.e. away from the sun) — click the dial to set it visually.</p>
+      </div>
+      <div style="flex:0 0 180px; text-align:center">
+        <svg id="shadow-dial" viewBox="0 0 180 180" width="180" height="180" style="cursor:pointer"></svg>
+        <div style="font-size:11px; color:var(--muted); margin-top:4px">click to set bearing</div>
+      </div>
+    </div>
+    <div style="margin-top:16px" id="shadow-result"></div>
+  </div>
+
+  <!-- Formulas -->
+  <div class="card formula-section">
+    <h2>Formulas</h2>
+
+    <h3>Forward problem (lat/lon + time → azimuth/elevation) — closed form, single-valued</h3>
+    <p>Declination (Cooper's approximation, day-of-year N):</p>
+    <pre class="formula">δ = 23.45° · sin(360°/365 · (284 + N))</pre>
+    <p>Equation of time (minutes, Spencer's approximation):</p>
+    <pre class="formula">B = 360°/365 · (N − 81)
+EoT = 9.87·sin(2B) − 7.53·cos(B) − 1.53·sin(B)</pre>
+    <p>Local solar time → hour angle:</p>
+    <pre class="formula">t_solar = UTC_hours + λ/15 + EoT/60      (λ = longitude, +East)
+H = 15° · (t_solar − 12)                  (H&lt;0 morning, H&gt;0 afternoon)</pre>
+    <p>Elevation and azimuth (φ = latitude, Az from North, clockwise):</p>
+    <pre class="formula">El = arcsin( sinφ·sinδ + cosφ·cosδ·cosH )
+Az = atan2( sinH, cosH·sinφ − tanδ·cosφ ) + 180°   (normalize to 0–360°)</pre>
+    <p>This atan2 form is numerically clean (no quadrant if/else needed) and gives exactly one (El, Az) per (lat, lon, DOY, UTC). Forward is always unique.</p>
+
+    <h3>Inverse problem (azimuth/elevation → DOY/UTC)</h3>
+    <p>The horizontal→equatorial step <em>is</em> closed-form and unique:</p>
+    <pre class="formula">δ = arcsin( sinφ·sinEl + cosφ·cosEl·cosAz )
+H = atan2( sinAz, cosAz·sinφ − tanEl·cosφ ) + 180°   (wrap to −180°..180°)</pre>
+    <p>Then <code>t_solar = 12 + H/15</code>, and <code>UTC = t_solar − λ/15 − EoT/60</code> (EoT needs a DOY guess — converges in ~1 iteration, its effect is &lt;16 min).</p>
+    <p>The non-unique part is inverting δ back to N:</p>
+    <pre class="formula">N₁ = 365/360 · arcsin(δ/23.45) − 284           (mod 365)
+N₂ = 365/360 · (180° − arcsin(δ/23.45)) − 284  (mod 365)</pre>
+    <p><b>So: no, not a single solution.</b> Generically <b>two</b> (DOY, UTC) pairs per year satisfy a given (Az, El) at a given location — one before and one after a solstice, mirror images in declination. Exactly one solution at the solstice itself, zero if the implied |δ| &gt; 23.45° (astronomically impossible at that latitude for those inputs).</p>
+
+    <h3>Day/night boundary</h3>
+    <p>Sunrise/sunset hour angle:</p>
+    <pre class="formula">H₀(DOY) = arccos( −tanφ·tanδ(DOY) )</pre>
+    <p>(use El = −0.833° instead of 0 for refraction/solar-disk-corrected sunrise/sunset)</p>
+    <pre class="formula">sunrise(DOY) = 12 − H₀(DOY)/15  → then convert to UTC via λ, EoT
+sunset(DOY)  = 12 + H₀(DOY)/15  → same</pre>
+
+    <h3>Full-year coverage envelope</h3>
+    <p>An exact spherical-astronomy identity, dual to the elevation formula:</p>
+    <pre class="formula">sin(δ) = sin(φ)·sin(El) + cos(φ)·cos(El)·cos(Az)</pre>
+    <p>A given (Az, El) is reachable on some day of the year exactly when the δ this implies falls within the sun's real annual range:</p>
+    <pre class="formula">|sin(φ)·sin(El) + cos(φ)·cos(El)·cos(Az)|  ≤  sin(23.45°)</pre>
+    <p>Near El→90°, the cos(El) term vanishes and the equation reduces to sin(φ) ≈ sin(δ), satisfiable only when |φ| ≤ 23.45° — so only tropical latitudes can reach the zenith, with zero special-casing needed. Rendered by scanning elevation densely per azimuth and keeping whatever satisfies the inequality — cheap, and exact in the limit.</p>
+
+    <p style="margin-top:20px; font-size:12px">
+      Declination: Cooper's approximation. Equation of time: Spencer's Fourier approximation.
+      Sunrise/sunset use El₀ = −0.833° (refraction + solar disk radius).
+    </p>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ============================================================
+// Solar geometry — same closed-form identities as the formulas section
+// ============================================================
+const deg2rad = d => (d * Math.PI) / 180;
+const rad2deg = r => (r * 180) / Math.PI;
+const MAX_DECLINATION = 23.45;
+
+function declination(N) {
+  return MAX_DECLINATION * Math.sin(deg2rad((360 / 365) * (284 + N)));
+}
+function eot(N) {
+  const B = deg2rad((360 / 365) * (N - 81));
+  return 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.53 * Math.sin(B);
+}
+function sunPosition(lat, lon, N, utcHours) {
+  const delta = declination(N);
+  const E = eot(N);
+  const tSolar = utcHours + lon / 15 + E / 60;
+  const H = 15 * (tSolar - 12);
+  const phiR = deg2rad(lat), dR = deg2rad(delta), HR = deg2rad(H);
+  const elR = Math.asin(Math.sin(phiR) * Math.sin(dR) + Math.cos(phiR) * Math.cos(dR) * Math.cos(HR));
+  const el = rad2deg(elR);
+  let azR = Math.atan2(Math.sin(HR), Math.cos(HR) * Math.sin(phiR) - Math.tan(dR) * Math.cos(phiR));
+  let az = rad2deg(azR) + 180;
+  az = ((az % 360) + 360) % 360;
+  return { el, az };
+}
+function riseSetUTC(lat, lon, N, el0 = -0.833) {
+  const delta = declination(N);
+  const E = eot(N);
+  const phiR = deg2rad(lat), dR = deg2rad(delta);
+  const cosH0 = (Math.sin(deg2rad(el0)) - Math.sin(phiR) * Math.sin(dR)) / (Math.cos(phiR) * Math.cos(dR));
+  if (cosH0 > 1 || cosH0 < -1) return { riseUTC: null, setUTC: null };
+  const H0 = rad2deg(Math.acos(cosH0));
+  return { riseUTC: (12 - H0 / 15) - lon / 15 - E / 60, setUTC: (12 + H0 / 15) - lon / 15 - E / 60 };
+}
+function wrap24(v) { return ((v % 24) + 24) % 24; }
+function wrapDay(n) { let d = n % 365; if (d <= 0) d += 365; return d; }
+function circularDayDist(a, b) { const d = Math.abs(a - b) % 365; return Math.min(d, 365 - d); }
+
+// Inverse: (lat, lon, az, el, referenceDayOfYear) -> {dayOfYear, utcHours}
+// EoT depends on N, which is exactly what we're solving for — one fixed-
+// point iteration (seeded from referenceDayOfYear) converges well within a
+// minute of real time, since EoT swings at most ~16 minutes across the year.
+function inverseSunPosition(lat, lon, az, el, referenceDayOfYear) {
+  const phi = deg2rad(lat), azR = deg2rad(az), elR = deg2rad(el);
+  const sinDelta = Math.sin(phi) * Math.sin(elR) + Math.cos(phi) * Math.cos(elR) * Math.cos(azR);
+  const delta = rad2deg(Math.asin(Math.max(-1, Math.min(1, sinDelta))));
+  const cosPhi = Math.cos(phi);
+  let H = Math.abs(cosPhi) < 1e-9 ? 0
+    : rad2deg(Math.atan2(Math.sin(azR), Math.cos(azR) * Math.sin(phi) - Math.tan(elR) * cosPhi)) + 180;
+  while (H > 180) H -= 360;
+  while (H <= -180) H += 360;
+  const asinTerm = rad2deg(Math.asin(Math.max(-1, Math.min(1, delta / MAX_DECLINATION))));
+  const n1 = wrapDay((365 / 360) * asinTerm - 284);
+  const n2 = wrapDay((365 / 360) * (180 - asinTerm) - 284);
+  const dayOfYear = Math.round(circularDayDist(n1, referenceDayOfYear) <= circularDayDist(n2, referenceDayOfYear) ? n1 : n2);
+  let E = eot(dayOfYear);
+  const tSolar = 12 + H / 15;
+  const utcHours = wrap24(tSolar - lon / 15 - E / 60);
+  return { dayOfYear, utcHours };
+}
+
+function hoursToHHMM(v, suffix) {
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  const w = wrap24(v);
+  const h = Math.floor(w), m = Math.round((w - h) * 60);
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}${suffix ? " " + suffix : ""}`;
+}
+function formatDayOfYear(doy, year = 2026) {
+  const d = new Date(year, 0, 1); d.setDate(d.getDate() + Math.round(doy) - 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function yearlyEnvelope(lat, azSteps = 72, elSteps = 90) {
+  const phi = deg2rad(lat);
+  const k = Math.sin(deg2rad(MAX_DECLINATION));
+  const upper = [], lower = [];
+  for (let i = 0; i <= azSteps; i++) {
+    const az = (i / azSteps) * 360;
+    const cosAz = Math.cos(deg2rad(az));
+    let maxEl = null, minEl = null;
+    for (let j = 0; j <= elSteps; j++) {
+      const el = (j / elSteps) * 90;
+      const f = Math.sin(phi) * Math.sin(deg2rad(el)) + Math.cos(phi) * cosAz * Math.cos(deg2rad(el));
+      if (Math.abs(f) <= k + 1e-9) {
+        if (maxEl === null || el > maxEl) maxEl = el;
+        if (minEl === null || el < minEl) minEl = el;
+      }
+    }
+    if (maxEl !== null) upper.push({ az, el: maxEl });
+    if (minEl !== null) lower.push({ az, el: minEl });
+  }
+  return { upper, lower };
+}
+
+// ============================================================
+// State
+// ============================================================
+const COLORS = ["#6fa8ff", "#ffc24b", "#46e0b7", "#b48eff", "#ff8fa3", "#ffa94d"];
+let locations = [
+  { key: "paris", name: "Paris", lat: 48.8566, lon: 2.3522, color: COLORS[0], visible: true },
+  { key: "bogota", name: "Bogotá", lat: 4.7110, lon: -74.0721, color: COLORS[1], visible: true },
+  { key: "sydney", name: "Sydney", lat: -33.8688, lon: 151.2093, color: COLORS[2], visible: true },
+];
+let isolineHour = 12;
+let shadowBearing = 315;
+
+function nextColor() {
+  const used = new Set(locations.map(l => l.color));
+  return COLORS.find(c => !used.has(c)) || COLORS[locations.length % COLORS.length];
+}
+
+// ============================================================
+// SVG helpers
+// ============================================================
+const svgNS = "http://www.w3.org/2000/svg";
+function setSvg(el, html) { el.innerHTML = html; }
+function esc(s) { return String(s); }
+
+// ---- Chart 1: sunrise/sunset vs DOY ----
+function renderDaylengthChart() {
+  const W = 900, H = 380, ML = 46, MR = 20, MT = 16, MB = 40;
+  const iw = W - ML - MR, ih = H - MT - MB;
+  const xAt = doy => ML + ((doy - 1) / 364) * iw;
+  const yAt = h => MT + (1 - h / 24) * ih;
+
+  let s = `<rect width="${W}" height="${H}" fill="none"/>`;
+  // grid
+  for (const h of [0,3,6,9,12,15,18,21,24]) {
+    s += `<line x1="${ML}" y1="${yAt(h)}" x2="${W-MR}" y2="${yAt(h)}" stroke="var(--grid)" stroke-width="1"/>`;
+    s += `<text x="${ML-8}" y="${yAt(h)+4}" text-anchor="end" font-size="10" fill="var(--muted)">${h}</text>`;
+  }
+  for (const doy of [1,92,183,274,365]) {
+    s += `<text x="${xAt(doy)}" y="${H-MB+18}" text-anchor="middle" font-size="10" fill="var(--muted)">${doy}</text>`;
+  }
+  s += `<text x="${W/2}" y="${H-6}" text-anchor="middle" font-size="12" fill="var(--muted)">Day of year</text>`;
+
+  locations.filter(l => l.visible).forEach(loc => {
+    let riseSeg = [], setSeg = [];
+    for (let N = 1; N <= 365; N++) {
+      const r = riseSetUTC(loc.lat, loc.lon, N);
+      if (r.riseUTC !== null) riseSeg.push([N, wrap24(r.riseUTC)]);
+      if (r.setUTC !== null) setSeg.push([N, wrap24(r.setUTC)]);
+    }
+    const toPath = seg => seg.map((p,i) => `${i===0?"M":"L"} ${xAt(p[0]).toFixed(1)} ${yAt(p[1]).toFixed(1)}`).join(" ");
+    s += `<path d="${toPath(riseSeg)}" fill="none" stroke="${loc.color}" stroke-width="2"/>`;
+    s += `<path d="${toPath(setSeg)}" fill="none" stroke="${loc.color}" stroke-width="2" stroke-dasharray="6 4"/>`;
+  });
+  document.getElementById("chart-daylength").setAttribute("viewBox", `0 0 ${W} ${H}`);
+  setSvg(document.getElementById("chart-daylength"), s);
+}
+
+// ---- Chart 2: analemma cartesian (azimuth vs elevation) ----
+function renderAnalemmaChart() {
+  const W = 460, H = 420, ML = 46, MR = 16, MT = 14, MB = 36;
+  const iw = W - ML - MR, ih = H - MT - MB;
+
+  const series = locations.filter(l => l.visible).map(loc => {
+    const pts = [];
+    for (let N = 1; N <= 365; N++) {
+      const { az, el } = sunPosition(loc.lat, loc.lon, N, isolineHour);
+      pts.push({ az, el });
+    }
+    // unwrap azimuth across the 0/360 seam
+    const unwrapped = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      let d = pts[i].az - unwrapped[i-1].az;
+      while (d > 180) d -= 360;
+      while (d < -180) d += 360;
+      unwrapped.push({ az: unwrapped[i-1].az + d, el: pts[i].el });
+    }
+    const med = [...unwrapped.map(p=>p.az)].sort((a,b)=>a-b)[Math.floor(unwrapped.length/2)];
+    const shift = -360 * Math.round(med / 360);
+    const centered = unwrapped.map(p => ({ az: p.az + shift, el: p.el }));
+    // split on genuine >90deg jumps (zenith-crossing tropics)
+    const segs = []; let cur = [];
+    for (let i = 0; i < centered.length; i++) {
+      if (i > 0 && Math.abs(centered[i].az - centered[i-1].az) > 90) { if (cur.length) segs.push(cur); cur = []; }
+      cur.push(centered[i]);
+    }
+    if (cur.length) segs.push(cur);
+    return { loc, segs, all: centered };
+  });
+
+  let minAz = Infinity, maxAz = -Infinity, minEl = Infinity, maxEl = -Infinity;
+  series.forEach(s => s.all.forEach(p => { minAz = Math.min(minAz, p.az); maxAz = Math.max(maxAz, p.az); minEl = Math.min(minEl, p.el); maxEl = Math.max(maxEl, p.el); }));
+  if (!isFinite(minAz)) { minAz = -180; maxAz = 180; }
+  if (!isFinite(minEl)) { minEl = -10; maxEl = 90; }
+  const padAz = Math.max(5, (maxAz - minAz) * 0.08), padEl = Math.max(3, (maxEl - minEl) * 0.08);
+  minAz -= padAz; maxAz += padAz; minEl -= padEl; maxEl += padEl;
+
+  const xAt = az => ML + ((az - minAz) / (maxAz - minAz)) * iw;
+  const yAt = el => MT + (1 - (el - minEl) / (maxEl - minEl)) * ih;
+
+  let s = "";
+  // horizon line
+  if (minEl < 0 && maxEl > 0) s += `<line x1="${ML}" y1="${yAt(0)}" x2="${W-MR}" y2="${yAt(0)}" stroke="var(--horizon)" stroke-dasharray="3 4"/>`;
+  // axis ticks
+  for (let i = 0; i <= 4; i++) {
+    const az = minAz + (i/4)*(maxAz-minAz);
+    s += `<text x="${xAt(az)}" y="${H-MB+16}" text-anchor="middle" font-size="9" fill="var(--muted)">${((az%360)+360%360).toFixed(0)}°</text>`;
+  }
+  for (let i = 0; i <= 4; i++) {
+    const el = minEl + (i/4)*(maxEl-minEl);
+    s += `<text x="${ML-6}" y="${yAt(el)+3}" text-anchor="end" font-size="9" fill="var(--muted)">${el.toFixed(0)}°</text>`;
+  }
+  s += `<text x="${W/2}" y="${H-4}" text-anchor="middle" font-size="11" fill="var(--muted)">Azimuth (° from N)</text>`;
+
+  series.forEach(({ loc, segs }) => {
+    segs.forEach(seg => {
+      const d = seg.map((p,i) => `${i===0?"M":"L"} ${xAt(p.az).toFixed(1)} ${yAt(p.el).toFixed(1)}`).join(" ");
+      s += `<path d="${d}" fill="none" stroke="${loc.color}" stroke-width="2"/>`;
+    });
+  });
+  document.getElementById("chart-analemma").setAttribute("viewBox", `0 0 ${W} ${H}`);
+  setSvg(document.getElementById("chart-analemma"), s);
+}
+
+// ---- Polar (compass) projection shared by charts 3 & 4 and the shadow dial ----
+function azElToXY(az, el, maxR = 1.6) {
+  const theta = deg2rad(az);
+  let r = 1 - el / 90;
+  r = Math.max(0, Math.min(r, maxR));
+  return { x: r * Math.sin(theta), y: -r * Math.cos(theta) };
+}
+function polarChrome(size, center, R) {
+  let s = "";
+  [1, 0.667, 0.333].forEach((rn, i) => {
+    s += `<circle cx="${center}" cy="${center}" r="${R*rn}" fill="none" stroke="${i===0?"var(--horizon)":"var(--grid)"}" stroke-width="${i===0?1.5:1}" ${i>0?'stroke-dasharray="3 4"':""}/>`;
+  });
+  s += `<circle cx="${center}" cy="${center}" r="2.5" fill="var(--muted)"/>`;
+  [0,45,90,135,180,225,270,315].forEach(deg => {
+    const t = deg2rad(deg);
+    const x2 = center + R*Math.sin(t), y2 = center - R*Math.cos(t);
+    s += `<line x1="${center}" y1="${center}" x2="${x2}" y2="${y2}" stroke="var(--grid)" stroke-width="${deg%90===0?1:0.5}"/>`;
+  });
+  s += `<text x="${center}" y="${center-R-10}" text-anchor="middle" font-size="12" fill="var(--muted)">N</text>`;
+  s += `<text x="${center+R+14}" y="${center+4}" text-anchor="middle" font-size="12" fill="var(--muted)">E</text>`;
+  s += `<text x="${center}" y="${center+R+18}" text-anchor="middle" font-size="12" fill="var(--muted)">S</text>`;
+  s += `<text x="${center-R-14}" y="${center+4}" text-anchor="middle" font-size="12" fill="var(--muted)">W</text>`;
+  return s;
+}
+
+function renderPolarChart() {
+  const size = 440, center = 220, R = 150;
+  let s = polarChrome(size, center, R);
+  locations.filter(l => l.visible).forEach(loc => {
+    const pts = [];
+    for (let N = 1; N <= 365; N++) pts.push(sunPosition(loc.lat, loc.lon, N, isolineHour));
+    const d = pts.map((p,i) => {
+      const {x,y} = azElToXY(p.az, p.el);
+      return `${i===0?"M":"L"} ${(center+R*x).toFixed(2)} ${(center+R*y).toFixed(2)}`;
+    }).join(" ");
+    s += `<path d="${d}" fill="none" stroke="${loc.color}" stroke-width="2"/>`;
+  });
+  setSvg(document.getElementById("chart-polar"), s);
+  document.getElementById("legend-polar").innerHTML = locations.filter(l=>l.visible).map(l =>
+    `<span><span class="dot" style="background:${l.color}"></span> ${esc(l.name)}</span>`).join("");
+}
+
+function renderEnvelopeChart() {
+  const size = 440, center = 220, R = 150;
+  let s = polarChrome(size, center, R);
+  locations.filter(l => l.visible).forEach(loc => {
+    const { upper, lower } = yearlyEnvelope(loc.lat);
+    const proj = p => { const {x,y} = azElToXY(p.az, p.el); return `${(center+R*x).toFixed(2)} ${(center+R*y).toFixed(2)}`; };
+    const d = upper.map((p,i) => `${i===0?"M":"L"} ${proj({az:p.az, el:p.el})}`).join(" ") + " " +
+      [...lower].reverse().map(p => `L ${proj({az:p.az, el:p.el})}`).join(" ") + " Z";
+    s += `<path d="${d}" fill="${loc.color}" fill-opacity="0.16" stroke="${loc.color}" stroke-width="1.5"/>`;
+  });
+  setSvg(document.getElementById("chart-envelope"), s);
+  document.getElementById("legend-envelope").innerHTML = locations.filter(l=>l.visible).map(l =>
+    `<span><span class="dot" style="background:${l.color}"></span> ${esc(l.name)}</span>`).join("");
+}
+
+// ---- Shadow bearing dial (clickable compass) ----
+function renderShadowDial() {
+  const size = 180, center = 90, R = 70;
+  let s = polarChrome(size, center, R).replace(/font-size="12"/g, 'font-size="10"');
+  const t = deg2rad(shadowBearing);
+  const x2 = center + R * Math.sin(t), y2 = center - R * Math.cos(t);
+  s += `<line x1="${center}" y1="${center}" x2="${x2}" y2="${y2}" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>`;
+  s += `<circle cx="${x2}" cy="${y2}" r="6" fill="var(--accent)"/>`;
+  setSvg(document.getElementById("shadow-dial"), s);
+}
+document.getElementById("shadow-dial").addEventListener("click", (e) => {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const scale = 180 / rect.width;
+  const x = (e.clientX - rect.left) * scale - 90;
+  const y = (e.clientY - rect.top) * scale - 90;
+  const bearing = ((rad2deg(Math.atan2(x, -y)) % 360) + 360) % 360;
+  shadowBearing = Math.round(bearing);
+  document.getElementById("shadow-bearing").value = shadowBearing;
+  renderShadowDial();
+  renderShadowResult();
+});
+
+// ============================================================
+// Location list UI
+// ============================================================
+function renderLocationList() {
+  const list = document.getElementById("loc-list");
+  list.innerHTML = locations.map(l => `
+    <div class="loc-row">
+      <input type="checkbox" data-key="${l.key}" class="loc-toggle" ${l.visible ? "checked" : ""}>
+      <span class="dot" style="background:${l.color}; opacity:${l.visible?1:0.35}"></span>
+      <span style="flex:1; opacity:${l.visible?1:0.45}">${esc(l.name)} <span style="color:var(--muted); font-family:monospace; font-size:11.5px">(${l.lat.toFixed(2)}°, ${l.lon.toFixed(2)}°)</span></span>
+      <button class="ghost loc-remove" data-key="${l.key}" style="width:22px;height:22px;padding:0;line-height:1">×</button>
+    </div>`).join("");
+  list.querySelectorAll(".loc-toggle").forEach(cb => cb.addEventListener("change", () => {
+    const loc = locations.find(l => l.key === cb.dataset.key);
+    loc.visible = cb.checked;
+    renderAll();
+  }));
+  list.querySelectorAll(".loc-remove").forEach(btn => btn.addEventListener("click", () => {
+    locations = locations.filter(l => l.key !== btn.dataset.key);
+    renderAll();
+  }));
+  const sel = document.getElementById("shadow-loc-select");
+  const prevVal = sel.value;
+  sel.innerHTML = locations.map(l => `<option value="${l.key}">${esc(l.name)}</option>`).join("");
+  if (locations.some(l => l.key === prevVal)) sel.value = prevVal;
+}
+
+document.getElementById("add-loc-btn").addEventListener("click", () => {
+  const name = document.getElementById("new-name").value.trim();
+  const lat = parseFloat(document.getElementById("new-lat").value);
+  const lon = parseFloat(document.getElementById("new-lon").value);
+  if (!name || isNaN(lat) || isNaN(lon)) return;
+  locations.push({ key: `custom-${Date.now()}`, name, lat, lon, color: nextColor(), visible: true });
+  document.getElementById("new-name").value = "";
+  document.getElementById("new-lat").value = "";
+  document.getElementById("new-lon").value = "";
+  renderAll();
+});
+
+// ============================================================
+// Isoline slider
+// ============================================================
+const isolineSlider = document.getElementById("isoline-slider");
+isolineSlider.addEventListener("input", () => {
+  isolineHour = parseFloat(isolineSlider.value);
+  const h = Math.floor(isolineHour), m = Math.round((isolineHour % 1) * 60);
+  document.getElementById("isoline-label").textContent = `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  renderAnalemmaChart();
+  renderPolarChart();
+});
+document.getElementById("isoline-reset").addEventListener("click", () => {
+  isolineHour = 12; isolineSlider.value = 12;
+  document.getElementById("isoline-label").textContent = "12:00";
+  renderAnalemmaChart();
+  renderPolarChart();
+});
+
+// ============================================================
+// Shadow solver
+// ============================================================
+function renderShadowResult() {
+  const loc = locations.find(l => l.key === document.getElementById("shadow-loc-select").value) || locations[0];
+  const height = parseFloat(document.getElementById("shadow-height").value);
+  const length = parseFloat(document.getElementById("shadow-length").value);
+  const bearing = parseFloat(document.getElementById("shadow-bearing").value);
+  const refDay = parseFloat(document.getElementById("shadow-refday").value) || 172;
+  const out = document.getElementById("shadow-result");
+
+  if (!loc || !(height > 0) || !(length >= 0) || isNaN(bearing)) {
+    out.innerHTML = `<p class="warn">Enter a positive height and a non-negative shadow length.</p>`;
+    return;
+  }
+  if (length < 0.01) {
+    out.innerHTML = `<p class="warn">Shadow length ~0 — the sun would have to be directly overhead (only possible within ±23.45° of the equator).</p>`;
+    return;
+  }
+  const elevationDeg = rad2deg(Math.atan2(height, length));
+  const azimuthDeg = ((bearing + 180) % 360 + 360) % 360;
+  const inv = inverseSunPosition(loc.lat, loc.lon, azimuthDeg, elevationDeg, refDay);
+
+  out.innerHTML = `
+    <div class="readout"><span>Light direction</span><span class="val">${azimuthDeg.toFixed(1)}° az · ${elevationDeg.toFixed(1)}° el</span></div>
+    <div class="readout result"><span>Closest matching date</span><span class="val">${formatDayOfYear(inv.dayOfYear)}</span></div>
+    <div class="readout result"><span>Closest matching time</span><span class="val">${hoursToHHMM(inv.utcHours, "UTC")}</span></div>
+  `;
+}
+["shadow-loc-select","shadow-height","shadow-length","shadow-bearing","shadow-refday"].forEach(id => {
+  document.getElementById(id).addEventListener("input", () => {
+    if (id === "shadow-bearing") { shadowBearing = parseFloat(document.getElementById(id).value) || 0; renderShadowDial(); }
+    renderShadowResult();
+  });
+  document.getElementById(id).addEventListener("change", renderShadowResult);
+});
+
+// ============================================================
+// Render everything
+// ============================================================
+function renderAll() {
+  renderLocationList();
+  renderDaylengthChart();
+  renderAnalemmaChart();
+  renderPolarChart();
+  renderEnvelopeChart();
+  renderShadowDial();
+  renderShadowResult();
+}
+renderAll();
+</script>
+</body>
+</html>
