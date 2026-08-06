@@ -165,6 +165,14 @@ export const collapsedBookmarkGroupsAtom = atomWithStorage<string[]>("collapsedB
 // collapsible via its own chevron regardless of the pin.
 export const vizModePinnedAtom = atomWithStorage("vizModePinned", true)
 
+// Which of the two sidebar "modes" the ModePicker (opened by clicking the
+// sidebar title) last chose — "terrain" is the full app as it's always been;
+// "historical" swaps in a deliberately stripped-down sidebar for browsing
+// historical imagery only (see TerrainControlPanel.tsx's historicalMode
+// gating). Persisted like isSidebarOpenAtom so it survives a reload.
+export type AppMode = "terrain" | "historical"
+export const appModeAtom = atomWithStorage<AppMode>("appMode", "terrain")
+
 export const transparentUiAtom = atomWithStorage("isTransparentUi", true)
 export const activeSliderAtom = atom<string | null>(null)
 

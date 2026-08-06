@@ -7,11 +7,12 @@ import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home }
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom } from "@/lib/settings-atoms"
+import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom, appModeAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
 import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
 import { SettingsDialog } from "./settings-dialog"
+import { ModePicker } from "./ModePicker"
 import { GeneralSettings } from "./general-settings"
 import { TerrainSourceSection } from "./terrain-source-section"
 import { DownloadSection } from "./download-section"
@@ -126,6 +127,13 @@ export function TerrainControlPanel({
 }: TerrainControlPanelProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isModePickerOpen, setIsModePickerOpen] = useState(false)
+  const [appMode, setAppMode] = useAtom(appModeAtom)
+  // Historical mode is a deliberately stripped-down sidebar for browsing
+  // historical imagery — see the ModePicker render below and its gating
+  // throughout this component's JSX (Sources/Options/Detectors groups,
+  // GeneralSettings' View Mode row).
+  const historicalMode = appMode === "historical"
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
   const { theme } = useTheme()
 
@@ -376,6 +384,29 @@ export function TerrainControlPanel({
   const toggle = (key: SectionKey) => (open: boolean) =>
     setSectionOpen((prev) => ({ ...prev, [key]: open }))
 
+  // Historical mode has no Visualization Modes / View Mode toggle to switch
+  // out of 2D with (both are hidden entirely below) — this is the one place
+  // enforcing that invariant, so nothing upstream (a restored bookmark, a
+  // project's own initialViewMode, etc.) can leave the map in 3D/globe while
+  // the simplified sidebar is showing.
+  useEffect(() => {
+    if (historicalMode && state.viewMode !== "2d") setState({ viewMode: "2d" })
+  }, [historicalMode, state.viewMode, setState])
+
+  const handleSelectMode = (next: typeof appMode) => {
+    setAppMode(next)
+    setIsModePickerOpen(false)
+    // Only switching INTO historical mode needs a nudge — it unlocks the
+    // beta flag gating historical basemaps at all and turns on the one
+    // source (raster basemap) this mode actually shows, so picking the mode
+    // immediately shows imagery instead of an empty map. Switching back to
+    // Terrain needs no equivalent nudge; every one of its sections is just
+    // hidden, not disabled, so nothing needs restoring.
+    if (next === "historical" && !historicalMode) {
+      setState({ historicalBeta: true, showRasterBasemap: true, viewMode: "2d" })
+    }
+  }
+
   useMemo(() => {
     document.documentElement.classList.toggle("dark", theme === "dark")
   }, [theme])
@@ -454,7 +485,22 @@ export function TerrainControlPanel({
         style={{ height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined }}
       >
         <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b">
-          <h2 className="text-xl font-semibold">{activeProjectConfig?.name || "Terrain Viewer"}</h2>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <h2
+                  className="text-xl font-semibold cursor-pointer hover:text-muted-foreground"
+                  onClick={() => setIsModePickerOpen(true)}
+                >
+                  {activeProjectConfig?.name || "Terrain Viewer"}
+                </h2>
+              }
+            />
+            <TooltipContent>
+              <p>Switch mode</p>
+            </TooltipContent>
+          </Tooltip>
+          <ModePicker open={isModePickerOpen} onOpenChange={setIsModePickerOpen} mode={appMode} onSelect={handleSelectMode} />
           <div className="flex gap-1 items-center">
             <TooltipIconButton
               icon={allFolded ? ChevronsUpDown : ChevronsDownUp}
@@ -484,14 +530,19 @@ export function TerrainControlPanel({
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-4 space-y-2"
           style={{ maskImage: scrollMask, WebkitMaskImage: scrollMask }}
         >
-        <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} />
-        <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
+        <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} />
+        {!historicalMode && (
+          <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
+        )}
         <BookmarksSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.bookmarks} onOpenChange={toggle("bookmarks")} />
         <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} />
         {/* Whole "Sources" group (label+chevron row AND its sections) is hidden
             when the project config hides source panels — otherwise the chevron/
-            label row would sit there with nothing to expand. */}
-        {!hideSourcePanels && (
+            label row would sit there with nothing to expand. Historical mode
+            drops the group header and terrain-source picker entirely too (only
+            basemap imagery is a valid "source" there), but keeps Raster Basemap
+            reachable, just ungrouped rather than under a "Sources" label. */}
+        {!hideSourcePanels && !historicalMode && (
           <>
             <MacroSeparator label="Sources" isOpen={macroGroupOpen.Sources} onToggle={() => toggleMacroGroup("Sources")} />
             {macroGroupOpen.Sources && (
@@ -502,10 +553,16 @@ export function TerrainControlPanel({
             )}
           </>
         )}
-        {optionsHasContent && (
+        {!hideSourcePanels && historicalMode && (
+          <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
+        )}
+        {/* The whole Options group (contours/hillshade/hypso/relief/terrain
+            analysis/lighting/background) is terrain-only — historical mode has
+            no elevation source to derive any of it from. */}
+        {!historicalMode && optionsHasContent && (
           <MacroSeparator label="Options" isOpen={macroGroupOpen.Options} onToggle={() => toggleMacroGroup("Options")} />
         )}
-        {optionsHasContent && macroGroupOpen.Options && (
+        {!historicalMode && optionsHasContent && macroGroupOpen.Options && (
           <>
             {!hiddenSections.includes("contour") && (
               <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
@@ -539,10 +596,10 @@ export function TerrainControlPanel({
             <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
           </>
         )}
-        {!hiddenSections.includes("terrainAnalysis") && showDetectors && (
+        {!historicalMode && !hiddenSections.includes("terrainAnalysis") && showDetectors && (
           <MacroSeparator label="Detectors" isOpen={macroGroupOpen.Detectors} onToggle={() => toggleMacroGroup("Detectors")} />
         )}
-        {!hiddenSections.includes("terrainAnalysis") && showDetectors && macroGroupOpen.Detectors && (
+        {!historicalMode && !hiddenSections.includes("terrainAnalysis") && showDetectors && macroGroupOpen.Detectors && (
           <DetectorMoundsSection
             state={state}
             setState={setState}
@@ -552,7 +609,7 @@ export function TerrainControlPanel({
             mapRef={mapRef}
           />
         )}
-        {!hiddenSections.includes("terrainAnalysis") && showDetectors && <MacroSeparator />}
+        {!historicalMode && !hiddenSections.includes("terrainAnalysis") && showDetectors && <MacroSeparator />}
         <MacroSeparator label="Tools" isOpen={macroGroupOpen.Tools} onToggle={() => toggleMacroGroup("Tools")} />
         {macroGroupOpen.Tools && (
           <>
