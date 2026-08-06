@@ -83,7 +83,7 @@ const CollapsibleSection: React.FC<{
   )
 }
 
-export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any }> = ({ isOpen, onOpenChange, state, setState }) => {
+export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any; historicalMode?: boolean }> = ({ isOpen, onOpenChange, state, setState, historicalMode = false }) => {
   const { theme, toggleTheme, setTheme: setAppTheme } = useTheme()
   const { setTheme: setColorTheme } = useColorTheme()
   const [showThemeEditor, setShowThemeEditor] = useState(false)
@@ -369,6 +369,8 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </CollapsibleSection>
           <Separator />
 
+          {!historicalMode && (
+          <>
           <CollapsibleSection title="Visualization Modes" openAtom={isSettingsVisualizationModesOpenAtom} contentClassName="space-y-2 pt-2">
             <p className="text-xs text-muted-foreground">
               Grouped as they are in the panel — <span className="font-semibold text-foreground">Terrain Analysis</span>{" "}
@@ -438,6 +440,8 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </div>
           </CollapsibleSection>
           <Separator />
+          </>
+          )}
 
           <CollapsibleSection title="Streaming Settings" openAtom={isSettingsStreamingOpenAtom} contentClassName="space-y-2 pt-2">
             <div className="flex items-center justify-between">
@@ -479,7 +483,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               />
             </div>
 
-            {useCogProtocolVsTitiler && (
+            {!historicalMode && useCogProtocolVsTitiler && (
               <div className="flex items-center justify-between pt-2">
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="high-res-terrain">High-Precision Elevation Quantization </Label>
@@ -593,6 +597,8 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
 
           <Separator />
           <CollapsibleSection title="Beta" openAtom={isSettingsBetaOpenAtom} contentClassName="space-y-4 pt-2">
+            {!historicalMode && (
+            <>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="text-sm font-semibold">Tells (Mound Candidates) Detection</h4>
@@ -618,6 +624,8 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </div>
 
             <Separator />
+            </>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -701,6 +709,11 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   />
                 </div>
 
+                {/* MapTiler is the one key here used only by a terrain (DEM)
+                    source, never a basemap — Mapbox/HERE/Planet/Google below
+                    are all needed for basemap options too (some of them
+                    specifically FOR historical basemaps), so they stay. */}
+                {!historicalMode && (
                 <div className="space-y-2">
                   <Label htmlFor="maptiler-key">MapTiler API Key</Label>
                   <PasswordInput
@@ -710,6 +723,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                     className="cursor-text"
                   />
                 </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="here-key">HERE Maps API Key</Label>

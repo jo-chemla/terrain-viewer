@@ -519,7 +519,7 @@ export function TerrainControlPanel({
               tooltip="Home"
               onClick={handleGoHome}
             />
-            <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState}/>
+            <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState} historicalMode={historicalMode}/>
             <TooltipIconButton
               icon={PanelRightClose}
               tooltip="Close sidebar"

@@ -6,6 +6,7 @@
 // direct browser fetch (2026-08-01), same "tile center, not per-pixel"
 // constraint as lib/wayback.ts's useWaybackCaptureDate.
 import { useEffect, useState } from "react"
+import { STATIC_BASEMAP_ATTRIBUTIONS } from "./basemap-attribution"
 
 function toQuadkey(tileX: number, tileY: number, zoom: number): string {
   let quadKey = ""
@@ -65,4 +66,22 @@ export function useBingCaptureDate(latitude: number, longitude: number, zoom: nu
   }, [latitude, longitude, zoom])
 
   return { label, dateMs, loading }
+}
+
+/** Real per-view attribution for Bing — same X-VE-TILEMETA-CaptureDatesRange
+ *  header useBingCaptureDate already reads (confirmed live: it genuinely
+ *  varies by location/zoom, e.g. a low-zoom ocean tile reads "1999-2003"
+ *  while central Paris at z17 reads "6/16/2021-10/8/2021" — deliberately
+ *  CORS-exposed by Bing's own tile CDN, same idea as Esri/GE's real
+ *  attribution just without needing a separate metadata endpoint). The tile
+ *  response also carries an X-VE-TILEMETA-Product-IDs header that varies per
+ *  tile too (looks like a provider/product code, the same spirit as GE's
+ *  `provider` field) — but unlike Esri's public contributor feed or GE's own
+ *  dbRoot provider table, there's no publicly documented mapping from that
+ *  numeric id to a real provider name, so it's left unused rather than
+ *  guessed at. Falls back to the generic static string while loading, on
+ *  failure, or if this tile's response has no date-range header at all. */
+export function useBingDynamicAttribution(latitude: number, longitude: number, zoom: number): string {
+  const { label } = useBingCaptureDate(latitude, longitude, zoom)
+  return label ? `Bing - imagery through ${label}` : STATIC_BASEMAP_ATTRIBUTIONS.bing
 }

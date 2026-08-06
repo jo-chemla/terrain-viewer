@@ -1,15 +1,19 @@
 // Attribution strings for the raster basemap sources in MapSources.tsx's
 // RasterBasemapSource — most providers don't expose any way to know the real
 // copyright holder for a given tile short of a fixed, provider-wide string
-// (Planet/NASA-USGS/EOX below). Esri World Imagery (+ Wayback, its
-// historical-release sibling) and Google Earth Historical DO have a real
-// per-location/zoom/date attribution (see useEsriDynamicAttribution here and
-// useGeHistoricalDynamicAttribution in lib/ge-historical.ts) — rather than
-// try to keep that live on the map's own corner control (which can't
-// actually live-update — see the "esri"/"wayback" entries below), those two
-// get a short static pointer here instead, and the real resolved value shows
-// in the sidebar's Source Info section (SourceInfoSection.tsx) whenever
-// historical mode is active.
+// (Planet/NASA-USGS/EOX below). Esri World Imagery (+ Wayback), Google Earth
+// Historical, AND Bing all DO have a real per-location/zoom(/date)
+// attribution — see useEsriDynamicAttribution here, useGeHistoricalDynamic-
+// Attribution in lib/ge-historical.ts, and useBingDynamicAttribution in
+// lib/bing.ts (Bing's real per-tile capture-date-range is a deliberately
+// CORS-exposed response header on the tile image itself — no API key
+// needed, unlike its official Imagery Metadata API's full per-provider
+// contributor breakdown, which does). Rather than try to keep any of this
+// live on the map's own corner control (which can't actually live-update —
+// see the "esri"/"wayback" entries below), Esri/Wayback and GE Historical
+// get a short static pointer here instead, with the real resolved value
+// shown in the sidebar's Source Info section (SourceInfoSection.tsx, which
+// also shows Bing's real date range there for the same reason).
 import { useEffect, useState } from "react"
 
 // Applied directly as each <Source>'s own `attribution` prop — MapLibre's
@@ -20,11 +24,11 @@ export const STATIC_BASEMAP_ATTRIBUTIONS: Record<string, string> = {
   googlesat: "© Google",
   mapbox: "© Mapbox © OpenStreetMap",
   here: "© HERE",
-  // Bing's own Imagery Metadata API can report real per-location contributor
-  // attribution the same way Esri's does below, but it requires a Bing Maps
-  // API key (a different credential from the public quadkey tile endpoint
-  // this app already uses) that isn't currently configured anywhere in this
-  // app. Static fallback until one is added.
+  // Kept as a plain descriptive string (not a "see sidebar" pointer like
+  // esri/wayback below) since useBingDynamicAttribution already falls back
+  // to this exact string when no per-tile date is available — the Source's
+  // own baseline attribution and the dynamic hook's fallback are the same
+  // value, just not literally live-updated here (see header comment).
   bing: "© Microsoft Corporation, Earthstar Geographics SIO",
   hls: "NASA/USGS Harmonized Landsat Sentinel-2 (HLS)",
   planet: "© Planet Labs PBC",
