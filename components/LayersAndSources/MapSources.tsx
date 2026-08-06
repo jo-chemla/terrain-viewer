@@ -33,6 +33,7 @@ import { geHistoricalTileSource } from "@/lib/ge-historical"
 import { planetTileUrl, PLANET_TILE_SIZE, PLANET_MAXZOOM } from "@/lib/planet"
 import { eoxS2CloudlessTileUrl, EOX_S2_TILE_SIZE, EOX_S2_MAXZOOM } from "@/lib/eox-s2-cloudless"
 import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
+import { STATIC_BASEMAP_ATTRIBUTIONS } from "@/lib/basemap-attribution"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
@@ -375,27 +376,40 @@ export const RasterBasemapSource = memo(({
             // (see lib/wayback.ts's useResolvedWaybackRelease) — render
             // nothing rather than a broken/stale tile request.
             if (!resolvedWaybackItem) return null
+            // No `attribution` here (unlike every other branch below) — this
+            // source's own `tiles` changes on every date/location scrub, and
+            // react-map-gl's <Source> reconciler (components/source.ts) only
+            // ever acts on ONE changed prop per render (whichever it saw
+            // last while diffing), silently no-op'ing the rest. Since
+            // dynamicEsriAttribution updates independently (its own debounce
+            // timer, keyed off lat/lng/zoom, not date), an unlucky render
+            // where both happened to change together would swallow the tile
+            // update. DynamicAttributionBadge (TerrainViewer.tsx) shows this
+            // source's attribution instead, entirely outside this Source's
+            // own props.
             return { tiles: [waybackTileUrl(resolvedWaybackItem)], tileSize: WAYBACK_TILE_SIZE, maxzoom: WAYBACK_MAXZOOM }
         }
 
         if (basemapSource === "hls") {
             if (!date) return null
-            return { tiles: [hlsTileUrl(date)], tileSize: HLS_TILE_SIZE, maxzoom: HLS_MAXZOOM }
+            return { tiles: [hlsTileUrl(date)], tileSize: HLS_TILE_SIZE, maxzoom: HLS_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.hls }
         }
 
         if (basemapSource === "ge-historical") {
             if (!date) return null
+            // geHistoricalTileSource already returns its own `attribution`
+            // (see lib/ge-historical.ts) — no override needed here.
             return geHistoricalTileSource(date)
         }
 
         if (basemapSource === "planet") {
             if (!date || !planetKey) return null
-            return { tiles: [planetTileUrl(date, planetKey)], tileSize: PLANET_TILE_SIZE, maxzoom: PLANET_MAXZOOM }
+            return { tiles: [planetTileUrl(date, planetKey)], tileSize: PLANET_TILE_SIZE, maxzoom: PLANET_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.planet }
         }
 
         if (basemapSource === "eox-s2") {
             if (!date) return null
-            return { tiles: [eoxS2CloudlessTileUrl(new Date(date).getUTCFullYear())], tileSize: EOX_S2_TILE_SIZE, maxzoom: EOX_S2_MAXZOOM }
+            return { tiles: [eoxS2CloudlessTileUrl(new Date(date).getUTCFullYear())], tileSize: EOX_S2_TILE_SIZE, maxzoom: EOX_S2_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["eox-s2"] }
         }
 
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
@@ -404,7 +418,16 @@ export const RasterBasemapSource = memo(({
             : basemapSource === "here"
             ? basemap.url.replace("{API_KEY}", hereKey ?? "")
             : basemap.url
-        return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom }
+        // "esri" (the static World Imagery entry, not Wayback) skips
+        // `attribution` too, same reasoning as the wayback branch above —
+        // its own `tiles` doesn't normally change mid-session, but nothing
+        // guarantees that forever, and DynamicAttributionBadge already
+        // covers it. Every other id here is a genuinely fixed tile template
+        // that only ever changes via a basemapSource switch (which remounts
+        // this whole <Source> via its own key), so attribution changing
+        // alongside it there is safe.
+        const attribution = basemapSource === "esri" ? undefined : STATIC_BASEMAP_ATTRIBUTIONS[basemapSource]
+        return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom, attribution }
     }, [customBasemap, basemapSource, historicalBeta, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
 
     const zoomRange = useMemo(() => {

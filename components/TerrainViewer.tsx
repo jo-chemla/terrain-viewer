@@ -32,6 +32,7 @@ import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS } from "./TerrainControlPanel/raster-basemap-section"
 import { HistoricalTimelinePanel } from "./TerrainControlPanel/historical-timeline-panel"
+import { DynamicAttributionBadge } from "./MapControls/DynamicAttributionBadge"
 import { isHistoricalSourceActive, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
@@ -1695,6 +1696,12 @@ export function TerrainViewer() {
   // "historical" exists as a sidebar-level concept.
   const activeBasemapSourceA = resolveActiveHistoricalSource(rawBasemapSourceA, state.basemapPerView ? state.historicalActiveSourceA : state.historicalActiveSource)
   const activeBasemapSourceB = resolveActiveHistoricalSource(rawBasemapSourceB, state.basemapPerView ? state.historicalActiveSourceB : state.historicalActiveSource)
+  // Esri World Imagery / Wayback are the one basemap whose real attribution
+  // varies by view (see DynamicAttributionBadge) — "wayback" only actually
+  // renders tiles (and thus needs its attribution shown) while historicalBeta
+  // is on, mirroring RasterBasemapSource's own gate in MapSources.tsx.
+  const isEsriFamily = (s: string) => s === "esri" || (s === "wayback" && state.historicalBeta)
+  const showEsriAttribution = isEsriFamily(activeBasemapSourceA) || (!!state.splitScreen && isEsriFamily(activeBasemapSourceB))
   // Same plain/A/B mode split as the basemap id itself, just for the single
   // scrubbed date (see date/dateA/dateB above).
   const activeDateA = state.basemapPerView ? state.dateA : state.date
@@ -2677,6 +2684,14 @@ export function TerrainViewer() {
       </div>
       <LightControlOverlay state={state} setState={setState} mapRef={mapARef as any} />
       <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapARef as any} />
+      <DynamicAttributionBadge
+        active={showEsriAttribution}
+        lat={state.lat}
+        lng={state.lng}
+        zoom={state.zoom}
+        bottomOffsetPx={scaleBottomOffset}
+        rightOffsetPx={scaleRightOffset}
+      />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
         <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} />
       )}
