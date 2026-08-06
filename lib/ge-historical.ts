@@ -79,3 +79,55 @@ export function useGeHistoricalDates(latitude: number, longitude: number, zoom: 
 
   return { items, loading }
 }
+
+const GE_FALLBACK_ATTRIBUTION = "Imagery © Google"
+
+/** Real, current-tile attribution for GE Historical — Google's own dbRoot
+ *  ships a providerId → copyright table (see registerGEHistorical's
+ *  getProviderCopyright, reverse-engineered from Open GEE's own
+ *  dbroot_v2.proto/CesiumJS's GoogleEarthEnterpriseMetadata, both of which
+ *  confirm this exact field), and each dated tile from getDatesForPath
+ *  already carries which provider id captured IT specifically — so unlike
+ *  the generic static "Imagery © Google" previously used everywhere, this
+ *  resolves to the real capturing provider (e.g. "Google Earth - CNES /
+ *  Airbus") for the tile actually on screen, and updates as the view pans
+ *  or a different historical date is picked. Falls back to the generic
+ *  string while loading, on any failure, or if this particular tile/date
+ *  has no provider info (dbRoot doesn't cover every provider it lists a
+ *  historical tile for). */
+export function useGeHistoricalDynamicAttribution(latitude: number, longitude: number, zoom: number, dateMs: number): string {
+  const [attribution, setAttribution] = useState(GE_FALLBACK_ATTRIBUTION)
+
+  useEffect(() => {
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        const ge = getGe()
+        await ge.ready()
+        const level = Math.max(1, Math.min(23, Math.round(zoom)))
+        const { path } = ge.keyholePathAtLngLat(longitude, latitude, level)
+        const dated = await ge.getDatesForPath(path)
+        if (cancelled || !dated.length) return
+        // dated is newest-first (see _computeDatesForPath) — a fine default
+        // when dateMs isn't known yet; otherwise pick the closest packed
+        // (real) date, same nearest-match spirit as useResolvedWaybackRelease.
+        let best = dated[0]
+        if (dateMs) {
+          let bestDist = Infinity
+          for (const d of dated) {
+            if (!d.packed) continue
+            const dist = Math.abs(Date.UTC(d.year, d.month - 1, d.day) - dateMs)
+            if (dist < bestDist) { bestDist = dist; best = d }
+          }
+        }
+        const copyright = best.provider ? ge.getProviderCopyright(best.provider) : null
+        if (!cancelled) setAttribution(copyright ? `Google Earth - ${copyright}` : GE_FALLBACK_ATTRIBUTION)
+      } catch {
+        if (!cancelled) setAttribution(GE_FALLBACK_ATTRIBUTION)
+      }
+    }, LOCAL_DATES_DEBOUNCE_MS)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [latitude, longitude, zoom, dateMs])
+
+  return attribution
+}

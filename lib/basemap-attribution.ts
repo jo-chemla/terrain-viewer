@@ -80,8 +80,12 @@ function fetchEsriContributors(): Promise<EsriContributor[]> {
 // Generic, provider-wide fallback — shown while the fetch above is in
 // flight, if it fails, or if no contributor's declared coverage happens to
 // match this exact spot/zoom (their coverage data has gaps at some very
-// remote locations).
-const ESRI_FALLBACK_ATTRIBUTION = "Esri, Maxar, Earthstar Geographics"
+// remote locations). "Esri - " prefix matches the STATIC_BASEMAP_ATTRIBUTIONS
+// style above (provider name first, e.g. "© Planet Labs PBC") — here the
+// brand is Esri and the resolved contributor(s) are who actually captured
+// the imagery within Esri's mosaic (e.g. "Esri - Vantor, Earthstar
+// Geographics").
+const ESRI_FALLBACK_CONTRIBUTORS = "Maxar, Earthstar Geographics"
 
 function resolveEsriAttribution(contributors: EsriContributor[], lat: number, lng: number, zoom: number): string {
   const matches = contributors
@@ -90,7 +94,7 @@ function resolveEsriAttribution(contributors: EsriContributor[], lat: number, ln
       .map((a) => ({ attribution: c.attribution, score: a.score })))
     .sort((a, b) => b.score - a.score)
   const names = [...new Set(matches.map((m) => m.attribution))]
-  return names.length ? names.join(", ") : ESRI_FALLBACK_ATTRIBUTION
+  return `Esri - ${names.length ? names.join(", ") : ESRI_FALLBACK_CONTRIBUTORS}`
 }
 
 const ESRI_ATTRIBUTION_DEBOUNCE_MS = 400
@@ -101,7 +105,7 @@ const ESRI_ATTRIBUTION_DEBOUNCE_MS = 400
  *  on the same cadence as lib/wayback.ts's own location-keyed lookups so a
  *  fast pan doesn't fire a resolve on every intermediate frame. */
 export function useEsriDynamicAttribution(lat: number, lng: number, zoom: number): string {
-  const [attribution, setAttribution] = useState(ESRI_FALLBACK_ATTRIBUTION)
+  const [attribution, setAttribution] = useState(`Esri - ${ESRI_FALLBACK_CONTRIBUTORS}`)
 
   useEffect(() => {
     let cancelled = false

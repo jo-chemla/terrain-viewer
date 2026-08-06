@@ -34,6 +34,8 @@ import { BUILTIN_BASEMAP_OPTIONS } from "./TerrainControlPanel/raster-basemap-se
 import { HistoricalTimelinePanel } from "./TerrainControlPanel/historical-timeline-panel"
 import { DynamicAttributionBadge } from "./MapControls/DynamicAttributionBadge"
 import { isHistoricalSourceActive, resolveActiveHistoricalSource } from "@/lib/historical-sources"
+import { useEsriDynamicAttribution } from "@/lib/basemap-attribution"
+import { useGeHistoricalDynamicAttribution } from "@/lib/ge-historical"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
 
@@ -1696,16 +1698,26 @@ export function TerrainViewer() {
   // "historical" exists as a sidebar-level concept.
   const activeBasemapSourceA = resolveActiveHistoricalSource(rawBasemapSourceA, state.basemapPerView ? state.historicalActiveSourceA : state.historicalActiveSource)
   const activeBasemapSourceB = resolveActiveHistoricalSource(rawBasemapSourceB, state.basemapPerView ? state.historicalActiveSourceB : state.historicalActiveSource)
-  // Esri World Imagery / Wayback are the one basemap whose real attribution
-  // varies by view (see DynamicAttributionBadge) — "wayback" only actually
-  // renders tiles (and thus needs its attribution shown) while historicalBeta
-  // is on, mirroring RasterBasemapSource's own gate in MapSources.tsx.
-  const isEsriFamily = (s: string) => s === "esri" || (s === "wayback" && state.historicalBeta)
-  const showEsriAttribution = isEsriFamily(activeBasemapSourceA) || (!!state.splitScreen && isEsriFamily(activeBasemapSourceB))
   // Same plain/A/B mode split as the basemap id itself, just for the single
   // scrubbed date (see date/dateA/dateB above).
   const activeDateA = state.basemapPerView ? state.dateA : state.date
   const activeDateB = state.basemapPerView ? state.dateB : state.date
+  // Esri World Imagery/Wayback and GE Historical are the two basemaps whose
+  // real attribution varies by view (see DynamicAttributionBadge) —
+  // "wayback" only actually renders tiles (and thus needs its attribution
+  // shown) while historicalBeta is on, mirroring RasterBasemapSource's own
+  // gate in MapSources.tsx. Both dynamic hooks are called unconditionally
+  // (debounced, cheap when not the active source) since hooks can't be
+  // conditional; which text (if either) actually applies is picked below.
+  const isEsriFamily = (s: string) => s === "esri" || (s === "wayback" && state.historicalBeta)
+  const esriAttribution = useEsriDynamicAttribution(state.lat, state.lng, state.zoom)
+  const geAttributionA = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, activeDateA)
+  const geAttributionB = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, activeDateB)
+  const dynamicAttributionText = isEsriFamily(activeBasemapSourceA) ? esriAttribution
+    : activeBasemapSourceA === "ge-historical" ? geAttributionA
+    : state.splitScreen && isEsriFamily(activeBasemapSourceB) ? esriAttribution
+    : state.splitScreen && activeBasemapSourceB === "ge-historical" ? geAttributionB
+    : null
   // Drives the minimap's bottom offset below — the timeline panel docks to
   // the same bottom-left area the minimap (a MapLibre IControl, only ever
   // mounted on the primary/map-a pane) would otherwise occupy.
@@ -2685,10 +2697,7 @@ export function TerrainViewer() {
       <LightControlOverlay state={state} setState={setState} mapRef={mapARef as any} />
       <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapARef as any} />
       <DynamicAttributionBadge
-        active={showEsriAttribution}
-        lat={state.lat}
-        lng={state.lng}
-        zoom={state.zoom}
+        text={dynamicAttributionText}
         bottomOffsetPx={scaleBottomOffset}
         rightOffsetPx={scaleRightOffset}
       />

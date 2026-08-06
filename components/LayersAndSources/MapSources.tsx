@@ -376,15 +376,21 @@ export const RasterBasemapSource = memo(({
             // (see lib/wayback.ts's useResolvedWaybackRelease) — render
             // nothing rather than a broken/stale tile request.
             if (!resolvedWaybackItem) return null
-            // No `attribution` here (unlike every other branch below) — this
-            // source's own `tiles` changes on every date/location scrub, and
-            // react-map-gl's <Source> reconciler (components/source.ts) only
-            // ever acts on ONE changed prop per render (whichever it saw
-            // last while diffing), silently no-op'ing the rest. Since
-            // dynamicEsriAttribution updates independently (its own debounce
-            // timer, keyed off lat/lng/zoom, not date), an unlucky render
-            // where both happened to change together would swallow the tile
-            // update. DynamicAttributionBadge (TerrainViewer.tsx) shows this
+            // No `attribution` here (unlike every other branch below) —
+            // react-map-gl's <Source> reconciler (node_modules/@vis.gl/
+            // react-maplibre/src/components/source.ts's updateSource) only
+            // knows how to push changed `coordinates`/`url`/`tiles` onto an
+            // already-mounted source; any other changed prop (including
+            // `attribution`) just logs "Unable to update <Source> prop" and
+            // is silently dropped — there's no live-update path for it at
+            // all, so a value that changes after mount (like this source's
+            // real per-view contributor) could never reach the map through
+            // this prop even if reasoning about *when* it changes were airtight.
+            // Worse, on a render where `tiles` ALSO changes (e.g. scrubbing
+            // to a new date), only the LAST prop the reconciler saw differ
+            // actually gets applied — so adding a changing `attribution` here
+            // risks silently swallowing the real tile update too.
+            // DynamicAttributionBadge (TerrainViewer.tsx) shows this
             // source's attribution instead, entirely outside this Source's
             // own props.
             return { tiles: [waybackTileUrl(resolvedWaybackItem)], tileSize: WAYBACK_TILE_SIZE, maxzoom: WAYBACK_MAXZOOM }
@@ -397,8 +403,14 @@ export const RasterBasemapSource = memo(({
 
         if (basemapSource === "ge-historical") {
             if (!date) return null
-            // geHistoricalTileSource already returns its own `attribution`
-            // (see lib/ge-historical.ts) — no override needed here.
+            // geHistoricalTileSource's own generic "Imagery © Google"
+            // attribution (lib/ge-historical.ts) is a fine constant baseline
+            // for this <Source> prop — DynamicAttributionBadge
+            // (TerrainViewer.tsx) supersedes it with the REAL per-tile
+            // provider (e.g. "Google Earth - CNES / Airbus") once resolved,
+            // via useGeHistoricalDynamicAttribution, for the same reason
+            // Esri/Wayback's real attribution can't just live in this prop
+            // (see the wayback branch's comment above).
             return geHistoricalTileSource(date)
         }
 
@@ -420,12 +432,13 @@ export const RasterBasemapSource = memo(({
             : basemap.url
         // "esri" (the static World Imagery entry, not Wayback) skips
         // `attribution` too, same reasoning as the wayback branch above —
-        // its own `tiles` doesn't normally change mid-session, but nothing
-        // guarantees that forever, and DynamicAttributionBadge already
-        // covers it. Every other id here is a genuinely fixed tile template
-        // that only ever changes via a basemapSource switch (which remounts
-        // this whole <Source> via its own key), so attribution changing
-        // alongside it there is safe.
+        // the reconciler has no live-update path for this prop at all, on
+        // ANY source, so a value that changes post-mount (this source's
+        // real per-view contributor) needs DynamicAttributionBadge
+        // regardless. Every other id here gets a genuinely fixed string that
+        // only ever needs to change via a basemapSource switch — which
+        // remounts this whole <Source> via its own key (a fresh mount, not
+        // a live update), so the same limitation doesn't apply to them.
         const attribution = basemapSource === "esri" ? undefined : STATIC_BASEMAP_ATTRIBUTIONS[basemapSource]
         return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom, attribution }
     }, [customBasemap, basemapSource, historicalBeta, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
