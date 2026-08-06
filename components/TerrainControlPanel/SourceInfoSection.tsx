@@ -104,10 +104,18 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
 
   if (!state.showRasterBasemap) return null
 
+  // The dynamic hooks' own return values are self-contained strings meant to
+  // stand alone (e.g. the map corner, with no adjacent label) — "Esri - Vantor",
+  // "Google Earth - CNES / Airbus". This table already names the source in
+  // its own left-hand column, so repeating it in the value column too just
+  // reads as noise; strip it here only, not from textFor's return value
+  // itself (still used as-is for the corner-attribution push above).
+  const stripSourcePrefix = (text: string) => text.replace(/^(Esri|Google Earth) - /, "")
+
   const row = (id: string, geAttribution: string, prefix: string) => (
     <div key={prefix || "single"} className="flex items-start justify-between gap-3 px-2 py-1.5 rounded bg-muted/50 text-xs">
       <span className="shrink-0">{prefix}{basemapLabel(id)}</span>
-      <span className="text-muted-foreground text-right">{textFor(id, geAttribution)}</span>
+      <span className="text-muted-foreground text-right">{stripSourcePrefix(textFor(id, geAttribution))}</span>
     </div>
   )
 

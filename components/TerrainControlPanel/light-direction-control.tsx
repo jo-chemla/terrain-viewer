@@ -389,7 +389,12 @@ export const LightDirectionControl: React.FC<{
           above), so in Datetime mode a drag updates the Date/Time sliders
           in place rather than being a read-only display of them. Shares
           `sliderId` with the datetime sliders so it stays lit while either
-          is being edited. */}
+          is being edited. Free mode still back-solves lightDayOfYear/
+          lightTimeOfDay on every drag (setLightDir does this unconditionally)
+          but deliberately doesn't surface it here — Free mode's whole point
+          is an arbitrary direction with no date/time meaning attached, and a
+          "closest match" caption for it reads as a real answer to a question
+          nobody asked, not a helpful cross-reference. */}
       {showPad && (
         <div className="flex flex-col items-center gap-1">
           <SphericalXYPad
@@ -404,11 +409,6 @@ export const LightDirectionControl: React.FC<{
             fixedElevation={fixedElevation}
             sunEnvelopeLat={state.lightUseDatetime ? state.lat : undefined}
           />
-          {!state.lightUseDatetime && (
-            <span className="text-[10px] text-muted-foreground italic">
-              ≈ {formatDayOfYear(state.lightDayOfYear)} · {formatHour(state.lightTimeOfDay)} {state.lightTimeMode === "utc" ? "UTC" : "local"} · closest match
-            </span>
-          )}
         </div>
       )}
     </div>

@@ -396,6 +396,17 @@ export function TerrainControlPanel({
     if (historicalMode && state.viewMode !== "2d") setState({ viewMode: "2d" })
   }, [historicalMode, state.viewMode, setState])
 
+  // Same reasoning, for the raster basemap: historical mode has no
+  // Visualization Modes checkbox to turn it back on with (it's the only
+  // thing this mode shows at all), but the global Shift-tap/Ctrl-tap
+  // shortcuts (useShiftTapToggle/useCtrlTapToggle above) can still flip
+  // showRasterBasemap off regardless of app mode — leaving a blank map with
+  // no visible way to recover. Keep it force-on continuously here, not just
+  // as a one-time nudge when switching into the mode (handleSelectMode below).
+  useEffect(() => {
+    if (historicalMode && !state.showRasterBasemap) setState({ showRasterBasemap: true })
+  }, [historicalMode, state.showRasterBasemap, setState])
+
   const handleSelectMode = (next: AppMode) => {
     setState({ appMode: next })
     setIsModePickerOpen(false)
@@ -498,7 +509,7 @@ export function TerrainControlPanel({
                   className="flex items-center gap-1.5 text-xl font-semibold cursor-pointer hover:text-muted-foreground"
                   onClick={() => setIsModePickerOpen(true)}
                 >
-                  {activeProjectConfig?.name || (historicalMode ? "Historical Sat" : "Terrain Viewer")}
+                  {activeProjectConfig?.name || (historicalMode ? "Historical Satellite" : "Terrain Viewer")}
                   <ArrowLeftRight className="h-4 w-4 shrink-0 opacity-60" />
                 </h2>
               }
@@ -542,7 +553,7 @@ export function TerrainControlPanel({
           <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
         )}
         <BookmarksSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.bookmarks} onOpenChange={toggle("bookmarks")} />
-        <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} />
+        <DownloadSection state={state} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} historicalMode={historicalMode} />
         {/* Whole "Sources" group (label+chevron row AND its sections) is hidden
             when the project config hides source panels — otherwise the chevron/
             label row would sit there with nothing to expand. Historical mode
@@ -629,15 +640,20 @@ export function TerrainControlPanel({
             {!hiddenSections.includes("sunShadowCalculator") && state.sunShadowBeta && (
               <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
             )}
-            <AnimationSection
-              mapRef={mapRef}
-              isOpen={sectionOpen.animation}
-              onOpenChange={toggle("animation")}
-              appState={state}
-              setAppState={setAppState}
-              setAppStateSafe={setAppState}
-              withSeparator={!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap)}
-            />
+            {/* Camera-pose animation has no meaning without a terrain/DEM
+                scene to fly a camera through — historical mode is a flat 2D
+                basemap view only. */}
+            {!historicalMode && (
+              <AnimationSection
+                mapRef={mapRef}
+                isOpen={sectionOpen.animation}
+                onOpenChange={toggle("animation")}
+                appState={state}
+                setAppState={setAppState}
+                setAppStateSafe={setAppState}
+                withSeparator={!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap)}
+              />
+            )}
             {/* Shows terrain-source provenance (mapterhorn/another DEM,
                 meaningless in historical mode) AND/OR basemap attribution
                 (Esri/Wayback/GE Historical dynamic, everything else static)

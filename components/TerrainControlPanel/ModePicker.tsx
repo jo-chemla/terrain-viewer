@@ -40,7 +40,13 @@ export const ModePicker: React.FC<{
               onClick={() => onSelect(id)}
               className={cn(
                 "cursor-pointer py-4 gap-2 transition-colors hover:border-primary",
-                mode === id && "border-primary bg-accent/50",
+                // bg-accent/50 renders as a fairly solid light fill in this
+                // theme's color scheme — the default text-foreground/
+                // text-muted-foreground pair (dark) reads with poor contrast
+                // against it, so force every descendant to accent-foreground
+                // (the color this theme itself pairs with an accent
+                // background) rather than leaving it dark-on-light.
+                mode === id && "border-primary bg-accent/50 [&_*]:text-accent-foreground",
               )}
             >
               <CardHeader className="flex flex-row items-center gap-3 px-4">

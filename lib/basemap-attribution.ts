@@ -39,8 +39,8 @@ export const STATIC_BASEMAP_ATTRIBUTIONS: Record<string, string> = {
   // mount anyway (react-map-gl's updateSource has no case for it at all —
   // see the fuller explanation this used to carry, now in SourceInfoSection
   // and lib/ge-historical.ts instead).
-  esri: "Esri, see dynamic source attribution in sidebar source panel",
-  wayback: "Esri, see dynamic source attribution in sidebar source panel",
+  esri: "Esri, see dynamic attribution in source panel",
+  wayback: "Esri, see dynamic attribution in source panel",
 }
 
 // -------------------------

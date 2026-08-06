@@ -41,7 +41,7 @@ export function geHistoricalTileSource(dateMs: number): { tiles: string[]; tileS
   // be live-updated post-mount (react-map-gl's updateSource has no case for
   // it), so a value that changes per tile/date could never reach the map
   // through this prop regardless.
-  return { tiles: spec.tiles, tileSize: spec.tileSize, maxzoom: spec.maxzoom, attribution: "Google, see dynamic source attribution in sidebar source panel" }
+  return { tiles: spec.tiles, tileSize: spec.tileSize, maxzoom: spec.maxzoom, attribution: "Google, see dynamic attribution in source panel" }
 }
 
 const LOCAL_DATES_DEBOUNCE_MS = 400
