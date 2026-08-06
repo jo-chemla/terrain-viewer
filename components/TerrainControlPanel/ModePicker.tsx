@@ -34,30 +34,40 @@ export const ModePicker: React.FC<{
           <DialogDescription>The app's meta mode — which toolset and sidebar layout are in play.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
-          {MODES.map(({ id, label, description, icon: Icon }) => (
-            <Card
-              key={id}
-              onClick={() => onSelect(id)}
-              className={cn(
-                "cursor-pointer py-4 gap-2 transition-colors hover:border-primary",
-                // bg-accent/50 renders as a fairly solid light fill in this
-                // theme's color scheme — the default text-foreground/
-                // text-muted-foreground pair (dark) reads with poor contrast
-                // against it, so force every descendant to accent-foreground
-                // (the color this theme itself pairs with an accent
-                // background) rather than leaving it dark-on-light.
-                mode === id && "border-primary bg-accent/50 [&_*]:text-accent-foreground",
-              )}
-            >
-              <CardHeader className="flex flex-row items-center gap-3 px-4">
-                <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
-                <div className="space-y-1">
-                  <CardTitle>{label}</CardTitle>
-                  <CardDescription>{description}</CardDescription>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
+          {MODES.map(({ id, label, description, icon: Icon }) => {
+            const selected = mode === id
+            return (
+              <Card
+                key={id}
+                onClick={() => onSelect(id)}
+                className={cn(
+                  "cursor-pointer py-4 gap-2 transition-colors hover:border-primary",
+                  selected && "border-primary bg-accent/50",
+                )}
+              >
+                <CardHeader className="flex flex-row items-center gap-3 px-4">
+                  {/* CardTitle/CardDescription each carry their own hardcoded
+                      text color class (text-card-foreground / text-muted-
+                      foreground) at equal CSS specificity to a blanket
+                      `[&_*]:text-accent-foreground` override on the Card
+                      itself — a tie Tailwind's generated stylesheet doesn't
+                      reliably resolve in our favor (source order, not DOM
+                      nesting, breaks the tie). Passing the override directly
+                      as each element's own className instead lets cn()'s
+                      twMerge drop the conflicting default at the class-list
+                      level — no cascade ambiguity left to resolve. bg-accent/
+                      50 renders as a fairly solid light fill in some color
+                      presets, where the dark default text/icon reads with
+                      poor contrast against it. */}
+                  <Icon className={cn("h-5 w-5 shrink-0", selected ? "text-accent-foreground" : "text-muted-foreground")} />
+                  <div className="space-y-1">
+                    <CardTitle className={selected ? "text-accent-foreground" : undefined}>{label}</CardTitle>
+                    <CardDescription className={selected ? "text-accent-foreground" : undefined}>{description}</CardDescription>
+                  </div>
+                </CardHeader>
+              </Card>
+            )
+          })}
         </div>
       </DialogContent>
     </Dialog>
