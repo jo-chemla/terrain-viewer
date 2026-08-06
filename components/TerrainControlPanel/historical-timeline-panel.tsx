@@ -90,7 +90,7 @@ const ZOOM_FACTOR = 0.85
 // (see lib/wayback.ts) and is now what the tick is actually POSITIONED at
 // (see useWaybackRealCaptureDates in the parent), so it's already resolved
 // by the time this renders — no separate per-hover fetch needed anymore.
-const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; realLabel: string | null; activeOnSide: "A" | "B" | null }> = ({ tick, leftPct, realLabel, activeOnSide }) => {
+const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeOnSide: "A" | "B" | null }> = ({ tick, leftPct, activeOnSide }) => {
   return (
     <Tooltip>
       <TooltipTrigger
@@ -109,7 +109,7 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; realLabel
       {/* Date first, then source, then which map (if any) it's active on —
           same order as the generic tick tooltip below. */}
       <TooltipContent>
-        <div>{(realLabel ?? tick.label).slice(0, 7)}</div>
+        <div>{new Date(tick.dateMs).toISOString().slice(0, 10)}</div>
         <div>{SOURCE_CONFIG.wayback.label}</div>
         <div className="text-[10px] text-gray-400 mt-0.5">Mosaic: {tick.label}</div>
         {activeOnSide && <div className="text-[10px] text-gray-400">Map {activeOnSide}</div>}
@@ -244,19 +244,28 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // turns a date back into the actual release to fetch, entirely inside
   // MapSources.tsx, so this panel's own tick model never needs to think in
   // release numbers at all.
-  const waybackTicks = useMemo<TimelineTick[]>(
-    () => sortByDateAscending(rawWaybackItems)
-      .filter((item) => waybackRealDates[item.releaseNum])
-      .map((item) => {
-        const real = waybackRealDates[item.releaseNum]
-        return {
-          source: "wayback", key: real.dateMs,
-          dateMs: real.dateMs,
-          label: item.releaseDateLabel,
-        }
-      }),
-    [rawWaybackItems, waybackRealDates],
-  )
+  const waybackTicks = useMemo<TimelineTick[]>(() => {
+    // Distinct releases commonly resolve to the SAME real capture date at a
+    // given spot (Esri's own dedup, onlyUseSizeToFilterDuplicates, is a
+    // same-tile-size heuristic, not an exact-image check) — without this
+    // dedup, two+ ticks sharing one dateMs also shared one `${source}-${key}`
+    // string, which is BOTH this list's React key AND nudgedLeftPct's map
+    // key, so React's reconciler ended up reusing/misplacing DOM nodes
+    // across renders (worse the more re-renders — e.g. repeated zooming —
+    // happened in between). Seen live as many tick elements pinned to one
+    // identical pixel. Keeping one tick per real date (first/oldest release
+    // to report it) fixes this at the source instead of trying to visually
+    // separate marks that represent the exact same real-world photo date.
+    const seenDates = new Set<number>()
+    const ticks: TimelineTick[] = []
+    for (const item of sortByDateAscending(rawWaybackItems)) {
+      const real = waybackRealDates[item.releaseNum]
+      if (!real || seenDates.has(real.dateMs)) continue
+      seenDates.add(real.dateMs)
+      ticks.push({ source: "wayback", key: real.dateMs, dateMs: real.dateMs, label: item.releaseDateLabel })
+    }
+    return ticks
+  }, [rawWaybackItems, waybackRealDates])
   // No per-location catalog exists for HLS — these are evenly-spaced
   // placeholder monthly points (see lib/hls.ts), not verified real capture
   // dates the way Wayback's are.
@@ -532,12 +541,28 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         if (positions[i + 1] - positions[i] < MIN_TICK_GAP_PX) positions[i] = positions[i + 1] - MIN_TICK_GAP_PX
       }
     }
+    // If there are genuinely more ticks than trackWidth / MIN_TICK_GAP_PX can
+    // fit, the backward pass above still drives the earliest position(s)
+    // negative — previously each one was independently clamped to
+    // [0, trackWidth] below, which piled the ENTIRE overflowing run onto the
+    // exact same pixel (seen live: 13 distinct Wayback releases landing on
+    // one single point at a real zoomed-in location) — reading exactly like
+    // one "stuck" mark rather than many crowded ones. Instead, uniformly
+    // squeeze the whole layout to fit within [0, trackWidth] — every tick
+    // keeps its relative order and proportional spacing (just compressed),
+    // so an overcrowded run still reads as many distinct, continuously
+    // varying positions instead of one indistinguishable pile.
+    if (positions.length > 1 && positions[0] < 0) {
+      const span = positions[positions.length - 1] - positions[0]
+      if (span > 0) {
+        const scale = trackWidth / span
+        const offset = positions[0]
+        for (let i = 0; i < positions.length; i++) positions[i] = (positions[i] - offset) * scale
+      }
+    }
     sorted.forEach((t, i) => {
-      // Final hard clamp — if there are simply more ticks than trackWidth /
-      // MIN_TICK_GAP_PX can fit, the backward pass above can still drive
-      // early positions negative; clamping to [0, trackWidth] guarantees no
-      // tick ever renders outside the track no matter how crowded, even if
-      // that means some neighbors end up overlapping.
+      // Final hard clamp — a safety net for any remaining floating-point
+      // edge case after the squeeze above, not the primary mechanism.
       const px = Math.max(0, Math.min(trackWidth, positions[i]))
       map.set(`${t.source}-${t.key}`, (px / trackWidth) * 100)
     })
@@ -983,7 +1008,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 // shown as the last line of its tooltip.
                 const activeOnSide = tickA && tickA.source === t.source && tickA.key === t.key ? "A" : tickB && tickB.source === t.source && tickB.key === t.key ? "B" : null
                 return t.source === "wayback" ? (
-                  <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} realLabel={waybackRealDates[t.key]?.label ?? null} activeOnSide={activeOnSide} />
+                  <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} activeOnSide={activeOnSide} />
                 ) : (
                   <Tooltip key={`${t.source}-${t.key}`}>
                     <TooltipTrigger
