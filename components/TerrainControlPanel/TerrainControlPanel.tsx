@@ -636,15 +636,16 @@ export function TerrainControlPanel({
               appState={state}
               setAppState={setAppState}
               setAppStateSafe={setAppState}
-              withSeparator={!hiddenSections.includes("sourceInfo") && (historicalMode || isProvenanceSource(state.sourceA))}
+              withSeparator={!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap)}
             />
-            {/* Outside historical mode this describes the active TERRAIN
-                source (mapterhorn/another DEM) — meaningless there, same
-                reasoning as Elevation Picker above, so it's gated off
-                state.sourceA. In historical mode it shows the opposite:
-                static + dynamic attribution for every historical basemap
-                source (see SourceInfoSection's own historicalMode branch). */}
-            {!hiddenSections.includes("sourceInfo") && (historicalMode || isProvenanceSource(state.sourceA)) && (
+            {/* Shows terrain-source provenance (mapterhorn/another DEM,
+                meaningless in historical mode) AND/OR basemap attribution
+                (Esri/Wayback/GE Historical dynamic, everything else static)
+                — a raster basemap can be active in EITHER app mode (it's
+                just the only thing historical mode shows), so this isn't an
+                either/or gated on historicalMode; SourceInfoSection renders
+                whichever of its two blocks actually applies. */}
+            {!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap) && (
               <SourceInfoSection state={state} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} />
             )}
           </>
