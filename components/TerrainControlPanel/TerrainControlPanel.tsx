@@ -3,11 +3,11 @@ import { useState, useMemo, useCallback, useEffect, useRef  } from "react"
 import { useQueryStates } from "nuqs"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home } from "lucide-react"
+import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home, ArrowLeftRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom, appModeAtom } from "@/lib/settings-atoms"
+import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom, type AppMode } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 
 import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
@@ -128,11 +128,14 @@ export function TerrainControlPanel({
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isModePickerOpen, setIsModePickerOpen] = useState(false)
-  const [appMode, setAppMode] = useAtom(appModeAtom)
-  // Historical mode is a deliberately stripped-down sidebar for browsing
-  // historical imagery — see the ModePicker render below and its gating
-  // throughout this component's JSX (Sources/Options/Detectors groups,
-  // GeneralSettings' View Mode row).
+  // Nuqs-backed (state.appMode), like every other shareable field — not a
+  // local jotai atom — so a link/bookmark can carry which sidebar layout was
+  // showing. Historical mode is a deliberately stripped-down sidebar for
+  // browsing historical imagery — see the ModePicker render below and its
+  // gating throughout this component's JSX (Sources/Options/Detectors
+  // groups, GeneralSettings' View Mode row, Tools' Elevation Picker/Source
+  // Info).
+  const appMode: AppMode = state.appMode
   const historicalMode = appMode === "historical"
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
   const { theme } = useTheme()
@@ -393,17 +396,20 @@ export function TerrainControlPanel({
     if (historicalMode && state.viewMode !== "2d") setState({ viewMode: "2d" })
   }, [historicalMode, state.viewMode, setState])
 
-  const handleSelectMode = (next: typeof appMode) => {
-    setAppMode(next)
+  const handleSelectMode = (next: AppMode) => {
+    setState({ appMode: next })
     setIsModePickerOpen(false)
     // Only switching INTO historical mode needs a nudge — it unlocks the
-    // beta flag gating historical basemaps at all and turns on the one
-    // source (raster basemap) this mode actually shows, so picking the mode
-    // immediately shows imagery instead of an empty map. Switching back to
-    // Terrain needs no equivalent nudge; every one of its sections is just
-    // hidden, not disabled, so nothing needs restoring.
+    // beta flag gating historical basemaps at all, turns on the one source
+    // (raster basemap) this mode actually shows, and expands that section
+    // (rather than leaving the visitor to find and open it themselves) so
+    // picking the mode immediately shows imagery instead of an empty,
+    // collapsed sidebar. Switching back to Terrain needs no equivalent
+    // nudge; every one of its sections is just hidden, not disabled, so
+    // nothing needs restoring.
     if (next === "historical" && !historicalMode) {
       setState({ historicalBeta: true, showRasterBasemap: true, viewMode: "2d" })
+      setSectionOpen((prev) => ({ ...prev, rasterBasemap: true }))
     }
   }
 
@@ -489,10 +495,11 @@ export function TerrainControlPanel({
             <TooltipTrigger
               render={
                 <h2
-                  className="text-xl font-semibold cursor-pointer hover:text-muted-foreground"
+                  className="flex items-center gap-1.5 text-xl font-semibold cursor-pointer hover:text-muted-foreground"
                   onClick={() => setIsModePickerOpen(true)}
                 >
-                  {activeProjectConfig?.name || "Terrain Viewer"}
+                  {activeProjectConfig?.name || (historicalMode ? "Historical Sat" : "Terrain Viewer")}
+                  <ArrowLeftRight className="h-4 w-4 shrink-0 opacity-60" />
                 </h2>
               }
             />
@@ -614,7 +621,9 @@ export function TerrainControlPanel({
         {macroGroupOpen.Tools && (
           <>
             <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
-            {!hiddenSections.includes("elevationPicker") && (
+            {/* Elevation Picker reads elevation off the active terrain (DEM)
+                source — meaningless in historical mode, which has none. */}
+            {!historicalMode && !hiddenSections.includes("elevationPicker") && (
               <ElevationPickerSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
             )}
             {!hiddenSections.includes("sunShadowCalculator") && state.sunShadowBeta && (
@@ -627,9 +636,11 @@ export function TerrainControlPanel({
               appState={state}
               setAppState={setAppState}
               setAppStateSafe={setAppState}
-              withSeparator={!hiddenSections.includes("sourceInfo")}
+              withSeparator={!historicalMode && !hiddenSections.includes("sourceInfo")}
             />
-            {!hiddenSections.includes("sourceInfo") && isProvenanceSource(state.sourceA) && (
+            {/* Source Info describes the active TERRAIN source (mapterhorn/
+                another DEM) — same reasoning as Elevation Picker above. */}
+            {!historicalMode && !hiddenSections.includes("sourceInfo") && isProvenanceSource(state.sourceA) && (
               <>
                 <SourceInfoSection state={state} mapRef={mapRef} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} />
               </>

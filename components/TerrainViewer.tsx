@@ -18,6 +18,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
+  appModeAtom, type AppMode,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -122,6 +123,7 @@ const parseAsFloatPrecise = createParser({
 // falls back to full remounting this whole tree on every edit), which was
 // causing spurious mid-teardown crashes in ContoursLayer/TerraDraw during dev.
 const VIEW_MODES = ['2d', 'globe', '3d'] as const
+const APP_MODES = ['terrain', 'historical'] as const
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 // 'shape-index' stays a valid internal curvature:// mode (ShapeIndexSource
 // below reads it directly) even though nothing in the UI exposes setting
@@ -165,6 +167,11 @@ export const QUERY_STATE_PARSERS = {
     terrainType: parseAsString.withDefault(""),
     basemapType: parseAsString.withDefault(""),
     viewMode: parseAsStringLiteral(VIEW_MODES).withDefault("3d"),
+    // Which sidebar layout the ModePicker (TerrainControlPanel.tsx) shows —
+    // "historical" strips it down to just basemap browsing. Shareable/
+    // bookmarkable like every other field here; appModeAtom below only
+    // remembers the last choice for a fresh session with no URL param.
+    appMode: parseAsStringLiteral(APP_MODES).withDefault("terrain"),
     splitScreen: parseAsBoolean.withDefault(false),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
@@ -1204,6 +1211,7 @@ export function TerrainViewer() {
   const [tellsBetaEnabled, setTellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
   const [sunShadowBetaEnabled, setSunShadowBetaEnabled] = useAtom(sunShadowBetaEnabledAtom)
   const [historicalBetaEnabled, setHistoricalBetaEnabled] = useAtom(historicalBetaEnabledAtom)
+  const [appModeEnabled, setAppModeEnabled] = useAtom(appModeAtom)
   useEffect(() => {
     setTellsBetaEnabled(state.tellsBeta)
   }, [state.tellsBeta, setTellsBetaEnabled])
@@ -1213,6 +1221,9 @@ export function TerrainViewer() {
   useEffect(() => {
     setHistoricalBetaEnabled(state.historicalBeta)
   }, [state.historicalBeta, setHistoricalBetaEnabled])
+  useEffect(() => {
+    setAppModeEnabled(state.appMode as AppMode)
+  }, [state.appMode, setAppModeEnabled])
 
   // Applies a `?project=` preset (lib/projects.json) and/or terrainUrl/basemapUrl
   // convenience params on first load only — guarded by the ref so it never fights
@@ -1241,6 +1252,7 @@ export function TerrainViewer() {
     if (!searchParams.has("tellsBeta") && tellsBetaEnabled) stateOverrides.tellsBeta = true
     if (!searchParams.has("sunShadowBeta") && sunShadowBetaEnabled) stateOverrides.sunShadowBeta = true
     if (!searchParams.has("historicalBeta") && historicalBetaEnabled) stateOverrides.historicalBeta = true
+    if (!searchParams.has("appMode") && appModeEnabled !== "terrain") stateOverrides.appMode = appModeEnabled
 
     // terrainUrl/basemapUrl can carry either an id of a source the visitor's browser
     // (or the sample library) already knows about, or a raw tile/COG URL to

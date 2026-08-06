@@ -9,13 +9,13 @@ const MODES: { id: AppMode; label: string; description: string; icon: React.Comp
   {
     id: "terrain",
     label: "Terrain",
-    description: "The full toolset — elevation sources, hillshade, relief, lighting, contours and analysis.",
+    description: "For micro-relief, feature extraction, and mapping — hillshade, relief, lighting, contours and terrain analysis over an elevation source.",
     icon: Mountain,
   },
   {
     id: "historical",
     label: "Historical Imagery",
-    description: "A simplified 2D view for browsing historical satellite imagery over time.",
+    description: "For comparing historical basemap sources via a timeline — a simplified 2D view with no elevation source.",
     icon: History,
   },
 ]
@@ -31,7 +31,7 @@ export const ModePicker: React.FC<{
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Choose a mode</DialogTitle>
-          <DialogDescription>Switch how the sidebar is laid out for this session.</DialogDescription>
+          <DialogDescription>The app's meta mode — which toolset and sidebar layout are in play.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           {MODES.map(({ id, label, description, icon: Icon }) => (

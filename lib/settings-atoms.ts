@@ -169,7 +169,11 @@ export const vizModePinnedAtom = atomWithStorage("vizModePinned", true)
 // sidebar title) last chose — "terrain" is the full app as it's always been;
 // "historical" swaps in a deliberately stripped-down sidebar for browsing
 // historical imagery only (see TerrainControlPanel.tsx's historicalMode
-// gating). Persisted like isSidebarOpenAtom so it survives a reload.
+// gating). The live value is nuqs state (state.appMode, shareable/bookmarkable
+// via URL like viewMode) — this atom only mirrors its last value (same
+// "persist across a fresh session with no URL param" role as
+// historicalBetaEnabledAtom in TerrainViewer.tsx) so opening the app again
+// without `?appMode=` doesn't silently reset to Terrain.
 export type AppMode = "terrain" | "historical"
 export const appModeAtom = atomWithStorage<AppMode>("appMode", "terrain")
 
