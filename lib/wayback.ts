@@ -152,6 +152,18 @@ export async function fetchWaybackCaptureLabel(latitude: number, longitude: numb
 export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: number, longitude: number, zoom: number): { resolved: Record<number, { dateMs: number; label: string }>; loading: boolean } {
   const [resolved, setResolved] = useState<Record<number, { dateMs: number; label: string }>>({})
   const [loading, setLoading] = useState(false)
+  // Same coarse "has the view actually moved somewhere new" granularity as
+  // every other cache key in this file (captureMetaCache, getCachedLocalChanges
+  // above) — this effect used to depend on raw (continuous) latitude/
+  // longitude/zoom, so it re-ran (and wiped `resolved` below to {}, see its
+  // own comment) on every single pan tick, not just when the view actually
+  // settled somewhere meaningfully different. While `resolved` sat empty,
+  // useResolvedWaybackRelease's own nearest-release search fell back to each
+  // release's catalog-wide releaseDatetime instead of its real per-tile
+  // date, which could — even though the user changed nothing — briefly pick
+  // a DIFFERENT release as "nearest" and unmount/remount the raster source
+  // for it, reading as an unprompted reload mid-pan.
+  const coarseKey = `${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
 
   useEffect(() => {
     if (!items.length) { setResolved({}); setLoading(false); return }
@@ -171,12 +183,13 @@ export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: numbe
     }, LOCAL_CHANGES_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
     // items is a fresh array identity every render of its own caller — keying
-    // off latitude/longitude/zoom (which only change when the view actually
-    // settles) plus items.length (a new release appearing/disappearing) is
-    // enough to refetch exactly when the real candidate set changes, without
-    // needing items itself in the dependency array.
+    // off coarseKey (which only changes once the view settles somewhere
+    // genuinely new) plus items.length (a new release appearing/
+    // disappearing) is enough to refetch exactly when the real candidate set
+    // changes, without needing items itself (or the raw lat/lng/zoom) in the
+    // dependency array.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latitude, longitude, zoom, items.length])
+  }, [coarseKey, items.length])
 
   return { resolved, loading }
 }

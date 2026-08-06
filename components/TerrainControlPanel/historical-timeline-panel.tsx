@@ -775,8 +775,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // stopPropagation() keeps that click from also reaching A's handle or the
   // track background underneath. Dragging A out from under B (or an
   // arrow-key step on the other side) reveals it normally.
-  const handleLeftPctA = tickA ? fracForTick(tickA) * 100 : 0
-  const handleLeftPctB = tickB ? fracForTick(tickB) * 100 : 0
+  // tickLeftPct (the same nudged/decluttered position the tick MARKS
+  // themselves render at), not raw fracForTick — when ticks are crowded
+  // enough to get nudged apart from their true chronological position, using
+  // the raw position here made the handle visually "snap" away from the
+  // mark it actually corresponds to (the underlying date/source was always
+  // correct — only the dot's rendered position disagreed with the mark's).
+  const handleLeftPctA = tickA ? tickLeftPct(tickA) : 0
+  const handleLeftPctB = tickB ? tickLeftPct(tickB) : 0
   // When both land on (essentially) the same date, B's solid green fully
   // covers A's handle — previously there was NO visible sign A was even
   // there. Both handles switch to a half-and-half A/B split so hovering
