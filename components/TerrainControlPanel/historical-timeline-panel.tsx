@@ -61,7 +61,7 @@ const MIN_YEAR_LABEL_GAP_PX = 32
 // pill's own hover tooltip — a few of these (Google Earth, EOX, HLS) got
 // shortened to keep the pill row from wrapping, so the full descriptive
 // name needs to live somewhere still discoverable.
-const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; color: string; resClass: "vhr" | "medium" }> = {
+export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; color: string; resClass: "vhr" | "medium" }> = {
   wayback: { label: "ESRI Wayback", fullLabel: "ESRI World Imagery Wayback", color: "#cbe4bd", resClass: "vhr" }, // Esri green (#7ebc59), pastelized
   "ge-historical": { label: "Google Earth", fullLabel: "Google Earth Historical", color: "#aecbfa", resClass: "vhr" }, // Google's own Material "blue-100"
   bing: { label: "Bing Single", fullLabel: "Bing Maps (single current mosaic)", color: "#c4b5fd", resClass: "vhr" }, // pastel purple (too close to Esri/Google's own teal otherwise)

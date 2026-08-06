@@ -636,14 +636,16 @@ export function TerrainControlPanel({
               appState={state}
               setAppState={setAppState}
               setAppStateSafe={setAppState}
-              withSeparator={!historicalMode && !hiddenSections.includes("sourceInfo")}
+              withSeparator={!hiddenSections.includes("sourceInfo") && (historicalMode || isProvenanceSource(state.sourceA))}
             />
-            {/* Source Info describes the active TERRAIN source (mapterhorn/
-                another DEM) — same reasoning as Elevation Picker above. */}
-            {!historicalMode && !hiddenSections.includes("sourceInfo") && isProvenanceSource(state.sourceA) && (
-              <>
-                <SourceInfoSection state={state} mapRef={mapRef} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} />
-              </>
+            {/* Outside historical mode this describes the active TERRAIN
+                source (mapterhorn/another DEM) — meaningless there, same
+                reasoning as Elevation Picker above, so it's gated off
+                state.sourceA. In historical mode it shows the opposite:
+                static + dynamic attribution for every historical basemap
+                source (see SourceInfoSection's own historicalMode branch). */}
+            {!hiddenSections.includes("sourceInfo") && (historicalMode || isProvenanceSource(state.sourceA)) && (
+              <SourceInfoSection state={state} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} />
             )}
           </>
         )}

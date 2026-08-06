@@ -33,10 +33,15 @@ export function geHistoricalTileSource(dateMs: number): { tiles: string[]; tileS
   const ge = getGe()
   const d = new Date(dateMs)
   const spec = ge.makeRasterSource({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() })
-  // attribution was previously dropped here — makeRasterSource's own
-  // "Imagery © Google" never reached the <Source> component, so MapLibre's
-  // attribution control had nothing to show while GE Historical was active.
-  return { tiles: spec.tiles, tileSize: spec.tileSize, maxzoom: spec.maxzoom, attribution: spec.attribution }
+  // A constant pointer, not makeRasterSource's own generic "Imagery ©
+  // Google" — the REAL per-tile provider (e.g. "Google Earth - CNES /
+  // Airbus", resolved from Google's own dbRoot, see
+  // useGeHistoricalDynamicAttribution below) can only show in the sidebar's
+  // Source Info section, not here: a <Source>'s `attribution` prop can never
+  // be live-updated post-mount (react-map-gl's updateSource has no case for
+  // it), so a value that changes per tile/date could never reach the map
+  // through this prop regardless.
+  return { tiles: spec.tiles, tileSize: spec.tileSize, maxzoom: spec.maxzoom, attribution: "Google, see dynamic source attribution in sidebar source panel" }
 }
 
 const LOCAL_DATES_DEBOUNCE_MS = 400

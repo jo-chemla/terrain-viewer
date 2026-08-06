@@ -9,6 +9,9 @@ import {
   type ProvenanceResult,
   type ProvenanceSourceKind,
 } from "@/lib/source-provenance"
+import { STATIC_BASEMAP_ATTRIBUTIONS, useEsriDynamicAttribution } from "@/lib/basemap-attribution"
+import { useGeHistoricalDynamicAttribution } from "@/lib/ge-historical"
+import { SOURCE_CONFIG } from "./historical-timeline-panel"
 
 function sourceKindOf(sourceA: string): ProvenanceSourceKind | null {
   if (sourceA === "aws") return "aws"
@@ -25,12 +28,46 @@ export function isProvenanceSource(sourceA: string): boolean {
 
 const MOVE_DEBOUNCE_MS = 400
 
+// Every historical timeline source (SOURCE_CONFIG's own order) with its
+// resolved attribution — dynamic for wayback/ge-historical (real per-
+// location/zoom, or per-date for GE, provider; see lib/basemap-attribution.ts
+// and lib/ge-historical.ts), static for the rest. Shown instead of the
+// terrain-provenance UI above while historical mode is active, since
+// state.sourceA (a terrain/DEM source) isn't meaningful there.
+const HistoricalAttributionList: React.FC<{ state: any }> = ({ state }) => {
+  const esriAttribution = useEsriDynamicAttribution(state.lat, state.lng, state.zoom)
+  // dateMs=0 → resolves against the newest available capture at this
+  // location (see useGeHistoricalDynamicAttribution's own fallback) — a
+  // reasonable default for a reference list not tied to either side's
+  // currently-scrubbed date.
+  const geAttribution = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, 0)
+  const textFor = (id: string) => (id === "wayback" ? esriAttribution : id === "ge-historical" ? geAttribution : STATIC_BASEMAP_ATTRIBUTIONS[id] ?? "—")
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-muted-foreground">
+        Attribution for every historical imagery source — Esri and Google Earth resolve live for the current view; the rest are fixed per source.
+      </p>
+      {Object.entries(SOURCE_CONFIG).map(([id, cfg]) => (
+        <div key={id} className="flex items-start justify-between gap-3 px-2 py-1.5 rounded bg-muted/50 text-xs">
+          <span className="flex items-center gap-1.5 shrink-0">
+            <span className="h-2 w-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+            {cfg.label}
+          </span>
+          <span className="text-muted-foreground text-right">{textFor(id)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export const SourceInfoSection: React.FC<{
   state: any
   mapRef: React.RefObject<MapRef>
+  historicalMode?: boolean
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, mapRef, isOpen, onOpenChange }) => {
+}> = ({ state, mapRef, historicalMode = false, isOpen, onOpenChange }) => {
   const [isActive, setIsActive] = useState(false)
   const [result, setResult] = useState<ProvenanceResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -100,6 +137,9 @@ export const SourceInfoSection: React.FC<{
 
   return (
     <Section title="Source Info" isOpen={isOpen} onOpenChange={onOpenChange}>
+      {historicalMode && <HistoricalAttributionList state={state} />}
+      {!historicalMode && (
+      <>
       <div className="flex items-center justify-between gap-2">
         <Label htmlFor="source-info-toggle" className="text-sm font-medium">
           Show data provenance at map center
@@ -159,6 +199,8 @@ export const SourceInfoSection: React.FC<{
             </div>
           )}
         </div>
+      )}
+      </>
       )}
     </Section>
   )

@@ -1,20 +1,19 @@
 // Attribution strings for the raster basemap sources in MapSources.tsx's
 // RasterBasemapSource — most providers don't expose any way to know the real
 // copyright holder for a given tile short of a fixed, provider-wide string
-// (Planet/NASA-USGS/EOX/Google Earth below); Esri World Imagery (and Wayback,
-// its historical-release sibling) is the one exception with a genuinely
-// dynamic, publicly-queryable per-location/zoom attribution — see
-// useEsriDynamicAttribution below.
-
+// (Planet/NASA-USGS/EOX below). Esri World Imagery (+ Wayback, its
+// historical-release sibling) and Google Earth Historical DO have a real
+// per-location/zoom/date attribution (see useEsriDynamicAttribution here and
+// useGeHistoricalDynamicAttribution in lib/ge-historical.ts) — rather than
+// try to keep that live on the map's own corner control (which can't
+// actually live-update — see the "esri"/"wayback" entries below), those two
+// get a short static pointer here instead, and the real resolved value shows
+// in the sidebar's Source Info section (SourceInfoSection.tsx) whenever
+// historical mode is active.
 import { useEffect, useState } from "react"
 
-// Every non-Esri basemap id gets a fixed string here, applied directly as
-// the <Source>'s own `attribution` prop (MapLibre's AttributionControl reads
-// it automatically). "esri" and "wayback" are deliberately absent — they're
-// rendered through the dynamic badge instead (see MapControls/
-// DynamicAttributionBadge.tsx) so the generic fallback text below never sits
-// next to a more precise, already-resolved dynamic string for the same
-// source.
+// Applied directly as each <Source>'s own `attribution` prop — MapLibre's
+// AttributionControl reads it automatically.
 export const STATIC_BASEMAP_ATTRIBUTIONS: Record<string, string> = {
   osm: "© OpenStreetMap contributors",
   google: "© Google",
@@ -25,16 +24,19 @@ export const STATIC_BASEMAP_ATTRIBUTIONS: Record<string, string> = {
   // attribution the same way Esri's does below, but it requires a Bing Maps
   // API key (a different credential from the public quadkey tile endpoint
   // this app already uses) that isn't currently configured anywhere in this
-  // app — see the header comment on useEsriDynamicAttribution for why a key
-  // is unavoidable there. Static fallback until one is added.
+  // app. Static fallback until one is added.
   bing: "© Microsoft Corporation, Earthstar Geographics SIO",
   hls: "NASA/USGS Harmonized Landsat Sentinel-2 (HLS)",
   planet: "© Planet Labs PBC",
   "eox-s2": "Sentinel-2 cloudless — Copernicus Sentinel data, processed by EOX IT Services GmbH",
-  // "ge-historical" isn't here — lib/ge-historical.ts's geHistoricalTileSource
-  // already returns its own `attribution` ("Imagery © Google") straight from
-  // the vendored ge-timemachine client, and MapSources.tsx passes that
-  // through untouched.
+  // These two DO have a real dynamic value (see header comment) — this
+  // string is deliberately just a pointer to it, not the value itself,
+  // since a <Source>'s `attribution` prop can never be live-updated post-
+  // mount anyway (react-map-gl's updateSource has no case for it at all —
+  // see the fuller explanation this used to carry, now in SourceInfoSection
+  // and lib/ge-historical.ts instead).
+  esri: "Esri, see dynamic source attribution in sidebar source panel",
+  wayback: "Esri, see dynamic source attribution in sidebar source panel",
 }
 
 // -------------------------
