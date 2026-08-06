@@ -24,7 +24,7 @@ interface PickedPoint {
 
 const MARKER_COLOR = "#f59e0b"
 const SHADOW_TIP_COLOR = "#3b82f6"
-const DEFAULT_LINE_COLOR = "#1e293b"
+const DEFAULT_LINE_COLOR = "#ffffff"
 const DEFAULT_LINE_WIDTH = 3
 const SRC = "sun-shadow-calc-line"
 const LYR = "sun-shadow-calc-line"
@@ -421,7 +421,7 @@ export const SunShadowCalculatorSection: React.FC<{
 
           <div className="grid grid-cols-4 gap-2 items-center">
             <Label className="text-sm font-medium">Color</Label>
-            <ColorAlphaSwatch color={lineColor} onChange={setLineColor} title="Shadow line color" />
+            <ColorAlphaSwatch color={lineColor} onChange={setLineColor} title="Shadow line color" className="rounded" />
             <Label className="text-sm font-medium">Width</Label>
             <MobileSlider
               sliderId="sun-shadow-calc-line-width"

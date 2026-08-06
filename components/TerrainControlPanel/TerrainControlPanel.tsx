@@ -572,7 +572,7 @@ export function TerrainControlPanel({
           </>
         )}
         {!hideSourcePanels && historicalMode && (
-          <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
+          <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} historicalMode />
         )}
         {/* The whole Options group (contours/hillshade/hypso/relief/terrain
             analysis/lighting/background) is terrain-only — historical mode has

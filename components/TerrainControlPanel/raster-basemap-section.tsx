@@ -43,7 +43,8 @@ export const RasterBasemapSection: React.FC<{
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   withSeparator?: boolean
-}> = ({ state, setState, mapRef, isOpen, onOpenChange, withSeparator }) => {
+  historicalMode?: boolean
+}> = ({ state, setState, mapRef, isOpen, onOpenChange, withSeparator, historicalMode = false }) => {
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [hereKey] = useAtom(hereKeyAtom)
   const [mapboxKey] = useAtom(mapboxKeyAtom)
@@ -74,6 +75,13 @@ export const RasterBasemapSection: React.FC<{
     setState({ basemapSource: sourceKeys[newIndex] })
   }, [state.basemapSource, sourceKeys, setState])
 
+  // Split screen always wants a per-side basemap — no reason to ever be in
+  // "Simple" (one shared cycling control) while actually looking at two
+  // panes, so this reads as per-view regardless of the persisted
+  // basemapPerView flag whenever splitScreen is on (see the hidden-toggle
+  // comment below), without needing to overwrite that flag itself.
+  const perViewEffective = state.basemapPerView || state.splitScreen
+
   return (
     <Section title="Basemap" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator} pulseKey="showRasterBasemap">
       <Collapsible open={isWorldwideOpen} onOpenChange={setIsWorldwideOpen}>
@@ -82,16 +90,23 @@ export const RasterBasemapSection: React.FC<{
             <GroupHeading>Worldwide Defaults</GroupHeading>
           </CollapsibleTrigger>
           <div className="flex items-center gap-3 shrink-0">
-            <div className="flex items-center gap-2 cursor-pointer">
-              <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Simple</Label>
-              <Switch
-                id="basemap-per-view"
-                checked={state.basemapPerView || false}
-                onCheckedChange={(checked) => setState({ basemapPerView: checked })}
-                className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
-              />
-              <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Split</Label>
-            </div>
+            {/* Meaningless once the viewport itself is already split — split
+                screen obviously wants a per-side basemap, so this toggle
+                just disappears and perViewEffective below (splitScreen alone
+                already implies "Split") takes over instead of asking the
+                user to also flip a second, redundant switch. */}
+            {!state.splitScreen && (
+              <div className="flex items-center gap-2 cursor-pointer">
+                <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Simple</Label>
+                <Switch
+                  id="basemap-per-view"
+                  checked={state.basemapPerView || false}
+                  onCheckedChange={(checked) => setState({ basemapPerView: checked })}
+                  className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+                />
+                <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Split</Label>
+              </div>
+            )}
             <CollapsibleTrigger className="cursor-pointer">
               <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isWorldwideOpen ? "rotate-180" : ""}`} />
             </CollapsibleTrigger>
@@ -99,16 +114,21 @@ export const RasterBasemapSection: React.FC<{
         </div>
 
         <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
-          <SliderControl
-            label="Basemap Opacity"
-            value={state.basemapSourceOpacity * 100}
-            onChange={(v) => setState({ basemapSourceOpacity: v / 100 })}
-            min={0} max={100} step={5}
-            suffix="%"
-            sliderId="raster-basemap-opacity"
-          />
+          {/* Historical mode has exactly one visualization mode (this
+              basemap) at full opacity by construction — nothing else to
+              blend it against, so the slider has no effect to show for. */}
+          {!historicalMode && (
+            <SliderControl
+              label="Basemap Opacity"
+              value={state.basemapSourceOpacity * 100}
+              onChange={(v) => setState({ basemapSourceOpacity: v / 100 })}
+              min={0} max={100} step={5}
+              suffix="%"
+              sliderId="raster-basemap-opacity"
+            />
+          )}
 
-          {state.basemapPerView ? (
+          {perViewEffective ? (
             state.splitScreen ? (
               <div className="space-y-1.5">
                 <GroupHeading>Basemaps</GroupHeading>

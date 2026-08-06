@@ -249,13 +249,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     // given spot (Esri's own dedup, onlyUseSizeToFilterDuplicates, is a
     // same-tile-size heuristic, not an exact-image check) — without this
     // dedup, two+ ticks sharing one dateMs also shared one `${source}-${key}`
-    // string, which is BOTH this list's React key AND nudgedLeftPct's map
-    // key, so React's reconciler ended up reusing/misplacing DOM nodes
-    // across renders (worse the more re-renders — e.g. repeated zooming —
-    // happened in between). Seen live as many tick elements pinned to one
-    // identical pixel. Keeping one tick per real date (first/oldest release
-    // to report it) fixes this at the source instead of trying to visually
-    // separate marks that represent the exact same real-world photo date.
+    // string, which is this list's own React key, so React's reconciler
+    // ended up reusing/misplacing DOM nodes across renders (worse the more
+    // re-renders — e.g. repeated zooming — happened in between). Seen live
+    // as many tick elements pinned to one identical pixel. Keeping one tick
+    // per real date (first/oldest release to report it) fixes this at the
+    // source instead of trying to visually separate marks that represent
+    // the exact same real-world photo date.
     const seenDates = new Set<number>()
     const ticks: TimelineTick[] = []
     for (const item of sortByDateAscending(rawWaybackItems)) {
@@ -503,72 +503,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // would misleadingly suggest they're at the boundary.
   const visibleItems = useMemo(() => items.filter((t) => t.dateMs >= effectiveMin && t.dateMs <= effectiveMax), [items, effectiveMin, effectiveMax])
 
-  // Ticks from DIFFERENT sources can legitimately land on the same or
-  // near-same date (e.g. Planet's and HLS's synthetic monthly ticks both
-  // falling on the 1st) and would otherwise render pixel-on-pixel. A small
-  // left-to-right sweep nudges each one just far enough from its immediate
-  // left neighbor to stay visually distinct — a few pixels' worth of "a very
-  // little", not a real repositioning; only used for DRAWING, the
-  // underlying date each tick represents is untouched.
-  // Each tick's hit-box/mark is 8px wide (w-2, centered via -translate-x-1/2)
-  // — a 5px gap between centers still left two neighbors' 8px-wide marks
-  // overlapping by ~3px, which is why this read as "not working" on a real
-  // EOX/Planet January collision. 10px clears the full tick width plus a
-  // couple pixels of visible daylight between them.
-  const MIN_TICK_GAP_PX = 10
-  const nudgedLeftPct = useMemo(() => {
-    const map = new Map<string, number>()
-    if (!trackWidth) return map
-    const sorted = [...visibleItems].sort((a, b) => fracForTick(a) - fracForTick(b))
-    const positions = sorted.map((t) => fracForTick(t) * trackWidth)
-    // Forward pass: push each tick at least MIN_TICK_GAP_PX right of its
-    // predecessor.
-    for (let i = 1; i < positions.length; i++) {
-      if (positions[i] - positions[i - 1] < MIN_TICK_GAP_PX) positions[i] = positions[i - 1] + MIN_TICK_GAP_PX
-    }
-    // A long run of tightly-packed ticks near the right edge had nothing
-    // stopping the forward pass above from pushing the tail PAST the
-    // track's own right boundary — since the track sits inside a fixed-
-    // position panel with no clipping, an overflowing tick rendered fully
-    // outside it, visibly floating over the map. Backward pass: clamp the
-    // last tick to the track width, then walk backward pulling any tick
-    // that's now within MIN_TICK_GAP_PX of its right neighbor left just
-    // enough to keep the gap — compressing spacing below the ideal minimum
-    // only under genuinely extreme crowding, but never overflowing.
-    if (positions.length) {
-      positions[positions.length - 1] = Math.min(positions[positions.length - 1], trackWidth)
-      for (let i = positions.length - 2; i >= 0; i--) {
-        if (positions[i + 1] - positions[i] < MIN_TICK_GAP_PX) positions[i] = positions[i + 1] - MIN_TICK_GAP_PX
-      }
-    }
-    // If there are genuinely more ticks than trackWidth / MIN_TICK_GAP_PX can
-    // fit, the backward pass above still drives the earliest position(s)
-    // negative — previously each one was independently clamped to
-    // [0, trackWidth] below, which piled the ENTIRE overflowing run onto the
-    // exact same pixel (seen live: 13 distinct Wayback releases landing on
-    // one single point at a real zoomed-in location) — reading exactly like
-    // one "stuck" mark rather than many crowded ones. Instead, uniformly
-    // squeeze the whole layout to fit within [0, trackWidth] — every tick
-    // keeps its relative order and proportional spacing (just compressed),
-    // so an overcrowded run still reads as many distinct, continuously
-    // varying positions instead of one indistinguishable pile.
-    if (positions.length > 1 && positions[0] < 0) {
-      const span = positions[positions.length - 1] - positions[0]
-      if (span > 0) {
-        const scale = trackWidth / span
-        const offset = positions[0]
-        for (let i = 0; i < positions.length; i++) positions[i] = (positions[i] - offset) * scale
-      }
-    }
-    sorted.forEach((t, i) => {
-      // Final hard clamp — a safety net for any remaining floating-point
-      // edge case after the squeeze above, not the primary mechanism.
-      const px = Math.max(0, Math.min(trackWidth, positions[i]))
-      map.set(`${t.source}-${t.key}`, (px / trackWidth) * 100)
-    })
-    return map
-  }, [visibleItems, fracForTick, trackWidth])
-  const tickLeftPct = useCallback((t: TimelineTick) => nudgedLeftPct.get(`${t.source}-${t.key}`) ?? fracForTick(t) * 100, [nudgedLeftPct, fracForTick])
+  // Ticks previously got nudged a few pixels apart from a close neighbor to
+  // stay visually distinct (two different sources landing on the same or
+  // near-same date, e.g. Planet/HLS both on the 1st) — dropped in favor of
+  // always drawing at the tick's own true chronological position. Nudging
+  // interacted badly with the A/B handle (which must sit exactly ON the
+  // active tick's own position, see handleLeftPctA/B below): whenever a
+  // handle's tick had a close neighbor, the nudge could shift either one
+  // just enough that the round handle no longer visually lined up with its
+  // own mark, even though the underlying date/source selection was always
+  // correct. Genuinely coincident ticks now simply overlap — the same
+  // trade-off already accepted for the A/B handles themselves further down.
+  const tickLeftPct = useCallback((t: TimelineTick) => fracForTick(t) * 100, [fracForTick])
 
   // Full-year gridlines/labels, independent of where actual ticks fall —
   // reads as a normal calendar axis rather than one tick per release. Rather
@@ -864,7 +810,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                   type="button"
                   onClick={() => toggleResolutionClass(id)}
                   className={cn(
-                    "cursor-pointer rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                    // rounded-full to match the source pills immediately to
+                    // its left (px-2 not px-2.5 — no colored dot/loader to
+                    // balance, so it reads fine slightly narrower).
+                    "cursor-pointer rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
                     active ? "bg-accent text-accent-foreground border-border" : "text-muted-foreground border-border/60 hover:bg-accent",
                   )}
                 >
