@@ -48,7 +48,17 @@ export const STATIC_BASEMAP_ATTRIBUTIONS: Record<string, string> = {
 // -------------------------
 
 interface EsriCoverageArea {
-  bbox: [number, number, number, number] // [west, south, east, north]
+  // Confirmed against the live feed (not [west, south, east, north] as the
+  // GeoJSON-bbox convention would suggest) — a global sample area came back
+  // as [-84.94, -179.66, 84.94, 179.66], which only makes sense as lat/lng
+  // pairs (positions 0/2 are latitude-range-shaped, 1/3 longitude-range-
+  // shaped). Getting this backwards silently broke every regional/local
+  // contributor match (a real lat/lng essentially never falls inside a
+  // narrow bbox's OTHER axis), leaving only the handful of true-global
+  // entries to ever match — which read as attribution being "stuck" on
+  // whichever broad contributor happened to win, regardless of where you
+  // actually panned to.
+  bbox: [number, number, number, number] // [minLat, minLng, maxLat, maxLng]
   zoomMin: number
   zoomMax: number
   score: number
@@ -96,7 +106,7 @@ const ESRI_FALLBACK_CONTRIBUTORS = "Maxar, Earthstar Geographics"
 function resolveEsriAttribution(contributors: EsriContributor[], lat: number, lng: number, zoom: number): string {
   const matches = contributors
     .flatMap((c) => c.coverageAreas
-      .filter((a) => zoom >= a.zoomMin && zoom <= a.zoomMax && lng >= a.bbox[0] && lng <= a.bbox[2] && lat >= a.bbox[1] && lat <= a.bbox[3])
+      .filter((a) => zoom >= a.zoomMin && zoom <= a.zoomMax && lat >= a.bbox[0] && lat <= a.bbox[2] && lng >= a.bbox[1] && lng <= a.bbox[3])
       .map((a) => ({ attribution: c.attribution, score: a.score })))
     .sort((a, b) => b.score - a.score)
   const names = [...new Set(matches.map((m) => m.attribution))]

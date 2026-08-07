@@ -168,8 +168,16 @@ export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: numbe
   useEffect(() => {
     if (!items.length) { setResolved({}); setLoading(false); return }
     let cancelled = false
-    setResolved({})
+    // Deliberately NOT reset to {} here — the release a timeline handle is
+    // currently sitting on needs to stay resolved (and its tick stay on the
+    // timeline) through a reload, rather than vanishing the instant the view
+    // settles somewhere new and only reappearing once its OWN real date
+    // happens to re-resolve. Stale entries are pruned below, but only once
+    // every release in the fresh candidate set has actually reported back,
+    // and only ones that turn out to genuinely not be part of that fresh set
+    // at all — never merely because a fetch is still in flight.
     setLoading(true)
+    const freshReleaseNums = new Set(items.map((i) => i.releaseNum))
     const timer = setTimeout(() => {
       let remaining = items.length
       for (const item of items) {
@@ -177,7 +185,19 @@ export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: numbe
           if (cancelled) return
           if (meta) setResolved((prev) => ({ ...prev, [item.releaseNum]: meta }))
           remaining -= 1
-          if (remaining === 0) setLoading(false)
+          if (remaining === 0) {
+            setLoading(false)
+            setResolved((prev) => {
+              let changed = false
+              const next: Record<number, { dateMs: number; label: string }> = {}
+              for (const [key, value] of Object.entries(prev)) {
+                const releaseNum = Number(key)
+                if (freshReleaseNums.has(releaseNum)) next[releaseNum] = value
+                else changed = true
+              }
+              return changed ? next : prev
+            })
+          }
         })
       }
     }, LOCAL_CHANGES_DEBOUNCE_MS)
