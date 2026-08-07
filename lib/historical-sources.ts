@@ -1,3 +1,5 @@
+import { GRID_LAYOUTS, viewFieldName, type GridLayoutId, type ViewId } from "./grid-layouts"
+
 // Shared registry of basemap ids that are "historical" (date-driven, archival)
 // sources — used to gate the historicalBeta toggle's tile-fetch gate
 // (MapSources.tsx) and to resolve the sidebar's single combined "historical"
@@ -29,14 +31,16 @@ export function resolveActiveHistoricalSource(rawBasemapSource: string, historic
 
 export function isHistoricalSourceActive(state: {
   basemapPerView?: boolean
-  splitScreen?: boolean
+  splitStyle?: string
+  gridLayout?: GridLayoutId
   basemapSource?: string
-  basemapSourceA?: string
-  basemapSourceB?: string
+  [key: string]: any
 }): boolean {
-  const a = state.basemapPerView ? state.basemapSourceA : state.basemapSource
-  const b = state.basemapPerView ? state.basemapSourceB : state.basemapSource
-  const dualMode = state.basemapPerView && state.splitScreen
   const isActive = (v?: string) => v === "historical" || TIMELINE_SOURCE_IDS.has(v ?? "")
-  return isActive(a) || (!!dualMode && isActive(b))
+  // No per-view basemap at all: only the one shared field can ever be active,
+  // regardless of split/grid state.
+  if (!state.basemapPerView) return isActive(state.basemapSource)
+  const isSplit = state.splitStyle !== "off"
+  const views: ViewId[] = isSplit ? GRID_LAYOUTS[state.gridLayout ?? "2x1"].grid.flat() : ["A"]
+  return views.some((side) => isActive(state[viewFieldName(side, "basemapSource", true)]))
 }

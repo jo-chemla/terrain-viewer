@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsInteger, parseAsStringLiteral, parseAsArrayOf } from "nuqs"
 import Map, {
   type MapRef,
@@ -41,9 +41,10 @@ const SAMPLE_BASEMAP_SOURCES = customSourcesData["SAMPLE_BASEMAPS_SOURCES"] as C
 import { MinimapControl } from "./MapControls/MinimapControl";
 import { LightControlOverlay } from "./MapControls/LightControlOverlay";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
-import { SplitResizeHandle } from "./MapControls/SplitResizeHandle";
+import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
-import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom } from "@/lib/layout-constants"
+import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom } from "@/lib/layout-constants"
+import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
 import maplibregl from 'maplibre-gl'
@@ -172,13 +173,32 @@ export const QUERY_STATE_PARSERS = {
     // bookmarkable like every other field here; appModeAtom below only
     // remembers the last choice for a fresh session with no URL param.
     appMode: parseAsStringLiteral(APP_MODES).withDefault("terrain"),
-    splitScreen: parseAsBoolean.withDefault(false),
+    // Master split control — replaces the old plain splitScreen boolean.
+    // "off" keeps every *A-only default exactly as before (no behavior change
+    // for existing single-map bookmarks missing this param entirely).
+    splitStyle: parseAsStringLiteral(SPLIT_STYLES).withDefault("off"),
+    // Only meaningful once splitStyle !== "off"; "overlay" always behaves as
+    // "2x1" regardless of this value (see the splitContainer render below).
+    gridLayout: parseAsStringLiteral(GRID_LAYOUT_IDS).withDefault("2x1"),
+    // "overlay"-only: pane B's CSS mix-blend-mode + opacity against pane A.
+    splitBlendMode: parseAsStringLiteral(BLEND_MODES).withDefault("normal"),
+    overlayOpacity: parseAsFloat.withDefault(1.0),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
+    // C-F only ever matter for gridLayout "2x2"/"3x1"/"3x2"/"4x1" — same shape
+    // as sourceA/B, just extra slots so 4-/6-map grids need no schema change.
+    sourceC: parseAsString.withDefault("aws"),
+    sourceD: parseAsString.withDefault("mapterhorn"),
+    sourceE: parseAsString.withDefault("maptiler"),
+    sourceF: parseAsString.withDefault("aws"),
     basemapSource: parseAsString.withDefault("esri"), // can have custom id in addition to @/lib/terrain-sources
     basemapPerView: parseAsBoolean.withDefault(true),
     basemapSourceA: parseAsString.withDefault("esri"),
     basemapSourceB: parseAsString.withDefault("google"),
+    basemapSourceC: parseAsString.withDefault("esri"),
+    basemapSourceD: parseAsString.withDefault("google"),
+    basemapSourceE: parseAsString.withDefault("esri"),
+    basemapSourceF: parseAsString.withDefault("google"),
     // 'overlay'-role custom basemap sources currently stacked on top of the active
     // basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B,
     // only meaningful in split-or-radio basemap mode (basemapPerView).
@@ -196,6 +216,10 @@ export const QUERY_STATE_PARSERS = {
     date: parseAsInteger.withDefault(0),
     dateA: parseAsInteger.withDefault(0),
     dateB: parseAsInteger.withDefault(0),
+    dateC: parseAsInteger.withDefault(0),
+    dateD: parseAsInteger.withDefault(0),
+    dateE: parseAsInteger.withDefault(0),
+    dateF: parseAsInteger.withDefault(0),
     // Which concrete underlying source (wayback/hls/ge-historical/planet/
     // eox-s2) actually renders when basemapSource(A/B) === "historical" — the
     // sidebar only ever exposes one combined "Historical Imagery" entry;
@@ -206,6 +230,10 @@ export const QUERY_STATE_PARSERS = {
     historicalActiveSource: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
     historicalActiveSourceA: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
     historicalActiveSourceB: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
+    historicalActiveSourceC: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
+    historicalActiveSourceD: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
+    historicalActiveSourceE: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
+    historicalActiveSourceF: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
     // Which historical sources' ticks are aggregated onto the shared timeline
     // (pill toggles in historical-timeline-panel.tsx) — independent of which
     // single source is actually "active"/rendered on the map. "planet" is
@@ -215,12 +243,16 @@ export const QUERY_STATE_PARSERS = {
     // placeholders, not real capture dates, per lib/hls.ts).
     timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
     // Per-side variants of timelineSources above — only meaningful when both
-    // basemapPerView AND splitScreen are on (dualMode) AND the timeline's
-    // sync toggle is off, letting map A and map B each aggregate a different
+    // basemapPerView AND splitStyle!=="off" are on (dualMode) AND the timeline's
+    // sync toggle is off, letting each active view aggregate a different
     // subset of sources (e.g. Wayback+GE for A, HLS+Bing for B). When sync is
-    // on (the default) both sides share timelineSources instead.
+    // on (the default) every side shares timelineSources instead.
     timelineSourcesA: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
     timelineSourcesB: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
+    timelineSourcesC: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
+    timelineSourcesD: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
+    timelineSourcesE: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
+    timelineSourcesF: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
     // Whether the historical timeline's full bar (header + track) is
     // collapsed down to just the small floating clock-icon toggle button.
     historicalTimelineCollapsed: parseAsBoolean.withDefault(false),
@@ -659,12 +691,30 @@ export const QUERY_STATE_PARSERS = {
 }
 
 export function TerrainViewer() {
-  const mapARef = useRef<MapRef>(null)
-  const mapBRef = useRef<MapRef>(null)
+  // Per-view map refs/loaded-flags, keyed by ViewId (A-F) — generalizes what
+  // used to be a hardcoded mapARef/mapBRef + mapALoaded/mapBLoaded pair. Six
+  // plain useRef calls (VIEW_IDS.length is a compile-time constant, never
+  // conditional, so this doesn't violate the rules of hooks) rather than one
+  // ref-per-active-view, since the set of *active* views changes at runtime
+  // (gridLayout/splitStyle) and several child components (MatcapLiveGlLayer,
+  // BackgroundLayer, TellsInspectPopup, LightControlOverlay, ...) need a
+  // real, stable RefObject<MapRef> prop, not a plain mutable lookup. Views
+  // beyond the current grid's shape just sit unused/null.
+  const mapRefA = useRef<MapRef>(null)
+  const mapRefB = useRef<MapRef>(null)
+  const mapRefC = useRef<MapRef>(null)
+  const mapRefD = useRef<MapRef>(null)
+  const mapRefE = useRef<MapRef>(null)
+  const mapRefF = useRef<MapRef>(null)
+  const mapRefs = useMemo<Record<ViewId, React.RefObject<MapRef>>>(() => ({
+    A: mapRefA, B: mapRefB, C: mapRefC, D: mapRefD, E: mapRefE, F: mapRefF,
+  }), [])
   const isSyncing = useRef(false)
   const [mapLibreReady, setMapLibreReady] = useState(false)
-  const [mapALoaded, setMapALoaded] = useState(false)
-  const [mapBLoaded, setMapBLoaded] = useState(false)
+  const [mapLoaded, setMapLoaded] = useState<Partial<Record<ViewId, boolean>>>({})
+  const setViewLoaded = useCallback((side: ViewId, loaded: boolean) => {
+    setMapLoaded((prev) => ({ ...prev, [side]: loaded }))
+  }, [])
   const viewStateUpdateTimer = useRef<NodeJS.Timeout | null>(null)
   const isMobile = useIsMobile()
 
@@ -677,6 +727,8 @@ export function TerrainViewer() {
   const splitContainerRef = useRef<HTMLDivElement>(null)
   const [splitContainerWidth, setSplitContainerWidth] = useState(0)
   const [splitRatio, setSplitRatio] = useAtom(splitRatioAtom)
+  const [colorizeMapBorders] = useAtom(colorizeMapBordersAtom)
+  const [sideColorOverrides] = useAtom(sideColorOverridesAtom)
   useLayoutEffect(() => {
     const el = splitContainerRef.current
     // mapLibreReady gates the entire return (see "if (!mapLibreReady) return
@@ -741,7 +793,24 @@ export function TerrainViewer() {
       timeMs: 500
     }
   })
+  // Dynamic per-view field lookups (viewFieldName/sourceFieldName return a
+  // plain `string`, not a key of the huge literal QUERY_STATE_PARSERS type)
+  // need an escape hatch from that type's strict indexing — same pragmatic
+  // `any` every section component's own `state: any` prop already uses.
+  const stateAny = state as unknown as Record<string, any>
 
+  // Derived split/grid shape — the single source of truth every per-view
+  // effect/render below loops over instead of re-deriving its own "is this
+  // A or B" check. "overlay" forces "2x1" regardless of state.gridLayout
+  // (clip-path/blend only ever compares exactly 2 panes); every other split
+  // style honors the user's chosen gridLayout.
+  const isSplit = state.splitStyle !== "off"
+  const isOverlaySplit = state.splitStyle === "overlay"
+  const effectiveGridLayout: GridLayoutId = isOverlaySplit ? "2x1" : state.gridLayout
+  const gridConfig = GRID_LAYOUTS[effectiveGridLayout]
+  const activeViewIds: ViewId[] = isSplit ? gridConfig.grid.flat() : ["A"]
+  const bottomRightViewId: ViewId = isSplit ? bottomRightView(effectiveGridLayout) : "A"
+  const rightmostPerRow: ViewId[] = isSplit ? rightmostViewsPerRow(effectiveGridLayout) : ["A"]
 
   // Session-only (never persisted) live ramp tweaks — see rampSessionOverridesAtom's
   // own header. Read once here and threaded into every computeColorReliefPaint call
@@ -1074,7 +1143,7 @@ export function TerrainViewer() {
     const prev = analyticsPrev.current
     const snapshot: Record<string, unknown> = {
       viewMode: state.viewMode, phongRenderer: state.phongRenderer, matcapRenderer: state.matcapRenderer,
-      sourceA: state.sourceA, basemap: activeBasemap, splitScreen: state.splitScreen,
+      sourceA: state.sourceA, basemap: activeBasemap, splitStyle: state.splitStyle, gridLayout: state.gridLayout,
       // A few discrete sub-mode settings worth knowing which values people pick
       // (not every slider — just the categorical choices; color ramps aren't
       // tracked, just the algorithm/mode selections).
@@ -1099,7 +1168,7 @@ export function TerrainViewer() {
       if (state.viewMode !== prev.viewMode) track("actions-view-mode", { mode: state.viewMode })
       if (state.phongRenderer !== prev.phongRenderer) track("options-light-phong", { renderer: state.phongRenderer })
       if (state.matcapRenderer !== prev.matcapRenderer) track("options-light-matcap", { renderer: state.matcapRenderer })
-      if (state.splitScreen !== prev.splitScreen) track("tools-split-screen", { enabled: state.splitScreen })
+      if (state.splitStyle !== prev.splitStyle) track("tools-split-screen", { style: state.splitStyle })
       if (state.sourceA !== prev.sourceA) {
         const custom = customTerrainSources.find((s) => s.id === state.sourceA)
         track("source-terrain", { source: state.sourceA, custom: !!custom })
@@ -1328,8 +1397,8 @@ export function TerrainViewer() {
 
     if (projectConfig?.initialBounds) {
       const [west, south, east, north] = projectConfig.initialBounds
-      const flyToBounds = () => mapARef.current?.fitBounds([[west, south], [east, north]], { padding: 50, duration: 0 })
-      const map = mapARef.current?.getMap()
+      const flyToBounds = () => mapRefs.A.current?.fitBounds([[west, south], [east, north]], { padding: 50, duration: 0 })
+      const map = mapRefs.A.current?.getMap()
       if (map?.isStyleLoaded()) flyToBounds()
       else map?.once("load", flyToBounds)
     }
@@ -1346,9 +1415,9 @@ export function TerrainViewer() {
       if (source?.type === "cog") {
         getCogMetadata(source.url).then((metadata: any) => {
           const bbox = metadata.bbox
-          if (bbox && mapARef.current) {
+          if (bbox && mapRefs.A.current) {
             const [west, south, east, north] = bbox
-            mapARef.current.fitBounds([[west, south], [east, north]], { padding: 50, duration: 0 })
+            mapRefs.A.current.fitBounds([[west, south], [east, north]], { padding: 50, duration: 0 })
           }
         }).catch((err: unknown) => console.error("Failed to auto-zoom to project source bounds:", err))
       }
@@ -1376,34 +1445,27 @@ export function TerrainViewer() {
     }
   }, [isMobile])
 
-  // Map B is fully interactive too (drag/scroll/rotate), so sync has to run both ways —
-  // otherwise panning or zooming map B directly desyncs it from map A with nothing to
-  // bring it back, since only A's own moves used to propagate to B.
-  const onMoveA = useCallback((evt: any) => {
-    if (!isSyncing.current && state.splitScreen && mapBRef.current) {
-      isSyncing.current = true
-      mapBRef.current.getMap().jumpTo({
+  // Every active view is fully interactive too (drag/scroll/rotate), so sync
+  // has to run both/all ways — otherwise panning or zooming any non-primary
+  // view directly desyncs it with nothing to bring it back, since only one
+  // view's own moves used to propagate to the other. Generalizes the old
+  // onMoveA/onMoveB pair: whichever view moved jumps every OTHER active view
+  // to match, instead of a hardcoded "the one other map".
+  const handleViewMove = useCallback((side: ViewId, evt: any) => {
+    if (isSyncing.current || !isSplit) return
+    isSyncing.current = true
+    for (const other of activeViewIds) {
+      if (other === side) continue
+      mapRefs[other].current?.getMap()?.jumpTo({
         center: [evt.viewState.longitude, evt.viewState.latitude],
         zoom: evt.viewState.zoom,
         bearing: evt.viewState.bearing,
         pitch: evt.viewState.pitch,
       })
-      setTimeout(() => { isSyncing.current = false }, 50)
     }
-  }, [state.splitScreen])
-
-  const onMoveB = useCallback((evt: any) => {
-    if (!isSyncing.current && state.splitScreen && mapARef.current) {
-      isSyncing.current = true
-      mapARef.current.getMap().jumpTo({
-        center: [evt.viewState.longitude, evt.viewState.latitude],
-        zoom: evt.viewState.zoom,
-        bearing: evt.viewState.bearing,
-        pitch: evt.viewState.pitch,
-      })
-      setTimeout(() => { isSyncing.current = false }, 50)
-    }
-  }, [state.splitScreen])
+    setTimeout(() => { isSyncing.current = false }, 50)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSplit, activeViewIds.join(",")])
 
   const commitViewState = useCallback((evt: any) => {
     if (viewStateUpdateTimer.current) clearTimeout(viewStateUpdateTimer.current)
@@ -1420,17 +1482,17 @@ export function TerrainViewer() {
     }, 500)
   }, [setState])
 
-  const onMoveEndA = useCallback((evt: any) => {
-    if (!isSyncing.current) commitViewState(evt)
-  }, [commitViewState])
-
-  const onMoveEndB = useCallback((evt: any) => {
+  // Identical regardless of which view moved (unlike handleViewMove, no
+  // "jump every other view" side-effect here) — one shared handler for every
+  // active view, replacing the old onMoveEndA/onMoveEndB pair.
+  const handleViewMoveEnd = useCallback((evt: any) => {
     if (!isSyncing.current) commitViewState(evt)
   }, [commitViewState])
 
   const getMapBounds = useCallback(() => {
-    if (!mapARef.current) return { west: -180, south: -90, east: 180, north: 90 }
-    const bounds = mapARef.current.getMap().getBounds()
+    const primary = mapRefs.A.current
+    if (!primary) return { west: -180, south: -90, east: 180, north: 90 }
+    const bounds = primary.getMap().getBounds()
     return {
       west: bounds.getWest(),
       south: bounds.getSouth(),
@@ -1448,8 +1510,8 @@ export function TerrainViewer() {
   // constructed in 2D still gets locked.
   useEffect(() => {
     const is2d = state.viewMode === "2d"
-    const apply = (ref: React.RefObject<MapRef>) => {
-      const map = ref.current?.getMap()
+    const apply = (side: ViewId) => {
+      const map = mapRefs[side].current?.getMap()
       if (!map) return
       if (is2d) {
         map.dragRotate.disable()
@@ -1462,9 +1524,9 @@ export function TerrainViewer() {
         ;(map.keyboard as any)?.enableRotation?.()
       }
     }
-    apply(mapARef)
-    apply(mapBRef)
-  }, [state.viewMode, mapALoaded, mapBLoaded])
+    activeViewIds.forEach(apply)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.viewMode, activeViewIds.join(","), mapLoaded])
 
   const { theme } = useTheme()
   // const theme = state.theme
@@ -1595,32 +1657,35 @@ export function TerrainViewer() {
   //   }
   // }, [state.exaggeration])
 
-  // Sync terrain for Map A
+  // Sync terrain for every active view — generalizes the old "Map A"/"Map B"
+  // pair of near-identical effects into one loop.
   useEffect(() => {
-    const map = mapARef.current?.getMap()
-    if (!map || !mapALoaded) return
-    applyTerrain(map, state.viewMode)
-  }, [state.exaggeration, state.sourceA, state.viewMode, highResTerrain, mapALoaded, applyTerrain])
-  // useEffect(() => {
-  //   const map = mapARef.current?.getMap()
-  //   if (!map || !mapALoaded) return
-  //   return applyTerrain(map, state.viewMode)
-  // }, [state.exaggeration, state.sourceA, state.viewMode, highResTerrain, mapALoaded, applyTerrain])
-
-  // Sync terrain for Map B
-  useEffect(() => {
-    if (!state.splitScreen) return
-    const map = mapBRef.current?.getMap()
-    if (!map || !mapBLoaded) return
-    applyTerrain(map, state.viewMode)
-  }, [state.exaggeration, state.sourceB, state.viewMode, highResTerrain, mapBLoaded, state.splitScreen, applyTerrain])
-
-  // Reset mapBLoaded when split screen is toggled off
-  useEffect(() => {
-    if (!state.splitScreen) {
-      setMapBLoaded(false)
+    for (const side of activeViewIds) {
+      const map = mapRefs[side].current?.getMap()
+      if (!map || !mapLoaded[side]) continue
+      applyTerrain(map, state.viewMode)
     }
-  }, [state.splitScreen])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    state.exaggeration, state.sourceA, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF,
+    state.viewMode, highResTerrain, mapLoaded, activeViewIds.join(","), applyTerrain,
+  ])
+
+  // Reset a view's loaded flag once it's no longer active (split turned off,
+  // or gridLayout shrank) — generalizes "reset mapBLoaded when split screen
+  // is toggled off". A view that drops out of activeViewIds unmounts its
+  // <Map>, so its stale `true` would otherwise never get cleared.
+  useEffect(() => {
+    setMapLoaded((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const side of VIEW_IDS) {
+        if (!activeViewIds.includes(side) && next[side]) { next[side] = false; changed = true }
+      }
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeViewIds.join(",")])
 
   // ----------------------------------------
   // Terrain-transition tile-texture desync workaround (upstream MapLibre GL
@@ -1645,38 +1710,31 @@ export function TerrainViewer() {
   // internal), hence the `any` — `getLayersOrder`/`getLayer`/`hasTransition`
   // all are public.
   useEffect(() => {
-    const map = mapARef.current?.getMap()
-    if (!map || !mapALoaded) return
-    let wasTransitioning = false
-    const onRender = () => {
-      const terrain = (map as any).terrain
-      const transitioning = !!terrain && map.getLayersOrder().some((id) => map.getLayer(id)?.hasTransition())
-      if (transitioning || wasTransitioning) terrain?.tileManager.freeRtt()
-      if (!transitioning && wasTransitioning) map.triggerRepaint()
-      wasTransitioning = transitioning
+    const cleanups: (() => void)[] = []
+    for (const side of activeViewIds) {
+      const map = mapRefs[side].current?.getMap()
+      if (!map || !mapLoaded[side]) continue
+      let wasTransitioning = false
+      const onRender = () => {
+        const terrain = (map as any).terrain
+        const transitioning = !!terrain && map.getLayersOrder().some((id) => map.getLayer(id)?.hasTransition())
+        if (transitioning || wasTransitioning) terrain?.tileManager.freeRtt()
+        if (!transitioning && wasTransitioning) map.triggerRepaint()
+        wasTransitioning = transitioning
+      }
+      map.on('render', onRender)
+      cleanups.push(() => map.off('render', onRender))
     }
-    map.on('render', onRender)
-    return () => { map.off('render', onRender) }
-  }, [mapALoaded])
-
-  useEffect(() => {
-    const map = mapBRef.current?.getMap()
-    if (!map || !mapBLoaded) return
-    let wasTransitioning = false
-    const onRender = () => {
-      const terrain = (map as any).terrain
-      const transitioning = !!terrain && map.getLayersOrder().some((id) => map.getLayer(id)?.hasTransition())
-      if (transitioning || wasTransitioning) terrain?.tileManager.freeRtt()
-      if (!transitioning && wasTransitioning) map.triggerRepaint()
-      wasTransitioning = transitioning
-    }
-    map.on('render', onRender)
-    return () => { map.off('render', onRender) }
-  }, [mapBLoaded])
+    return () => { cleanups.forEach((fn) => fn()) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapLoaded, activeViewIds.join(",")])
   // ----------------------------------------
 
+  // Effective zoom bounds are resolved from view A only, same primary-only
+  // policy as max-bounds/Contours/Geocoder/Nav below — so only A's zoom
+  // range is ever tracked (a zoomRangeB used to exist here too but nothing
+  // downstream ever read it).
   const [zoomRangeA, setZoomRangeA] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
-  const [zoomRangeB, setZoomRangeB] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
   const [zoomRangeBasemap, setZoomRangeBasemap] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
 
   // Only include a range in the computation if it came from a custom source — checked
@@ -1686,19 +1744,25 @@ export function TerrainViewer() {
   // effectiveMinZoom/effectiveMaxZoom below are driven by the primary map only, so the
   // "active basemap" for zoom purposes is always map A's — basemapSourceA in per-view
   // mode, basemapSource otherwise.
-  const rawBasemapSourceA = state.basemapPerView ? state.basemapSourceA : state.basemapSource
-  const rawBasemapSourceB = state.basemapPerView ? state.basemapSourceB : state.basemapSource
-  // rawBasemapSourceA/B is either a normal basemap id or the single combined
-  // "historical" entry — resolve the latter down to whichever concrete
-  // source (wayback/hls/ge-historical/planet) is actually active for that
-  // side before it reaches RasterBasemapSource, which never needs to know
+  // Per-view resolution of basemap id + scrubbed date — generalizes the old
+  // activeBasemapSourceA/B + activeDateA/B pairs to every letter (A-F). Cheap
+  // (plain field lookups, no fetch), so recomputed every render rather than
+  // memoized. rawBasemapSource is either a normal basemap id or the single
+  // combined "historical" entry — resolved down to whichever concrete source
+  // (wayback/hls/ge-historical/planet) is actually active for that side
+  // before it reaches RasterBasemapSource, which never needs to know
   // "historical" exists as a sidebar-level concept.
-  const activeBasemapSourceA = resolveActiveHistoricalSource(rawBasemapSourceA, state.basemapPerView ? state.historicalActiveSourceA : state.historicalActiveSource)
-  const activeBasemapSourceB = resolveActiveHistoricalSource(rawBasemapSourceB, state.basemapPerView ? state.historicalActiveSourceB : state.historicalActiveSource)
-  // Same plain/A/B mode split as the basemap id itself, just for the single
-  // scrubbed date (see date/dateA/dateB above).
-  const activeDateA = state.basemapPerView ? state.dateA : state.date
-  const activeDateB = state.basemapPerView ? state.dateB : state.date
+  const perViewResolved = {} as Record<ViewId, { basemapSource: string; date: number }>
+  for (const side of VIEW_IDS) {
+    const rawBasemapSource = stateAny[viewFieldName(side, "basemapSource", state.basemapPerView)]
+    const historicalActiveSourceForSide = stateAny[viewFieldName(side, "historicalActiveSource", state.basemapPerView)]
+    perViewResolved[side] = {
+      basemapSource: resolveActiveHistoricalSource(rawBasemapSource, historicalActiveSourceForSide),
+      date: stateAny[viewFieldName(side, "date", state.basemapPerView)],
+    }
+  }
+  const activeBasemapSourceA = perViewResolved.A.basemapSource
+  const activeBasemapSourceB = perViewResolved.B.basemapSource
   // Drives the minimap's bottom offset below — the timeline panel docks to
   // the same bottom-left area the minimap (a MapLibre IControl, only ever
   // mounted on the primary/map-a pane) would otherwise occupy.
@@ -1725,44 +1789,45 @@ export function TerrainViewer() {
 
   // Shift the vanishing point left so it stays centered in the visible
   // (non-obscured) portion of the map when the floating sidebar covers the
-  // right edge — but the sidebar only ever overlaps ONE map's own box:
-  // - not split: map A fills the whole viewport, so the sidebar sits within
-  //   A's own right edge → A needs the padding.
-  // - split: map A's box ends at the divider (well left of the sidebar), so
-  //   nothing obscures it → A needs NO padding. Map B's box extends from the
-  //   divider to the true viewport right edge, which DOES include the
-  //   sidebar-covered region → B needs the padding instead.
-  // Applying the same padding to both regardless of split state (as this
-  // used to) shifted A's vanishing point for an obstruction that isn't
-  // actually over A, while B's own shift was sized against a wider box than
-  // its own visible portion — so the same lat/lng/zoom looked centered at
-  // visibly different points on A vs B. Two independent paddings fixes that.
+  // right edge — but the sidebar only ever overlaps the RIGHTMOST pane IN
+  // EACH ROW of the grid (it's a full-height floating overlay pinned to the
+  // viewport's right edge, so every row's last column sits under it):
+  // - not split: the lone view fills the whole viewport, so the sidebar sits
+  //   within its own right edge → it needs the padding (it's trivially "the
+  //   rightmost of its row").
+  // - split: every view except each row's last one ends well left of the
+  //   sidebar → no padding. Each row's last view extends to the true
+  //   viewport right edge, which DOES include the sidebar-covered region →
+  //   it needs the padding instead.
+  // Applying the same padding to every view regardless of column (as this
+  // used to, for the 2-map case) shifts a left pane's vanishing point for an
+  // obstruction that isn't actually over it, while the rightmost pane's own
+  // shift would be sized against a wider box than its own visible portion —
+  // so the same lat/lng/zoom would look centered at visibly different points
+  // across panes. Per-row-rightmost-only padding fixes that.
   const sidebarPaddingPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
-  const mapPaddingA = useMemo(
-    () => ({ top: 0, bottom: 0, left: 0, right: state.splitScreen ? 0 : sidebarPaddingPx }),
-    [state.splitScreen, sidebarPaddingPx],
-  )
-  const mapPaddingB = useMemo(
-    () => ({ top: 0, bottom: 0, left: 0, right: sidebarPaddingPx }),
-    [sidebarPaddingPx],
+  const mapPaddingFor = useCallback(
+    (side: ViewId) => ({ top: 0, bottom: 0, left: 0, right: rightmostPerRow.includes(side) ? sidebarPaddingPx : 0 }),
+    [rightmostPerRow.join(","), sidebarPaddingPx],
   )
 
   // Apply padding instantly (duration: 0), NOT eased — a real bug, found via
-  // live debugging: with any nonzero duration, split mode's A/B camera-sync
-  // (onMoveA/onMoveB below) races the in-progress padding transition. Every
+  // live debugging: with any nonzero duration, split mode's camera-sync
+  // (handleViewMove below) races the in-progress padding transition. Every
   // 'move' event the easing itself fires while animating gets picked up by
-  // the OTHER map's sync handler, which calls that other map's own jumpTo —
-  // and MapLibre's jumpTo() unconditionally calls this.stop() first (it has
-  // to, to jump instantly), aborting whichever map's padding easeTo was
-  // still mid-flight. Confirmed live: with duration: 300 the effect fires
-  // with the correct target value but getPadding() reads back {0,0,0,0}
-  // seconds later; with duration: 0 it reliably sticks.
+  // the OTHER views' sync handler, which calls their own jumpTo — and
+  // MapLibre's jumpTo() unconditionally calls this.stop() first (it has to,
+  // to jump instantly), aborting whichever view's padding easeTo was still
+  // mid-flight. Confirmed live: with duration: 300 the effect fires with the
+  // correct target value but getPadding() reads back {0,0,0,0} seconds
+  // later; with duration: 0 it reliably sticks.
   useEffect(() => {
-    if (mapALoaded && mapARef.current) mapARef.current.getMap().easeTo({ padding: mapPaddingA, duration: 0 })
-  }, [mapPaddingA, mapALoaded])
-  useEffect(() => {
-    if (mapBLoaded && mapBRef.current) mapBRef.current.getMap().easeTo({ padding: mapPaddingB, duration: 0 })
-  }, [mapPaddingB, mapBLoaded])
+    for (const side of activeViewIds) {
+      if (!mapLoaded[side]) continue
+      mapRefs[side].current?.getMap().easeTo({ padding: mapPaddingFor(side), duration: 0 })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapPaddingFor, mapLoaded, activeViewIds.join(",")])
 
   const effectiveMaxZoom = useMemo(() => {
       const candidates = [
@@ -1806,9 +1871,11 @@ export function TerrainViewer() {
   }, [])
 
   useEffect(() => {
-    if (mapALoaded && mapARef.current) applySafeZoomBounds(mapARef.current.getMap(), effectiveMinZoom, effectiveMaxZoom)
-    if (mapBLoaded && mapBRef.current) applySafeZoomBounds(mapBRef.current.getMap(), effectiveMinZoom, effectiveMaxZoom)
-  }, [effectiveMinZoom, effectiveMaxZoom, mapALoaded, mapBLoaded, applySafeZoomBounds])
+    for (const side of activeViewIds) {
+      if (mapLoaded[side]) applySafeZoomBounds(mapRefs[side].current!.getMap(), effectiveMinZoom, effectiveMaxZoom)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveMinZoom, effectiveMaxZoom, mapLoaded, activeViewIds.join(","), applySafeZoomBounds])
 
   // Resolves the "Map Bounds" setting into an actual LngLatBoundsLike, async since
   // "terrain"/"raster"/"union" need a COG/tilejson metadata fetch (see
@@ -1915,13 +1982,14 @@ export function TerrainViewer() {
   // exactly this "isolated click, no other map interaction" case, so force
   // a repaint on both maps whenever they change.
   useEffect(() => {
-    mapARef.current?.getMap()?.triggerRepaint()
-    mapBRef.current?.getMap()?.triggerRepaint()
-  }, [rampOverrides])
+    for (const side of activeViewIds) mapRefs[side].current?.getMap()?.triggerRepaint()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rampOverrides, activeViewIds.join(",")])
 
   const renderMap = useCallback(
-    (source: TerrainSource | string, mapId: string) => {
-      const isPrimary = mapId === "map-a"
+    (source: TerrainSource | string, side: ViewId) => {
+      const isPrimary = side === "A"
+      const isBottomRight = side === bottomRightViewId
       // "live" (lib/phong-live-gl-layer.ts) now projects through MapLibre's own
       // per-frame shaderData prelude, so it renders correctly under BOTH
       // mercator and globe — no globe fallback needed anymore. It's still
@@ -1930,7 +1998,7 @@ export function TerrainViewer() {
 
       return (
         <Map
-          ref={isPrimary ? mapARef : mapBRef}
+          ref={mapRefs[side]}
           mapLib={maplibregl}
           // Disabled here (added explicitly below, after ScaleControl) so we
           // control its stacking order in the bottom-right corner instead of
@@ -1944,13 +2012,11 @@ export function TerrainViewer() {
             pitch: state.viewMode === "2d" ? 0 : state.pitch,
             bearing: state.viewMode === "2d" ? 0 : state.bearing,
           }}
-          onMove={isPrimary ? onMoveA : onMoveB}
-          onMoveEnd={isPrimary ? onMoveEndA : onMoveEndB}
+          onMove={(evt) => handleViewMove(side, evt)}
+          onMoveEnd={handleViewMoveEnd}
           onLoad={() => {
-            if (isPrimary) setMapALoaded(true)
-            else setMapBLoaded(true)
-            const map = isPrimary ? mapARef.current : mapBRef.current
-            const mapInstance = map?.getMap()
+            setViewLoaded(side, true)
+            const mapInstance = mapRefs[side].current?.getMap()
             if (!mapInstance) return
 
             // A new viewport needs a fresh "how many tiles are pending" count
@@ -2054,15 +2120,15 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             customTerrainSources={customTerrainSources}
             titilerEndpoint={titilerEndpoint}
-            onZoomRangeChange={isPrimary ? setZoomRangeA : setZoomRangeB}
+            onZoomRangeChange={isPrimary ? setZoomRangeA : undefined}
             lat={state.lat}
             lng={state.lng}
           />
           <RasterBasemapSource
-            basemapSource={isPrimary ? activeBasemapSourceA : activeBasemapSourceB}
+            basemapSource={perViewResolved[side].basemapSource}
             mapboxKey={mapboxKey}
             hereKey={hereKey}
-            date={isPrimary ? activeDateA : activeDateB}
+            date={perViewResolved[side].date}
             latitude={state.lat}
             longitude={state.lng}
             zoom={state.zoom}
@@ -2231,7 +2297,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <MatcapLiveGlLayer
-            mapRef={isPrimary ? mapARef : mapBRef}
+            mapRef={mapRefs[side]}
             enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "live"}
             matcapUrl={matcapUrlFor(state.matcapTextureId)}
             rotationDeg={state.matcapRotationDeg}
@@ -2264,7 +2330,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <PhongLiveGlLayer
-            mapRef={isPrimary ? mapARef : mapBRef}
+            mapRef={mapRefs[side]}
             enabled={state.showLightingEffects && state.showPhong && effectivePhongRenderer === "live"}
             diffuseStrength={state.phongDiffuseStrength}
             specularStrength={state.phongSpecularStrength}
@@ -2297,7 +2363,7 @@ export function TerrainViewer() {
           {isPrimary && (
             <TellsSource
               enabled={state.tellsBeta && tellsEverActivated}
-              terrainSource={state.sourceA}
+              terrainSource={source}
               customTerrainSources={customTerrainSources}
               mapboxKey={mapboxKey}
               maptilerKey={maptilerKey}
@@ -2308,7 +2374,7 @@ export function TerrainViewer() {
           {isPrimary && (
             <TellsSource
               enabled={state.tellsBeta && tellsEverActivated}
-              terrainSource={state.sourceA}
+              terrainSource={source}
               customTerrainSources={customTerrainSources}
               mapboxKey={mapboxKey}
               maptilerKey={maptilerKey}
@@ -2321,8 +2387,12 @@ export function TerrainViewer() {
           {/* Layers */}
           <LayerOrderSlots />
 
+          {/* Rendered once per map instance (not primary-only) — each map's
+              own react-map-gl <Layer> tree needs its own background fill;
+              the mapRef prop itself is currently dead code inside
+              BackgroundLayer (getBeforeId defined but unused). */}
           {state.backgroundLayerActive && (
-            <BackgroundLayer theme={theme as any} mapRef={mapARef as any} />
+            <BackgroundLayer theme={theme as any} mapRef={mapRefs[side] as any} />
           )}
           <RasterLayer
             showRasterBasemap={state.showRasterBasemap}
@@ -2365,8 +2435,8 @@ export function TerrainViewer() {
           {isPrimary && <TellsUnfilteredLoaderLayer enabled={state.tellsBeta && tellsEverActivated} />}
           {isPrimary && (
             <TellsInspectPopup
-              mapRef={mapARef as any}
-              active={mapALoaded && state.tellsBeta}
+              mapRef={mapRefs.A as any}
+              active={mapLoaded.A && state.tellsBeta}
             />
           )}
           <MatcapRasterLayer
@@ -2391,7 +2461,7 @@ export function TerrainViewer() {
             <ContoursLayer
               showContours={state.showContoursAndGraticules && state.showContours}
               showContourLabels={state.showContourLabels}
-              sourceId={state.sourceA}
+              sourceId={source}
               referenceMode={state.contourReferenceMode}
               lrmRadius={state.lrmRadius}
               contourMinor={state.contourReferenceMode === "lrm" ? state.contourMinorLrm : state.contourMinor}
@@ -2402,7 +2472,7 @@ export function TerrainViewer() {
               maptilerKey={maptilerKey}
               customTerrainSources={customTerrainSources}
               titilerEndpoint={titilerEndpoint}
-              mapLoaded={mapALoaded}
+              mapLoaded={!!mapLoaded.A}
               theme={theme}
             />
           )}
@@ -2522,23 +2592,21 @@ export function TerrainViewer() {
             </>
           )}
           {/* Scale bar always lands at the true bottom-right edge of the whole
-              viewport, not per-split-half: mounted on whichever map currently
-              occupies that visual position — map B when split (its own
-              bottom-right IS the screen's rightmost edge), map A otherwise
-              (full width). Exactly one of renderMap("map-a")/("map-b") can
-              ever satisfy this per render, by construction (map-b only
-              renders at all when splitScreen is true), so this always mounts
-              exactly one ScaleControl. */}
-          {!activeProjectConfig?.hideMapControls?.includes("scale") && mapId === (state.splitScreen ? "map-b" : "map-a") && (
+              viewport, not per-pane: mounted on whichever view currently
+              occupies that visual corner — the last column of the last row
+              (bottomRightViewId), matching today's "map B when split, map A
+              otherwise" for the 2-map case. Exactly one view ever satisfies
+              this per render, by construction, so this always mounts exactly
+              one ScaleControl across the whole grid. */}
+          {!activeProjectConfig?.hideMapControls?.includes("scale") && isBottomRight && (
             <ScaleControl position="bottom-right" unit="metric" maxWidth={250} />
           )}
           {/* Mounted after ScaleControl so it's the later-added of the two —
               for bottom corners MapLibre inserts new controls at the FRONT
               of the corner container, so the later one ends up visually
               topmost (attribution above scale, closer to the corner is
-              scale). Both bottom-right, both map-A-when-not-split /
-              map-B-when-split (same rightmost-map gating as scale). */}
-          {mapId === (state.splitScreen ? "map-b" : "map-a") && (
+              scale). Same bottom-right-most-view gating as scale. */}
+          {isBottomRight && (
             <AttributionControl compact position="bottom-right" />
           )}
         </Map>
@@ -2570,15 +2638,15 @@ export function TerrainViewer() {
       state.tellsStyle, state.showTellsDetector, state.tellsMarkersVisible, tellsOptions, state.tellsBeta, tellsEverActivated,
       tellsColorByPaints, state.tellsOutlineColor, state.tellsScaleMarkers, state.tellsScaleMultiplier, state.tellMeasureScale,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
-      state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.splitScreen,
+      state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF, isSplit,
       state.sourceA, state.contourMinor, state.contourMajor, state.contourMinorLrm, state.contourMajorLrm, state.contourReferenceMode, state.contourWeight,
       state.contourColor, state.graticuleColor,
-      activeBasemapSourceA, activeBasemapSourceB, activeDateA, activeDateB, planetKey, state.historicalBeta,
+      perViewResolved, planetKey, state.historicalBeta,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint,
       svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
-      mapALoaded, onMoveA, onMoveEndA, onMoveB, onMoveEndB,
+      mapLoaded, mapRefs, handleViewMove, handleViewMoveEnd, bottomRightViewId,
       state.skyColor, state.skyHorizonBlend, state.horizonColor, state.horizonFogBlend,
       state.fogColor, state.fogGroundBlend, state.matchThemeColors, state.backgroundLayerActive,
       activeProjectConfig,
@@ -2618,12 +2686,23 @@ export function TerrainViewer() {
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 
-  // Split-ratio math: map A gets an explicit pixel width (a fraction of the
-  // space actually available once the floating sidebar's footprint is
-  // excluded), map B fills the remainder via flex-1 — so B naturally keeps
-  // extending under the sidebar overlay exactly as it always has.
+  // Same "fixed columns + flex-1 last column" pattern for every row, in
+  // every layout — "2x1" is the one case where the first column's width is a
+  // user-adjustable ratio (the draggable pill) instead of an equal 1/cols
+  // share; every other layout's columns are fixed (see lib/grid-layouts.ts's
+  // header comment). The last column in each row always gets flex-1, so it
+  // naturally keeps extending under the sidebar overlay exactly as pane B
+  // always has — see mapPaddingFor above for the matching camera-padding
+  // correction.
   const availableSplitWidth = Math.max(0, splitContainerWidth - (isSidebarOpen && !isMobile ? sidebarFootprintPx : 0))
-  const mapAWidthPx = state.splitScreen ? Math.round(availableSplitWidth * clamp(splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX)) : undefined
+  // "overlay" clip-path's own coordinate space is a % of the FULL container
+  // (not availableSplitWidth) — same derivation as mapAWidthPx used to be,
+  // just expressed as a percentage instead of a flex pixel width.
+  const overlayBoundaryPct = splitContainerWidth > 0
+    ? (availableSplitWidth * clamp(splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX) / splitContainerWidth) * 100
+    : 0
+  const renderRows: ViewId[][] = isSplit ? gridConfig.grid : [["A"]]
+  const borderColorFor = (side: ViewId) => sideColorOverrides[side] ?? SIDE_COLORS[side]
 
   if (!mapLibreReady) return null
 
@@ -2634,49 +2713,108 @@ export function TerrainViewer() {
         height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : '100vh'
       }}
     >
-      <div ref={splitContainerRef} className="absolute inset-0 flex">
-        <div
-          className={cn(
-            state.splitScreen ? "shrink-0" : "w-full",
-            "[&_.maplibregl-ctrl-bottom-left]:!bottom-[var(--minimap-offset)] [&_.maplibregl-ctrl-bottom-left]:transition-[bottom] [&_.maplibregl-ctrl-bottom-left]:duration-200",
-            !state.splitScreen && "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
-          )}
-          style={{
-            width: state.splitScreen ? mapAWidthPx : undefined,
-            ["--minimap-offset" as any]: minimapBottomOffset,
-            ["--scale-offset" as any]: scaleBottomOffset,
-            ["--scale-right-offset" as any]: scaleRightOffset,
-          }}
-        >
-          {renderMap(state.sourceA, "map-a")}
-        </div>
-        {state.splitScreen && (
+      <div ref={splitContainerRef} className={cn("absolute inset-0", !isOverlaySplit && "flex flex-col")}>
+        {isOverlaySplit ? (
+          // Both panes absolute-stacked in the same full-bleed viewport
+          // (not flex siblings) — pane B's own wrapper is clip-path-cropped
+          // + blended over pane A, instead of the two sitting side by side.
           <>
-            <SplitResizeHandle
+            <div
+              className={cn(
+                "absolute inset-0",
+                "[&_.maplibregl-ctrl-bottom-left]:!bottom-[var(--minimap-offset)] [&_.maplibregl-ctrl-bottom-left]:transition-[bottom] [&_.maplibregl-ctrl-bottom-left]:duration-200",
+                "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
+                colorizeMapBorders && "outline outline-2 -outline-offset-2",
+              )}
+              style={{
+                ["--minimap-offset" as any]: minimapBottomOffset,
+                ["--scale-offset" as any]: scaleBottomOffset,
+                ["--scale-right-offset" as any]: scaleRightOffset,
+                outlineColor: colorizeMapBorders ? borderColorFor("A") : undefined,
+              }}
+            >
+              {renderMap(state.sourceA, "A")}
+            </div>
+            <div
+              className={cn("absolute inset-0", colorizeMapBorders && "outline outline-2 -outline-offset-2")}
+              style={{
+                clipPath: `polygon(${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 100% 100%, 100% 0%)`,
+                mixBlendMode: state.splitBlendMode as any,
+                opacity: state.overlayOpacity,
+                outlineColor: colorizeMapBorders ? borderColorFor("B") : undefined,
+              }}
+            >
+              {renderMap(state.sourceB, "B")}
+            </div>
+            <SplitPill
               ratio={splitRatio}
               onRatioChange={setSplitRatio}
               availableWidthPx={availableSplitWidth}
               min={SPLIT_RATIO_MIN}
               max={SPLIT_RATIO_MAX}
+              leftPercent={overlayBoundaryPct}
+              opacity={state.overlayOpacity}
+              onOpacityChange={(v) => setState({ overlayOpacity: v })}
             />
-            <div
-              className={cn(
-                "flex-1",
-                "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)]",
-                "[&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
-              )}
-              style={{
-                ["--scale-offset" as any]: scaleBottomOffset,
-                ["--scale-right-offset" as any]: scaleRightOffset,
-              }}
-            >
-              {renderMap(state.sourceB, "map-b")}
-            </div>
           </>
+        ) : (
+          renderRows.map((row, rowIdx) => (
+            <Fragment key={rowIdx}>
+              {/* Horizontal seam between rows — the vertical one between
+                  columns (below) is always visible for non-2x1 layouts, so a
+                  2-row grid (2x2/3x2) needs the same static divider in the
+                  other axis, or its two rows read as one tall pane with no
+                  visible boundary. */}
+              {rowIdx > 0 && <div className="h-px shrink-0 bg-border" />}
+              <div className="flex flex-1 min-h-0">
+              {row.map((side, colIdx) => {
+                const isLastCol = colIdx === row.length - 1
+                const paneWidthPx = isLastCol
+                  ? undefined
+                  : effectiveGridLayout === "2x1"
+                    ? Math.round(availableSplitWidth * clamp(splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX))
+                    : Math.round(availableSplitWidth / gridConfig.cols)
+                return (
+                  <Fragment key={side}>
+                    <div
+                      className={cn(
+                        isLastCol ? "flex-1" : "shrink-0",
+                        "[&_.maplibregl-ctrl-bottom-left]:!bottom-[var(--minimap-offset)] [&_.maplibregl-ctrl-bottom-left]:transition-[bottom] [&_.maplibregl-ctrl-bottom-left]:duration-200",
+                        side === bottomRightViewId && "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
+                        colorizeMapBorders && isSplit && "outline outline-2 -outline-offset-2",
+                      )}
+                      style={{
+                        width: paneWidthPx,
+                        ["--minimap-offset" as any]: minimapBottomOffset,
+                        ["--scale-offset" as any]: scaleBottomOffset,
+                        ["--scale-right-offset" as any]: scaleRightOffset,
+                        outlineColor: (colorizeMapBorders && isSplit) ? borderColorFor(side) : undefined,
+                      }}
+                    >
+                      {renderMap(stateAny[sourceFieldName(side)], side)}
+                    </div>
+                    {!isLastCol && effectiveGridLayout === "2x1" && (
+                      <SplitPill
+                        ratio={splitRatio}
+                        onRatioChange={setSplitRatio}
+                        availableWidthPx={availableSplitWidth}
+                        min={SPLIT_RATIO_MIN}
+                        max={SPLIT_RATIO_MAX}
+                      />
+                    )}
+                    {!isLastCol && effectiveGridLayout !== "2x1" && (
+                      <div className="w-px shrink-0 bg-border" />
+                    )}
+                  </Fragment>
+                )
+              })}
+              </div>
+            </Fragment>
+          ))
         )}
       </div>
-      <LightControlOverlay state={state} setState={setState} mapRef={mapARef as any} />
-      <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapARef as any} />
+      <LightControlOverlay state={state} setState={setState} mapRef={mapRefs.A as any} />
+      <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapRefs.A as any} />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
         <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} />
       )}
@@ -2684,7 +2822,7 @@ export function TerrainViewer() {
         state={state}
         setState={setState}
         getMapBounds={getMapBounds}
-        mapRef={mapARef as any}
+        mapRef={mapRefs.A as any}
       />
     </div>
   )

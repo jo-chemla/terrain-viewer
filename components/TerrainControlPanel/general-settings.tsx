@@ -19,7 +19,6 @@ export const GeneralSettings: React.FC<{
 }> = ({ state, setState, isOpen, onOpenChange, historicalMode = false }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const disabledViewModes = activeProjectConfig?.disableViewModes ?? []
-  const hideSplitScreen = activeProjectConfig?.hiddenSections?.includes("splitScreen") ?? false
 
   return (
     <Section title="General Settings" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
@@ -35,17 +34,6 @@ export const GeneralSettings: React.FC<{
               !disabledViewModes.includes("globe") && { value: "globe", label: <Globe className="h-4 w-4 mx-auto" strokeWidth={state.viewMode === "globe" ? 2 : 1.5} /> },
               !disabledViewModes.includes("3d") && { value: "3d", label: "3D" },
             ].filter(Boolean) as { value: string; label: React.ReactNode }[]}
-          />
-        </div>
-      )}
-      {!hideSplitScreen && (
-        <div className="flex items-center justify-between gap-2">
-          <Label className="text-sm font-medium">Split Screen</Label>
-          <SegmentedToggle
-            className="w-[140px]"
-            value={state.splitScreen ? "on" : "off"}
-            onChange={(value) => setState({ splitScreen: value === "on" })}
-            options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
           />
         </div>
       )}

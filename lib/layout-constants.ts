@@ -6,6 +6,7 @@
 // the sidebar Card's own Tailwind classes (w-80 / sm:right-4 sm:w-96).
 import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
+import type { ViewId } from "./grid-layouts"
 
 export const SIDEBAR_WIDTH_MOBILE = 320 // w-80
 export const SIDEBAR_WIDTH_DESKTOP = 384 // sm:w-96
@@ -25,7 +26,10 @@ export function getSidebarFootprintPx(isSidebarOpen: boolean, isMobile: boolean)
 export const MAP_CTRL_EDGE_MARGIN_PX = 16
 
 // Draggable A/B split-screen divider — persisted (like isSidebarOpenAtom)
-// since it's a user layout preference, not per-session UI state.
+// since it's a user layout preference, not per-session UI state. Only ever
+// user-adjustable for gridLayout "2x1" (see TerrainViewer.tsx) — every other
+// grid layout divides its panes into fixed, equal-width columns instead, by
+// deliberate design (the user doesn't get a divider to drag per extra pane).
 export const splitRatioAtom = atomWithStorage<number>("splitRatio", 0.5)
 export const SPLIT_RATIO_MIN = 0.15
 export const SPLIT_RATIO_MAX = 0.85
@@ -34,6 +38,18 @@ export const SPLIT_RESIZER_WIDTH_PX = 6
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
+
+// Per-side color overrides for the grid/overlay comparison UI — defaults to
+// lib/grid-layouts.ts's SIDE_COLORS; only the letters a user has actually
+// repainted via the Comparison and Mix section's color pickers get an entry
+// here. Shared by the historical timeline panel's handles/pills and (when
+// colorizeMapBordersAtom is on) each map pane's border, so both stay in sync.
+export const sideColorOverridesAtom = atomWithStorage<Partial<Record<ViewId, string>>>("sideColorOverrides", {})
+
+// Outlines each active map pane in its resolved side color (SIDE_COLORS,
+// overridden by sideColorOverridesAtom) — purely cosmetic, off by default so
+// it doesn't surprise anyone not using the comparison/grid features.
+export const colorizeMapBordersAtom = atomWithStorage("colorizeMapBorders", false)
 
 // The historical timeline panel's own measured height (its outer bordered
 // box, via ResizeObserver — see historical-timeline-panel.tsx), so

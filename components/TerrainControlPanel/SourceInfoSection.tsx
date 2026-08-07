@@ -15,6 +15,7 @@ import { useBingDynamicAttribution } from "@/lib/bing"
 import { resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { BUILTIN_BASEMAP_OPTIONS } from "./raster-basemap-section"
+import { GRID_LAYOUTS, viewFieldName, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 
 /** True for every basemap id whose real attribution is resolved dynamically
  *  (as opposed to a fixed string) — shared between the sidebar list below and
@@ -51,20 +52,33 @@ const MOVE_DEBOUNCE_MS = 400
 // this renders whenever state.showRasterBasemap is on, alongside the
 // terrain-provenance block above rather than instead of it.
 const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<MapRef> }> = ({ state, mapRef }) => {
-  const rawA = state.basemapPerView ? state.basemapSourceA : state.basemapSource
-  const rawB = state.basemapPerView ? state.basemapSourceB : state.basemapSource
-  const activeA = resolveActiveHistoricalSource(rawA, state.basemapPerView ? state.historicalActiveSourceA : state.historicalActiveSource)
-  const activeB = resolveActiveHistoricalSource(rawB, state.basemapPerView ? state.historicalActiveSourceB : state.historicalActiveSource)
-  const dateA = state.basemapPerView ? state.dateA : state.date
-  const dateB = state.basemapPerView ? state.dateB : state.date
-  const showB = !!state.splitScreen && !!state.basemapPerView && activeB !== activeA
+  // Every active view (A-F), not just A/B — generalizes the old fixed pair
+  // the same way TerrainViewer.tsx's own perViewResolved does. "overlay"
+  // always compares exactly 2 views regardless of state.gridLayout's own
+  // value, same policy as everywhere else this distinction matters.
+  const effectiveGridLayout: GridLayoutId = state.splitStyle === "overlay" ? "2x1" : (state.gridLayout ?? "2x1")
+  const activeViews: ViewId[] = state.splitStyle !== "off" ? GRID_LAYOUTS[effectiveGridLayout].grid.flat() : ["A"]
 
-  // All three hooks are called unconditionally (cheap/debounced) regardless
-  // of which side(s) actually need them — hooks can't be conditional.
+  const activeSourceFor = (side: ViewId) => resolveActiveHistoricalSource(
+    state[viewFieldName(side, "basemapSource", state.basemapPerView)],
+    state[viewFieldName(side, "historicalActiveSource", state.basemapPerView)],
+  )
+  const dateFor = (side: ViewId) => state[viewFieldName(side, "date", state.basemapPerView)]
+
+  // Fixed six calls (rules of hooks forbid a variable count) — cheap/
+  // debounced regardless of which sides are actually active, same "call
+  // unconditionally" convention the original A/B version already used.
   const esriAttribution = useEsriDynamicAttribution(state.lat, state.lng, state.zoom)
-  const geAttributionA = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateA)
-  const geAttributionB = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateB)
   const bingAttribution = useBingDynamicAttribution(state.lat, state.lng, state.zoom)
+  const geAttributionA = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("A"))
+  const geAttributionB = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("B"))
+  const geAttributionC = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("C"))
+  const geAttributionD = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("D"))
+  const geAttributionE = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("E"))
+  const geAttributionF = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("F"))
+  const geAttributionBySide: Record<ViewId, string> = {
+    A: geAttributionA, B: geAttributionB, C: geAttributionC, D: geAttributionD, E: geAttributionE, F: geAttributionF,
+  }
 
   const textFor = (id: string, geAttribution: string) =>
     id === "wayback" || id === "esri" ? esriAttribution
@@ -72,9 +86,10 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
     : id === "bing" ? bingAttribution
     : STATIC_BASEMAP_ATTRIBUTIONS[id] ?? "—"
 
+  const activeA = activeSourceFor("A")
   const textA = textFor(activeA, geAttributionA)
 
-  // Pushes map A's resolved dynamic text directly onto the LIVE maplibre
+  // Pushes view A's resolved dynamic text directly onto the LIVE maplibre
   // source object (bypassing react-map-gl's <Source> entirely — see the
   // long comment on MapSources.tsx's wayback branch for why that
   // component's own `attribution` prop can never carry a value that changes
@@ -84,8 +99,12 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   // listener only recomputes when e.sourceDataType is 'metadata' or
   // 'visibility' (or a style-level event) — firing exactly that shape is
   // Map's normal PUBLIC fire() (Evented.fire, not a private method), so this
-  // needs no undocumented API at all. Map B (split screen) isn't covered —
-  // this component only ever receives the primary map's ref.
+  // needs no undocumented API at all. Every other active view (B-F) isn't
+  // covered — this component only ever receives view A's own ref, and
+  // TerrainViewer.tsx only ever mounts ONE AttributionControl in the whole
+  // grid anyway (on whichever view sits bottom-right); the sidebar list
+  // below is unaffected either way since it reads these hooks' values
+  // directly rather than through this imperative push.
   useEffect(() => {
     if (!isDynamicBasemap(activeA)) return
     const map = mapRef.current?.getMap()
@@ -119,13 +138,24 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
     </div>
   )
 
+  // Dedup consecutive views that resolved to the exact same basemap id (e.g.
+  // a 3x1 grid where B and C both happen to be on plain ESRI World Imagery)
+  // — no reason to repeat an identical attribution row per letter; the
+  // surviving row's prefix lists every letter it covers instead of just one.
+  const grouped: { ids: ViewId[]; source: string; ge: string }[] = []
+  for (const side of activeViews) {
+    const source = activeSourceFor(side)
+    const last = grouped[grouped.length - 1]
+    if (last && last.source === source) last.ids.push(side)
+    else grouped.push({ ids: [side], source, ge: geAttributionBySide[side] })
+  }
+
   return (
     <div className="space-y-1.5">
       <p className="text-xs text-muted-foreground">
         Basemap attribution — Esri/Wayback, Google Earth, and Bing resolve live for the current view; every other source is fixed.
       </p>
-      {row(activeA, geAttributionA, showB ? "A: " : "")}
-      {showB && row(activeB, geAttributionB, "B: ")}
+      {grouped.map((g) => row(g.source, g.ge, activeViews.length > 1 ? `${g.ids.join("/")}: ` : ""))}
     </div>
   )
 }
