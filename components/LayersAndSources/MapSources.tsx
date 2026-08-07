@@ -27,6 +27,14 @@ import { buildTellsProtocolUrl, type TellsOptions } from "@/lib/tells-protocol"
 import { buildMatcapProtocolUrl } from "@/lib/matcap-protocol"
 import { buildPhongProtocolUrl } from "@/lib/phong-protocol"
 import { buildShadowProtocolUrl } from "@/lib/shadow-protocol"
+import { useResolvedWaybackRelease, waybackTileUrl } from "@/lib/wayback"
+import { hlsTileUrl } from "@/lib/hls"
+import { geHistoricalTileSource } from "@/lib/ge-historical"
+import { planetTileUrl, PLANET_TILE_SIZE, PLANET_MAXZOOM } from "@/lib/planet"
+import { eoxS2CloudlessTileUrl, EOX_S2_TILE_SIZE, EOX_S2_MAXZOOM } from "@/lib/eox-s2-cloudless"
+import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
+import { STATIC_BASEMAP_ATTRIBUTIONS } from "@/lib/basemap-attribution"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
 
 const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
     const raw = pixel[0]
@@ -84,6 +92,19 @@ const rasterBasemaps: Record<string, { url: string; tileSize: number; maxzoom: n
     bing:      { url: "https://t.ssl.ak.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=14603&n=z&prx=1", tileSize: 256, maxzoom: 21 },
     here:      { url: "https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?style=satellite.day&apiKey={API_KEY}", tileSize: 256, maxzoom: 20 },
 }
+
+// "wayback" isn't in rasterBasemaps above — its tile URL is per-release (see
+// lib/wayback.ts), resolved at render time in RasterBasemapSource instead of
+// a static template — but it shares the same maxzoom historical-satellite
+// itself uses for World Imagery Wayback.
+const WAYBACK_TILE_SIZE = 256
+const WAYBACK_MAXZOOM = 19
+
+// "hls" mirrors the wayback pattern above — per-date tile URL built at render
+// time (see lib/hls.ts) rather than a static template. 16 matches HLS's own
+// 30m native resolution reasonably well for the titiler-cmr rasterio backend.
+const HLS_TILE_SIZE = 256
+const HLS_MAXZOOM = 16
 
 // -------------------------
 // Helpers
@@ -273,13 +294,42 @@ TerrainSources.displayName = "TerrainSources"
 // RasterBasemapSource
 // -------------------------
 
+// Dragging the historical timeline's scrubber handle across many ticks
+// (possibly belonging to several different sources at once, e.g. Wayback
+// and HLS ticks interleaved on the same track) fires a state update — and so
+// a new basemapSource/date prop pair here — on every intermediate pointer
+// move. Each one would otherwise trigger a real tile source reload (or, when
+// basemapSource itself flips between sources, a full <Source> remount via
+// its key below) for a position the user is just passing through, not
+// stopping on. Debounced just long enough to coalesce a fast drag's burst of
+// intermediate values into the one the user actually lands on, short enough
+// that a single deliberate click/step still feels instant.
+const RASTER_SOURCE_DEBOUNCE_MS = 150
+
 export const RasterBasemapSource = memo(({
     // basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint,
-    basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint, onZoomRangeChange,
+    basemapSource: rawBasemapSource, mapboxKey, hereKey, planetKey, date: rawDate, latitude, longitude, zoom, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
 }: {
     basemapSource: string
     mapboxKey: string
     hereKey?: string
+    planetKey?: string
+    /** Settings > Beta > "Historical Imagery Sources" gate — when false, the
+     *  historical sources (wayback/hls/ge-historical/planet/eox-s2) render
+     *  nothing even if somehow still selected (e.g. a stale `?basemapSource=` URL). */
+    historicalBeta?: boolean
+    /** Epoch ms — the ONE date this side is scrubbed to, regardless of which
+     *  concrete historical source is active (Wayback/HLS/GE/Planet/EOX-S2 all
+     *  read the same field now; see lib/wayback.ts's useResolvedWaybackRelease
+     *  for how Wayback specifically turns this into an actual release
+     *  number). Ignored when basemapSource isn't one of those sources. */
+    date?: number
+    /** Current view center — only actually used to resolve Wayback's nearest
+     *  release to `date` (every other source's date is already directly
+     *  usable); ignored otherwise. */
+    latitude: number
+    longitude: number
+    zoom: number
     customBasemapSources: any[]
     titilerEndpoint: string
     onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom: boolean }) => void
@@ -288,6 +338,15 @@ export const RasterBasemapSource = memo(({
     // Unused directly — read so this component re-renders when a local COG file
     // is (re-)picked (see custom-source-details.tsx's "Re-select file…" flow).
     useAtomValue(localFileVersionAtom)
+
+    const basemapSource = useDebouncedValue(rawBasemapSource, RASTER_SOURCE_DEBOUNCE_MS)
+    const date = useDebouncedValue(rawDate, RASTER_SOURCE_DEBOUNCE_MS)
+    // Only actually resolves network-side when basemapSource === "wayback" —
+    // see useResolvedWaybackRelease's own hooks, which no-op (return null,
+    // items.length 0) when `date` is falsy regardless of source, so calling
+    // this unconditionally (hooks can't be conditional) costs nothing when
+    // this side isn't on Wayback.
+    const { item: resolvedWaybackItem } = useResolvedWaybackRelease(latitude, longitude, zoom, basemapSource === "wayback" ? date ?? 0 : 0)
 
     const customBasemap = customBasemapSources.find((s) => s.id === basemapSource)
     // A local file can only ever stream via the in-browser geomatico protocol —
@@ -310,20 +369,70 @@ export const RasterBasemapSource = memo(({
             })
         }
 
+        if (HISTORICAL_BASEMAP_IDS.has(basemapSource) && !historicalBeta) return null
+
+        if (basemapSource === "wayback") {
+            // Catalog still loading, or no release resolved yet for this date
+            // (see lib/wayback.ts's useResolvedWaybackRelease) — render
+            // nothing rather than a broken/stale tile request.
+            if (!resolvedWaybackItem) return null
+            // A constant pointer string, not the real per-view contributor —
+            // react-map-gl's <Source> reconciler (node_modules/@vis.gl/
+            // react-maplibre/src/components/source.ts's updateSource) has no
+            // live-update path for `attribution` at all (any changed prop it
+            // doesn't recognize just logs "Unable to update <Source> prop"
+            // and is dropped), so a value that changes post-mount could never
+            // reach the map through this prop anyway. The real value lives in
+            // the sidebar's Source Info section instead (SourceInfoSection.tsx,
+            // via useEsriDynamicAttribution) — resolved for the current view
+            // there, not tied to this one Source instance.
+            return { tiles: [waybackTileUrl(resolvedWaybackItem)], tileSize: WAYBACK_TILE_SIZE, maxzoom: WAYBACK_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.wayback }
+        }
+
+        if (basemapSource === "hls") {
+            if (!date) return null
+            return { tiles: [hlsTileUrl(date)], tileSize: HLS_TILE_SIZE, maxzoom: HLS_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.hls }
+        }
+
+        if (basemapSource === "ge-historical") {
+            if (!date) return null
+            // geHistoricalTileSource returns its own constant pointer string
+            // (lib/ge-historical.ts) for the same reason as the wayback
+            // branch above — the real per-tile provider lives in the
+            // sidebar's Source Info section instead (useGeHistoricalDynamicAttribution).
+            return geHistoricalTileSource(date)
+        }
+
+        if (basemapSource === "planet") {
+            if (!date || !planetKey) return null
+            return { tiles: [planetTileUrl(date, planetKey)], tileSize: PLANET_TILE_SIZE, maxzoom: PLANET_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.planet }
+        }
+
+        if (basemapSource === "eox-s2") {
+            if (!date) return null
+            return { tiles: [eoxS2CloudlessTileUrl(new Date(date).getUTCFullYear())], tileSize: EOX_S2_TILE_SIZE, maxzoom: EOX_S2_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["eox-s2"] }
+        }
+
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         const tileUrl = basemapSource === "mapbox"
             ? basemap.url.replace("{API_KEY}", mapboxKey)
             : basemapSource === "here"
             ? basemap.url.replace("{API_KEY}", hereKey ?? "")
             : basemap.url
-        return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom }
-    }, [customBasemap, basemapSource, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
+        return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom, attribution: STATIC_BASEMAP_ATTRIBUTIONS[basemapSource] }
+    }, [customBasemap, basemapSource, historicalBeta, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
+        if (HISTORICAL_BASEMAP_IDS.has(basemapSource) && !historicalBeta) return { minzoom: 0, maxzoom: 22, isCustom: false }
+        if (basemapSource === "wayback") return { minzoom: 0, maxzoom: WAYBACK_MAXZOOM, isCustom: false }
+        if (basemapSource === "hls") return { minzoom: 0, maxzoom: HLS_MAXZOOM, isCustom: false }
+        if (basemapSource === "ge-historical") return { minzoom: 0, maxzoom: 23, isCustom: false }
+        if (basemapSource === "planet") return { minzoom: 0, maxzoom: PLANET_MAXZOOM, isCustom: false }
+        if (basemapSource === "eox-s2") return { minzoom: 0, maxzoom: EOX_S2_MAXZOOM, isCustom: false }
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         return { minzoom: 0, maxzoom: basemap.maxzoom, isCustom: false }
-    }, [customBasemap, basemapSource])
+    }, [customBasemap, basemapSource, historicalBeta])
 
     useEffect(() => {
         onZoomRangeChange?.(zoomRange)

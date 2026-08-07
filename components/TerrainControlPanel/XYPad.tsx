@@ -85,17 +85,6 @@ export function SphericalXYPad({
     return { x: r * Math.cos(az), y: -r * Math.sin(az) };
   };
 
-  // Same projection as degToXY (r = cos(elevation), compass-to-math angle
-  // conversion) but without degToXY's fixedAzimuth/fixedElevation overrides —
-  // the sun-envelope backdrop below plots real astronomy, not the pad's own
-  // drag constraints.
-  const azElToXY = ({ azimuth, elevation }: AzElPoint) => {
-    const az = ((90 - azimuth) * Math.PI) / 180;
-    const el = (elevation * Math.PI) / 180;
-    const r = Math.cos(el);
-    return { x: r * Math.cos(az), y: -r * Math.sin(az) };
-  };
-
   const xyToDeg = (x: number, y: number) => {
     const r = Math.sqrt(x * x + y * y);
     const mathAngle = Math.atan2(-y, x);
@@ -107,6 +96,20 @@ export function SphericalXYPad({
     let elevationDeg = (elevation * 180) / Math.PI;
     elevationDeg = Math.max(minElevationDeg, Math.min(maxElevationDeg, elevationDeg));
     return { azimuthDeg, elevationDeg };
+  };
+
+  // Same projection as degToXY, minus the fixedAzimuth/fixedElevation
+  // substitution — the analemma plots real per-day sun positions and must
+  // never get collapsed onto whatever fixed value the pill itself is locked to.
+  const projectPoint = (azimuthDeg: number, elevationDeg: number) => {
+    let normalizedAz = azimuthDeg;
+    if (azimuthRange[0] === -180) {
+      normalizedAz = azimuthDeg < 0 ? azimuthDeg + 360 : azimuthDeg;
+    }
+    const az = ((90 - normalizedAz) * Math.PI) / 180;
+    const el = (Math.max(minElevationDeg, Math.min(maxElevationDeg, elevationDeg)) * Math.PI) / 180;
+    const r = Math.cos(el);
+    return { x: r * Math.cos(az), y: -r * Math.sin(az) };
   };
 
   const [pos, setPos] = useState(() => degToXY(value));
@@ -206,7 +209,7 @@ export function SphericalXYPad({
     const { upper, lower } = yearlySunEnvelope(sunEnvelopeLat);
     if (!upper.length) return null;
     const toPoint = (p: AzElPoint) => {
-      const { x, y } = azElToXY(p);
+      const { x, y } = projectPoint(p.azimuth, p.elevation);
       const { px, py } = toPx(x, y);
       return `${px.toFixed(2)} ${py.toFixed(2)}`;
     };
@@ -340,6 +343,22 @@ export function SphericalXYPad({
             strokeWidth="2"
             strokeDasharray="4 4"
           />
+        </svg>
+      )}
+
+      {/* Datetime-mode sun backdrop: hatches the region the sun can NEVER
+          reach at this latitude (see light-direction-control.tsx), leaving
+          the reachable lens a plain hole — see sunEnvelope's own comment for
+          why hatching the excluded area, not tinting the included one. */}
+      {sunEnvelope && (
+        <svg className="absolute inset-0 pointer-events-none" style={{ width, height }}>
+          <defs>
+            <pattern id={hatchId} width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="6" stroke="var(--foreground)" strokeOpacity={0.35} strokeWidth={1} />
+            </pattern>
+          </defs>
+          <path d={sunEnvelope.hatchPath} fill={`url(#${hatchId})`} fillRule="evenodd" />
+          <path d={sunEnvelope.lensPath} fill="none" stroke="var(--foreground)" strokeOpacity={0.35} strokeWidth={1} />
         </svg>
       )}
 

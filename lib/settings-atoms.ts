@@ -24,6 +24,11 @@ export const maptilerKeyAtom = atomWithStorage("maptilerKey", import.meta.env.VI
 // var; HERE Maps satellite only appears in BUILTIN_BASEMAP_OPTIONS (raster-basemap-
 // section.tsx) once a real key is set, whether from .env or pasted into Settings.
 export const hereKeyAtom = atomWithStorage("hereKey", import.meta.env.VITE_HERE_API_KEY ?? "")
+// Same gating pattern as hereKeyAtom — Planet's monthly mosaics require a paid
+// account, so "planet" only appears as a Basemap option (raster-basemap-
+// section.tsx) once a real key is set, from a local VITE_PLANET_API_KEY or
+// pasted into Settings.
+export const planetKeyAtom = atomWithStorage("planetKey", import.meta.env.VITE_PLANET_API_KEY ?? "")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
 
@@ -160,6 +165,18 @@ export const collapsedBookmarkGroupsAtom = atomWithStorage<string[]>("collapsedB
 // collapsible via its own chevron regardless of the pin.
 export const vizModePinnedAtom = atomWithStorage("vizModePinned", true)
 
+// Which of the two sidebar "modes" the ModePicker (opened by clicking the
+// sidebar title) last chose — "terrain" is the full app as it's always been;
+// "historical" swaps in a deliberately stripped-down sidebar for browsing
+// historical imagery only (see TerrainControlPanel.tsx's historicalMode
+// gating). The live value is nuqs state (state.appMode, shareable/bookmarkable
+// via URL like viewMode) — this atom only mirrors its last value (same
+// "persist across a fresh session with no URL param" role as
+// historicalBetaEnabledAtom in TerrainViewer.tsx) so opening the app again
+// without `?appMode=` doesn't silently reset to Terrain.
+export type AppMode = "terrain" | "historical"
+export const appModeAtom = atomWithStorage<AppMode>("appMode", "terrain")
+
 export const transparentUiAtom = atomWithStorage("isTransparentUi", true)
 export const activeSliderAtom = atom<string | null>(null)
 
@@ -219,6 +236,7 @@ export const isSettingsGeomorphometryOpenAtom = atomWithStorage("isSettingsGeomo
 // would otherwise see the pre-hydration default instead of the real stored value.
 export const tellsBetaEnabledAtom = atomWithStorage("tellsBetaEnabled", false, undefined, { getOnInit: true })
 export const sunShadowBetaEnabledAtom = atomWithStorage("sunShadowBetaEnabled", false, undefined, { getOnInit: true })
+export const historicalBetaEnabledAtom = atomWithStorage("historicalBetaEnabled", false, undefined, { getOnInit: true })
 
 // Bookmarks gallery modal: on (default) flattens every group's cards into one
 // continuous grid (each card's label prefixed with its project name) so

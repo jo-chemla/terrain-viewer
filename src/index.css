@@ -459,12 +459,31 @@
   transition: opacity 120ms ease;
 }
 
+/* 16px edge margin on every corner's control group — matches the sidebar/
+   timeline panel's own Tailwind `4` spacing step (right-4/left-4/bottom-4/
+   top-4), instead of maplibre-gl.css's default 10px. Directional (only the
+   two edges actually adjacent to that corner), same as maplibre's own
+   convention — NOT a uniform 4-side margin: with 4-side margins, two
+   controls stacked in the same corner each contribute their own margin on
+   the shared side, doubling the visual gap between them (e.g. nav-to-
+   geolocate got bottom-of-nav + top-of-geolocate = 32px, while geocoder-to-
+   nav only got nav's own top-margin = 16px, since geocoder had its own
+   margin-bottom:0 override). Directional margins mean exactly ONE control's
+   margin contributes to any given gap, so every stacked pair — and the
+   clearance from the true screen edge — reads as the same 16px. See
+   lib/layout-constants.ts's MAP_CTRL_EDGE_MARGIN_PX (kept in sync manually —
+   CSS and TS can't literally share one token without extra build plumbing). */
 .maplibregl-ctrl-top-left .maplibregl-ctrl {
-  margin: 10px 0 0 10px !important;
+  margin: 16px 0 0 16px !important;
 }
-
-.maplibregl-ctrl-top-left .maplibregl-ctrl-geocoder {
-  margin-bottom: 0px !important;
+.maplibregl-ctrl-top-right .maplibregl-ctrl {
+  margin: 16px 16px 0 0 !important;
+}
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+  margin: 0 0 16px 16px !important;
+}
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+  margin: 0 16px 16px 0 !important;
 }
 
 /* Fix button-group highlighted color in dark theme — scoped to actual

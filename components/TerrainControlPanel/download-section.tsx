@@ -39,7 +39,11 @@ export const DownloadSection: React.FC<{
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   withSeparator?: boolean
-}> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange, withSeparator }) => {
+  // Historical mode has no terrain/DEM source and no contour layer to export
+  // — just the three actions that apply to any 2D view (Snapshot/Copy/Share),
+  // shown as one equal-width row instead of the full DEM/Contours layout.
+  historicalMode?: boolean
+}> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange, withSeparator, historicalMode = false }) => {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [maxResolution, setMaxResolution] = useAtom(maxResolutionAtom)
   const [useClientExport] = useAtom(useClientExportAtom)
@@ -300,6 +304,31 @@ export const DownloadSection: React.FC<{
     downloadGeoJSON(mergeContourLines(features as GeoJSON.Feature[]), 'contours')
     track("actions-export", { kind: "contours" })
   }, [mapRef])
+
+  if (historicalMode) {
+    return (
+      <Section title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
+        <div className="flex gap-2">
+          <TooltipButton
+            icon={Camera}
+            label="Snapshot"
+            tooltip="Download Snapshot to Disk"
+            onClick={downloadScreenshot}
+            className="flex-1 bg-transparent"
+          />
+          <TooltipButton
+            icon={isCopying ? Loader2 : Copy}
+            label="Copy"
+            tooltip="Copy snapshot to clipboard"
+            onClick={copySnapshotToClipboard}
+            disabled={isCopying}
+            className={`flex-1 bg-transparent ${isCopying ? "[&_svg]:animate-spin" : ""}`}
+          />
+          <ShareButton mapRef={mapRef} />
+        </div>
+      </Section>
+    )
+  }
 
   return (
     <Section title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
