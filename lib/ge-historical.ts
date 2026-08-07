@@ -85,6 +85,30 @@ export function useGeHistoricalDates(latitude: number, longitude: number, zoom: 
   return { items, loading }
 }
 
+/**
+ * Plain (non-hook) equivalent of useGeHistoricalDates, filtered to a date
+ * range — used by export-multi (lib/export-multi.ts) to enumerate every
+ * real GE Historical capture within [startMs, endMs] at a location, outside
+ * of a mounted component.
+ */
+export async function listGeHistoricalTicksInRange(
+  latitude: number, longitude: number, zoom: number, startMs: number, endMs: number,
+): Promise<{ dateMs: number; label: string }[]> {
+  const ge = getGe()
+  await ge.ready()
+  const level = Math.max(1, Math.min(23, Math.round(zoom)))
+  const { path } = ge.keyholePathAtLngLat(longitude, latitude, level)
+  const dated = await ge.getDatesForPath(path)
+  return dated
+    .filter((d: any) => d.packed)
+    .map((d: any) => ({
+      dateMs: Date.UTC(d.year, d.month - 1, d.day),
+      label: `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`,
+    }))
+    .filter((t: { dateMs: number }) => t.dateMs >= startMs && t.dateMs <= endMs)
+    .sort((a: { dateMs: number }, b: { dateMs: number }) => a.dateMs - b.dateMs)
+}
+
 const GE_FALLBACK_ATTRIBUTION = "Imagery © Google"
 
 /** Real, current-tile attribution for GE Historical — Google's own dbRoot

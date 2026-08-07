@@ -14,6 +14,7 @@ import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
 import { SettingsDialog } from "./settings-dialog"
 import { ModePicker } from "./ModePicker"
 import { GeneralSettings } from "./general-settings"
+import { ComparisonMixSection } from "./comparison-mix-section"
 import { TerrainSourceSection } from "./terrain-source-section"
 import { DownloadSection } from "./download-section"
 import { BookmarksSection } from "./bookmarks-section"
@@ -47,6 +48,7 @@ export const isSidebarOpenAtom = atomWithStorage("isSidebarOpen", true)
 
 const SECTION_KEYS = [
   "general",
+  "comparisonMix",
   "terrainSource",
   "download",
   "bookmarks",
@@ -73,6 +75,7 @@ type SectionOpenState = Record<SectionKey, boolean>
 
 const DEFAULT_OPEN_STATE: SectionOpenState = {
   general: true,
+  comparisonMix: false,
   visualizationModes: true,
   download: false,
   bookmarks: false,
@@ -549,6 +552,7 @@ export function TerrainControlPanel({
           style={{ maskImage: scrollMask, WebkitMaskImage: scrollMask }}
         >
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} />
+        <ComparisonMixSection state={state} setState={setState} isOpen={sectionOpen.comparisonMix} onOpenChange={toggle("comparisonMix")} />
         {!historicalMode && (
           <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
         )}

@@ -1,7 +1,8 @@
 import type React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useAtom } from "jotai"
-import { Download, Camera, Copy, Loader2, MountainSnow, X } from "lucide-react"
+import { Download, Camera, Copy, Loader2, MountainSnow, X, Images } from "lucide-react"
+import { ExportMultiDialog } from "./export-multi-dialog"
 import { titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
@@ -53,6 +54,7 @@ export const DownloadSection: React.FC<{
   const { getTilesUrl } = useSourceConfig()
   const [isExporting, setIsExporting] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
+  const [isExportMultiOpen, setIsExportMultiOpen] = useState(false)
   const [exportProgress, setExportProgress] = useState<number | null>(null)
   const [exportError, setExportError] = useState("")
   // Non-fatal — the download still saved, but at less than the configured Max
@@ -326,6 +328,14 @@ export const DownloadSection: React.FC<{
           />
           <ShareButton mapRef={mapRef} />
         </div>
+        <TooltipButton
+          icon={Images}
+          label="Export Multi (Historical)…"
+          tooltip="Batch-export historical imagery GeoTIFFs per drawn feature × source × date"
+          onClick={() => setIsExportMultiOpen(true)}
+          className="w-full bg-transparent"
+        />
+        <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} />
       </Section>
     )
   }
@@ -440,7 +450,15 @@ export const DownloadSection: React.FC<{
             className="cursor-text h-7 w-24 text-right"
           />
         </div>
+        <TooltipButton
+          icon={Images}
+          label="Export Multi (Historical)…"
+          tooltip="Batch-export historical imagery GeoTIFFs per drawn feature × source × date"
+          onClick={() => setIsExportMultiOpen(true)}
+          className="w-full bg-transparent"
+        />
       </div>
+      <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} />
     </Section>
   )
 }

@@ -37,7 +37,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             "project",
             "appMode",
             "viewMode", "zoom", "lat", "lng", "pitch", "bearing",
-            "sourceA", "splitScreen", "sourceB",
+            "sourceA", "splitStyle", "gridLayout", "sourceB",
             "showHillshade", "showColorRelief", "showRasterBasemap", "showContours", "showBackground",
           ];
 

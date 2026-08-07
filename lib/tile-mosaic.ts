@@ -35,7 +35,10 @@ export interface FetchTileMosaicOptions {
   fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob>
 }
 
-function lonLatToTileXY(lon: number, lat: number, z: number): [number, number] {
+// Exported so lib/rgb-tile-mosaic.ts (the RGB-band sibling used by batch
+// imagery export) can share the exact same tile-grid math instead of a
+// second, driftable copy.
+export function lonLatToTileXY(lon: number, lat: number, z: number): [number, number] {
   const n = 2 ** z
   const clampedLat = Math.max(Math.min(lat, 85.05112878), -85.05112878)
   const latRad = (clampedLat * Math.PI) / 180
@@ -44,7 +47,7 @@ function lonLatToTileXY(lon: number, lat: number, z: number): [number, number] {
   return [x, y]
 }
 
-function tileXYToLonLat(x: number, y: number, z: number): [number, number] {
+export function tileXYToLonLat(x: number, y: number, z: number): [number, number] {
   const n = 2 ** z
   const lon = (x / n) * 360 - 180
   const latRad = Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n)))

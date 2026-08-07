@@ -102,8 +102,11 @@ export function useWaybackItemsWithLocalChanges(latitude: number, longitude: num
 const captureMetaCache = new Map<string, { dateMs: number; label: string } | null>()
 
 /** Plain (non-hook) fetch + cache of the REAL per-tile capture date/label for
- *  one release at one location. */
-async function fetchWaybackCaptureMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<{ dateMs: number; label: string } | null> {
+ *  one release at one location. Exported (in addition to the label-only
+ *  fetchWaybackCaptureLabel below) so a non-React batch consumer — export-
+ *  multi's listWaybackTicksInRange — can get the dateMs half too, without
+ *  needing a second network call. */
+export async function fetchWaybackCaptureMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<{ dateMs: number; label: string } | null> {
   const key = `${releaseNumber}:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
   if (captureMetaCache.has(key)) return captureMetaCache.get(key)!
   try {
@@ -273,6 +276,30 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
   }, [items, resolved, targetDateMs])
 
   return { item, loading: itemsLoading || datesLoading }
+}
+
+/**
+ * Plain (non-hook) equivalent of useWaybackItemsWithLocalChanges +
+ * useWaybackRealCaptureDates combined, filtered to a date range — used by
+ * export-multi (lib/export-multi.ts) to enumerate every real Wayback capture
+ * within [startMs, endMs] at a location, outside of a mounted component.
+ * Resolves each candidate release's real date SEQUENTIALLY (not in
+ * parallel like the hook does) — export-multi already fans out per feature/
+ * source/date itself, so this favors going easy on Esri's metadata endpoint
+ * over raw speed here.
+ */
+export async function listWaybackTicksInRange(
+  latitude: number, longitude: number, zoom: number, startMs: number, endMs: number,
+): Promise<{ dateMs: number; label: string; item: WaybackItem }[]> {
+  const items = await getCachedLocalChanges(latitude, longitude, zoom)
+  const out: { dateMs: number; label: string; item: WaybackItem }[] = []
+  for (const item of items) {
+    const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum)
+    const dateMs = meta?.dateMs ?? item.releaseDatetime
+    if (dateMs < startMs || dateMs > endMs) continue
+    out.push({ dateMs, label: meta?.label ?? new Date(dateMs).toISOString().slice(0, 10), item })
+  }
+  return out.sort((a, b) => a.dateMs - b.dateMs)
 }
 
 /** getWaybackItems/getWaybackItemsWithLocalChanges both return newest-first

@@ -8,7 +8,10 @@
 import { useEffect, useState } from "react"
 import { STATIC_BASEMAP_ATTRIBUTIONS } from "./basemap-attribution"
 
-function toQuadkey(tileX: number, tileY: number, zoom: number): string {
+/** Exported so lib/historical-export-sources.ts can build a per-tile Bing
+ *  URL directly (its tile scheme isn't a plain {z}/{x}/{y} template — see
+ *  fetchRgbTileMosaic's buildTileUrl escape hatch). */
+export function toQuadkey(tileX: number, tileY: number, zoom: number): string {
   let quadKey = ""
   for (let i = zoom; i > 0; i--) {
     let digit = 0
@@ -30,6 +33,29 @@ function lngLatToTile(lng: number, lat: number, zoom: number): { x: number; y: n
 
 const BING_DEBOUNCE_MS = 400
 
+/** Plain (non-hook) fetch of Bing's single current capture date/range at a
+ *  location — shared by useBingCaptureDate below and export-multi (lib/
+ *  export-multi.ts), which has no mounted component to run a hook from.
+ *  Bing has no browsable archive (see lib/historical-sources.ts) — this is
+ *  always exactly one result, never a range of ticks the way the other 5
+ *  historical sources produce. */
+export async function fetchBingCaptureDate(latitude: number, longitude: number, zoom: number): Promise<{ label: string | null; dateMs: number | null }> {
+  try {
+    const z = Math.max(1, Math.min(21, Math.round(zoom)))
+    const { x, y } = lngLatToTile(longitude, latitude, z)
+    const quad = toQuadkey(x, y, z)
+    const res = await fetch(`https://t.ssl.ak.tiles.virtualearth.net/tiles/a${quad}.jpeg?g=14603&n=z&prx=1`)
+    const range = res.headers.get("X-Ve-Tilemeta-Capturedatesrange")
+    if (!range) return { label: null, dateMs: null }
+    const [, to] = range.split("-")
+    const d = to ? new Date(to) : null
+    if (d && !isNaN(d.getTime())) return { label: d.toISOString().slice(0, 10), dateMs: d.getTime() }
+    return { label: range, dateMs: null }
+  } catch {
+    return { label: null, dateMs: null }
+  }
+}
+
 export function useBingCaptureDate(latitude: number, longitude: number, zoom: number): { label: string | null; dateMs: number | null; loading: boolean } {
   const [label, setLabel] = useState<string | null>(null)
   const [dateMs, setDateMs] = useState<number | null>(null)
@@ -39,28 +65,11 @@ export function useBingCaptureDate(latitude: number, longitude: number, zoom: nu
     let cancelled = false
     setLoading(true)
     const timer = setTimeout(async () => {
-      try {
-        const z = Math.max(1, Math.min(21, Math.round(zoom)))
-        const { x, y } = lngLatToTile(longitude, latitude, z)
-        const quad = toQuadkey(x, y, z)
-        const res = await fetch(`https://t.ssl.ak.tiles.virtualearth.net/tiles/a${quad}.jpeg?g=14603&n=z&prx=1`)
-        const range = res.headers.get("X-Ve-Tilemeta-Capturedatesrange")
-        if (cancelled) return
-        if (!range) { setLabel(null); setDateMs(null); return }
-        const [, to] = range.split("-")
-        const d = to ? new Date(to) : null
-        if (d && !isNaN(d.getTime())) {
-          setLabel(d.toISOString().slice(0, 10))
-          setDateMs(d.getTime())
-        } else {
-          setLabel(range)
-          setDateMs(null)
-        }
-      } catch {
-        if (!cancelled) { setLabel(null); setDateMs(null) }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+      const result = await fetchBingCaptureDate(latitude, longitude, zoom)
+      if (cancelled) return
+      setLabel(result.label)
+      setDateMs(result.dateMs)
+      setLoading(false)
     }, BING_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
   }, [latitude, longitude, zoom])
