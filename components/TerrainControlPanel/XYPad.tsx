@@ -196,7 +196,9 @@ export function SphericalXYPad({
     ? ((90 - fixedAzimuth) * Math.PI) / 180
     : null;
 
-  // Same normalized-xy → pixel mapping as pillX/pillY above.
+  // Same normalized-xy → pixel mapping as pillX/pillY above, factored out so
+  // the sun-envelope path below uses the exact same coordinate frame (it'd
+  // otherwise silently drift out of alignment with the pill).
   const toPx = (x: number, y: number) => ({
     px: ((x + 1) / 2) * (width - 2 * margin) + margin,
     py: ((y + 1) / 2) * (height - 2 * margin) + margin,
@@ -296,6 +298,22 @@ export function SphericalXYPad({
             transform: 'translate(-50%, -50%)',
           }}
         />
+      )}
+
+      {/* Datetime-mode sun backdrop: hatches the region the sun can NEVER
+          reach at this latitude (see light-direction-control.tsx), leaving
+          the reachable lens a plain hole — see sunEnvelope's own comment for
+          why hatching the excluded area, not tinting the included one. */}
+      {sunEnvelope && (
+        <svg className="absolute inset-0 pointer-events-none" style={{ width, height }}>
+          <defs>
+            <pattern id={hatchId} width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="6" stroke="var(--foreground)" strokeOpacity={0.35} strokeWidth={1} />
+            </pattern>
+          </defs>
+          <path d={sunEnvelope.hatchPath} fill={`url(#${hatchId})`} fillRule="evenodd" />
+          <path d={sunEnvelope.lensPath} fill="none" stroke="var(--foreground)" strokeOpacity={0.35} strokeWidth={1} />
+        </svg>
       )}
 
       {/* Fixed elevation constraint circle */}

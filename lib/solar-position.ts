@@ -146,11 +146,11 @@ export interface InverseSunPosition {
 /**
  * Inverse of solarPosition(): given a target (azimuth, elevation) at a
  * latitude, back-solve the day-of-year + local-solar hour that would produce
- * it — a freely-dragged direction still corresponds to a real sun position,
- * generically twice a year (Cooper's declination curve is a sine wave, not
- * injective over the year), so referenceDayOfYear picks whichever of the two
- * candidate days is nearer (wrapped around the 365-day year) to the day
- * currently set, rather than always preferring one.
+ * it — "Free" mode's freely-dragged direction still corresponds to a real
+ * sun position, generically twice a year (Cooper's declination curve is a
+ * sine wave, not injective over the year), so referenceDayOfYear picks
+ * whichever of the two candidate days is nearer (wrapped around the 365-day
+ * year) to the day currently set, rather than always preferring one.
  *
  * Both the hour-angle and declination steps are exact spherical-astronomy
  * identities dual to solarPosition's own formulas — verified by round-
