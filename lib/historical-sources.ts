@@ -1,4 +1,4 @@
-import { GRID_LAYOUTS, viewFieldName, type GridLayoutId, type ViewId } from "./grid-layouts"
+import { viewFieldName, type GridLayoutId } from "./grid-layouts"
 
 // Shared registry of basemap ids that are "historical" (date-driven, archival)
 // sources — used to gate the historicalBeta toggle's tile-fetch gate
@@ -37,10 +37,21 @@ export function isHistoricalSourceActive(state: {
   [key: string]: any
 }): boolean {
   const isActive = (v?: string) => v === "historical" || TIMELINE_SOURCE_IDS.has(v ?? "")
+  const isSplit = state.splitStyle !== "off"
+  // Per-view basemap AND split both on ("dual mode", historical-timeline-
+  // panel.tsx's own name for this) — the timeline panel then always shows
+  // itself, with a PROPOSED tick for every active view even before any of
+  // them has actually been switched onto a historical basemap (see that
+  // file's showFor/panelVisible), so this needs to agree unconditionally
+  // rather than re-checking each view's current basemap like the branches
+  // below — otherwise the panel can render (eating real layout space) while
+  // this reports "not active," desyncing every consumer keyed off it
+  // (row-height math, timeline bottom padding, minimap offset, border clamps).
+  if (state.basemapPerView && isSplit) return true
   // No per-view basemap at all: only the one shared field can ever be active,
   // regardless of split/grid state.
   if (!state.basemapPerView) return isActive(state.basemapSource)
-  const isSplit = state.splitStyle !== "off"
-  const views: ViewId[] = isSplit ? GRID_LAYOUTS[state.gridLayout ?? "2x1"].grid.flat() : ["A"]
-  return views.some((side) => isActive(state[viewFieldName(side, "basemapSource", true)]))
+  // Per-view but NOT split: same single-view semantics as the timeline
+  // panel's own non-dual-mode showFor, just for view A's own suffixed field.
+  return isActive(state[viewFieldName("A", "basemapSource", true)])
 }

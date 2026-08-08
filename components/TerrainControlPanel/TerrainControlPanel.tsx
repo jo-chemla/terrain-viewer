@@ -415,14 +415,18 @@ export function TerrainControlPanel({
     setIsModePickerOpen(false)
     // Only switching INTO historical mode needs a nudge — it unlocks the
     // beta flag gating historical basemaps at all, turns on the one source
-    // (raster basemap) this mode actually shows, and expands that section
-    // (rather than leaving the visitor to find and open it themselves) so
-    // picking the mode immediately shows imagery instead of an empty,
-    // collapsed sidebar. Switching back to Terrain needs no equivalent
-    // nudge; every one of its sections is just hidden, not disabled, so
-    // nothing needs restoring.
+    // (raster basemap) this mode actually shows, expands that section
+    // (rather than leaving the visitor to find and open it themselves), and
+    // turns off showHillshade — the one terrain-mode viz toggle that
+    // defaults to true with no master gate of its own (every other viz mode
+    // already defaults off, see QUERY_STATE_PARSERS), so it would otherwise
+    // keep rendering hillshading over the historical imagery — so picking
+    // the mode immediately shows just the plain basemap instead of an empty,
+    // collapsed sidebar with a hillshaded map underneath. Switching back to
+    // Terrain needs no equivalent nudge; every one of its sections is just
+    // hidden, not disabled, so nothing needs restoring.
     if (next === "historical" && !historicalMode) {
-      setState({ historicalBeta: true, showRasterBasemap: true, viewMode: "2d" })
+      setState({ historicalBeta: true, showRasterBasemap: true, viewMode: "2d", showHillshade: false })
       setSectionOpen((prev) => ({ ...prev, rasterBasemap: true }))
     }
   }
@@ -552,7 +556,7 @@ export function TerrainControlPanel({
           style={{ maskImage: scrollMask, WebkitMaskImage: scrollMask }}
         >
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} />
-        <ComparisonMixSection state={state} setState={setState} isOpen={sectionOpen.comparisonMix} onOpenChange={toggle("comparisonMix")} historicalMode={historicalMode} />
+        <ComparisonMixSection state={state} setState={setState} isOpen={sectionOpen.comparisonMix} onOpenChange={toggle("comparisonMix")} historicalMode={historicalMode} mapRef={mapRef} />
         {!historicalMode && (
           <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
         )}

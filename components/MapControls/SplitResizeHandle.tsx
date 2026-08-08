@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { cn } from "@/lib/utils"
 
 // Draggable divider/pill between two panes in gridLayout "2x1" — the only
@@ -21,10 +21,14 @@ import { cn } from "@/lib/utils"
 //   a flex sibling, so there's no natural "gap" to sit in — this renders a
 //   circular pill instead, absolutely positioned at `leftPercent` (the
 //   caller-computed clip-path boundary, which already accounts for the
-//   sidebar-extension math — NOT the same number as `ratio * 100`). Dragging
-//   it horizontally still drives `ratio` (identical math to 1D); dragging it
-//   vertically drives `onOpacityChange` — top of the pane = fully opaque/
-//   blended (opacity 1), bottom = fully transparent (opacity 0).
+//   sidebar-extension math — NOT the same number as `ratio * 100`). The pill
+//   circle itself (cursor-move) drives BOTH `ratio` (horizontal drag) and
+//   `onOpacityChange` (vertical drag — top of the pane = fully opaque/
+//   blended, bottom = fully transparent). The rest of the vertical gutter
+//   strip around it (cursor-col-resize) drives `ratio` only — grabbing
+//   anywhere along the seam that ISN'T the pill itself was, before this
+//   split, indistinguishable from grabbing the pill, so a drag started a
+//   little off-target silently changed opacity too.
 export const SplitPill: React.FC<{
   ratio: number
   onRatioChange: (next: number) => void
@@ -39,25 +43,64 @@ export const SplitPill: React.FC<{
 }> = ({ ratio, onRatioChange, availableWidthPx, min, max, opacity, onOpacityChange, leftPercent }) => {
   const [isDragging, setIsDragging] = useState(false)
   const is2D = onOpacityChange !== undefined
+  // Both the gutter strip and the pill circle need the SAME container rect
+  // (the map split container, i.e. the gutter's own parent) regardless of
+  // which of the two actually received the pointer event. This ref is
+  // attached to the GUTTER div itself (below) — that div is only ~32px wide
+  // and its own `left` moves with the ratio, so reading `wrapperRef.current`
+  // directly (as this used to) fed the pill's horizontal drag a moving,
+  // too-narrow rect instead of the true container's, producing a visible
+  // horizontal drift the vertical (opacity) drag never had, since that half
+  // of the math only ever used top/height — which happen to already match
+  // the true container's (inset-y-0 spans the same full height). Always go
+  // one level up, to the gutter's OWN parent (the real container), instead.
+  const wrapperRef = useRef<HTMLDivElement>(null)
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     setIsDragging(true)
   }, [])
 
+  const applyRatio = useCallback((clientX: number, containerRect: DOMRect) => {
+    if (availableWidthPx <= 0) return
+    const nextRatio = (clientX - containerRect.left) / availableWidthPx
+    onRatioChange(Math.min(max, Math.max(min, nextRatio)))
+  }, [availableWidthPx, min, max, onRatioChange])
+
+  // 1D (side-by-side) and the 2D gutter strip: ratio only, no opacity.
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
     const containerRect = e.currentTarget.parentElement?.getBoundingClientRect()
-    if (!containerRect || availableWidthPx <= 0) return
-    const nextRatio = (e.clientX - containerRect.left) / availableWidthPx
-    onRatioChange(Math.min(max, Math.max(min, nextRatio)))
-    if (is2D && containerRect.height > 0) {
+    if (!containerRect) return
+    applyRatio(e.clientX, containerRect)
+  }, [applyRatio])
+
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.releasePointerCapture(e.pointerId)
+    setIsDragging(false)
+  }, [])
+
+  // 2D pill circle only: ratio (horizontal) AND opacity (vertical).
+  const handlePillPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setIsDragging(true)
+  }, [])
+
+  const handlePillPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    const containerRect = wrapperRef.current?.parentElement?.getBoundingClientRect()
+    if (!containerRect) return
+    applyRatio(e.clientX, containerRect)
+    if (containerRect.height > 0) {
       const nextOpacity = 1 - Math.min(1, Math.max(0, (e.clientY - containerRect.top) / containerRect.height))
       onOpacityChange!(nextOpacity)
     }
-  }, [availableWidthPx, min, max, onRatioChange, is2D, onOpacityChange])
+  }, [applyRatio, onOpacityChange])
 
-  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePillPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation()
     e.currentTarget.releasePointerCapture(e.pointerId)
     setIsDragging(false)
   }, [])
@@ -65,17 +108,21 @@ export const SplitPill: React.FC<{
   if (is2D) {
     return (
       <div
+        ref={wrapperRef}
         role="separator"
         aria-orientation="vertical"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        className="absolute inset-y-0 z-10 w-8 -translate-x-1/2 cursor-move touch-none select-none"
+        className="absolute inset-y-0 z-10 w-8 -translate-x-1/2 cursor-col-resize touch-none select-none"
         style={{ left: `${leftPercent ?? ratio * 100}%` }}
       >
         <div
+          onPointerDown={handlePillPointerDown}
+          onPointerMove={handlePillPointerMove}
+          onPointerUp={handlePillPointerUp}
           className={cn(
-            "absolute left-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-background shadow-md transition-shadow",
+            "absolute left-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-background shadow-md transition-shadow cursor-move touch-none",
             isDragging ? "border-primary shadow-lg" : "border-primary/70",
           )}
           style={{ top: `${(1 - Math.min(1, Math.max(0, opacity ?? 1))) * 100}%` }}

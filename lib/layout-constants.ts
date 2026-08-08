@@ -51,6 +51,12 @@ export const sideColorOverridesAtom = atomWithStorage<Partial<Record<ViewId, str
 // it doesn't surprise anyone not using the comparison/grid features.
 export const colorizeMapBordersAtom = atomWithStorage("colorizeMapBorders", false)
 
+// Whether that border sits inset 3px from the pane edge (default, reads as a
+// frame) or flush against it — dropping the inset doubles the stroke width
+// (border-2 -> border-4) so a flush border doesn't read as thinner/weaker
+// than the inset one it replaced.
+export const colorizeMapBordersInsetAtom = atomWithStorage("colorizeMapBordersInset", true)
+
 // The historical timeline panel's own measured height (its outer bordered
 // box, via ResizeObserver — see historical-timeline-panel.tsx), so
 // TerrainViewer.tsx can clear it above the minimap/scale/attribution
