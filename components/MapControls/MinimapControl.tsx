@@ -66,7 +66,20 @@ interface MinimapControlProps {
   };
 }
 
-function MinimapInternal({
+// Exported so TerrainViewer.tsx can render the minimap as a plain floating
+// div positioned relative to the whole viewport (see its own
+// FloatingMinimap-style usage) instead of via the useControl/createPortal
+// mount below, which pins it to whichever single <Map> instance it's
+// declared inside — that map's own corner container, not the viewport's,
+// meaning in a 2-row grid it always sat at the middle-left seam (view A's
+// own bottom-left) rather than the true viewport bottom, regardless of the
+// historical timeline panel actually docked there. This component has
+// always been fully self-contained style-wise (explicit width/height,
+// pointer/interaction handling, its own minimize button) — nothing here
+// actually depends on the maplibregl-ctrl container this used to always
+// render inside, only on the explicit `parentMap` prop for the live
+// viewport-tracking data.
+export function MinimapInternal({
   parentMap: externalParentMap,
   mode = 'dynamic',
   width = 200,

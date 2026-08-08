@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsInteger, parseAsStringLiteral, parseAsArrayOf } from "nuqs"
 import Map, {
   type MapRef,
@@ -32,13 +32,13 @@ import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS } from "./TerrainControlPanel/raster-basemap-section"
 import { HistoricalTimelinePanel } from "./TerrainControlPanel/historical-timeline-panel"
-import { isHistoricalSourceActive, resolveActiveHistoricalSource } from "@/lib/historical-sources"
+import { isHistoricalSourceActive, resolveActiveHistoricalSource, TIMELINE_SOURCE_IDS } from "@/lib/historical-sources"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
 
 const SAMPLE_TERRAIN_SOURCES = customSourcesData["SAMPLE_TERRAIN_SOURCES"] as CustomTerrainSource[]
 const SAMPLE_BASEMAP_SOURCES = customSourcesData["SAMPLE_BASEMAPS_SOURCES"] as CustomBasemapSource[]
-import { MinimapControl } from "./MapControls/MinimapControl";
+import { MinimapInternal } from "./MapControls/MinimapControl";
 import { LightControlOverlay } from "./MapControls/LightControlOverlay";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
 import { SplitPill } from "./MapControls/SplitResizeHandle";
@@ -125,6 +125,10 @@ const parseAsFloatPrecise = createParser({
 // causing spurious mid-teardown crashes in ContoursLayer/TerraDraw during dev.
 const VIEW_MODES = ['2d', 'globe', '3d'] as const
 const APP_MODES = ['terrain', 'historical'] as const
+// Shared by both the CSS-var minimap/scale clearance (see
+// measuredPanelClearance below) and the camera bottom-padding correction
+// (mapPaddingFor) — one gap value, not two independently-guessed ones.
+const PANEL_CLEARANCE_GAP_PX = 16
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 // 'shape-index' stays a valid internal curvature:// mode (ShapeIndexSource
 // below reads it directly) even though nothing in the UI exposes setting
@@ -183,6 +187,13 @@ export const QUERY_STATE_PARSERS = {
     // "overlay"-only: pane B's CSS mix-blend-mode + opacity against pane A.
     splitBlendMode: parseAsStringLiteral(BLEND_MODES).withDefault("normal"),
     overlayOpacity: parseAsFloat.withDefault(1.0),
+    // Comparison and Mix's "Show Capture Date" toggle — a small per-view pill
+    // with just the formatted date (no source name, see historical-timeline-
+    // panel.tsx's SOURCE_CONFIG for that), for whichever views are actually
+    // on a dated historical source. See the per-pane render below for
+    // placement (bottom-left / bottom-center / top-center depending on grid
+    // shape and whether the timeline panel is docked below it).
+    showCaptureDatePill: parseAsBoolean.withDefault(false),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
     // C-F only ever matter for gridLayout "2x2"/"3x1"/"3x2"/"4x1" — same shape
@@ -726,6 +737,10 @@ export function TerrainViewer() {
   // flash before the first ResizeObserver callback fires.
   const splitContainerRef = useRef<HTMLDivElement>(null)
   const [splitContainerWidth, setSplitContainerWidth] = useState(0)
+  // Height is only actually needed for 2-row grids' uneven row-height split
+  // (see paneLayouts below) — width alone used to be enough since the old
+  // row split was a plain equal percentage. Measured the same way as width.
+  const [splitContainerHeight, setSplitContainerHeight] = useState(0)
   const [splitRatio, setSplitRatio] = useAtom(splitRatioAtom)
   const [colorizeMapBorders] = useAtom(colorizeMapBordersAtom)
   const [sideColorOverrides] = useAtom(sideColorOverridesAtom)
@@ -737,8 +752,13 @@ export function TerrainViewer() {
     // an empty-deps mount) would otherwise measure a null ref once and never
     // retry once the real layout actually mounts.
     if (!el) return
-    setSplitContainerWidth(el.getBoundingClientRect().width)
-    const observer = new ResizeObserver((entries) => setSplitContainerWidth(entries[0].contentRect.width))
+    const rect = el.getBoundingClientRect()
+    setSplitContainerWidth(rect.width)
+    setSplitContainerHeight(rect.height)
+    const observer = new ResizeObserver((entries) => {
+      setSplitContainerWidth(entries[0].contentRect.width)
+      setSplitContainerHeight(entries[0].contentRect.height)
+    })
     observer.observe(el)
     return () => observer.disconnect()
   }, [mapLibreReady])
@@ -802,15 +822,25 @@ export function TerrainViewer() {
   // Derived split/grid shape — the single source of truth every per-view
   // effect/render below loops over instead of re-deriving its own "is this
   // A or B" check. "overlay" forces "2x1" regardless of state.gridLayout
-  // (clip-path/blend only ever compares exactly 2 panes); every other split
-  // style honors the user's chosen gridLayout.
+  // (clip-path/blend only ever compares exactly 2 panes); terrain mode (as
+  // opposed to historical) forces "2x1" too — its own General Settings row
+  // only ever exposes Split Mode (off/overlay/side), never a grid-layout
+  // picker (that only lives in the historical-mode Comparison and Mix
+  // section), so state.gridLayout could still hold a stale non-2x1 value
+  // from a previous historical-mode session. Every other split style in
+  // historical mode honors the user's chosen gridLayout.
+  const isHistoricalMode = state.appMode === "historical"
   const isSplit = state.splitStyle !== "off"
   const isOverlaySplit = state.splitStyle === "overlay"
-  const effectiveGridLayout: GridLayoutId = isOverlaySplit ? "2x1" : state.gridLayout
+  const effectiveGridLayout: GridLayoutId = (isOverlaySplit || !isHistoricalMode) ? "2x1" : state.gridLayout
   const gridConfig = GRID_LAYOUTS[effectiveGridLayout]
   const activeViewIds: ViewId[] = isSplit ? gridConfig.grid.flat() : ["A"]
   const bottomRightViewId: ViewId = isSplit ? bottomRightView(effectiveGridLayout) : "A"
   const rightmostPerRow: ViewId[] = isSplit ? rightmostViewsPerRow(effectiveGridLayout) : ["A"]
+  // Only the LAST row needs the historical-timeline bottom-padding
+  // correction (mapPaddingFor below) — a top-row pane in a 2-row grid isn't
+  // anywhere near the true bottom edge the panel actually docks to.
+  const bottomRowViews: ViewId[] = isSplit ? gridConfig.grid[gridConfig.grid.length - 1] : ["A"]
 
   // Session-only (never persisted) live ramp tweaks — see rampSessionOverridesAtom's
   // own header. Read once here and threaded into every computeColorReliefPaint call
@@ -1806,9 +1836,29 @@ export function TerrainViewer() {
   // so the same lat/lng/zoom would look centered at visibly different points
   // across panes. Per-row-rightmost-only padding fixes that.
   const sidebarPaddingPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
+  // Same reasoning, bottom edge: the historical timeline panel docks along
+  // the true bottom of the viewport (only ever clearing the LAST row's own
+  // panes, see bottomRowViews above) — computed here (rather than reusing
+  // measuredPanelClearance below, which feeds the CSS-var minimap/scale
+  // offsets instead) since this needs a plain number for `padding`, not a
+  // CSS length string, and needs to exist before mapPaddingFor is defined.
+  const timelineBottomPaddingPx = historicalTimelineVisible
+    ? Math.round(historicalTimelinePanelHeightPx + PANEL_CLEARANCE_GAP_PX)
+    : 0
   const mapPaddingFor = useCallback(
-    (side: ViewId) => ({ top: 0, bottom: 0, left: 0, right: rightmostPerRow.includes(side) ? sidebarPaddingPx : 0 }),
-    [rightmostPerRow.join(","), sidebarPaddingPx],
+    (side: ViewId) => ({
+      top: 0,
+      bottom: bottomRowViews.includes(side) ? timelineBottomPaddingPx : 0,
+      left: 0,
+      // Overlay: both panes MUST share identical horizontal padding — they're
+      // full-bleed stacked over the exact same viewport, so any difference
+      // shifts one camera's center relative to the other's, visibly
+      // misaligning the underlying imagery under the shared clip-path
+      // boundary (confirmed live at partial opacity). Zero for both, rather
+      // than the sidebar-avoidance value every other (non-overlay) pane gets.
+      right: isOverlaySplit ? 0 : (rightmostPerRow.includes(side) ? sidebarPaddingPx : 0),
+    }),
+    [isOverlaySplit, bottomRowViews.join(","), rightmostPerRow.join(","), sidebarPaddingPx, timelineBottomPaddingPx],
   )
 
   // Apply padding instantly (duration: 0), NOT eased — a real bug, found via
@@ -1872,7 +1922,16 @@ export function TerrainViewer() {
 
   useEffect(() => {
     for (const side of activeViewIds) {
-      if (mapLoaded[side]) applySafeZoomBounds(mapRefs[side].current!.getMap(), effectiveMinZoom, effectiveMaxZoom)
+      // Defensive `?.` (not `!`) — mapLoaded[side] can still read stale
+      // `true` for one render right after a remount (e.g. a gridLayout
+      // change that drops/re-adds this exact side), while the fresh
+      // instance's ref hasn't attached yet. Was a real crash before this
+      // guard existed (null.getMap()); the pane-geometry rewrite above
+      // avoids the remount for a plain split-style switch, but a
+      // gridLayout/view-count change still remounts the views that enter
+      // or leave the active set, so this stays defensive either way.
+      const map = mapRefs[side].current?.getMap()
+      if (mapLoaded[side] && map) applySafeZoomBounds(map, effectiveMinZoom, effectiveMaxZoom)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveMinZoom, effectiveMaxZoom, mapLoaded, activeViewIds.join(","), applySafeZoomBounds])
@@ -2525,70 +2584,6 @@ export function TerrainViewer() {
                 <GeolocateControlThemed position="top-left" />
               )}
 
-              {/* Minimap — no parentMap prop: it picks up the parent map via react-map-gl's
-                  useMap() context, which is available as soon as the Map mounts rather than
-                  waiting for mapALoaded (the 'load' event). Gating on mapALoaded needlessly
-                  serialized the minimap's own load after the main map's, doubling perceived
-                  load time instead of loading both concurrently. */}
-              {!activeProjectConfig?.hideMapControls?.includes("minimap") && (
-                <MinimapControl
-                  position="bottom-left"
-                  mode="dynamic"
-                  initBounds={[[-150, -30], [150, 50]]}
-                  // mode="dynamic"
-                  zoomLevelOffset={-6}
-                  // mode="static" interactive = true only works in static mode
-                  interactive={true}
-                  interactions={{
-                    dragPan: true,
-                    scrollZoom: true,
-                    boxZoom: true,
-                  }}
-                  width={260}
-                  height={180}
-                  showFrustum={false}
-                  // showFootprint={true}
-                  minimized={state.minimapMinimized}
-                  onMinimizedChange={(v) => setState({ minimapMinimized: v })}
-                  footprintFillPaint={{
-                    "fill-color": "#3b82f6",
-                    "fill-opacity": 0.15,
-                  }}
-                  footprintLinePaint={{
-                    "line-color": "#2563eb",
-                    "line-width": 2.5,
-                  }}
-                  frustumFillPaint={{
-                    "fill-color": "#f59e0b",
-                    "fill-opacity": 0.2,
-                  }}
-                  frustumLinePaint={{
-                    "line-color": "#ea580c",
-                    "line-width": 2,
-                    "line-dasharray": [3, 2],
-                  }}
-                  style={{
-                    version: 8,
-                    sources: {
-                      basemap: {
-                        type: "raster",
-                        tiles: [
-                          "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                        ],
-                        tileSize: 256,
-                      },
-                    },
-                    layers: [
-                      {
-                        id: "basemap",
-                        type: "raster",
-                        source: "basemap",
-                      },
-                    ],
-                  }}
-                />
-              )}
-
             </>
           )}
           {/* Scale bar always lands at the true bottom-right edge of the whole
@@ -2668,7 +2663,6 @@ export function TerrainViewer() {
   // wrongly rolled back after appearing not to reach the rendered corner
   // element — that was a background-tab rAF-throttling test artifact, not a
   // real mechanism failure; the CSS-var + Tailwind wiring below does work.)
-  const PANEL_CLEARANCE_GAP_PX = 16
   const measuredPanelClearance = historicalTimelinePanelHeightPx > 0
     ? `${Math.round(historicalTimelinePanelHeightPx + PANEL_CLEARANCE_GAP_PX)}px`
     : "13rem" // panel hasn't reported a real height yet (first paint) — reasonable fallback
@@ -2686,23 +2680,110 @@ export function TerrainViewer() {
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 
-  // Same "fixed columns + flex-1 last column" pattern for every row, in
-  // every layout — "2x1" is the one case where the first column's width is a
-  // user-adjustable ratio (the draggable pill) instead of an equal 1/cols
-  // share; every other layout's columns are fixed (see lib/grid-layouts.ts's
-  // header comment). The last column in each row always gets flex-1, so it
-  // naturally keeps extending under the sidebar overlay exactly as pane B
-  // always has — see mapPaddingFor above for the matching camera-padding
-  // correction.
   const availableSplitWidth = Math.max(0, splitContainerWidth - (isSidebarOpen && !isMobile ? sidebarFootprintPx : 0))
   // "overlay" clip-path's own coordinate space is a % of the FULL container
-  // (not availableSplitWidth) — same derivation as mapAWidthPx used to be,
-  // just expressed as a percentage instead of a flex pixel width.
+  // (not availableSplitWidth) — same derivation as the 2x1 side-by-side
+  // boundary below, just expressed as a percentage instead of a pixel width.
   const overlayBoundaryPct = splitContainerWidth > 0
     ? (availableSplitWidth * clamp(splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX) / splitContainerWidth) * 100
     : 0
-  const renderRows: ViewId[][] = isSplit ? gridConfig.grid : [["A"]]
+  const grid: ViewId[][] = isSplit ? gridConfig.grid : [["A"]]
+  const rows = grid.length
   const borderColorFor = (side: ViewId) => sideColorOverrides[side] ?? SIDE_COLORS[side]
+
+  // Every pane is ALWAYS absolutely positioned relative to splitContainerRef
+  // — never a flex child, never nested inside a per-row wrapper — so
+  // switching between split styles/grid layouts only ever changes an
+  // existing pane's inline geometry (top/left/width/height/clip-path), never
+  // its position in the JSX tree. React can then reuse the very same <Map>
+  // instance (and its whole WebGL context/tile cache) across a mode switch
+  // instead of unmounting and remounting every pane — which is what a
+  // structurally-different-per-branch tree (a dedicated overlay branch vs. a
+  // grid-of-rows branch) used to force. That remount was also the root cause
+  // of a real crash: right after such a remount, this component's own
+  // mapLoaded[side] could still read stale `true` from the just-unmounted
+  // instance for one render, while the brand new instance's ref hadn't
+  // attached yet — a bare `!` non-null assertion on that ref (elsewhere in
+  // this file) then threw on `null.getMap()`.
+  //
+  // "overlay" panes both get the full container (0/0/100%/100%) — see the
+  // per-pane clip-path/blend/opacity applied to B below — regardless of
+  // gridConfig, which for "overlay" is always the forced "2x1" shape from
+  // effectiveGridLayout above.
+  interface PaneLayout { side: ViewId; rowIdx: number; isLastCol: boolean; top: number; height: number; left: number; width: number }
+  const paneLayouts: PaneLayout[] = []
+  // Same "fixed rows + one that absorbs the remainder" pattern as columns
+  // (below) — the LAST row (the one the historical timeline panel actually
+  // docks along) gets whatever height is left over after every other row
+  // takes an equal share of the height genuinely available (excluding the
+  // timeline's own footprint), so its own VISIBLE (non-covered) portion ends
+  // up the same height as every other row, instead of the timeline eating
+  // visibly into a naively-equal 50/50 split.
+  const availableSplitHeight = Math.max(0, splitContainerHeight - timelineBottomPaddingPx)
+  const rowHeightPx = rows > 0 ? Math.round(availableSplitHeight / rows) : 0
+  let rowCursorPx = 0
+  for (let rowIdx = 0; rowIdx < rows; rowIdx++) {
+    const row = grid[rowIdx]
+    const cols = row.length
+    const isLastRow = rowIdx === rows - 1
+    const rowTop = rowCursorPx
+    const rowHeight = isLastRow ? Math.max(0, splitContainerHeight - rowCursorPx) : rowHeightPx
+    rowCursorPx += rowHeightPx
+    let cursorPx = 0
+    for (let colIdx = 0; colIdx < cols; colIdx++) {
+      const isLastCol = colIdx === cols - 1
+      let left: number, width: number
+      if (isOverlaySplit) {
+        left = 0
+        width = splitContainerWidth
+      } else {
+        const colWidthPx = effectiveGridLayout === "2x1"
+          ? Math.round(availableSplitWidth * clamp(splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX))
+          : Math.round(availableSplitWidth / cols)
+        left = cursorPx
+        width = isLastCol ? Math.max(0, splitContainerWidth - cursorPx) : colWidthPx
+        cursorPx += colWidthPx
+      }
+      paneLayouts.push({ side: row[colIdx], rowIdx, isLastCol, top: rowTop, height: rowHeight, left, width })
+    }
+  }
+  // Boundary between column 0 and 1 as a % of the full container — same
+  // coordinate space overlayBoundaryPct uses, needed for the 2x1 side-by-side
+  // SplitPill now that it's absolutely positioned too (see below) rather
+  // than just landing in a flex gap between two siblings.
+  const sideBySideBoundaryPct = splitContainerWidth > 0 && paneLayouts.length > 0
+    ? (paneLayouts[0].width / splitContainerWidth) * 100
+    : 0
+
+  // "Show Capture Date" pill (Comparison and Mix) — rendered as a SIBLING of
+  // the pane divs (not nested inside one), positioned via that pane's own
+  // geometry, specifically so it's never subject to an overlay pane's own
+  // clip-path/opacity/blend (a UI label, unlike the border below, has no
+  // reason to fade out or get clipped along with the underlying imagery).
+  const datePillFor = (pane: PaneLayout): React.ReactNode => {
+    if (!state.showCaptureDatePill) return null
+    const resolved = perViewResolved[pane.side]
+    if (!resolved || !resolved.date || !TIMELINE_SOURCE_IDS.has(resolved.basemapSource)) return null
+    const label = new Date(resolved.date).toISOString().slice(0, 10)
+    // Overlay's A and B panes share the exact same rect (both full-bleed,
+    // stacked) — without this, their two bottom-left pills would land
+    // exactly on top of each other. B's stacks 28px above A's instead.
+    const overlayStackOffsetPx = isOverlaySplit && pane.side === "B" ? 28 : 0
+    const positionStyle: React.CSSProperties = rows === 1
+      ? { left: `${pane.left + 8}px`, bottom: `calc(${historicalTimelineVisible ? measuredPanelClearance : "0.5rem"} + ${overlayStackOffsetPx}px)` }
+      : pane.rowIdx === 0
+        ? { left: `${pane.left + pane.width / 2}px`, bottom: "0.5rem", transform: "translateX(-50%)" }
+        : { left: `${pane.left + pane.width / 2}px`, top: "0.5rem", transform: "translateX(-50%)" }
+    return (
+      <div
+        key={`date-${pane.side}`}
+        className="absolute z-10 rounded-full bg-background/90 backdrop-blur-sm border border-border px-2 py-0.5 text-[11px] font-medium tabular-nums shadow-sm pointer-events-none"
+        style={positionStyle}
+      >
+        {label}
+      </div>
+    )
+  }
 
   if (!mapLibreReady) return null
 
@@ -2713,39 +2794,63 @@ export function TerrainViewer() {
         height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : '100vh'
       }}
     >
-      <div ref={splitContainerRef} className={cn("absolute inset-0", !isOverlaySplit && "flex flex-col")}>
-        {isOverlaySplit ? (
-          // Both panes absolute-stacked in the same full-bleed viewport
-          // (not flex siblings) — pane B's own wrapper is clip-path-cropped
-          // + blended over pane A, instead of the two sitting side by side.
-          <>
+      <div ref={splitContainerRef} className="absolute inset-0">
+        {paneLayouts.map((pane) => {
+          const isBlendedOverlayPane = isOverlaySplit && pane.side === "B"
+          return (
             <div
+              key={pane.side}
               className={cn(
-                "absolute inset-0",
-                "[&_.maplibregl-ctrl-bottom-left]:!bottom-[var(--minimap-offset)] [&_.maplibregl-ctrl-bottom-left]:transition-[bottom] [&_.maplibregl-ctrl-bottom-left]:duration-200",
-                "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
-                colorizeMapBorders && "outline outline-2 -outline-offset-2",
+                "absolute",
+                // No bottom-left targeting here anymore — the minimap is a
+                // plain floating div now (see the fixed-position render
+                // below), not a per-pane maplibre control corner.
+                pane.side === bottomRightViewId && "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
               )}
               style={{
-                ["--minimap-offset" as any]: minimapBottomOffset,
+                top: pane.top,
+                height: pane.height,
+                left: pane.left,
+                width: pane.width,
+                clipPath: isBlendedOverlayPane ? `polygon(${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 100% 100%, 100% 0%)` : undefined,
+                mixBlendMode: isBlendedOverlayPane ? (state.splitBlendMode as any) : undefined,
+                opacity: isBlendedOverlayPane ? state.overlayOpacity : undefined,
                 ["--scale-offset" as any]: scaleBottomOffset,
                 ["--scale-right-offset" as any]: scaleRightOffset,
-                outlineColor: colorizeMapBorders ? borderColorFor("A") : undefined,
               }}
             >
-              {renderMap(state.sourceA, "A")}
+              {renderMap(stateAny[sourceFieldName(pane.side)], pane.side)}
+              {/* Inset (not flush with the pane edge) so it reads as a frame
+                  rather than colliding with maplibre's own corner controls —
+                  a child of this pane (not a sibling like the date pill
+                  above), so an overlay pane's own clip-path naturally traces
+                  the border to its actual visible region too. */}
+              {colorizeMapBorders && isSplit && (
+                <div
+                  className="pointer-events-none absolute inset-[3px] border-2 rounded-sm"
+                  style={{ borderColor: borderColorFor(pane.side) }}
+                />
+              )}
             </div>
-            <div
-              className={cn("absolute inset-0", colorizeMapBorders && "outline outline-2 -outline-offset-2")}
-              style={{
-                clipPath: `polygon(${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 100% 100%, 100% 0%)`,
-                mixBlendMode: state.splitBlendMode as any,
-                opacity: state.overlayOpacity,
-                outlineColor: colorizeMapBorders ? borderColorFor("B") : undefined,
-              }}
-            >
-              {renderMap(state.sourceB, "B")}
-            </div>
+          )
+        })}
+        {paneLayouts.map(datePillFor)}
+        {/* Static (non-interactive) seams between fixed columns/rows — every
+            grid layout except 2x1 (which gets the draggable SplitPill
+            instead, just below) and overlay (no seam at all, panes fully
+            overlap). */}
+        {!isOverlaySplit && effectiveGridLayout !== "2x1" && paneLayouts.filter((p) => !p.isLastCol).map((p) => (
+          <div key={`vdiv-${p.side}`} className="absolute w-px bg-border" style={{ top: p.top, height: p.height, left: p.left + p.width }} />
+        ))}
+        {/* Positioned from the next row's own (possibly taller, see
+            availableSplitHeight above) top — NOT an even 1/rows percentage —
+            so the seam lines up with the real row boundary. */}
+        {!isOverlaySplit && rows > 1 && Array.from({ length: rows - 1 }, (_, i) => {
+          const nextRowTop = paneLayouts.find((p) => p.rowIdx === i + 1)?.top ?? 0
+          return <div key={`hdiv-${i}`} className="absolute left-0 right-0 h-px bg-border" style={{ top: nextRowTop }} />
+        })}
+        {effectiveGridLayout === "2x1" && (
+          isOverlaySplit ? (
             <SplitPill
               ratio={splitRatio}
               onRatioChange={setSplitRatio}
@@ -2756,64 +2861,83 @@ export function TerrainViewer() {
               opacity={state.overlayOpacity}
               onOpacityChange={(v) => setState({ overlayOpacity: v })}
             />
-          </>
-        ) : (
-          renderRows.map((row, rowIdx) => (
-            <Fragment key={rowIdx}>
-              {/* Horizontal seam between rows — the vertical one between
-                  columns (below) is always visible for non-2x1 layouts, so a
-                  2-row grid (2x2/3x2) needs the same static divider in the
-                  other axis, or its two rows read as one tall pane with no
-                  visible boundary. */}
-              {rowIdx > 0 && <div className="h-px shrink-0 bg-border" />}
-              <div className="flex flex-1 min-h-0">
-              {row.map((side, colIdx) => {
-                const isLastCol = colIdx === row.length - 1
-                const paneWidthPx = isLastCol
-                  ? undefined
-                  : effectiveGridLayout === "2x1"
-                    ? Math.round(availableSplitWidth * clamp(splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX))
-                    : Math.round(availableSplitWidth / gridConfig.cols)
-                return (
-                  <Fragment key={side}>
-                    <div
-                      className={cn(
-                        isLastCol ? "flex-1" : "shrink-0",
-                        "[&_.maplibregl-ctrl-bottom-left]:!bottom-[var(--minimap-offset)] [&_.maplibregl-ctrl-bottom-left]:transition-[bottom] [&_.maplibregl-ctrl-bottom-left]:duration-200",
-                        side === bottomRightViewId && "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
-                        colorizeMapBorders && isSplit && "outline outline-2 -outline-offset-2",
-                      )}
-                      style={{
-                        width: paneWidthPx,
-                        ["--minimap-offset" as any]: minimapBottomOffset,
-                        ["--scale-offset" as any]: scaleBottomOffset,
-                        ["--scale-right-offset" as any]: scaleRightOffset,
-                        outlineColor: (colorizeMapBorders && isSplit) ? borderColorFor(side) : undefined,
-                      }}
-                    >
-                      {renderMap(stateAny[sourceFieldName(side)], side)}
-                    </div>
-                    {!isLastCol && effectiveGridLayout === "2x1" && (
-                      <SplitPill
-                        ratio={splitRatio}
-                        onRatioChange={setSplitRatio}
-                        availableWidthPx={availableSplitWidth}
-                        min={SPLIT_RATIO_MIN}
-                        max={SPLIT_RATIO_MAX}
-                      />
-                    )}
-                    {!isLastCol && effectiveGridLayout !== "2x1" && (
-                      <div className="w-px shrink-0 bg-border" />
-                    )}
-                  </Fragment>
-                )
-              })}
-              </div>
-            </Fragment>
-          ))
+          ) : (
+            <SplitPill
+              ratio={splitRatio}
+              onRatioChange={setSplitRatio}
+              availableWidthPx={availableSplitWidth}
+              min={SPLIT_RATIO_MIN}
+              max={SPLIT_RATIO_MAX}
+              leftPercent={sideBySideBoundaryPct}
+            />
+          )
         )}
       </div>
       <LightControlOverlay state={state} setState={setState} mapRef={mapRefs.A as any} />
+      {/* A plain floating div (not a per-map maplibre IControl) — positioned
+          relative to the whole viewport via the SAME minimapBottomOffset
+          already used for the old in-map-corner version, so it correctly
+          clears the historical timeline panel's own height regardless of
+          grid shape, instead of always sitting at view A's own bottom-left
+          (the row 0/row 1 seam in a 2-row grid, nowhere near the timeline). */}
+      {!activeProjectConfig?.hideMapControls?.includes("minimap") && (
+        <div className="fixed z-10" style={{ bottom: minimapBottomOffset, left: `${MAP_CTRL_EDGE_MARGIN_PX}px` }}>
+          <MinimapInternal
+            parentMap={mapRefs.A.current?.getMap()}
+            position="bottom-left"
+            mode="dynamic"
+            initBounds={[[-150, -30], [150, 50]]}
+            zoomLevelOffset={-6}
+            interactive={true}
+            interactions={{
+              dragPan: true,
+              scrollZoom: true,
+              boxZoom: true,
+            }}
+            width={260}
+            height={180}
+            showFrustum={false}
+            minimized={state.minimapMinimized}
+            onMinimizedChange={(v) => setState({ minimapMinimized: v })}
+            footprintFillPaint={{
+              "fill-color": "#3b82f6",
+              "fill-opacity": 0.15,
+            }}
+            footprintLinePaint={{
+              "line-color": "#2563eb",
+              "line-width": 2.5,
+            }}
+            frustumFillPaint={{
+              "fill-color": "#f59e0b",
+              "fill-opacity": 0.2,
+            }}
+            frustumLinePaint={{
+              "line-color": "#ea580c",
+              "line-width": 2,
+              "line-dasharray": [3, 2],
+            }}
+            style={{
+              version: 8,
+              sources: {
+                basemap: {
+                  type: "raster",
+                  tiles: [
+                    "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                  ],
+                  tileSize: 256,
+                },
+              },
+              layers: [
+                {
+                  id: "basemap",
+                  type: "raster",
+                  source: "basemap",
+                },
+              ],
+            }}
+          />
+        </div>
+      )}
       <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapRefs.A as any} />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
         <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} />

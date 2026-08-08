@@ -19,6 +19,7 @@ export const GeneralSettings: React.FC<{
 }> = ({ state, setState, isOpen, onOpenChange, historicalMode = false }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const disabledViewModes = activeProjectConfig?.disableViewModes ?? []
+  const hideSplitScreen = activeProjectConfig?.hiddenSections?.includes("splitScreen") ?? false
 
   return (
     <Section title="General Settings" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
@@ -34,6 +35,28 @@ export const GeneralSettings: React.FC<{
               !disabledViewModes.includes("globe") && { value: "globe", label: <Globe className="h-4 w-4 mx-auto" strokeWidth={state.viewMode === "globe" ? 2 : 1.5} /> },
               !disabledViewModes.includes("3d") && { value: "3d", label: "3D" },
             ].filter(Boolean) as { value: string; label: React.ReactNode }[]}
+          />
+        </div>
+      )}
+      {/* Terrain mode's own minimal comparison control — historical mode gets
+          the full Comparison and Mix section instead (grid layout picker,
+          blend mode/opacity, per-side border colors, capture-date pill), a
+          full N-map grid being a historical-imagery-comparison feature more
+          than a terrain-visualization one. Always forces gridLayout "2x1"
+          regardless of state.gridLayout's own stored value — see
+          TerrainViewer.tsx's effectiveGridLayout. */}
+      {!historicalMode && !hideSplitScreen && (
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-sm font-medium">Split Mode</Label>
+          <SegmentedToggle
+            className="w-[180px]"
+            value={state.splitStyle}
+            onChange={(value) => setState({ splitStyle: value })}
+            options={[
+              { value: "off", label: "Off" },
+              { value: "overlay", label: "Overlay" },
+              { value: "side-by-side", label: "Side" },
+            ]}
           />
         </div>
       )}
