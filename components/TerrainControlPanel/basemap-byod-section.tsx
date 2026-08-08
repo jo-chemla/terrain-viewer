@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { TooltipButton, SourceGridToggle, GroupHeading } from "./controls-components"
-import { viewFieldName, sourceFieldName, type ViewId } from "@/lib/grid-layouts"
+import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
@@ -104,9 +104,9 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     if (state.basemapSource === id) setState({ basemapSource: "osm" })
     // Every view (not just A/B) needs its own fallback — same reasoning as
     // terrain-source-section.tsx's handleDeleteCustomSource.
-    const fallback: Record<ViewId, string> = { A: "esri", B: "google", C: "esri", D: "google", E: "esri", F: "google" }
+    const fallback: Record<ViewId, string> = { A: "esri", B: "google", C: "esri", D: "google", E: "esri", F: "google", G: "esri", H: "google" }
     const updates: Record<string, string> = {}
-    for (const side of ["A", "B", "C", "D", "E", "F"] as ViewId[]) {
+    for (const side of VIEW_IDS) {
       const field = viewFieldName(side, "basemapSource", true)
       if (state[field] === id) updates[field] = fallback[side]
     }

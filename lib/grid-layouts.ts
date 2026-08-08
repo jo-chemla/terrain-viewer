@@ -1,17 +1,20 @@
 // Shared N-map grid infrastructure — generalizes what used to be a hardcoded
 // map-A/map-B pair (see git history of TerrainViewer.tsx pre this file) into
-// up to 6 simultaneous views (A-F), arranged in one of a handful of fixed
+// up to 8 simultaneous views (A-H), arranged in one of a handful of fixed
 // row/column layouts. Per-view state fields (sourceX/basemapSourceX/dateX/
 // historicalActiveSourceX/timelineSourcesX) still live in TerrainViewer.tsx's
 // QUERY_STATE_PARSERS — this module only defines the *shape* (which letters
 // are active for a given layout, in which row) and the naming/lookup rules
 // every consumer (TerrainViewer, historical-timeline-panel, the per-section
 // source pickers) needs to stay in sync on.
-export type ViewId = "A" | "B" | "C" | "D" | "E" | "F"
-export const VIEW_IDS: ViewId[] = ["A", "B", "C", "D", "E", "F"]
+export type ViewId = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H"
+export const VIEW_IDS: ViewId[] = ["A", "B", "C", "D", "E", "F", "G", "H"]
 
-export type GridLayoutId = "2x1" | "3x1" | "4x1" | "2x2" | "3x2"
-export const GRID_LAYOUT_IDS: GridLayoutId[] = ["2x1", "3x1", "4x1", "2x2", "3x2"]
+// Ordered single-row layouts first, then two-row — matches
+// comparison-mix-section.tsx's GridLayoutPicker, whose own row 0/row 1 button
+// cells are exactly this grouping.
+export type GridLayoutId = "2x1" | "3x1" | "4x1" | "1x2" | "2x2" | "3x2" | "4x2"
+export const GRID_LAYOUT_IDS: GridLayoutId[] = ["2x1", "3x1", "4x1", "1x2", "2x2", "3x2", "4x2"]
 
 // "off": single map, no comparison UI at all. "side-by-side": a flex/grid of
 // independent panes (the only style compatible with every GridLayoutId
@@ -22,23 +25,49 @@ export const GRID_LAYOUT_IDS: GridLayoutId[] = ["2x1", "3x1", "4x1", "2x2", "3x2
 export type SplitStyle = "off" | "overlay" | "side-by-side"
 export const SPLIT_STYLES: SplitStyle[] = ["off", "overlay", "side-by-side"]
 
-// Curated CSS mix-blend-mode keywords relevant to imagery A/B comparison —
-// "plus-lighter" is the real CSS keyword for additive blending (there's no
-// literal "addition" value). Labels are the Comparison and Mix section's
-// own Select options; the bare keyword list is what TerrainViewer.tsx's
-// nuqs parser validates against.
-export const BLEND_MODE_OPTIONS = [
-  { value: "normal", label: "Normal" },
-  { value: "difference", label: "Difference" },
-  { value: "multiply", label: "Multiply" },
-  { value: "screen", label: "Screen" },
-  { value: "darken", label: "Darken" },
-  { value: "lighten", label: "Lighten" },
-  { value: "overlay", label: "Overlay" },
-  { value: "exclusion", label: "Exclusion" },
-  { value: "plus-lighter", label: "Addition" },
-] as const
-export const BLEND_MODES = BLEND_MODE_OPTIONS.map((o) => o.value)
+// Every CSS `mix-blend-mode` keyword (developer.mozilla.org/docs/Web/CSS/
+// mix-blend-mode), split into the classic Photoshop-style separable modes
+// ("Standard") most imagery A/B comparisons actually reach for, and the
+// less commonly useful non-separable HSL modes + compositing operators
+// ("Extra") — grouped instead of one long list, see the Select render in
+// comparison-mix-section.tsx. "plus-darker" mirrors the reference app this
+// feature was ported from (Iconem's historical-satellite viewer's own
+// BlendingControl) even though it isn't part of the standardized CSS
+// Compositing spec (only "plus-lighter" is) — an unsupported keyword just
+// falls back to "normal" (mix-blend-mode degrades silently on an unknown
+// value), so keeping it costs nothing and matches that reference exactly.
+// The bare keyword list (BLEND_MODES) is what TerrainViewer.tsx's nuqs
+// parser validates splitBlendMode against — order there doesn't matter,
+// only BLEND_MODE_GROUPS' own order affects the Select's display order.
+const BLEND_MODE_LABELS: Record<string, string> = {
+  normal: "Normal", multiply: "Multiply", screen: "Screen", overlay: "Overlay",
+  darken: "Darken", lighten: "Lighten", "color-dodge": "Color Dodge", "color-burn": "Color Burn",
+  "hard-light": "Hard Light", "soft-light": "Soft Light", difference: "Difference", exclusion: "Exclusion",
+  hue: "Hue", saturation: "Saturation", color: "Color", luminosity: "Luminosity",
+  "plus-darker": "Plus Darker", "plus-lighter": "Plus Lighter",
+}
+// Two flat, `as const` value tuples (not one big tuple-of-tuples) — a
+// grouped structure built by flatMap-ing an `as const` array of arrays
+// makes TS infer each group's `items` as its own distinct literal tuple
+// type, which then fails to unify into one common element type for
+// BLEND_MODE_OPTIONS/BLEND_MODES (confirmed: tsc rejected the earlier
+// version). Deriving the display groups from these instead keeps every
+// value a real string-literal member of one shared union throughout.
+const STANDARD_BLEND_MODES = ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion"] as const
+const EXTRA_BLEND_MODES = ["hue", "saturation", "color", "luminosity", "plus-darker", "plus-lighter"] as const
+export const BLEND_MODES = [...STANDARD_BLEND_MODES, ...EXTRA_BLEND_MODES] as const
+export type BlendModeOption = { value: string; label: string }
+// BLEND_MODE_LABELS' plain (non-`as const`) Record type is what keeps each
+// group's `items` the SAME widened `BlendModeOption[]` shape instead of a
+// per-group literal-union tuple — the two groups otherwise infer as
+// genuinely incompatible types (Standard's `value` narrowed to its own 12
+// members, Extra's to its own 6), which the Select's `items` prop then
+// rejects when handed the two side by side.
+export const BLEND_MODE_GROUPS: { label: string; items: BlendModeOption[] }[] = [
+  { label: "Standard", items: STANDARD_BLEND_MODES.map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
+  { label: "Extra", items: EXTRA_BLEND_MODES.map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
+]
+export const BLEND_MODE_OPTIONS = BLEND_MODE_GROUPS.flatMap((g) => g.items)
 
 export interface GridLayoutConfig {
   id: GridLayoutId
@@ -56,12 +85,14 @@ export const GRID_LAYOUTS: Record<GridLayoutId, GridLayoutConfig> = {
   "2x1": { id: "2x1", cols: 2, rows: 1, grid: [["A", "B"]] },
   "3x1": { id: "3x1", cols: 3, rows: 1, grid: [["A", "B", "C"]] },
   "4x1": { id: "4x1", cols: 4, rows: 1, grid: [["A", "B", "C", "D"]] },
+  "1x2": { id: "1x2", cols: 1, rows: 2, grid: [["A"], ["B"]] },
   "2x2": { id: "2x2", cols: 2, rows: 2, grid: [["A", "B"], ["C", "D"]] },
   "3x2": { id: "3x2", cols: 3, rows: 2, grid: [["A", "B", "C"], ["D", "E", "F"]] },
+  "4x2": { id: "4x2", cols: 4, rows: 2, grid: [["A", "B", "C", "D"], ["E", "F", "G", "H"]] },
 }
 
 export const GRID_LAYOUT_LABELS: Record<GridLayoutId, string> = {
-  "2x1": "2×1", "3x1": "3×1", "4x1": "4×1", "2x2": "2×2", "3x2": "3×2",
+  "2x1": "2×1", "3x1": "3×1", "4x1": "4×1", "1x2": "1×2", "2x2": "2×2", "3x2": "3×2", "4x2": "4×2",
 }
 
 /** Row-major flattened list of every view active in a layout, e.g. "3x2" -> [A,B,C,D,E,F]. */
@@ -85,6 +116,17 @@ export function bottomRightView(layout: GridLayoutId): ViewId {
   return lastRow[lastRow.length - 1]
 }
 
+/** Same idea, but the corner the scale bar + attribution control actually
+ *  dock to now (TerrainViewer.tsx moved them to the top, clear of the
+ *  historical timeline panel) — the FIRST row's own last column, which for
+ *  a single-row layout is the same view bottomRightView would return, but
+ *  differs for any multi-row grid (2x2/3x2/etc). */
+export function topRightView(layout: GridLayoutId): ViewId {
+  const { grid } = GRID_LAYOUTS[layout]
+  const firstRow = grid[0]
+  return firstRow[firstRow.length - 1]
+}
+
 /** The rightmost view in EVERY row — each needs the sidebar-footprint camera
  *  padding correction (map.easeTo({padding})) since the floating sidebar
  *  overlaps the right edge of the viewport across the full height, not just
@@ -100,7 +142,7 @@ type PerViewBase = "basemapSource" | "date" | "historicalActiveSource" | "timeli
  *  `basemapPerView`, that only ever applies to view A (exactly today's
  *  existing `basemapPerView ? state.dateA : state.date`-style ternaries,
  *  centralized here instead of re-derived at each call site). Every other
- *  view (B-F) always uses its own suffixed field, since it can only be
+ *  view (B-H) always uses its own suffixed field, since it can only be
  *  active at all when basemapPerView is already true.
  */
 export function viewFieldName(side: ViewId, base: PerViewBase, basemapPerView: boolean): string {
@@ -125,4 +167,6 @@ export const SIDE_COLORS: Record<ViewId, string> = {
   D: "#ef4444", // red
   E: "#a855f7", // purple
   F: "#06b6d4", // cyan
+  G: "#ec4899", // pink
+  H: "#84cc16", // lime
 }

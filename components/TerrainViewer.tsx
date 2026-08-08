@@ -44,7 +44,7 @@ import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle
 import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
 import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom } from "@/lib/layout-constants"
-import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
+import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, topRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
 import maplibregl from 'maplibre-gl'
@@ -197,12 +197,14 @@ export const QUERY_STATE_PARSERS = {
     showCaptureDatePill: parseAsStringLiteral(["off", "date", "source-date"] as const).withDefault("off"),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
-    // C-F only ever matter for gridLayout "2x2"/"3x1"/"3x2"/"4x1" — same shape
-    // as sourceA/B, just extra slots so 4-/6-map grids need no schema change.
+    // C-H only ever matter for gridLayout "2x2"/"3x1"/"3x2"/"4x1"/"4x2" — same
+    // shape as sourceA/B, just extra slots so bigger grids need no schema change.
     sourceC: parseAsString.withDefault("aws"),
     sourceD: parseAsString.withDefault("mapterhorn"),
     sourceE: parseAsString.withDefault("maptiler"),
     sourceF: parseAsString.withDefault("aws"),
+    sourceG: parseAsString.withDefault("mapterhorn"),
+    sourceH: parseAsString.withDefault("maptiler"),
     basemapSource: parseAsString.withDefault("esri"), // can have custom id in addition to @/lib/terrain-sources
     basemapPerView: parseAsBoolean.withDefault(true),
     basemapSourceA: parseAsString.withDefault("esri"),
@@ -211,6 +213,8 @@ export const QUERY_STATE_PARSERS = {
     basemapSourceD: parseAsString.withDefault("google"),
     basemapSourceE: parseAsString.withDefault("esri"),
     basemapSourceF: parseAsString.withDefault("google"),
+    basemapSourceG: parseAsString.withDefault("esri"),
+    basemapSourceH: parseAsString.withDefault("google"),
     // 'overlay'-role custom basemap sources currently stacked on top of the active
     // basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B,
     // only meaningful in split-or-radio basemap mode (basemapPerView).
@@ -232,6 +236,8 @@ export const QUERY_STATE_PARSERS = {
     dateD: parseAsInteger.withDefault(0),
     dateE: parseAsInteger.withDefault(0),
     dateF: parseAsInteger.withDefault(0),
+    dateG: parseAsInteger.withDefault(0),
+    dateH: parseAsInteger.withDefault(0),
     // Which concrete underlying source (wayback/hls/ge-historical/planet/
     // eox-s2) actually renders when basemapSource(A/B) === "historical" — the
     // sidebar only ever exposes one combined "Historical Imagery" entry;
@@ -246,6 +252,8 @@ export const QUERY_STATE_PARSERS = {
     historicalActiveSourceD: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
     historicalActiveSourceE: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
     historicalActiveSourceF: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
+    historicalActiveSourceG: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
+    historicalActiveSourceH: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
     // Which historical sources' ticks are aggregated onto the shared timeline
     // (pill toggles in historical-timeline-panel.tsx) — independent of which
     // single source is actually "active"/rendered on the map. "planet" is
@@ -265,6 +273,8 @@ export const QUERY_STATE_PARSERS = {
     timelineSourcesD: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
     timelineSourcesE: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
     timelineSourcesF: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
+    timelineSourcesG: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
+    timelineSourcesH: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
     // Whether the historical timeline's full bar (header + track) is
     // collapsed down to just the small floating clock-icon toggle button.
     historicalTimelineCollapsed: parseAsBoolean.withDefault(false),
@@ -703,8 +713,8 @@ export const QUERY_STATE_PARSERS = {
 }
 
 export function TerrainViewer() {
-  // Per-view map refs/loaded-flags, keyed by ViewId (A-F) — generalizes what
-  // used to be a hardcoded mapARef/mapBRef + mapALoaded/mapBLoaded pair. Six
+  // Per-view map refs/loaded-flags, keyed by ViewId (A-H) — generalizes what
+  // used to be a hardcoded mapARef/mapBRef + mapALoaded/mapBLoaded pair. Eight
   // plain useRef calls (VIEW_IDS.length is a compile-time constant, never
   // conditional, so this doesn't violate the rules of hooks) rather than one
   // ref-per-active-view, since the set of *active* views changes at runtime
@@ -718,8 +728,10 @@ export function TerrainViewer() {
   const mapRefD = useRef<MapRef>(null)
   const mapRefE = useRef<MapRef>(null)
   const mapRefF = useRef<MapRef>(null)
+  const mapRefG = useRef<MapRef>(null)
+  const mapRefH = useRef<MapRef>(null)
   const mapRefs = useMemo<Record<ViewId, React.RefObject<MapRef>>>(() => ({
-    A: mapRefA, B: mapRefB, C: mapRefC, D: mapRefD, E: mapRefE, F: mapRefF,
+    A: mapRefA, B: mapRefB, C: mapRefC, D: mapRefD, E: mapRefE, F: mapRefF, G: mapRefG, H: mapRefH,
   }), [])
   const isSyncing = useRef(false)
   const [mapLibreReady, setMapLibreReady] = useState(false)
@@ -837,7 +849,9 @@ export function TerrainViewer() {
   const effectiveGridLayout: GridLayoutId = (isOverlaySplit || !isHistoricalMode) ? "2x1" : state.gridLayout
   const gridConfig = GRID_LAYOUTS[effectiveGridLayout]
   const activeViewIds: ViewId[] = isSplit ? gridConfig.grid.flat() : ["A"]
-  const bottomRightViewId: ViewId = isSplit ? bottomRightView(effectiveGridLayout) : "A"
+  // Scale bar + attribution now dock top-right (see the topRightViewId
+  // usage below) — the FIRST row's own rightmost view, not the last row's.
+  const topRightViewId: ViewId = isSplit ? topRightView(effectiveGridLayout) : "A"
   const rightmostPerRow: ViewId[] = isSplit ? rightmostViewsPerRow(effectiveGridLayout) : ["A"]
   // Only the LAST row needs the historical-timeline bottom-padding
   // correction (mapPaddingFor below) — a top-row pane in a 2-row grid isn't
@@ -1750,7 +1764,7 @@ export function TerrainViewer() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    state.exaggeration, state.sourceA, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF,
+    state.exaggeration, state.sourceA, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF, state.sourceG, state.sourceH,
     state.viewMode, highResTerrain, mapLoaded, activeViewIds.join(","), applyTerrain,
   ])
 
@@ -2101,7 +2115,7 @@ export function TerrainViewer() {
   const renderMap = useCallback(
     (source: TerrainSource | string, side: ViewId) => {
       const isPrimary = side === "A"
-      const isBottomRight = side === bottomRightViewId
+      const isTopRight = side === topRightViewId
       // "live" (lib/phong-live-gl-layer.ts) now projects through MapLibre's own
       // per-frame shaderData prelude, so it renders correctly under BOTH
       // mercator and globe — no globe fallback needed anymore. It's still
@@ -2639,23 +2653,21 @@ export function TerrainViewer() {
 
             </>
           )}
-          {/* Scale bar always lands at the true bottom-right edge of the whole
-              viewport, not per-pane: mounted on whichever view currently
-              occupies that visual corner — the last column of the last row
-              (bottomRightViewId), matching today's "map B when split, map A
-              otherwise" for the 2-map case. Exactly one view ever satisfies
-              this per render, by construction, so this always mounts exactly
-              one ScaleControl across the whole grid. */}
-          {!activeProjectConfig?.hideMapControls?.includes("scale") && isBottomRight && (
-            <ScaleControl position="bottom-right" unit="metric" maxWidth={250} />
+          {/* Scale bar + attribution dock at the TOP-right edge of the whole
+              viewport (moved off the bottom so neither ever needs to clear
+              the historical timeline panel), not per-pane: mounted on
+              whichever view currently occupies that visual corner — the
+              last column of the FIRST row (topRightViewId), matching
+              today's "map B when split, map A otherwise" for the 2-map
+              case. Exactly one view ever satisfies this per render, by
+              construction, so this always mounts exactly one ScaleControl
+              across the whole grid. */}
+          {!activeProjectConfig?.hideMapControls?.includes("scale") && isTopRight && (
+            <ScaleControl position="top-right" unit="metric" maxWidth={250} />
           )}
-          {/* Mounted after ScaleControl so it's the later-added of the two —
-              for bottom corners MapLibre inserts new controls at the FRONT
-              of the corner container, so the later one ends up visually
-              topmost (attribution above scale, closer to the corner is
-              scale). Same bottom-right-most-view gating as scale. */}
-          {isBottomRight && (
-            <AttributionControl compact position="bottom-right" />
+          {/* Same top-right-most-view gating as scale. */}
+          {isTopRight && (
+            <AttributionControl compact position="top-right" />
           )}
         </Map>
       )
@@ -2686,7 +2698,7 @@ export function TerrainViewer() {
       state.tellsStyle, state.showTellsDetector, state.tellsMarkersVisible, tellsOptions, state.tellsBeta, tellsEverActivated,
       tellsColorByPaints, state.tellsOutlineColor, state.tellsScaleMarkers, state.tellsScaleMultiplier, state.tellMeasureScale,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
-      state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF, isSplit,
+      state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF, state.sourceG, state.sourceH, isSplit,
       state.sourceA, state.contourMinor, state.contourMajor, state.contourMinorLrm, state.contourMajorLrm, state.contourReferenceMode, state.contourWeight,
       state.contourColor, state.graticuleColor,
       perViewResolved, planetKey, state.historicalBeta,
@@ -2694,7 +2706,7 @@ export function TerrainViewer() {
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint,
       svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
-      mapLoaded, mapRefs, handleViewMove, handleViewMoveEnd, bottomRightViewId,
+      mapLoaded, mapRefs, handleViewMove, handleViewMoveEnd, topRightViewId,
       state.skyColor, state.skyHorizonBlend, state.horizonColor, state.horizonFogBlend,
       state.fogColor, state.fogGroundBlend, state.matchThemeColors, state.backgroundLayerActive,
       activeProjectConfig,
@@ -2716,8 +2728,18 @@ export function TerrainViewer() {
   // wrongly rolled back after appearing not to reach the rendered corner
   // element — that was a background-tab rAF-throttling test artifact, not a
   // real mechanism failure; the CSS-var + Tailwind wiring below does work.)
+  // Two DISTINCT additions, not one: the panel itself is anchored
+  // `sm:bottom-4` (MAP_CTRL_EDGE_MARGIN_PX, 16px) off the viewport's own
+  // bottom edge, and a clearance consumer sitting above it additionally
+  // wants its own PANEL_CLEARANCE_GAP_PX (16px) of breathing room above
+  // THAT. Adding only one of the two (as this used to) puts the clearance
+  // value exactly at the panel's own top edge — i.e. flush against it, zero
+  // visible gap — confirmed live: the minimap sat glued to the timeline
+  // panel whenever it was expanded, while the collapsed-timeline case
+  // (below) correctly accounts for both its own 56px footprint AND a
+  // separate 16px gap on top of that.
   const measuredPanelClearance = historicalTimelinePanelHeightPx > 0
-    ? `${Math.round(historicalTimelinePanelHeightPx + PANEL_CLEARANCE_GAP_PX)}px`
+    ? `${Math.round(historicalTimelinePanelHeightPx + MAP_CTRL_EDGE_MARGIN_PX + PANEL_CLEARANCE_GAP_PX)}px`
     : "13rem" // panel hasn't reported a real height yet (first paint) — reasonable fallback
   const minimapBottomOffset = !historicalTimelineActive
     ? `${MAP_CTRL_EDGE_MARGIN_PX}px`
@@ -2729,12 +2751,12 @@ export function TerrainViewer() {
       // button with zero gap between them).
       ? "4.5rem"
       : measuredPanelClearance
-  // Bottom-right corner (attribution+scale, on whichever map is currently
-  // rightmost) only ever needs to clear the timeline panel's own height when
-  // the FULL panel (not just the bottom-left floating toggle button) is
-  // visible — nothing at bottom-right needs clearing just because the panel
-  // collapsed down to that small bottom-left-only button.
-  const scaleBottomOffset = historicalTimelineVisible ? measuredPanelClearance : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  // Top-right corner (attribution+scale, on whichever map is currently
+  // rightmost in the FIRST row) — moved off the bottom entirely, so unlike
+  // the minimap/bottom-left offsets above, this never needs to reason about
+  // the historical timeline panel's height at all, just the unified edge
+  // margin and the sidebar's own footprint on the right.
+  const scaleTopOffset = `${MAP_CTRL_EDGE_MARGIN_PX}px`
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 
@@ -2771,7 +2793,7 @@ export function TerrainViewer() {
   // per-pane clip-path/blend/opacity applied to B below — regardless of
   // gridConfig, which for "overlay" is always the forced "2x1" shape from
   // effectiveGridLayout above.
-  interface PaneLayout { side: ViewId; rowIdx: number; isLastCol: boolean; top: number; height: number; left: number; width: number }
+  interface PaneLayout { side: ViewId; rowIdx: number; colIdx: number; isLastCol: boolean; top: number; height: number; left: number; width: number }
   const paneLayouts: PaneLayout[] = []
   // Same "fixed rows + one that absorbs the remainder" pattern as columns
   // (below) — the LAST row (the one the historical timeline panel actually
@@ -2805,7 +2827,7 @@ export function TerrainViewer() {
         width = isLastCol ? Math.max(0, splitContainerWidth - cursorPx) : colWidthPx
         cursorPx += colWidthPx
       }
-      paneLayouts.push({ side: row[colIdx], rowIdx, isLastCol, top: rowTop, height: rowHeight, left, width })
+      paneLayouts.push({ side: row[colIdx], rowIdx, colIdx, isLastCol, top: rowTop, height: rowHeight, left, width })
     }
   }
   // Boundary between column 0 and 1 as a % of the full container — same
@@ -2829,10 +2851,7 @@ export function TerrainViewer() {
     const label = state.showCaptureDatePill === "source-date"
       ? `${SOURCE_CONFIG[resolved.basemapSource]?.shortLabel ?? resolved.basemapSource} · ${dateLabel}`
       : dateLabel
-    // Overlay's A and B panes share the exact same rect (both full-bleed,
-    // stacked) — without this, their two bottom-left pills would land
-    // exactly on top of each other. B's stacks 28px above A's instead.
-    const overlayStackOffsetPx = isOverlaySplit && pane.side === "B" ? 28 : 0
+    const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : "0.5rem"
     // The rightmost column's own pane DOM box intentionally extends under the
     // floating sidebar (see paneLayouts/mapPaddingFor above) so its VISIBLE
     // portion matches every other pane's — centering on the full (partly
@@ -2841,19 +2860,40 @@ export function TerrainViewer() {
     const visiblePaneWidth = (!isOverlaySplit && pane.isLastCol && isSidebarOpen && !isMobile)
       ? Math.max(0, pane.width - sidebarFootprintPx)
       : pane.width
-    const positionStyle: React.CSSProperties = rows === 1
-      ? { left: `${pane.left + 8}px`, bottom: `calc(${historicalTimelineVisible ? measuredPanelClearance : "0.5rem"} + ${overlayStackOffsetPx}px)` }
-      : pane.rowIdx === 0
-        // Anchored to THIS row's own bottom edge (the seam with the row
-        // below), not the shared container's — "bottom: 0.5rem" used to mean
-        // 0.5rem above the whole grid's bottom edge (i.e. under the
-        // timeline/last row), landing the top row's pill deep inside the
-        // bottom row instead of near its own seam.
-        ? { left: `${pane.left + visiblePaneWidth / 2}px`, top: `${pane.top + pane.height - 8}px`, transform: "translate(-50%, -100%)" }
-        // Same fix, mirrored: anchored to THIS (last) row's own top edge —
-        // "top: 0.5rem" used to mean 0.5rem below the container's top (i.e.
-        // inside the top row) rather than this row's own top.
-        : { left: `${pane.left + visiblePaneWidth / 2}px`, top: `${pane.top + 8}px`, transform: "translateX(-50%)" }
+    let positionStyle: React.CSSProperties
+    if (isOverlaySplit) {
+      // Center each pane's pill in ITS OWN visible half, same boundary
+      // (overlayGutterPx) and same sidebar-aware right edge
+      // (availableSplitWidth) the colored borders already split on — A's and
+      // B's panes share the exact same full-bleed rect, so `pane.left` is
+      // identical for both, which used to mean their pills always landed
+      // stacked at the shared left edge (worked around with a 28px vertical
+      // offset, but read as an arbitrary stack rather than "which half of
+      // the screen is A vs B" the way the border split already does).
+      // Deliberately plain arithmetic on the same pixel values the borders
+      // use, NOT tied to the clip-path polygon itself — the clip-path lives
+      // on the pane's imagery; this pill is a sibling that was never
+      // subject to it and doesn't need to reason about it either.
+      const centerPx = pane.side === "A" ? overlayGutterPx / 2 : (overlayGutterPx + availableSplitWidth) / 2
+      positionStyle = { left: `${centerPx}px`, bottom: bottomClearance, transform: "translateX(-50%)" }
+    } else if (rows === 1) {
+      positionStyle = { left: `${pane.left + visiblePaneWidth / 2}px`, bottom: bottomClearance, transform: "translateX(-50%)" }
+    } else if (pane.rowIdx === rows - 1) {
+      // Last row: anchored to ITS OWN true bottom (clearing the timeline),
+      // not the seam with the row above — now that the border/timeline
+      // clamping this pill's positioning shares (paneLayouts/mapPaddingFor
+      // above) is correct, the last row's own visible area has real room at
+      // its bottom for this, and it reads better as a normal per-row
+      // caption than crowding both rows' pills onto the same middle seam.
+      positionStyle = { left: `${pane.left + visiblePaneWidth / 2}px`, bottom: bottomClearance, transform: "translateX(-50%)" }
+    } else {
+      // Non-last row: anchored to THIS row's own bottom edge (the seam with
+      // the row below), not the shared container's — "bottom: 0.5rem" used
+      // to mean 0.5rem above the whole grid's bottom edge (i.e. under the
+      // timeline/last row), landing this row's pill deep inside the bottom
+      // row instead of near its own seam.
+      positionStyle = { left: `${pane.left + visiblePaneWidth / 2}px`, top: `${pane.top + pane.height - 8}px`, transform: "translate(-50%, -100%)" }
+    }
     return (
       <div
         key={`date-${pane.side}`}
@@ -2885,7 +2925,7 @@ export function TerrainViewer() {
                 // No bottom-left targeting here anymore — the minimap is a
                 // plain floating div now (see the fixed-position render
                 // below), not a per-pane maplibre control corner.
-                pane.side === bottomRightViewId && "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
+                pane.side === topRightViewId && "[&_.maplibregl-ctrl-top-right]:!top-[var(--scale-offset)] [&_.maplibregl-ctrl-top-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-top-right]:transition-[top,right] [&_.maplibregl-ctrl-top-right]:duration-200",
               )}
               style={{
                 top: pane.top,
@@ -2895,7 +2935,7 @@ export function TerrainViewer() {
                 clipPath: isBlendedOverlayPane ? `polygon(${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 100% 100%, 100% 0%)` : undefined,
                 mixBlendMode: isBlendedOverlayPane ? (state.splitBlendMode as any) : undefined,
                 opacity: isBlendedOverlayPane ? state.overlayOpacity : undefined,
-                ["--scale-offset" as any]: scaleBottomOffset,
+                ["--scale-offset" as any]: scaleTopOffset,
                 ["--scale-right-offset" as any]: scaleRightOffset,
               }}
             >
@@ -2939,12 +2979,27 @@ export function TerrainViewer() {
                     isLastCol/bottomRowViews (which only mean something for a
                     real multi-column/row grid). */}
               {colorizeMapBorders && isSplit && (() => {
+                // Every pane always draws its own FULL-width border on all 4
+                // sides, inset or not — a shared seam between two adjacent
+                // panes (any inner grid line, or overlay's own gutter)
+                // therefore reads as visibly thicker than an outer edge,
+                // which only ever has ONE pane's border: intentional, per
+                // request — the doubled seam reads as "this is a real
+                // boundary between two views," not a rendering glitch. (An
+                // earlier pass here HALVED the width on seam-facing sides to
+                // equalize it with outer edges instead — reverted; that
+                // wasn't the wanted look.) insetPx/fullWidth are kept even
+                // numbers specifically so this and the seam math both land
+                // on whole pixels, no half-pixel blur either mode.
                 const insetPx = colorizeMapBordersInset ? 3 : 0
+                const fullWidth = colorizeMapBordersInset ? 2 : 4
                 return (
                   <div
-                    className={cn("pointer-events-none absolute rounded-sm", colorizeMapBordersInset ? "border-2" : "border-4")}
+                    className={cn("pointer-events-none absolute", colorizeMapBordersInset ? "rounded-sm" : "rounded-none")}
                     style={{
                       borderColor: borderColorFor(pane.side),
+                      borderStyle: "solid",
+                      borderWidth: fullWidth,
                       top: insetPx,
                       left: isOverlaySplit && pane.side === "B" ? overlayGutterPx + insetPx : insetPx,
                       right: isOverlaySplit && pane.side === "A"

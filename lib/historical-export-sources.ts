@@ -19,7 +19,17 @@ export interface ExportTick {
   dateMs: number
   /** yyyy-mm-dd, for filenames — see lib/export-multi.ts. */
   label: string
-  tileSpec: Pick<FetchRgbTileMosaicOptions, "tileUrlTemplate" | "buildTileUrl" | "tileSize"> & { maxzoom: number }
+  tileSpec: Pick<FetchRgbTileMosaicOptions, "tileUrlTemplate" | "buildTileUrl" | "tileSize"> & {
+    maxzoom: number
+    /** Bing only — a literal `{quadkey}` placeholder template (this app's
+     *  own convention, same as `{x}`/`{y}`/`{z}` elsewhere), since Bing
+     *  addresses tiles by quadkey rather than z/x/y and so has no
+     *  `tileUrlTemplate` of its own (buildTileUrl computes the quadkey
+     *  itself instead). Only lib/gdal-export.ts reads this — it maps to
+     *  GDAL_WMS's own `${quadkey}` templating for the dedicated
+     *  VirtualEarth service (gdal.org/en/stable/drivers/raster/wms.html#virtualearth). */
+    quadkeyUrlTemplate?: string
+  }
 }
 
 const BING_URL_BASE = "https://t.ssl.ak.tiles.virtualearth.net/tiles/a"
@@ -89,6 +99,7 @@ export async function listExportTicks(
     label: dateLabel(effectiveDateMs),
     tileSpec: {
       buildTileUrl: (z, x, y) => `${BING_URL_BASE}${toQuadkey(x, y, z)}${BING_URL_SUFFIX}`,
+      quadkeyUrlTemplate: `${BING_URL_BASE}{quadkey}${BING_URL_SUFFIX}`,
       tileSize: 256,
       maxzoom: 21,
     },

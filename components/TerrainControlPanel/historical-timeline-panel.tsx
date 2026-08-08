@@ -13,7 +13,7 @@ import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom } from "@/lib/settings-atoms"
-import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom } from "@/lib/layout-constants"
+import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -117,7 +117,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const [activeSide, setActiveSide] = useState<ViewId>("A")
   const [syncEnabled, setSyncEnabled] = useAtom(historicalTimelineSyncAtom)
   const [sideColorOverrides] = useAtom(sideColorOverridesAtom)
-  const colorFor = useCallback((side: ViewId) => sideColorOverrides[side] ?? SIDE_COLORS[side], [sideColorOverrides])
+  const [colorizeMapBorders] = useAtom(colorizeMapBordersAtom)
+  // Per-side identity colors are meaningless once the map borders they're
+  // meant to match are off — undefined here signals every caller (handle
+  // chips, side-picker buttons, A/B captions) to fall back to a plain
+  // primary-colored/neutral look instead of a per-view hue nothing on the
+  // map actually shows anymore.
+  const colorFor = useCallback((side: ViewId): string | undefined =>
+    colorizeMapBorders ? (sideColorOverrides[side] ?? SIDE_COLORS[side]) : undefined,
+  [colorizeMapBorders, sideColorOverrides])
   // Expanded by default: title + source/resolution pills + sync/side-picker
   // shown. Toggled off via the cog button for a minimal header (just a small
   // floating cog+collapse cluster hovering over the track's top-right
@@ -134,6 +142,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const setPanelHeight = useSetAtom(historicalTimelinePanelHeightAtom)
   // null = full extent (no zoom applied) — see the wheel-zoom handler below.
   const [viewWindow, setViewWindow] = useState<{ min: number; max: number } | null>(null)
+  // See the DEFAULT_VIEW_FLOOR_MS/defaultMin/effectiveMin comments further
+  // down — a plain ref (not state) since it only ever needs to be read
+  // during the SAME render pass whose triggering action (a wheel event, a
+  // gutter drag) already calls setViewWindow and forces that re-render.
+  const hasZoomedRef = useRef(false)
   // `| null` in the generic (not just the initial value) so this stays a
   // MutableRefObject — setTrackRef below needs to assign trackRef.current
   // itself (not just let JSX's `ref={trackRef}` do it), which TS otherwise
@@ -493,14 +506,33 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   }, [
     activeViews.join(","), isHistoricalFor, displaySourceFor, allTicks, dateForSide, setTickForSide,
     state.basemapPerView,
-    state.basemapSourceA, state.basemapSourceB, state.basemapSourceC, state.basemapSourceD, state.basemapSourceE, state.basemapSourceF, state.basemapSource,
-    state.historicalActiveSourceA, state.historicalActiveSourceB, state.historicalActiveSourceC, state.historicalActiveSourceD, state.historicalActiveSourceE, state.historicalActiveSourceF, state.historicalActiveSource,
-    state.dateA, state.dateB, state.dateC, state.dateD, state.dateE, state.dateF, state.date,
+    state.basemapSourceA, state.basemapSourceB, state.basemapSourceC, state.basemapSourceD, state.basemapSourceE, state.basemapSourceF, state.basemapSourceG, state.basemapSourceH, state.basemapSource,
+    state.historicalActiveSourceA, state.historicalActiveSourceB, state.historicalActiveSourceC, state.historicalActiveSourceD, state.historicalActiveSourceE, state.historicalActiveSourceF, state.historicalActiveSourceG, state.historicalActiveSourceH, state.historicalActiveSource,
+    state.dateA, state.dateB, state.dateC, state.dateD, state.dateE, state.dateF, state.dateG, state.dateH, state.date,
   ])
 
+  // fullMin/fullMax are the TRUE domain (every real tick, unfloored) — they
+  // gate how far zoom/pan can ever reach, so an old outlier (Google Earth
+  // Historical often has one isolated ~1945 tick for well-covered cities
+  // like Paris, decades before its next real one) must stay reachable by
+  // manually zooming/panning out, not permanently hidden. defaultMin is a
+  // SEPARATE floor that only affects the very first render (no viewWindow
+  // yet) — without it, that single outlier would squish the default view
+  // into an unusable sliver where every recent decade is a few pixels wide.
+  // Once the user has actually zoomed/panned (viewWindow set), this floor
+  // no longer applies at all — see effectiveMin below.
+  const DEFAULT_VIEW_FLOOR_MS = Date.UTC(2010, 0, 1)
   const fullMin = items[0]?.dateMs ?? 0
   const fullMax = items[items.length - 1]?.dateMs ?? fullMin + 1
   const fullSpan = Math.max(1, fullMax - fullMin)
+  const defaultMin = fullMax > DEFAULT_VIEW_FLOOR_MS ? Math.max(fullMin, DEFAULT_VIEW_FLOOR_MS) : fullMin
+  // Sticky once true — the wheel-zoom handler and the pan-gutter below both
+  // set this on the FIRST real interaction. Needed because zooming/panning
+  // all the way back out to the true full extent resets viewWindow to null
+  // (same "no zoom active" state as the pristine initial render, see the
+  // wheel handler's own `newSpan >= fullSpan ? null : ...`) — without this,
+  // effectiveMin would then snap back to the floored defaultMin instead of
+  // staying at the true fullMin, undoing the very zoom-out the user just did.
 
   // Re-clamp a zoomed window whenever the full extent itself shifts (e.g. a
   // pill toggle shrinks the dataset) so a stale window can't reference dates
@@ -514,7 +546,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullMin, fullMax])
 
-  const effectiveMin = viewWindow ? Math.max(fullMin, viewWindow.min) : fullMin
+  const effectiveMin = viewWindow ? Math.max(fullMin, viewWindow.min) : (hasZoomedRef.current ? fullMin : defaultMin)
   const effectiveMax = viewWindow ? Math.min(fullMax, viewWindow.max) : fullMax
   const effectiveSpan = Math.max(1, effectiveMax - effectiveMin)
   const fracForTick = useCallback((tick: TimelineTick) => Math.min(1, Math.max(0, (tick.dateMs - effectiveMin) / effectiveSpan)), [effectiveMin, effectiveSpan])
@@ -693,6 +725,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     if (!el || !panelVisible) return
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
+      hasZoomedRef.current = true
       const { effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow } = wheelStateRef.current
       const rect = el.getBoundingClientRect()
       // A trackpad's two-finger swipe fires wheel events with deltaX
@@ -759,7 +792,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     if (pct === undefined) return [side]
     return showingViews.filter((s) => handleLeftPctBySide[s] !== undefined && Math.abs((handleLeftPctBySide[s] as number) - pct) < 0.05)
   }
-  const handleBackground = (side: ViewId): string => {
+  // undefined (colorizeMapBorders off) means "use the plain primary-colored
+  // CSS classes instead" — every caller applies those as a className
+  // fallback rather than trying to render an undefined inline background.
+  const handleBackground = (side: ViewId): string | undefined => {
+    if (!colorizeMapBorders) return undefined
     const group = coincidentGroup(side)
     if (group.length <= 1) return colorFor(side)
     const step = 100 / group.length
@@ -793,10 +830,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 type="button"
                 onClick={() => maybeRecenterWindow(tick.dateMs)}
                 className={cn(
-                  "absolute top-1/2 -translate-y-1/2 z-10 cursor-pointer flex items-center rounded-md border-2 border-background shadow px-0.5 h-4 text-[8px] font-bold leading-none text-white",
+                  "absolute top-1/2 -translate-y-1/2 z-10 cursor-pointer flex items-center rounded-md border-2 border-background shadow px-0.5 h-4 text-[8px] font-bold leading-none",
+                  bg ? "text-white" : "bg-primary text-primary-foreground",
                   dir === "left" ? "left-0" : "right-0",
                 )}
-                style={{ background: bg }}
+                style={bg ? { background: bg } : undefined}
               >
                 {dir === "left" && <ChevronLeft className="h-3 w-3" />}
                 {side}
@@ -821,10 +859,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               }}
               onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo(side, e.clientX) }}
               onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing"
-              style={{ left: `${handleLeftPctBySide[side]}%`, background: bg }}
+              className={cn(
+                "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing",
+                !bg && "bg-primary",
+              )}
+              style={{ left: `${handleLeftPctBySide[side]}%`, ...(bg ? { background: bg } : {}) }}
             >
-              <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold leading-none text-white pointer-events-none select-none">{side}</span>
+              <span className={cn("absolute inset-0 flex items-center justify-center text-[8px] font-bold leading-none pointer-events-none select-none", bg ? "text-white" : "text-primary-foreground")}>{side}</span>
             </div>
           }
         />
@@ -932,20 +973,25 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 since a shared pill state has no separate "side" to pick. */}
             {dualUnsynced && (
               <div className="flex items-center rounded-md border border-border overflow-hidden">
-                {activeViews.map((side) => (
-                  <button
-                    key={side}
-                    type="button"
-                    onClick={() => setActiveSide(side)}
-                    className={cn(
-                      "cursor-pointer px-2 py-0.5 text-[11px] font-semibold transition-colors",
-                      activeSide === side ? "text-white" : "text-muted-foreground hover:bg-accent",
-                    )}
-                    style={activeSide === side ? { backgroundColor: colorFor(side) } : undefined}
-                  >
-                    {side}
-                  </button>
-                ))}
+                {activeViews.map((side) => {
+                  const bg = colorFor(side)
+                  return (
+                    <button
+                      key={side}
+                      type="button"
+                      onClick={() => setActiveSide(side)}
+                      className={cn(
+                        "cursor-pointer px-2 py-0.5 text-[11px] font-semibold transition-colors",
+                        activeSide === side
+                          ? (bg ? "text-white" : "bg-primary text-primary-foreground")
+                          : "text-muted-foreground hover:bg-accent",
+                      )}
+                      style={activeSide === side && bg ? { backgroundColor: bg } : undefined}
+                    >
+                      {side}
+                    </button>
+                  )
+                })}
               </div>
             )}
             {dualMode && (
@@ -1114,6 +1160,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
           className={cn("relative h-1.5 mx-2 rounded-full", viewWindow ? "bg-border/60 cursor-pointer" : "bg-transparent pointer-events-none")}
           onPointerDown={(e) => {
             if (!viewWindow) return
+            hasZoomedRef.current = true
             const rect = e.currentTarget.getBoundingClientRect()
             const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
             const span = effectiveMax - effectiveMin
@@ -1124,6 +1171,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
           <div
             onPointerDown={(e: React.PointerEvent) => {
               if (!viewWindow) return
+              hasZoomedRef.current = true
               e.stopPropagation()
               e.currentTarget.setPointerCapture(e.pointerId)
               gutterDragRef.current = {

@@ -20,7 +20,7 @@ import saveAs from "file-saver"
 import { Section, SourceGridToggle, GroupHeading } from "./controls-components"
 import { type Bounds, templateLink, shouldZoomToBounds } from "@/lib/controls-utils"
 import { resolveLinkedBasemapId } from "@/lib/linked-sources"
-import { viewFieldName, sourceFieldName, type ViewId } from "@/lib/grid-layouts"
+import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
@@ -129,9 +129,9 @@ export const TerrainSourceSection: React.FC<{
     // Every view (not just A/B) needs its own fallback once it's pointing at
     // the source being deleted — otherwise a 2x2/3x2 grid could keep a dead
     // sourceC/D/E/F id around after this.
-    const fallback: Record<ViewId, string> = { A: "aws", B: "mapterhorn", C: "aws", D: "mapterhorn", E: "aws", F: "mapterhorn" }
+    const fallback: Record<ViewId, string> = { A: "aws", B: "mapterhorn", C: "aws", D: "mapterhorn", E: "aws", F: "mapterhorn", G: "aws", H: "mapterhorn" }
     const updates: Record<string, string> = {}
-    for (const side of ["A", "B", "C", "D", "E", "F"] as ViewId[]) {
+    for (const side of VIEW_IDS) {
       if (state[sourceFieldName(side)] === id) updates[sourceFieldName(side)] = fallback[side]
     }
     if (Object.keys(updates).length > 0) setState(updates)
