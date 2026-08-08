@@ -13,11 +13,18 @@ import { GRID_LAYOUTS, GRID_LAYOUT_IDS, GRID_LAYOUT_LABELS, BLEND_MODE_OPTIONS, 
 // that grew into: split style (off/overlay/side-by-side), grid layout
 // (2x1..3x2), blend mode + opacity (overlay only), and per-side border
 // colorization. "Comparison and Mix" while a better name doesn't turn up.
+//
+// Historical-mode only — Terrain mode still gets a plain Split Mode toggle
+// (off/overlay/side, no grid picker, forced to gridLayout "2x1" — see
+// TerrainViewer.tsx's effectiveGridLayout) inside General Settings instead,
+// since a full N-map grid is really a historical-imagery-comparison feature,
+// not a terrain-visualization one.
 export const ComparisonMixSection: React.FC<{
   state: any; setState: (updates: any) => void
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, setState, isOpen, onOpenChange }) => {
+  historicalMode?: boolean
+}> = ({ state, setState, isOpen, onOpenChange, historicalMode = false }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   // Same opaque hiddenSections identifier the old inline row in
   // general-settings.tsx used — kept as-is (not renamed to e.g.
@@ -27,7 +34,7 @@ export const ComparisonMixSection: React.FC<{
   const [colorizeMapBorders, setColorizeMapBorders] = useAtom(colorizeMapBordersAtom)
   const [sideColorOverrides, setSideColorOverrides] = useAtom(sideColorOverridesAtom)
 
-  if (hideSplitScreen) return null
+  if (hideSplitScreen || !historicalMode) return null
 
   const isSplit = state.splitStyle !== "off"
   const isOverlay = state.splitStyle === "overlay"
@@ -46,7 +53,7 @@ export const ComparisonMixSection: React.FC<{
           options={[
             { value: "off", label: "Off" },
             { value: "overlay", label: "Overlay" },
-            { value: "side-by-side", label: "Side by Side" },
+            { value: "side-by-side", label: "Side" },
           ]}
         />
       </div>
@@ -95,6 +102,15 @@ export const ComparisonMixSection: React.FC<{
 
       {isSplit && (
         <>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm font-medium">Show Capture Date</Label>
+            <SegmentedToggle
+              className="w-[140px]"
+              value={state.showCaptureDatePill ? "on" : "off"}
+              onChange={(value) => setState({ showCaptureDatePill: value === "on" })}
+              options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+            />
+          </div>
           <div className="flex items-center justify-between gap-2">
             <Label className="text-sm font-medium">Colorize Map Borders</Label>
             <SegmentedToggle

@@ -53,13 +53,16 @@ const MIN_YEAR_LABEL_GAP_PX = 32
 // pill's own hover tooltip — a few of these (Google Earth, EOX, HLS) got
 // shortened to keep the pill row from wrapping, so the full descriptive
 // name needs to live somewhere still discoverable.
-export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; color: string; resClass: "vhr" | "medium" }> = {
-  wayback: { label: "ESRI Wayback", fullLabel: "ESRI World Imagery Wayback", color: "#cbe4bd", resClass: "vhr" }, // Esri green (#7ebc59), pastelized
-  "ge-historical": { label: "Google Earth", fullLabel: "Google Earth Historical", color: "#aecbfa", resClass: "vhr" }, // Google's own Material "blue-100"
-  bing: { label: "Bing Single", fullLabel: "Bing Maps (single current mosaic)", color: "#c4b5fd", resClass: "vhr" }, // pastel purple (too close to Esri/Google's own teal otherwise)
-  planet: { label: "Planet Monthly", fullLabel: "Planet Global Monthly Basemap", color: "#fdba74", resClass: "medium" }, // pastel orange
-  "eox-s2": { label: "EOX Sentinel 2", fullLabel: "EOX Sentinel-2 Cloudless (Yearly)", color: "#fca5a5", resClass: "medium" }, // pastel red
-  hls: { label: "NASA HLS", fullLabel: "NASA Harmonized Landsat Sentinel-2", color: "#f9a8d4", resClass: "medium" }, // pastel pink
+export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; shortLabel: string; color: string; resClass: "vhr" | "medium" }> = {
+  // shortLabel is just the provider name, no product qualifier — used by
+  // TerrainViewer.tsx's "Show Capture Date" pill in its "source + date" mode,
+  // where space is tight and the provider alone is enough context.
+  wayback: { label: "ESRI Wayback", fullLabel: "ESRI World Imagery Wayback", shortLabel: "ESRI", color: "#cbe4bd", resClass: "vhr" }, // Esri green (#7ebc59), pastelized
+  "ge-historical": { label: "Google Earth", fullLabel: "Google Earth Historical", shortLabel: "Google", color: "#aecbfa", resClass: "vhr" }, // Google's own Material "blue-100"
+  bing: { label: "Bing Single", fullLabel: "Bing Maps (single current mosaic)", shortLabel: "Bing", color: "#c4b5fd", resClass: "vhr" }, // pastel purple (too close to Esri/Google's own teal otherwise)
+  planet: { label: "Planet Monthly", fullLabel: "Planet Global Monthly Basemap", shortLabel: "Planet", color: "#fdba74", resClass: "medium" }, // pastel orange
+  "eox-s2": { label: "EOX Sentinel 2", fullLabel: "EOX Sentinel-2 Cloudless (Yearly)", shortLabel: "EOX", color: "#fca5a5", resClass: "medium" }, // pastel red
+  hls: { label: "NASA HLS", fullLabel: "NASA Harmonized Landsat Sentinel-2", shortLabel: "NASA", color: "#f9a8d4", resClass: "medium" }, // pastel pink
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 
@@ -1072,11 +1075,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 rendering both at the same clamped edge position (which
                 collided visually). Clicking recenters the view on that
                 handle's actual date. In-bounds: the normal round handle,
-                draggable as before. Rendered in activeViews order (A first)
-                so later letters (B, C, ...) naturally sit on top of earlier
-                ones when coincident — same z-order the old A-then-B JSX
-                always had. */}
-            {showingViews.map(renderHandle)}
+                draggable as before. Rendered in REVERSE activeViews order
+                (A last) so A ends up on top and gets first pointer priority
+                whenever multiple handles coincide — per the user's
+                requested preference order (A, then B, then C, ...), the
+                opposite of DOM order's default "later element wins". */}
+            {[...showingViews].reverse().map(renderHandle)}
           </div>
         </div>
 

@@ -6,8 +6,11 @@ import { cn } from "@/lib/utils"
 // layout with a user-adjustable ratio at all (every other grid divides its
 // row into fixed, equal columns instead, see lib/grid-layouts.ts). Two modes:
 //
-// - 1D (side-by-side style): a thin flex-child divider, same as this
-//   component always was — `ratio` is pane A's share of `availableWidthPx`
+// - 1D (side-by-side style): a thin divider, absolutely positioned at
+//   `leftPercent` (every pane is itself absolutely positioned now — see
+//   TerrainViewer.tsx's paneLayouts — rather than a flex sibling, so this
+//   needs an explicit position instead of just landing in the flex gap
+//   between two children). `ratio` is pane A's share of `availableWidthPx`
 //   (space actually available for map content, i.e. viewport minus the
 //   floating sidebar's footprint when open) — NOT of the raw container
 //   width, so the divider stays positioned relative to what's actually
@@ -89,11 +92,16 @@ export const SplitPill: React.FC<{
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       className={cn(
-        "relative z-10 w-0 shrink-0 cursor-col-resize select-none touch-none",
+        // Absolute (not a flex "gap" item) — every pane is absolutely
+        // positioned now (see TerrainViewer.tsx's paneLayouts), so this
+        // needs its own explicit left% instead of relying on flex flow to
+        // land it between two siblings.
+        "absolute inset-y-0 z-10 w-0 cursor-col-resize select-none touch-none",
         "before:absolute before:inset-y-0 before:-left-[9px] before:-right-[9px] before:content-['']",
         "after:absolute after:inset-y-0 after:left-0 after:w-px after:content-['']",
         isDragging ? "after:w-0.5 after:-translate-x-px after:bg-primary" : "after:bg-transparent",
       )}
+      style={{ left: `${leftPercent ?? ratio * 100}%` }}
     />
   )
 }
