@@ -4,7 +4,7 @@ import { useAtom } from "jotai"
 import { ChevronDown, Frame } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Toggle } from "@/components/ui/toggle"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -13,8 +13,66 @@ import { ColorAlphaSwatch } from "./color-picker"
 import { OpenInLinksButton } from "./open-in-links"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { colorizeMapBordersAtom, colorizeMapBordersInsetAtom, sideColorOverridesAtom } from "@/lib/layout-constants"
-import { GRID_LAYOUTS, GRID_LAYOUT_IDS, GRID_LAYOUT_LABELS, BLEND_MODE_OPTIONS, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
+import { GRID_LAYOUTS, GRID_LAYOUT_IDS, BLEND_MODE_GROUPS, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { useWaybackItemsWithLocalChanges } from "@/lib/wayback"
+import { cn } from "@/lib/utils"
+
+// "Table size picker" style control (Excel/Docs "insert table" convention) —
+// an 8-cell grid standing in for the text SegmentedToggle Grid Layout used
+// to be: no per-cell text (same convention as the ABCDEF basemap-source
+// toggle / color swatches elsewhere in this section), the selected layout's
+// own NxM rectangle of cells lit up in solid primary, everything outside it
+// plain background. Hovering a DIFFERENT valid cell previews what clicking
+// it would select (same rectangle logic, lighter primary) without
+// committing anything until an actual click. Fixed at 2 rows x 4 cols —
+// every cell is a real, fully wired-up GridLayoutId (up to "4x2", 8 views
+// A-H) EXCEPT row 0/col 0 ("1x1", a single unsplit view, meaningless as a
+// grid-layout choice since this control only ever shows once isSplit is
+// already true) — disabled rather than hidden, so the control still reads
+// as a clean fixed rectangle instead of a lopsided 7-cell one.
+const GRID_PICKER_ROWS = 2
+const GRID_PICKER_COLS = 4
+
+const GridLayoutPicker: React.FC<{ value: GridLayoutId; onChange: (id: GridLayoutId) => void }> = ({ value, onChange }) => {
+  const [hovered, setHovered] = useState<{ r: number; c: number } | null>(null)
+  const idFor = (r: number, c: number): GridLayoutId | null => {
+    const candidate = `${c + 1}x${r + 1}`
+    return (GRID_LAYOUT_IDS as readonly string[]).includes(candidate) ? (candidate as GridLayoutId) : null
+  }
+  const previewId = hovered ? idFor(hovered.r, hovered.c) : null
+  const activeConfig = GRID_LAYOUTS[previewId ?? value]
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        className="grid grid-cols-4 gap-px bg-border p-px rounded-md border overflow-hidden shrink-0"
+        onPointerLeave={() => setHovered(null)}
+      >
+        {Array.from({ length: GRID_PICKER_ROWS }).flatMap((_, r) =>
+          Array.from({ length: GRID_PICKER_COLS }).map((_, c) => {
+            const id = idFor(r, c)
+            const isActive = r < activeConfig.rows && c < activeConfig.cols
+            return (
+              <button
+                key={`${r}-${c}`}
+                type="button"
+                disabled={!id}
+                onClick={() => id && onChange(id)}
+                onPointerEnter={() => id && setHovered({ r, c })}
+                title={id ? `${c + 1}×${r + 1}` : "Not available yet"}
+                aria-label={id ? `Grid layout ${c + 1} by ${r + 1}` : "Not available yet"}
+                className={cn(
+                  "h-6 w-6 cursor-pointer disabled:cursor-not-allowed transition-colors",
+                  isActive ? (previewId ? "bg-primary/50" : "bg-primary") : (id ? "bg-background hover:bg-accent" : "bg-muted/40"),
+                )}
+              />
+            )
+          }),
+        )}
+      </div>
+      <span className="text-xs text-muted-foreground tabular-nums">{previewId ?? value}</span>
+    </div>
+  )
+}
 
 // Sidebar home for every split/grid/blend control — split out of General
 // Settings (which used to hold just the old on/off "Split Screen" row) once
@@ -86,25 +144,9 @@ export const ComparisonMixSection: React.FC<{
       {isSplit && !isOverlay && (
         <div className="flex items-center justify-between gap-2">
           <Label className="text-sm font-medium">Grid Layout</Label>
-          <SegmentedToggle
-            className="w-[220px]"
-            value={state.gridLayout}
-            onChange={(value) => setState({ gridLayout: value })}
-            options={GRID_LAYOUT_IDS.map((id) => ({ value: id, label: GRID_LAYOUT_LABELS[id] }))}
-          />
+          <GridLayoutPicker value={state.gridLayout ?? "2x1"} onChange={(id) => setState({ gridLayout: id })} />
         </div>
       )}
-
-      {/* Moved out of the historical timeline panel's own footer (it used to
-          sit centered between the A/B date captions there) to keep that
-          panel tighter — this is the natural sidebar home for it regardless
-          of split state, since it's about jumping the CURRENT view into
-          another viewer, not specifically about comparison/mix. No adjacent
-          Label — the button's own text already says "Open in {destination}",
-          so a row label would just repeat "open in" — and full width (not
-          paired against a label in a justify-between row) since it's the
-          only control on this line. */}
-      <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="w-full" />
 
       {isOverlay && (
         <>
@@ -113,14 +155,20 @@ export const ComparisonMixSection: React.FC<{
             <Select
               value={state.splitBlendMode}
               onValueChange={(value) => value && setState({ splitBlendMode: value })}
-              items={BLEND_MODE_OPTIONS}
+              items={BLEND_MODE_GROUPS}
             >
               <SelectTrigger className="w-[140px] cursor-pointer">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {BLEND_MODE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                {BLEND_MODE_GROUPS.map((group, i) => (
+                  <SelectGroup key={group.label}>
+                    {i > 0 && <SelectSeparator />}
+                    <SelectLabel>{group.label}</SelectLabel>
+                    {group.items.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
@@ -221,6 +269,21 @@ export const ComparisonMixSection: React.FC<{
           </CollapsibleContent>
         </Collapsible>
       )}
+
+      {/* Moved out of the historical timeline panel's own footer (it used to
+          sit centered between the A/B date captions there) to keep that
+          panel tighter — this is the natural sidebar home for it regardless
+          of split state, since it's about jumping the CURRENT view into
+          another viewer, not specifically about comparison/mix. AFTER
+          Advanced closes (not inside it, not before it) per request — it's
+          a frequently-used action, not a cosmetic/advanced setting, so it
+          stays outside the collapsible, just at the very end of the
+          section instead of competing for attention near the top. No
+          adjacent Label — the button's own text already says "Open in
+          {destination}", so a row label would just repeat "open in" — and
+          full width (not paired against a label in a justify-between row)
+          since it's the only control on this line. */}
+      <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="w-full" />
     </Section>
   )
 }

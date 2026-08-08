@@ -335,7 +335,7 @@ export const DownloadSection: React.FC<{
           onClick={() => setIsExportMultiOpen(true)}
           className="w-full bg-transparent"
         />
-        <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} />
+        <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} />
       </Section>
     )
   }
@@ -458,7 +458,7 @@ export const DownloadSection: React.FC<{
           className="w-full bg-transparent"
         />
       </div>
-      <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} />
+      <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} />
     </Section>
   )
 }

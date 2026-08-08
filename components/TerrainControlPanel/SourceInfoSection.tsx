@@ -65,7 +65,7 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   )
   const dateFor = (side: ViewId) => state[viewFieldName(side, "date", state.basemapPerView)]
 
-  // Fixed six calls (rules of hooks forbid a variable count) — cheap/
+  // Fixed eight calls (rules of hooks forbid a variable count) — cheap/
   // debounced regardless of which sides are actually active, same "call
   // unconditionally" convention the original A/B version already used.
   const esriAttribution = useEsriDynamicAttribution(state.lat, state.lng, state.zoom)
@@ -76,8 +76,10 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   const geAttributionD = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("D"))
   const geAttributionE = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("E"))
   const geAttributionF = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("F"))
+  const geAttributionG = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("G"))
+  const geAttributionH = useGeHistoricalDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("H"))
   const geAttributionBySide: Record<ViewId, string> = {
-    A: geAttributionA, B: geAttributionB, C: geAttributionC, D: geAttributionD, E: geAttributionE, F: geAttributionF,
+    A: geAttributionA, B: geAttributionB, C: geAttributionC, D: geAttributionD, E: geAttributionE, F: geAttributionF, G: geAttributionG, H: geAttributionH,
   }
 
   const textFor = (id: string, geAttribution: string) =>

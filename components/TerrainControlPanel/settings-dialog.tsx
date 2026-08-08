@@ -191,11 +191,11 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
     // Any referenced source that isn't a builtin needs to travel WITH the preset —
     // a fresh visitor's browser has never seen it, so pull it out of the current
     // customTerrainSources/customBasemapSources lists by id.
-    // Every view slot (A-F), not just A/B — a 2x2/3x1/3x2 grid can reference
-    // a custom source from any of them.
-    const referencedTerrainIds = [state.sourceA, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF].filter(Boolean)
+    // Every view slot (A-H), not just A/B — a 2x2/3x1/3x2/4x2 grid can
+    // reference a custom source from any of them.
+    const referencedTerrainIds = [state.sourceA, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF, state.sourceG, state.sourceH].filter(Boolean)
     const referencedBasemapIds = [
-      state.basemapSource, state.basemapSourceA, state.basemapSourceB, state.basemapSourceC, state.basemapSourceD, state.basemapSourceE, state.basemapSourceF,
+      state.basemapSource, state.basemapSourceA, state.basemapSourceB, state.basemapSourceC, state.basemapSourceD, state.basemapSourceE, state.basemapSourceF, state.basemapSourceG, state.basemapSourceH,
       ...(state.overlayBasemapIds || []),
     ].filter(Boolean)
     const usedTerrainSources = customTerrainSources.filter((s) => referencedTerrainIds.includes(s.id))
