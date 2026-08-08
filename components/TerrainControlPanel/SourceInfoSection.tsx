@@ -138,16 +138,26 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
     </div>
   )
 
-  // Dedup consecutive views that resolved to the exact same basemap id (e.g.
-  // a 3x1 grid where B and C both happen to be on plain ESRI World Imagery)
-  // — no reason to repeat an identical attribution row per letter; the
-  // surviving row's prefix lists every letter it covers instead of just one.
-  const grouped: { ids: ViewId[]; source: string; ge: string }[] = []
+  // Dedup consecutive views that resolved to the exact same basemap id AND
+  // the exact same resolved attribution TEXT (e.g. a 3x1 grid where B and C
+  // both happen to be on plain ESRI World Imagery) — no reason to repeat an
+  // identical attribution row per letter; the surviving row's prefix lists
+  // every letter it covers instead of just one. Matching on id alone used to
+  // merge e.g. two GE Historical views into ONE row keyed off only the
+  // FIRST one's ge/text value — silently dropping the other's, even though
+  // GE Historical's real attribution (Airbus vs. Maxar, etc.) varies by
+  // capture DATE, i.e. by which specific tile/layer that view is actually
+  // showing, not just by which source it's on. Comparing the resolved text
+  // itself means two views only ever collapse into one row when they'd
+  // genuinely show the same line anyway.
+  const grouped: { ids: ViewId[]; source: string; ge: string; text: string }[] = []
   for (const side of activeViews) {
     const source = activeSourceFor(side)
+    const ge = geAttributionBySide[side]
+    const text = textFor(source, ge)
     const last = grouped[grouped.length - 1]
-    if (last && last.source === source) last.ids.push(side)
-    else grouped.push({ ids: [side], source, ge: geAttributionBySide[side] })
+    if (last && last.source === source && last.text === text) last.ids.push(side)
+    else grouped.push({ ids: [side], source, ge, text })
   }
 
   return (

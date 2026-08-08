@@ -1,5 +1,5 @@
 import type React from "react"
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert } from "lucide-react"
@@ -17,8 +17,6 @@ import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom } from "@/lib
 import { GRID_LAYOUTS, viewFieldName, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { OpenInLinksButton } from "@/components/TerrainControlPanel/open-in-links"
-import type { MapRef } from "react-map-gl/maplibre"
 
 // Persisted (not plain local state) — this was the actual cause behind "no
 // matter what I do, dragging one side always drags the other": sync
@@ -113,7 +111,7 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
   )
 }
 
-export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
+export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
   const collapsed = !!state.historicalTimelineCollapsed
   const setCollapsed = useCallback((v: boolean) => setState({ historicalTimelineCollapsed: v }), [setState])
   const [activeSide, setActiveSide] = useState<ViewId>("A")
@@ -133,11 +131,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     setState({ historicalControlsExpanded: next })
   }, [controlsExpanded, setState])
   const [trackWidth, setTrackWidth] = useState(0)
-  const panelRef = useRef<HTMLDivElement>(null)
   const setPanelHeight = useSetAtom(historicalTimelinePanelHeightAtom)
   // null = full extent (no zoom applied) — see the wheel-zoom handler below.
   const [viewWindow, setViewWindow] = useState<{ min: number; max: number } | null>(null)
-  const trackRef = useRef<HTMLDivElement>(null)
+  // `| null` in the generic (not just the initial value) so this stays a
+  // MutableRefObject — setTrackRef below needs to assign trackRef.current
+  // itself (not just let JSX's `ref={trackRef}` do it), which TS otherwise
+  // rejects as read-only on the plain useRef<HTMLDivElement>(null) overload.
+  const trackRef = useRef<HTMLDivElement | null>(null)
   // Drag state for the horizontal pan gutter below the track — a plain ref
   // (not state) since it only needs to survive across pointermove events
   // within one drag gesture, not trigger renders itself.
@@ -191,41 +192,58 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // same spot, not a "linked" state.
   const dualUnsynced = dualMode && !syncEnabled
 
-  useEffect(() => {
-    const el = trackRef.current
+  // Both refs below use a CALLBACK ref (not a plain useRef + useEffect
+  // keyed on an empty/stable dep array) for a real reason, not style: this
+  // whole component returns null outright whenever `panelVisible` is false
+  // (see "if (!panelVisible) return null" below) — collapsing the timeline
+  // (the clock-icon toggle) and re-expanding it later unmounts and remounts
+  // BOTH the track div and the outer panel div together. A plain effect
+  // with `[]`/`[setPanelHeight]` deps only runs once, on this component
+  // instance's very first mount — its ResizeObserver keeps watching that
+  // ORIGINAL (now-detached, dead) DOM node forever, and the ref variable
+  // itself gets silently repointed at the new node on every remount with no
+  // new observer ever created for it. Concretely: the reported width/height
+  // atoms froze at whatever they were the very first time the panel ever
+  // appeared, and every consumer keyed off them (minimap/scale offset here,
+  // TerrainViewer.tsx's colored map borders) drifted out of sync with the
+  // ACTUAL panel after the first collapse/expand cycle — confirmed live: the
+  // border sat correctly on first load but landed behind the panel after
+  // toggling it off and back on. A callback ref fires on every mount AND
+  // unmount of the node it's attached to (not just the owning component's
+  // own mount), so the observer always gets torn down and recreated against
+  // whichever DOM node is actually live right now.
+  const trackObserverRef = useRef<ResizeObserver | null>(null)
+  const setTrackRef = useCallback((el: HTMLDivElement | null) => {
+    trackRef.current = el
+    trackObserverRef.current?.disconnect()
+    trackObserverRef.current = null
     if (!el) return
+    setTrackWidth(el.getBoundingClientRect().width)
     const observer = new ResizeObserver((entries) => setTrackWidth(entries[0].contentRect.width))
     observer.observe(el)
-    return () => observer.disconnect()
+    trackObserverRef.current = observer
   }, [])
 
   // Reports the panel's own actual rendered height (border box, so
   // TerrainViewer's clearance above it is exact) — expanded vs. minimal mode
   // and the pill row wrapping onto a second line all change this, so a
-  // static guessed constant elsewhere was never right for every case.
-  // useLayoutEffect (not useEffect) deliberately — a plain effect only runs
-  // AFTER the browser paints, so the panel's first-ever frame (or the frame
-  // right after toggling expanded/minimal) would briefly paint using the
-  // unmeasured 13rem fallback in TerrainViewer before the observer's
-  // callback fires and corrects it one frame later — a real, if brief,
-  // "wrong margin" flash. Measuring synchronously before paint (here) plus
-  // keeping the observer for subsequent size changes avoids that.
-  useLayoutEffect(() => {
-    const el = panelRef.current
+  // static guessed constant elsewhere was never right for every case. A
+  // callback ref fires synchronously during commit, before the browser
+  // paints — same "no stale-fallback flash" guarantee the old
+  // useLayoutEffect version had, without that version's stale-observer bug
+  // (see the comment above setTrackRef).
+  const panelObserverRef = useRef<ResizeObserver | null>(null)
+  const setPanelRef = useCallback((el: HTMLDivElement | null) => {
+    panelObserverRef.current?.disconnect()
+    panelObserverRef.current = null
     if (!el) return
     setPanelHeight(el.getBoundingClientRect().height)
     const observer = new ResizeObserver(() => setPanelHeight(el.getBoundingClientRect().height))
     observer.observe(el)
-    return () => observer.disconnect()
+    panelObserverRef.current = observer
   }, [setPanelHeight])
 
   const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom)
-  // Newest release at this location — used by the "Open in..." ESRI Wayback
-  // link (lib/open-in-links.tsx) instead of a hardcoded release id.
-  const latestWaybackRelease = useMemo(
-    () => rawWaybackItems.reduce<number | null>((max, item) => (max === null || item.releaseNum > max ? item.releaseNum : max), null),
-    [rawWaybackItems],
-  )
   // REAL per-tile imagery capture dates for every release at this location —
   // ticks are positioned by these (the actual date the imagery was taken),
   // not each release's own releaseDatetime (a catalog-wide publish date that
@@ -827,7 +845,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
 
   return (
     <div
-      ref={panelRef}
+      ref={setPanelRef}
       className={cn(
         "fixed z-10 backdrop-blur-[2px] border border-border bg-background/95 shadow-sm transition-[background-color,right] duration-150",
         "bottom-0 left-0 right-0 rounded-none",
@@ -1010,7 +1028,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       <div className="px-4 py-3 space-y-1">
         <div className="flex items-center gap-2">
           <div
-            ref={trackRef}
+            ref={setTrackRef}
             className="relative flex-1 h-12 mx-2 cursor-pointer touch-none"
             onPointerDown={(e) => {
               const which = showingViews.length === 1 ? showingViews[0] : activeSide
@@ -1149,24 +1167,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
           ))}
         </div>
 
-        {/* The A/B date-caption row only ever fits 2 sides side by side —
-            for any grid layout with more than 2 active views (3x1, 2x2,
-            3x2, 4x1) this collapses to just the "Open in..." button,
-            centered, per the user's explicit ask; the per-handle tooltips
-            above already carry each side's own date/source regardless. */}
-        {showingViews.length === 2 ? (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[10px] tabular-nums mx-2">
-            <span className="text-left" style={{ color: colorFor(showingViews[0]) }}>
+        {/* The A/B date-caption row only ever fits 2 sides side by side — for
+            any grid layout with more than 2 active views (3x1, 2x2, 3x2,
+            4x1) there's nothing to show here at all (the per-handle tooltips
+            above already carry each side's own date/source regardless), so
+            the panel is simply shorter by this row's height instead. The
+            "Open in..." button that used to live in this row moved to
+            Comparison and Mix (comparison-mix-section.tsx) to keep this
+            panel tighter. */}
+        {showingViews.length === 2 && (
+          <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums mx-2">
+            <span style={{ color: colorFor(showingViews[0]) }}>
               {`${showingViews[0]}: ${tickBySide[showingViews[0]] ? `${SOURCE_CONFIG[tickBySide[showingViews[0]]!.source]?.label} ${captionBySide[showingViews[0]]}` : "—"}`}
             </span>
-            <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} />
-            <span className="text-right" style={{ color: colorFor(showingViews[1]) }}>
+            <span style={{ color: colorFor(showingViews[1]) }}>
               {`${showingViews[1]}: ${tickBySide[showingViews[1]] ? `${SOURCE_CONFIG[tickBySide[showingViews[1]]!.source]?.label} ${captionBySide[showingViews[1]]}` : "—"}`}
             </span>
-          </div>
-        ) : (
-          <div className="flex justify-center mx-2">
-            <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} />
           </div>
         )}
       </div>

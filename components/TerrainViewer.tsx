@@ -31,7 +31,7 @@ import { useTheme } from "@/lib/controls-utils"
 import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS } from "./TerrainControlPanel/raster-basemap-section"
-import { HistoricalTimelinePanel } from "./TerrainControlPanel/historical-timeline-panel"
+import { HistoricalTimelinePanel, SOURCE_CONFIG } from "./TerrainControlPanel/historical-timeline-panel"
 import { isHistoricalSourceActive, resolveActiveHistoricalSource, TIMELINE_SOURCE_IDS } from "@/lib/historical-sources"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
@@ -43,7 +43,7 @@ import { LightControlOverlay } from "./MapControls/LightControlOverlay";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
 import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
-import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom } from "@/lib/layout-constants"
+import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
@@ -188,12 +188,13 @@ export const QUERY_STATE_PARSERS = {
     splitBlendMode: parseAsStringLiteral(BLEND_MODES).withDefault("normal"),
     overlayOpacity: parseAsFloat.withDefault(1.0),
     // Comparison and Mix's "Show Capture Date" toggle — a small per-view pill
-    // with just the formatted date (no source name, see historical-timeline-
-    // panel.tsx's SOURCE_CONFIG for that), for whichever views are actually
-    // on a dated historical source. See the per-pane render below for
-    // placement (bottom-left / bottom-center / top-center depending on grid
-    // shape and whether the timeline panel is docked below it).
-    showCaptureDatePill: parseAsBoolean.withDefault(false),
+    // for whichever views are actually on a dated historical source. "date"
+    // shows just the formatted date; "source-date" prefixes it with that
+    // source's short brand name (historical-timeline-panel.tsx's
+    // SOURCE_CONFIG[...].shortLabel, e.g. "ESRI", "Google"). See the per-pane
+    // render below for placement (bottom-left / bottom-center / top-center
+    // depending on grid shape and whether the timeline panel is docked below it).
+    showCaptureDatePill: parseAsStringLiteral(["off", "date", "source-date"] as const).withDefault("off"),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
     // C-F only ever matter for gridLayout "2x2"/"3x1"/"3x2"/"4x1" — same shape
@@ -743,6 +744,7 @@ export function TerrainViewer() {
   const [splitContainerHeight, setSplitContainerHeight] = useState(0)
   const [splitRatio, setSplitRatio] = useAtom(splitRatioAtom)
   const [colorizeMapBorders] = useAtom(colorizeMapBordersAtom)
+  const [colorizeMapBordersInset] = useAtom(colorizeMapBordersInsetAtom)
   const [sideColorOverrides] = useAtom(sideColorOverridesAtom)
   useLayoutEffect(() => {
     const el = splitContainerRef.current
@@ -1304,6 +1306,44 @@ export function TerrainViewer() {
     setTileResultCacheEnabled(cacheVizTiles)
   }, [cacheVizTiles])
 
+  // Force the corner AttributionControl (<AttributionControl compact .../>
+  // below) to actually START collapsed. `compact` alone doesn't guarantee
+  // that: confirmed against maplibre-gl-js's own attribution_control.ts —
+  // _updateCompact() force-opens the <details> (sets the `open` attribute
+  // and adds "maplibregl-compact-show") the FIRST time real attribution text
+  // actually resolves while the map's canvas container is <=640px (true for
+  // most of our panes, especially split or with the sidebar open) — a
+  // one-time transition baked into the control itself, not something this
+  // app's own props can turn off. Several of our sources resolve their real
+  // attribution asynchronously well after mount (Esri contributor fetch,
+  // Bing capture-date lookup, GE Historical), so that forced-open moment
+  // reliably happens AFTER the user's first look at the map, reading as "it
+  // just opened itself". A capture-phase click listener distinguishes a
+  // genuine user click on the toggle (left alone) from that automatic one
+  // (immediately re-collapsed) — a plain MutationObserver can't tell the two
+  // apart on its own, since both ultimately just add the same attribute.
+  useEffect(() => {
+    let userToggledAt = 0
+    const onButtonClick = (e: Event) => {
+      if ((e.target as HTMLElement)?.closest?.(".maplibregl-ctrl-attrib-button")) userToggledAt = Date.now()
+    }
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        const el = m.target as HTMLElement
+        if (!el.classList?.contains("maplibregl-ctrl-attrib") || !el.hasAttribute("open")) continue
+        if (Date.now() - userToggledAt < 200) continue // a real click just happened — respect it
+        el.removeAttribute("open")
+        el.classList.remove("maplibregl-compact-show")
+      }
+    })
+    document.addEventListener("click", onButtonClick, true)
+    observer.observe(document.body, { attributes: true, attributeFilter: ["open"], subtree: true })
+    return () => {
+      document.removeEventListener("click", onButtonClick, true)
+      observer.disconnect()
+    }
+  }, [])
+
   // Persist the beta gates' last value so re-opening the app without their
   // `?tellsBeta=`/`?sunShadowBeta=` URL param doesn't silently reset to off
   // (see stateOverrides application below, and the atoms' own comment).
@@ -1352,6 +1392,19 @@ export function TerrainViewer() {
     if (!searchParams.has("sunShadowBeta") && sunShadowBetaEnabled) stateOverrides.sunShadowBeta = true
     if (!searchParams.has("historicalBeta") && historicalBetaEnabled) stateOverrides.historicalBeta = true
     if (!searchParams.has("appMode") && appModeEnabled !== "terrain") stateOverrides.appMode = appModeEnabled
+
+    // Historical mode only ever shows the raster basemap (its Visualization
+    // Modes section is hidden entirely — see TerrainControlPanel.tsx) — but
+    // showHillshade still defaults to true (the one terrain-mode viz toggle
+    // with no master gate of its own, see QUERY_STATE_PARSERS), so a direct
+    // `?appMode=historical` deep link with no explicit showHillshade would
+    // otherwise render hillshading over the historical imagery. Handled here
+    // for a fresh load; the ModePicker's handleSelectMode (TerrainControlPanel.tsx)
+    // covers the same nudge for an in-session mode switch.
+    const effectiveAppMode = (stateOverrides.appMode as AppMode | undefined) ?? state.appMode
+    if (effectiveAppMode === "historical" && !searchParams.has("showHillshade")) {
+      stateOverrides.showHillshade = false
+    }
 
     // terrainUrl/basemapUrl can carry either an id of a source the visitor's browser
     // (or the sample library) already knows about, or a raw tile/COG URL to
@@ -2669,7 +2722,12 @@ export function TerrainViewer() {
   const minimapBottomOffset = !historicalTimelineActive
     ? `${MAP_CTRL_EDGE_MARGIN_PX}px`
     : state.historicalTimelineCollapsed
-      ? "3.5rem"
+      // HistoricalTimelineToggle sits at bottom-4 (16px) with h-10 (40px) —
+      // its own top edge is already 56px up from the viewport bottom, so the
+      // minimap needs 56px + the same 16px gap every other clearance here
+      // uses, not just 56px (which put the minimap flush against the toggle
+      // button with zero gap between them).
+      ? "4.5rem"
       : measuredPanelClearance
   // Bottom-right corner (attribution+scale, on whichever map is currently
   // rightmost) only ever needs to clear the timeline panel's own height when
@@ -2681,12 +2739,15 @@ export function TerrainViewer() {
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 
   const availableSplitWidth = Math.max(0, splitContainerWidth - (isSidebarOpen && !isMobile ? sidebarFootprintPx : 0))
+  // Pixel x-position of the overlay drag pill/gutter, in the same coordinate
+  // space as pane.left/width (0 = container's own left edge) — used both for
+  // the clip-path percentage below (overlay imagery blend) and for sizing
+  // each side's own border rect directly (see the border render below).
+  const overlayGutterPx = availableSplitWidth * clamp(splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX)
   // "overlay" clip-path's own coordinate space is a % of the FULL container
   // (not availableSplitWidth) — same derivation as the 2x1 side-by-side
   // boundary below, just expressed as a percentage instead of a pixel width.
-  const overlayBoundaryPct = splitContainerWidth > 0
-    ? (availableSplitWidth * clamp(splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX) / splitContainerWidth) * 100
-    : 0
+  const overlayBoundaryPct = splitContainerWidth > 0 ? (overlayGutterPx / splitContainerWidth) * 100 : 0
   const grid: ViewId[][] = isSplit ? gridConfig.grid : [["A"]]
   const rows = grid.length
   const borderColorFor = (side: ViewId) => sideColorOverrides[side] ?? SIDE_COLORS[side]
@@ -2761,19 +2822,38 @@ export function TerrainViewer() {
   // clip-path/opacity/blend (a UI label, unlike the border below, has no
   // reason to fade out or get clipped along with the underlying imagery).
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
-    if (!state.showCaptureDatePill) return null
+    if (state.showCaptureDatePill === "off") return null
     const resolved = perViewResolved[pane.side]
     if (!resolved || !resolved.date || !TIMELINE_SOURCE_IDS.has(resolved.basemapSource)) return null
-    const label = new Date(resolved.date).toISOString().slice(0, 10)
+    const dateLabel = new Date(resolved.date).toISOString().slice(0, 10)
+    const label = state.showCaptureDatePill === "source-date"
+      ? `${SOURCE_CONFIG[resolved.basemapSource]?.shortLabel ?? resolved.basemapSource} · ${dateLabel}`
+      : dateLabel
     // Overlay's A and B panes share the exact same rect (both full-bleed,
     // stacked) — without this, their two bottom-left pills would land
     // exactly on top of each other. B's stacks 28px above A's instead.
     const overlayStackOffsetPx = isOverlaySplit && pane.side === "B" ? 28 : 0
+    // The rightmost column's own pane DOM box intentionally extends under the
+    // floating sidebar (see paneLayouts/mapPaddingFor above) so its VISIBLE
+    // portion matches every other pane's — centering on the full (partly
+    // hidden) pane width would drift the pill rightward under the sidebar as
+    // it opens, so center on the actually-visible width instead.
+    const visiblePaneWidth = (!isOverlaySplit && pane.isLastCol && isSidebarOpen && !isMobile)
+      ? Math.max(0, pane.width - sidebarFootprintPx)
+      : pane.width
     const positionStyle: React.CSSProperties = rows === 1
       ? { left: `${pane.left + 8}px`, bottom: `calc(${historicalTimelineVisible ? measuredPanelClearance : "0.5rem"} + ${overlayStackOffsetPx}px)` }
       : pane.rowIdx === 0
-        ? { left: `${pane.left + pane.width / 2}px`, bottom: "0.5rem", transform: "translateX(-50%)" }
-        : { left: `${pane.left + pane.width / 2}px`, top: "0.5rem", transform: "translateX(-50%)" }
+        // Anchored to THIS row's own bottom edge (the seam with the row
+        // below), not the shared container's — "bottom: 0.5rem" used to mean
+        // 0.5rem above the whole grid's bottom edge (i.e. under the
+        // timeline/last row), landing the top row's pill deep inside the
+        // bottom row instead of near its own seam.
+        ? { left: `${pane.left + visiblePaneWidth / 2}px`, top: `${pane.top + pane.height - 8}px`, transform: "translate(-50%, -100%)" }
+        // Same fix, mirrored: anchored to THIS (last) row's own top edge —
+        // "top: 0.5rem" used to mean 0.5rem below the container's top (i.e.
+        // inside the top row) rather than this row's own top.
+        : { left: `${pane.left + visiblePaneWidth / 2}px`, top: `${pane.top + 8}px`, transform: "translateX(-50%)" }
     return (
       <div
         key={`date-${pane.side}`}
@@ -2820,18 +2900,20 @@ export function TerrainViewer() {
               }}
             >
               {renderMap(stateAny[sourceFieldName(pane.side)], pane.side)}
-              {/* Inset (not flush with the pane edge) so it reads as a frame
-                  rather than colliding with maplibre's own corner controls —
-                  a child of this pane (not a sibling like the date pill
-                  above). Two adjustments beyond a plain inset:
-                  - Overlay: pane A isn't itself clip-path'd (only B is, to
-                    the right of the pill) — without its own clip, A's
-                    border would trace the FULL shared rect while B's only
-                    traces its own (already-clipped) side, reading as
-                    inconsistent. Giving A the mirrored left-side clip makes
-                    both borders split at the pill like the side-by-side
-                    boundary, rather than one mimicking A's real (unclipped)
-                    extent and the other its real (clipped) one.
+              {/* Inset (not flush with the pane edge, unless
+                  colorizeMapBordersInsetAtom is off — see insetPx below) so
+                  it reads as a frame rather than colliding with maplibre's
+                  own corner controls — a child of this pane (not a sibling
+                  like the date pill above). Two adjustments beyond a plain
+                  inset:
+                  - Overlay: each pane's border rect is sized to end/start
+                    exactly at the drag pill's own x position (overlayGutterPx)
+                    instead of the pane's real edge — a plain inset would
+                    trace A's FULL shared rect (both overlay panes span the
+                    whole container) while B's is already visually cropped by
+                    its own clip-path, reading as inconsistent. This sizes
+                    each side's border independently instead of clipping a
+                    single shared-rect border down to size.
                   - Side-by-side/grid: the last column/row's own pane DOM
                     box intentionally extends past the visible area (under
                     the floating sidebar / historical timeline panel — see
@@ -2840,22 +2922,39 @@ export function TerrainViewer() {
                     inset would then draw the border partway under the
                     sidebar/timeline instead of right at the edge actually
                     visible — pull the right/bottom edge in by exactly that
-                    hidden extension instead. */}
-              {colorizeMapBorders && isSplit && (
-                <div
-                  className="pointer-events-none absolute border-2 rounded-sm"
-                  style={{
-                    borderColor: borderColorFor(pane.side),
-                    top: 3,
-                    left: 3,
-                    right: 3 + ((!isOverlaySplit && pane.isLastCol && isSidebarOpen && !isMobile) ? sidebarFootprintPx : 0),
-                    bottom: 3 + (!isOverlaySplit && bottomRowViews.includes(pane.side) ? timelineBottomPaddingPx : 0),
-                    clipPath: isOverlaySplit && pane.side === "A"
-                      ? `polygon(0% 0%, ${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 0% 100%)`
-                      : undefined,
-                  }}
-                />
-              )}
+                    hidden extension instead.
+                  - Overlay ALSO needs that same sidebar/timeline pull-in on
+                    top of its own gutter clamp above — both of its panes are
+                    full-bleed to the container's real edges (paneLayouts
+                    gives overlay panes the full splitContainerWidth/Height
+                    regardless of column/row), so B's right edge and both
+                    panes' bottom edges extend under the sidebar/timeline
+                    exactly like side-by-side's last column/row does. This
+                    used to be gated on `!isOverlaySplit`, which skipped the
+                    pull-in for overlay entirely — confirmed live, the border
+                    sat behind the sidebar/timeline panel instead of ending
+                    at the actually-visible edge. Every pane in overlay is
+                    effectively "the last column of the last row" at once, so
+                    the clamp applies unconditionally rather than checking
+                    isLastCol/bottomRowViews (which only mean something for a
+                    real multi-column/row grid). */}
+              {colorizeMapBorders && isSplit && (() => {
+                const insetPx = colorizeMapBordersInset ? 3 : 0
+                return (
+                  <div
+                    className={cn("pointer-events-none absolute rounded-sm", colorizeMapBordersInset ? "border-2" : "border-4")}
+                    style={{
+                      borderColor: borderColorFor(pane.side),
+                      top: insetPx,
+                      left: isOverlaySplit && pane.side === "B" ? overlayGutterPx + insetPx : insetPx,
+                      right: isOverlaySplit && pane.side === "A"
+                        ? (splitContainerWidth - overlayGutterPx) + insetPx
+                        : insetPx + (((isOverlaySplit || pane.isLastCol) && isSidebarOpen && !isMobile) ? sidebarFootprintPx : 0),
+                      bottom: insetPx + ((isOverlaySplit || bottomRowViews.includes(pane.side)) ? timelineBottomPaddingPx : 0),
+                    }}
+                  />
+                )
+              })()}
             </div>
           )
         })}
@@ -2963,7 +3062,7 @@ export function TerrainViewer() {
           />
         </div>
       )}
-      <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapRefs.A as any} />
+      <HistoricalTimelinePanel state={state} setState={setState} />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
         <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} />
       )}

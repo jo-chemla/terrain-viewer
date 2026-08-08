@@ -338,15 +338,17 @@ export const PinToggle: React.FC<{ pinned: boolean; onToggle: () => void; wiggle
 // show pressed together. Clicking a button that's already pressed is a no-op
 // (onPressedChange only fires the select callback when turning ON) — every
 // view always needs SOME active source, there's no "off" state to toggle
-// into. Square corners (no rounded-md) and a small font size, matching the
-// "looks like a tiny copy of the map grid" look this was asked to have.
+// into. Individual cells stay square (rounded-none) — only the outer group
+// gets a rounded-md + overflow-hidden clip, matching every other input's
+// rounded corners — and a small font size, matching the "looks like a tiny
+// copy of the map grid" look this was asked to have.
 export const SourceGridToggle: React.FC<{
   gridLayout: GridLayoutId
   isActive: (side: ViewId) => boolean
   onSelect: (side: ViewId) => void
   disabled?: boolean
 }> = ({ gridLayout, isActive, onSelect, disabled }) => (
-  <div className="flex flex-col border shrink-0 overflow-hidden divide-y divide-border">
+  <div className="flex flex-col border shrink-0 overflow-hidden rounded-md divide-y divide-border">
     {GRID_LAYOUTS[gridLayout].grid.map((row, rowIdx) => (
       <div key={rowIdx} className="flex divide-x divide-border">
         {row.map((side) => (
