@@ -2823,12 +2823,37 @@ export function TerrainViewer() {
               {/* Inset (not flush with the pane edge) so it reads as a frame
                   rather than colliding with maplibre's own corner controls —
                   a child of this pane (not a sibling like the date pill
-                  above), so an overlay pane's own clip-path naturally traces
-                  the border to its actual visible region too. */}
+                  above). Two adjustments beyond a plain inset:
+                  - Overlay: pane A isn't itself clip-path'd (only B is, to
+                    the right of the pill) — without its own clip, A's
+                    border would trace the FULL shared rect while B's only
+                    traces its own (already-clipped) side, reading as
+                    inconsistent. Giving A the mirrored left-side clip makes
+                    both borders split at the pill like the side-by-side
+                    boundary, rather than one mimicking A's real (unclipped)
+                    extent and the other its real (clipped) one.
+                  - Side-by-side/grid: the last column/row's own pane DOM
+                    box intentionally extends past the visible area (under
+                    the floating sidebar / historical timeline panel — see
+                    the paneLayouts and mapPaddingFor comments above) so its
+                    VISIBLE portion matches every other pane's. A plain
+                    inset would then draw the border partway under the
+                    sidebar/timeline instead of right at the edge actually
+                    visible — pull the right/bottom edge in by exactly that
+                    hidden extension instead. */}
               {colorizeMapBorders && isSplit && (
                 <div
-                  className="pointer-events-none absolute inset-[3px] border-2 rounded-sm"
-                  style={{ borderColor: borderColorFor(pane.side) }}
+                  className="pointer-events-none absolute border-2 rounded-sm"
+                  style={{
+                    borderColor: borderColorFor(pane.side),
+                    top: 3,
+                    left: 3,
+                    right: 3 + ((!isOverlaySplit && pane.isLastCol && isSidebarOpen && !isMobile) ? sidebarFootprintPx : 0),
+                    bottom: 3 + (!isOverlaySplit && bottomRowViews.includes(pane.side) ? timelineBottomPaddingPx : 0),
+                    clipPath: isOverlaySplit && pane.side === "A"
+                      ? `polygon(0% 0%, ${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 0% 100%)`
+                      : undefined,
+                  }}
                 />
               )}
             </div>
