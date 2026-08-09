@@ -12,6 +12,7 @@ import {
 import { STATIC_BASEMAP_ATTRIBUTIONS, useEsriDynamicAttribution } from "@/lib/basemap-attribution"
 import { useGeHistoricalDynamicAttribution } from "@/lib/ge-historical"
 import { useBingDynamicAttribution } from "@/lib/bing"
+import { useWaybackDynamicAttribution } from "@/lib/wayback"
 import { resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { BUILTIN_BASEMAP_OPTIONS } from "./raster-basemap-section"
@@ -81,15 +82,33 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   const geAttributionBySide: Record<ViewId, string> = {
     A: geAttributionA, B: geAttributionB, C: geAttributionC, D: geAttributionD, E: geAttributionE, F: geAttributionF, G: geAttributionG, H: geAttributionH,
   }
+  // Wayback's own real per-RELEASE attribution — distinct from esriAttribution
+  // above (which is a location-only "who covers this region today" lookup,
+  // still correct for the plain LIVE "esri" basemap, but wrong for a
+  // Wayback tick pinned to a past date: it used to resolve to the exact
+  // same "today" value regardless of which historical date was picked).
+  const waybackAttributionA = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("A"))
+  const waybackAttributionB = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("B"))
+  const waybackAttributionC = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("C"))
+  const waybackAttributionD = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("D"))
+  const waybackAttributionE = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("E"))
+  const waybackAttributionF = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("F"))
+  const waybackAttributionG = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("G"))
+  const waybackAttributionH = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("H"))
+  const waybackAttributionBySide: Record<ViewId, { srcDesc: string; niceDesc: string }> = {
+    A: waybackAttributionA, B: waybackAttributionB, C: waybackAttributionC, D: waybackAttributionD,
+    E: waybackAttributionE, F: waybackAttributionF, G: waybackAttributionG, H: waybackAttributionH,
+  }
 
-  const textFor = (id: string, geAttribution: string) =>
-    id === "wayback" || id === "esri" ? esriAttribution
+  const textFor = (id: string, geAttribution: string, waybackAttribution: { srcDesc: string; niceDesc: string }) =>
+    id === "wayback" ? waybackAttribution.niceDesc
+    : id === "esri" ? esriAttribution
     : id === "ge-historical" ? geAttribution
     : id === "bing" ? bingAttribution
     : STATIC_BASEMAP_ATTRIBUTIONS[id] ?? "—"
 
   const activeA = activeSourceFor("A")
-  const textA = textFor(activeA, geAttributionA)
+  const textA = textFor(activeA, geAttributionA, waybackAttributionA)
 
   // Pushes view A's resolved dynamic text directly onto the LIVE maplibre
   // source object (bypassing react-map-gl's <Source> entirely — see the
@@ -133,11 +152,26 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   // itself (still used as-is for the corner-attribution push above).
   const stripSourcePrefix = (text: string) => text.replace(/^(Esri|Google Earth) - /, "")
 
-  const row = (id: string, geAttribution: string, prefix: string) => (
-    <div key={prefix || "single"} className="flex items-start justify-between gap-3 px-2 py-1.5 rounded bg-muted/50 text-xs">
-      <span className="shrink-0">{prefix}{basemapLabel(id)}</span>
-      <span className="text-muted-foreground text-right">{stripSourcePrefix(textFor(id, geAttribution))}</span>
-    </div>
+  // Wayback shows BOTH halves of its real per-release identify result — the
+  // short "provider (source)" code (SRC_DESC-equivalent) AND the full
+  // descriptive sentence (NICE_DESC-equivalent), same two fields a literal
+  // click on Esri's own Wayback Machine site returns — instead of collapsing
+  // to the single-line format every other source uses.
+  const row = (id: string, geAttribution: string, waybackAttribution: { srcDesc: string; niceDesc: string }, prefix: string) => (
+    id === "wayback" ? (
+      <div key={prefix || "single"} className="px-2 py-1.5 rounded bg-muted/50 text-xs space-y-0.5">
+        <div className="flex items-start justify-between gap-3">
+          <span className="shrink-0">{prefix}{basemapLabel(id)}</span>
+          <span className="text-muted-foreground text-right font-medium">{waybackAttribution.srcDesc}</span>
+        </div>
+        <div className="text-muted-foreground">{waybackAttribution.niceDesc}</div>
+      </div>
+    ) : (
+      <div key={prefix || "single"} className="flex items-start justify-between gap-3 px-2 py-1.5 rounded bg-muted/50 text-xs">
+        <span className="shrink-0">{prefix}{basemapLabel(id)}</span>
+        <span className="text-muted-foreground text-right">{stripSourcePrefix(textFor(id, geAttribution, waybackAttribution))}</span>
+      </div>
+    )
   )
 
   // Dedup consecutive views that resolved to the exact same basemap id AND
@@ -152,14 +186,15 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   // showing, not just by which source it's on. Comparing the resolved text
   // itself means two views only ever collapse into one row when they'd
   // genuinely show the same line anyway.
-  const grouped: { ids: ViewId[]; source: string; ge: string; text: string }[] = []
+  const grouped: { ids: ViewId[]; source: string; ge: string; wayback: { srcDesc: string; niceDesc: string }; text: string }[] = []
   for (const side of activeViews) {
     const source = activeSourceFor(side)
     const ge = geAttributionBySide[side]
-    const text = textFor(source, ge)
+    const wayback = waybackAttributionBySide[side]
+    const text = textFor(source, ge, wayback)
     const last = grouped[grouped.length - 1]
     if (last && last.source === source && last.text === text) last.ids.push(side)
-    else grouped.push({ ids: [side], source, ge, text })
+    else grouped.push({ ids: [side], source, ge, wayback, text })
   }
 
   return (
@@ -167,7 +202,7 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
       <p className="text-xs text-muted-foreground">
         Basemap attribution — Esri/Wayback, Google Earth, and Bing resolve live for the current view; every other source is fixed.
       </p>
-      {grouped.map((g) => row(g.source, g.ge, activeViews.length > 1 ? `${g.ids.join("/")}: ` : ""))}
+      {grouped.map((g) => row(g.source, g.ge, g.wayback, activeViews.length > 1 ? `${g.ids.join("/")}: ` : ""))}
     </div>
   )
 }

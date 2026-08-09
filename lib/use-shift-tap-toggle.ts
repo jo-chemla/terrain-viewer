@@ -15,11 +15,12 @@ import { useEffect, useRef } from "react"
 // of Shift, fire only if still armed. A window-blur listener resets the
 // tracking state so alt-tabbing away mid-hold can't leave a stale armed flag
 // that fires spuriously on refocus.
-export function useShiftTapToggle(onTap: () => void) {
+export function useShiftTapToggle(onTap: () => void, enabled: boolean = true) {
   const onTapRef = useRef(onTap)
   onTapRef.current = onTap
 
   useEffect(() => {
+    if (!enabled) return
     let armed = false
 
     const isEditableTarget = (target: EventTarget | null): boolean => {
@@ -58,5 +59,5 @@ export function useShiftTapToggle(onTap: () => void) {
       document.removeEventListener("keyup", onKeyUp, true)
       window.removeEventListener("blur", onBlur)
     }
-  }, [])
+  }, [enabled])
 }

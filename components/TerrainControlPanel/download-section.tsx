@@ -437,6 +437,13 @@ export const DownloadSection: React.FC<{
           />
           <ShareButton mapRef={mapRef} />
         </div>
+        <TooltipButton
+          icon={Images}
+          label="Export Historical GeoTiffs"
+          tooltip="Batch-export historical imagery GeoTIFFs per drawn feature × source × date"
+          onClick={() => setIsExportMultiOpen(true)}
+          className="w-full bg-transparent"
+        />
         {/* Lived in the Settings modal — moved next to the export buttons it
             actually parameterizes (DEM GeoTIFF size cap, both export paths). */}
         <div className="flex items-center justify-between gap-2 pt-1">
@@ -450,13 +457,6 @@ export const DownloadSection: React.FC<{
             className="cursor-text h-7 w-24 text-right"
           />
         </div>
-        <TooltipButton
-          icon={Images}
-          label="Export Historical GeoTiffs"
-          tooltip="Batch-export historical imagery GeoTIFFs per drawn feature × source × date"
-          onClick={() => setIsExportMultiOpen(true)}
-          className="w-full bg-transparent"
-        />
       </div>
       <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} />
     </Section>

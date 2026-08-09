@@ -33,6 +33,7 @@ import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS, BASEMAP_SHORT_LABELS } from "./TerrainControlPanel/raster-basemap-section"
 import { HistoricalTimelinePanel, SOURCE_CONFIG } from "./TerrainControlPanel/historical-timeline-panel"
 import { isHistoricalSourceActive, resolveActiveHistoricalSource, TIMELINE_SOURCE_IDS } from "@/lib/historical-sources"
+import { useEsriLiveCaptureDate } from "@/lib/wayback"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
 
@@ -1847,6 +1848,14 @@ export function TerrainViewer() {
   // (wayback/hls/ge-historical/planet) is actually active for that side
   // before it reaches RasterBasemapSource, which never needs to know
   // "historical" exists as a sidebar-level concept.
+  // Live "ESRI World Imagery" (basemapSource "esri", as opposed to the
+  // scrubbable "wayback" historical source) has no stored per-view date of
+  // its own — it's always showing whichever Wayback release is currently
+  // newest at this location. One location-keyed lookup here, not per-view
+  // (same "not per-side" reasoning as Bing's own capture date, which the
+  // historical timeline panel already only ever calls once), applied to
+  // any/every view whose resolved basemapSource comes out "esri" below.
+  const { dateMs: esriLiveDateMs } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
   const perViewResolved = {} as Record<ViewId, { basemapSource: string; date: number }>
   for (const side of VIEW_IDS) {
     const rawBasemapSource = stateAny[viewFieldName(side, "basemapSource", state.basemapPerView)]
@@ -2841,14 +2850,20 @@ export function TerrainViewer() {
     if (state.showCaptureDatePill === "off") return null
     const resolved = perViewResolved[pane.side]
     if (!resolved || !resolved.basemapSource) return null
-    // A non-historical basemap (ESRI/Mapbox/HERE/Google Sat/OSM/plain Bing)
-    // has no real per-tile capture date to show — rather than hiding the
-    // pill entirely (which used to make it look like the feature just
-    // stopped working the moment you switched off Historical Imagery), show
-    // it with an explicit "Unknown" date, same as switching sources on a
-    // historical tick before any pill has actually been chosen.
+    // A non-historical basemap (Mapbox/HERE/Google Sat/OSM/plain Bing) has no
+    // real per-tile capture date to show — rather than hiding the pill
+    // entirely (which used to make it look like the feature just stopped
+    // working the moment you switched off Historical Imagery), show it with
+    // an explicit "Unknown" date, same as switching sources on a historical
+    // tick before any pill has actually been chosen. Plain "esri" is the one
+    // exception: it's always showing whichever Wayback release is currently
+    // newest, so esriLiveDateMs (resolved once, above) stands in for a real
+    // per-view date the same way TIMELINE_SOURCE_IDS ones already have.
     const isHistoricalDate = !!resolved.date && TIMELINE_SOURCE_IDS.has(resolved.basemapSource)
-    const dateLabel = isHistoricalDate ? new Date(resolved.date).toISOString().slice(0, 10) : "Unknown"
+    const isEsriLive = resolved.basemapSource === "esri" && !!esriLiveDateMs
+    const dateLabel = isHistoricalDate ? new Date(resolved.date).toISOString().slice(0, 10)
+      : isEsriLive ? new Date(esriLiveDateMs).toISOString().slice(0, 10)
+      : "Unknown"
     const sourceShortLabel = SOURCE_CONFIG[resolved.basemapSource]?.shortLabel
       ?? BASEMAP_SHORT_LABELS[resolved.basemapSource]
       ?? resolved.basemapSource
@@ -2958,7 +2973,14 @@ export function TerrainViewer() {
             around it. Rendered as a flat map here instead, at the same
             level as the date pills below, so borders always draw in their
             own true color regardless of the pane's blend mode. */}
-        {colorizeMapBorders && isSplit && paneLayouts.map((pane) => {
+        {/* isHistoricalMode-gated, not just a straight read of the persisted
+            atom — colored borders are a historical-imagery-comparison
+            feature (matching per-side pill colors on the timeline), same
+            "terrain mode doesn't get this" policy as effectiveGridLayout
+            above. Gating the RENDER rather than resetting the atom itself
+            keeps the user's actual preference intact for next time they
+            switch back to historical mode. */}
+        {colorizeMapBorders && isHistoricalMode && isSplit && paneLayouts.map((pane) => {
           // Inset (not flush with the pane edge, unless
           // colorizeMapBordersInsetAtom is off — see insetPx below) so it
           // reads as a frame rather than colliding with maplibre's own

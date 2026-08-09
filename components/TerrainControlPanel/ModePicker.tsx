@@ -9,7 +9,7 @@ const MODES: { id: AppMode; label: string; description: string; icon: React.Comp
   {
     id: "terrain",
     label: "Terrain",
-    description: "For micro-relief, feature extraction, and mapping — hillshade, relief, lighting, contours and terrain analysis over an elevation source.",
+    description: "For micro-relief, feature extraction, and mapping — hillshade, relief visualization, lighting, contours and terrain analysis over an elevation source.",
     icon: Mountain,
   },
   {

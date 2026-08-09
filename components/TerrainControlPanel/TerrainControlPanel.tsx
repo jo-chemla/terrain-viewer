@@ -169,7 +169,7 @@ export function TerrainControlPanel({
   // visualization is active without reaching for the sidebar. (Alt was tried
   // first but the browser's own Alt-alone menu-bar-focus behavior conflicts
   // with it.)
-  useShiftTapToggle(() => setState({ showRasterBasemap: !state.showRasterBasemap }))
+  useShiftTapToggle(() => setState({ showRasterBasemap: !state.showRasterBasemap }), !historicalMode)
   // Ctrl/Cmd+K jumps focus to the geocoder search box from anywhere.
   useGeocoderShortcut()
   // Tapping either Ctrl key alone hides every overlay visualization mode down
@@ -208,7 +208,7 @@ export function TerrainControlPanel({
         showTellsDetector: false,
       })
     }
-  })
+  }, !historicalMode)
   const [activeSlider] = useAtom(activeSliderAtom)
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
 
@@ -555,7 +555,7 @@ export function TerrainControlPanel({
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-4 space-y-2"
           style={{ maskImage: scrollMask, WebkitMaskImage: scrollMask }}
         >
-        <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} />
+        <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} mapRef={mapRef} />
         <ComparisonMixSection state={state} setState={setState} isOpen={sectionOpen.comparisonMix} onOpenChange={toggle("comparisonMix")} historicalMode={historicalMode} mapRef={mapRef} />
         {!historicalMode && (
           <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />

@@ -574,6 +574,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const effectiveMin = viewWindow ? Math.max(fullMin, viewWindow.min) : (hasZoomedRef.current ? fullMin : defaultMin)
   const effectiveMax = viewWindow ? Math.min(fullMax, viewWindow.max) : fullMax
   const effectiveSpan = Math.max(1, effectiveMax - effectiveMin)
+  // Is there real content outside the current view (pan gutter's own
+  // visibility gate) — independent of whether the user has ever actually
+  // zoomed (viewWindow can be null while this is still true, e.g. the very
+  // first render with an outlier tick clipped by the 2010 default-view floor).
+  const hasHiddenRange = effectiveSpan < fullSpan - 1
   const fracForTick = useCallback((tick: TimelineTick) => Math.min(1, Math.max(0, (tick.dateMs - effectiveMin) / effectiveSpan)), [effectiveMin, effectiveSpan])
 
   // Only ticks inside the current zoom window actually render — clamping
@@ -958,16 +963,38 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                     direction: 0,
                     snapshot,
                   }
+                  // No scrubTo here (unlike the plain-drag branch below) — the
+                  // click landed on the handle itself, already at its own
+                  // current tick, so there's nothing to move yet until the
+                  // pointer actually travels.
                 } else {
                   ctrlGroupDragRef.current = null
+                  scrubTo(side, e.clientX)
                 }
-                scrubTo(side, e.clientX)
               }}
               onPointerMove={(e: React.PointerEvent) => {
                 if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-                scrubTo(side, e.clientX)
                 const drag = ctrlGroupDragRef.current
-                if (!drag || drag.dragSide !== side) return
+                if (!drag || drag.dragSide !== side) {
+                  scrubTo(side, e.clientX)
+                  return
+                }
+                // Ctrl-drag: the dragged handle's own movement is ALSO
+                // index-based within its own source's list here, not the
+                // plain drag's cross-source nearest-by-pixel scrubTo — pixel
+                // position is basically a proxy for time, so scrubTo could
+                // land the dragged handle on a DIFFERENT source's tick that
+                // happens to be pixel-closer, which would make "how many
+                // marks did the drag move" ambiguous (relative to which
+                // source's list?) and reads as a time-distance drag rather
+                // than a clean N-marks one. Restricting both the dragged
+                // handle and the swept ones to the same "index within MY OWN
+                // source's list" mechanism keeps the whole gesture consistent.
+                const newIdx = nearestIndexInOwnSource(drag.dragSource, e.clientX)
+                if (newIdx === null) return
+                const deltaN = newIdx - drag.dragOriginalIndex
+                const draggedTick = tickAtOwnSourceOffset(drag.dragSource, drag.dragOriginalIndex, deltaN)
+                if (draggedTick) applyTick(draggedTick, side)
                 if (drag.direction === 0) {
                   const dx = e.clientX - drag.startClientX
                   // Small dead-zone so a near-stationary click-then-jiggle
@@ -976,9 +1003,6 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                   if (Math.abs(dx) > 3) drag.direction = dx < 0 ? -1 : 1
                 }
                 if (drag.direction === 0) return
-                const newIdx = nearestIndexInOwnSource(drag.dragSource, e.clientX)
-                if (newIdx === null) return
-                const deltaN = newIdx - drag.dragOriginalIndex
                 // No "deltaN === 0 -> skip" shortcut here on purpose: dragging
                 // back to the exact starting mark needs to re-apply deltaN=0
                 // to every swept handle too, restoring each one to its own
@@ -1291,11 +1315,27 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             here instead: drag the thumb (sized/positioned to represent the
             current zoomed window's share of the full date range) to shift
             the view, or click the gutter background to jump the window
-            there. */}
+            there.
+
+            Visibility is keyed on `hasHiddenRange` (is the full date range
+            actually wider than what's currently shown), NOT on `viewWindow`
+            being set — those are different things. `viewWindow` is only
+            non-null once the user has manually zoomed/panned; the very
+            first render already has real hidden content whenever the 2010
+            default-view floor (defaultMin, see effectiveMin above) clips off
+            an older outlier tick (Google Earth Historical's occasional
+            1945-era mark for well-covered cities). Gating on `viewWindow`
+            instead left the gutter fully transparent AND pointer-events-none
+            in exactly that case — reachable only by first nudging the wheel
+            zoom (which sets viewWindow), reading as "there's nothing back
+            there" when there actually was. Toggling a source pill off/on
+            reproduces this immediately: turning Google Earth back on adds
+            its 1945 tick back into fullMin without ever setting viewWindow,
+            so the gutter needs to react to that on its own. */}
         <div
-          className={cn("relative h-1.5 mx-2 rounded-full", viewWindow ? "bg-border/60 cursor-pointer" : "bg-transparent pointer-events-none")}
+          className={cn("relative h-1.5 mx-2 rounded-full", hasHiddenRange ? "bg-border/60 cursor-pointer" : "bg-transparent pointer-events-none")}
           onPointerDown={(e) => {
-            if (!viewWindow) return
+            if (!hasHiddenRange) return
             hasZoomedRef.current = true
             const rect = e.currentTarget.getBoundingClientRect()
             const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
@@ -1306,7 +1346,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         >
           <div
             onPointerDown={(e: React.PointerEvent) => {
-              if (!viewWindow) return
+              if (!hasHiddenRange) return
               hasZoomedRef.current = true
               e.stopPropagation()
               e.currentTarget.setPointerCapture(e.pointerId)
@@ -1327,11 +1367,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             onPointerUp={(e: React.PointerEvent) => { e.currentTarget.releasePointerCapture(e.pointerId); gutterDragRef.current = null }}
             className={cn(
               "absolute top-0 bottom-0 rounded-full touch-none",
-              viewWindow ? "bg-muted-foreground/50 hover:bg-muted-foreground/70 cursor-grab active:cursor-grabbing" : "bg-transparent",
+              hasHiddenRange ? "bg-muted-foreground/50 hover:bg-muted-foreground/70 cursor-grab active:cursor-grabbing" : "bg-transparent",
             )}
             style={{
-              left: viewWindow ? `${((effectiveMin - fullMin) / fullSpan) * 100}%` : "0%",
-              width: viewWindow ? `${Math.max(4, (effectiveSpan / fullSpan) * 100)}%` : "100%",
+              left: hasHiddenRange ? `${((effectiveMin - fullMin) / fullSpan) * 100}%` : "0%",
+              width: hasHiddenRange ? `${Math.max(4, (effectiveSpan / fullSpan) * 100)}%` : "100%",
             }}
           />
         </div>

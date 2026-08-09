@@ -1,12 +1,16 @@
 import type React from "react"
+import { useMemo } from "react"
 import { useAtom } from "jotai"
 import { Globe, RotateCcw } from "lucide-react"
+import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Section, SegmentedToggle } from "./controls-components"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { ImportExportProjectDialog } from "./import-export-project-dialog"
+import { OpenInLinksButton } from "./open-in-links"
+import { useWaybackItemsWithLocalChanges } from "@/lib/wayback"
 
 export const GeneralSettings: React.FC<{
   state: any; setState: (updates: any) => void;
@@ -16,10 +20,20 @@ export const GeneralSettings: React.FC<{
   // own forcing effect) — there's nothing left to toggle, so the row is
   // dropped rather than shown disabled/single-option.
   historicalMode?: boolean
-}> = ({ state, setState, isOpen, onOpenChange, historicalMode = false }) => {
+  mapRef: React.RefObject<MapRef>
+}> = ({ state, setState, isOpen, onOpenChange, historicalMode = false, mapRef }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const disabledViewModes = activeProjectConfig?.disableViewModes ?? []
   const hideSplitScreen = activeProjectConfig?.hiddenSections?.includes("splitScreen") ?? false
+  // Terrain mode has no Comparison and Mix section (that's historical-only —
+  // see the comment below), so its own "Open in..." launcher lives here
+  // instead, as the last row — same hook/pattern comparison-mix-section.tsx
+  // uses for its own copy, just gated the other way round (!historicalMode).
+  const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom)
+  const latestWaybackRelease = useMemo(
+    () => rawWaybackItems.reduce<number | null>((max, item) => (max === null || item.releaseNum > max ? item.releaseNum : max), null),
+    [rawWaybackItems],
+  )
 
   return (
     <Section title="General Settings" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
@@ -74,6 +88,11 @@ export const GeneralSettings: React.FC<{
           </div>
           <Slider value={state.exaggeration} onValueChange={(value) => setState({ exaggeration: value })} min={0.1} max={10} step={0.1} className="cursor-pointer" />
         </div>
+      )}
+      {/* Last row, terrain mode only — historical mode gets its own copy at
+          the bottom of Comparison and Mix instead (comparison-mix-section.tsx). */}
+      {!historicalMode && (
+        <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="w-full" />
       )}
     </Section>
   )
