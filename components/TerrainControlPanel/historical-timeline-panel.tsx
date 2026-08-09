@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert } from "lucide-react"
+import type { MapRef } from "react-map-gl/maplibre"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { OpenInLinksButton } from "./open-in-links"
 import { useWaybackItemsWithLocalChanges, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
 import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
@@ -81,6 +83,10 @@ const ZOOM_FACTOR = 0.85
 // lets the next event's own deltaX/deltaY ratio re-decide the mode — see
 // wheelGestureRef above.
 const WHEEL_GESTURE_TIMEOUT_MS = 200
+// How much an off-screen handle's chevron click grows the view window by,
+// on the side the handle is actually off-screen toward — see
+// expandViewWindowToward below.
+const CHEVRON_EXPAND_FRACTION = 0.2
 
 // A Wayback tick's own release/mosaic label (t.label, from releaseDateLabel)
 // is a catalog-wide publish date — the REAL per-tile imagery date can differ
@@ -115,13 +121,20 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
   )
 }
 
-export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
+export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
   const collapsed = !!state.historicalTimelineCollapsed
   const setCollapsed = useCallback((v: boolean) => setState({ historicalTimelineCollapsed: v }), [setState])
   const [activeSide, setActiveSide] = useState<ViewId>("A")
   const [syncEnabled, setSyncEnabled] = useAtom(historicalTimelineSyncAtom)
   const [sideColorOverrides] = useAtom(sideColorOverridesAtom)
-  const [colorizeMapBorders] = useAtom(colorizeMapBordersAtom)
+  const [colorizeMapBordersStored] = useAtom(colorizeMapBordersAtom)
+  // Colored map borders are historical-mode-only (TerrainViewer.tsx forces
+  // them off for terrain mode's own Overlay/Side split) — this panel needs
+  // the same override on its own read of the atom, or a preference set
+  // while in historical mode would keep coloring these handles/captions
+  // after switching to terrain, even though the actual map borders they're
+  // supposed to match are already gone.
+  const colorizeMapBorders = colorizeMapBordersStored && state.appMode === "historical"
   // Per-side identity colors are meaningless once the map borders they're
   // meant to match are off — undefined here signals every caller (handle
   // chips, side-picker buttons, A/B captions) to fall back to a plain
@@ -302,6 +315,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   }, [setPanelHeight])
 
   const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom)
+  // Reuses the same fetch as the ticks below (no separate network round
+  // trip) for the "Open in..." button's own ESRI Wayback deep link — see
+  // its terrain-mode mount further down.
+  const latestWaybackRelease = useMemo(
+    () => rawWaybackItems.reduce<number | null>((max, item) => (max === null || item.releaseNum > max ? item.releaseNum : max), null),
+    [rawWaybackItems],
+  )
   // REAL per-tile imagery capture dates for every release at this location —
   // ticks are positioned by these (the actual date the imagery was taken),
   // not each release's own releaseDatetime (a catalog-wide publish date that
@@ -725,6 +745,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     setViewWindow({ min: newMin, max: newMin + span })
   }, [viewWindow, effectiveMin, effectiveMax, fullMin, fullMax])
 
+  // An off-screen handle's chevron click used to recenter the view exactly
+  // on that handle's own date — jumping straight to it rather than letting
+  // the user see what's actually between here and there. Zooming out a
+  // fixed 20% of the current span on whichever side the handle is off-
+  // screen toward instead reads as "widen my view a bit," and can be
+  // clicked repeatedly to keep widening until the handle comes into view
+  // naturally, same idea as clicking + repeatedly on a map zoom control.
+  const expandViewWindowToward = useCallback((dir: "left" | "right") => {
+    hasZoomedRef.current = true
+    const span = effectiveMax - effectiveMin
+    const growBy = span * CHEVRON_EXPAND_FRACTION
+    const newMin = dir === "left" ? Math.max(fullMin, effectiveMin - growBy) : effectiveMin
+    const newMax = dir === "right" ? Math.min(fullMax, effectiveMax + growBy) : effectiveMax
+    setViewWindow(newMax - newMin >= fullSpan ? null : { min: newMin, max: newMax })
+  }, [effectiveMin, effectiveMax, fullMin, fullMax, fullSpan])
+
   // The single entry point for "a tick was picked", whether by click, drag,
   // or arrow-key step — always applies to exactly ONE side (explicit, from a
   // pointer event targeting a specific handle, or resolved from context for
@@ -823,6 +859,26 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     wheelStateRef.current = { effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow, hasHiddenRange }
   })
 
+  // Coalesces rapid wheel events (a trackpad's momentum-deceleration tail
+  // can fire far faster than 60fps) into at most one setViewWindow per
+  // animation frame — every event still updates `pendingViewWindowRef`
+  // (so nothing is lost), only the actual React state write is throttled.
+  // Wrapped in `{ window }` (rather than storing the window directly) so
+  // "a reset-to-full-extent is pending" (window: null) stays distinguishable
+  // from "nothing is pending yet" (the ref itself is null).
+  const pendingViewWindowRef = useRef<{ window: { min: number; max: number } | null } | null>(null)
+  const wheelRafIdRef = useRef<number | null>(null)
+  const scheduleViewWindow = useCallback((window: { min: number; max: number } | null) => {
+    pendingViewWindowRef.current = { window }
+    if (wheelRafIdRef.current !== null) return
+    wheelRafIdRef.current = requestAnimationFrame(() => {
+      wheelRafIdRef.current = null
+      const pending = pendingViewWindowRef.current
+      pendingViewWindowRef.current = null
+      if (pending) setViewWindow(pending.window)
+    })
+  }, [setViewWindow])
+
   // Attached imperatively (not a JSX onWheel) so preventDefault reliably
   // blocks page-scroll — React treats wheel listeners as passive by default.
   useEffect(() => {
@@ -831,7 +887,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       hasZoomedRef.current = true
-      const { effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, hasHiddenRange } = wheelStateRef.current
+      // Base this event's math off whatever's still PENDING (not yet
+      // flushed to React state) rather than the last committed render's
+      // wheelStateRef snapshot, whenever one exists — otherwise several
+      // events coalesced into the same animation frame would each compute
+      // their delta against the same stale starting point instead of
+      // compounding on each other, undercounting the total pan/zoom by
+      // however many events got batched into that frame.
+      const pending = pendingViewWindowRef.current
+      const committed = wheelStateRef.current
+      const { fullMin, fullMax, fullSpan, hasHiddenRange } = committed
+      const effectiveMin = pending ? (pending.window?.min ?? fullMin) : committed.effectiveMin
+      const effectiveMax = pending ? (pending.window?.max ?? fullMax) : committed.effectiveMax
+      const effectiveSpan = effectiveMax - effectiveMin
       const rect = el.getBoundingClientRect()
       // A trackpad's two-finger swipe fires wheel events with deltaX
       // dominant (vs. deltaY for a mouse wheel / vertical scroll gesture) —
@@ -861,7 +929,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         const deltaMs = (e.deltaX / rect.width) * effectiveSpan
         let newMin = effectiveMin + deltaMs
         newMin = Math.max(fullMin, Math.min(fullMax - span, newMin))
-        setViewWindow({ min: newMin, max: newMin + span })
+        scheduleViewWindow({ min: newMin, max: newMin + span })
         return
       }
       const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
@@ -871,11 +939,16 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       let newMin = cursorDate - frac * newSpan
       newMin = Math.max(fullMin, Math.min(fullMax - newSpan, newMin))
       const newMax = newMin + newSpan
-      setViewWindow(newSpan >= fullSpan ? null : { min: newMin, max: newMax })
+      scheduleViewWindow(newSpan >= fullSpan ? null : { min: newMin, max: newMax })
     }
     el.addEventListener("wheel", handleWheel, { passive: false })
-    return () => el.removeEventListener("wheel", handleWheel)
-  }, [panelVisible])
+    return () => {
+      el.removeEventListener("wheel", handleWheel)
+      if (wheelRafIdRef.current !== null) cancelAnimationFrame(wheelRafIdRef.current)
+      wheelRafIdRef.current = null
+      pendingViewWindowRef.current = null
+    }
+  }, [panelVisible, scheduleViewWindow])
 
   if (!panelVisible) return null
 
@@ -949,7 +1022,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             render={
               <button
                 type="button"
-                onClick={() => maybeRecenterWindow(tick.dateMs)}
+                onClick={() => expandViewWindowToward(dir)}
                 className={cn(
                   "absolute top-1/2 -translate-y-1/2 z-10 cursor-pointer flex items-center rounded-md border-2 border-background shadow px-0.5 h-4 text-[8px] font-bold leading-none",
                   bg ? "text-white" : "bg-primary text-primary-foreground",
@@ -963,7 +1036,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               </button>
             }
           />
-          <TooltipContent>{side} — off-screen ({captionBySide[side]}), click to bring into view</TooltipContent>
+          <TooltipContent>{side} — off-screen ({captionBySide[side]}), click to zoom out toward it</TooltipContent>
         </Tooltip>
       )
     }
@@ -1422,15 +1495,21 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             any grid layout with more than 2 active views (3x1, 2x2, 3x2,
             4x1) there's nothing to show here at all (the per-handle tooltips
             above already carry each side's own date/source regardless), so
-            the panel is simply shorter by this row's height instead. The
-            "Open in..." button that used to live in this row moved to
-            Compare and Blend (comparison-mix-section.tsx) to keep this
-            panel tighter. */}
+            the panel is simply shorter by this row's height instead.
+            Terrain mode's own "Open in..." launcher lives centered between
+            the two captions here, since terrain mode is always forced to
+            the 2x1 grid this row needs anyway (General Settings used to
+            carry its own copy instead — moved here per request). Historical
+            mode keeps its copy in Compare and Blend
+            (comparison-mix-section.tsx), unrelated to this row. */}
         {showingViews.length === 2 && (
           <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums mx-2">
             <span style={{ color: colorFor(showingViews[0]) }}>
               {`${showingViews[0]}: ${tickBySide[showingViews[0]] ? `${SOURCE_CONFIG[tickBySide[showingViews[0]]!.source]?.label} ${captionBySide[showingViews[0]]}` : "—"}`}
             </span>
+            {state.appMode !== "historical" && (
+              <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="shrink-0 h-6 px-2 text-[10px]" />
+            )}
             <span style={{ color: colorFor(showingViews[1]) }}>
               {`${showingViews[1]}: ${tickBySide[showingViews[1]] ? `${SOURCE_CONFIG[tickBySide[showingViews[1]]!.source]?.label} ${captionBySide[showingViews[1]]}` : "—"}`}
             </span>
