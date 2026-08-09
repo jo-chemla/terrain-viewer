@@ -152,6 +152,25 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // itself (not just let JSX's `ref={trackRef}` do it), which TS otherwise
   // rejects as read-only on the plain useRef<HTMLDivElement>(null) overload.
   const trackRef = useRef<HTMLDivElement | null>(null)
+  // Ctrl+drag on a handle: sweep every OTHER handle on one side of it along
+  // by the same number of tick-marks. `snapshot` is frozen at pointerdown —
+  // which handles count as "left"/"right" of the dragged one is decided
+  // once, from positions at drag START, not recomputed as things move (a
+  // handle that gets swept past the dragged one mid-gesture stays swept).
+  // `direction` starts at 0 (undecided) and locks to -1/1 on the first
+  // pointermove that clears a small dead-zone — this is "the start of the
+  // drag indicates which side moves": a left-starting drag only ever
+  // affects handles that started left of the dragged one, even if the user
+  // later drags back past their starting point.
+  const ctrlGroupDragRef = useRef<{
+    dragSide: ViewId
+    dragSource: string
+    dragOriginalIndex: number
+    dragOriginalDateMs: number
+    startClientX: number
+    direction: -1 | 0 | 1
+    snapshot: { side: ViewId; source: string; originalIndex: number; dateMs: number }[]
+  } | null>(null)
   // Which DOM node the panel itself lives in, plus whether the user's most
   // recent pointerdown anywhere on the page landed inside it — see the
   // ArrowLeft/ArrowRight handler below for why this exists.
@@ -645,6 +664,34 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     return best
   }, [items, tickLeftPct])
 
+  // Ctrl+drag "move this pill and sweep everything on one side along with
+  // it" — see ctrlGroupDragRef below for the full gesture. Both helpers
+  // work in TICK-INDEX space within a single source's own item list (not
+  // pixels, not raw dates) so "shift by N marks" means the same thing for
+  // every side even when two sides are on completely different sources
+  // with different date spacing.
+  const indexInOwnSource = useCallback((source: string, key: number): number => {
+    return items.filter((t) => t.source === source).findIndex((t) => t.key === key)
+  }, [items])
+  const nearestIndexInOwnSource = useCallback((source: string, clientX: number): number | null => {
+    const rect = trackRef.current?.getBoundingClientRect()
+    const ownItems = items.filter((t) => t.source === source)
+    if (!rect || !ownItems.length) return null
+    const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+    let bestIdx = 0
+    let bestDist = Math.abs(tickLeftPct(ownItems[0]) / 100 - frac)
+    for (let i = 1; i < ownItems.length; i++) {
+      const d = Math.abs(tickLeftPct(ownItems[i]) / 100 - frac)
+      if (d < bestDist) { bestIdx = i; bestDist = d }
+    }
+    return bestIdx
+  }, [items, tickLeftPct])
+  const tickAtOwnSourceOffset = useCallback((source: string, originalIndex: number, deltaN: number): TimelineTick | null => {
+    const ownItems = items.filter((t) => t.source === source)
+    if (!ownItems.length) return null
+    return ownItems[Math.max(0, Math.min(ownItems.length - 1, originalIndex + deltaN))]
+  }, [items])
+
   // If a zoomed window is active and the tick just applied falls outside it,
   // recenter (keeping the same span) so the newly-active selection never
   // strands itself off-screen.
@@ -892,10 +939,62 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 e.stopPropagation()
                 e.currentTarget.setPointerCapture(e.pointerId)
                 setActiveSide(side)
+                if (e.ctrlKey || e.metaKey) {
+                  const snapshot = showingViews
+                    .filter((s) => s !== side && tickBySide[s])
+                    .map((s) => ({
+                      side: s,
+                      source: tickBySide[s]!.source,
+                      originalIndex: indexInOwnSource(tickBySide[s]!.source, tickBySide[s]!.key),
+                      dateMs: tickBySide[s]!.dateMs,
+                    }))
+                    .filter((s) => s.originalIndex >= 0)
+                  ctrlGroupDragRef.current = {
+                    dragSide: side,
+                    dragSource: tick.source,
+                    dragOriginalIndex: indexInOwnSource(tick.source, tick.key),
+                    dragOriginalDateMs: tick.dateMs,
+                    startClientX: e.clientX,
+                    direction: 0,
+                    snapshot,
+                  }
+                } else {
+                  ctrlGroupDragRef.current = null
+                }
                 scrubTo(side, e.clientX)
               }}
-              onPointerMove={(e: React.PointerEvent) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrubTo(side, e.clientX) }}
-              onPointerUp={(e: React.PointerEvent) => e.currentTarget.releasePointerCapture(e.pointerId)}
+              onPointerMove={(e: React.PointerEvent) => {
+                if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+                scrubTo(side, e.clientX)
+                const drag = ctrlGroupDragRef.current
+                if (!drag || drag.dragSide !== side) return
+                if (drag.direction === 0) {
+                  const dx = e.clientX - drag.startClientX
+                  // Small dead-zone so a near-stationary click-then-jiggle
+                  // doesn't lock in an arbitrary direction before the user's
+                  // actual intent is clear.
+                  if (Math.abs(dx) > 3) drag.direction = dx < 0 ? -1 : 1
+                }
+                if (drag.direction === 0) return
+                const newIdx = nearestIndexInOwnSource(drag.dragSource, e.clientX)
+                if (newIdx === null) return
+                const deltaN = newIdx - drag.dragOriginalIndex
+                // No "deltaN === 0 -> skip" shortcut here on purpose: dragging
+                // back to the exact starting mark needs to re-apply deltaN=0
+                // to every swept handle too, restoring each one to its own
+                // original tick — an early return here would leave them
+                // stuck at whatever the last nonzero deltaN had set them to.
+                for (const snap of drag.snapshot) {
+                  const isLeftOfDrag = snap.dateMs < drag.dragOriginalDateMs
+                  if ((drag.direction === -1) !== isLeftOfDrag) continue
+                  const newTick = tickAtOwnSourceOffset(snap.source, snap.originalIndex, deltaN)
+                  if (newTick) setTickForSide(snap.side, newTick)
+                }
+              }}
+              onPointerUp={(e: React.PointerEvent) => {
+                e.currentTarget.releasePointerCapture(e.pointerId)
+                ctrlGroupDragRef.current = null
+              }}
               className={cn(
                 "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing",
                 !bg && "bg-primary",
