@@ -330,7 +330,7 @@ export const DownloadSection: React.FC<{
         </div>
         <TooltipButton
           icon={Images}
-          label="Export Multi (Historical)…"
+          label="Export Historical GeoTiffs"
           tooltip="Batch-export historical imagery GeoTIFFs per drawn feature × source × date"
           onClick={() => setIsExportMultiOpen(true)}
           className="w-full bg-transparent"
@@ -452,7 +452,7 @@ export const DownloadSection: React.FC<{
         </div>
         <TooltipButton
           icon={Images}
-          label="Export Multi (Historical)…"
+          label="Export Historical GeoTiffs"
           tooltip="Batch-export historical imagery GeoTIFFs per drawn feature × source × date"
           onClick={() => setIsExportMultiOpen(true)}
           className="w-full bg-transparent"

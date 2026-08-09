@@ -116,17 +116,6 @@ export function bottomRightView(layout: GridLayoutId): ViewId {
   return lastRow[lastRow.length - 1]
 }
 
-/** Same idea, but the corner the scale bar + attribution control actually
- *  dock to now (TerrainViewer.tsx moved them to the top, clear of the
- *  historical timeline panel) — the FIRST row's own last column, which for
- *  a single-row layout is the same view bottomRightView would return, but
- *  differs for any multi-row grid (2x2/3x2/etc). */
-export function topRightView(layout: GridLayoutId): ViewId {
-  const { grid } = GRID_LAYOUTS[layout]
-  const firstRow = grid[0]
-  return firstRow[firstRow.length - 1]
-}
-
 /** The rightmost view in EVERY row — each needs the sidebar-footprint camera
  *  padding correction (map.easeTo({padding})) since the floating sidebar
  *  overlaps the right edge of the viewport across the full height, not just

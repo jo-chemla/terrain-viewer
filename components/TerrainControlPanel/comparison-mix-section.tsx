@@ -12,7 +12,7 @@ import { Section, SegmentedToggle, SliderControl, GroupHeading } from "./control
 import { ColorAlphaSwatch } from "./color-picker"
 import { OpenInLinksButton } from "./open-in-links"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
-import { colorizeMapBordersAtom, colorizeMapBordersInsetAtom, sideColorOverridesAtom } from "@/lib/layout-constants"
+import { colorizeMapBordersAtom, colorizeMapBordersInsetAtom, isComparisonMixAdvancedOpenAtom, sideColorOverridesAtom } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, BLEND_MODE_GROUPS, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { useWaybackItemsWithLocalChanges } from "@/lib/wayback"
 import { cn } from "@/lib/utils"
@@ -104,7 +104,9 @@ export const ComparisonMixSection: React.FC<{
   // Default collapsed — capture-date pills, border colorization and its side
   // colors are secondary/cosmetic compared to Split Mode/Grid Layout/Blend
   // Mode above, which most users need every time they turn split mode on.
-  const [advancedOpen, setAdvancedOpen] = useState(false)
+  // Persisted (atomWithStorage) so a user who opens it once doesn't have to
+  // re-open it on every reload.
+  const [advancedOpen, setAdvancedOpen] = useAtom(isComparisonMixAdvancedOpenAtom)
   // Newest release at this location — used by the "Open in..." ESRI Wayback
   // link (open-in-links.tsx) instead of a hardcoded release id. Shares
   // historical-timeline-panel.tsx's own module-level per-location cache (see

@@ -30,7 +30,7 @@ import { getProjectConfig } from "@/lib/project-config"
 import { useTheme } from "@/lib/controls-utils"
 import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
-import { BUILTIN_BASEMAP_OPTIONS } from "./TerrainControlPanel/raster-basemap-section"
+import { BUILTIN_BASEMAP_OPTIONS, BASEMAP_SHORT_LABELS } from "./TerrainControlPanel/raster-basemap-section"
 import { HistoricalTimelinePanel, SOURCE_CONFIG } from "./TerrainControlPanel/historical-timeline-panel"
 import { isHistoricalSourceActive, resolveActiveHistoricalSource, TIMELINE_SOURCE_IDS } from "@/lib/historical-sources"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
@@ -44,7 +44,7 @@ import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle
 import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
 import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom } from "@/lib/layout-constants"
-import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, topRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
+import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
 import maplibregl from 'maplibre-gl'
@@ -849,9 +849,7 @@ export function TerrainViewer() {
   const effectiveGridLayout: GridLayoutId = (isOverlaySplit || !isHistoricalMode) ? "2x1" : state.gridLayout
   const gridConfig = GRID_LAYOUTS[effectiveGridLayout]
   const activeViewIds: ViewId[] = isSplit ? gridConfig.grid.flat() : ["A"]
-  // Scale bar + attribution now dock top-right (see the topRightViewId
-  // usage below) — the FIRST row's own rightmost view, not the last row's.
-  const topRightViewId: ViewId = isSplit ? topRightView(effectiveGridLayout) : "A"
+  const bottomRightViewId: ViewId = isSplit ? bottomRightView(effectiveGridLayout) : "A"
   const rightmostPerRow: ViewId[] = isSplit ? rightmostViewsPerRow(effectiveGridLayout) : ["A"]
   // Only the LAST row needs the historical-timeline bottom-padding
   // correction (mapPaddingFor below) — a top-row pane in a 2-row grid isn't
@@ -2115,7 +2113,7 @@ export function TerrainViewer() {
   const renderMap = useCallback(
     (source: TerrainSource | string, side: ViewId) => {
       const isPrimary = side === "A"
-      const isTopRight = side === topRightViewId
+      const isBottomRight = side === bottomRightViewId
       // "live" (lib/phong-live-gl-layer.ts) now projects through MapLibre's own
       // per-frame shaderData prelude, so it renders correctly under BOTH
       // mercator and globe — no globe fallback needed anymore. It's still
@@ -2653,21 +2651,19 @@ export function TerrainViewer() {
 
             </>
           )}
-          {/* Scale bar + attribution dock at the TOP-right edge of the whole
-              viewport (moved off the bottom so neither ever needs to clear
-              the historical timeline panel), not per-pane: mounted on
-              whichever view currently occupies that visual corner — the
-              last column of the FIRST row (topRightViewId), matching
+          {/* Scale bar + attribution mounted on whichever view currently
+              occupies the bottom-right corner (bottomRightViewId), matching
               today's "map B when split, map A otherwise" for the 2-map
               case. Exactly one view ever satisfies this per render, by
               construction, so this always mounts exactly one ScaleControl
               across the whole grid. */}
-          {!activeProjectConfig?.hideMapControls?.includes("scale") && isTopRight && (
-            <ScaleControl position="top-right" unit="metric" maxWidth={250} />
+          {!activeProjectConfig?.hideMapControls?.includes("scale") && isBottomRight && (
+            <ScaleControl position="bottom-right" unit="metric" maxWidth={250} />
           )}
-          {/* Same top-right-most-view gating as scale. */}
-          {isTopRight && (
-            <AttributionControl compact position="top-right" />
+          {/* Mounted after ScaleControl so it's the later-added of the two —
+              stacking order matters for MapLibre's own corner container. */}
+          {isBottomRight && (
+            <AttributionControl compact position="bottom-right" />
           )}
         </Map>
       )
@@ -2706,7 +2702,7 @@ export function TerrainViewer() {
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint,
       svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
-      mapLoaded, mapRefs, handleViewMove, handleViewMoveEnd, topRightViewId,
+      mapLoaded, mapRefs, handleViewMove, handleViewMoveEnd, bottomRightViewId,
       state.skyColor, state.skyHorizonBlend, state.horizonColor, state.horizonFogBlend,
       state.fogColor, state.fogGroundBlend, state.matchThemeColors, state.backgroundLayerActive,
       activeProjectConfig,
@@ -2751,12 +2747,10 @@ export function TerrainViewer() {
       // button with zero gap between them).
       ? "4.5rem"
       : measuredPanelClearance
-  // Top-right corner (attribution+scale, on whichever map is currently
-  // rightmost in the FIRST row) — moved off the bottom entirely, so unlike
-  // the minimap/bottom-left offsets above, this never needs to reason about
-  // the historical timeline panel's height at all, just the unified edge
-  // margin and the sidebar's own footprint on the right.
-  const scaleTopOffset = `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  // Bottom-right corner (attribution+scale) needs the same historical-panel
+  // clearance reasoning as the minimap above, since it also docks off the
+  // bottom edge.
+  const scaleBottomOffset = historicalTimelineVisible ? measuredPanelClearance : `${MAP_CTRL_EDGE_MARGIN_PX}px`
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 
@@ -2846,10 +2840,20 @@ export function TerrainViewer() {
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
     if (state.showCaptureDatePill === "off") return null
     const resolved = perViewResolved[pane.side]
-    if (!resolved || !resolved.date || !TIMELINE_SOURCE_IDS.has(resolved.basemapSource)) return null
-    const dateLabel = new Date(resolved.date).toISOString().slice(0, 10)
+    if (!resolved || !resolved.basemapSource) return null
+    // A non-historical basemap (ESRI/Mapbox/HERE/Google Sat/OSM/plain Bing)
+    // has no real per-tile capture date to show — rather than hiding the
+    // pill entirely (which used to make it look like the feature just
+    // stopped working the moment you switched off Historical Imagery), show
+    // it with an explicit "Unknown" date, same as switching sources on a
+    // historical tick before any pill has actually been chosen.
+    const isHistoricalDate = !!resolved.date && TIMELINE_SOURCE_IDS.has(resolved.basemapSource)
+    const dateLabel = isHistoricalDate ? new Date(resolved.date).toISOString().slice(0, 10) : "Unknown"
+    const sourceShortLabel = SOURCE_CONFIG[resolved.basemapSource]?.shortLabel
+      ?? BASEMAP_SHORT_LABELS[resolved.basemapSource]
+      ?? resolved.basemapSource
     const label = state.showCaptureDatePill === "source-date"
-      ? `${SOURCE_CONFIG[resolved.basemapSource]?.shortLabel ?? resolved.basemapSource} · ${dateLabel}`
+      ? `${sourceShortLabel} · ${dateLabel}`
       : dateLabel
     const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : "0.5rem"
     // The rightmost column's own pane DOM box intentionally extends under the
@@ -2925,7 +2929,7 @@ export function TerrainViewer() {
                 // No bottom-left targeting here anymore — the minimap is a
                 // plain floating div now (see the fixed-position render
                 // below), not a per-pane maplibre control corner.
-                pane.side === topRightViewId && "[&_.maplibregl-ctrl-top-right]:!top-[var(--scale-offset)] [&_.maplibregl-ctrl-top-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-top-right]:transition-[top,right] [&_.maplibregl-ctrl-top-right]:duration-200",
+                pane.side === bottomRightViewId && "[&_.maplibregl-ctrl-bottom-right]:!bottom-[var(--scale-offset)] [&_.maplibregl-ctrl-bottom-right]:!right-[var(--scale-right-offset)] [&_.maplibregl-ctrl-bottom-right]:transition-[bottom,right] [&_.maplibregl-ctrl-bottom-right]:duration-200",
               )}
               style={{
                 top: pane.top,
@@ -2935,81 +2939,88 @@ export function TerrainViewer() {
                 clipPath: isBlendedOverlayPane ? `polygon(${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 100% 100%, 100% 0%)` : undefined,
                 mixBlendMode: isBlendedOverlayPane ? (state.splitBlendMode as any) : undefined,
                 opacity: isBlendedOverlayPane ? state.overlayOpacity : undefined,
-                ["--scale-offset" as any]: scaleTopOffset,
+                ["--scale-offset" as any]: scaleBottomOffset,
                 ["--scale-right-offset" as any]: scaleRightOffset,
               }}
             >
               {renderMap(stateAny[sourceFieldName(pane.side)], pane.side)}
-              {/* Inset (not flush with the pane edge, unless
-                  colorizeMapBordersInsetAtom is off — see insetPx below) so
-                  it reads as a frame rather than colliding with maplibre's
-                  own corner controls — a child of this pane (not a sibling
-                  like the date pill above). Two adjustments beyond a plain
-                  inset:
-                  - Overlay: each pane's border rect is sized to end/start
-                    exactly at the drag pill's own x position (overlayGutterPx)
-                    instead of the pane's real edge — a plain inset would
-                    trace A's FULL shared rect (both overlay panes span the
-                    whole container) while B's is already visually cropped by
-                    its own clip-path, reading as inconsistent. This sizes
-                    each side's border independently instead of clipping a
-                    single shared-rect border down to size.
-                  - Side-by-side/grid: the last column/row's own pane DOM
-                    box intentionally extends past the visible area (under
-                    the floating sidebar / historical timeline panel — see
-                    the paneLayouts and mapPaddingFor comments above) so its
-                    VISIBLE portion matches every other pane's. A plain
-                    inset would then draw the border partway under the
-                    sidebar/timeline instead of right at the edge actually
-                    visible — pull the right/bottom edge in by exactly that
-                    hidden extension instead.
-                  - Overlay ALSO needs that same sidebar/timeline pull-in on
-                    top of its own gutter clamp above — both of its panes are
-                    full-bleed to the container's real edges (paneLayouts
-                    gives overlay panes the full splitContainerWidth/Height
-                    regardless of column/row), so B's right edge and both
-                    panes' bottom edges extend under the sidebar/timeline
-                    exactly like side-by-side's last column/row does. This
-                    used to be gated on `!isOverlaySplit`, which skipped the
-                    pull-in for overlay entirely — confirmed live, the border
-                    sat behind the sidebar/timeline panel instead of ending
-                    at the actually-visible edge. Every pane in overlay is
-                    effectively "the last column of the last row" at once, so
-                    the clamp applies unconditionally rather than checking
-                    isLastCol/bottomRowViews (which only mean something for a
-                    real multi-column/row grid). */}
-              {colorizeMapBorders && isSplit && (() => {
-                // Every pane always draws its own FULL-width border on all 4
-                // sides, inset or not — a shared seam between two adjacent
-                // panes (any inner grid line, or overlay's own gutter)
-                // therefore reads as visibly thicker than an outer edge,
-                // which only ever has ONE pane's border: intentional, per
-                // request — the doubled seam reads as "this is a real
-                // boundary between two views," not a rendering glitch. (An
-                // earlier pass here HALVED the width on seam-facing sides to
-                // equalize it with outer edges instead — reverted; that
-                // wasn't the wanted look.) insetPx/fullWidth are kept even
-                // numbers specifically so this and the seam math both land
-                // on whole pixels, no half-pixel blur either mode.
-                const insetPx = colorizeMapBordersInset ? 3 : 0
-                const fullWidth = colorizeMapBordersInset ? 2 : 4
-                return (
-                  <div
-                    className={cn("pointer-events-none absolute", colorizeMapBordersInset ? "rounded-sm" : "rounded-none")}
-                    style={{
-                      borderColor: borderColorFor(pane.side),
-                      borderStyle: "solid",
-                      borderWidth: fullWidth,
-                      top: insetPx,
-                      left: isOverlaySplit && pane.side === "B" ? overlayGutterPx + insetPx : insetPx,
-                      right: isOverlaySplit && pane.side === "A"
-                        ? (splitContainerWidth - overlayGutterPx) + insetPx
-                        : insetPx + (((isOverlaySplit || pane.isLastCol) && isSidebarOpen && !isMobile) ? sidebarFootprintPx : 0),
-                      bottom: insetPx + ((isOverlaySplit || bottomRowViews.includes(pane.side)) ? timelineBottomPaddingPx : 0),
-                    }}
-                  />
-                )
-              })()}
+            </div>
+          )
+        })}
+        {/* Colored borders render as their own sibling layer, NOT nested
+            inside the pane div above — that pane div is exactly the element
+            mix-blend-mode gets applied to for the overlay's blended pane, and
+            mix-blend-mode on a parent blends its entire rendered subtree
+            (children included) as one group against whatever's behind it.
+            Nesting the border there made it pick up the blend mode too
+            (e.g. a colorful "difference" border), which was never the intent
+            — blend modes are for comparing imagery, not for the frame
+            around it. Rendered as a flat map here instead, at the same
+            level as the date pills below, so borders always draw in their
+            own true color regardless of the pane's blend mode. */}
+        {colorizeMapBorders && isSplit && paneLayouts.map((pane) => {
+          // Inset (not flush with the pane edge, unless
+          // colorizeMapBordersInsetAtom is off — see insetPx below) so it
+          // reads as a frame rather than colliding with maplibre's own
+          // corner controls. Two adjustments beyond a plain inset:
+          // - Overlay: each pane's border rect is sized to end/start
+          //   exactly at the drag pill's own x position (overlayGutterPx)
+          //   instead of the pane's real edge — a plain inset would trace
+          //   A's FULL shared rect (both overlay panes span the whole
+          //   container) while B's is already visually cropped by its own
+          //   clip-path, reading as inconsistent. This sizes each side's
+          //   border independently instead of clipping a single
+          //   shared-rect border down to size.
+          // - Side-by-side/grid: the last column/row's own pane DOM box
+          //   intentionally extends past the visible area (under the
+          //   floating sidebar / historical timeline panel — see the
+          //   paneLayouts and mapPaddingFor comments above) so its VISIBLE
+          //   portion matches every other pane's. A plain inset would then
+          //   draw the border partway under the sidebar/timeline instead of
+          //   right at the edge actually visible — pull the right/bottom
+          //   edge in by exactly that hidden extension instead.
+          // - Overlay ALSO needs that same sidebar/timeline pull-in on top
+          //   of its own gutter clamp above — both of its panes are
+          //   full-bleed to the container's real edges (paneLayouts gives
+          //   overlay panes the full splitContainerWidth/Height regardless
+          //   of column/row), so B's right edge and both panes' bottom
+          //   edges extend under the sidebar/timeline exactly like
+          //   side-by-side's last column/row does. Every pane in overlay is
+          //   effectively "the last column of the last row" at once, so the
+          //   clamp applies unconditionally rather than checking
+          //   isLastCol/bottomRowViews (which only mean something for a
+          //   real multi-column/row grid).
+          // Every pane always draws its own FULL-width border on all 4
+          // sides, inset or not — a shared seam between two adjacent panes
+          // (any inner grid line, or overlay's own gutter) therefore reads
+          // as visibly thicker than an outer edge, which only ever has ONE
+          // pane's border: intentional, per request — the doubled seam
+          // reads as "this is a real boundary between two views," not a
+          // rendering glitch. insetPx/fullWidth are kept even numbers
+          // specifically so this and the seam math both land on whole
+          // pixels, no half-pixel blur either mode.
+          const insetPx = colorizeMapBordersInset ? 3 : 0
+          const fullWidth = colorizeMapBordersInset ? 2 : 4
+          return (
+            <div
+              key={`border-${pane.side}`}
+              className="absolute pointer-events-none"
+              style={{ top: pane.top, left: pane.left, width: pane.width, height: pane.height }}
+            >
+              <div
+                className={cn("pointer-events-none absolute", colorizeMapBordersInset ? "rounded-sm" : "rounded-none")}
+                style={{
+                  borderColor: borderColorFor(pane.side),
+                  borderStyle: "solid",
+                  borderWidth: fullWidth,
+                  top: insetPx,
+                  left: isOverlaySplit && pane.side === "B" ? overlayGutterPx + insetPx : insetPx,
+                  right: isOverlaySplit && pane.side === "A"
+                    ? (splitContainerWidth - overlayGutterPx) + insetPx
+                    : insetPx + (((isOverlaySplit || pane.isLastCol) && isSidebarOpen && !isMobile) ? sidebarFootprintPx : 0),
+                  bottom: insetPx + ((isOverlaySplit || bottomRowViews.includes(pane.side)) ? timelineBottomPaddingPx : 0),
+                }}
+              />
             </div>
           )
         })}

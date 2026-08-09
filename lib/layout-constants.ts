@@ -57,6 +57,12 @@ export const colorizeMapBordersAtom = atomWithStorage("colorizeMapBorders", fals
 // than the inset one it replaced.
 export const colorizeMapBordersInsetAtom = atomWithStorage("colorizeMapBordersInset", true)
 
+// Comparison and Mix section's own "Advanced" (capture date / colorize
+// borders / side colors) collapsible — persisted like every other
+// section-local collapse toggle (isBasemapByodOpenAtom etc. in
+// settings-atoms.ts) so it doesn't silently re-collapse on every reload.
+export const isComparisonMixAdvancedOpenAtom = atomWithStorage("isComparisonMixAdvancedOpen", false)
+
 // The historical timeline panel's own measured height (its outer bordered
 // box, via ResizeObserver — see historical-timeline-panel.tsx), so
 // TerrainViewer.tsx can clear it above the minimap/scale/attribution
