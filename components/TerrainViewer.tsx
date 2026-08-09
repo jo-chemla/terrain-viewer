@@ -2854,21 +2854,23 @@ export function TerrainViewer() {
     // real per-tile capture date to show — rather than hiding the pill
     // entirely (which used to make it look like the feature just stopped
     // working the moment you switched off Historical Imagery), show it with
-    // an explicit "Unknown" date, same as switching sources on a historical
-    // tick before any pill has actually been chosen. Plain "esri" is the one
-    // exception: it's always showing whichever Wayback release is currently
-    // newest, so esriLiveDateMs (resolved once, above) stands in for a real
-    // per-view date the same way TIMELINE_SOURCE_IDS ones already have.
+    // just the source name (no fabricated "Unknown" date to pad it out),
+    // same as switching sources on a historical tick before any pill has
+    // actually been chosen. Plain "esri" is the one exception: it's always
+    // showing whichever Wayback release is currently newest, so
+    // esriLiveDateMs (resolved once, above) stands in for a real per-view
+    // date the same way TIMELINE_SOURCE_IDS ones already have.
     const isHistoricalDate = !!resolved.date && TIMELINE_SOURCE_IDS.has(resolved.basemapSource)
     const isEsriLive = resolved.basemapSource === "esri" && !!esriLiveDateMs
+    const hasKnownDate = isHistoricalDate || isEsriLive
     const dateLabel = isHistoricalDate ? new Date(resolved.date).toISOString().slice(0, 10)
       : isEsriLive ? new Date(esriLiveDateMs).toISOString().slice(0, 10)
-      : "Unknown"
+      : null
     const sourceShortLabel = SOURCE_CONFIG[resolved.basemapSource]?.shortLabel
       ?? BASEMAP_SHORT_LABELS[resolved.basemapSource]
       ?? resolved.basemapSource
-    const label = state.showCaptureDatePill === "source-date"
-      ? `${sourceShortLabel} · ${dateLabel}`
+    const label = !hasKnownDate ? sourceShortLabel
+      : state.showCaptureDatePill === "source-date" ? `${sourceShortLabel} · ${dateLabel}`
       : dateLabel
     const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : "0.5rem"
     // The rightmost column's own pane DOM box intentionally extends under the
@@ -3150,7 +3152,7 @@ export function TerrainViewer() {
           />
         </div>
       )}
-      <HistoricalTimelinePanel state={state} setState={setState} />
+      <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapRefs.A as any} />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
         <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} />
       )}
