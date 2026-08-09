@@ -22,15 +22,22 @@ import { viewFieldName, type ViewId } from "@/lib/grid-layouts"
 // one actually renders is picked via the bottom timeline panel's pills/ticks,
 // not the sidebar (see lib/historical-sources.ts's resolveActiveHistoricalSource).
 export const BUILTIN_BASEMAP_OPTIONS = [
-  { value: "historical", label: "Historical Imagery" },
-  { value: "google", label: "Google Hybrid" },
-  { value: "bing", label: "Bing Aerial" },
-  { value: "esri", label: "ESRI World Imagery" },
-  { value: "mapbox", label: "Mapbox Satellite" },
-  { value: "here", label: "HERE Satellite" },
-  { value: "googlesat", label: "Google Satellite" },
-  { value: "osm", label: "OpenStreetMap" },
+  { value: "historical", label: "Historical Imagery", shortLabel: "Historical" },
+  { value: "google", label: "Google Hybrid", shortLabel: "Google" },
+  { value: "bing", label: "Bing Aerial", shortLabel: "Bing" },
+  { value: "esri", label: "ESRI World Imagery", shortLabel: "ESRI" },
+  { value: "mapbox", label: "Mapbox Satellite", shortLabel: "Mapbox" },
+  { value: "here", label: "HERE Satellite", shortLabel: "HERE" },
+  { value: "googlesat", label: "Google Satellite", shortLabel: "Google Sat" },
+  { value: "osm", label: "OpenStreetMap", shortLabel: "OSM" },
 ]
+
+// Lookup by id for the capture-date pill's compact source label — falls back
+// to the raw basemap id (e.g. a custom BYOD source) when not one of the
+// builtins above.
+export const BASEMAP_SHORT_LABELS: Record<string, string> = Object.fromEntries(
+  BUILTIN_BASEMAP_OPTIONS.map((o) => [o.value, o.shortLabel]),
+)
 
 // Providers that need an API key to actually load tiles — hidden from the
 // picker until a key is set (Settings > API Keys, or a local VITE_*_API_KEY/

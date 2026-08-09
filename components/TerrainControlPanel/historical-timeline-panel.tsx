@@ -152,6 +152,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // itself (not just let JSX's `ref={trackRef}` do it), which TS otherwise
   // rejects as read-only on the plain useRef<HTMLDivElement>(null) overload.
   const trackRef = useRef<HTMLDivElement | null>(null)
+  // Which DOM node the panel itself lives in, plus whether the user's most
+  // recent pointerdown anywhere on the page landed inside it — see the
+  // ArrowLeft/ArrowRight handler below for why this exists.
+  const panelElRef = useRef<HTMLDivElement | null>(null)
+  const lastPointerInPanelRef = useRef(false)
   // Drag state for the horizontal pan gutter below the track — a plain ref
   // (not state) since it only needs to survive across pointermove events
   // within one drag gesture, not trigger renders itself.
@@ -247,6 +252,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // (see the comment above setTrackRef).
   const panelObserverRef = useRef<ResizeObserver | null>(null)
   const setPanelRef = useCallback((el: HTMLDivElement | null) => {
+    panelElRef.current = el
     panelObserverRef.current?.disconnect()
     panelObserverRef.current = null
     if (!el) return
@@ -581,8 +587,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const YEAR_STEPS = [1, 2, 5, 10, 20, 25, 50, 100]
   const yearMarks = useMemo(() => {
     if (!items.length || !trackWidth) return [] as { frac: number; label: string }[]
-    const startYear = new Date(effectiveMin).getFullYear()
-    const endYear = new Date(effectiveMax).getFullYear()
+    // UTC throughout (getUTCFullYear/Date.UTC), not local time — effectiveMin's
+    // own floor (DEFAULT_VIEW_FLOOR_MS) is a Date.UTC value, so mixing in a
+    // local-time year boundary here could put it on the wrong side of that
+    // floor in any non-UTC timezone: in a UTC+ zone, local Jan-1-2010
+    // midnight is BEFORE the UTC floor, so the "2010" mark computed itself
+    // then got silently dropped by the `t < effectiveMin` check below,
+    // leaving 2011 as the first visible label instead of 2010.
+    const startYear = new Date(effectiveMin).getUTCFullYear()
+    const endYear = new Date(effectiveMax).getUTCFullYear()
     const msPerYear = 365.25 * 86_400_000
     const pxPerYear = trackWidth / (effectiveSpan / msPerYear)
     let step = YEAR_STEPS[YEAR_STEPS.length - 1]
@@ -592,7 +605,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const marks: { frac: number; label: string }[] = []
     const firstMarkYear = Math.ceil(startYear / step) * step
     for (let y = firstMarkYear; y <= endYear; y += step) {
-      const t = new Date(y, 0, 1).getTime()
+      const t = Date.UTC(y, 0, 1)
       if (t < effectiveMin || t > effectiveMax) continue
       marks.push({ frac: (t - effectiveMin) / effectiveSpan, label: String(y) })
     }
@@ -682,13 +695,37 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // changed.
   const rasterBasemapOff = !state.showRasterBasemap
 
+  // Tracks whether the user's most recent pointerdown anywhere on the page
+  // landed inside this panel — capture phase so it still fires even when the
+  // mousedown target is inside a Portal-rendered popover (a Select's open
+  // listbox, a Dialog, etc.) that would otherwise stop propagation before a
+  // bubble-phase listener saw it.
+  useEffect(() => {
+    const handler = (e: PointerEvent) => {
+      lastPointerInPanelRef.current = !!(panelElRef.current && e.target instanceof Node && panelElRef.current.contains(e.target))
+    }
+    window.addEventListener("pointerdown", handler, { capture: true })
+    return () => window.removeEventListener("pointerdown", handler, { capture: true })
+  }, [])
+
   // Arrow-key stepping — replaces the old play/pause/prev/next buttons.
-  // Listens globally (not just while the track has focus) but ignores the
-  // event whenever an editable element elsewhere on the page has focus.
+  // Listens globally (not just while the track has focus) so it still works
+  // while a pill/handle has focus rather than the track itself, but that
+  // same "not just while the track has focus" breadth was exactly the bug:
+  // arrowing through an OPEN dropdown's own options (e.g. cycling Blend Mode
+  // in the sidebar) also fired this handler on every keypress, since a
+  // Select's trigger button isn't an INPUT/TEXTAREA/SELECT/contentEditable
+  // and so slipped right past the exclusion check below, silently stepping
+  // the historical date/source underneath the sidebar at the same time.
+  // Gating on lastPointerInPanelRef instead — arrow keys only step the
+  // timeline when the panel itself was the last thing actually clicked —
+  // fixes that without having to special-case every possible non-native
+  // dropdown/listbox implementation elsewhere in the app.
   useEffect(() => {
     if (!panelVisible) return
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
+      if (!lastPointerInPanelRef.current) return
       const el = document.activeElement
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || (el as HTMLElement).isContentEditable)) return
       e.preventDefault()
