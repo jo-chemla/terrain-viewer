@@ -101,7 +101,9 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   }
 
   const textFor = (id: string, geAttribution: string, waybackAttribution: { srcDesc: string; niceDesc: string }) =>
-    id === "wayback" ? waybackAttribution.niceDesc
+    // Short "Provider (Source)" label only (e.g. "Maxar (WV03_VNIR)") — the
+    // fuller NICE_DESC-style sentence read as too much noise in this list.
+    id === "wayback" ? waybackAttribution.srcDesc
     : id === "esri" ? esriAttribution
     : id === "ge-historical" ? geAttribution
     : id === "bing" ? bingAttribution
@@ -152,26 +154,11 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   // itself (still used as-is for the corner-attribution push above).
   const stripSourcePrefix = (text: string) => text.replace(/^(Esri|Google Earth) - /, "")
 
-  // Wayback shows BOTH halves of its real per-release identify result — the
-  // short "provider (source)" code (SRC_DESC-equivalent) AND the full
-  // descriptive sentence (NICE_DESC-equivalent), same two fields a literal
-  // click on Esri's own Wayback Machine site returns — instead of collapsing
-  // to the single-line format every other source uses.
   const row = (id: string, geAttribution: string, waybackAttribution: { srcDesc: string; niceDesc: string }, prefix: string) => (
-    id === "wayback" ? (
-      <div key={prefix || "single"} className="px-2 py-1.5 rounded bg-muted/50 text-xs space-y-0.5">
-        <div className="flex items-start justify-between gap-3">
-          <span className="shrink-0">{prefix}{basemapLabel(id)}</span>
-          <span className="text-muted-foreground text-right font-medium">{waybackAttribution.srcDesc}</span>
-        </div>
-        <div className="text-muted-foreground">{waybackAttribution.niceDesc}</div>
-      </div>
-    ) : (
-      <div key={prefix || "single"} className="flex items-start justify-between gap-3 px-2 py-1.5 rounded bg-muted/50 text-xs">
-        <span className="shrink-0">{prefix}{basemapLabel(id)}</span>
-        <span className="text-muted-foreground text-right">{stripSourcePrefix(textFor(id, geAttribution, waybackAttribution))}</span>
-      </div>
-    )
+    <div key={prefix || "single"} className="flex items-start justify-between gap-3 px-2 py-1.5 rounded bg-muted/50 text-xs">
+      <span className="shrink-0">{prefix}{basemapLabel(id)}</span>
+      <span className="text-muted-foreground text-right">{stripSourcePrefix(textFor(id, geAttribution, waybackAttribution))}</span>
+    </div>
   )
 
   // Dedup consecutive views that resolved to the exact same basemap id AND

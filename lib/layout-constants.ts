@@ -41,7 +41,7 @@ export function clamp(value: number, min: number, max: number): number {
 
 // Per-side color overrides for the grid/overlay comparison UI — defaults to
 // lib/grid-layouts.ts's SIDE_COLORS; only the letters a user has actually
-// repainted via the Comparison and Mix section's color pickers get an entry
+// repainted via the Compare and Blend section's color pickers get an entry
 // here. Shared by the historical timeline panel's handles/pills and (when
 // colorizeMapBordersAtom is on) each map pane's border, so both stay in sync.
 export const sideColorOverridesAtom = atomWithStorage<Partial<Record<ViewId, string>>>("sideColorOverrides", {})
@@ -57,7 +57,7 @@ export const colorizeMapBordersAtom = atomWithStorage("colorizeMapBorders", fals
 // than the inset one it replaced.
 export const colorizeMapBordersInsetAtom = atomWithStorage("colorizeMapBordersInset", true)
 
-// Comparison and Mix section's own "Advanced" (capture date / colorize
+// Compare and Blend section's own "Advanced" (capture date / colorize
 // borders / side colors) collapsible — persisted like every other
 // section-local collapse toggle (isBasemapByodOpenAtom etc. in
 // settings-atoms.ts) so it doesn't silently re-collapse on every reload.
