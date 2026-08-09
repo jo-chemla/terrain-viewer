@@ -11,6 +11,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { Section, CycleButtonGroup, SliderControl, SourceGridToggle, GroupHeading } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
 import { useBingCaptureDate } from "@/lib/bing"
+import { useEsriLiveCaptureDate } from "@/lib/wayback"
 import { viewFieldName, type ViewId } from "@/lib/grid-layouts"
 
 // Kept as the full static list (including key-gated providers) so callers like
@@ -61,6 +62,11 @@ export const RasterBasemapSection: React.FC<{
   // Real "as-of" capture date for Bing's single live mosaic (see lib/bing.ts)
   // — read from the current view center's tile, not per-row/per-selection.
   const { label: bingCaptureLabel } = useBingCaptureDate(state.lat, state.lng, state.zoom)
+  // Same idea for plain "ESRI World Imagery" — it's always showing whichever
+  // Wayback release is currently newest at this location (see
+  // useEsriLiveCaptureDate's own doc comment), so it has a real capture date
+  // too, not just a static "always current" implication.
+  const { label: esriCaptureLabel } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
 
   const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, planet: planetKey }
   const visibleBuiltinOptions = useMemo(
@@ -156,6 +162,9 @@ export const RasterBasemapSection: React.FC<{
                       {value === "bing" && bingCaptureLabel && (
                         <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
                       )}
+                      {value === "esri" && esriCaptureLabel && (
+                        <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
+                      )}
                     </Label>
                   </div>
                 ))}
@@ -179,6 +188,9 @@ export const RasterBasemapSection: React.FC<{
                         {label}
                         {value === "bing" && bingCaptureLabel && (
                           <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
+                        )}
+                        {value === "esri" && esriCaptureLabel && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
                         )}
                       </Label>
                     </div>

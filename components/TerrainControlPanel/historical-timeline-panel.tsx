@@ -77,6 +77,10 @@ type TimelineTick = { source: string; key: number; dateMs: number; label: string
 // controlling how much each wheel tick zooms by.
 const MIN_VISIBLE_SPAN_MS = 1000 * 60 * 60 * 24 * 14
 const ZOOM_FACTOR = 0.85
+// How long a gap between wheel events ends the current pan/zoom gesture and
+// lets the next event's own deltaX/deltaY ratio re-decide the mode — see
+// wheelGestureRef above.
+const WHEEL_GESTURE_TIMEOUT_MS = 200
 
 // A Wayback tick's own release/mosaic label (t.label, from releaseDateLabel)
 // is a catalog-wide publish date — the REAL per-tile imagery date can differ
@@ -147,6 +151,16 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // during the SAME render pass whose triggering action (a wheel event, a
   // gutter drag) already calls setViewWindow and forces that re-render.
   const hasZoomedRef = useRef(false)
+  // A continuous trackpad two-finger swipe rarely has PURE deltaX — tiny
+  // deltaY noise on individual events means a per-event `abs(deltaX) >
+  // abs(deltaY)` check can flip between the pan and zoom branches below
+  // several times within what's really one gesture, each flip changing the
+  // view a different (wrong) way — reads as a stutter/jitter rather than a
+  // smooth pan. Locking the whole gesture to whichever mode its FIRST event
+  // looked like, and only re-deciding after a real pause (no wheel events
+  // for WHEEL_GESTURE_TIMEOUT_MS), keeps one swipe consistently doing one
+  // thing.
+  const wheelGestureRef = useRef<{ mode: "pan" | "zoom"; lastEventTime: number } | null>(null)
   // `| null` in the generic (not just the initial value) so this stays a
   // MutableRefObject — setTrackRef below needs to assign trackRef.current
   // itself (not just let JSX's `ref={trackRef}` do it), which TS otherwise
@@ -164,12 +178,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // later drags back past their starting point.
   const ctrlGroupDragRef = useRef<{
     dragSide: ViewId
-    dragSource: string
     dragOriginalIndex: number
     dragOriginalDateMs: number
     startClientX: number
     direction: -1 | 0 | 1
-    snapshot: { side: ViewId; source: string; originalIndex: number; dateMs: number }[]
+    snapshot: { side: ViewId; originalIndex: number; dateMs: number }[]
   } | null>(null)
   // Which DOM node the panel itself lives in, plus whether the user's most
   // recent pointerdown anywhere on the page landed inside it — see the
@@ -187,9 +200,16 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
 
   // Grid/dual-mode shape — generalizes the old fixed A/B pair to every
   // active view (A-F) in the current gridLayout. "overlay" always compares
-  // exactly 2 views (A/B), regardless of state.gridLayout's own value — same
-  // policy as TerrainViewer.tsx's effectiveGridLayout.
-  const gridLayoutForTimeline: GridLayoutId = state.splitStyle === "overlay" ? "2x1" : (state.gridLayout ?? "2x1")
+  // exactly 2 views (A/B), and terrain mode is always forced to 2x1 too
+  // (it has no grid-layout picker of its own) — same policy as
+  // TerrainViewer.tsx's own effectiveGridLayout. Missing the terrain-mode
+  // half of that used to leave this reading state.gridLayout's raw stored
+  // value directly — switching FROM a historical 3x2 grid TO terrain mode
+  // left every one of that grid's 6 views' pills on the timeline, even
+  // though TerrainViewer.tsx itself had already collapsed back to 2x1.
+  const gridLayoutForTimeline: GridLayoutId = (state.splitStyle === "overlay" || state.appMode !== "historical")
+    ? "2x1"
+    : (state.gridLayout ?? "2x1")
   // Every side beyond A only ever shows as independently-draggable when
   // views are genuinely independent (per-view basemap AND split both on) —
   // in every other mode every side's basemap is identical by construction
@@ -656,45 +676,41 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // outside the current zoom window have no nudged position (tickLeftPct
   // falls back to fracForTick for those), which is fine since they aren't
   // rendered anyway — only an approximate "jump near the edge" target.
-  const nearestTickForClientX = useCallback((clientX: number): TimelineTick | null => {
+  const nearestIndexForClientX = useCallback((clientX: number): number | null => {
     const rect = trackRef.current?.getBoundingClientRect()
     if (!rect || !items.length) return null
     const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
-    let best = items[0]
-    let bestDist = Math.abs(tickLeftPct(items[0]) / 100 - frac)
-    for (const t of items) {
-      const d = Math.abs(tickLeftPct(t) / 100 - frac)
-      if (d < bestDist) { best = t; bestDist = d }
-    }
-    return best
-  }, [items, tickLeftPct])
-
-  // Ctrl+drag "move this pill and sweep everything on one side along with
-  // it" — see ctrlGroupDragRef below for the full gesture. Both helpers
-  // work in TICK-INDEX space within a single source's own item list (not
-  // pixels, not raw dates) so "shift by N marks" means the same thing for
-  // every side even when two sides are on completely different sources
-  // with different date spacing.
-  const indexInOwnSource = useCallback((source: string, key: number): number => {
-    return items.filter((t) => t.source === source).findIndex((t) => t.key === key)
-  }, [items])
-  const nearestIndexInOwnSource = useCallback((source: string, clientX: number): number | null => {
-    const rect = trackRef.current?.getBoundingClientRect()
-    const ownItems = items.filter((t) => t.source === source)
-    if (!rect || !ownItems.length) return null
-    const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
     let bestIdx = 0
-    let bestDist = Math.abs(tickLeftPct(ownItems[0]) / 100 - frac)
-    for (let i = 1; i < ownItems.length; i++) {
-      const d = Math.abs(tickLeftPct(ownItems[i]) / 100 - frac)
+    let bestDist = Math.abs(tickLeftPct(items[0]) / 100 - frac)
+    for (let i = 1; i < items.length; i++) {
+      const d = Math.abs(tickLeftPct(items[i]) / 100 - frac)
       if (d < bestDist) { bestIdx = i; bestDist = d }
     }
     return bestIdx
   }, [items, tickLeftPct])
-  const tickAtOwnSourceOffset = useCallback((source: string, originalIndex: number, deltaN: number): TimelineTick | null => {
-    const ownItems = items.filter((t) => t.source === source)
-    if (!ownItems.length) return null
-    return ownItems[Math.max(0, Math.min(ownItems.length - 1, originalIndex + deltaN))]
+  const nearestTickForClientX = useCallback((clientX: number): TimelineTick | null => {
+    const idx = nearestIndexForClientX(clientX)
+    return idx === null ? null : items[idx]
+  }, [items, nearestIndexForClientX])
+
+  // Ctrl+drag "move this pill and sweep everything on one side along with
+  // it" — see ctrlGroupDragRef below for the full gesture. Index space here
+  // is the FLATTENED, all-sources-combined `items` list (same list/order
+  // nearestTickForClientX above already searches) — NOT each handle's own
+  // source filtered down on its own. Two sides on different sources still
+  // move by "the same number of marks" this way, just counted along the one
+  // timeline everything is actually drawn on, matching what dragging N
+  // marks visually looks like on screen — scoping the index to each
+  // handle's own source individually (an earlier version of this) meant two
+  // sources with very different tick density disagreed on what "N marks"
+  // even meant, which read as the sweep being driven by raw time distance
+  // instead of a clean mark count.
+  const indexInFlatList = useCallback((source: string, key: number): number => {
+    return items.findIndex((t) => t.source === source && t.key === key)
+  }, [items])
+  const tickAtFlatOffset = useCallback((originalIndex: number, deltaN: number): TimelineTick | null => {
+    if (!items.length) return null
+    return items[Math.max(0, Math.min(items.length - 1, originalIndex + deltaN))]
   }, [items])
 
   // If a zoomed window is active and the tick just applied falls outside it,
@@ -802,9 +818,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // lets the listener itself be attached exactly ONCE (whenever
   // panelVisible flips true) while always reading the LATEST values on each
   // event, regardless of how fast they arrive.
-  const wheelStateRef = useRef({ effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow })
+  const wheelStateRef = useRef({ effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow, hasHiddenRange })
   useEffect(() => {
-    wheelStateRef.current = { effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow }
+    wheelStateRef.current = { effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow, hasHiddenRange }
   })
 
   // Attached imperatively (not a JSX onWheel) so preventDefault reliably
@@ -815,16 +831,32 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       hasZoomedRef.current = true
-      const { effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow } = wheelStateRef.current
+      const { effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, hasHiddenRange } = wheelStateRef.current
       const rect = el.getBoundingClientRect()
       // A trackpad's two-finger swipe fires wheel events with deltaX
       // dominant (vs. deltaY for a mouse wheel / vertical scroll gesture) —
       // treat that as PAN instead of zoom, matching how every other
       // horizontally-zoomed surface (a browser page, a chart) responds to
-      // the same gesture. Only meaningful once already zoomed in — at full
-      // extent there's nowhere to pan to.
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        if (!viewWindow) return
+      // the same gesture. Gated on hasHiddenRange (is there real content to
+      // pan to), NOT on viewWindow already being set — same bug the pan
+      // gutter had: the very first render can already have hasHiddenRange
+      // true (an outlier tick clipped by the 2010 default-view floor) while
+      // viewWindow is still null, and gating on viewWindow there silently
+      // no-opped every pan tick while nearby near-vertical wheel noise (a
+      // real trackpad swipe is rarely PURE deltaX) still fell through to the
+      // zoom branch below and changed the view anyway — the mix of "nothing
+      // happens" and "a little zoom happens" on alternating events is what
+      // read as stutter, plus whatever tick sits mid-view staying visually
+      // pinned since the pan itself never actually moved anything.
+      const now = performance.now()
+      const priorGesture = wheelGestureRef.current
+      const isNewGesture = !priorGesture || now - priorGesture.lastEventTime > WHEEL_GESTURE_TIMEOUT_MS
+      const mode: "pan" | "zoom" = isNewGesture
+        ? (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "pan" : "zoom")
+        : priorGesture.mode
+      wheelGestureRef.current = { mode, lastEventTime: now }
+      if (mode === "pan") {
+        if (!hasHiddenRange) return
         const span = effectiveMax - effectiveMin
         const deltaMs = (e.deltaX / rect.width) * effectiveSpan
         let newMin = effectiveMin + deltaMs
@@ -949,15 +981,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                     .filter((s) => s !== side && tickBySide[s])
                     .map((s) => ({
                       side: s,
-                      source: tickBySide[s]!.source,
-                      originalIndex: indexInOwnSource(tickBySide[s]!.source, tickBySide[s]!.key),
+                      originalIndex: indexInFlatList(tickBySide[s]!.source, tickBySide[s]!.key),
                       dateMs: tickBySide[s]!.dateMs,
                     }))
                     .filter((s) => s.originalIndex >= 0)
                   ctrlGroupDragRef.current = {
                     dragSide: side,
-                    dragSource: tick.source,
-                    dragOriginalIndex: indexInOwnSource(tick.source, tick.key),
+                    dragOriginalIndex: indexInFlatList(tick.source, tick.key),
                     dragOriginalDateMs: tick.dateMs,
                     startClientX: e.clientX,
                     direction: 0,
@@ -979,21 +1009,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                   scrubTo(side, e.clientX)
                   return
                 }
-                // Ctrl-drag: the dragged handle's own movement is ALSO
-                // index-based within its own source's list here, not the
-                // plain drag's cross-source nearest-by-pixel scrubTo — pixel
-                // position is basically a proxy for time, so scrubTo could
-                // land the dragged handle on a DIFFERENT source's tick that
-                // happens to be pixel-closer, which would make "how many
-                // marks did the drag move" ambiguous (relative to which
-                // source's list?) and reads as a time-distance drag rather
-                // than a clean N-marks one. Restricting both the dragged
-                // handle and the swept ones to the same "index within MY OWN
-                // source's list" mechanism keeps the whole gesture consistent.
-                const newIdx = nearestIndexInOwnSource(drag.dragSource, e.clientX)
+                // Ctrl-drag: index space is the flattened, all-sources
+                // combined list (nearestIndexForClientX/tickAtFlatOffset —
+                // same list the plain drag's own nearestTickForClientX
+                // already searches), not each handle's own source filtered
+                // down on its own — so "N marks" means the same visual
+                // distance along the timeline for every handle, dragged or
+                // swept, regardless of which source each one happens to be
+                // on.
+                const newIdx = nearestIndexForClientX(e.clientX)
                 if (newIdx === null) return
                 const deltaN = newIdx - drag.dragOriginalIndex
-                const draggedTick = tickAtOwnSourceOffset(drag.dragSource, drag.dragOriginalIndex, deltaN)
+                const draggedTick = tickAtFlatOffset(drag.dragOriginalIndex, deltaN)
                 if (draggedTick) applyTick(draggedTick, side)
                 if (drag.direction === 0) {
                   const dx = e.clientX - drag.startClientX
@@ -1011,7 +1038,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 for (const snap of drag.snapshot) {
                   const isLeftOfDrag = snap.dateMs < drag.dragOriginalDateMs
                   if ((drag.direction === -1) !== isLeftOfDrag) continue
-                  const newTick = tickAtOwnSourceOffset(snap.source, snap.originalIndex, deltaN)
+                  const newTick = tickAtFlatOffset(snap.originalIndex, deltaN)
                   if (newTick) setTickForSide(snap.side, newTick)
                 }
               }}
@@ -1397,7 +1424,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             above already carry each side's own date/source regardless), so
             the panel is simply shorter by this row's height instead. The
             "Open in..." button that used to live in this row moved to
-            Comparison and Mix (comparison-mix-section.tsx) to keep this
+            Compare and Blend (comparison-mix-section.tsx) to keep this
             panel tighter. */}
         {showingViews.length === 2 && (
           <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums mx-2">

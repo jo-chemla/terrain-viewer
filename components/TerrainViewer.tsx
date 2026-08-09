@@ -188,7 +188,7 @@ export const QUERY_STATE_PARSERS = {
     // "overlay"-only: pane B's CSS mix-blend-mode + opacity against pane A.
     splitBlendMode: parseAsStringLiteral(BLEND_MODES).withDefault("normal"),
     overlayOpacity: parseAsFloat.withDefault(1.0),
-    // Comparison and Mix's "Show Capture Date" toggle — a small per-view pill
+    // Compare and Blend's "Show Capture Date" toggle — a small per-view pill
     // for whichever views are actually on a dated historical source. "date"
     // shows just the formatted date; "source-date" prefixes it with that
     // source's short brand name (historical-timeline-panel.tsx's
@@ -840,7 +840,7 @@ export function TerrainViewer() {
   // (clip-path/blend only ever compares exactly 2 panes); terrain mode (as
   // opposed to historical) forces "2x1" too — its own General Settings row
   // only ever exposes Split Mode (off/overlay/side), never a grid-layout
-  // picker (that only lives in the historical-mode Comparison and Mix
+  // picker (that only lives in the historical-mode Compare and Blend
   // section), so state.gridLayout could still hold a stale non-2x1 value
   // from a previous historical-mode session. Every other split style in
   // historical mode honors the user's chosen gridLayout.
@@ -2841,7 +2841,7 @@ export function TerrainViewer() {
     ? (paneLayouts[0].width / splitContainerWidth) * 100
     : 0
 
-  // "Show Capture Date" pill (Comparison and Mix) — rendered as a SIBLING of
+  // "Show Capture Date" pill (Compare and Blend) — rendered as a SIBLING of
   // the pane divs (not nested inside one), positioned via that pane's own
   // geometry, specifically so it's never subject to an overlay pane's own
   // clip-path/opacity/blend (a UI label, unlike the border below, has no

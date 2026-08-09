@@ -25,7 +25,7 @@ export const GeneralSettings: React.FC<{
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const disabledViewModes = activeProjectConfig?.disableViewModes ?? []
   const hideSplitScreen = activeProjectConfig?.hiddenSections?.includes("splitScreen") ?? false
-  // Terrain mode has no Comparison and Mix section (that's historical-only —
+  // Terrain mode has no Compare and Blend section (that's historical-only —
   // see the comment below), so its own "Open in..." launcher lives here
   // instead, as the last row — same hook/pattern comparison-mix-section.tsx
   // uses for its own copy, just gated the other way round (!historicalMode).
@@ -53,7 +53,7 @@ export const GeneralSettings: React.FC<{
         </div>
       )}
       {/* Terrain mode's own minimal comparison control — historical mode gets
-          the full Comparison and Mix section instead (grid layout picker,
+          the full Compare and Blend section instead (grid layout picker,
           blend mode/opacity, per-side border colors, capture-date pill), a
           full N-map grid being a historical-imagery-comparison feature more
           than a terrain-visualization one. Always forces gridLayout "2x1"
@@ -90,7 +90,7 @@ export const GeneralSettings: React.FC<{
         </div>
       )}
       {/* Last row, terrain mode only — historical mode gets its own copy at
-          the bottom of Comparison and Mix instead (comparison-mix-section.tsx). */}
+          the bottom of Compare and Blend instead (comparison-mix-section.tsx). */}
       {!historicalMode && (
         <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="w-full" />
       )}

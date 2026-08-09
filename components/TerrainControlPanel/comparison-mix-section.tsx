@@ -78,7 +78,7 @@ const GridLayoutPicker: React.FC<{ value: GridLayoutId; onChange: (id: GridLayou
 // Settings (which used to hold just the old on/off "Split Screen" row) once
 // that grew into: split style (off/overlay/side-by-side), grid layout
 // (2x1..3x2), blend mode + opacity (overlay only), and per-side border
-// colorization. "Comparison and Mix" while a better name doesn't turn up.
+// colorization. "Compare and Blend" felt closer to what it actually covers.
 //
 // Historical-mode only — Terrain mode still gets a plain Split Mode toggle
 // (off/overlay/side, no grid picker, forced to gridLayout "2x1" — see
@@ -128,7 +128,7 @@ export const ComparisonMixSection: React.FC<{
   const effectiveGridLayout: GridLayoutId = isOverlay ? "2x1" : (state.gridLayout ?? "2x1")
 
   return (
-    <Section title="Comparison and Mix" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
+    <Section title="Compare and Blend" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-medium">Split Mode</Label>
         <SegmentedToggle
