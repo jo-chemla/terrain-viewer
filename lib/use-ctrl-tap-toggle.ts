@@ -15,11 +15,12 @@ import { useEffect, useRef } from "react"
 // tap-toggle before and moved off it onto Shift — these two disarm paths are
 // the likely reason; kept as its own hook, not a use-shift-tap-toggle option,
 // in case Ctrl turns out to need still more special-casing later.)
-export function useCtrlTapToggle(onTap: () => void) {
+export function useCtrlTapToggle(onTap: () => void, enabled: boolean = true) {
   const onTapRef = useRef(onTap)
   onTapRef.current = onTap
 
   useEffect(() => {
+    if (!enabled) return
     let armed = false
 
     const isEditableTarget = (target: EventTarget | null): boolean => {
@@ -67,5 +68,5 @@ export function useCtrlTapToggle(onTap: () => void) {
       document.removeEventListener("wheel", onWheel, true)
       window.removeEventListener("blur", onBlur)
     }
-  }, [])
+  }, [enabled])
 }

@@ -77,6 +77,11 @@ export const LightControlOverlay: React.FC<{
   }, [setState])
 
   useEffect(() => {
+    // Hillshade lighting is a terrain-only concept — holding L in Historical
+    // Satellite mode would just silently do nothing useful (no Hillshade
+    // rendered there) while still swallowing the key, so skip wiring it up
+    // entirely rather than relying on that non-obviously.
+    if (state.appMode === "historical") return
     // Plain closure vars, not state — these track a fast, transient physical
     // gesture (key+mouse both held), not something the UI needs to react to
     // on its own; `active` is the only piece that needs to trigger a render.
@@ -129,7 +134,7 @@ export const LightControlOverlay: React.FC<{
       window.removeEventListener("pointerup", onPointerUp)
       window.removeEventListener("blur", onBlur)
     }
-  }, [applyFromPointer])
+  }, [applyFromPointer, state.appMode])
 
   // Hand map dragPan/dragRotate back the moment the gesture ends, unmounts,
   // or mapRef changes — never leave the map stuck non-draggable.
