@@ -182,15 +182,19 @@ export const ComparisonMixSection: React.FC<{
                   </span>
                 }
               />
-              <TooltipContent><p>Turn the blend mode effect on or off — the picked mode below stays remembered either way, so this is a quick toggle to preview the plain (unblended) overlay without losing it.</p></TooltipContent>
+              <TooltipContent><p>Turn the blend mode effect on or off — the picker below stays fully usable either way, so you can line up a different mode (dimmed while off, since it won't apply yet) without losing the current one first.</p></TooltipContent>
             </Tooltip>
             <Select
               value={state.splitBlendMode}
               onValueChange={(value) => value && setState({ splitBlendMode: value })}
               items={BLEND_MODE_GROUPS}
-              disabled={!state.splitBlendModeEnabled}
             >
-              <SelectTrigger className="w-[140px] cursor-pointer">
+              {/* Stays fully interactive (not `disabled`) even with the
+                  checkbox off — picking a mode ahead of time, to have it
+                  ready the moment blending is switched back on, is exactly
+                  what that checkbox is for. Only dimmed to *look*
+                  disabled, as a "won't currently apply" cue. */}
+              <SelectTrigger className={cn("w-[140px] cursor-pointer", !state.splitBlendModeEnabled && "opacity-50")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
