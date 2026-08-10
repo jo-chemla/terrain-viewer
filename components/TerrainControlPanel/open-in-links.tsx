@@ -71,14 +71,14 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
       `https://mc.bbbike.org/mc/?lon=${lng}&lat=${lat}&zoom=${Math.round(zoom)}&num=4&mt0=mapnik-german&mt1=cyclemap&mt2=bing-hybrid`,
   },
   {
-    id: "iconem-historical",
-    label: "Iconem Historical Satellite",
-    buildUrl: ({ lat, lng, zoom }) => `https://historical-satellite.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
-  },
-  {
     id: "iconem-search-eo",
     label: "Iconem Search-EO",
     buildUrl: ({ lat, lng, zoom }) => `https://search-eo-imagery.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
+  },
+  {
+    id: "iconem-historical",
+    label: "Iconem Historical Satellite",
+    buildUrl: ({ lat, lng, zoom }) => `https://historical-satellite.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
   },
 ]
 
@@ -181,7 +181,11 @@ export const OpenInLinksButton: React.FC<{
   state: any
   mapRef: React.RefObject<MapRef>
   waybackLatestRelease: number | null
-}> = ({ state, mapRef, waybackLatestRelease }) => {
+  /** e.g. "w-full" when this is the only control on its row (sidebar usage)
+   *  instead of paired against a Label in a justify-between row (its
+   *  original, narrower, timeline-footer usage). */
+  className?: string
+}> = ({ state, mapRef, waybackLatestRelease, className }) => {
   const [selectedId, setSelectedId] = useAtom(openInSelectedAtom)
   const [customDestinations, setCustomDestinations] = useAtom(customOpenInDestinationsAtom)
   // Controlled (not left to the menu's own default close-on-select) — the
@@ -244,11 +248,11 @@ export const OpenInLinksButton: React.FC<{
   const buttonLabel = allDestinations.find((d) => d.id === selectedId)?.label ?? OPEN_IN_DESTINATIONS[0].label
 
   return (
-    <div className="flex items-stretch rounded-md border border-border/60 overflow-hidden shrink-0">
+    <div className={cn("flex items-stretch rounded-md border border-border/60 overflow-hidden shrink-0", className)}>
       <button
         type="button"
         onClick={handleOpen}
-        className="cursor-pointer flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        className="cursor-pointer flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-accent-foreground"
         title={`Open in ${buttonLabel}`}
       >
         <SquareArrowOutUpRight className="h-3 w-3 shrink-0" />

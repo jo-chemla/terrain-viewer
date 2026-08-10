@@ -6,7 +6,7 @@
 // URL-template fixup MapLibre needs.
 
 import { useEffect, useMemo, useState } from "react"
-import { getWaybackItems, getWaybackItemsWithLocalChanges, getMetadata, type WaybackItem } from "@esri/wayback-core"
+import { getWaybackItems, getWaybackItemsWithLocalChanges, getMetadata, type WaybackItem, type WaybackMetadata } from "@esri/wayback-core"
 
 export type { WaybackItem }
 
@@ -93,27 +93,39 @@ export function useWaybackItemsWithLocalChanges(latitude: number, longitude: num
   return { items, loading }
 }
 
-// Module-level cache for per-tick real-capture-date lookups — both the
+// Module-level cache for per-tick real-capture-metadata lookups — both the
 // timeline's tick POSITIONS (every release at this location, fetched once
 // per location settle — see useWaybackRealCaptureDates below) and a tick
 // tooltip's lazy on-hover fetch share this. Keyed coarsely (3 decimal
 // places / rounded zoom) since a release's imagery doesn't vary at that
-// granularity.
-const captureMetaCache = new Map<string, { dateMs: number; label: string } | null>()
+// granularity. Holds the FULL WaybackMetadata (date, provider, source,
+// resolution, accuracy), not just date/label — fetchWaybackCaptureMeta below
+// and useWaybackDynamicAttribution (real per-release source attribution)
+// both derive their own narrower shape from this one shared cache/network
+// call instead of each fetching separately.
+const fullMetaCache = new Map<string, WaybackMetadata | null>()
 
-/** Plain (non-hook) fetch + cache of the REAL per-tile capture date/label for
- *  one release at one location. */
-async function fetchWaybackCaptureMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<{ dateMs: number; label: string } | null> {
+async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<WaybackMetadata | null> {
   const key = `${releaseNumber}:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
-  if (captureMetaCache.has(key)) return captureMetaCache.get(key)!
+  if (fullMetaCache.has(key)) return fullMetaCache.get(key)!
   try {
     const meta = await getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber)
-    const result = meta ? { dateMs: meta.date, label: new Date(meta.date).toISOString().slice(0, 10) } : null
-    captureMetaCache.set(key, result)
-    return result
+    fullMetaCache.set(key, meta)
+    return meta
   } catch {
+    fullMetaCache.set(key, null)
     return null
   }
+}
+
+/** Plain (non-hook) fetch + cache of the REAL per-tile capture date/label for
+ *  one release at one location. Exported (in addition to the label-only
+ *  fetchWaybackCaptureLabel below) so a non-React batch consumer — export-
+ *  multi's listWaybackTicksInRange — can get the dateMs half too, without
+ *  needing a second network call. */
+export async function fetchWaybackCaptureMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<{ dateMs: number; label: string } | null> {
+  const meta = await fetchWaybackFullMeta(latitude, longitude, zoom, releaseNumber)
+  return meta ? { dateMs: meta.date, label: new Date(meta.date).toISOString().slice(0, 10) } : null
 }
 
 /** Plain (non-hook) fetch + cache, used by useWaybackCaptureDate below and by
@@ -273,6 +285,105 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
   }, [items, resolved, targetDateMs])
 
   return { item, loading: itemsLoading || datesLoading }
+}
+
+/**
+ * The plain, LIVE "ESRI World Imagery" basemap (id "esri", as opposed to the
+ * user-scrubbable "wayback" historical source) has no stored date field of
+ * its own to show in the capture-date pill — but it's not actually dateless,
+ * it's just always showing whichever Wayback release is CURRENTLY newest at
+ * this location (Wayback's own newest release IS the live World Imagery
+ * basemap, republished under its own catalog). getWaybackItems/
+ * getWaybackItemsWithLocalChanges both return newest-first (see
+ * sortByDateAscending's own comment), so `items[0]` here is exactly that
+ * release; this resolves its real per-tile capture date the same way every
+ * Wayback tick already does, just always pinned to the newest one rather
+ * than a user-picked date.
+ */
+export function useEsriLiveCaptureDate(latitude: number, longitude: number, zoom: number): { dateMs: number | null; label: string | null } {
+  const { items } = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
+  const [result, setResult] = useState<{ dateMs: number | null; label: string | null }>({ dateMs: null, label: null })
+
+  useEffect(() => {
+    const newest = items[0]
+    if (!newest) { setResult({ dateMs: null, label: null }); return }
+    let cancelled = false
+    fetchWaybackCaptureMeta(latitude, longitude, zoom, newest.releaseNum).then((meta) => {
+      if (cancelled) return
+      setResult(meta ? { dateMs: meta.dateMs, label: meta.label } : { dateMs: null, label: null })
+    })
+    return () => { cancelled = true }
+  }, [items, latitude, longitude, zoom])
+
+  return result
+}
+
+const WAYBACK_ATTRIBUTION_FALLBACK = { srcDesc: "Esri, Maxar, Earthstar Geographics", niceDesc: "Esri, Maxar, Earthstar Geographics" }
+
+/**
+ * Real, per-RELEASE source attribution for ESRI Wayback — @esri/wayback-core's
+ * own getMetadata (already used for the real capture date above) also
+ * returns `provider`/`source`/`resolution`/`accuracy` for the exact tile at
+ * this location+release, which used to be discarded (see fetchWaybackMeta's
+ * narrower {dateMs,label} shape). Composed into the same two-field shape
+ * Esri's own World_Imagery MapServer identify operation returns for a
+ * clicked point (SRC_DESC — the short "provider (source)" code — and
+ * NICE_DESC — the full descriptive sentence) so this reads the same way a
+ * literal Wayback Machine click would, instead of the generic "who covers
+ * this region today" contributor-coverage feed (useEsriDynamicAttribution)
+ * previously shared between the live basemap AND every dated Wayback tick —
+ * which is why Wayback attribution always resolved to whichever provider
+ * covers the region TODAY (e.g. "Vantor") regardless of which historical
+ * date was actually picked.
+ */
+export function useWaybackDynamicAttribution(latitude: number, longitude: number, zoom: number, targetDateMs: number): { srcDesc: string; niceDesc: string } {
+  const { item } = useResolvedWaybackRelease(latitude, longitude, zoom, targetDateMs)
+  const [attribution, setAttribution] = useState(WAYBACK_ATTRIBUTION_FALLBACK)
+
+  useEffect(() => {
+    if (!item) { setAttribution(WAYBACK_ATTRIBUTION_FALLBACK); return }
+    let cancelled = false
+    fetchWaybackFullMeta(latitude, longitude, zoom, item.releaseNum).then((meta) => {
+      if (cancelled || !meta) return
+      const srcDesc = `${meta.provider} (${meta.source})`
+      const captureLabel = new Date(meta.date).toISOString().slice(0, 10)
+      // Esri's own metadata service returns these as float32-precision values
+      // (e.g. 0.30000001192092896 for a nominal 0.3m) — round for display,
+      // same rounding a real MapServer identify's NICE_DESC string already
+      // bakes in server-side.
+      const resolutionM = Math.round(meta.resolution * 100) / 100
+      const accuracyM = Math.round(meta.accuracy * 100) / 100
+      const niceDesc = `${srcDesc} image captured on ${captureLabel} as shown in the ${item.releaseDateLabel} version of the World Imagery map. Resolution: Pixels in the source image represent a ground distance of ${resolutionM} meters. Accuracy: Objects displayed in this image are within ${accuracyM} meters of true location.`
+      setAttribution({ srcDesc, niceDesc })
+    })
+    return () => { cancelled = true }
+  }, [item, latitude, longitude, zoom])
+
+  return attribution
+}
+
+/**
+ * Plain (non-hook) equivalent of useWaybackItemsWithLocalChanges +
+ * useWaybackRealCaptureDates combined, filtered to a date range — used by
+ * export-multi (lib/export-multi.ts) to enumerate every real Wayback capture
+ * within [startMs, endMs] at a location, outside of a mounted component.
+ * Resolves each candidate release's real date SEQUENTIALLY (not in
+ * parallel like the hook does) — export-multi already fans out per feature/
+ * source/date itself, so this favors going easy on Esri's metadata endpoint
+ * over raw speed here.
+ */
+export async function listWaybackTicksInRange(
+  latitude: number, longitude: number, zoom: number, startMs: number, endMs: number,
+): Promise<{ dateMs: number; label: string; item: WaybackItem }[]> {
+  const items = await getCachedLocalChanges(latitude, longitude, zoom)
+  const out: { dateMs: number; label: string; item: WaybackItem }[] = []
+  for (const item of items) {
+    const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum)
+    const dateMs = meta?.dateMs ?? item.releaseDatetime
+    if (dateMs < startMs || dateMs > endMs) continue
+    out.push({ dateMs, label: meta?.label ?? new Date(dateMs).toISOString().slice(0, 10), item })
+  }
+  return out.sort((a, b) => a.dateMs - b.dateMs)
 }
 
 /** getWaybackItems/getWaybackItemsWithLocalChanges both return newest-first

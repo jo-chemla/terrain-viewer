@@ -191,8 +191,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
     // Any referenced source that isn't a builtin needs to travel WITH the preset —
     // a fresh visitor's browser has never seen it, so pull it out of the current
     // customTerrainSources/customBasemapSources lists by id.
-    const referencedTerrainIds = [state.sourceA, state.sourceB].filter(Boolean)
-    const referencedBasemapIds = [state.basemapSource, state.basemapSourceA, state.basemapSourceB, ...(state.overlayBasemapIds || [])].filter(Boolean)
+    // Every view slot (A-H), not just A/B — a 2x2/3x1/3x2/4x2 grid can
+    // reference a custom source from any of them.
+    const referencedTerrainIds = [state.sourceA, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF, state.sourceG, state.sourceH].filter(Boolean)
+    const referencedBasemapIds = [
+      state.basemapSource, state.basemapSourceA, state.basemapSourceB, state.basemapSourceC, state.basemapSourceD, state.basemapSourceE, state.basemapSourceF, state.basemapSourceG, state.basemapSourceH,
+      ...(state.overlayBasemapIds || []),
+    ].filter(Boolean)
     const usedTerrainSources = customTerrainSources.filter((s) => referencedTerrainIds.includes(s.id))
     const usedBasemapSources = customBasemapSources.filter((s) => referencedBasemapIds.includes(s.id))
 
@@ -360,11 +365,14 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           <Separator />
           <CollapsibleSection title="Keyboard Shortcuts" openAtom={isSettingsKeyboardShortcutsOpenAtom} contentClassName="space-y-2 pt-2">
             <div className="space-y-1.5 text-xs text-muted-foreground">
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Shift</kbd> <span className="mx-1">(tap alone, either side)</span> — toggle the Raster Basemap on/off, without opening the sidebar.</div>
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd> <span className="mx-1">(tap alone, either side)</span> — hide every visualization mode down to just the plain basemap; tap again to restore whichever modes were on.</div>
+              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Shift</kbd> <span className="mx-1">(tap alone, either side, Terrain mode only)</span> — toggle the Raster Basemap on/off, without opening the sidebar.</div>
+              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd> <span className="mx-1">(tap alone, either side, Terrain mode only)</span> — hide every visualization mode down to just the plain basemap; tap again to restore whichever modes were on.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Space</kbd> — re-toggle whichever visualization-mode checkbox you last clicked, even after a map drag has moved keyboard focus onto the map canvas.</div>
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">L</kbd> <span className="mx-1">(hold)</span> + drag — set the Hillshade illumination direction/altitude directly on the map instead of panning it; release L or the mouse to exit.</div>
+              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">L</kbd> <span className="mx-1">(hold, Terrain mode only)</span> + drag — set the Hillshade illumination direction/altitude directly on the map instead of panning it; release L or the mouse to exit.</div>
               <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd>+<kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">K</kbd> — jump focus to the search box (geocoder) from anywhere.</div>
+              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">←</kbd>/<kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">→</kbd> <span className="mx-1">(after editing a dropdown)</span> — cycle through that dropdown's options without reopening it.</div>
+              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">←</kbd>/<kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">→</kbd> <span className="mx-1">(Historical Timeline, after picking a date)</span> — step that view's picked date one mark at a time.</div>
+              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd>+drag <span className="mx-1">(Historical Timeline handle)</span> — also sweeps every other handle on that same side along with it, by the same number of marks.</div>
             </div>
           </CollapsibleSection>
           <Separator />

@@ -6,7 +6,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { TooltipButton, SourceAbToggle, GroupHeading } from "./controls-components"
+import { TooltipButton, SourceGridToggle, GroupHeading } from "./controls-components"
+import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
@@ -53,10 +54,17 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     setState(linkedTerrainId ? { basemapSourceA: id, sourceA: linkedTerrainId } : { basemapSourceA: id })
   }, [customTerrainSources, customBasemapSources, setState])
 
-  const selectBasemapB = useCallback((id: string) => {
+  // Every non-A view (B-F) — this whole branch only ever renders once
+  // isSplit is true, which per viewFieldName's rule always means suffixed
+  // fields regardless of basemapPerView's own persisted value (see
+  // raster-basemap-section.tsx's perViewEffective comment for why).
+  const selectBasemapSide = useCallback((side: ViewId, id: string) => {
+    if (side === "A") { selectBasemapA(id); return }
     const linkedTerrainId = resolveLinkedTerrainId(id, customTerrainSources, customBasemapSources)
-    setState(linkedTerrainId ? { basemapSourceB: id, sourceB: linkedTerrainId } : { basemapSourceB: id })
-  }, [customTerrainSources, customBasemapSources, setState])
+    setState(linkedTerrainId
+      ? { [viewFieldName(side, "basemapSource", true)]: id, [sourceFieldName(side)]: linkedTerrainId }
+      : { [viewFieldName(side, "basemapSource", true)]: id })
+  }, [customTerrainSources, customBasemapSources, setState, selectBasemapA])
 
   const selectBasemapSingle = useCallback((id: string) => {
     const linkedTerrainId = resolveLinkedTerrainId(id, customTerrainSources, customBasemapSources)
@@ -94,8 +102,15 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const handleDeleteCustomBasemap = useCallback((id: string) => {
     setCustomBasemapSources(customBasemapSources.filter((s) => s.id !== id))
     if (state.basemapSource === id) setState({ basemapSource: "osm" })
-    if (state.basemapSourceA === id) setState({ basemapSourceA: "esri" })
-    if (state.basemapSourceB === id) setState({ basemapSourceB: "google" })
+    // Every view (not just A/B) needs its own fallback — same reasoning as
+    // terrain-source-section.tsx's handleDeleteCustomSource.
+    const fallback: Record<ViewId, string> = { A: "esri", B: "google", C: "esri", D: "google", E: "esri", F: "google", G: "esri", H: "google" }
+    const updates: Record<string, string> = {}
+    for (const side of VIEW_IDS) {
+      const field = viewFieldName(side, "basemapSource", true)
+      if (state[field] === id) updates[field] = fallback[side]
+    }
+    if (Object.keys(updates).length > 0) setState(updates)
   }, [customBasemapSources, setCustomBasemapSources, state, setState])
 
   // `force` skips the smart-zoom heuristic and always moves the camera — used by
@@ -223,15 +238,14 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
             <>
             <GroupHeading>Basemap</GroupHeading>
             {state.basemapPerView ? (
-              state.splitScreen ? (
+              state.splitStyle !== "off" ? (
                 <div className="space-y-1.5">
                   {basemapRoleSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
-                      <SourceAbToggle
-                        aActive={state.basemapSourceA === source.id}
-                        bActive={state.basemapSourceB === source.id}
-                        onSelectA={() => selectBasemapA(source.id)}
-                        onSelectB={() => selectBasemapB(source.id)}
+                      <SourceGridToggle
+                        gridLayout={state.splitStyle === "overlay" ? "2x1" : state.gridLayout}
+                        isActive={(side: ViewId) => state[viewFieldName(side, "basemapSource", true)] === source.id}
+                        onSelect={(side: ViewId) => selectBasemapSide(side, source.id)}
                       />
                       <CustomSourceDetails
                         source={source}

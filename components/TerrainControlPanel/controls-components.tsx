@@ -17,6 +17,7 @@ import type { LucideIcon } from "lucide-react"
 import { atom, useAtom } from "jotai"
 import { cn } from "@/lib/utils"
 import { activeSliderAtom, transparentUiAtom, vizActivationAtom } from "@/lib/settings-atoms"
+import { GRID_LAYOUTS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 
 
 // ─── Active-slider atom (global, no prop drilling) ────────────────────────────
@@ -324,42 +325,45 @@ export const PinToggle: React.FC<{ pinned: boolean; onToggle: () => void; wiggle
   </Tooltip>
 )
 
-// ─── SourceAbToggle ────────────────────────────────────────────────────────────
-// Split-screen's per-source-row "use this for A / use this for B" pair. Two
-// independent Toggle buttons rather than one Radix ToggleGroup(type="single")
-// — a single-select group can only ever show ONE of A/B pressed at a time,
-// which silently broke picking the SAME source for both sides: sourceA and
-// sourceB could genuinely both equal this row's key, but the group's single
-// `value` prop (whichever ternary checked first) could only ever display one
-// of them as pressed. Each button here reads its own on/off state directly
-// from sourceA/sourceB, so both can show pressed together. Clicking a button
-// that's already pressed is a no-op (onPressedChange only fires the select
-// callback when turning ON) — sourceA/sourceB always need some active source,
-// there's no "off" state to toggle into.
-export const SourceAbToggle: React.FC<{
-  aActive: boolean
-  bActive: boolean
-  onSelectA: () => void
-  onSelectB: () => void
+// ─── SourceGridToggle ───────────────────────────────────────────────────────
+// Split/grid's per-source-row "use this for view X" toggle — generalizes the
+// old two-button SourceAbToggle into a button MATRIX shaped exactly like the
+// current gridLayout (e.g. 3 columns × 2 rows for "3x2"), each cell labeled
+// with its letter (A-F). Independent Toggle buttons rather than one Radix
+// ToggleGroup(type="single") — a single-select group can only ever show ONE
+// view pressed at a time, which would silently break picking the SAME source
+// for two views (both can genuinely be active at once; the group's single
+// `value` prop could only ever display one of them as pressed). Each button
+// reads its own on/off state directly via `isActive(side)`, so any subset can
+// show pressed together. Clicking a button that's already pressed is a no-op
+// (onPressedChange only fires the select callback when turning ON) — every
+// view always needs SOME active source, there's no "off" state to toggle
+// into. Individual cells stay square (rounded-none) — only the outer group
+// gets a rounded-md + overflow-hidden clip, matching every other input's
+// rounded corners — and a small font size, matching the "looks like a tiny
+// copy of the map grid" look this was asked to have.
+export const SourceGridToggle: React.FC<{
+  gridLayout: GridLayoutId
+  isActive: (side: ViewId) => boolean
+  onSelect: (side: ViewId) => void
   disabled?: boolean
-}> = ({ aActive, bActive, onSelectA, onSelectB, disabled }) => (
-  <div className="flex border rounded-md shrink-0 overflow-hidden">
-    <Toggle
-      pressed={aActive}
-      onPressedChange={(pressed) => { if (pressed) onSelectA() }}
-      disabled={disabled}
-      className="px-3 rounded-none cursor-pointer data-pressed:font-bold"
-    >
-      A
-    </Toggle>
-    <Toggle
-      pressed={bActive}
-      onPressedChange={(pressed) => { if (pressed) onSelectB() }}
-      disabled={disabled}
-      className="px-3 rounded-none border-l cursor-pointer data-pressed:font-bold"
-    >
-      B
-    </Toggle>
+}> = ({ gridLayout, isActive, onSelect, disabled }) => (
+  <div className="flex flex-col border shrink-0 overflow-hidden rounded-md divide-y divide-border">
+    {GRID_LAYOUTS[gridLayout].grid.map((row, rowIdx) => (
+      <div key={rowIdx} className="flex divide-x divide-border">
+        {row.map((side) => (
+          <Toggle
+            key={side}
+            pressed={isActive(side)}
+            onPressedChange={(pressed) => { if (pressed) onSelect(side) }}
+            disabled={disabled}
+            className="h-6 w-6 min-w-6 p-0 rounded-none text-[10px] leading-none cursor-pointer data-pressed:font-bold"
+          >
+            {side}
+          </Toggle>
+        ))}
+      </div>
+    ))}
   </div>
 )
 

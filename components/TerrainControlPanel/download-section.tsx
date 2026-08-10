@@ -1,7 +1,8 @@
 import type React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useAtom } from "jotai"
-import { Download, Camera, Copy, Loader2, MountainSnow, X } from "lucide-react"
+import { Download, Camera, Copy, Loader2, MountainSnow, X, Images } from "lucide-react"
+import { ExportMultiDialog } from "./export-multi-dialog"
 import { titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
@@ -53,6 +54,7 @@ export const DownloadSection: React.FC<{
   const { getTilesUrl } = useSourceConfig()
   const [isExporting, setIsExporting] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
+  const [isExportMultiOpen, setIsExportMultiOpen] = useState(false)
   const [exportProgress, setExportProgress] = useState<number | null>(null)
   const [exportError, setExportError] = useState("")
   // Non-fatal — the download still saved, but at less than the configured Max
@@ -326,6 +328,14 @@ export const DownloadSection: React.FC<{
           />
           <ShareButton mapRef={mapRef} />
         </div>
+        <TooltipButton
+          icon={Images}
+          label="Export Historical GeoTiffs"
+          tooltip="Batch-export historical imagery GeoTIFFs per drawn feature × source × date"
+          onClick={() => setIsExportMultiOpen(true)}
+          className="w-full bg-transparent"
+        />
+        <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} />
       </Section>
     )
   }
@@ -427,6 +437,13 @@ export const DownloadSection: React.FC<{
           />
           <ShareButton mapRef={mapRef} />
         </div>
+        <TooltipButton
+          icon={Images}
+          label="Export Historical GeoTiffs"
+          tooltip="Batch-export historical imagery GeoTIFFs per drawn feature × source × date"
+          onClick={() => setIsExportMultiOpen(true)}
+          className="w-full bg-transparent"
+        />
         {/* Lived in the Settings modal — moved next to the export buttons it
             actually parameterizes (DEM GeoTIFF size cap, both export paths). */}
         <div className="flex items-center justify-between gap-2 pt-1">
@@ -441,6 +458,7 @@ export const DownloadSection: React.FC<{
           />
         </div>
       </div>
+      <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} />
     </Section>
   )
 }

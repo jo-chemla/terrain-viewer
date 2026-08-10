@@ -14,6 +14,7 @@ import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
 import { SettingsDialog } from "./settings-dialog"
 import { ModePicker } from "./ModePicker"
 import { GeneralSettings } from "./general-settings"
+import { ComparisonMixSection } from "./comparison-mix-section"
 import { TerrainSourceSection } from "./terrain-source-section"
 import { DownloadSection } from "./download-section"
 import { BookmarksSection } from "./bookmarks-section"
@@ -47,6 +48,7 @@ export const isSidebarOpenAtom = atomWithStorage("isSidebarOpen", true)
 
 const SECTION_KEYS = [
   "general",
+  "comparisonMix",
   "terrainSource",
   "download",
   "bookmarks",
@@ -73,6 +75,7 @@ type SectionOpenState = Record<SectionKey, boolean>
 
 const DEFAULT_OPEN_STATE: SectionOpenState = {
   general: true,
+  comparisonMix: false,
   visualizationModes: true,
   download: false,
   bookmarks: false,
@@ -166,7 +169,7 @@ export function TerrainControlPanel({
   // visualization is active without reaching for the sidebar. (Alt was tried
   // first but the browser's own Alt-alone menu-bar-focus behavior conflicts
   // with it.)
-  useShiftTapToggle(() => setState({ showRasterBasemap: !state.showRasterBasemap }))
+  useShiftTapToggle(() => setState({ showRasterBasemap: !state.showRasterBasemap }), !historicalMode)
   // Ctrl/Cmd+K jumps focus to the geocoder search box from anywhere.
   useGeocoderShortcut()
   // Tapping either Ctrl key alone hides every overlay visualization mode down
@@ -205,7 +208,7 @@ export function TerrainControlPanel({
         showTellsDetector: false,
       })
     }
-  })
+  }, !historicalMode)
   const [activeSlider] = useAtom(activeSliderAtom)
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
 
@@ -412,14 +415,18 @@ export function TerrainControlPanel({
     setIsModePickerOpen(false)
     // Only switching INTO historical mode needs a nudge — it unlocks the
     // beta flag gating historical basemaps at all, turns on the one source
-    // (raster basemap) this mode actually shows, and expands that section
-    // (rather than leaving the visitor to find and open it themselves) so
-    // picking the mode immediately shows imagery instead of an empty,
-    // collapsed sidebar. Switching back to Terrain needs no equivalent
-    // nudge; every one of its sections is just hidden, not disabled, so
-    // nothing needs restoring.
+    // (raster basemap) this mode actually shows, expands that section
+    // (rather than leaving the visitor to find and open it themselves), and
+    // turns off showHillshade — the one terrain-mode viz toggle that
+    // defaults to true with no master gate of its own (every other viz mode
+    // already defaults off, see QUERY_STATE_PARSERS), so it would otherwise
+    // keep rendering hillshading over the historical imagery — so picking
+    // the mode immediately shows just the plain basemap instead of an empty,
+    // collapsed sidebar with a hillshaded map underneath. Switching back to
+    // Terrain needs no equivalent nudge; every one of its sections is just
+    // hidden, not disabled, so nothing needs restoring.
     if (next === "historical" && !historicalMode) {
-      setState({ historicalBeta: true, showRasterBasemap: true, viewMode: "2d" })
+      setState({ historicalBeta: true, showRasterBasemap: true, viewMode: "2d", showHillshade: false })
       setSectionOpen((prev) => ({ ...prev, rasterBasemap: true }))
     }
   }
@@ -548,7 +555,8 @@ export function TerrainControlPanel({
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-4 space-y-2"
           style={{ maskImage: scrollMask, WebkitMaskImage: scrollMask }}
         >
-        <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} />
+        <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} mapRef={mapRef} />
+        <ComparisonMixSection state={state} setState={setState} isOpen={sectionOpen.comparisonMix} onOpenChange={toggle("comparisonMix")} historicalMode={historicalMode} mapRef={mapRef} />
         {!historicalMode && (
           <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
         )}

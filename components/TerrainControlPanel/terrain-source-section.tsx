@@ -17,9 +17,10 @@ import { deletePersistedCogFile } from "@/lib/opfs-file-store"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import type { MapRef } from "react-map-gl/maplibre"
 import saveAs from "file-saver"
-import { Section, SourceAbToggle, GroupHeading } from "./controls-components"
+import { Section, SourceGridToggle, GroupHeading } from "./controls-components"
 import { type Bounds, templateLink, shouldZoomToBounds } from "@/lib/controls-utils"
 import { resolveLinkedBasemapId } from "@/lib/linked-sources"
+import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
@@ -86,10 +87,24 @@ export const TerrainSourceSection: React.FC<{
       : { sourceA: id })
   }, [customTerrainSources, customBasemapSources, state.basemapPerView, setState])
 
-  const selectTerrainB = useCallback((id: string) => {
+  // Every non-A view (B-F) always uses its own suffixed source/basemap
+  // fields — it can only be active at all once splitStyle !== "off", same
+  // reasoning viewFieldName centralizes for every other per-view field.
+  const selectTerrainSide = useCallback((side: ViewId, id: string) => {
+    if (side === "A") { selectTerrainA(id); return }
     const linkedBasemapId = state.basemapPerView ? resolveLinkedBasemapId(id, customTerrainSources, customBasemapSources) : undefined
-    setState(linkedBasemapId ? { sourceB: id, basemapSourceB: linkedBasemapId } : { sourceB: id })
-  }, [customTerrainSources, customBasemapSources, state.basemapPerView, setState])
+    setState(linkedBasemapId
+      ? { [sourceFieldName(side)]: id, [viewFieldName(side, "basemapSource", true)]: linkedBasemapId }
+      : { [sourceFieldName(side)]: id })
+  }, [customTerrainSources, customBasemapSources, state.basemapPerView, setState, selectTerrainA])
+
+  // This section is only ever rendered in Terrain mode (see
+  // TerrainControlPanel's !historicalMode gate), where the map's own grid is
+  // always forced back to 2x1 regardless of state.gridLayout (which isn't
+  // reset on a mode switch — see TerrainViewer's effectiveGridLayout) — so
+  // unlike RasterBasemapSection, which renders in both modes, this picker
+  // has no case where showing anything but 2x1 would ever match the map.
+  const effectiveGridLayout = "2x1"
 
   const handleSaveCustomSource = useCallback((source: Omit<CustomTerrainSource, "id"> & { id?: string }) => {
     if (source.id) {
@@ -117,8 +132,15 @@ export const TerrainSourceSection: React.FC<{
   const handleDeleteCustomSource = useCallback((id: string) => {
     const deleted = customTerrainSources.find((s) => s.id === id)
     setCustomTerrainSources(customTerrainSources.filter((s) => s.id !== id))
-    if (state.sourceA === id) setState({ sourceA: "aws" })
-    if (state.sourceB === id) setState({ sourceB: "mapterhorn" })
+    // Every view (not just A/B) needs its own fallback once it's pointing at
+    // the source being deleted — otherwise a 2x2/3x2 grid could keep a dead
+    // sourceC/D/E/F id around after this.
+    const fallback: Record<ViewId, string> = { A: "aws", B: "mapterhorn", C: "aws", D: "mapterhorn", E: "aws", F: "mapterhorn", G: "aws", H: "mapterhorn" }
+    const updates: Record<string, string> = {}
+    for (const side of VIEW_IDS) {
+      if (state[sourceFieldName(side)] === id) updates[sourceFieldName(side)] = fallback[side]
+    }
+    if (Object.keys(updates).length > 0) setState(updates)
     // Reclaim its OPFS-persisted bytes too (see opfs-file-store.ts) — otherwise
     // a deleted-then-forgotten local COG would keep counting against quota.
     if (deleted?.type === "cog-local") {
@@ -233,16 +255,15 @@ export const TerrainSourceSection: React.FC<{
             <ChevronDown className={`h-4 w-4 transition-transform ${isWorldwideOpen ? "rotate-180" : ""}`} />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
-            {state.splitScreen ? (
+            {state.splitStyle !== "off" ? (
               <div className="space-y-1.5">
                 {visibleTerrainSources.map(([key, config]) => (
                   <div key={key} className="flex items-center gap-2 min-w-0">
-                    <SourceAbToggle
+                    <SourceGridToggle
                       disabled={config.encoding === "3dtiles"}
-                      aActive={state.sourceA === key}
-                      bActive={state.sourceB === key}
-                      onSelectA={() => selectTerrainA(key)}
-                      onSelectB={() => selectTerrainB(key)}
+                      gridLayout={effectiveGridLayout}
+                      isActive={(side) => state[sourceFieldName(side)] === key}
+                      onSelect={(side) => selectTerrainSide(side, key)}
                     />
                     <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} />
                   </div>
@@ -292,15 +313,14 @@ export const TerrainSourceSection: React.FC<{
             </TooltipProvider>
 
             {customTerrainSources.length > 0 && (
-              state.splitScreen ? (
+              state.splitStyle !== "off" ? (
                 <div className="space-y-1.5">
                   {customTerrainSources.map((source) => (
                     <div key={source.id} className="flex items-center gap-2 min-w-0">
-                      <SourceAbToggle
-                        aActive={state.sourceA === source.id}
-                        bActive={state.sourceB === source.id}
-                        onSelectA={() => selectTerrainA(source.id)}
-                        onSelectB={() => selectTerrainB(source.id)}
+                      <SourceGridToggle
+                        gridLayout={effectiveGridLayout}
+                        isActive={(side) => state[sourceFieldName(side)] === source.id}
+                        onSelect={(side) => selectTerrainSide(side, source.id)}
                       />
                       <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, linkedSourceName: linkedBasemapName(source) }} />
                     </div>

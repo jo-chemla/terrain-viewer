@@ -8,9 +8,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, planetKeyAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
-import { Section, CycleButtonGroup, SliderControl, SourceAbToggle, GroupHeading } from "./controls-components"
+import { Section, CycleButtonGroup, SliderControl, SourceGridToggle, GroupHeading } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
 import { useBingCaptureDate } from "@/lib/bing"
+import { useEsriLiveCaptureDate } from "@/lib/wayback"
+import { viewFieldName, type ViewId } from "@/lib/grid-layouts"
 
 // Kept as the full static list (including key-gated providers) so callers like
 // TerrainViewer's isKnownId check still recognize a persisted "here" selection
@@ -21,15 +23,22 @@ import { useBingCaptureDate } from "@/lib/bing"
 // one actually renders is picked via the bottom timeline panel's pills/ticks,
 // not the sidebar (see lib/historical-sources.ts's resolveActiveHistoricalSource).
 export const BUILTIN_BASEMAP_OPTIONS = [
-  { value: "historical", label: "Historical Imagery" },
-  { value: "google", label: "Google Hybrid" },
-  { value: "bing", label: "Bing Aerial" },
-  { value: "esri", label: "ESRI World Imagery" },
-  { value: "mapbox", label: "Mapbox Satellite" },
-  { value: "here", label: "HERE Satellite" },
-  { value: "googlesat", label: "Google Satellite" },
-  { value: "osm", label: "OpenStreetMap" },
+  { value: "historical", label: "Historical Imagery", shortLabel: "Historical" },
+  { value: "google", label: "Google Hybrid", shortLabel: "Google" },
+  { value: "bing", label: "Bing Aerial", shortLabel: "Bing" },
+  { value: "esri", label: "ESRI World Imagery", shortLabel: "ESRI" },
+  { value: "mapbox", label: "Mapbox Satellite", shortLabel: "Mapbox" },
+  { value: "here", label: "HERE Satellite", shortLabel: "HERE" },
+  { value: "googlesat", label: "Google Satellite", shortLabel: "Google Sat" },
+  { value: "osm", label: "OpenStreetMap", shortLabel: "OSM" },
 ]
+
+// Lookup by id for the capture-date pill's compact source label — falls back
+// to the raw basemap id (e.g. a custom BYOD source) when not one of the
+// builtins above.
+export const BASEMAP_SHORT_LABELS: Record<string, string> = Object.fromEntries(
+  BUILTIN_BASEMAP_OPTIONS.map((o) => [o.value, o.shortLabel]),
+)
 
 // Providers that need an API key to actually load tiles — hidden from the
 // picker until a key is set (Settings > API Keys, or a local VITE_*_API_KEY/
@@ -53,6 +62,11 @@ export const RasterBasemapSection: React.FC<{
   // Real "as-of" capture date for Bing's single live mosaic (see lib/bing.ts)
   // — read from the current view center's tile, not per-row/per-selection.
   const { label: bingCaptureLabel } = useBingCaptureDate(state.lat, state.lng, state.zoom)
+  // Same idea for plain "ESRI World Imagery" — it's always showing whichever
+  // Wayback release is currently newest at this location (see
+  // useEsriLiveCaptureDate's own doc comment), so it has a real capture date
+  // too, not just a static "always current" implication.
+  const { label: esriCaptureLabel } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
 
   const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, planet: planetKey }
   const visibleBuiltinOptions = useMemo(
@@ -76,11 +90,12 @@ export const RasterBasemapSection: React.FC<{
   }, [state.basemapSource, sourceKeys, setState])
 
   // Split screen always wants a per-side basemap — no reason to ever be in
-  // "Simple" (one shared cycling control) while actually looking at two
+  // "Simple" (one shared cycling control) while actually looking at two+
   // panes, so this reads as per-view regardless of the persisted
-  // basemapPerView flag whenever splitScreen is on (see the hidden-toggle
+  // basemapPerView flag whenever split is on (see the hidden-toggle
   // comment below), without needing to overwrite that flag itself.
-  const perViewEffective = state.basemapPerView || state.splitScreen
+  const isSplit = state.splitStyle !== "off"
+  const perViewEffective = state.basemapPerView || isSplit
 
   return (
     <Section title="Basemap" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator} pulseKey="showRasterBasemap">
@@ -92,10 +107,10 @@ export const RasterBasemapSection: React.FC<{
           <div className="flex items-center gap-3 shrink-0">
             {/* Meaningless once the viewport itself is already split — split
                 screen obviously wants a per-side basemap, so this toggle
-                just disappears and perViewEffective below (splitScreen alone
+                just disappears and perViewEffective below (being split
                 already implies "Split") takes over instead of asking the
                 user to also flip a second, redundant switch. */}
-            {!state.splitScreen && (
+            {!isSplit && (
               <div className="flex items-center gap-2 cursor-pointer">
                 <Label htmlFor="basemap-per-view" className="text-xs text-muted-foreground cursor-pointer">Simple</Label>
                 <Switch
@@ -129,21 +144,33 @@ export const RasterBasemapSection: React.FC<{
           )}
 
           {perViewEffective ? (
-            state.splitScreen ? (
+            isSplit ? (
               <div className="space-y-1.5">
                 <GroupHeading>Basemaps</GroupHeading>
                 {visibleBuiltinOptions.map(({ value, label }) => (
                   <div key={value} className="flex items-center gap-2 min-w-0">
-                    <SourceAbToggle
-                      aActive={state.basemapSourceA === value}
-                      bActive={state.basemapSourceB === value}
-                      onSelectA={() => setState({ basemapSourceA: value })}
-                      onSelectB={() => setState({ basemapSourceB: value })}
+                    <SourceGridToggle
+                      // Terrain mode's own split (Overlay or Side) is always
+                      // forced to 2x1 (see TerrainViewer's effectiveGridLayout),
+                      // but state.gridLayout itself isn't reset on a mode
+                      // switch — without the !historicalMode check here, this
+                      // picker kept showing whichever grid (e.g. 3x2, A-F) was
+                      // last picked in Historical mode even after the map
+                      // itself had already collapsed back to just A/B.
+                      gridLayout={(state.splitStyle === "overlay" || !historicalMode) ? "2x1" : state.gridLayout}
+                      // isSplit always means per-view basemap fields, even if
+                      // basemapPerView's own persisted value happens to be
+                      // false — see perViewEffective's header comment above.
+                      isActive={(side: ViewId) => state[viewFieldName(side, "basemapSource", true)] === value}
+                      onSelect={(side: ViewId) => setState({ [viewFieldName(side, "basemapSource", true)]: value })}
                     />
                     <Label className="flex-1 text-sm truncate min-w-0">
                       {label}
                       {value === "bing" && bingCaptureLabel && (
                         <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
+                      )}
+                      {value === "esri" && esriCaptureLabel && (
+                        <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
                       )}
                     </Label>
                   </div>
@@ -154,8 +181,8 @@ export const RasterBasemapSection: React.FC<{
                 <GroupHeading>Basemaps</GroupHeading>
                 {/* py-1: unlike every other RadioGroup list in this app (terrain's
                     rows carry two h-8 icon buttons via SourceDetails/CustomSourceDetails,
-                    and this same list's own split-mode rows carry SourceAbToggle's h-9
-                    A/B buttons), a builtin basemap row is just a bare radio + one-line
+                    and this same list's own split-mode rows carry SourceGridToggle's
+                    buttons), a builtin basemap row is just a bare radio + one-line
                     Label — with no button padding to give it height, gap-2 alone reads
                     as visibly more compact than every other list even though the gap
                     value is identical. This restores that height without touching the
@@ -168,6 +195,9 @@ export const RasterBasemapSection: React.FC<{
                         {label}
                         {value === "bing" && bingCaptureLabel && (
                           <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
+                        )}
+                        {value === "esri" && esriCaptureLabel && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
                         )}
                       </Label>
                     </div>
