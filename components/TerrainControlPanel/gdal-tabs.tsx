@@ -4,14 +4,8 @@ import { Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Light as SyntaxHighlighter } from "react-syntax-highlighter"
-import xml from "react-syntax-highlighter/dist/esm/languages/hljs/xml"
-import bash from "react-syntax-highlighter/dist/esm/languages/hljs/bash"
-import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs"
+import { Code } from "@sugar-high/react"
 import { copyToClipboard } from "@/lib/controls-utils"
-
-SyntaxHighlighter.registerLanguage("xml", xml)
-SyntaxHighlighter.registerLanguage("bash", bash)
 
 export const GdalTabs: React.FC<{
   tileUrl: string
@@ -94,75 +88,29 @@ export const GdalTabs: React.FC<{
 
         <div className="max-h-64 overflow-auto">
           <TabsContent value="url" className="p-3 pt-2 text-xs font-mono">
-            <SyntaxHighlighter
-              language="bash"
-              style={atomOneDark}
-              customStyle={{
-                background: "transparent",
-                fontSize: "0.75rem",
-                margin: 0,
-                padding: 0,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-              wrapLongLines
-            >
+            <Code lang="shell" padding="0" className="sh-theme">
               {tileUrl}
-            </SyntaxHighlighter>
+            </Code>
           </TabsContent>
 
           <TabsContent value="xml" className="p-3 pt-2 text-xs font-mono">
-            <SyntaxHighlighter
-              language="xml"
-              style={atomOneDark}
-              customStyle={{
-                background: "transparent",
-                fontSize: "0.75rem",
-                margin: 0,
-                padding: 0,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-              wrapLongLines
-            >
+            {/* sugar-high has no canonical "xml" language; "html" tokenizes
+                tags/attributes close enough for this GDAL_WMS XML snippet. */}
+            <Code lang="html" padding="0" className="sh-theme">
               {wmsXml}
-            </SyntaxHighlighter>
+            </Code>
           </TabsContent>
 
           <TabsContent value="cmd" className="p-3 pt-2 text-xs font-mono">
-            <SyntaxHighlighter
-              language="bash"
-              style={atomOneDark}
-              customStyle={{
-                background: "transparent",
-                fontSize: "0.75rem",
-                margin: 0,
-                padding: 0,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-              wrapLongLines
-            >
+            <Code lang="shell" padding="0" className="sh-theme">
               {gdalCommand}
-            </SyntaxHighlighter>
+            </Code>
           </TabsContent>
 
           <TabsContent value="gdaldem" className="p-3 pt-2 text-xs font-mono">
-            <SyntaxHighlighter
-              language="bash"
-              style={atomOneDark}
-              customStyle={{
-                background: "transparent",
-                fontSize: "0.75rem",
-                margin: 0,
-                padding: 0,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-              wrapLongLines
-            >
+            <Code lang="shell" padding="0" className="sh-theme">
               {gdalDemCommand}
-            </SyntaxHighlighter>
+            </Code>
           </TabsContent>
         </div>
       </div>

@@ -1,86 +1,40 @@
 import type React from "react"
-import { useRef } from "react"
-import { Light as SyntaxHighlighter } from "react-syntax-highlighter"
-import json from "react-syntax-highlighter/dist/esm/languages/hljs/json"
-import properties from "react-syntax-highlighter/dist/esm/languages/hljs/properties"
-import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs"
+import { Editor } from "@sugar-high/react"
 import { cn } from "@/lib/utils"
 
-SyntaxHighlighter.registerLanguage("json", json)
-// "properties" (Java .properties / dotenv-style KEY=VALUE lines) — used for the
-// API-keys batch editor, which isn't JSON, just one key=value pair per line.
-SyntaxHighlighter.registerLanguage("properties", properties)
+// sugar-high has no canonical "properties" (dotenv KEY=VALUE) language;
+// "shell" tokenizes KEY / = / value into distinct colors close enough for
+// the API-keys batch editor's one-key=value-per-line format.
+const SUGAR_HIGH_LANG = { json: "json", properties: "shell" } as const
 
-// Classic "transparent textarea over a highlighted <pre>" overlay: the textarea stays fully
-// editable (real caret, selection, undo history) while a syntax-highlighted copy of the same
-// text sits behind it. The two layers must share identical font metrics and padding or the
-// highlighted text won't line up with what you're typing — scroll position is synced manually
-// since they're two independent scrollable elements.
 export const JsonEditor: React.FC<{
   value: string
   onChange: (value: string) => void
   className?: string
-  placeholder?: string
   language?: "json" | "properties"
   /** Rows of monospace text (20px line-height + 12px top/bottom padding) to size
    *  the editor to — e.g. the API-keys batch editor, which only ever holds a
    *  handful of key=value lines and doesn't need the 400px JSON-editing default. */
   rows?: number
-}> = ({ value, onChange, className, placeholder, language = "json", rows }) => {
-  const minHeight = rows ? `${rows * 20 + 24}px` : "400px"
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const highlightRef = useRef<HTMLDivElement>(null)
-
-  const syncScroll = () => {
-    if (!textareaRef.current || !highlightRef.current) return
-    highlightRef.current.scrollTop = textareaRef.current.scrollTop
-    highlightRef.current.scrollLeft = textareaRef.current.scrollLeft
-  }
-
-  const sharedTextStyle: React.CSSProperties = {
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-    fontSize: "0.75rem",
-    lineHeight: "1.25rem",
-    padding: "0.75rem",
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-    tabSize: 2,
-  }
+}> = ({ value, onChange, className, language = "json", rows }) => {
+  // A fixed height, not minHeight: <Editor>'s highlighted <Code> layer grows
+  // to fit all its lines (unlike a plain <textarea>), so a min-height alone
+  // never overflows and its internal `overflow-y: scroll` never kicks in —
+  // long JSON just grows the box instead of scrolling inside it.
+  const height = rows ? `${rows * 20 + 24}px` : "400px"
 
   return (
-    <div className={cn("relative w-full border rounded-md overflow-hidden", className)} style={{ minHeight }}>
-      <div
-        ref={highlightRef}
-        aria-hidden
-        className="absolute inset-0 overflow-auto pointer-events-none bg-background"
-        style={sharedTextStyle}
-      >
-        <SyntaxHighlighter
-          language={language}
-          style={atomOneDark}
-          // sharedTextStyle's padding is applied once on the *outer* highlightRef div (to
-          // match the textarea's own padding) — spreading it again here after padding:0
-          // would silently win and double the offset, which is exactly why the two layers
-          // used to drift out of alignment. Keep font/line-height/wrap settings from
-          // sharedTextStyle but force padding/margin to 0 on this inner layer.
-          customStyle={{ ...sharedTextStyle, background: "transparent", margin: 0, padding: 0 }}
-          codeTagProps={{ style: { fontFamily: "inherit", whiteSpace: "inherit" } }}
-          wrapLongLines
-        >
-          {/* Trailing newline keeps the last line's height in sync with the textarea */}
-          {value + "\n"}
-        </SyntaxHighlighter>
-      </div>
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onScroll={syncScroll}
-        placeholder={placeholder}
-        spellCheck={false}
-        className="relative w-full h-full resize-none outline-none focus:ring-2 focus:ring-ring text-transparent caret-foreground bg-transparent"
-        style={{ ...sharedTextStyle, minHeight }}
-      />
-    </div>
+    <Editor
+      lang={SUGAR_HIGH_LANG[language]}
+      value={value}
+      onChange={onChange}
+      controls={false}
+      lineNumbers={false}
+      padding="0.75rem"
+      fontSize="0.75rem"
+      fontFamily="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+      className={cn("sh-theme w-full border rounded-md bg-background", className)}
+      style={{ height }}
+    />
   )
 }
