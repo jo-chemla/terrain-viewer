@@ -359,8 +359,8 @@ export const TerrainSourceSection: React.FC<{
             <JsonEditor value={batchEditJson} onChange={setBatchEditJson} />
             {batchEditError && <p className="text-sm text-red-500">{batchEditError}</p>}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsBatchEditModalOpen(false)}>Cancel</Button>
-              <Button onClick={handleSaveBatchEdit}>Save</Button>
+              <Button variant="outline" onClick={() => setIsBatchEditModalOpen(false)} className="cursor-pointer">Cancel</Button>
+              <Button onClick={handleSaveBatchEdit} className="cursor-pointer">Save</Button>
             </div>
           </div>
         </DialogContent>

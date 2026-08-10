@@ -227,6 +227,52 @@
 } */
 
 /* ============================================================
+   Sugar High code blocks (GdalTabs, JsonEditor). Token palette
+   applied via `.sh-theme`, switching with the app's own light/dark
+   mode toggle (`.dark`) — light values are atom-one-light-inspired,
+   dark values are the same atom-one-dark palette this used to render
+   unconditionally before this migration.
+   ============================================================ */
+.sh-theme {
+  --sh-keyword: #a626a4;
+  --sh-identifier: #383a42;
+  --sh-sign: #383a42;
+  --sh-space: #383a42;
+  --sh-class: #c18401;
+  --sh-entity: #e45649;
+  --sh-jsxliterals: #4078f2;
+  --sh-string: #50a14f;
+  --sh-property: #4078f2;
+  --sh-comment: #a0a1a7;
+}
+.dark .sh-theme {
+  --sh-keyword: #c678dd;
+  --sh-identifier: #abb2bf;
+  --sh-sign: #abb2bf;
+  --sh-space: #abb2bf;
+  --sh-class: #e6c07b;
+  --sh-entity: #e06c75;
+  --sh-jsxliterals: #61afef;
+  --sh-string: #98c379;
+  --sh-property: #61afef;
+  --sh-comment: #5c6370;
+}
+.sh-theme code,
+.sh-theme pre {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+/* Editor's own <style> tag (rendered inside the component, later in DOM
+   order than this stylesheet) sets --codice-caret-color: inherit at the
+   same specificity as any rule here, and wins that tie on source order —
+   which then resolves to the textarea's own (deliberately transparent)
+   `color`, hiding the caret. `!important` on the concrete `caret-color`
+   property sidesteps that custom-property indirection entirely. */
+.sh-theme textarea {
+  caret-color: var(--foreground) !important;
+}
+
+/* ============================================================
    MapLibre native controls (zoom, compass, geolocate, geocoder)
    theme integration. These ship their own hardcoded CSS (fixed hex
    colors, no custom-property hooks, no dark-mode awareness at all) —
