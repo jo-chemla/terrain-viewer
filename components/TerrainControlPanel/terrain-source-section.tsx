@@ -98,7 +98,13 @@ export const TerrainSourceSection: React.FC<{
       : { [sourceFieldName(side)]: id })
   }, [customTerrainSources, customBasemapSources, state.basemapPerView, setState, selectTerrainA])
 
-  const effectiveGridLayout = state.splitStyle === "overlay" ? "2x1" : state.gridLayout
+  // This section is only ever rendered in Terrain mode (see
+  // TerrainControlPanel's !historicalMode gate), where the map's own grid is
+  // always forced back to 2x1 regardless of state.gridLayout (which isn't
+  // reset on a mode switch — see TerrainViewer's effectiveGridLayout) — so
+  // unlike RasterBasemapSection, which renders in both modes, this picker
+  // has no case where showing anything but 2x1 would ever match the map.
+  const effectiveGridLayout = "2x1"
 
   const handleSaveCustomSource = useCallback((source: Omit<CustomTerrainSource, "id"> & { id?: string }) => {
     if (source.id) {

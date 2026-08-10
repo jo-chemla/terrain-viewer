@@ -174,6 +174,16 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // for WHEEL_GESTURE_TIMEOUT_MS), keeps one swipe consistently doing one
   // thing.
   const wheelGestureRef = useRef<{ mode: "pan" | "zoom"; lastEventTime: number } | null>(null)
+  // The track's own bounding rect, measured once per gesture (on its first
+  // event) and reused for every subsequent event in that same gesture rather
+  // than re-measured on every single wheel tick — a fast trackpad's momentum-
+  // decay tail can fire dozens of events a second, and layout stays put for
+  // the gesture's whole duration (nothing else resizes the panel while the
+  // user is actively scrolling it), so the repeated getBoundingClientRect()
+  // calls were pure unnecessary layout-read cost landing right in the
+  // highest-frequency part of the gesture — exactly where any extra per-event
+  // work is most likely to show up as a dropped frame / light stutter.
+  const gestureRectRef = useRef<DOMRect | null>(null)
   // `| null` in the generic (not just the initial value) so this stays a
   // MutableRefObject — setTrackRef below needs to assign trackRef.current
   // itself (not just let JSX's `ref={trackRef}` do it), which TS otherwise
@@ -192,10 +202,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const ctrlGroupDragRef = useRef<{
     dragSide: ViewId
     dragOriginalIndex: number
-    dragOriginalDateMs: number
     startClientX: number
     direction: -1 | 0 | 1
-    snapshot: { side: ViewId; originalIndex: number; dateMs: number }[]
+    snapshot: { side: ViewId; originalIndex: number }[]
   } | null>(null)
   // Which DOM node the panel itself lives in, plus whether the user's most
   // recent pointerdown anywhere on the page landed inside it — see the
@@ -900,7 +909,6 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       const effectiveMin = pending ? (pending.window?.min ?? fullMin) : committed.effectiveMin
       const effectiveMax = pending ? (pending.window?.max ?? fullMax) : committed.effectiveMax
       const effectiveSpan = effectiveMax - effectiveMin
-      const rect = el.getBoundingClientRect()
       // A trackpad's two-finger swipe fires wheel events with deltaX
       // dominant (vs. deltaY for a mouse wheel / vertical scroll gesture) —
       // treat that as PAN instead of zoom, matching how every other
@@ -923,6 +931,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         ? (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "pan" : "zoom")
         : priorGesture.mode
       wheelGestureRef.current = { mode, lastEventTime: now }
+      if (isNewGesture || !gestureRectRef.current) gestureRectRef.current = el.getBoundingClientRect()
+      const rect = gestureRectRef.current
       if (mode === "pan") {
         if (!hasHiddenRange) return
         const span = effectiveMax - effectiveMin
@@ -1022,6 +1032,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             render={
               <button
                 type="button"
+                // The track underneath has its own onPointerDown that scrubs
+                // whichever side is active to the nearest tick under the
+                // cursor (by pixel, across every source) — without stopping
+                // propagation here the same way the in-range handle below
+                // does, that pointerdown bubbles up from this button BEFORE
+                // its own onClick fires, silently re-scrubbing this handle to
+                // an unrelated nearby tick (a different source entirely, in
+                // the worst case) a split second before the click's own
+                // zoom-out actually runs. This button only ever widens the
+                // shared view window — it must never touch any side's own
+                // source/date.
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => expandViewWindowToward(dir)}
                 className={cn(
                   "absolute top-1/2 -translate-y-1/2 z-10 cursor-pointer flex items-center rounded-md border-2 border-background shadow px-0.5 h-4 text-[8px] font-bold leading-none",
@@ -1055,13 +1077,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                     .map((s) => ({
                       side: s,
                       originalIndex: indexInFlatList(tickBySide[s]!.source, tickBySide[s]!.key),
-                      dateMs: tickBySide[s]!.dateMs,
                     }))
                     .filter((s) => s.originalIndex >= 0)
                   ctrlGroupDragRef.current = {
                     dragSide: side,
                     dragOriginalIndex: indexInFlatList(tick.source, tick.key),
-                    dragOriginalDateMs: tick.dateMs,
                     startClientX: e.clientX,
                     direction: 0,
                     snapshot,
@@ -1109,7 +1129,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 // original tick — an early return here would leave them
                 // stuck at whatever the last nonzero deltaN had set them to.
                 for (const snap of drag.snapshot) {
-                  const isLeftOfDrag = snap.dateMs < drag.dragOriginalDateMs
+                  // Compare by flat-list INDEX, not date — a date comparison
+                  // (the earlier version of this) is direction-asymmetric for
+                  // a handle exactly coincident with the dragged one (a
+                  // strict `<` can never be true for a tie, so it only ever
+                  // classified as "right", meaning a coincident handle swept
+                  // when dragging right but never when dragging left). Two
+                  // distinct entries in `items` always have distinct indices
+                  // even when their dates tie, so this has no tie case at all.
+                  const isLeftOfDrag = snap.originalIndex < drag.dragOriginalIndex
                   if ((drag.direction === -1) !== isLeftOfDrag) continue
                   const newTick = tickAtFlatOffset(snap.originalIndex, deltaN)
                   if (newTick) setTickForSide(snap.side, newTick)
@@ -1496,11 +1524,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             4x1) there's nothing to show here at all (the per-handle tooltips
             above already carry each side's own date/source regardless), so
             the panel is simply shorter by this row's height instead.
-            Terrain mode's own "Open in..." launcher lives centered between
+            Terrain mode's own "Open in..." launcher is ALSO centered between
             the two captions here, since terrain mode is always forced to
-            the 2x1 grid this row needs anyway (General Settings used to
-            carry its own copy instead — moved here per request). Historical
-            mode keeps its copy in Compare and Blend
+            the 2x1 grid this row needs anyway — a second copy alongside the
+            unconditional one in General Settings (general-settings.tsx),
+            since this row (and the whole timeline panel it's part of) only
+            shows once a historical basemap is actually active and expanded.
+            Historical mode keeps its own copy in Compare and Blend
             (comparison-mix-section.tsx), unrelated to this row. */}
         {showingViews.length === 2 && (
           <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums mx-2">
