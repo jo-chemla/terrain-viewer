@@ -71,14 +71,14 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
       `https://mc.bbbike.org/mc/?lon=${lng}&lat=${lat}&zoom=${Math.round(zoom)}&num=4&mt0=mapnik-german&mt1=cyclemap&mt2=bing-hybrid`,
   },
   {
-    id: "iconem-historical",
-    label: "Iconem Historical Satellite",
-    buildUrl: ({ lat, lng, zoom }) => `https://historical-satellite.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
-  },
-  {
     id: "iconem-search-eo",
     label: "Iconem Search-EO",
     buildUrl: ({ lat, lng, zoom }) => `https://search-eo-imagery.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
+  },
+  {
+    id: "iconem-historical",
+    label: "Iconem Historical Satellite",
+    buildUrl: ({ lat, lng, zoom }) => `https://historical-satellite.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
   },
 ]
 

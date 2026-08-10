@@ -187,6 +187,11 @@ export const QUERY_STATE_PARSERS = {
     gridLayout: parseAsStringLiteral(GRID_LAYOUT_IDS).withDefault("2x1"),
     // "overlay"-only: pane B's CSS mix-blend-mode + opacity against pane A.
     splitBlendMode: parseAsStringLiteral(BLEND_MODES).withDefault("normal"),
+    // Lets a picked blend mode be toggled off (falls back to plain "normal")
+    // without losing/resetting it — a quick way to flip back and forth
+    // between a blended and a plain overlay comparison for the same picked
+    // mode, instead of re-selecting "Normal" and then the real mode again.
+    splitBlendModeEnabled: parseAsBoolean.withDefault(true),
     overlayOpacity: parseAsFloat.withDefault(1.0),
     // Compare and Blend's "Show Capture Date" toggle — a small per-view pill
     // for whichever views are actually on a dated historical source. "date"
@@ -260,22 +265,24 @@ export const QUERY_STATE_PARSERS = {
     // single source is actually "active"/rendered on the map. "planet" is
     // deliberately left out of the default — it needs an API key, so it only
     // shows up here once a user with a key explicitly toggles its pill on.
-    // HLS also starts off by default (its ticks are synthetic monthly
-    // placeholders, not real capture dates, per lib/hls.ts).
-    timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
+    // HLS and EOX Sentinel-2-cloudless also start off by default (HLS's
+    // ticks are synthetic monthly placeholders, not real capture dates, per
+    // lib/hls.ts; EOX is a once-a-year mosaic, coarser than the other three)
+    // — both only show up once explicitly toggled on via their own pill.
+    timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
     // Per-side variants of timelineSources above — only meaningful when both
     // basemapPerView AND splitStyle!=="off" are on (dualMode) AND the timeline's
     // sync toggle is off, letting each active view aggregate a different
     // subset of sources (e.g. Wayback+GE for A, HLS+Bing for B). When sync is
     // on (the default) every side shares timelineSources instead.
-    timelineSourcesA: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
-    timelineSourcesB: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
-    timelineSourcesC: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
-    timelineSourcesD: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
-    timelineSourcesE: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
-    timelineSourcesF: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
-    timelineSourcesG: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
-    timelineSourcesH: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing", "eox-s2"]),
+    timelineSourcesA: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    timelineSourcesB: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    timelineSourcesC: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    timelineSourcesD: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    timelineSourcesE: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    timelineSourcesF: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    timelineSourcesG: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    timelineSourcesH: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
     // Whether the historical timeline's full bar (header + track) is
     // collapsed down to just the small floating clock-icon toggle button.
     historicalTimelineCollapsed: parseAsBoolean.withDefault(false),
@@ -2929,10 +2936,22 @@ export function TerrainViewer() {
   if (!mapLibreReady) return null
 
   return (
+    // `fixed` + viewport insets instead of `relative`/`w-full` with a raw
+    // `100vh` height — 100vh measures the FULL window height regardless of
+    // any scrollbar reservation, so in normal document flow (this div's own
+    // content contributing to body's scrollable height) it's always >= the
+    // true available client height the moment any scrollbar exists at all,
+    // which then never lets that scrollbar go away — a self-sustaining
+    // feedback loop (confirmed live: both scroll axes short by exactly the
+    // scrollbar's own width, only in single-view/split-off layouts where
+    // nothing else happened to be forcing a similar overflow already).
+    // `fixed` removes this div from document flow entirely, so it can never
+    // contribute to body's own scroll size no matter how its height is
+    // computed.
     <div
-      className="relative w-full"
+      className={cn("fixed left-0 right-0 top-0 overflow-hidden", !isMobile && "bottom-0")}
       style={{
-        height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : '100vh'
+        height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined
       }}
     >
       <div ref={splitContainerRef} className="absolute inset-0">
@@ -2954,7 +2973,7 @@ export function TerrainViewer() {
                 left: pane.left,
                 width: pane.width,
                 clipPath: isBlendedOverlayPane ? `polygon(${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 100% 100%, 100% 0%)` : undefined,
-                mixBlendMode: isBlendedOverlayPane ? (state.splitBlendMode as any) : undefined,
+                mixBlendMode: isBlendedOverlayPane ? ((state.splitBlendModeEnabled ? state.splitBlendMode : "normal") as any) : undefined,
                 opacity: isBlendedOverlayPane ? state.overlayOpacity : undefined,
                 ["--scale-offset" as any]: scaleBottomOffset,
                 ["--scale-right-offset" as any]: scaleRightOffset,

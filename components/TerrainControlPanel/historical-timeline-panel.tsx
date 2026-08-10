@@ -93,13 +93,23 @@ const CHEVRON_EXPAND_FRACTION = 0.2
 // (see lib/wayback.ts) and is now what the tick is actually POSITIONED at
 // (see useWaybackRealCaptureDates in the parent), so it's already resolved
 // by the time this renders — no separate per-hover fetch needed anymore.
-const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSides: ViewId[] }> = ({ tick, leftPct, activeSides }) => {
+const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSides: ViewId[]; onSelect: () => void }> = ({ tick, leftPct, activeSides, onSelect }) => {
   return (
     <Tooltip>
       <TooltipTrigger
         render={
           <div
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-help"
+            // stopPropagation so this exact tick is what gets picked, even
+            // when it happens to sit at (or very near) the same pixel as a
+            // tick from another source — the track's own onPointerDown below
+            // otherwise resolves by nearest-pixel across EVERY source, and a
+            // strict "<" tie-break there always keeps whichever tick sorted
+            // earliest (Wayback/HLS/GE before Bing), silently making a
+            // source unclickable whenever its one tick coincides with an
+            // earlier-sorted one (Bing's single "current" date landing on
+            // the same day as Wayback's/GE's own latest, in particular).
+            onPointerDown={(e) => { e.stopPropagation(); onSelect() }}
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-pointer"
             style={{ left: `${leftPct}%` }}
           >
             <div
@@ -244,24 +254,32 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     state[viewFieldName(side, "historicalActiveSource", state.basemapPerView)],
   ), [state])
   const isHistoricalFor = useCallback((side: ViewId) => TIMELINE_SOURCE_IDS.has(activeBasemapSourceFor(side)), [activeBasemapSourceFor])
-  // Once in dual mode, EVERY active view always gets a handle/date on the
-  // timeline — even a view currently on a plain (non-historical) basemap
-  // like ESRI World Imagery still shows a PROPOSED tick (see
-  // displaySourceFor/resolveDisplayTick below) that the user can click/drag
-  // to actually switch that view onto it, instead of needing to first select
-  // "Historical Imagery" on every view via the sidebar before any handle
-  // appears. This is display-only — nothing about a view's ACTUAL basemap
-  // changes until a tick is clicked (buildTickUpdates, unchanged). Outside
-  // dual mode there's no separate other side to reason about, so single-view
-  // keeps the original "only show if actually historical" gating.
-  const showFor = useCallback((side: ViewId) => dualMode ? true : (side === "A" && isHistoricalFor("A")), [dualMode, isHistoricalFor])
-  // The source browsed/displayed for each view — identical to
-  // activeBasemapSourceFor(side) when that view IS already historical
-  // (resolveActiveHistoricalSource makes them the same value in that case),
-  // but falls back to historicalActiveSource(side) even when the view is
-  // currently a plain basemap, so showFor above always has a real source to
-  // look up a proposed tick for.
-  const displaySourceFor = useCallback((side: ViewId) => state[viewFieldName(side, "historicalActiveSource", state.basemapPerView)], [state])
+  // A view only ever gets a handle/pill once it's ACTUALLY on a historical
+  // source — a dual-mode view sitting on a plain basemap (e.g. B on Google
+  // Hybrid while A is historical) has no real date to show, so it's dropped
+  // entirely rather than showing a placeholder/preview pill for a source
+  // it isn't even on yet.
+  const showFor = isHistoricalFor
+  // The source browsed/displayed for each view. Bing bypasses the
+  // "historical" indirection entirely (buildTickUpdates writes
+  // basemapSource(side) = "bing" directly, never touching
+  // historicalActiveSource(side) at all — see its own comment) — so a plain
+  // read of historicalActiveSource(side) here (the previous version of this)
+  // stayed on whatever nested source was last browsed (e.g. "wayback") even
+  // once the view was actually showing Bing, silently pointing every tick
+  // lookup at the wrong source: the handle would render at that stale
+  // source's position, and clicking/dragging Bing's own tick never visibly
+  // "stuck" since the very next render immediately looked it up under the
+  // wrong source again. activeBasemapSourceFor(side) already resolves this
+  // correctly (including the "historical" indirection's own nested-source
+  // lookup) whenever the view is genuinely on a real timeline source; only
+  // fall back to the plain historicalActiveSource(side) read for a view
+  // that's on neither (e.g. Google Hybrid) — used by the "first landing on
+  // historical" effect below to still have a sensible source to jump to.
+  const displaySourceFor = useCallback((side: ViewId) => {
+    const active = activeBasemapSourceFor(side)
+    return TIMELINE_SOURCE_IDS.has(active) ? active : state[viewFieldName(side, "historicalActiveSource", state.basemapPerView)]
+  }, [activeBasemapSourceFor, state])
   // Sync only ever governs which SOURCE/RESOLUTION PILLS are toggled on
   // (shared vs. per-side, see pillsField below) — it has never applied to
   // the actual scrubber selection (which tick/date is active). Every active
@@ -558,17 +576,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dualMode, activeViews.join(","), showFor, activeSide])
 
-  // First time any view actually LANDS on a historical source (via the
-  // sidebar radio, not just the timeline's own display preview — see
-  // showFor/resolveDisplayTick above) with no date picked yet, jump straight
-  // to the newest available tick for that view's active source rather than
-  // rendering nothing until the user manually picks one. Guarded on
-  // isHistoricalFor specifically (not showFor, which is now unconditionally
-  // true in dual mode) — a view that's merely PREVIEWING a not-yet-selected
-  // source must never get auto-committed to historical just because its
-  // handle is showing; resolveDisplayTick's own fallback already renders a
-  // sensible proposed tick for that case without writing any state, only
-  // actually committing once the user clicks/drags it.
+  // First time a view actually lands on a historical source with no date
+  // picked yet (dateForSide still 0), jump straight to the newest available
+  // tick for that view's active source rather than rendering nothing until
+  // the user manually picks one.
   useEffect(() => {
     for (const side of activeViews) {
       if (isHistoricalFor(side) && !dateForSide(side)) {
@@ -756,17 +767,30 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
 
   // An off-screen handle's chevron click used to recenter the view exactly
   // on that handle's own date — jumping straight to it rather than letting
-  // the user see what's actually between here and there. Zooming out a
-  // fixed 20% of the current span on whichever side the handle is off-
-  // screen toward instead reads as "widen my view a bit," and can be
-  // clicked repeatedly to keep widening until the handle comes into view
-  // naturally, same idea as clicking + repeatedly on a map zoom control.
-  const expandViewWindowToward = useCallback((dir: "left" | "right") => {
+  // the user see what's actually between here and there. Instead, this
+  // moves just the relevant edge (min for a left chevron, max for a right
+  // one) all the way PAST the clicked handle's own real date, by a further
+  // 20% of that same delta — e.g. left: delta = effectiveMin - targetDateMs
+  // (always positive, since dirFor only calls this when the tick is
+  // genuinely off-screen that way), newMin = targetDateMs - delta * 0.2,
+  // landing 20% of the original gap beyond the handle rather than exactly
+  // on top of it. This guarantees the handle is inside the new window after
+  // exactly ONE click — a flat "20% of the current span" step (an earlier
+  // version of this) could take an arbitrarily long string of barely-
+  // perceptible clicks to ever reach a handle far off-screen, since each
+  // step was scaled to the current (possibly tiny, zoomed-in) span rather
+  // than to how far away the target actually was.
+  const expandViewWindowToward = useCallback((dir: "left" | "right", targetDateMs: number) => {
     hasZoomedRef.current = true
-    const span = effectiveMax - effectiveMin
-    const growBy = span * CHEVRON_EXPAND_FRACTION
-    const newMin = dir === "left" ? Math.max(fullMin, effectiveMin - growBy) : effectiveMin
-    const newMax = dir === "right" ? Math.min(fullMax, effectiveMax + growBy) : effectiveMax
+    let newMin = effectiveMin
+    let newMax = effectiveMax
+    if (dir === "left") {
+      const delta = effectiveMin - targetDateMs
+      newMin = Math.max(fullMin, targetDateMs - delta * CHEVRON_EXPAND_FRACTION)
+    } else {
+      const delta = targetDateMs - effectiveMax
+      newMax = Math.min(fullMax, targetDateMs + delta * CHEVRON_EXPAND_FRACTION)
+    }
     setViewWindow(newMax - newMin >= fullSpan ? null : { min: newMin, max: newMax })
   }, [effectiveMin, effectiveMax, fullMin, fullMax, fullSpan])
 
@@ -1044,7 +1068,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 // shared view window — it must never touch any side's own
                 // source/date.
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => expandViewWindowToward(dir)}
+                onClick={() => expandViewWindowToward(dir, tick.dateMs)}
                 className={cn(
                   "absolute top-1/2 -translate-y-1/2 z-10 cursor-pointer flex items-center rounded-md border-2 border-background shadow px-0.5 h-4 text-[8px] font-bold leading-none",
                   bg ? "text-white" : "bg-primary text-primary-foreground",
@@ -1053,7 +1077,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 style={bg ? { background: bg } : undefined}
               >
                 {dir === "left" && <ChevronLeft className="h-3 w-3" />}
-                {side}
+                {showingViews.length > 1 && side}
                 {dir === "right" && <ChevronRight className="h-3 w-3" />}
               </button>
             }
@@ -1153,7 +1177,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               )}
               style={{ left: `${handleLeftPctBySide[side]}%`, ...(bg ? { background: bg } : {}) }}
             >
-              <span className={cn("absolute inset-0 flex items-center justify-center text-[8px] font-bold leading-none pointer-events-none select-none", bg ? "text-white" : "text-primary-foreground")}>{side}</span>
+              {/* A single showing view has nothing to disambiguate — the
+                  letter is pure clutter on an otherwise plain dot then. */}
+              {showingViews.length > 1 && (
+                <span className={cn("absolute inset-0 flex items-center justify-center text-[8px] font-bold leading-none pointer-events-none select-none", bg ? "text-white" : "text-primary-foreground")}>{side}</span>
+              )}
             </div>
           }
         />
@@ -1394,13 +1422,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 // active — shown as the last line of its tooltip.
                 const activeSides = showingViews.filter((s) => tickBySide[s]?.source === t.source && tickBySide[s]?.key === t.key)
                 return t.source === "wayback" ? (
-                  <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} activeSides={activeSides} />
+                  <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} activeSides={activeSides} onSelect={() => applyTick(t)} />
                 ) : (
                   <Tooltip key={`${t.source}-${t.key}`}>
                     <TooltipTrigger
                       render={
                         <div
-                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-help"
+                          // See WaybackTickMark's own comment — stopPropagation
+                          // here so clicking this exact mark always picks THIS
+                          // source's tick, not whichever tied source sorts
+                          // earlier under the track's nearest-pixel fallback.
+                          onPointerDown={(e) => { e.stopPropagation(); applyTick(t) }}
+                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-pointer"
                           style={{ left: `${tickLeftPct(t)}%` }}
                         >
                           <div

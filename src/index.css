@@ -132,6 +132,17 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* The app is a single fixed-viewport surface (see TerrainViewer.tsx's own
+     root div) — html/body never need to scroll themselves, and hiding
+     overflow here is a defensive backstop against the exact 100vh-in-normal-
+     flow feedback loop that root div's own comment describes, in case
+     anything else ever ends up back in document flow tall/wide enough to
+     nudge a scrollbar into existence. */
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);

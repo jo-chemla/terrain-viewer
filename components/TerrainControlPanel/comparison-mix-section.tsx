@@ -4,6 +4,7 @@ import { useAtom } from "jotai"
 import { ChevronDown, Frame } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Toggle } from "@/components/ui/toggle"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -153,11 +154,41 @@ export const ComparisonMixSection: React.FC<{
       {isOverlay && (
         <>
           <div className="flex items-center justify-between gap-2">
-            <Label className="text-sm font-medium">Blend Mode</Label>
+            <Label htmlFor="split-blend-mode-enabled" className="text-sm font-medium cursor-pointer">Blend Mode</Label>
+            {/* Off falls back to plain "normal" (no visual blending) while
+                leaving the actual picked mode in the Select below untouched
+                — a quick blended/unblended flip for the same mode, instead
+                of having to re-pick it every time. */}
+            <Tooltip>
+              <TooltipTrigger
+                delay={0}
+                render={
+                  // inline-flex (not a bare span) — Checkbox's own root
+                  // renders as a plain <span role="checkbox">, display:inline
+                  // by default, which makes its explicit size-4 width/height
+                  // a no-op on a non-replaced inline element. It normally
+                  // only looks right because it sits as a DIRECT flex child
+                  // of a `flex` row (flex "blockifies" child elements, which
+                  // is what actually makes the explicit size stick) — a bare
+                  // wrapping span here breaks that, collapsing it down to a
+                  // thin content-sized sliver instead of a 16px box.
+                  <span className="inline-flex">
+                    <Checkbox
+                      id="split-blend-mode-enabled"
+                      checked={state.splitBlendModeEnabled}
+                      onCheckedChange={(checked) => setState({ splitBlendModeEnabled: checked === true })}
+                      className="cursor-pointer"
+                    />
+                  </span>
+                }
+              />
+              <TooltipContent><p>Turn the blend mode effect on or off — the picked mode below stays remembered either way, so this is a quick toggle to preview the plain (unblended) overlay without losing it.</p></TooltipContent>
+            </Tooltip>
             <Select
               value={state.splitBlendMode}
               onValueChange={(value) => value && setState({ splitBlendMode: value })}
               items={BLEND_MODE_GROUPS}
+              disabled={!state.splitBlendModeEnabled}
             >
               <SelectTrigger className="w-[140px] cursor-pointer">
                 <SelectValue />
