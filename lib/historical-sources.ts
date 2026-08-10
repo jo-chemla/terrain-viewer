@@ -1,4 +1,4 @@
-import { viewFieldName, type GridLayoutId } from "./grid-layouts"
+import { GRID_LAYOUTS, viewFieldName, type GridLayoutId } from "./grid-layouts"
 
 // Shared registry of basemap ids that are "historical" (date-driven, archival)
 // sources — used to gate the historicalBeta toggle's tile-fetch gate
@@ -33,21 +33,24 @@ export function isHistoricalSourceActive(state: {
   basemapPerView?: boolean
   splitStyle?: string
   gridLayout?: GridLayoutId
+  appMode?: string
   basemapSource?: string
   [key: string]: any
 }): boolean {
   const isActive = (v?: string) => v === "historical" || TIMELINE_SOURCE_IDS.has(v ?? "")
   const isSplit = state.splitStyle !== "off"
   // Per-view basemap AND split both on ("dual mode", historical-timeline-
-  // panel.tsx's own name for this) — the timeline panel then always shows
-  // itself, with a PROPOSED tick for every active view even before any of
-  // them has actually been switched onto a historical basemap (see that
-  // file's showFor/panelVisible), so this needs to agree unconditionally
-  // rather than re-checking each view's current basemap like the branches
-  // below — otherwise the panel can render (eating real layout space) while
-  // this reports "not active," desyncing every consumer keyed off it
-  // (row-height math, timeline bottom padding, minimap offset, border clamps).
-  if (state.basemapPerView && isSplit) return true
+  // panel.tsx's own name for this) — the timeline panel's own showFor now
+  // requires each view to ACTUALLY be on a historical source (no more
+  // proposed/preview pill for a view that isn't), so this checks the same
+  // thing here: true the moment ANY currently-active view is historical, not
+  // unconditionally. Mirrors TerrainViewer.tsx's own effectiveGridLayout for
+  // which views count as "active" (overlay split, or outside Historical
+  // appMode, is always just the 2x1 A/B pair regardless of state.gridLayout).
+  if (state.basemapPerView && isSplit) {
+    const layout: GridLayoutId = (state.splitStyle === "overlay" || state.appMode !== "historical") ? "2x1" : (state.gridLayout ?? "2x1")
+    return GRID_LAYOUTS[layout].grid.flat().some((side) => isActive(state[viewFieldName(side, "basemapSource", true)]))
+  }
   // No per-view basemap at all: only the one shared field can ever be active,
   // regardless of split/grid state.
   if (!state.basemapPerView) return isActive(state.basemapSource)
