@@ -150,7 +150,14 @@ export const RasterBasemapSection: React.FC<{
                 {visibleBuiltinOptions.map(({ value, label }) => (
                   <div key={value} className="flex items-center gap-2 min-w-0">
                     <SourceGridToggle
-                      gridLayout={state.splitStyle === "overlay" ? "2x1" : state.gridLayout}
+                      // Terrain mode's own split (Overlay or Side) is always
+                      // forced to 2x1 (see TerrainViewer's effectiveGridLayout),
+                      // but state.gridLayout itself isn't reset on a mode
+                      // switch — without the !historicalMode check here, this
+                      // picker kept showing whichever grid (e.g. 3x2, A-F) was
+                      // last picked in Historical mode even after the map
+                      // itself had already collapsed back to just A/B.
+                      gridLayout={(state.splitStyle === "overlay" || !historicalMode) ? "2x1" : state.gridLayout}
                       // isSplit always means per-view basemap fields, even if
                       // basemapPerView's own persisted value happens to be
                       // false — see perViewEffective's header comment above.
