@@ -2,7 +2,7 @@
 
 #### TL;DR
 - **Match Colors** — automatically recolors every other view onto View A's color histogram, so two different imagery sources (or two dates of the same source) no longer look noticeably darker/bluer/warmer next to each other when compared or blended.
-- Five color spaces to choose from — RGB is instant (a live CSS filter); HSL/HSV/LAB/LCH are slower but can match more subtle color differences.
+- Five color spaces to choose from — RGB is instant (a live CSS filter); HSL/HSV/LAB/LCH are slower but can match more subtle color differences. Ported from Iconem/historical-satellite's standalone [histogram-matching demo](/histogram-matching-example/histogram-matching.html), vendored under `public/histogram-matching-example/` for reference.
 
 ### Features
 - **Match Colors, in Compare and Blend** — TL;DR: automatically recolors the other view(s) to match View A, so two different imagery sources — or two different dates of the same source — line up visually instead of one looking noticeably darker/bluer/warmer than the other when compared or blended. A new "Color Space" picker lets you choose how thorough the match is; the default (RGB) is instant, the others are slower but can match more subtle color differences.
@@ -11,7 +11,7 @@
   - **RGB** (fast): computes a per-channel 256-entry lookup table (via exact empirical-CDF histogram matching — see the Bug Fixes entry below) and applies it as a live CSS SVG `feComponentTransfer` filter directly on the target's `<canvas>`. No pixel data is ever touched; GPU-composited every frame for free.
   - **HSL / HSV / LAB / LCH** (slower, flagged with an hourglass in the picker): `feComponentTransfer` can only ever transform raw R/G/B output independently, so a mapping computed in one of these spaces can't be expressed as a CSS filter. Instead: hand-rolled sRGB↔space conversions (not chroma-js — its per-call Color-object construction/dispatch overhead is real at pixel-loop scale, measured ~4-5x slower) convert a small 96×96 sample of each view to the target color space, compute the matching per channel, then a coarse 25³-point 3D color LUT (the same technique real color-grading tools use — DaVinci Resolve/Lightroom camera profiles, `.cube` LUT files) is built once from that mapping and applied to the target's *own native canvas resolution* via trilinear interpolation — cheap per pixel (8 LUT reads + weighted blends, no transcendental math), which is what makes native-resolution output affordable at all (a naive full per-pixel conversion measured 0.5-0.9s at typical/high-DPI canvas sizes; the LUT approach is 100-400ms for the same sizes). Result is drawn onto a `pointer-events-none` overlay canvas stacked on the target's own live canvas (which stays interactive underneath), faded to `opacity:0` on either map's `movestart` and back to `1` once the next recompute lands, so a pan/zoom gesture always shows the live map moving instead of a stale, non-updating overlay sitting on top of it with no feedback.
   - Both paths re-sample on `idle` (either the reference or the target map), debounced to at most once/second.
-  - Also vendors Iconem/historical-satellite's original standalone histogram-matching demo (`public/histogram-matching-example/`) for reference — the algorithm this whole feature is ported from.
+  - Also vendors Iconem/historical-satellite's original standalone [histogram-matching demo](/histogram-matching-example/histogram-matching.html) (`public/histogram-matching-example/`) for reference — the algorithm this whole feature is ported from.
 
 ### Bug Fixes
 - **LAB/LCH histogram matching producing wildly wrong colors** — root cause: the CDF matching binned each channel into a *fixed grid spanning its theoretical range* (e.g. LAB's a/b as ±100, later widened to ±128 as a first attempted fix — still wrong). Any low-variance sample (a flat-colored tile — open water, snow, a cloud deck) has almost all its mass in one or two bins, and the standard CDF-inversion boundary handling (`x <= xp[0]` / `x >= xp[last]`) then snaps those bins straight to the array's *theoretical* min/max the instant a query's cumulative fraction hits exactly 0 or 1 — which happens far more often than it sounds, not just at the sample's true extremes. For RGB that clamped to plain black/white (usually visually benign by luck); for LAB it clamped to wildly saturated colors that never appeared anywhere in either image. Fixed by replacing the fixed-bin approach with an exact empirical CDF (ECDF) over each channel's actually-observed values — sorted + deduplicated real samples, matching what scikit-image's own `exposure.match_histograms` does (`np.unique` + cumulative counts) — so both the lookup arrays and their boundary clamps are always real data points, never a synthetic range edge. Applied to the RGB path too (same root cause, just visually subtler). Verified against the exact degenerate case that exposed it (a perfectly flat-colored source/target pair, which used to land on arbitrary extreme colors) now matching exactly; realistic noisy-sample correctness and native-resolution LUT performance both reconfirmed unaffected (ECDF construction adds ~7-9ms on top of the existing 60-210ms LUT-apply cost).
@@ -19,7 +19,7 @@
 # Changelog — August 10, 2026: N-Map Grid & Overlay Comparison
 
 #### TL;DR
-- Compare and Blend's Split Mode (**Off** / **Side** / **Overlay**) gains a **Grid** shape — now supporting up to 8 synced map views, not just a 2-way split.
+- Compare and Blend section now supports a full grid of up to 8 synced map views, not just a 2-way split.
 - Export historical GeoTIFFs across a date range, with an option to generate ready-to-run `gdal_translate` scripts.
 - Optional colored map borders and a capture-date pill make it easy to tell which pane is which.
 - Overlay's Blend Mode dropdown now exposes every CSS blend mode, not just a curated handful.
@@ -55,20 +55,20 @@
 - **Pan gutter / wheel-pan gating** — both the horizontal pan gutter and wheel-driven horizontal pan were gated on `viewWindow` being set rather than on a real hidden range actually existing, so e.g. re-toggling a source pill back on (which can only become reachable via the 2010 default-view floor, not an actual zoom/pan) left the gutter transparent/inert. Wheel gestures also now lock to pan-or-zoom for the gesture's full duration (trackpad swipes rarely produce pure `deltaX`, so switching mode per-event read as stutter), and wheel-driven `viewWindow` updates coalesce to one per animation frame instead of one per wheel event, since momentum-decay tails can fire well past 60fps.
 - **Ctrl+drag handle index math** — iterated from each handle scrubbing by nearest-pixel (reading as time-distance rather than a clean N-marks shift when sources differ in tick density) to indexing within its own source's list, to its final form: indexing within the flattened, all-sources list, so "N marks" is the same visual distance for the dragged handle and every swept handle alike, regardless of source.
 
-# Changelog — August 7, 2026: Historical Satellite Imagery & Mode Picker
+# Changelog — August 7, 2026: Historical Satellite Imagery Timeline, Terrain vs Historical Mode Picker
 
 #### TL;DR
-- New "Historical Imagery" mode: scrub a real per-tile capture-date timeline across ESRI Wayback, Landsat/Sentinel, Google Earth Historical, Planet, and Bing.
-- **Mode Picker** switches the whole sidebar between Terrain and a simplified Historical Imagery layout.
-- Every basemap source now feeds real attribution, including dynamically-resolved provider/date info for Wayback, Google Earth Historical, and Bing.
-- Sun Shadow Calculator: new **Reverse** mode — click a shadow to back-solve the light direction and time of day; the light-direction pad itself gained the same inverse lookup.
+- New "Historical Imagery" mode: scrub a real per-tile capture-date timeline bottom panel, across **ESRI Wayback, Google Earth Historical**, Landsat/Sentinel, Planet, and Bing.
+- **Mode Picker** switches the whole sidebar between Terrain Viewer and a simplified Historical Imagery layout.
+- Every historical basemap source now feeds real attribution, including dynamically-resolved provider/date info for Wayback, Google Earth Historical, and Bing.
+- Sun Shadow Calculator: new **Reverse** mode — click a shadow to back-solve the light direction and time of day; the light-direction pad itself gained the same inverse lookup. Also see the standalone [sun-position estimator](/sun-position-estimator.html) tool.
 
 ### Features
 - **Historical satellite imagery basemaps + timeline scrubber** — five date-driven basemap sources (ESRI Wayback, NASA HLS Landsat/Sentinel, Google Earth Historical via a reverse-engineered `gehist://` MapLibre protocol, Planet Monthly Mosaics behind an API key, and Bing's single current mosaic), consolidated into one "Historical Imagery" sidebar entry rather than five separate rows (which underlying source is active per side is a separate `historicalActiveSource(A/B)` field). A bottom timeline panel shows per-source colored pills (toggle which sources' ticks are shown, filterable by VHR/medium resolution) and a scrubbable track of real per-tile capture dates — not each source's own catalog-wide "release date." Split-screen/per-view mode gets a sync toggle (single chain icon) to move both sides' scrub position together or independently via an A/B picker. Off-screen A/B handles collapse into a rounded chevron chip ("A>"/"<B") that recenters the view on click instead of colliding with the round in-view handle. A "Open in…" launcher opens the current view in BBBike MapCompare or similar external tools.
 - **Real per-tile capture dates, not catalog metadata** — Wayback resolves via its own metadata endpoint (deduped by resolved real date, since distinct releases commonly share one — the earlier culprit behind ticks piling onto one pixel), Bing reads a deliberately CORS-exposed `X-VE-TILEMETA-CaptureDatesRange` response header (undocumented but confirmed live to vary genuinely by location/zoom), GE Historical decodes Google's own encrypted `dbRoot`/quadtree-packet protocol.
 - **Mode Picker** — clicking the sidebar title ("Terrain Viewer" / "Historical Sat") opens a dialog to switch the app's meta-mode between **Terrain** (the full toolset, unchanged) and **Historical Imagery** (a deliberately stripped-down 2D-only sidebar: no View Mode toggle, no Visualization Modes/Options/Detectors groups, no Elevation Picker, just General Settings, Bookmarks, Download, an ungrouped Basemap picker, and Tools). Settings dialog hides what's terrain-only in this mode too (the Visualization Modes reference section, Tells/Mound-detector beta toggle, high-precision Terrarium-vs-TerrainRGB toggle, MapTiler API key). `appMode` is nuqs/URL state (sorted right after `project` in the URL's own param order), not a local-only setting, and persists its last value across a fresh session like the existing beta-gate flags.
 - **Basemap attribution** — every basemap source now feeds MapLibre's attribution control (previously only terrain sources did). Static per-provider strings for OSM/Mapbox/HERE/Bing/Google/Planet/HLS/EOX Sentinel-2-cloudless; genuinely dynamic, current-view-resolved attribution for Esri/Wayback (Esri's public contributor-coverage feed, `static.arcgis.com/attribution/World_Imagery`), Google Earth Historical (the real per-tile capturing provider, decoded straight from Google's own `dbRoot` — a `providerId → copyright` table shipped in the same response already fetched for other purposes, reverse-engineered against Open GEE's `dbroot_v2.proto` and cross-checked against CesiumJS's own `GoogleEarthEnterpriseMetadata`), and Bing (real per-tile capture-date range, see above). The corner `AttributionControl` shows a short static pointer for the three dynamic sources ("see dynamic source attribution in sidebar source panel") since a `<Source>`'s `attribution` prop can never be live-updated post-mount (react-map-gl's own reconciler has no case for it) — but is *also* pushed the real resolved text directly via the underlying MapLibre `Map` instance plus a synthetic `sourcedata` event (`Map.fire`, fully public API, no private methods), so the corner control shows it live too. The sidebar's Source Info section lists every historical source's attribution (dynamic + static) and works in both Terrain and Historical app modes — a raster basemap can be active in either.
-- **Inverse solar-position lookup + shadow-based light estimator** — the light-direction XY pad (Hillshade/Phong native + Sun Shadow Calculator) is now a full bidirectional binding in Datetime mode: dragging it back-solves the closest matching day-of-year + time-of-day (closed-form, picking whichever of the two annually-recurring declination solutions is nearer the day already set) and updates the Date/Time sliders, while the sliders still drive the pad forward as before. Free mode shows the same back-solved day/time as a "closest match" caption. The pad hatches every position the sun can never reach at the current latitude (a closed-form spherical-astronomy inequality, not a restrictive tint) and its drag pill turns destructive-red in real time outside that region. Sun Shadow Calculator gains a **Reverse** mode: click an object's base, then its real shadow tip as seen in the imagery, and the shadow's length/bearing plus the object's height back-solve a light direction (and closest-matching day/time) instead of the other way around.
+- **Inverse solar-position lookup + shadow-based light estimator** — the light-direction XY pad (Hillshade/Phong native + Sun Shadow Calculator) is now a full bidirectional binding in Datetime mode: dragging it back-solves the closest matching day-of-year + time-of-day (closed-form, picking whichever of the two annually-recurring declination solutions is nearer the day already set) and updates the Date/Time sliders, while the sliders still drive the pad forward as before. Free mode shows the same back-solved day/time as a "closest match" caption. The pad hatches every position the sun can never reach at the current latitude (a closed-form spherical-astronomy inequality, not a restrictive tint) and its drag pill turns destructive-red in real time outside that region. Sun Shadow Calculator gains a **Reverse** mode: click an object's base, then its real shadow tip as seen in the imagery, and the shadow's length/bearing plus the object's height back-solve a light direction (and closest-matching day/time) instead of the other way around. A standalone prototype of the forward solve — pick a date/time/location, see the resulting sun position and shadow length — ships alongside it as a mini tool: [sun-position-estimator.html](/sun-position-estimator.html).
 
 ### Bug Fixes
 - **Ghost/duplicate timeline marks** — root-caused to distinct Wayback releases resolving to an identical real capture date, which collided on both the tick list's React key and the tick-position map's key, causing React to reuse/misplace DOM nodes (worse after repeated zooming). Fixed by deduplicating Wayback ticks by resolved date at the source, not by trying to visually nudge duplicates apart.
@@ -77,13 +77,13 @@
 - **A/B handle collision** — an off-screen handle previously rendered both the clamped round handle pinned at the track edge *and* a separate off-screen chevron indicator simultaneously; now mutually exclusive.
 - Split-mode centering, per-map sidebar padding, minimap/attribution-corner layout regressions, and pastel per-source tick colors derived from each provider's own brand color, from the historical-timeline work above.
 
-# Changelog — July 31, 2026: Bookmarks Gallery, Colorramp Editor & Control Restyle
+# Changelog — July 31, 2026: Draw export split, Colorramp Editor, Bookmarks Gallery
 
 #### TL;DR
-- **Bookmarks gallery** now flattens into one continuous grid by default.
-- A live colorramp session editor for quick, non-persisted ramp-stop edits.
-- Native map controls (zoom/compass/geolocate) and the geocoder now follow your color theme.
 - TerraDraw export becomes a split button with a "split by layer" option.
+- A live colorramp session editor for quick, non-persisted ramp-stop edits.
+- **Bookmarks gallery** now flattens into one continuous grid by default.
+- Native map controls (zoom/compass/geolocate) and the geocoder now follow your color theme.
 - shadcn/ui moved to Base UI's `base-vega` preset.
 
 ### Features
@@ -107,12 +107,13 @@
 - Keyframes "Complete vs Smooth" toggle now uses the app's default small `Switch` instead of a custom oversized one.
 - Export modal shows a count of local BYOD COG sources next to "Include local COG files".
 
-# Changelog — July 30, 2026: Foldable Bookmarks Tree & BYOD Source Polish
+# Changelog — July 30, 2026: Foldable Bookmarks Tree, COG GSD surfacing & BYOD Source Polish
 
 #### TL;DR
 - Bookmarks: drag-and-drop reordering, collapsible project folders, fold/expand-all, and an edit mode to keep the everyday view uncluttered.
 - COG sources now auto-show their inferred native resolution and ground-sample distance.
-- Basemap/terrain source modals gained a copy-to-clipboard button for URL templates.
+- Project export: local COG files now bundle into their own `local-cogs/` subfolder instead of the zip root.
+- BYOD modal reworked: clearer field order (Name → Type → URL) and a "Must be:" file-requirements checklist.
 
 ### Features
 - **Foldable bookmarks tree** — project (root) bookmarks collapse/expand their child views, file-tree style; a collapsed project shows a stand-in thumbnail (its first child's, by current order, or a placeholder), which hides once expanded since the children show their own.
@@ -139,12 +140,12 @@
 - **Symmetric-range sliders** (Curvature, LRM, Shape Index, Openness, Local Dominance, TPI) could be dragged to a degenerate zero-width range at their minimum; each now floors at its own step instead of 0. TRI/Roughness max range 500→250, TPI max range 100→50.
 - **Basemap source-info section** now always renders in the sidebar (matching Terrain), instead of only when Raster Basemap is toggled on.
 
-# Changelog — July 28, 2026: Bookmarks, Sun Shadow Calculator & Project Export
+# Changelog — July 28, 2026: Bookmarks, Project Export & Sun Shadow Calculator
 
 #### TL;DR
 - **View bookmarks introduced** — save/restore full viewport + viz state, sidebar list + gallery.
-- Whole-project import/export in one file (sources, bookmarks, drawings, settings).
-- **Sun Shadow Calculator** — pick a point + an object's height, get its shadow at the current sun position; plus a hard cast-shadow **Shadows** layer.
+- Whole-project import/export in one file (terrain/basemap sources, bookmarks, drawings, settings, with zip to embed vector drawings/local COGs as an option).
+- **Sun Shadow Calculator** — pick a point + an object's height, get its shadow at the current sun position; plus a hard cast-shadow **Shadows** layer as its own visualization mode.
 - SVF/Openness gain faster precision, plus a new Principal Components (PCA) relief-mode family (Blobness, Eigenvalue Ratio, Dominant Orientation, Shape Index).
 
 ### Features
@@ -156,14 +157,15 @@
 ### Bug Fixes
 - The following day (`b3252fb`, Jul 29) was almost entirely the Radix→Base UI component migration and dependency cleanup — no new features that week.
 
-# Changelog — July 21, 2026: Theme Editor & Lighting/Relief Tools
+# Changelog — July 21, 2026: Multi-layer Drawing Tools & Lighting/Relief Tools
 
 #### TL;DR
-- New standalone **Theme Editor** — live Tailwind v4/shadcn theming with tweakcn/shadcnstudio presets.
-- **Matcap/Phong lighting rebuilt** as live WebGL shaders; native MapLibre Hillshade restored as its own mode alongside it.
-- New tools: Local Dominance relief mode, point-to-point profile/line-of-sight, Plane Slicer, a Source Info panel.
+- **TerraDraw becomes multi-layer** — drawing and GeoJSON import now target whichever layer is active; local COG files and vector layers now survive a reload via OPFS persistence.
+- **Matcap/Phong lighting** introduced as live WebGL shaders; native MapLibre Hillshade restored as its own mode alongside it.
+- New visualization modes: Local Dominance relief mode, point-to-point profile/line-of-sight.
+- New tools: Source Info panel, Plane Slicer.
 - Contours extended to local/BYOD COG sources via a dedicated worker, plus line-weight and color controls.
-- **TerraDraw becomes multi-layer** — drawing and GeoJSON import now target whichever layer is active; local COG files and vector layers now survive a reload.
+- New standalone **Theme Editor** — live Tailwind v4/shadcn theming with tweakcn/shadcnstudio presets.
 - **Linked terrain/basemap source pairing** — for datasets like a fresco's DTM plus its own albedo photo, picking one auto-selects the other.
 
 ### Features
@@ -180,17 +182,17 @@
 - `d2833b0` reverted the same day's WebGL Matcap/Phong rebuild back to plain raster-tile protocols after `e047058` proved unstable — the live-shader version that stuck landed via the redesign in `674103f` instead.
 - `7153d02` fixed Matcap/Phong globe rendering; `7579f06` fixed the Theme Editor's fonts never actually applying.
 
-# Changelog — July 7–17, 2026: Terrain Analysis Suite, Elevation Picker & Local COG Sources
+# Changelog — July 7–17, 2026: Terrain Analysis Suite, Tell Detector & Local COG Sources
 
 #### TL;DR
-- **Elevation Picker introduced** — click-to-sample elevation with a two-point delta, plus basemap **overlays** (radar, trails, watercolor and more) that layer on top of any basemap instead of replacing it.
 - Terrain-analysis suite (Curvature, TPI, Roughness, Det-Hessian, Blobness) expanded, with **Relief Visualization split out as its own group** alongside it (Sky View Factor, Openness).
 - **Local Relief Model (LRM) introduced** — a new relief mode isolating local bumps from the regional trend.
-- Experimental **"Tells" archaeological mound detector**, gated behind a Beta toggle.
-- **Labeled Sources / Options / Detectors / Tools sidebar dividers** for scanning a long control panel.
+- Experimental **"Tells" archaeological mound detector**, gated behind a Beta toggle, based on finding local extrema/maxima of the Local Relief Model (LRM).
+- **Labeled section grouped into Sources / Options / Detectors / Tools sidebar with dividers** for scanning a long control panel.
 - **Keyboard shortcuts**: Shift-tap to peek at the raster basemap, Ctrl-tap to hide every overlay down to just the basemap.
+- **Elevation Picker introduced** — click-to-sample elevation with a two-point delta, plus basemap **overlays** (radar, trails, watercolor and more) that layer on top of any basemap instead of replacing it.
 - Local COG (BYOD) terrain sources — load a `.tif` straight off disk, no upload.
-- Client-side GeoTIFF export and shareable per-project embed configs.
+- Client-side GeoTIFF export without Titiler, and shareable per-project embed configs.
 - Camera/animation poses are now URL-shareable.
 
 ### Features
@@ -233,13 +235,15 @@
 - **Terrarium/TerrainRGB sources** (`6d8d24e`) — fixed after `fbae55f`'s WIP min/max-zoom and `MapSources` factoring work exposed the issue.
 - **Custom-source batch edit** (`17b7c6d`) — fixed for terrain sources (see the original batch-edit tool from Nov 2025 below).
 
-# Changelog — February 2026: TerraDrawSystem, Minimap & Video Export
+# Changelog — February 2026: Drawing Tools, BYOD Basemaps, Contours & Animation Tools
 
 #### TL;DR
-- TerraDrawSystem introduced — the drawing-tools system that later underlies bookmarks, feature export, and more.
-- Minimap with footprint/frustum, and a big video-export overhaul (MediaBunny-based MP4 export).
-- BYOD basemaps finalized; contours reworked into their own "Contours & GeoGrid" section.
-- Finer Terrarium quantization (vs. TerrainRGB) shipped as a High-Precision toggle.
+- Drawing Tools introduced via TerraDraw — draw shapes, points, rects, import/export features, and more.
+- BYOD basemaps finalized as their own custom-source type, alongside the existing BYOD terrain sources.
+- Contours reworked into their own "Contours & GeoGrid" section.
+- Keyframe-based, video-export overhaul (MediaBunny-based MP4 export rather than browser MediaCodec).
+- Minimap with footprint/frustum.
+- Finer Terrarium quantization (4mm vs. TerrainRGB 10cm) shipped as a High-Precision toggle.
 - Fold/expand-all for every sidebar section, with collapsed state now persisted.
 
 ### Features
@@ -257,14 +261,14 @@
 # Changelog — November 2025: Initial Launch, BYOD Terrain & COG Streaming
 
 #### TL;DR
-- Initial launch — already had Hillshade, hypsometric color-relief, a raster basemap, Split Mode's original Off/Side (2-way) comparison, and UI transparency, all from the sidebar control panel. (Overlay blending was added later — exact date untraced.)
-- Bring Your Own Data (BYOD) terrain sources introduced.
-- The Geomatico COG-protocol vs. Titiler streaming choice introduced.
-- A large open-license colorramp library (cpt-city) added.
+- Initial launch — expose terrain visualization modes Hillshade, hypsometric color-relief, raster basemaps (Google, Bing, ESRI, Mapbox, Here, OSM), split-screen comparison, and UI transparency, all from one sidebar control panel.
+- Bring Your Own Data (BYOD) terrain sources let user import their own TMS, COG remote endpoint terrain sources.
+- Offer the choice to stream COG via Geomatico native maplibre COG-protocol vs. Titiler.
+- Adding large open-license colorramp library, cpt-city.
 - Batch-editing custom terrain/basemap sources as JSON.
 
 ### Features
-- **Initial launch** (`29ced9e`, `1e12655`, `535bb2a`, `c4d067f`) — the app's first version already had Hillshade, hypsometric tint (color-relief), a raster basemap, Split Mode's original Off/Side (A/B) comparison, and a UI-transparency option, all driven from the sidebar control panel (`components/terrain-controls.tsx`, `components/terrain-viewer.tsx`, `components/ui/sidebar.tsx`) — contours were present too, stabilized two days later (`069570e`).
+- **Initial launch** (`29ced9e`, `1e12655`, `535bb2a`, `c4d067f`) — the app's first version already had Hillshade, hypsometric tint (color-relief), a raster basemap, split-screen A/B comparison, and a UI-transparency option, all driven from the sidebar control panel (`components/terrain-controls.tsx`, `components/terrain-viewer.tsx`, `components/ui/sidebar.tsx`) — contours were present too, stabilized two days later (`069570e`).
 - **BYOD (Bring Your Own Data) terrain sources** (`f24c1bc`) — the original bring-your-own-terrain-source feature, with COG and VRT support added the same week (`c479102`, `9786d0e`).
 - **Geomatico COG Protocol introduced alongside Titiler** (`b6beb09`, toggle `9618fbc`) — direct client-side COG consumption as an alternative to the Titiler middleware; the toggle between them (`useCogProtocolVsTitiler`) is still in Settings → Streaming today.
 - **cpt-city colorramp pipeline** — a large open-license colorramp library parsed via a new `cpt2js`-based pipeline (`ba2b492`), a standalone cpt-city archive-parser mini-app to harvest it (`57bf00a`), topobath ramps (`0ccb447`), and a further significant expansion (`b5254fc`).
