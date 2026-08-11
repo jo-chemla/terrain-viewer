@@ -62,6 +62,10 @@ export const colorizeMapBordersInsetAtom = atomWithStorage("colorizeMapBordersIn
 // section-local collapse toggle (isBasemapByodOpenAtom etc. in
 // settings-atoms.ts) so it doesn't silently re-collapse on every reload.
 export const isComparisonMixAdvancedOpenAtom = atomWithStorage("isComparisonMixAdvancedOpen", false)
+// Same pattern, for the "Match Colors" histogram-matching controls at the
+// bottom of Compare and Blend — folded by default since it's an occasional-
+// use refinement, not something every split/overlay session needs.
+export const isComparisonMixColorMatchOpenAtom = atomWithStorage("isComparisonMixColorMatchOpen", false)
 
 // The historical timeline panel's own measured height (its outer bordered
 // box, via ResizeObserver — see historical-timeline-panel.tsx), so

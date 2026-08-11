@@ -1,7 +1,7 @@
 import type React from "react"
 import { useMemo, useState } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Frame } from "lucide-react"
+import { ChevronDown, Frame, Hourglass } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -13,10 +13,21 @@ import { Section, SegmentedToggle, SliderControl, GroupHeading } from "./control
 import { ColorAlphaSwatch } from "./color-picker"
 import { OpenInLinksButton } from "./open-in-links"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
-import { colorizeMapBordersAtom, colorizeMapBordersInsetAtom, isComparisonMixAdvancedOpenAtom, sideColorOverridesAtom } from "@/lib/layout-constants"
+import { colorizeMapBordersAtom, colorizeMapBordersInsetAtom, isComparisonMixAdvancedOpenAtom, isComparisonMixColorMatchOpenAtom, sideColorOverridesAtom } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, BLEND_MODE_GROUPS, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { useWaybackItemsWithLocalChanges } from "@/lib/wayback"
 import { cn } from "@/lib/utils"
+
+// RGB is the only space cheap enough for a live CSS filter (see
+// HistogramMatchFilter.tsx) — the rest need a real per-pixel JS conversion,
+// flagged here with an hourglass so the tradeoff is visible before picking one.
+const COLOR_SPACE_OPTIONS: { value: "rgb" | "hsl" | "hsv" | "lab" | "lch"; label: string; slow?: boolean }[] = [
+  { value: "rgb", label: "RGB" },
+  { value: "hsl", label: "HSL", slow: true },
+  { value: "hsv", label: "HSV", slow: true },
+  { value: "lab", label: "LAB", slow: true },
+  { value: "lch", label: "LCH", slow: true },
+]
 
 // "Table size picker" style control (Excel/Docs "insert table" convention) —
 // an 8-cell grid standing in for the text SegmentedToggle Grid Layout used
@@ -108,6 +119,7 @@ export const ComparisonMixSection: React.FC<{
   // Persisted (atomWithStorage) so a user who opens it once doesn't have to
   // re-open it on every reload.
   const [advancedOpen, setAdvancedOpen] = useAtom(isComparisonMixAdvancedOpenAtom)
+  const [colorMatchOpen, setColorMatchOpen] = useAtom(isComparisonMixColorMatchOpenAtom)
   // Newest release at this location — used by the "Open in..." ESRI Wayback
   // link (open-in-links.tsx) instead of a hardcoded release id. Shares
   // historical-timeline-panel.tsx's own module-level per-location cache (see
@@ -302,6 +314,63 @@ export const ComparisonMixSection: React.FC<{
                   </div>
                 </div>
               </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {isSplit && (
+        <Collapsible open={colorMatchOpen} onOpenChange={setColorMatchOpen}>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <CollapsibleTrigger className="flex-1 min-w-0 text-left cursor-pointer">
+              <GroupHeading>Match Colors</GroupHeading>
+            </CollapsibleTrigger>
+            <CollapsibleTrigger className="cursor-pointer">
+              <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${colorMatchOpen ? "rotate-180" : ""}`} />
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent className="space-y-2 pt-1">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-sm font-medium" title="Live-samples the tiles currently rendered in each view's viewport (re-sampled at most once/second) and color-matches every other view onto A's histogram.">
+                Match to View A
+              </Label>
+              <SegmentedToggle
+                className="w-[140px]"
+                value={state.matchColorsToA ? "on" : "off"}
+                onChange={(value) => setState({ matchColorsToA: value === "on" })}
+                options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+              />
+            </div>
+            {state.matchColorsToA && (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm font-medium">Color Space</Label>
+                  <Select
+                    value={state.matchColorsColorSpace}
+                    onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
+                  >
+                    <SelectTrigger className="w-[140px] cursor-pointer">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COLOR_SPACE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          <span className="flex items-center gap-1.5">
+                            {opt.label}
+                            {opt.slow && <Hourglass className="h-3 w-3 text-muted-foreground" />}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground leading-snug flex gap-1.5">
+                  {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3 shrink-0 mt-0.5" />}
+                  {state.matchColorsColorSpace === "rgb"
+                    ? "RGB is fast: matching is applied as a live CSS filter, no pixel conversion needed."
+                    : "Slower: this space isn't expressible as a CSS filter, so every pixel is converted, remapped, and converted back in JS at reduced resolution."}
+                </p>
+              </>
             )}
           </CollapsibleContent>
         </Collapsible>

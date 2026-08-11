@@ -41,6 +41,8 @@ const SAMPLE_TERRAIN_SOURCES = customSourcesData["SAMPLE_TERRAIN_SOURCES"] as Cu
 const SAMPLE_BASEMAP_SOURCES = customSourcesData["SAMPLE_BASEMAPS_SOURCES"] as CustomBasemapSource[]
 import { MinimapInternal } from "./MapControls/MinimapControl";
 import { LightControlOverlay } from "./MapControls/LightControlOverlay";
+import { HistogramMatchFilter } from "./MapControls/HistogramMatchFilter";
+import { COLOR_SPACES } from "@/lib/histogram-matching";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
 import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -193,6 +195,21 @@ export const QUERY_STATE_PARSERS = {
     // mode, instead of re-selecting "Normal" and then the real mode again.
     splitBlendModeEnabled: parseAsBoolean.withDefault(true),
     overlayOpacity: parseAsFloat.withDefault(1.0),
+    // "overlay"-only: "Match Colors (View A as reference)" — live-samples
+    // both panes' CURRENTLY RENDERED canvases (whatever tiles are actually
+    // loaded in the viewport, re-sampled at most once/second) and recolors
+    // pane B onto pane A's histogram via a per-channel CSS LUT filter, so a
+    // color-graded mismatch between two imagery sources doesn't read as a
+    // seam under the overlay clip/blend. Applies to EVERY non-A active view
+    // (overlay: just B; grid/side-by-side: each of B..H independently), all
+    // matched onto A. See HistogramMatchFilter.tsx.
+    matchColorsToA: parseAsBoolean.withDefault(false),
+    // Which color space the matching above is computed/applied in — "rgb"
+    // (default) is a live CSS filter; the others are a real per-pixel JS
+    // conversion, capped to a low working resolution (see
+    // HistogramMatchFilter.tsx's WORKING_MAX_DIM) since they're much more
+    // expensive than the RGB path.
+    matchColorsColorSpace: parseAsStringLiteral(COLOR_SPACES).withDefault("rgb"),
     // Compare and Blend's "Show Capture Date" toggle — a small per-view pill
     // for whichever views are actually on a dated historical source. "date"
     // shows just the formatted date; "source-date" prefixes it with that
@@ -3107,6 +3124,21 @@ export function TerrainViewer() {
         )}
       </div>
       <LightControlOverlay state={state} setState={setState} mapRef={mapRefs.A as any} />
+      {/* One instance per non-A active view — overlay only ever has B, but
+          grid/side-by-side can have up to G (B..H), each independently
+          matched onto A. */}
+      {isSplit && activeViewIds.filter((side) => side !== "A").map((side) => (
+        <HistogramMatchFilter
+          key={side}
+          id={side}
+          enabled={state.matchColorsToA}
+          colorSpace={state.matchColorsColorSpace}
+          referenceMapRef={mapRefs.A}
+          targetMapRef={mapRefs[side]}
+          referenceLoaded={!!mapLoaded.A}
+          targetLoaded={!!mapLoaded[side]}
+        />
+      ))}
       {/* A plain floating div (not a per-map maplibre IControl) — positioned
           relative to the whole viewport via the SAME minimapBottomOffset
           already used for the old in-map-corner version, so it correctly
