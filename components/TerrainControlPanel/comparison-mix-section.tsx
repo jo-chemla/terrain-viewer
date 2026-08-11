@@ -329,50 +329,52 @@ export const ComparisonMixSection: React.FC<{
               <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${colorMatchOpen ? "rotate-180" : ""}`} />
             </CollapsibleTrigger>
           </div>
-          <CollapsibleContent className="space-y-2 pt-1">
-            <p className="text-xs text-muted-foreground leading-snug">
-              Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.
-            </p>
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-sm font-medium">Match to View A</Label>
-              <SegmentedToggle
-                className="w-[140px]"
-                value={state.matchColorsToA ? "on" : "off"}
-                onChange={(value) => setState({ matchColorsToA: value === "on" })}
-                options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+          <CollapsibleContent className="pt-1">
+            <Tooltip>
+              <TooltipTrigger
+                delay={0}
+                render={
+                  <div className="flex items-center justify-between gap-2 cursor-help">
+                    <Label className="text-sm font-medium">Match to View A</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Checkbox
+                        checked={state.matchColorsToA}
+                        onCheckedChange={(checked) => setState({ matchColorsToA: checked === true })}
+                        className="cursor-pointer"
+                      />
+                      {state.matchColorsToA && (
+                        <Select
+                          value={state.matchColorsColorSpace}
+                          onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
+                        >
+                          <SelectTrigger size="sm" className="w-auto min-w-0 gap-1 px-2 cursor-pointer">
+                            <SelectValue>
+                              <span className="flex items-center gap-1 text-xs uppercase">
+                                {state.matchColorsColorSpace}
+                                {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3" />}
+                              </span>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COLOR_SPACE_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                <span className="flex items-center gap-1.5">
+                                  {opt.label}
+                                  {opt.slow && <Hourglass className="h-3 w-3 text-muted-foreground" />}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </div>
+                }
               />
-            </div>
-            {state.matchColorsToA && (
-              <>
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="text-sm font-medium">Color Space</Label>
-                  <Select
-                    value={state.matchColorsColorSpace}
-                    onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
-                  >
-                    <SelectTrigger className="w-[140px] cursor-pointer">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COLOR_SPACE_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          <span className="flex items-center gap-1.5">
-                            {opt.label}
-                            {opt.slow && <Hourglass className="h-3 w-3 text-muted-foreground" />}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <p className="text-xs text-muted-foreground leading-snug flex gap-1.5">
-                  {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3 shrink-0 mt-0.5" />}
-                  {state.matchColorsColorSpace === "rgb"
-                    ? "RGB is fast: matching is applied as a live CSS filter, no pixel conversion needed."
-                    : "Slower: this space isn't expressible as a CSS filter, so every pixel is converted, remapped, and converted back in JS via a color LUT — full resolution, but briefly hidden during panning/zooming while it recomputes."}
-                </p>
-              </>
-            )}
+              <TooltipContent className="max-w-60">
+                <p>Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.</p>
+              </TooltipContent>
+            </Tooltip>
           </CollapsibleContent>
         </Collapsible>
       )}
