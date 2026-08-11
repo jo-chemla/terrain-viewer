@@ -24,7 +24,7 @@ import {
   isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom, isSettingsGeomorphometryOpenAtom,
   isSettingsWhatsNewOpenAtom, lastSeenChangelogAtAtom,
 } from "@/lib/settings-atoms"
-import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_RELEASED_AT, formatReleaseDate, type ChangelogEntry } from "@/lib/changelog"
+import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_RELEASED_AT, type ChangelogEntry } from "@/lib/changelog"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { persistLocalCogsAtom } from "@/lib/local-file-store"
 import { isOpfsSupported, estimateStorage, listPersistedCogs, clearAllPersistedCogs, formatBytes } from "@/lib/opfs-file-store"
@@ -109,7 +109,7 @@ const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }
   <div className="space-y-3">
     {entries.map((entry) => (
       <div key={entry.releasedAt + entry.heading} className="space-y-1">
-        <div className="text-xs font-semibold text-foreground">{formatReleaseDate(entry.releasedAt)} — {entry.heading}</div>
+        <div className="text-xs font-semibold text-foreground">{entry.releasedAt} - {entry.heading}</div>
         {entry.tldrMarkdown ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHANGELOG_MARKDOWN_COMPONENTS}>
             {entry.tldrMarkdown}

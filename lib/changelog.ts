@@ -54,17 +54,3 @@ function parseChangelog(text: string): ChangelogEntry[] {
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = parseChangelog(raw)
 export const LATEST_CHANGELOG_RELEASED_AT = CHANGELOG_ENTRIES[0]?.releasedAt ?? ""
-
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-
-/** "2026-08-11" -> "August 11, 2026" — string slicing, not `new Date(...)`,
- *  so this can never shift a day under a non-UTC local timezone. The heading
- *  itself no longer carries a date (see ChangelogEntry.heading) to avoid
- *  duplicating the same date in two places in CHANGELOG.md; this is the only
- *  place that formats `releasedAt` for display. */
-export function formatReleaseDate(isoDate: string): string {
-  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!match) return isoDate
-  const [, year, month, day] = match
-  return `${MONTH_NAMES[Number(month) - 1]} ${Number(day)}, ${year}`
-}

@@ -149,14 +149,20 @@
 #### TL;DR
 - **View bookmarks introduced** — save/restore full viewport + viz state, sidebar list + gallery.
 - Whole-project import/export in one file (terrain/basemap sources, bookmarks, drawings, settings, with zip to embed vector drawings/local COGs as an option).
-- **Sun Shadow Calculator** — pick a point + an object's height, get its shadow at the current sun position; plus a hard cast-shadow **Shadows** layer as its own visualization mode.
+- **Sun Shadow Calculator** — pick a point + an object's height, get its shadow at the current sun position.
+- **Hard Shadows** — a new visualization mode casting real hard shadows from the shared light direction, independent of the Sun Shadow Calculator tool.
+- **Feature Iterator** — step through a drawn/imported layer's features one at a time (select, delete, arrow-key nav, fly-to-next).
 - SVF/Openness gain faster precision, plus a new Principal Components (PCA) relief-mode family (Blobness, Eigenvalue Ratio, Dominant Orientation, Shape Index).
+- A compute-time estimate now shows for slow modes (SVF, Openness, Local Dominance) while their tiles are still loading.
 
 ### Features
 - **View bookmarks introduced** (`4f7970e`) — save/restore full viewport + viz state, sidebar list + gallery; reorder/hierarchy and geocoded names followed within days (`122a57f`).
 - **Whole-project import/export** (`138d369`) — sources, bookmarks, drawings, and settings in one file.
-- **Sun Shadow Calculator** (`fc00c4d`) — pick a point and an object height, get its shadow at the current sun position; gated behind Beta (`3ac9196`). A **Shadows** layer (hard cast shadows from the shared light direction) followed (`f802f12`).
+- **Sun Shadow Calculator** (`fc00c4d`) — pick a point and an object height, get its shadow at the current sun position; gated behind Beta (`3ac9196`).
+- **Hard Shadows visualization mode** (`f802f12`) — hard cast shadows from the shared light direction, as its own toggleable layer independent of the Sun Shadow Calculator tool.
+- **Feature Iterator** (`46ff80c`) — step through a TerraDraw layer's features one at a time; select/delete/arrow-key nav and fly-to-next-on-delete followed the same day (`26b8670`, `72f3c07`, `82c1668`).
 - **SVF/Openness/PCA relief-mode family** (`5806ea9`) — faster precision plus Principal Components siblings (Blobness, Eigenvalue Ratio, Dominant Orientation) and a standalone Shape Index (`d16b23e`).
+- **Compute-time estimate for slow modes** (`37cd729`) — SVF/Openness/Local Dominance now show an estimated time-remaining while their ray-marched tiles are still computing, based on an empirically-tracked concurrency rather than a naive sequential assumption.
 
 ### Bug Fixes
 - The following day (`b3252fb`, Jul 29) was almost entirely the Radix→Base UI component migration and dependency cleanup — no new features that week.
@@ -167,21 +173,23 @@
 #### TL;DR
 - **TerraDraw becomes multi-layer** — drawing and GeoJSON import now target whichever layer is active; local COG files and vector layers now survive a reload via OPFS persistence.
 - **Matcap/Phong lighting** introduced as live WebGL shaders; native MapLibre Hillshade restored as its own mode alongside it.
-- New visualization modes: Local Dominance relief mode, point-to-point profile/line-of-sight.
-- New tools: Source Info panel, Plane Slicer.
+- New tools: Source Info panel (states which underlying provider a composited Mapterhorn/AWS tile actually came from, not just the mosaic's name), Plane Slicer (choose Local Relief Model or raw altitude as the reference plane — Contours share the same choice), Local Dominance relief mode (later sped up via pyramid octaves).
+- **Routing mode for Elevation Picker** — a BRouter/Valhalla road-following route (foot/cycle/vehicle profiles) between two picked points instead of a straight line, with a routed elevation profile along it.
 - Contours extended to local/BYOD COG sources via a dedicated worker, plus line-weight and color controls.
 - New standalone **Theme Editor** — live Tailwind v4/shadcn theming with tweakcn/shadcnstudio presets.
 - **Linked terrain/basemap source pairing** — for paired datasets like a fresco's DTM plus its own albedo photo, picking one auto-selects the other. Part of this app's non-geo mode: a **complementary** viewer to RTI/PTM tools like [OpenLime](https://github.com/cnr-isti-vclab/openlime) (not a replacement) for viewing normal-map/albedo photogrammetry data as if it were terrain — see [issue #1](https://github.com/Iconem/terrain-viewer/issues/1) for the feature-parity tracker, and a real example on [OpenLime itself](https://3d.iconem.com/syria/DuraEuropos_Synagogue/index-openlime.html) for comparison.
+- The footer's "Also see" links also point to **[RiverREM](https://rem.prod.heritagewatch.ai/)** ([repo](https://github.com/Iconem/RiverREM_UI)) — a separate app built for a similar use case, on rivers instead of terrain: draw or import a river centerline (or fetch one from OSM via Overpass/QLever — the longest named waterway, or all matches), smooth/interpolate its water-surface elevation (WSE) along that line, then de-trend the DEM against it (`REM = DEM − WSE`) to get a Relative Elevation Model highlighting fluvial terraces a flat elevation map hides — pure client-side, or server-based via OpenTopography's Python `RiverREM`.
 
 ### Features
 - **Theme Editor** (`690fa35`, presets `35ba71c`/`a6ea8e8`, Basic mode `42e9c16`) — a standalone, drop-in live Tailwind v4/shadcn theme editor with HSL adjustment/randomize and localStorage-saved custom themes (`ed4f502`), plus themux/shadcnstudio preset packs; later moved into Settings (`b9b6622`).
 - **Matcap/Phong lighting rebuilt as live WebGL layers** (`e047058`, GPU-accelerated `6ef0651`) — replacing the earlier raster-tile-only approach; redesigned again around local-file/COG basemap sources shortly after (`674103f`). Native MapLibre Hillshade was restored as its own mode alongside the new Lighting Effects (`5619d6c`), and an RTI-style hold-L light-control overlay was added for quick relighting (`3f941c0`, weight-control follow-up `8a6dc12`). Camera-attached live light plus a no-debounce "2D Fast" mode landed a day later (`3067467`), followed by an absolute/camera-relative light-mode toggle (`5367e36`) and a shared hillshade/Phong datetime light with a UTC/local toggle (`115d789`).
 - **Contours extended to local/BYOD COG sources** (`0bb59df`, verified working `1896cfd`) via a dedicated worker — previously contours only worked against the builtin tiled sources (see the Nov 2025/Feb 2026 contours history further down). Gained a line-weight control (1×/2×/4×, `8a6dc12`) and dedicated color pickers (`40a5bb3`); a mount-order race that could drop the layer on a fresh page load was fixed the same week (`8ad313d`).
-- **Local Dominance relief mode + point-to-point profile/line-of-sight tool** (`22daa85`) and a **Plane Slicer** under Elevation Picker (`53b5c32`).
-- **Source Info panel** (`81617b1`) — per-tile data-provenance display for AWS/Mapterhorn sources.
-- **Routing mode for Elevation Picker** (`214e8df`, BRouter/Valhalla) with a routed elevation profile.
+- **Local Dominance relief mode** (`22daa85`) — sped up via pyramid octaves (`5c04c82`) — plus a point-to-point profile/line-of-sight tool, and a **Plane Slicer** under Elevation Picker (`53b5c32`) which — like Contours — lets you choose whether the slicing/height reference is raw altitude or the Local Relief Model (`planeSlicerReferenceMode`).
+- **Source Info panel** (`81617b1`) — per-tile data-provenance display: for a composited/mosaicked source like AWS Terrain Tiles or Mapterhorn, states which underlying provider tile a given viewport area actually came from, instead of just naming the mosaic itself.
+- **Routing mode for Elevation Picker** (`214e8df`) — a BRouter/Valhalla road-following route between two picked points (foot/cycle/vehicle profiles) instead of a straight line, with a routed elevation profile along it.
 - **Multi-layer TerraDraw** (`2218813`) — drawing and importing GeoJSON now target a specific layer instead of one implicit layer (GeoJSON import itself dates back to TerraDrawSystem's original introduction, Feb 2026 — see further down). **OPFS persistence** for local COG files (`c8948b2`) and drawn/imported vector layers (`00de93b`) — both now survive a reload.
-- **Shared custom colorramp editor** extended across every viz mode (`3fab95a`, `9d69b46`), and **linked terrain/basemap source pairing** for paired datasets like a fresco's DTM + albedo photo (`e63746f`, fixed for real two days later — `971d813`, `17fb8fb`) — the mechanism behind this app's non-geo mode (see TL;DR above for the RTI/OpenLime framing).
+- **Cancel button for DTM export** (`6798152`) — appears after ~1.5s if the export is still running (most finish faster, so the affordance only shows up when it's actually worth using).
+- **Shared custom colorramp editor** extended across every viz mode (`3fab95a`, `9d69b46`), and **linked terrain/basemap source pairing** for paired datasets like a fresco's DTM + albedo photo (`e63746f`, fixed for real two days later — `971d813`, `17fb8fb`) — the mechanism behind this app's non-geo mode (see TL;DR above for the RTI/OpenLime framing). The footer's RiverREM link (see TL;DR above) was added the same day (`115d789`).
 
 ### Bug Fixes
 - `d2833b0` reverted the same day's WebGL Matcap/Phong rebuild back to plain raster-tile protocols after `e047058` proved unstable — the live-shader version that stuck landed via the redesign in `674103f` instead.
@@ -214,15 +222,15 @@
 
 #### TL;DR
 - **Local Relief Model (LRM) introduced** — a new relief mode isolating local bumps from the regional trend.
-- Expanded curvature & terrain-analysis suite — Profile/Plan curvature, TPI, Roughness, Det-Hessian, Blobness structure-tensor, auto-scaled ranges per mode.
+- Expanded curvature & terrain-analysis suite — initially shipped with **Profile** curvature (rate of slope change along the steepest-descent direction — flow acceleration) and **Plan** curvature (rate of aspect change across contours — flow convergence/divergence), plus TPI and Roughness; Det-Hessian and Blobness followed two days later.
 - **Sky View Factor & Openness** — new horizon-angle-based visibility modes.
 - Experimental **"Tells" archaeological mound detector**, gated behind a Beta toggle — flags candidate mounds by finding local extrema/maxima of the LRM, then veto-filters them by Blobness, Plan Curvature/Divergence, and Det-Hessian to reject saddles and ridges.
 
 ### Features
 - **Local Relief Model (LRM)** (`d45a4ae`) — multi-scale relief mode isolating local bumps from the regional trend; neighborhood-default note and profile/plan curvature split documented the same day (`5d0c200`).
-- **Expanded curvature & terrain-analysis suite** — Profile/Plan curvature, TPI, Roughness, **Det-Hessian curvature mode and Blobness structure-tensor sub-mode** (`23f6079`), auto-scaled ranges per mode.
+- **Expanded curvature & terrain-analysis suite** — initially shipped with **Profile curvature** (rate of slope change along the steepest-descent direction — flow acceleration) and **Plan curvature** (rate of aspect change across contours — flow convergence/divergence), plus TPI and Roughness; **Det-Hessian curvature mode and Blobness structure-tensor sub-mode** (`23f6079`) followed two days later. Auto-scaled ranges per mode.
 - **Sky View Factor & Openness** — new horizon-angle-based visibility modes.
-- **Archaeological mound detection ("Tells")** (`125edbb` protocol, gated `76c55f5`, explainer `3ba da59`) — experimental detector flags candidate mounds from curvature/blobness; own section, color-by ramps, export, explainer, beta toggle.
+- **Archaeological mound detection ("Tells")** (`125edbb` protocol, gated `76c55f5`, explainer `3bada59`) — experimental detector flags candidate mounds from curvature/blobness; own section, color-by ramps, export, explainer, beta toggle.
 - **Higher-precision terrain-derived tiles** — curvature, aspect, TRI, roughness, openness, blobness, and LRM now wire-encode ~25x finer, cutting visible banding.
 
 ### Bug Fixes
@@ -238,7 +246,8 @@
 - **Project embed presets** — `?project=` links can seed a fully preconfigured view: **Mapterhorn Globe** (zoomed-out world view, Mapterhorn-only, source pickers hidden), **Dura Frescoes Viewer** (fixed 2D non-geo fresco view, most terrain-analysis tooling hidden), and a minimal **Example Embed** — see `lib/projects.json`.
 - Client-side GeoTIFF export without Titiler, and shareable per-project embed configs.
 - Camera/animation poses are now URL-shareable; Home now correctly resets saved poses.
-- **More data sources**: PlanTopo slope overlay, TileJSON, CET/SDR ramps, NextGIS QMS search, WMS-raw, Photon geocoder.
+- **Slope viz mode introduced** — launched as a PlanTopo server-hosted overlay, upgraded the same day to a client-side "Slope and More" v2: a custom MapLibre protocol computed directly from whichever terrain source is active (BYOD included), rather than PlanTopo's own fixed dataset. Later grew into the full curvature/TPI/roughness/LRM/Tells suite above.
+- **NextGIS QMS search** — search and add basemaps directly from NextGIS's public QuickMapServices catalog; plus TileJSON sources, CET/SDR ramps, WMS-raw, Photon geocoder.
 
 ### Features
 - **Elevation Picker introduced** (`a1d8ab8`) — click-to-sample elevation (3D/globe via `queryTerrainElevation`, 2D via client-side tile fetch/decode), two-point delta, auto-deactivates during TerraDraw drawing modes.
@@ -246,7 +255,9 @@
 - **Project embed presets** (`a1d8ab8`) — `?project=` presets can seed custom sources, auto-zoom to a source's real (COG-read) bounds, override the sidebar title, and are exportable via a "Save Project Preset" tool in Settings. Shipped with **Mapterhorn Globe** and **Dura Frescoes Viewer** presets (`lib/projects.json`), each simplifying the sidebar to just what that site needs — Dura hides contours/Terrain-Analysis/Relief-Visualization/split-screen/elevation-picker entirely and disables the globe view mode, Mapterhorn Globe hides every source picker and opens straight into a zoomed-out globe.
 - **Client-side DTM export & project embed system** (`57c3d7a`) — export GeoTIFF from the browser without Titiler; per-project embed/URL config; a WMS layer picker for BYOD WMS sources.
 - **Camera/animation pose rework** (`ca16705`) — URL-shareable camera state (nuqs, deltas between pose1/pose2 rather than compressed absolutes); Home now correctly resets saved poses.
-- **More data sources** — PlanTopo slope overlay, TileJSON, CET/SDR ramps, NextGIS QMS search, WMS-raw, Photon geocoder.
+- **Slope viz mode introduced** (`ba51907`) — a PlanTopo-hosted server overlay (their own precomputed slope-angle raster); upgraded the same day (`8612990`) to a client-side custom MapLibre protocol computed from whichever terrain source is active ("Slope and More" v2) — the same viz mode that later grew into the full curvature/TPI/roughness/LRM/Tells suite (see the Jul 10–12 entry above).
+- **NextGIS QMS search** (`517898a`, overflow/templating fix `a2e24cd`) — search and add basemaps directly from NextGIS's public QuickMapServices catalog.
+- **More data sources** — TileJSON, CET/SDR ramps, WMS-raw, Photon geocoder.
 
 ### Bug Fixes
 - **Slope-and-More now supports all source types**, project embed polish, several stale-state fixes (`dd2f462`).
