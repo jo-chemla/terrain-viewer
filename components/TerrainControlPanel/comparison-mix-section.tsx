@@ -346,10 +346,9 @@ export const ComparisonMixSection: React.FC<{
                   delay={0}
                   render={<Label className="text-sm font-medium cursor-help">Match to View A</Label>}
                 />
-                <TooltipContent className="max-w-72">
+                <TooltipContent className="max-w-60">
                   <p>
-                    Histogram matching: samples pixel colors from View A (the reference) and from this view (re-sampled at most once/second from whatever tiles are actually on screen), builds each one's cumulative distribution — running total of the color histogram — then for every color in this view, finds the color at the same percentile in A's distribution (its inverse CDF, a.k.a. quantile function) and remaps to that. Same technique scikit-image's histogram matching uses.
-                    {" "}This is computed independently per channel in {state.matchColorsColorSpace.toUpperCase()} space ({COLOR_SPACE_CHANNEL_NAMES[state.matchColorsColorSpace as keyof typeof COLOR_SPACE_CHANNEL_NAMES].join(", ")}), then baked into a lookup table (LUT) applied to every pixel — {state.matchColorsColorSpace === "rgb" ? "a 256-entry table per channel, applied live as a CSS filter (no pixel data touched)" : "a 3D RGB→corrected-RGB LUT, applied via interpolation to every pixel at full resolution"}.
+                    Histogram-matches this view onto View A, per channel in {state.matchColorsColorSpace.toUpperCase()} ({COLOR_SPACE_CHANNEL_NAMES[state.matchColorsColorSpace as keyof typeof COLOR_SPACE_CHANNEL_NAMES].join("/")}), via a lookup table — {state.matchColorsColorSpace === "rgb" ? "a live CSS filter" : "a 3D color LUT"}.
                   </p>
                 </TooltipContent>
               </Tooltip>
