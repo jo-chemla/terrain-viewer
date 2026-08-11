@@ -165,36 +165,38 @@ export const ComparisonMixSection: React.FC<{
       {isOverlay && (
         <>
           <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="split-blend-mode-enabled" className="text-sm font-medium cursor-pointer">Blend Mode</Label>
             {/* Off falls back to plain "normal" (no visual blending) while
                 leaving the actual picked mode in the Select below untouched
                 — a quick blended/unblended flip for the same mode, instead
                 of having to re-pick it every time. */}
-            <Tooltip>
-              <TooltipTrigger
-                delay={0}
-                render={
-                  // inline-flex (not a bare span) — Checkbox's own root
-                  // renders as a plain <span role="checkbox">, display:inline
-                  // by default, which makes its explicit size-4 width/height
-                  // a no-op on a non-replaced inline element. It normally
-                  // only looks right because it sits as a DIRECT flex child
-                  // of a `flex` row (flex "blockifies" child elements, which
-                  // is what actually makes the explicit size stick) — a bare
-                  // wrapping span here breaks that, collapsing it down to a
-                  // thin content-sized sliver instead of a 16px box.
-                  <span className="inline-flex">
-                    <Checkbox
-                      id="split-blend-mode-enabled"
-                      checked={state.splitBlendModeEnabled}
-                      onCheckedChange={(checked) => setState({ splitBlendModeEnabled: checked === true })}
-                      className="cursor-pointer"
-                    />
-                  </span>
-                }
-              />
-              <TooltipContent><p>Turn the blend mode effect on or off — the picker below stays fully usable either way, so you can line up a different mode (dimmed while off, since it won't apply yet) without losing the current one first.</p></TooltipContent>
-            </Tooltip>
+            <div className="flex items-center gap-2">
+              {/* inline-flex (not a bare span) — Checkbox's own root
+                  renders as a plain <span role="checkbox">, display:inline
+                  by default, which makes its explicit size-4 width/height
+                  a no-op on a non-replaced inline element. It normally
+                  only looks right because it sits as a DIRECT flex child
+                  of a `flex` row (flex "blockifies" child elements, which
+                  is what actually makes the explicit size stick) — a bare
+                  wrapping span here breaks that, collapsing it down to a
+                  thin content-sized sliver instead of a 16px box. */}
+              <Tooltip>
+                <TooltipTrigger
+                  delay={0}
+                  render={
+                    <span className="inline-flex">
+                      <Checkbox
+                        id="split-blend-mode-enabled"
+                        checked={state.splitBlendModeEnabled}
+                        onCheckedChange={(checked) => setState({ splitBlendModeEnabled: checked === true })}
+                        className="cursor-pointer"
+                      />
+                    </span>
+                  }
+                />
+                <TooltipContent><p>Turn the blend mode effect on or off — the picker below stays fully usable either way, so you can line up a different mode (dimmed while off, since it won't apply yet) without losing the current one first.</p></TooltipContent>
+              </Tooltip>
+              <Label htmlFor="split-blend-mode-enabled" className="text-sm font-medium cursor-pointer">Blend Mode</Label>
+            </div>
             <Select
               value={state.splitBlendMode}
               onValueChange={(value) => value && setState({ splitBlendMode: value })}
@@ -319,51 +321,50 @@ export const ComparisonMixSection: React.FC<{
       )}
 
       {isSplit && (
-        <Tooltip>
-          <TooltipTrigger
-            delay={0}
-            render={
-              <div className="flex items-center justify-between gap-2 cursor-help pt-1">
-                <Label className="text-sm font-medium">Match Colors to A</Label>
-                <div className="flex items-center gap-1.5">
-                  <Checkbox
-                    checked={state.matchColorsToA}
-                    onCheckedChange={(checked) => setState({ matchColorsToA: checked === true })}
-                    className="cursor-pointer"
-                  />
-                  {state.matchColorsToA && (
-                    <Select
-                      value={state.matchColorsColorSpace}
-                      onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
-                    >
-                      <SelectTrigger size="sm" className="w-auto min-w-0 gap-1 px-2 cursor-pointer">
-                        <SelectValue>
-                          <span className="flex items-center gap-1 text-xs uppercase">
-                            {state.matchColorsColorSpace}
-                            {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3" />}
-                          </span>
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {COLOR_SPACE_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            <span className="flex items-center gap-1.5">
-                              {opt.label}
-                              {opt.slow && <Hourglass className="h-3 w-3 text-muted-foreground" />}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              </div>
-            }
-          />
-          <TooltipContent className="max-w-60">
-            <p>Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.</p>
-          </TooltipContent>
-        </Tooltip>
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="match-colors-to-a"
+              checked={state.matchColorsToA}
+              onCheckedChange={(checked) => setState({ matchColorsToA: checked === true })}
+              className="cursor-pointer"
+            />
+            <Tooltip>
+              <TooltipTrigger
+                delay={0}
+                render={<Label htmlFor="match-colors-to-a" className="text-sm font-medium cursor-pointer">Match Colors to A</Label>}
+              />
+              <TooltipContent className="max-w-60">
+                <p>Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          {state.matchColorsToA && (
+            <Select
+              value={state.matchColorsColorSpace}
+              onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
+            >
+              <SelectTrigger size="sm" className="w-auto min-w-0 gap-1 px-2 cursor-pointer">
+                <SelectValue>
+                  <span className="flex items-center gap-1 text-xs uppercase">
+                    {state.matchColorsColorSpace}
+                    {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3" />}
+                  </span>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {COLOR_SPACE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <span className="flex items-center gap-1.5">
+                      {opt.label}
+                      {opt.slow && <Hourglass className="h-3 w-3 text-muted-foreground" />}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       )}
 
       {/* Moved out of the historical timeline panel's own footer (it used to

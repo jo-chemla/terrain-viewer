@@ -45,9 +45,9 @@ export const PlaneSlicerFields: React.FC<{
 
   // Same "dim everything except the control being dragged" behavior
   // CheckboxWithSlider gives every other master row — replicated by hand here
-  // since this row is a bespoke Switch (matching "Pick elevation on click"
-  // right above it in ElevationPickerSection) rather than CheckboxWithSlider's
-  // checkbox-on-the-left layout.
+  // since this row is a bespoke Switch rather than CheckboxWithSlider's
+  // Checkbox, but ordered the same way (toggle, label, slider) for
+  // consistency with every other master-row control in the sidebar.
   const [activeSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const fullId = `${sectionId}:plane-slicer`
@@ -56,7 +56,13 @@ export const PlaneSlicerFields: React.FC<{
   return (
     <div className="space-y-2">
       <Separator />
-      <div className={cn("grid grid-cols-[1fr_1fr_auto] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
+      <div className={cn("grid grid-cols-[auto_1fr_1fr] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
+        <Switch
+          id="plane-slicer"
+          checked={state.showPlaneSlicer}
+          onCheckedChange={(checked) => setState({ showPlaneSlicer: checked })}
+          className="cursor-pointer"
+        />
         <Tooltip>
           <TooltipTrigger
             render={<Label htmlFor="plane-slicer" className="text-sm cursor-pointer">Plane Slicer</Label>}
@@ -70,12 +76,6 @@ export const PlaneSlicerFields: React.FC<{
           min={0} max={1} step={0.1}
           className="cursor-pointer"
           disabled={!state.showPlaneSlicer}
-        />
-        <Switch
-          id="plane-slicer"
-          checked={state.showPlaneSlicer}
-          onCheckedChange={(checked) => setState({ showPlaneSlicer: checked })}
-          className="cursor-pointer"
         />
       </div>
       {state.showPlaneSlicer && (
