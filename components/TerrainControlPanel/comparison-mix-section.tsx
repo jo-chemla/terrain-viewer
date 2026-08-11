@@ -330,18 +330,11 @@ export const ComparisonMixSection: React.FC<{
             </CollapsibleTrigger>
           </div>
           <CollapsibleContent className="space-y-2 pt-1">
+            <p className="text-xs text-muted-foreground leading-snug">
+              Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.
+            </p>
             <div className="flex items-center justify-between gap-2">
-              <Tooltip>
-                <TooltipTrigger
-                  delay={0}
-                  render={<Label className="text-sm font-medium cursor-help">Match to View A</Label>}
-                />
-                <TooltipContent className="max-w-60">
-                  <p>
-                    Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
+              <Label className="text-sm font-medium">Match to View A</Label>
               <SegmentedToggle
                 className="w-[140px]"
                 value={state.matchColorsToA ? "on" : "off"}
