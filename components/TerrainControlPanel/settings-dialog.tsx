@@ -22,9 +22,9 @@ import {
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
   isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
   isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom, isSettingsGeomorphometryOpenAtom,
-  isSettingsWhatsNewOpenAtom, lastSeenChangelogVersionAtom,
+  isSettingsWhatsNewOpenAtom, lastSeenChangelogAtAtom,
 } from "@/lib/settings-atoms"
-import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_VERSION, type ChangelogEntry } from "@/lib/changelog"
+import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_RELEASED_AT, type ChangelogEntry } from "@/lib/changelog"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { persistLocalCogsAtom } from "@/lib/local-file-store"
 import { isOpfsSupported, estimateStorage, listPersistedCogs, clearAllPersistedCogs, formatBytes } from "@/lib/opfs-file-store"
@@ -218,31 +218,30 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [projectCopied, setProjectCopied] = useState(false)
   const [showFullChangelog, setShowFullChangelog] = useState(false)
 
-  const [lastSeenChangelogVersion, setLastSeenChangelogVersion] = useAtom(lastSeenChangelogVersionAtom)
+  const [lastSeenChangelogAt, setLastSeenChangelogAt] = useAtom(lastSeenChangelogAtAtom)
   // Frozen at first render, before either effect below can overwrite the atom —
   // so the "N new"/highlighted-entries list stays stable for this whole
   // component lifetime even once opening the dialog marks everything seen
   // for *next* time.
-  const [unseenSinceSnapshot] = useState(lastSeenChangelogVersion)
+  const [unseenSinceSnapshot] = useState(lastSeenChangelogAt)
   const unseenChangelogEntries = useMemo(() => {
     if (unseenSinceSnapshot === "") return [] // sentinel for "never seen any" — a brand-new visitor, not stale data
-    const idx = CHANGELOG_ENTRIES.findIndex((e) => e.heading === unseenSinceSnapshot)
-    // -1 means the stored heading no longer exists in CHANGELOG.md (e.g. old
-    // entries were trimmed) — fall back to just the latest release instead of
-    // dumping the entire history on them.
-    return idx === -1 ? CHANGELOG_ENTRIES.slice(0, 1) : CHANGELOG_ENTRIES.slice(0, idx)
+    // Plain ISO-string comparison — robust to CHANGELOG.md entries being
+    // retitled (unlike comparing by heading text) and to reordering, since it
+    // doesn't rely on array position at all.
+    return CHANGELOG_ENTRIES.filter((e) => e.releasedAt > unseenSinceSnapshot)
   }, [unseenSinceSnapshot])
   const hasUnseenChangelog = unseenChangelogEntries.length > 0
 
   // First-ever visit: silently mark caught-up so the badge never flashes for
   // someone who's never had anything to catch up on.
   useEffect(() => {
-    if (unseenSinceSnapshot === "") setLastSeenChangelogVersion(LATEST_CHANGELOG_VERSION)
+    if (unseenSinceSnapshot === "") setLastSeenChangelogAt(LATEST_CHANGELOG_RELEASED_AT)
   }, [])
   // Returning visitor: opening Settings at all (not just expanding the What's
   // New section) clears the badge for next time, same as Discord/Slack.
   useEffect(() => {
-    if (isOpen && unseenSinceSnapshot !== "") setLastSeenChangelogVersion(LATEST_CHANGELOG_VERSION)
+    if (isOpen && unseenSinceSnapshot !== "") setLastSeenChangelogAt(LATEST_CHANGELOG_RELEASED_AT)
   }, [isOpen])
 
   // Excluded from initialState: `project` itself (avoid self-reference) and

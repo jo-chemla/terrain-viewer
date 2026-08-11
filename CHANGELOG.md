@@ -1,4 +1,5 @@
 # Changelog — August 11, 2026: Histogram Color Matching in Compare and Blend
+<!-- released: 2026-08-11 -->
 
 #### TL;DR
 - **Match Colors** — automatically recolors every other view onto View A's color histogram, so two different imagery sources (or two dates of the same source) no longer look noticeably darker/bluer/warmer next to each other when compared or blended.
@@ -17,6 +18,7 @@
 - **LAB/LCH histogram matching producing wildly wrong colors** — root cause: the CDF matching binned each channel into a *fixed grid spanning its theoretical range* (e.g. LAB's a/b as ±100, later widened to ±128 as a first attempted fix — still wrong). Any low-variance sample (a flat-colored tile — open water, snow, a cloud deck) has almost all its mass in one or two bins, and the standard CDF-inversion boundary handling (`x <= xp[0]` / `x >= xp[last]`) then snaps those bins straight to the array's *theoretical* min/max the instant a query's cumulative fraction hits exactly 0 or 1 — which happens far more often than it sounds, not just at the sample's true extremes. For RGB that clamped to plain black/white (usually visually benign by luck); for LAB it clamped to wildly saturated colors that never appeared anywhere in either image. Fixed by replacing the fixed-bin approach with an exact empirical CDF (ECDF) over each channel's actually-observed values — sorted + deduplicated real samples, matching what scikit-image's own `exposure.match_histograms` does (`np.unique` + cumulative counts) — so both the lookup arrays and their boundary clamps are always real data points, never a synthetic range edge. Applied to the RGB path too (same root cause, just visually subtler). Verified against the exact degenerate case that exposed it (a perfectly flat-colored source/target pair, which used to land on arbitrary extreme colors) now matching exactly; realistic noisy-sample correctness and native-resolution LUT performance both reconfirmed unaffected (ECDF construction adds ~7-9ms on top of the existing 60-210ms LUT-apply cost).
 
 # Changelog — August 10, 2026: N-Map Grid & Overlay Comparison
+<!-- released: 2026-08-10 -->
 
 #### TL;DR
 - Compare and Blend section now supports a full grid of up to 8 synced map views, not just a 2-way split.
@@ -56,6 +58,7 @@
 - **Ctrl+drag handle index math** — iterated from each handle scrubbing by nearest-pixel (reading as time-distance rather than a clean N-marks shift when sources differ in tick density) to indexing within its own source's list, to its final form: indexing within the flattened, all-sources list, so "N marks" is the same visual distance for the dragged handle and every swept handle alike, regardless of source.
 
 # Changelog — August 7, 2026: Historical Satellite Imagery Timeline, Terrain vs Historical Mode Picker
+<!-- released: 2026-08-07 -->
 
 #### TL;DR
 - New "Historical Imagery" mode: scrub a real per-tile capture-date timeline bottom panel, across **ESRI Wayback, Google Earth Historical**, Landsat/Sentinel, Planet, and Bing.
@@ -78,6 +81,7 @@
 - Split-mode centering, per-map sidebar padding, minimap/attribution-corner layout regressions, and pastel per-source tick colors derived from each provider's own brand color, from the historical-timeline work above.
 
 # Changelog — July 31, 2026: Draw export split, Colorramp Editor, Bookmarks Gallery
+<!-- released: 2026-07-31 -->
 
 #### TL;DR
 - TerraDraw export becomes a split button with a "split by layer" option.
@@ -108,6 +112,7 @@
 - Export modal shows a count of local BYOD COG sources next to "Include local COG files".
 
 # Changelog — July 30, 2026: Foldable Bookmarks Tree, COG GSD surfacing & BYOD Source Polish
+<!-- released: 2026-07-30 -->
 
 #### TL;DR
 - Bookmarks: drag-and-drop reordering, collapsible project folders, fold/expand-all, and an edit mode to keep the everyday view uncluttered.
@@ -141,6 +146,7 @@
 - **Basemap source-info section** now always renders in the sidebar (matching Terrain), instead of only when Raster Basemap is toggled on.
 
 # Changelog — July 28, 2026: Bookmarks, Project Export & Sun Shadow Calculator
+<!-- released: 2026-07-28 -->
 
 #### TL;DR
 - **View bookmarks introduced** — save/restore full viewport + viz state, sidebar list + gallery.
@@ -158,6 +164,7 @@
 - The following day (`b3252fb`, Jul 29) was almost entirely the Radix→Base UI component migration and dependency cleanup — no new features that week.
 
 # Changelog — July 21, 2026: Multi-layer Drawing Tools & Lighting/Relief Tools
+<!-- released: 2026-07-21 -->
 
 #### TL;DR
 - **TerraDraw becomes multi-layer** — drawing and GeoJSON import now target whichever layer is active; local COG files and vector layers now survive a reload via OPFS persistence.
@@ -183,6 +190,7 @@
 - `7153d02` fixed Matcap/Phong globe rendering; `7579f06` fixed the Theme Editor's fonts never actually applying.
 
 # Changelog — July 7–17, 2026: Terrain Analysis Suite, Tell Detector & Local COG Sources
+<!-- released: 2026-07-17 -->
 
 #### TL;DR
 - Terrain-analysis suite (Curvature, TPI, Roughness, Det-Hessian, Blobness) expanded, with **Relief Visualization split out as its own group** alongside it (Sky View Factor, Openness).
@@ -220,6 +228,7 @@
 - **2D Elevation Picker freeze** on large COG files.
 
 # Changelog — March 2026: Colorramp Refinements & Terrain-Source Fixes
+<!-- released: 2026-03-31 -->
 
 #### TL;DR
 - Discrete vs. continuous colorramps distinguished, with an inversion option.
@@ -236,6 +245,7 @@
 - **Custom-source batch edit** (`17b7c6d`) — fixed for terrain sources (see the original batch-edit tool from Nov 2025 below).
 
 # Changelog — February 2026: Drawing Tools, BYOD Basemaps, Contours & Animation Tools
+<!-- released: 2026-02-28 -->
 
 #### TL;DR
 - Drawing Tools introduced via TerraDraw — draw shapes, points, rects, import/export features, and more.
@@ -260,6 +270,7 @@
 - **WMS-raw elevation as raster-dem** (`d0fde9c`) — a new terrain-source type reading raw Float32 WMS elevation directly as MapLibre raster-dem, generalizing the IGN France example above into a reusable pattern. Standalone demo: [maplibre-raster-dem-wms-float32-generic.html](/maplibre-raster-dem-wms-float32-generic.html).
 
 # Changelog — November 2025: Initial Launch, BYOD Terrain & COG Streaming
+<!-- released: 2025-11-30 -->
 
 #### TL;DR
 - Initial launch — expose terrain visualization modes Hillshade, hypsometric color-relief, raster basemaps (Google, Bing, ESRI, Mapbox, Here, OSM), split-screen comparison, and UI transparency, all from one sidebar control panel.
