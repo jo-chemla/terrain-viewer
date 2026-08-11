@@ -1430,17 +1430,28 @@ export function TerrainViewer() {
     if (!searchParams.has("historicalBeta") && historicalBetaEnabled) stateOverrides.historicalBeta = true
     if (!searchParams.has("appMode") && appModeEnabled !== "terrain") stateOverrides.appMode = appModeEnabled
 
-    // Historical mode only ever shows the raster basemap (its Visualization
-    // Modes section is hidden entirely — see TerrainControlPanel.tsx) — but
-    // showHillshade still defaults to true (the one terrain-mode viz toggle
-    // with no master gate of its own, see QUERY_STATE_PARSERS), so a direct
-    // `?appMode=historical` deep link with no explicit showHillshade would
-    // otherwise render hillshading over the historical imagery. Handled here
-    // for a fresh load; the ModePicker's handleSelectMode (TerrainControlPanel.tsx)
-    // covers the same nudge for an in-session mode switch.
+    // Historical mode only ever shows the raster basemap (its Options/
+    // Visualization Modes/Detectors/Elevation Picker sections are hidden
+    // entirely — see TerrainControlPanel.tsx) — but most of those toggles'
+    // OWN defaults don't reflect that (showHillshade defaults true; an
+    // explicit `?showColorRelief=true&appMode=historical`-style link could
+    // set any of the rest), so a direct historical-mode deep link with no
+    // explicit override for a given field forces it off. Handled here for a
+    // fresh load; the ModePicker's handleSelectMode (TerrainControlPanel.tsx)
+    // covers the same nudge for an in-session mode switch (there every one of
+    // these is forced off unconditionally, since a visitor could have turned
+    // any of them on while still in Terrain mode — no default to rely on).
     const effectiveAppMode = (stateOverrides.appMode as AppMode | undefined) ?? state.appMode
-    if (effectiveAppMode === "historical" && !searchParams.has("showHillshade")) {
-      stateOverrides.showHillshade = false
+    if (effectiveAppMode === "historical") {
+      const HISTORICAL_MODE_OFF_FIELDS = [
+        "showHillshade", "showLightingEffects", "showShadows", "showColorRelief",
+        "showTerrainAnalysis", "showReliefVisualization", "showPlaneSlicer",
+        "showTellsDetector", "showContoursAndGraticules", "showContours",
+        "showGraticules", "showBackground",
+      ] as const
+      for (const field of HISTORICAL_MODE_OFF_FIELDS) {
+        if (!searchParams.has(field)) stateOverrides[field] = false
+      }
     }
 
     // terrainUrl/basemapUrl can carry either an id of a source the visitor's browser

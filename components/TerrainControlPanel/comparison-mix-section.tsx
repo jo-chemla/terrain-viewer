@@ -339,31 +339,32 @@ export const ComparisonMixSection: React.FC<{
               </TooltipContent>
             </Tooltip>
           </div>
-          {state.matchColorsToA && (
-            <Select
-              value={state.matchColorsColorSpace}
-              onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
-            >
-              <SelectTrigger size="sm" className="w-auto min-w-0 gap-1 px-2 cursor-pointer">
-                <SelectValue>
-                  <span className="flex items-center gap-1 text-xs uppercase">
-                    {state.matchColorsColorSpace}
-                    {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3" />}
+          {/* Always shown (not just once checked) — same "pick it ahead of
+              time, dimmed to look disabled rather than actually locked"
+              convention as Blend Mode's own Select above. */}
+          <Select
+            value={state.matchColorsColorSpace}
+            onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
+          >
+            <SelectTrigger size="sm" className={cn("w-auto min-w-0 gap-1 px-2 cursor-pointer", !state.matchColorsToA && "opacity-50")}>
+              <SelectValue>
+                <span className="flex items-center gap-1 text-xs uppercase">
+                  {state.matchColorsColorSpace}
+                  {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3" />}
+                </span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {COLOR_SPACE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <span className="flex items-center gap-1.5">
+                    {opt.label}
+                    {opt.slow && <Hourglass className="h-3 w-3 text-muted-foreground" />}
                   </span>
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {COLOR_SPACE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    <span className="flex items-center gap-1.5">
-                      {opt.label}
-                      {opt.slow && <Hourglass className="h-3 w-3 text-muted-foreground" />}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
