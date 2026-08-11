@@ -56,6 +56,8 @@
     "react-dom": "^18.3.1",
     "react-icons": "^5.5.0",
     "react-map-gl": "^8.x",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "sugar-high": "^2.0.0",
     "tailwind-merge": "^2.5.5",
     "terra-draw": "^1.24.2",

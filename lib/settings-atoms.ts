@@ -223,6 +223,14 @@ export const isSettingsMapBoundsOpenAtom = atomWithStorage("isSettingsMapBoundsO
 export const isSettingsSaveProjectOpenAtom = atomWithStorage("isSettingsSaveProjectOpen", false)
 export const isSettingsResourcesOpenAtom = atomWithStorage("isSettingsResourcesOpen", false)
 export const isSettingsGeomorphometryOpenAtom = atomWithStorage("isSettingsGeomorphometryOpen", false)
+export const isSettingsWhatsNewOpenAtom = atomWithStorage("isSettingsWhatsNewOpen", true)
+
+// The heading (e.g. "August 7–9, 2026") of the newest changelog entry the user
+// has already seen — see lib/changelog.ts. Empty string is the sentinel for
+// "never seen any" (a brand-new visitor), distinct from a real-but-stale
+// heading that later got trimmed out of CHANGELOG.md; settings-dialog.tsx
+// treats those two cases differently (no badge vs. "just show the latest").
+export const lastSeenChangelogVersionAtom = atomWithStorage("lastSeenChangelogVersion", "")
 
 // Mirrors of TerrainViewer's tellsBeta/sunShadowBeta nuqs fields (the actual
 // gates the app reads) — those live in the URL so a `?tellsBeta=true` link

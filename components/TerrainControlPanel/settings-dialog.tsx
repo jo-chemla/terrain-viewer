@@ -1,7 +1,9 @@
 import type React from "react"
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import { useAtom, useSetAtom, type PrimitiveAtom } from "jotai"
-import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
+import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,7 +22,9 @@ import {
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
   isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
   isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom, isSettingsGeomorphometryOpenAtom,
+  isSettingsWhatsNewOpenAtom, lastSeenChangelogVersionAtom,
 } from "@/lib/settings-atoms"
+import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_VERSION, type ChangelogEntry } from "@/lib/changelog"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { persistLocalCogsAtom } from "@/lib/local-file-store"
 import { isOpfsSupported, estimateStorage, listPersistedCogs, clearAllPersistedCogs, formatBytes } from "@/lib/opfs-file-store"
@@ -83,6 +87,41 @@ const CollapsibleSection: React.FC<{
   )
 }
 
+// Shared markdown-element styling for changelog TL;DR bullets — this dialog has
+// no markdown renderer anywhere else, so these mirror the same text-xs/text-sm/
+// text-muted-foreground conventions already used throughout it rather than
+// pulling in a typography plugin for one section. Only inline-level elements:
+// a TL;DR block is always just a bullet list (see lib/changelog.ts), never
+// headings/paragraphs.
+const CHANGELOG_MARKDOWN_COMPONENTS = {
+  ul: ({ children }: any) => <ul className="list-disc pl-4 space-y-1.5 text-sm text-muted-foreground">{children}</ul>,
+  strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
+  code: ({ children }: any) => <code className="bg-muted px-1 rounded text-xs">{children}</code>,
+  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline">{children}</a>,
+  img: ({ src, alt }: any) => <img src={src} alt={alt} className="rounded border max-w-full my-2" />,
+}
+
+// Renders a list of changelog entries as heading + TL;DR-only markdown — used
+// for both the "since you last looked" highlights and the "full changelog"
+// view (settings-dialog.tsx never renders the dev-oriented Features/Bug Fixes
+// prose from CHANGELOG.md).
+const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }) => (
+  <div className="space-y-3">
+    {entries.map((entry) => (
+      <div key={entry.heading} className="space-y-1">
+        <div className="text-xs font-semibold text-foreground">{entry.heading}</div>
+        {entry.tldrMarkdown ? (
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHANGELOG_MARKDOWN_COMPONENTS}>
+            {entry.tldrMarkdown}
+          </ReactMarkdown>
+        ) : (
+          <p className="text-xs text-muted-foreground italic">No summary for this release yet.</p>
+        )}
+      </div>
+    ))}
+  </div>
+)
+
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any; historicalMode?: boolean }> = ({ isOpen, onOpenChange, state, setState, historicalMode = false }) => {
   const { theme, toggleTheme, setTheme: setAppTheme } = useTheme()
   const { setTheme: setColorTheme } = useColorTheme()
@@ -93,6 +132,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // the sidebar's chevron button (TerrainControlPanel.tsx), just against N
   // separate atomWithStorage atoms here instead of one combined open-state
   // object, since each settings section persists independently.
+  const [isWhatsNewOpen, setIsWhatsNewOpen] = useAtom(isSettingsWhatsNewOpenAtom)
   const [isAppearanceOpen, setIsAppearanceOpen] = useAtom(isSettingsAppearanceOpenAtom)
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useAtom(isSettingsKeyboardShortcutsOpenAtom)
   const [isVisualizationModesOpen, setIsVisualizationModesOpen] = useAtom(isSettingsVisualizationModesOpenAtom)
@@ -105,12 +145,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [isResourcesOpen, setIsResourcesOpen] = useAtom(isSettingsResourcesOpenAtom)
   const [isGeomorphometryOpen, setIsGeomorphometryOpen] = useAtom(isSettingsGeomorphometryOpenAtom)
   const settingsSectionOpenStates = [
-    isAppearanceOpen, isKeyboardShortcutsOpen, isVisualizationModesOpen, isStreamingOpen,
+    isWhatsNewOpen, isAppearanceOpen, isKeyboardShortcutsOpen, isVisualizationModesOpen, isStreamingOpen,
     isStoragePersistenceOpen, isBetaOpen,
     isApiKeysOpen, isMapBoundsOpen, isSaveProjectOpen, isResourcesOpen, isGeomorphometryOpen,
   ]
   const settingsSectionSetters = [
-    setIsAppearanceOpen, setIsKeyboardShortcutsOpen, setIsVisualizationModesOpen, setIsStreamingOpen,
+    setIsWhatsNewOpen, setIsAppearanceOpen, setIsKeyboardShortcutsOpen, setIsVisualizationModesOpen, setIsStreamingOpen,
     setIsStoragePersistenceOpen, setIsBetaOpen,
     setIsApiKeysOpen, setIsMapBoundsOpen, setIsSaveProjectOpen, setIsResourcesOpen, setIsGeomorphometryOpen,
   ]
@@ -176,6 +216,34 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [projectId, setProjectId] = useState("")
   const [projectName, setProjectName] = useState("")
   const [projectCopied, setProjectCopied] = useState(false)
+  const [showFullChangelog, setShowFullChangelog] = useState(false)
+
+  const [lastSeenChangelogVersion, setLastSeenChangelogVersion] = useAtom(lastSeenChangelogVersionAtom)
+  // Frozen at first render, before either effect below can overwrite the atom —
+  // so the "N new"/highlighted-entries list stays stable for this whole
+  // component lifetime even once opening the dialog marks everything seen
+  // for *next* time.
+  const [unseenSinceSnapshot] = useState(lastSeenChangelogVersion)
+  const unseenChangelogEntries = useMemo(() => {
+    if (unseenSinceSnapshot === "") return [] // sentinel for "never seen any" — a brand-new visitor, not stale data
+    const idx = CHANGELOG_ENTRIES.findIndex((e) => e.heading === unseenSinceSnapshot)
+    // -1 means the stored heading no longer exists in CHANGELOG.md (e.g. old
+    // entries were trimmed) — fall back to just the latest release instead of
+    // dumping the entire history on them.
+    return idx === -1 ? CHANGELOG_ENTRIES.slice(0, 1) : CHANGELOG_ENTRIES.slice(0, idx)
+  }, [unseenSinceSnapshot])
+  const hasUnseenChangelog = unseenChangelogEntries.length > 0
+
+  // First-ever visit: silently mark caught-up so the badge never flashes for
+  // someone who's never had anything to catch up on.
+  useEffect(() => {
+    if (unseenSinceSnapshot === "") setLastSeenChangelogVersion(LATEST_CHANGELOG_VERSION)
+  }, [])
+  // Returning visitor: opening Settings at all (not just expanding the What's
+  // New section) clears the badge for next time, same as Discord/Slack.
+  useEffect(() => {
+    if (isOpen && unseenSinceSnapshot !== "") setLastSeenChangelogVersion(LATEST_CHANGELOG_VERSION)
+  }, [isOpen])
 
   // Excluded from initialState: `project` itself (avoid self-reference) and
   // terrainUrl/basemapUrl (the *other* embed mechanism — redundant/conflicting
@@ -295,14 +363,19 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
         onOpenChange(open)
       }}
     >
-      <DialogTrigger
-        render={
-          <TooltipIconButton
-            icon={Settings}
-            tooltip="Settings"
-          />
-        }
-      />
+      <div className="relative inline-block">
+        <DialogTrigger
+          render={
+            <TooltipIconButton
+              icon={Settings}
+              tooltip="Settings"
+            />
+          }
+        />
+        {hasUnseenChangelog && (
+          <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-primary pointer-events-none" />
+        )}
+      </div>
 
       <DialogContent
         className="sm:max-w-2xl max-h-[80vh] overflow-y-auto"
@@ -321,6 +394,31 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           <DialogDescription>Configure API keys, application settings, and explore related resources</DialogDescription>
         </DialogHeader>
         <div className="space-y-6">
+          <CollapsibleSection
+            title="What's New"
+            openAtom={isSettingsWhatsNewOpenAtom}
+            contentClassName="space-y-3 pt-2"
+            headerExtra={hasUnseenChangelog ? (
+              <span className="flex items-center gap-1 text-xs font-medium text-primary-foreground bg-primary rounded-full px-2 py-0.5">
+                <Sparkles className="h-3 w-3" /> {unseenChangelogEntries.length} new
+              </span>
+            ) : undefined}
+          >
+            {hasUnseenChangelog ? (
+              <ChangelogEntryList entries={unseenChangelogEntries} />
+            ) : (
+              <p className="text-xs text-muted-foreground">You&apos;re all caught up.</p>
+            )}
+            <Button variant="outline" size="sm" className="w-full cursor-pointer" onClick={() => setShowFullChangelog((v) => !v)}>
+              {showFullChangelog ? "Hide full changelog" : "View full changelog"}
+            </Button>
+            {showFullChangelog && (
+              <div className="max-h-96 overflow-y-auto pr-1">
+                <ChangelogEntryList entries={CHANGELOG_ENTRIES} />
+              </div>
+            )}
+          </CollapsibleSection>
+          <Separator />
           <CollapsibleSection title="Appearance" openAtom={isSettingsAppearanceOpenAtom}>
             <div className="flex items-center justify-between">
               <Label>Theme</Label>
