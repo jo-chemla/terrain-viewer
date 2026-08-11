@@ -245,6 +245,7 @@
 - Minimap with footprint/frustum.
 - Finer Terrarium quantization (4mm vs. TerrainRGB 10cm) shipped as a High-Precision toggle.
 - Fold/expand-all for every sidebar section, with collapsed state now persisted.
+- WMS raw-elevation sources (e.g. IGN France) now stream as MapLibre raster-dem — standalone demo: [maplibre-raster-dem-wms-float32-generic.html](/maplibre-raster-dem-wms-float32-generic.html).
 
 ### Features
 - **TerraDrawSystem** (`42e5760`) — introduced the drawing-tools system, alongside a rework of the main terrain-viewer component.
@@ -256,7 +257,7 @@
 - **Fold/expand-all for sidebar sections** (`4d96202`) — every section's collapsed/expanded state now persists via `atomWithStorage`, alongside a broader foldable-sections rework.
 - **XYPad for 2D illumination-direction selection** (`07fc46e`) — precursor to the later light-direction pad work.
 - **IGN France WMS raster-DEM example** (`4606dd1`), **Graticule layer** (`0b5c12d`), **Share section** (`db380d1`), **DTM-DSM LidarHD selector** (`10e9609`), auto-set elevation from loaded terrain tiles (`c0747c7`).
-- **WMS-raw elevation as raster-dem** (`d0fde9c`) — a new terrain-source type reading raw Float32 WMS elevation directly as MapLibre raster-dem.
+- **WMS-raw elevation as raster-dem** (`d0fde9c`) — a new terrain-source type reading raw Float32 WMS elevation directly as MapLibre raster-dem, generalizing the IGN France example above into a reusable pattern. Standalone demo: [maplibre-raster-dem-wms-float32-generic.html](/maplibre-raster-dem-wms-float32-generic.html).
 
 # Changelog — November 2025: Initial Launch, BYOD Terrain & COG Streaming
 
