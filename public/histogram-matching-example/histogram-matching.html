@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Histogram Matching JS</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <!-- This page is a standalone, pure-client-side static demo (not part of the
+       Vite build) — vendored from Iconem/historical-satellite's
+       public/tools-apps/histogram-matching-js.html, see
+       https://github.com/Iconem/historical-satellite/tree/main/src/histogram-matching
+       Its geotiff/color-convert imports are full CDN URLs (see
+       src/histogram-matching/histogram-*.js) rather than bare specifiers,
+       since there's no bundler for this page. -->
+  <style>
+body {
+  font-family: "Roboto", sans-serif;
+  color: #666;
+  line-height: 1.6;
+}
+.flex-grid {
+  display: flex;
+}
+.col {
+  flex: 1;
+  padding: 10px;
+  text-align: center;
+}
+.flex-grid-thirds {
+  display: flex;
+  justify-content: space-between;
+  width: 70%;
+  margin: auto;
+}
+.flex-grid-thirds .col {
+  width: 32%;
+}
+.col img, .col canvas {
+  max-width: 100%;
+}
+h1 {
+  font-size: 2rem;
+  font-weight: 300;
+  color: #333;
+}
+
+.description a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.description a:hover {
+  text-decoration: underline;
+}
+
+.description code {
+  background: #f1f1f1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.beta-notice {
+  background: #cde8ff;
+  border: 1px solid #9fb4c6;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+details label {
+  min-width: 100px;
+  display: inline-block;
+}
+input, select {
+  font-family: monospace;
+}
+details input, details select {
+  width: 120px;
+  margin: 10px;
+  margin-top: 0;
+}
+  </style>
+</head>
+<body>
+    <div style="padding: 30px; ">
+      <h1>Pure JS, client-side, Histogram Matching</h1>
+      <div class="description">
+        <p>
+          Vendored from <a href="https://github.com/Iconem/historical-satellite">Iconem/historical-satellite</a> — inspired by <a href="https://github.com/mapbox/rio-hist/issues/3">mapbox/rio-hist</a> (python), this demo showcases pure-JS, client-side, Histogram Matching.
+        </p>
+        <p>
+          Implementation based on scikit-image (<a href="https://scikit-image.org/docs/stable/auto_examples/color_exposure/plot_histogram_matching.html">doc</a> and <a href="https://github.com/scikit-image/scikit-image/blob/v0.25.2/skimage/exposure/histogram_matching.py#L33-L93">code</a>) which simply relies on numpy <code>bincount</code>, <code>cumsum</code>, <code>interp</code>.
+        </p>
+        <p>
+          scikit-image and numpy use BSD3 License (<a href="https://github.com/scikit-image/scikit-image?tab=License-1-ov-file">[1]</a> and <a href="https://github.com/numpy/numpy?tab=License-1-ov-file">[2]</a>).
+        </p>
+        <div class="beta-notice">
+          <strong>BETA:</strong>
+          <ul>
+            <li>If source image is GeoTIFF, the matched output will be downloadable as GeoTIFF with as much geometadata <a href="https://geotiffjs.github.io/geotiff.js">geotiff.js</a> <code>writeArrayBuffer</code> supports </li>
+            <li>Implemented Matching Histograms in <code>Color Spaces</code> other than <code>RGB</code> (namely <code> HSL, HSV, XYZ, LAB, LCH</code>) based on <a href="https://github.com/Qix-/color-convert#readme">Qix-/color-convert</a>. Execution ~10x slower for RGB, so used original implementation in that case</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="flex-grid-thirds">
+      <div class="col">
+        <p> SOURCE <br/><input type="file" id="source-input" accept="image/png, image/jpeg, image/tiff" /></p>
+        <div id="source-img-div"></div>
+      </div>
+      <div class="col">
+        <p> TARGET <br/><input type="file" id="target-input" accept="image/*" /> </p>
+        <div id="target-img-div"></div>
+      </div>
+      <div class="col">
+        <p id="matched-header"> MATCHED OUTPUT </p>
+        <div id="matched-img-div"></div>
+      </div>
+    </div>
+    <div class="flex-grid-thirds">
+      <div class="col" id="source-hist-chart"></div>
+      <div class="col" id="target-hist-chart"></div>
+      <div class="col">
+        <div style="text-align: left;">
+          <tt>
+            <details open>
+              <summary>Settings</summary>
+              <label for="max-mpx-input">Max Mpx</label>
+              <input type="number" id="max-mpx-input" value="0" min="0" step="0.1" title="Rasters Downsampling for histogram/CDF computation (0 = no limit)" >
+              <br/>
+              <label for="colorSpace-input">Color Space</label>
+              <select id="colorSpace-input" title="Color Space used to compute histogram matching" >
+                </select>
+              <br/>
+              <label for="bands-input">Bands</label>
+              <input type="text" id="bands-input" value="1,2,3" title="Apply matching LUT to these bands (default: 1,2,3)" >
+              <br/>
+              <label for="binCount-input">Bin Count</label>
+              <input type="number" id="binCount-input" value="256" min="0" max="256" step="1" title="Compute histograms on N bins" >
+            </details>
+          </tt>
+        </div>
+        <pre id="output-stats" style="text-align: left; padding: 0px;"></pre>
+      </div>
+    </div>
+  <script type="module" src="./src/histogram-matching/histogram-main.js"></script>
+</body>
+</html>

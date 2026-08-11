@@ -1,7 +1,7 @@
 import type React from "react"
 import { useMemo, useState } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Frame } from "lucide-react"
+import { ChevronDown, Frame, Hourglass } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,6 +17,17 @@ import { colorizeMapBordersAtom, colorizeMapBordersInsetAtom, isComparisonMixAdv
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, BLEND_MODE_GROUPS, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { useWaybackItemsWithLocalChanges } from "@/lib/wayback"
 import { cn } from "@/lib/utils"
+
+// RGB is the only space cheap enough for a live CSS filter (see
+// HistogramMatchFilter.tsx) — the rest need a real per-pixel JS conversion,
+// flagged here with an hourglass so the tradeoff is visible before picking one.
+const COLOR_SPACE_OPTIONS: { value: "rgb" | "hsl" | "hsv" | "lab" | "lch"; label: string; slow?: boolean }[] = [
+  { value: "rgb", label: "RGB" },
+  { value: "hsl", label: "HSL", slow: true },
+  { value: "hsv", label: "HSV", slow: true },
+  { value: "lab", label: "LAB", slow: true },
+  { value: "lch", label: "LCH", slow: true },
+]
 
 // "Table size picker" style control (Excel/Docs "insert table" convention) —
 // an 8-cell grid standing in for the text SegmentedToggle Grid Layout used
@@ -154,36 +165,38 @@ export const ComparisonMixSection: React.FC<{
       {isOverlay && (
         <>
           <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="split-blend-mode-enabled" className="text-sm font-medium cursor-pointer">Blend Mode</Label>
             {/* Off falls back to plain "normal" (no visual blending) while
                 leaving the actual picked mode in the Select below untouched
                 — a quick blended/unblended flip for the same mode, instead
                 of having to re-pick it every time. */}
-            <Tooltip>
-              <TooltipTrigger
-                delay={0}
-                render={
-                  // inline-flex (not a bare span) — Checkbox's own root
-                  // renders as a plain <span role="checkbox">, display:inline
-                  // by default, which makes its explicit size-4 width/height
-                  // a no-op on a non-replaced inline element. It normally
-                  // only looks right because it sits as a DIRECT flex child
-                  // of a `flex` row (flex "blockifies" child elements, which
-                  // is what actually makes the explicit size stick) — a bare
-                  // wrapping span here breaks that, collapsing it down to a
-                  // thin content-sized sliver instead of a 16px box.
-                  <span className="inline-flex">
-                    <Checkbox
-                      id="split-blend-mode-enabled"
-                      checked={state.splitBlendModeEnabled}
-                      onCheckedChange={(checked) => setState({ splitBlendModeEnabled: checked === true })}
-                      className="cursor-pointer"
-                    />
-                  </span>
-                }
-              />
-              <TooltipContent><p>Turn the blend mode effect on or off — the picker below stays fully usable either way, so you can line up a different mode (dimmed while off, since it won't apply yet) without losing the current one first.</p></TooltipContent>
-            </Tooltip>
+            <div className="flex items-center gap-2">
+              {/* inline-flex (not a bare span) — Checkbox's own root
+                  renders as a plain <span role="checkbox">, display:inline
+                  by default, which makes its explicit size-4 width/height
+                  a no-op on a non-replaced inline element. It normally
+                  only looks right because it sits as a DIRECT flex child
+                  of a `flex` row (flex "blockifies" child elements, which
+                  is what actually makes the explicit size stick) — a bare
+                  wrapping span here breaks that, collapsing it down to a
+                  thin content-sized sliver instead of a 16px box. */}
+              <Tooltip>
+                <TooltipTrigger
+                  delay={0}
+                  render={
+                    <span className="inline-flex">
+                      <Checkbox
+                        id="split-blend-mode-enabled"
+                        checked={state.splitBlendModeEnabled}
+                        onCheckedChange={(checked) => setState({ splitBlendModeEnabled: checked === true })}
+                        className="cursor-pointer"
+                      />
+                    </span>
+                  }
+                />
+                <TooltipContent><p>Turn the blend mode effect on or off — the picker below stays fully usable either way, so you can line up a different mode (dimmed while off, since it won't apply yet) without losing the current one first.</p></TooltipContent>
+              </Tooltip>
+              <Label htmlFor="split-blend-mode-enabled" className="text-sm font-medium cursor-pointer">Blend Mode</Label>
+            </div>
             <Select
               value={state.splitBlendMode}
               onValueChange={(value) => value && setState({ splitBlendMode: value })}
@@ -305,6 +318,54 @@ export const ComparisonMixSection: React.FC<{
             )}
           </CollapsibleContent>
         </Collapsible>
+      )}
+
+      {isSplit && (
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="match-colors-to-a"
+              checked={state.matchColorsToA}
+              onCheckedChange={(checked) => setState({ matchColorsToA: checked === true })}
+              className="cursor-pointer"
+            />
+            <Tooltip>
+              <TooltipTrigger
+                delay={0}
+                render={<Label htmlFor="match-colors-to-a" className="text-sm font-medium cursor-pointer">Match Colors</Label>}
+              />
+              <TooltipContent className="max-w-60">
+                <p>Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          {/* Always shown (not just once checked) — same "pick it ahead of
+              time, dimmed to look disabled rather than actually locked"
+              convention as Blend Mode's own Select above. */}
+          <Select
+            value={state.matchColorsColorSpace}
+            onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
+          >
+            <SelectTrigger size="sm" className={cn("w-[140px] cursor-pointer", !state.matchColorsToA && "opacity-50")}>
+              <SelectValue>
+                <span className="flex items-center gap-1 text-xs uppercase">
+                  {state.matchColorsColorSpace}
+                  {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3" />}
+                </span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {COLOR_SPACE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <span className="flex items-center gap-1.5">
+                    {opt.label}
+                    {opt.slow && <Hourglass className="h-3 w-3 text-muted-foreground" />}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
 
       {/* Moved out of the historical timeline panel's own footer (it used to
