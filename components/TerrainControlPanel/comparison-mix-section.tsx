@@ -332,7 +332,7 @@ export const ComparisonMixSection: React.FC<{
             <Tooltip>
               <TooltipTrigger
                 delay={0}
-                render={<Label htmlFor="match-colors-to-a" className="text-sm font-medium cursor-pointer">Match Colors to A</Label>}
+                render={<Label htmlFor="match-colors-to-a" className="text-sm font-medium cursor-pointer">Match Colors</Label>}
               />
               <TooltipContent className="max-w-60">
                 <p>Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.</p>
@@ -346,7 +346,7 @@ export const ComparisonMixSection: React.FC<{
             value={state.matchColorsColorSpace}
             onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
           >
-            <SelectTrigger size="sm" className={cn("w-auto min-w-0 gap-1 px-2 cursor-pointer", !state.matchColorsToA && "opacity-50")}>
+            <SelectTrigger size="sm" className={cn("w-[140px] cursor-pointer", !state.matchColorsToA && "opacity-50")}>
               <SelectValue>
                 <span className="flex items-center gap-1 text-xs uppercase">
                   {state.matchColorsColorSpace}
