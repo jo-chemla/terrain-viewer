@@ -331,9 +331,17 @@ export const ComparisonMixSection: React.FC<{
           </div>
           <CollapsibleContent className="space-y-2 pt-1">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-sm font-medium" title="Live-samples the tiles currently rendered in each view's viewport (re-sampled at most once/second) and color-matches every other view onto A's histogram.">
-                Match to View A
-              </Label>
+              <Tooltip>
+                <TooltipTrigger
+                  delay={0}
+                  render={<Label className="text-sm font-medium cursor-help">Match to View A</Label>}
+                />
+                <TooltipContent className="max-w-72">
+                  <p>
+                    Histogram matching: samples pixel colors from View A (the reference) and from this view (re-sampled at most once/second from whatever tiles are actually on screen), builds each one's cumulative distribution — running total of the color histogram — then for every color in this view, finds the color at the same percentile in A's distribution (its inverse CDF, a.k.a. quantile function) and remaps to that. Same technique scikit-image's histogram matching uses.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
               <SegmentedToggle
                 className="w-[140px]"
                 value={state.matchColorsToA ? "on" : "off"}
@@ -368,7 +376,7 @@ export const ComparisonMixSection: React.FC<{
                   {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3 shrink-0 mt-0.5" />}
                   {state.matchColorsColorSpace === "rgb"
                     ? "RGB is fast: matching is applied as a live CSS filter, no pixel conversion needed."
-                    : "Slower: this space isn't expressible as a CSS filter, so every pixel is converted, remapped, and converted back in JS at reduced resolution."}
+                    : "Slower: this space isn't expressible as a CSS filter, so every pixel is converted, remapped, and converted back in JS via a color LUT — full resolution, but briefly hidden during panning/zooming while it recomputes."}
                 </p>
               </>
             )}

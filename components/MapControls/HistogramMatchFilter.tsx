@@ -88,10 +88,23 @@ export const HistogramMatchFilter: React.FC<{
       canvas.style.width = "100%"
       canvas.style.height = "100%"
       canvas.style.pointerEvents = "none"
+      // Starts hidden — this is a static snapshot, redrawn at most once/
+      // second, sitting on top of the target's own live canvas. Left
+      // visible during a pan/zoom it would just sit there not moving while
+      // the real map underneath does, reading as "did my input register?".
+      // Hidden on movestart, faded back in once the next recompute lands
+      // (see hideOverlay/recompute below) — during the gesture you see the
+      // live (uncorrected-color) map moving, which is the point: motion
+      // feedback over color accuracy while something's actively changing.
+      canvas.style.opacity = "0"
+      canvas.style.transition = "opacity 150ms ease-out"
       const container = targetMap.getCanvas().parentElement
       container?.appendChild(canvas)
       overlayCanvasRef.current = canvas
       return canvas
+    }
+    const hideOverlay = () => {
+      if (overlayCanvasRef.current) overlayCanvasRef.current.style.opacity = "0"
     }
 
     let raf = 0
@@ -128,6 +141,7 @@ export const HistogramMatchFilter: React.FC<{
       const mapping = computeColorSpaceMapping(targetSampleData, referenceData, colorSpace)
       applyColorSpaceMapping(imageData, mapping)
       overlayCtx.putImageData(imageData, 0, 0)
+      overlay.style.opacity = "1"
     }
     // Debounced to at most once/second — a burst of 'idle' events (both maps,
     // every tile load) collapses into a single recompute, and re-running the
@@ -143,10 +157,19 @@ export const HistogramMatchFilter: React.FC<{
     scheduleRecompute()
     referenceMap.on("idle", scheduleRecompute)
     targetMap.on("idle", scheduleRecompute)
+    // Either map moving invalidates the overlay: the reference moving means
+    // the sample it was matched against no longer reflects what's on screen;
+    // the target moving means the overlay itself (a static image) is now
+    // misaligned with the live canvas underneath it. 'movestart' covers
+    // pan/zoom/rotate/pitch uniformly (whatever kicks off any camera change).
+    referenceMap.on("movestart", hideOverlay)
+    targetMap.on("movestart", hideOverlay)
 
     return () => {
       referenceMap.off("idle", scheduleRecompute)
       targetMap.off("idle", scheduleRecompute)
+      referenceMap.off("movestart", hideOverlay)
+      targetMap.off("movestart", hideOverlay)
       if (timer) clearTimeout(timer)
       cancelAnimationFrame(raf)
       cleanupTarget()

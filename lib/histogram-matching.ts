@@ -25,55 +25,84 @@
 //    readback sync) for savings that don't matter at this scale.
 // See https://github.com/Iconem/historical-satellite/blob/main/src/histogram-matching/histogram-utils.js
 
-function bincountUint8(arr: Uint8ClampedArray | Uint8Array, stride: number, offset: number, normalize = true) {
-  const bins = new Float64Array(256)
-  let count = 0
-  for (let i = offset; i < arr.length; i += stride) {
-    bins[arr[i]]++
-    count++
+// Exact empirical CDF (ECDF) over a channel's ACTUAL observed sample values —
+// this is what scikit-image's exposure.match_histograms really does
+// (np.unique + cumulative counts), and it matters: an earlier version of
+// this file binned into a FIXED grid spanning the channel's full theoretical
+// range (0-255 for RGB, -128..128 for LAB's a/b, etc). Any channel with low
+// variance in a sample (a flat-colored tile — ocean, snow, a cloud deck) has
+// almost all its mass in one or two bins, and the standard np.interp-style
+// CDF-inversion boundary handling then snaps those bins to the array's
+// theoretical min/max the moment a query's cumulative fraction hits exactly
+// 0 or 1 — which happens far more often than it looks, since it's not just
+// the true extremes that trigger it, any bin adjacent to a near-degenerate
+// cluster does too. For RGB that clamps to plain black/white (visually
+// benign most of the time); for LAB it clamps to wildly saturated colors
+// outside anything the source image actually contained — exactly the
+// "why did that patch turn magenta" bug. Building the ECDF from the values
+// that actually occur (sorted + deduplicated, however many there are — nine
+// for a flat sample, thousands for a busy one) means both the lookup arrays
+// AND the boundary clamps are always real, observed data points, never a
+// synthetic range edge.
+type Ecdf = { values: Float64Array; quantiles: Float64Array }
+
+function buildEcdf(values: Float64Array): Ecdf {
+  const sorted = Float64Array.from(values).sort()
+  const n = sorted.length
+  const outValues: number[] = []
+  const outQuantiles: number[] = []
+  let i = 0
+  while (i < n) {
+    let j = i
+    while (j < n && sorted[j] === sorted[i]) j++
+    outValues.push(sorted[i])
+    outQuantiles.push(j / n)
+    i = j
   }
-  if (normalize && count > 0) {
-    for (let i = 0; i < 256; i++) bins[i] /= count
-  }
-  return bins
+  return { values: Float64Array.from(outValues), quantiles: Float64Array.from(outQuantiles) }
 }
 
-function cumsum(arr: Float64Array) {
-  const out = new Float64Array(arr.length)
-  let sum = 0
-  for (let i = 0; i < arr.length; i++) {
-    sum += arr[i]
-    out[i] = sum
+// numpy.interp equivalent — binary search + linear interpolation, clamped to
+// fp's own endpoints outside xp's range (always a real observed value here,
+// never a theoretical bound, since xp/fp always come from buildEcdf).
+function interp1(x: number, xp: Float64Array, fp: Float64Array) {
+  const n = xp.length
+  if (n === 1 || x <= xp[0]) return fp[0]
+  if (x >= xp[n - 1]) return fp[n - 1]
+  let lo = 0, hi = n - 1
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1
+    if (xp[mid] <= x) lo = mid; else hi = mid
   }
+  const x0 = xp[lo], x1 = xp[hi], y0 = fp[lo], y1 = fp[hi]
+  const t = x1 === x0 ? 0 : (x - x0) / (x1 - x0)
+  return y0 + t * (y1 - y0)
+}
+
+export type ChannelMapping = { source: Ecdf; target: Ecdf }
+
+// `source` gets corrected onto `target`'s distribution — plain per-channel
+// value arrays (any numeric range; RGB bytes and LAB floats both just work,
+// no [min,max] parameter needed anymore).
+function matchChannelValues(source: Float64Array, target: Float64Array): ChannelMapping {
+  return { source: buildEcdf(source), target: buildEcdf(target) }
+}
+
+// v -> its quantile under source's ECDF -> the target value at that same
+// quantile (target's inverse-ECDF) — the two-stage lookup is what lets this
+// apply to values that weren't in the original sample at all (e.g. every
+// grid point of the 3D LUT below, or every one of the 256 possible byte
+// values for the RGB table), not just the ones actually observed.
+function applyChannelMapping({ source, target }: ChannelMapping, v: number) {
+  const q = interp1(v, source.values, source.quantiles)
+  return interp1(q, target.quantiles, target.values)
+}
+
+function extractChannelUint8(arr: Uint8ClampedArray, stride: number, offset: number): Float64Array {
+  const out = new Float64Array(arr.length / stride)
+  let p = 0
+  for (let i = offset; i < arr.length; i += stride) out[p++] = arr[i]
   return out
-}
-
-// numpy.interp equivalent: interpolate `x` (here always 0..255) against
-// known points (xp, fp), clamping outside xp's range.
-function interp(x: Float64Array, xp: Float64Array, fp: number[]) {
-  const out = new Float64Array(x.length)
-  for (let i = 0; i < x.length; i++) {
-    const xi = x[i]
-    if (xi <= xp[0]) { out[i] = fp[0]; continue }
-    if (xi >= xp[xp.length - 1]) { out[i] = fp[fp.length - 1]; continue }
-    let j = 1
-    while (xi > xp[j]) j++
-    const x0 = xp[j - 1], x1 = xp[j]
-    const y0 = fp[j - 1], y1 = fp[j]
-    const t = x1 === x0 ? 0 : (xi - x0) / (x1 - x0)
-    out[i] = y0 + t * (y1 - y0)
-  }
-  return out
-}
-
-const VALUES_0_255 = Array.from({ length: 256 }, (_, i) => i)
-
-// Per-channel LUT (length-256, values 0-255) mapping `source` pixel values
-// onto `target`'s cumulative distribution, i.e. matchCdf(source, target).
-function matchChannel(source: Uint8ClampedArray | Uint8Array, target: Uint8ClampedArray | Uint8Array, stride: number, offset: number) {
-  const srcCdf = cumsum(bincountUint8(source, stride, offset))
-  const tgtCdf = cumsum(bincountUint8(target, stride, offset))
-  return interp(srcCdf, tgtCdf, VALUES_0_255)
 }
 
 export type RgbLut = { r: Float64Array; g: Float64Array; b: Float64Array }
@@ -81,12 +110,16 @@ export type RgbLut = { r: Float64Array; g: Float64Array; b: Float64Array }
 // `source` is the image to be corrected, `target` is the reference whose
 // color distribution it should be matched to — both flat RGBA (4 channels/px,
 // as returned by CanvasRenderingContext2D#getImageData) Uint8ClampedArrays.
+// Returns a length-256 table per channel (one entry per possible byte value)
+// for feComponentTransfer's tableValues — see HistogramMatchFilter.tsx.
 export function computeRgbLut(source: Uint8ClampedArray, target: Uint8ClampedArray): RgbLut {
-  return {
-    r: matchChannel(source, target, 4, 0),
-    g: matchChannel(source, target, 4, 1),
-    b: matchChannel(source, target, 4, 2),
+  const buildTable = (offset: number) => {
+    const mapping = matchChannelValues(extractChannelUint8(source, 4, offset), extractChannelUint8(target, 4, offset))
+    const table = new Float64Array(256)
+    for (let v = 0; v < 256; v++) table[v] = applyChannelMapping(mapping, v)
+    return table
   }
+  return { r: buildTable(0), g: buildTable(1), b: buildTable(2) }
 }
 
 // ---------------------------------------------------------------------------
@@ -95,47 +128,6 @@ export function computeRgbLut(source: Uint8ClampedArray, target: Uint8ClampedArr
 
 export const COLOR_SPACES = ["rgb", "hsl", "hsv", "lab", "lch"] as const
 export type ColorSpaceId = (typeof COLOR_SPACES)[number]
-
-// Per-channel value ranges used to bin each space's histogram — matches
-// chroma-js's own conventions (hsl/hsv saturation+lightness/value are 0-1,
-// not 0-100; lab/lch use their usual CIE ranges). RGB isn't listed since it
-// uses the fixed-256-bin fast path (matchChannel) instead.
-const CHANNEL_RANGES: Record<Exclude<ColorSpaceId, "rgb">, [[number, number], [number, number], [number, number]]> = {
-  hsl: [[0, 360], [0, 1], [0, 1]],
-  hsv: [[0, 360], [0, 1], [0, 1]],
-  lab: [[0, 100], [-100, 100], [-100, 100]],
-  lch: [[0, 100], [0, 140], [0, 360]],
-}
-
-function bincountFloat(values: Float64Array, binCount: number, min: number, max: number) {
-  const bins = new Float64Array(binCount)
-  const scale = binCount / ((max - min) || 1)
-  for (let i = 0; i < values.length; i++) {
-    const idx = Math.min(binCount - 1, Math.max(0, Math.floor((values[i] - min) * scale)))
-    bins[idx]++
-  }
-  const count = values.length || 1
-  for (let i = 0; i < binCount; i++) bins[i] /= count
-  return bins
-}
-
-export type ChannelMapping = { mapping: Float64Array; min: number; max: number; binCount: number }
-
-// Same CDF-matching idea as matchChannel, but for an arbitrary [min,max]
-// float range and configurable bin count instead of fixed uint8 0-255.
-function matchChannelGeneral(source: Float64Array, target: Float64Array, min: number, max: number, binCount = 64): ChannelMapping {
-  const srcCdf = cumsum(bincountFloat(source, binCount, min, max))
-  const tgtCdf = cumsum(bincountFloat(target, binCount, min, max))
-  const step = (max - min) / (binCount - 1)
-  const values = Array.from({ length: binCount }, (_, i) => min + i * step)
-  return { mapping: interp(srcCdf, tgtCdf, values), min, max, binCount }
-}
-
-function applyChannelMapping({ mapping, min, max, binCount }: ChannelMapping, v: number) {
-  const idxFloat = (v - min) * (binCount - 1) / ((max - min) || 1)
-  const idx = Math.max(0, Math.min(binCount - 1, Math.round(idxFloat)))
-  return mapping[idx]
-}
 
 // --- RGB <-> HSL (h: 0-360, s/l: 0-1) ---
 function hueToRgbComponent(p: number, q: number, t: number) {
@@ -265,7 +257,6 @@ export type ColorSpaceMapping = { colorSpace: Exclude<ColorSpaceId, "rgb">; chan
 // `source`/`target` are flat RGBA Uint8ClampedArrays, same convention as
 // computeRgbLut — source gets corrected onto target's distribution.
 export function computeColorSpaceMapping(source: Uint8ClampedArray, target: Uint8ClampedArray, colorSpace: Exclude<ColorSpaceId, "rgb">): ColorSpaceMapping {
-  const ranges = CHANNEL_RANGES[colorSpace]
   const pixelCountSrc = source.length / 4
   const pixelCountTgt = target.length / 4
   const srcChannels: [Float64Array, Float64Array, Float64Array] = [new Float64Array(pixelCountSrc), new Float64Array(pixelCountSrc), new Float64Array(pixelCountSrc)]
@@ -281,7 +272,7 @@ export function computeColorSpaceMapping(source: Uint8ClampedArray, target: Uint
   }
   return {
     colorSpace,
-    channels: [0, 1, 2].map((ch) => matchChannelGeneral(srcChannels[ch], tgtChannels[ch], ranges[ch][0], ranges[ch][1])) as [ChannelMapping, ChannelMapping, ChannelMapping],
+    channels: [0, 1, 2].map((ch) => matchChannelValues(srcChannels[ch], tgtChannels[ch])) as [ChannelMapping, ChannelMapping, ChannelMapping],
   }
 }
 
