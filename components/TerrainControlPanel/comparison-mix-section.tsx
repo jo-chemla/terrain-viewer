@@ -29,16 +29,6 @@ const COLOR_SPACE_OPTIONS: { value: "rgb" | "hsl" | "hsv" | "lab" | "lch"; label
   { value: "lch", label: "LCH", slow: true },
 ]
 
-// Per-channel names for the "Match to View A" tooltip below — spelled out so
-// the explanation says e.g. "lightness/a/b" instead of just "LAB".
-const COLOR_SPACE_CHANNEL_NAMES: Record<typeof COLOR_SPACE_OPTIONS[number]["value"], [string, string, string]> = {
-  rgb: ["red", "green", "blue"],
-  hsl: ["hue", "saturation", "lightness"],
-  hsv: ["hue", "saturation", "value"],
-  lab: ["lightness", "a (green-red)", "b (blue-yellow)"],
-  lch: ["lightness", "chroma", "hue"],
-}
-
 // "Table size picker" style control (Excel/Docs "insert table" convention) —
 // an 8-cell grid standing in for the text SegmentedToggle Grid Layout used
 // to be: no per-cell text (same convention as the ABCDEF basemap-source
@@ -348,7 +338,7 @@ export const ComparisonMixSection: React.FC<{
                 />
                 <TooltipContent className="max-w-60">
                   <p>
-                    Histogram-matches this view onto View A, per channel in {state.matchColorsColorSpace.toUpperCase()} ({COLOR_SPACE_CHANNEL_NAMES[state.matchColorsColorSpace as keyof typeof COLOR_SPACE_CHANNEL_NAMES].join("/")}), via a lookup table — {state.matchColorsColorSpace === "rgb" ? "a live CSS filter" : "a 3D color LUT"}.
+                    Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.
                   </p>
                 </TooltipContent>
               </Tooltip>
