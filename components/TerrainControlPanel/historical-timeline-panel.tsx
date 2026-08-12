@@ -16,8 +16,10 @@ import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { planetaryComputerQuarterTicks } from "@/lib/planetary-computer"
 import { useMaxarSeamlineTicks } from "@/lib/maxar"
 import { sentinelHubQuarterTicks } from "@/lib/sentinel-hub"
+import { useNearmapSurveyTicks } from "@/lib/nearmap"
+import { vexcelAnnualTicks, isInVexcelCoverageArea } from "@/lib/vexcel"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
-import { planetKeyAtom, maxarKeyAtom, maxarResolutionTierAtom, sentinelHubInstanceIdAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, maxarKeyAtom, sentinelHubInstanceIdAtom, nearmapKeyAtom, vexcelTokenAtom } from "@/lib/settings-atoms"
 import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
@@ -78,6 +80,12 @@ export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; s
   "maxar-historical": { label: "Maxar Seamlines", fullLabel: "Maxar Basemaps (seamlines-driven historical)", shortLabel: "Maxar", color: "#fde68a", resClass: "vhr" }, // pastel amber
   // Confirmed live against a real CDSE instance — see lib/sentinel-hub.ts's header.
   "sentinel-hub": { label: "Sentinel Hub", fullLabel: "Copernicus Data Space Ecosystem — Sentinel Hub WMS", shortLabel: "CDSE", color: "#a5f3fc", resClass: "medium" }, // pastel cyan
+  // UNTESTED (see lib/nearmap.ts's header) — real per-location surveys via
+  // Nearmap's Coverage API, VHR aerial (~5-7cm), US/AU/NZ/Canada only.
+  "nearmap-historical": { label: "Nearmap", fullLabel: "Nearmap Aerial Imagery (US/Australia/NZ/Canada)", shortLabel: "Nearmap", color: "#d9f99d", resClass: "vhr" }, // pastel lime
+  // UNTESTED, lower confidence (see lib/vexcel.ts's header) — synthetic
+  // annual ticks, VHR aerial, North America/Europe/AU-NZ only.
+  "vexcel-historical": { label: "Vexcel", fullLabel: "Vexcel Data Program Ortho Imagery (NA/Europe/AU-NZ)", shortLabel: "Vexcel", color: "#fbcfe8", resClass: "vhr" }, // pastel pink-magenta, distinct from HLS's pink
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 
@@ -244,11 +252,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const hasPlanetKey = !!planetKey
   // UNTESTED (see lib/maxar.ts's header).
   const [maxarKey] = useAtom(maxarKeyAtom)
-  const [maxarResolutionTier] = useAtom(maxarResolutionTierAtom)
   const hasMaxarKey = !!maxarKey
   // Confirmed live — see lib/sentinel-hub.ts's header.
   const [sentinelHubInstanceId] = useAtom(sentinelHubInstanceIdAtom)
   const hasSentinelHubInstance = !!sentinelHubInstanceId
+  // UNTESTED (see lib/nearmap.ts's/lib/vexcel.ts's headers).
+  const [nearmapKey] = useAtom(nearmapKeyAtom)
+  const hasNearmapKey = !!nearmapKey
+  const [vexcelToken] = useAtom(vexcelTokenAtom)
+  const hasVexcelToken = !!vexcelToken
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
   const isMobile = useIsMobile()
 
@@ -457,7 +469,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // — only generated once a Maxar API key is set, same "no key -> no ticks,
   // pill hidden" pattern as planetTicks above. UNTESTED — see that module's
   // header.
-  const { ticks: rawMaxarTicks } = useMaxarSeamlineTicks(maxarKey, state.lat, state.lng, maxarResolutionTier)
+  const { ticks: rawMaxarTicks } = useMaxarSeamlineTicks(maxarKey, state.lat, state.lng, "vhr")
   const maxarHistoricalTicks = useMemo<TimelineTick[]>(
     () => rawMaxarTicks.map((t) => ({ source: "maxar-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [rawMaxarTicks],
@@ -469,9 +481,27 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => (hasSentinelHubInstance ? sentinelHubQuarterTicks().map((t) => ({ source: "sentinel-hub", key: t.dateMs, dateMs: t.dateMs, label: t.label })) : []),
     [hasSentinelHubInstance],
   )
+  // Real per-location surveys from Nearmap's Coverage API (see lib/
+  // nearmap.ts) — only generated once a key is set AND the viewport is
+  // inside Nearmap's core markets (the hook itself checks coverage, same
+  // "no key -> no ticks" pattern as planetTicks).
+  const { ticks: rawNearmapTicks } = useNearmapSurveyTicks(nearmapKey, state.lat, state.lng)
+  const nearmapTicks = useMemo<TimelineTick[]>(
+    () => rawNearmapTicks.map((t) => ({ source: "nearmap-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
+    [rawNearmapTicks],
+  )
+  // Synthetic annual ticks (see lib/vexcel.ts's header — no real per-
+  // location catalog was found for Vexcel) — only shown once a token is set
+  // AND the viewport is inside Vexcel's coarse coverage boxes.
+  const vexcelTicks = useMemo<TimelineTick[]>(
+    () => (hasVexcelToken && isInVexcelCoverageArea(state.lat, state.lng)
+      ? vexcelAnnualTicks().map((t) => ({ source: "vexcel-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label }))
+      : []),
+    [hasVexcelToken, state.lat, state.lng],
+  )
   const allTicks = useMemo(
-    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks, ...planetaryComputerTicks, ...maxarHistoricalTicks, ...sentinelHubTicks].sort((a, b) => a.dateMs - b.dateMs),
-    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks, planetaryComputerTicks, maxarHistoricalTicks, sentinelHubTicks],
+    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks, ...planetaryComputerTicks, ...maxarHistoricalTicks, ...sentinelHubTicks, ...nearmapTicks, ...vexcelTicks].sort((a, b) => a.dateMs - b.dateMs),
+    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks, planetaryComputerTicks, maxarHistoricalTicks, sentinelHubTicks, nearmapTicks, vexcelTicks],
   )
   // NEAREST match, not exact equality — a stored date (state.dateA-F) and a
   // wayback tick's own real.dateMs both ultimately come from Esri's
@@ -499,8 +529,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => SOURCE_IDS.filter((id) =>
       (id !== "planet" || hasPlanetKey) &&
       (id !== "maxar-historical" || hasMaxarKey) &&
-      (id !== "sentinel-hub" || hasSentinelHubInstance)),
-    [hasPlanetKey, hasMaxarKey, hasSentinelHubInstance],
+      (id !== "sentinel-hub" || hasSentinelHubInstance) &&
+      (id !== "nearmap-historical" || hasNearmapKey) &&
+      (id !== "vexcel-historical" || hasVexcelToken)),
+    [hasPlanetKey, hasMaxarKey, hasSentinelHubInstance, hasNearmapKey, hasVexcelToken],
   )
 
   // Which pill-toggle array the source/resolution chips edit: the shared
@@ -657,8 +689,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Once the user has actually zoomed/panned (viewWindow set), this floor
   // no longer applies at all — see effectiveMin below.
   const DEFAULT_VIEW_FLOOR_MS = Date.UTC(2010, 0, 1)
-  const fullMin = items[0]?.dateMs ?? 0
-  const fullMax = items[items.length - 1]?.dateMs ?? fullMin + 1
+  // Padded 10% beyond the true outermost ticks on each side (20% total) —
+  // otherwise the oldest/newest tick sits exactly at the track's 0%/100%
+  // edge once fully zoomed out, which reads as clipped/hard to see or click.
+  // Every other calculation below (zoom clamps, pan-gutter clamp, year
+  // gridlines, hasHiddenRange) already just consumes fullMin/fullMax/
+  // fullSpan generically, so padding them here is the one place this needs
+  // to happen.
+  const FULL_RANGE_PADDING_FRACTION = 0.1
+  const tickMin = items[0]?.dateMs ?? 0
+  const tickMax = items[items.length - 1]?.dateMs ?? tickMin + 1
+  const tickSpan = Math.max(1, tickMax - tickMin)
+  const fullMin = tickMin - tickSpan * FULL_RANGE_PADDING_FRACTION
+  const fullMax = tickMax + tickSpan * FULL_RANGE_PADDING_FRACTION
   const fullSpan = Math.max(1, fullMax - fullMin)
   const defaultMin = fullMax > DEFAULT_VIEW_FLOOR_MS ? Math.max(fullMin, DEFAULT_VIEW_FLOOR_MS) : fullMin
   // Sticky once true — the wheel-zoom handler and the pan-gutter below both

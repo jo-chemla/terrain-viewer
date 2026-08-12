@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, planetKeyAtom, maxarKeyAtom, maxarResolutionTierAtom } from "@/lib/settings-atoms"
+import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, planetKeyAtom, maxarKeyAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, CycleButtonGroup, SliderControl, SourceGridToggle, GroupHeading } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
@@ -64,7 +64,6 @@ export const RasterBasemapSection: React.FC<{
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [planetKey] = useAtom(planetKeyAtom)
   const [maxarKey] = useAtom(maxarKeyAtom)
-  const [maxarResolutionTier, setMaxarResolutionTier] = useAtom(maxarResolutionTierAtom)
   const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
   // Real "as-of" capture date for Bing's single live mosaic (see lib/bing.ts)
   // — read from the current view center's tile, not per-row/per-selection.
@@ -225,32 +224,6 @@ export const RasterBasemapSection: React.FC<{
               onChange={(v) => setState({ basemapSource: v })}
               onCycle={cycleBasemapSource}
             />
-          )}
-
-          {/* UNTESTED (see lib/maxar.ts's header) — which seamline product
-              tier the "maxar-historical" nested source (Historical Imagery,
-              below) looks up; not fed into the CQL date filter itself (plan
-              doc §3.4). Shown whenever a Maxar key is set, regardless of
-              which basemap is currently selected, since it also governs the
-              latest-mosaic branch's "as of" badge lookup above. */}
-          {maxarKey && (
-            <div className="flex items-center gap-2 pt-1">
-              <Label className="text-xs text-muted-foreground shrink-0">Maxar resolution</Label>
-              <div className="flex items-center rounded-md border border-border overflow-hidden">
-                {(["vhr", "medium"] as const).map((tier) => (
-                  <button
-                    key={tier}
-                    type="button"
-                    onClick={() => setMaxarResolutionTier(tier)}
-                    className={`cursor-pointer px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                      maxarResolutionTier === tier ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent"
-                    }`}
-                  >
-                    {tier === "vhr" ? "VHR" : "Medium res"}
-                  </button>
-                ))}
-              </div>
-            </div>
           )}
         </CollapsibleContent>
       </Collapsible>

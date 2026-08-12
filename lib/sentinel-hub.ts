@@ -19,13 +19,11 @@
 //    layers are ever reconfigured.
 //  - TIME dimension param name is lowercase `time` (confirmed from
 //    GetCapabilities' own <Dimension name="time".../> — not `TIME`).
-//  - CAVEAT: every tile returned by this instance carries a visible
-//    "Copernicus — Europe's eyes on Earth" watermark logo baked into the
-//    bottom-left corner of the image itself (confirmed by visually
-//    inspecting both test tiles). This is a CDSE-side rendering behavior,
-//    not something fixable from this module — worth knowing before using
-//    this in a client demo. Unclear whether a different account tier removes
-//    it; not investigated further.
+//  - Tiles initially carried a visible "Copernicus — Europe's eyes on Earth"
+//    watermark logo — fixed by unchecking "Show logo" in this instance's
+//    Configuration Utility settings (a per-instance config toggle, not a
+//    paid-tier restriction). Re-confirmed live 2026-08-13 after the fix:
+//    clean tile, no watermark.
 const SH_WMS_BASE = "https://sh.dataspace.copernicus.eu/ogc/wms"
 
 const SH_MOSAIC_LAYER = "LAYER-MOSAIC"

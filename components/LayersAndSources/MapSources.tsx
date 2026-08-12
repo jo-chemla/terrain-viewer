@@ -33,8 +33,10 @@ import { geHistoricalTileSource } from "@/lib/ge-historical"
 import { planetTileUrl, PLANET_TILE_SIZE, PLANET_MAXZOOM } from "@/lib/planet"
 import { eoxS2CloudlessTileUrl, EOX_S2_TILE_SIZE, EOX_S2_MAXZOOM } from "@/lib/eox-s2-cloudless"
 import { useResolvedPlanetaryComputerMosaic, PC_TILE_SIZE, PC_MAXZOOM, PC_MINZOOM } from "@/lib/planetary-computer"
-import { maxarLatestTileUrl, maxarHistoricalTileUrl, MAXAR_TILE_SIZE, MAXAR_MAXZOOM, type MaxarResolutionTier } from "@/lib/maxar"
+import { maxarLatestTileUrl, maxarHistoricalTileUrl, MAXAR_TILE_SIZE, MAXAR_MAXZOOM } from "@/lib/maxar"
 import { sentinelHubTileUrl, SH_TILE_SIZE, SH_MAXZOOM } from "@/lib/sentinel-hub"
+import { useResolvedNearmapSurvey, nearmapSurveyTileUrl, NEARMAP_TILE_SIZE, NEARMAP_MAXZOOM } from "@/lib/nearmap"
+import { vexcelTileUrl, VEXCEL_TILE_SIZE, VEXCEL_MAXZOOM } from "@/lib/vexcel"
 import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
 import { STATIC_BASEMAP_ATTRIBUTIONS } from "@/lib/basemap-attribution"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
@@ -311,7 +313,7 @@ const RASTER_SOURCE_DEBOUNCE_MS = 150
 
 export const RasterBasemapSource = memo(({
     // basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint,
-    basemapSource: rawBasemapSource, mapboxKey, hereKey, planetKey, maxarKey, maxarResolutionTier, sentinelHubInstanceId, date: rawDate, latitude, longitude, zoom, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
+    basemapSource: rawBasemapSource, mapboxKey, hereKey, planetKey, maxarKey, sentinelHubInstanceId, nearmapKey, vexcelToken, date: rawDate, latitude, longitude, zoom, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
 }: {
     basemapSource: string
     mapboxKey: string
@@ -319,9 +321,12 @@ export const RasterBasemapSource = memo(({
     planetKey?: string
     /** UNTESTED — see lib/maxar.ts's header. No-ops (renders nothing) while empty. */
     maxarKey?: string
-    maxarResolutionTier?: MaxarResolutionTier
     /** Confirmed live — see lib/sentinel-hub.ts's header. No-ops while empty. */
     sentinelHubInstanceId?: string
+    /** UNTESTED — see lib/nearmap.ts's header. No-ops while empty. */
+    nearmapKey?: string
+    /** UNTESTED, lower confidence — see lib/vexcel.ts's header. No-ops while empty. */
+    vexcelToken?: string
     /** Settings > Beta > "Historical Imagery Sources" gate — when false, the
      *  historical sources (wayback/hls/ge-historical/planet/eox-s2) render
      *  nothing even if somehow still selected (e.g. a stale `?basemapSource=` URL). */
@@ -359,6 +364,10 @@ export const RasterBasemapSource = memo(({
     // === "planetary-computer" — see that hook's own no-op-on-falsy-date
     // convention, same reasoning as the wayback hook above.
     const { tileUrl: planetaryComputerTileUrl } = useResolvedPlanetaryComputerMosaic(basemapSource === "planetary-computer" ? date ?? 0 : 0)
+    // UNTESTED (see lib/nearmap.ts's header) — only actually queries the
+    // Coverage API when basemapSource === "nearmap-historical", same no-op-
+    // on-falsy convention as the hooks above.
+    const { surveyId: nearmapSurveyId } = useResolvedNearmapSurvey(nearmapKey ?? "", latitude, longitude, basemapSource === "nearmap-historical" ? date ?? 0 : 0)
 
     const customBasemap = customBasemapSources.find((s) => s.id === basemapSource)
     // A local file can only ever stream via the in-browser geomatico protocol —
@@ -446,7 +455,9 @@ export const RasterBasemapSource = memo(({
         // exact-equality match (plan doc §3.3 step 3).
         if (basemapSource === "maxar-historical") {
             if (!date || !maxarKey) return null
-            return { tiles: [maxarHistoricalTileUrl(maxarKey, date, maxarResolutionTier ?? "vhr")], tileSize: MAXAR_TILE_SIZE, maxzoom: MAXAR_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["maxar-historical"] }
+            // Hardcoded "vhr" — the VHR/medium-res toggle was removed from the
+            // UI (raster-basemap-section.tsx no longer exposes it).
+            return { tiles: [maxarHistoricalTileUrl(maxarKey, date, "vhr")], tileSize: MAXAR_TILE_SIZE, maxzoom: MAXAR_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["maxar-historical"] }
         }
 
         // Confirmed live (see lib/sentinel-hub.ts's header) — WMS GetMap with
@@ -459,6 +470,20 @@ export const RasterBasemapSource = memo(({
             return { tiles: [shTileUrl], tileSize: SH_TILE_SIZE, maxzoom: SH_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["sentinel-hub"] }
         }
 
+        // UNTESTED (see lib/nearmap.ts's header) — real per-location surveys
+        // via the Coverage API, resolved to a surveyId above.
+        if (basemapSource === "nearmap-historical") {
+            if (!date || !nearmapKey || !nearmapSurveyId) return null
+            return { tiles: [nearmapSurveyTileUrl(nearmapKey, nearmapSurveyId)], tileSize: NEARMAP_TILE_SIZE, maxzoom: NEARMAP_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["nearmap-historical"] }
+        }
+
+        // UNTESTED, lower confidence (see lib/vexcel.ts's header) — synthetic
+        // annual ticks, not a real per-location catalog.
+        if (basemapSource === "vexcel-historical") {
+            if (!date || !vexcelToken) return null
+            return { tiles: [vexcelTileUrl(vexcelToken, date)], tileSize: VEXCEL_TILE_SIZE, maxzoom: VEXCEL_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["vexcel-historical"] }
+        }
+
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         const tileUrl = basemapSource === "mapbox"
             ? basemap.url.replace("{API_KEY}", mapboxKey)
@@ -466,7 +491,7 @@ export const RasterBasemapSource = memo(({
             ? basemap.url.replace("{API_KEY}", hereKey ?? "")
             : basemap.url
         return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom, attribution: STATIC_BASEMAP_ATTRIBUTIONS[basemapSource] }
-    }, [customBasemap, basemapSource, historicalBeta, resolvedWaybackItem, date, planetKey, planetaryComputerTileUrl, maxarKey, maxarResolutionTier, sentinelHubInstanceId, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
+    }, [customBasemap, basemapSource, historicalBeta, resolvedWaybackItem, date, planetKey, planetaryComputerTileUrl, maxarKey, sentinelHubInstanceId, nearmapKey, nearmapSurveyId, vexcelToken, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
@@ -483,6 +508,8 @@ export const RasterBasemapSource = memo(({
         if (basemapSource === "planetary-computer") return { minzoom: PC_MINZOOM, maxzoom: PC_MAXZOOM, isCustom: false }
         if (basemapSource === "maxar" || basemapSource === "maxar-historical") return { minzoom: 0, maxzoom: MAXAR_MAXZOOM, isCustom: false }
         if (basemapSource === "sentinel-hub") return { minzoom: 0, maxzoom: SH_MAXZOOM, isCustom: false }
+        if (basemapSource === "nearmap-historical") return { minzoom: 0, maxzoom: NEARMAP_MAXZOOM, isCustom: false }
+        if (basemapSource === "vexcel-historical") return { minzoom: 0, maxzoom: VEXCEL_MAXZOOM, isCustom: false }
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         return { minzoom: 0, maxzoom: basemap.maxzoom, isCustom: false }
     }, [customBasemap, basemapSource, historicalBeta])

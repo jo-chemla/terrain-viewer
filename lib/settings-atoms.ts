@@ -35,16 +35,21 @@ export const planetKeyAtom = atomWithStorage("planetKey", import.meta.env.VITE_P
 // VITE_MAXAR_API_KEY or pasted into Settings. UNTESTED — see lib/maxar.ts's
 // header (no Maxar key has ever actually been used against this yet).
 export const maxarKeyAtom = atomWithStorage("maxarKey", import.meta.env.VITE_MAXAR_API_KEY ?? "")
-// VHR vs. Medium-resolution pill for the Maxar historical branch (plan doc
-// §3.4) — which seamline product tier to look up, not fed into the CQL date
-// filter itself.
-export const maxarResolutionTierAtom = atomWithStorage<"vhr" | "medium">("maxarResolutionTier", "vhr")
 // Same gating pattern as maxarKeyAtom above — Sentinel Hub's WMS requires a
 // CDSE Configuration Instance ID, so "sentinel-hub" only appears as a nested
 // Historical Imagery source (historical-timeline-panel.tsx) once one is set,
 // from a local VITE_SENTINEL_HUB_INSTANCE_ID or pasted into Settings.
 // Confirmed live against a real CDSE instance — see lib/sentinel-hub.ts's header.
 export const sentinelHubInstanceIdAtom = atomWithStorage("sentinelHubInstanceId", import.meta.env.VITE_SENTINEL_HUB_INSTANCE_ID ?? "")
+// Same gating pattern as maxarKeyAtom — Nearmap's Tile/Coverage APIs require
+// a paid-subscription account, so "nearmap-historical" only appears as a
+// nested Historical Imagery source once a key is set. UNTESTED — see
+// lib/nearmap.ts's header.
+export const nearmapKeyAtom = atomWithStorage("nearmapKey", import.meta.env.VITE_NEARMAP_API_KEY ?? "")
+// Same gating pattern — Vexcel's WMTS requires a token from an existing
+// Data Program account. UNTESTED, lower confidence than nearmapKeyAtom —
+// see lib/vexcel.ts's header.
+export const vexcelTokenAtom = atomWithStorage("vexcelToken", import.meta.env.VITE_VEXCEL_TOKEN ?? "")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
 

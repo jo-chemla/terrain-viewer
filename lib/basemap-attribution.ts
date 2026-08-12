@@ -39,9 +39,11 @@ export const STATIC_BASEMAP_ATTRIBUTIONS: Record<string, string> = {
   // branches since neither currently resolves a real per-scene contributor.
   maxar: "© Maxar Technologies",
   "maxar-historical": "© Maxar Technologies",
-  // Confirmed live — see lib/sentinel-hub.ts's header (tiles also carry a
-  // baked-in Copernicus watermark logo, worth knowing for a demo).
+  // Confirmed live — see lib/sentinel-hub.ts's header.
   "sentinel-hub": "Contains modified Copernicus Sentinel data, processed by Sentinel Hub / Copernicus Data Space Ecosystem",
+  // UNTESTED (see lib/nearmap.ts's/lib/vexcel.ts's headers).
+  "nearmap-historical": "© Nearmap",
+  "vexcel-historical": "© Vexcel",
   // These two DO have a real dynamic value (see header comment) — this
   // string is deliberately just a pointer to it, not the value itself,
   // since a <Source>'s `attribution` prop can never be live-updated post-

@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, titilerEndpointAtom,
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, maxarKeyAtom, sentinelHubInstanceIdAtom, nearmapKeyAtom, vexcelTokenAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom,
   customThemesAtom,
@@ -157,6 +157,17 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [maptilerKey, setMaptilerKey] = useAtom(maptilerKeyAtom)
   const [hereKey, setHereKey] = useAtom(hereKeyAtom)
   const [planetKey, setPlanetKey] = useAtom(planetKeyAtom)
+  // No Settings UI existed for either of these until now — the only way to
+  // set them was a fresh browser profile picking up the VITE_*_KEY default
+  // from .env on first load. Since atomWithStorage's default only applies
+  // when the localStorage key doesn't exist yet, anyone whose browser had
+  // already initialized these atoms (e.g. from an earlier session before
+  // .env had a real value) was stuck on a stale "" with no way to fix it —
+  // this is what caused the Sentinel Hub pill to silently not appear.
+  const [maxarKey, setMaxarKey] = useAtom(maxarKeyAtom)
+  const [sentinelHubInstanceId, setSentinelHubInstanceId] = useAtom(sentinelHubInstanceIdAtom)
+  const [nearmapKey, setNearmapKey] = useAtom(nearmapKeyAtom)
+  const [vexcelToken, setVexcelToken] = useAtom(vexcelTokenAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
   const [batchEditMode, setBatchEditMode] = useState(false)
@@ -260,7 +271,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // stripping "VITE_", rather than needing a mental mapping between the two.
   const handleBatchToggle = useCallback(() => {
     if (!batchEditMode) {
-      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`].join("\n"))
+      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`, `MAXAR_API_KEY=${maxarKey}`, `SENTINEL_HUB_INSTANCE_ID=${sentinelHubInstanceId}`, `NEARMAP_API_KEY=${nearmapKey}`, `VEXCEL_TOKEN=${vexcelToken}`].join("\n"))
     } else {
       batchApiKeys.split("\n").forEach((line) => {
         const [key, value] = line.split("=")
@@ -270,11 +281,15 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           if (key.trim() === "HERE_API_KEY") setHereKey(value.trim())
           if (key.trim() === "PLANET_API_KEY") setPlanetKey(value.trim())
           if (key.trim() === "GOOGLE_API_KEY") setGoogleKey(value.trim())
+          if (key.trim() === "MAXAR_API_KEY") setMaxarKey(value.trim())
+          if (key.trim() === "SENTINEL_HUB_INSTANCE_ID") setSentinelHubInstanceId(value.trim())
+          if (key.trim() === "NEARMAP_API_KEY") setNearmapKey(value.trim())
+          if (key.trim() === "VEXCEL_TOKEN") setVexcelToken(value.trim())
         }
       })
     }
     setBatchEditMode(!batchEditMode)
-  }, [batchEditMode, batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey])
+  }, [batchEditMode, batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, maxarKey, sentinelHubInstanceId, nearmapKey, vexcelToken, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey, setMaxarKey, setSentinelHubInstanceId, setNearmapKey, setVexcelToken])
 
   return (
     <Dialog
@@ -756,6 +771,58 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   />
                   <p className="text-xs text-muted-foreground">
                     Unlocks Planet Monthly Mosaics as a historical Basemap option — hidden until set.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="maxar-key">Maxar API Key</Label>
+                  <PasswordInput
+                    id="maxar-key"
+                    value={maxarKey}
+                    onChange={(e: any) => setMaxarKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Unlocks "Maxar Latest" as a Basemap option, plus the Maxar Seamlines historical source — hidden until set. UNTESTED, see lib/maxar.ts.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="sentinel-hub-instance-id">Sentinel Hub / CDSE Instance ID</Label>
+                  <PasswordInput
+                    id="sentinel-hub-instance-id"
+                    value={sentinelHubInstanceId}
+                    onChange={(e: any) => setSentinelHubInstanceId(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Unlocks the Sentinel Hub historical Basemap option — hidden until set. This is a Configuration Instance ID from shapps.dataspace.copernicus.eu, not an API key.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nearmap-key">Nearmap API Key</Label>
+                  <PasswordInput
+                    id="nearmap-key"
+                    value={nearmapKey}
+                    onChange={(e: any) => setNearmapKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Unlocks Nearmap as a historical Basemap option (US/Australia/NZ/Canada only) — hidden until set. UNTESTED, see lib/nearmap.ts.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="vexcel-token">Vexcel API Token</Label>
+                  <PasswordInput
+                    id="vexcel-token"
+                    value={vexcelToken}
+                    onChange={(e: any) => setVexcelToken(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Unlocks Vexcel as a historical Basemap option (North America/Europe/AU-NZ only) — hidden until set. UNTESTED, lower confidence, see lib/vexcel.ts.
                   </p>
                 </div>
 
