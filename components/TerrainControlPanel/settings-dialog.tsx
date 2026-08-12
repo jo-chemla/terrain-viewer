@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useEffect, useMemo } from "react"
-import { useAtom, useSetAtom, type PrimitiveAtom } from "jotai"
+import { useAtom, useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai"
 import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -235,6 +235,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [projectCopied, setProjectCopied] = useState(false)
 
   const [lastSeenChangelogAt, setLastSeenChangelogAt] = useAtom(lastSeenChangelogAtAtom)
+  const isWhatsNewSectionOpen = useAtomValue(isSettingsWhatsNewOpenAtom)
   // Frozen at first render, before either effect below can overwrite the atom —
   // so the "N new"/highlighted-entries list stays stable for this whole
   // component lifetime even once opening the dialog marks everything seen
@@ -266,11 +267,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   useEffect(() => {
     if (unseenSinceSnapshot === "") setLastSeenChangelogAt(LATEST_CHANGELOG_RELEASED_AT)
   }, [])
-  // Returning visitor: opening Settings at all (not just expanding the What's
-  // New section) clears the badge for next time, same as Discord/Slack.
+  // Returning visitor: only once the What's New section is actually open (not
+  // merely because Settings itself is open for something unrelated, like API
+  // keys) does it clear the badge for next time, same as Discord/Slack.
   useEffect(() => {
-    if (isOpen && unseenSinceSnapshot !== "") setLastSeenChangelogAt(LATEST_CHANGELOG_RELEASED_AT)
-  }, [isOpen])
+    if (isOpen && isWhatsNewSectionOpen && unseenSinceSnapshot !== "") setLastSeenChangelogAt(LATEST_CHANGELOG_RELEASED_AT)
+  }, [isOpen, isWhatsNewSectionOpen])
 
   // Excluded from initialState: `project` itself (avoid self-reference) and
   // terrainUrl/basemapUrl (the *other* embed mechanism — redundant/conflicting
