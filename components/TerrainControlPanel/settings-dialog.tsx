@@ -199,7 +199,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [planetKey, setPlanetKey] = useAtom(planetKeyAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
-  const [batchEditMode, setBatchEditMode] = useState(false)
+  const [apiKeysViewMode, setApiKeysViewMode] = useState<"individual" | "batch">("individual")
   const [batchApiKeys, setBatchApiKeys] = useState("")
   const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [isTransparentUi, setTransparentUi] = useAtom(transparentUiAtom)
@@ -216,7 +216,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [projectId, setProjectId] = useState("")
   const [projectName, setProjectName] = useState("")
   const [projectCopied, setProjectCopied] = useState(false)
-  const [showFullChangelog, setShowFullChangelog] = useState(false)
 
   const [lastSeenChangelogAt, setLastSeenChangelogAt] = useAtom(lastSeenChangelogAtAtom)
   // Frozen at first render, before either effect below can overwrite the atom —
@@ -232,6 +231,9 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
     return CHANGELOG_ENTRIES.filter((e) => e.releasedAt > unseenSinceSnapshot)
   }, [unseenSinceSnapshot])
   const hasUnseenChangelog = unseenChangelogEntries.length > 0
+  // Defaults to "changes" when there's something unseen to highlight, "full"
+  // otherwise — no point defaulting to an empty "you're all caught up" view.
+  const [changelogView, setChangelogView] = useState<"changes" | "full">(hasUnseenChangelog ? "changes" : "full")
 
   // First-ever visit: silently mark caught-up so the badge never flashes for
   // someone who's never had anything to catch up on.
@@ -325,8 +327,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // Names match each var's VITE_-prefixed .env counterpart exactly (see .env) —
   // so a key=value block can be copy-pasted either direction just by adding or
   // stripping "VITE_", rather than needing a mental mapping between the two.
-  const handleBatchToggle = useCallback(() => {
-    if (!batchEditMode) {
+  // A plain view-mode toggle (not a modal edit flow), so every switch commits
+  // immediately in whichever direction it's headed — into batch mode snapshots
+  // the current individual values into the textarea, out of it parses the
+  // textarea back into them. There's deliberately no "Cancel": switching away
+  // from Batch always commits whatever text is currently there.
+  const handleApiKeysViewModeChange = useCallback((mode: "individual" | "batch") => {
+    if (mode === "batch") {
       setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`].join("\n"))
     } else {
       batchApiKeys.split("\n").forEach((line) => {
@@ -340,8 +347,8 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
         }
       })
     }
-    setBatchEditMode(!batchEditMode)
-  }, [batchEditMode, batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey])
+    setApiKeysViewMode(mode)
+  }, [batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey])
 
   return (
     <Dialog
@@ -397,21 +404,32 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             title="What's New"
             openAtom={isSettingsWhatsNewOpenAtom}
             contentClassName="space-y-3 pt-2"
-            headerExtra={hasUnseenChangelog ? (
-              <span className="flex items-center gap-1 text-xs font-medium text-primary-foreground bg-primary rounded-full px-2 py-0.5">
-                <Sparkles className="h-3 w-3" /> {unseenChangelogEntries.length} new
-              </span>
-            ) : undefined}
+            headerExtra={
+              <div className="flex items-center gap-2">
+                {hasUnseenChangelog && (
+                  <span className="flex items-center gap-1 text-xs font-medium text-primary-foreground bg-primary rounded-full px-2 py-0.5">
+                    <Sparkles className="h-3 w-3" /> {unseenChangelogEntries.length} new
+                  </span>
+                )}
+                <SegmentedToggle
+                  className="w-[140px]"
+                  value={changelogView}
+                  onChange={setChangelogView}
+                  options={[
+                    { value: "changes", label: "Changes" },
+                    { value: "full", label: "Full" },
+                  ]}
+                />
+              </div>
+            }
           >
-            {hasUnseenChangelog ? (
-              <ChangelogEntryList entries={unseenChangelogEntries} />
+            {changelogView === "changes" ? (
+              hasUnseenChangelog ? (
+                <ChangelogEntryList entries={unseenChangelogEntries} />
+              ) : (
+                <p className="text-xs text-muted-foreground">You&apos;re all caught up.</p>
+              )
             ) : (
-              <p className="text-xs text-muted-foreground">You&apos;re all caught up.</p>
-            )}
-            <Button variant="outline" size="sm" className="w-full cursor-pointer" onClick={() => setShowFullChangelog((v) => !v)}>
-              {showFullChangelog ? "Hide full changelog" : "View full changelog"}
-            </Button>
-            {showFullChangelog && (
               <div className="max-h-96 overflow-y-auto pr-1">
                 <ChangelogEntryList entries={CHANGELOG_ENTRIES} />
               </div>
@@ -782,17 +800,18 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             openAtom={isSettingsApiKeysOpenAtom}
             contentClassName="space-y-4 pt-2"
             headerExtra={
-              <div className="flex gap-2">
-                {batchEditMode && (
-                  <Button variant="outline" size="sm" onClick={() => setBatchEditMode(false)} className="cursor-pointer">
-                    Cancel
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" onClick={handleBatchToggle} className="cursor-pointer">{batchEditMode ? "Save" : "Batch Edit"}</Button>
-              </div>
+              <SegmentedToggle
+                className="w-[180px]"
+                value={apiKeysViewMode}
+                onChange={handleApiKeysViewModeChange}
+                options={[
+                  { value: "individual", label: "One per key" },
+                  { value: "batch", label: "Batch" },
+                ]}
+              />
             }
           >
-            {batchEditMode ? (
+            {apiKeysViewMode === "batch" ? (
               <div className="space-y-2">
                 <Label htmlFor="batch-keys">API Keys (one per line: key=value)</Label>
                 <JsonEditor

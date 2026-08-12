@@ -398,26 +398,62 @@
 - **Graticule layer** (`0b5c12d`), **Share section** (`db380d1`), **DTM-DSM LidarHD selector** (`10e9609`).
 - `TerrainControlPanel` exploded into one-file-per-section sub-components (`c4d2218`) — the sidebar's file structure since.
 
-# Changelog — Initial Launch, BYOD Terrain & COG Streaming
-<!-- released: 2025-11-30 -->
+# Changelog — Background, Sky & Fog Controls
+<!-- released: 2025-11-19 -->
 
 #### TL;DR
-- **Initial launch** with all user-controls on one foldable, sidebar control panel. UI trnasparency on slider change enables better-feedback, 2D/3D/Globe map projection modes.
+- Background layer, sky, and fog controls added, made fully configurable shortly after.
+
+### Features
+- **Background layer, sky, and fog controls** (`2625628`) — made fully configurable shortly after (`e7c6857`).
+
+# Changelog — cpt-city Colorramp Library
+<!-- released: 2025-11-18 -->
+
+#### TL;DR
+- Adding a large open-license colorramp library, cpt-city — a follow-up, two weeks after launch, not part of the initial commit.
+
+### Features
+- **cpt-city colorramp pipeline** (`ba2b492`) — a follow-up (Nov 18, two weeks after launch), not in the initial commit: a large open-license colorramp library parsed via a new `cpt2js`-based pipeline, a standalone cpt-city archive-parser mini-app to harvest it (`57bf00a`), topobath ramps (`0ccb447`), and a further significant expansion (`b5254fc`).
+
+# Changelog — Geomatico COG Protocol vs. Titiler
+<!-- released: 2025-11-14 -->
+
+#### TL;DR
+- Offer the choice to stream COG via Geomatico's native MapLibre COG-protocol vs. Titiler (a follow-up, 10 days after launch, not part of the initial commit) — the direct client protocol avoids Titiler's rate limiting and is faster (no middleware hop), but is less permissive: it only reads COGs already in Web Mercator (EPSG:3857), where Titiler can reproject on the fly server-side.
+
+### Features
+- **Geomatico COG Protocol introduced alongside Titiler** (`b6beb09`, toggle `9618fbc`) — a follow-up, not in the initial commit: landed 10 days later (Nov 14). Direct client-side COG consumption as an alternative to the Titiler middleware: no server-side hop means no Titiler rate-limiting and lower latency, at the cost of only handling COGs already tiled in Web Mercator (EPSG:3857) — Titiler can reproject arbitrary source CRS on the fly, this can't. The toggle between them (`useCogProtocolVsTitiler`) is still in Settings → Streaming today.
+
+# Changelog — Custom Sources Batch Edit (JSON)
+<!-- released: 2025-11-12 -->
+
+#### TL;DR
+- Batch-editing custom terrain/basemap sources as JSON (a follow-up, 8 days after launch, not part of the initial commit).
+
+### Features
+- **Custom sources batch edit** (`f959bae`) — a follow-up (8 days after launch), not in the initial commit: bulk-edit custom terrain/basemap source definitions as JSON (distinct from the later, API-key-specific batch editor added July 30, 2026 — see above).
+
+# Changelog — BYOD (Bring Your Own Data) Terrain Sources
+<!-- released: 2025-11-07 -->
+
+#### TL;DR
+- **Bring Your Own Data (BYOD) terrain** sources (a follow-up landing 3 days after launch, not part of the initial commit) let users import their own TMS, COG remote endpoint terrain sources.
+
+### Features
+- **BYOD (Bring Your Own Data) terrain sources** (`f24c1bc`) — a genuine follow-up, not part of the initial commit: the initial scaffold's `terrain-types.ts` already had a placeholder `"custom"` encoding value, but the real user-facing feature (Add Custom Terrain Source modal, wiring it up like any other source) landed 3 days later, in `f24c1bc`.
+
+# Changelog — Initial Launch, Viz Modes, Shareable URLs & Split Mode
+<!-- released: 2025-11-04 -->
+
+#### TL;DR
+- **Initial launch** with all user-controls on one foldable, sidebar control panel. UI transparency on slider change enables better-feedback, 2D/3D/Globe map projection modes.
 - **Terrain visualization modes**: Hillshade (Combined, Standard, Aspect Multidir colors, Igor, Basic), Hypsometric color-relief, Raster Basemap
 - **Sources for Terrain** (Terrarium /TerrainRGB): Mapterhorn, Mapbox, Maptiler. AWS Terrain Tiles.
 - Source for Raster Basemaps: Google, Bing, ESRI, Mapbox, Here, OSM
-- **State persisted to URL via nuqs** so any shared url results in the same exact visual map.
+- **Shareable URLs**, State persisted to URL via nuqs so any shared url results in visually the exact same map.
 - **Split Mode** — A/B side-by-side comparison, originally built for comparing the same location's resolution/quality across different terrain sources (Mapterhorn vs. Mapbox/MapLibre terrain-RGB vs. AWS Terrain Tiles).
-- **Bring Your Own Data (BYOD) terrain** sources (a follow-up landing 3 days after launch, not part of the initial commit) let user import their own TMS, COG remote endpoint terrain sources.
-- Offer the choice to stream COG via Geomatico's native MapLibre COG-protocol vs. Titiler (also a follow-up, 10 days after launch) — the direct client protocol avoids Titiler's rate limiting and is faster (no middleware hop), but is less permissive: it only reads COGs already in Web Mercator (EPSG:3857), where Titiler can reproject on the fly server-side.
-- Adding large open-license colorramp library, cpt-city (another follow-up, two weeks after launch).
-- Batch-editing custom terrain/basemap sources as JSON (also a follow-up, 8 days after launch).
 
 ### Features
 - **Initial launch** (`29ced9e`, `1e12655`, `535bb2a`, `c4d067f`) — the app's first version already had Hillshade, hypsometric tint (color-relief), a raster basemap, split-screen A/B comparison, and a UI-transparency option, all driven from the sidebar control panel (`components/terrain-controls.tsx`, `components/terrain-viewer.tsx`, `components/ui/sidebar.tsx`) — contours were present too, stabilized two days later (`069570e`).
 - **Split Mode (A/B side-by-side comparison)** — built to compare the same location across different terrain sources at various resolutions/qualities (e.g. Mapterhorn vs. Mapbox/MapLibre terrain-RGB vs. AWS Terrain Tiles), not just different imagery. The later Overlay (blend-mode compositing) and Grid (up to 8 views) shapes both grew out of this original two-way split — see July/August 2026 above.
-- **BYOD (Bring Your Own Data) terrain sources** (`f24c1bc`) — a genuine follow-up, not part of the initial commit: the initial scaffold's `terrain-types.ts` already had a placeholder `"custom"` encoding value, but the real user-facing feature (Add Custom Terrain Source modal, wiring it up like any other source) landed 3 days later, in `f24c1bc`.
-- **Geomatico COG Protocol introduced alongside Titiler** (`b6beb09`, toggle `9618fbc`) — also a follow-up, not in the initial commit: landed 10 days later (Nov 14). Direct client-side COG consumption as an alternative to the Titiler middleware: no server-side hop means no Titiler rate-limiting and lower latency, at the cost of only handling COGs already tiled in Web Mercator (EPSG:3857) — Titiler can reproject arbitrary source CRS on the fly, this can't. The toggle between them (`useCogProtocolVsTitiler`) is still in Settings → Streaming today.
-- **cpt-city colorramp pipeline** — also a follow-up (Nov 18, two weeks after launch), not in the initial commit: a large open-license colorramp library parsed via a new `cpt2js`-based pipeline (`ba2b492`), a standalone cpt-city archive-parser mini-app to harvest it (`57bf00a`), topobath ramps (`0ccb447`), and a further significant expansion (`b5254fc`).
-- **Custom sources batch edit** (`f959bae`) — also a follow-up (Nov 12), not in the initial commit: bulk-edit custom terrain/basemap source definitions as JSON (distinct from the later, API-key-specific batch editor added July 30, 2026 — see above).
-- **Background layer, sky, and fog controls** (`2625628`, configurable `e7c6857`).
