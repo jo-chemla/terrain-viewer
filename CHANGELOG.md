@@ -265,6 +265,7 @@
 
 #### TL;DR
 - **Local COG (BYOD) terrain sources** — load a `.cog.tif` straight off disk, no upload.
+- **Viz-mode tile caching** — an LRU of finished viz-mode tile bytes that makes re-toggling a mode instant instead of recomputing it.
 
 ### Features
 - **Local COG (BYOD) terrain sources** (`a0c9da3`) — pick a `.tif` off disk, no upload, with CRS/tiling validation.
@@ -372,6 +373,7 @@
 - **Drawing Tools** via TerraDraw — draw shapes, points, and more; import/export geojson features.
 - **Contours** reworked and consolidated into their own "Contours & GeoGrid" section.
 - Fold/expand-all for every sidebar section, with collapsed state now persisted via jotai atomWithStorage.
+- **"Load Sample" buttons** added to the terrain/basemap source pickers.
 
 ### Features
 - **TerraDrawSystem** (`42e5760`) — the drawing-tools system (shapes, points, GeoJSON import/export), alongside a rework of the main terrain-viewer component; reworked again the next day (`282304c`).
