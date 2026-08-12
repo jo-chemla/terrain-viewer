@@ -267,7 +267,8 @@
 - **Local COG (BYOD) terrain sources** — load a `.cog.tif` straight off disk, no upload.
 
 ### Features
-- **Local COG (BYOD) terrain sources** (`a0c9da3`) — pick a `.tif` off disk, no upload, with CRS/tiling validation. Also gates viz-mode tile caching (`cacheVizTiles`, later touched again `138d369`) — the LRU that makes re-toggling a mode instant instead of recomputing.
+- **Local COG (BYOD) terrain sources** (`a0c9da3`) — pick a `.tif` off disk, no upload, with CRS/tiling validation.
+- **Viz-mode tile caching** (`cacheVizTiles`, same commit `a0c9da3`, later touched again `138d369`) — an LRU of finished viz-mode tile bytes that makes re-toggling a mode instant instead of recomputing it.
 
 # Changelog — Mound Local Tops Detector Beta
 <!-- released: 2026-07-12 -->
@@ -376,7 +377,8 @@
 - **TerraDrawSystem** (`42e5760`) — the drawing-tools system (shapes, points, GeoJSON import/export), alongside a rework of the main terrain-viewer component; reworked again the next day (`282304c`).
 - **Contours reworked** (`8574074`, `f136a94`) — restructured into their own "Contours & GeoGrid" section (color pickers/line-weight controls followed later, July 2026 — see above).
 - **Fold/expand-all for sidebar sections** (`4d96202`) — every section's collapsed/expanded state now persists via `atomWithStorage`, alongside a broader foldable-sections rework.
-- Custom terrain/basemap samples added to the BYOD modals (`3cd8688`) — likely also the origin of the "Load Sample" buttons on the terrain/basemap source pickers, though not confirmed by a distinct commit citing that exact label.
+- Custom terrain/basemap samples added to the BYOD modals (`3cd8688`).
+- **"Load Sample" buttons** on the terrain/basemap source pickers — likely also originate here (`3cd8688`), though not confirmed by a distinct commit citing that exact label; flagged as unconfirmed rather than guessed further.
 
 # Changelog — BYOD Basemaps & WMS/DTM-DSM Sources
 <!-- released: 2026-02-13 -->
