@@ -21,7 +21,7 @@
 <!-- released: 2026-08-10 -->
 
 #### TL;DR
-- **N-Map Grid mode** introduced: in addition to 2x1, can now also do 3x1, 4x1, or 2 rows, 2x2 up to 4x2. Gains a **Grid** shape — now supporting up to 8 synced map views, not just a 2-way split.
+- **N-Map Grid mode**: in addition to 2x1, can now also do 3x1, 4x1, or 2 rows, 2x2 up to 4x2. Gains a **Grid** shape — now supporting up to 8 synced map views, not just a 2-way split.
 - **Compare and Blend's Split Mode**: Off/Side/Overlay, where gutter can be horizontally dragged for clip ratio, or the pill vertical position controls map view B transparency
 - **Overlay's Blend Mode**: Multiply, Difference, Soft-Light etc. Dropdown now exposes every CSS blend mode, not just a curated handful.
 - **Export historical GeoTIFFs** across a date range, with an option to generate ready-to-run `gdal_translate` scripts.
@@ -165,12 +165,12 @@
 <!-- released: 2026-07-28T09:20 -->
 
 #### TL;DR
-- **View bookmarks introduced** — save/restore full viewport + viz state, sidebar list + gallery.
+- **View bookmarks** — save/restore full viewport + viz state, sidebar list + gallery.
 - **Feature Iterator** — step through a drawn/imported layer's features one at a time (select, delete, arrow-key nav, fly-to-next).
 - A compute-time estimate now shows for slow modes (SVF, Openness, Local Dominance) while their tiles are still loading.
 
 ### Features
-- **View bookmarks introduced** (`4f7970e`) — save/restore full viewport + viz state, sidebar list + gallery; reorder/hierarchy and geocoded names followed within days (`122a57f`).
+- **View bookmarks** (`4f7970e`) — save/restore full viewport + viz state, sidebar list + gallery; reorder/hierarchy and geocoded names followed within days (`122a57f`).
 - **Feature Iterator** (`46ff80c`) — step through a TerraDraw layer's features one at a time; select/delete/arrow-key nav and fly-to-next-on-delete followed the same session (`26b8670`, `72f3c07`, `82c1668`).
 - **Compute-time estimate for slow modes** (`37cd729`) — SVF/Openness/Local Dominance now show an estimated time-remaining while their ray-marched tiles are still computing, based on an empirically-tracked concurrency rather than a naive sequential assumption.
 
@@ -264,12 +264,12 @@
 <!-- released: 2026-07-15 -->
 
 #### TL;DR
-- **Local COG (BYOD) terrain sources** — load a `.tif` straight off disk, no upload.
+- **Local COG (BYOD) terrain sources** — load a `.cog.tif` straight off disk, no upload.
 
 ### Features
 - **Local COG (BYOD) terrain sources** (`a0c9da3`) — pick a `.tif` off disk, no upload, with CRS/tiling validation. Also gates viz-mode tile caching (`cacheVizTiles`, later touched again `138d369`) — the LRU that makes re-toggling a mode instant instead of recomputing.
 
-# Changelog — Tells Detector Introduced
+# Changelog — Mound Local Tops Detector Beta
 <!-- released: 2026-07-12 -->
 
 #### TL;DR
@@ -282,10 +282,10 @@
 <!-- released: 2026-07-11 -->
 
 #### TL;DR
-- **Terrain-analysis suite introduced**: **Profile curvature** (rate of slope change along the steepest-descent direction — flow acceleration) and **Plan curvature** (rate of aspect change across contours — flow convergence/divergence), plus TPI and Roughness; Det-Hessian and Blobness followed a day later.
+- **Terrain-analysis suite**: **Profile curvature** (rate of slope change along the steepest-descent direction — flow acceleration) and **Plan curvature** (rate of aspect change across contours — flow convergence/divergence), plus TPI and Roughness; Det-Hessian and Blobness followed.
 
 ### Features
-- **Curvature/TPI/Roughness terrain-analysis suite introduced** (`ca3b679`) — Profile curvature and Plan curvature (defined in the TL;DR above), TPI, and Roughness; the 3×3-neighborhood default and the profile/plan split were documented in Settings the same day (`5d0c200`).
+- **Curvature/TPI/Roughness terrain-analysis suite** (`ca3b679`) — Profile curvature and Plan curvature (defined in the TL;DR above), TPI, and Roughness; the 3×3-neighborhood default and the profile/plan split were documented in Settings the same day (`5d0c200`).
 - **Det-Hessian curvature mode and Blobness structure-tensor sub-mode** (`23f6079`) — added a day later.
 - **Higher-precision terrain-derived tiles** — curvature, aspect, TRI, roughness, openness, blobness, and LRM now wire-encode ~25x finer, cutting visible banding.
 
@@ -294,79 +294,67 @@
 - **Minimap**: cold-start delay and resize bug.
 - **TypeScript errors cleared to zero**.
 
-# Changelog — Local Relief Model (LRM) Introduced
+# Changelog — Local Relief Model (LRM) Relative Elevation to neighborhood
 <!-- released: 2026-07-10T12:41 -->
 
 #### TL;DR
-- **Local Relief Model (LRM) introduced** — a new relief mode isolating local bumps from the regional trend.
+- **Local Relief Model (LRM)** — a new relief mode isolating local bumps from the regional trend. This is compute-optimized by subtracting the elevation tiles altitude at native viewport resolution from the bi-linearly interpolated trend, requested from a lower resolution version of the pyramid. User can control how many levels lower, and sees the resulting gaussian mean scale he chooses. 
 
 ### Features
 - **Local Relief Model (LRM)** (`d45a4ae`) — multi-scale relief mode isolating local bumps from the regional trend.
 
-# Changelog — Slope, Project Presets, Client-Side Export & Elevation Picker
+# Changelog — Client-Side DSM Export, Project Presets, Basemap Overlays & Elevation Picker
 <!-- released: 2026-07-09T22:52 -->
 
 #### TL;DR
-- **Elevation Picker introduced** — click-to-sample elevation at point or delta between two-points
-- **Basemap overlays** (radar, trails, watercolor and more) that layer on top of any basemap instead of replacing it.
-- **Project embed presets** — `?project=` links can seed a fully preconfigured view: **Mapterhorn Globe** (zoomed-out world view, Mapterhorn-only, source pickers hidden), **Dura Frescoes Viewer** (fixed 2D non-geo fresco view, most terrain-analysis tooling hidden), and a minimal **Example Embed** — see [lib/projects.json](https://github.com/Iconem/terrain-viewer/blob/main/lib/projects.json).
 - **Client-side GeoTIFF export** without Titiler, and shareable per-project embed configs.
+- **Project embed presets** — `?project=` links can seed a fully preconfigured view: 
+   - **Mapterhorn Globe** (zoomed-out world view, Mapterhorn-only, source pickers hidden), 
+   - **Dura Frescoes Viewer** (fixed 2D non-geo fresco view, most terrain-analysis tooling hidden), 
+   - and a minimal **Example Embed** — see [lib/projects.json](https://github.com/Iconem/terrain-viewer/blob/main/lib/projects.json).
+- **Basemap overlays** (samples ships demo radar, trails, stamen watercolor) that layer on top of any basemap instead of replacing it.
+- **Elevation Picker** — click-to-sample elevation at point or delta between two-points
 
 ### Features
-- **Elevation Picker introduced** (`a1d8ab8`) — click-to-sample elevation (3D/globe via `queryTerrainElevation`, 2D via client-side tile fetch/decode), two-point delta, auto-deactivates during TerraDraw drawing modes.
-- **Basemap overlays** (`a1d8ab8`) — role (basemap/overlay) on custom basemap sources, multi-select overlay checklist, stacked rendering, sample overlays (Stadia Watercolor, Waymarked Trails, OpenWeatherMap radar), shared basemap opacity slider.
-- **Project embed presets** (`a1d8ab8`) — `?project=` presets can seed custom sources, auto-zoom to a source's real (COG-read) bounds, override the sidebar title, and are exportable via a "Save Project Preset" tool in Settings. Shipped with **Mapterhorn Globe** and **Dura Frescoes Viewer** presets (`lib/projects.json`), each simplifying the sidebar to just what that site needs — Dura hides contours/Terrain-Analysis/Relief-Visualization/split-screen/elevation-picker entirely and disables the globe view mode, Mapterhorn Globe hides every source picker and opens straight into a zoomed-out globe.
 - **Client-side DTM export & project embed system** (`57c3d7a`) — export GeoTIFF from the browser without Titiler; per-project embed/URL config; a WMS layer picker for BYOD WMS sources.
+- **Project embed presets** (`a1d8ab8`) — `?project=` presets can seed custom sources, auto-zoom to a source's real (COG-read) bounds, override the sidebar title, and are exportable via a "Save Project Preset" tool in Settings. Shipped with: **Mapterhorn Globe** and **Dura Frescoes Viewer** presets (`lib/projects.json`), each simplifying the sidebar to just what that site needs — Dura hides contours/Terrain-Analysis/Relief-Visualization/split-screen/elevation-picker entirely and disables the globe view mode, Mapterhorn Globe hides every source picker and opens straight into a zoomed-out globe.
+- **Elevation Picker** (`a1d8ab8`) — click-to-sample elevation (3D/globe via `queryTerrainElevation`, 2D via client-side tile fetch/decode), two-point delta, auto-deactivates during TerraDraw drawing modes.
+- **Basemap overlays** (`a1d8ab8`) — role (basemap/overlay) on custom basemap sources, multi-select overlay checklist, stacked rendering, sample overlays (Stadia Watercolor, Waymarked Trails, OpenWeatherMap radar), shared basemap opacity slider.
 
 ### Bug Fixes
 - **Slope-and-More now supports all source types**, project embed polish, several stale-state fixes (`dd2f462`).
 
-# Changelog — Slope Viz Mode Introduced
+# Changelog — Slope Visualization Mode 
 <!-- released: 2026-07-08T17:14 -->
 
 #### TL;DR
-- **Slope viz mode introduced** — launched as a PlanTopo server-hosted overlay (computed offline from Mapterhorn), upgraded the same day to a client-side "Slope and More" v2: a custom MapLibre protocol computed directly from whichever terrain source is active (BYOD included), rather than PlanTopo's own fixed dataset. Later grew into the full curvature/TPI/roughness/LRM/Tells suite above.
+- **Slope visualization mode** — launched as a PlanTopo server-hosted overlay (computed offline from Mapterhorn), upgraded the same day to a client-side "Slope and More" v2: a custom MapLibre protocol computed directly from whichever terrain source is active (BYOD included), rather than PlanTopo's own fixed dataset. Later grew into the full curvature/TPI/roughness/LRM/Tells suite above.
 
 ### Features
-- **Slope viz mode introduced** (`ba51907`) — a PlanTopo-hosted server overlay (their own precomputed slope-angle raster); upgraded the same day (`8612990`) to a client-side custom MapLibre protocol computed from whichever terrain source is active ("Slope and More" v2) — the same viz mode that later grew into the full curvature/TPI/roughness/LRM/Tells suite (see the Jul 10–12 entries above).
+- **Slope viz mode** (`ba51907`) — a PlanTopo-hosted server overlay (their own precomputed slope-angle raster); upgraded the same day (`8612990`) to a client-side custom MapLibre protocol computed from whichever terrain source is active ("Slope and More" v2) — the same viz mode that later grew into the full curvature/TPI/roughness/LRM/Tells suite (see the Jul 10–12 entries above).
 
-# Changelog — Camera Poses, NextGIS QMS & More Data Sources
+# Changelog — NextGIS QMS, Animation Pose via URL & More Data Sources
 <!-- released: 2026-07-07T23:39 -->
 
 #### TL;DR
+- **NextGIS QMS search** — search and add basemaps directly from NextGIS's public [QuickMapServices](https://qms.nextgis.com/) catalog; 
 - Camera/animation poses are now URL-shareable; Home now correctly resets saved poses.
-- **NextGIS QMS search** — search and add basemaps directly from NextGIS's public QuickMapServices catalog; plus TileJSON sources, CET/SDR ramps, WMS-raw, Photon geocoder.
+- Switched search location geocoder to **Photon geocoder**.
+- Added data sources: TileJSON sources, CET/SDR ramps, WMS-raw, 
 
 ### Features
 - **Camera/animation pose rework** (`ca16705`) — URL-shareable camera state (nuqs, deltas between pose1/pose2 rather than compressed absolutes); Home now correctly resets saved poses.
 - **NextGIS QMS search** (`517898a`, overflow/templating fix `a2e24cd`) — search and add basemaps directly from NextGIS's public QuickMapServices catalog.
 - **More data sources** — TileJSON, CET/SDR ramps, WMS-raw, Photon geocoder.
 
-# Changelog — Colorramp Refinements & Terrain-Source Fixes
-<!-- released: 2026-03-31 -->
-
-#### TL;DR
-- Discrete vs. continuous colorramps distinguished, with an inversion option.
-- Terrarium/TerrainRGB terrain-source fixes.
-- A "corking" procedure added for non-geo terrain-visualization COGs.
-
-### Features
-- **Discrete vs. continuous colorramps** (`51812d1`) — some ramps (e.g. classification-style) are meant to show hard bands, not a smooth gradient; now distinguished explicitly.
-- **Colorramp inversion** (`687d03e`).
-- **Corking procedure for non-geo terrain-viz COGs** (`5184b4b`) — supports the non-geo relief-visualization workflow (murals/frescoes) alongside real georeferenced terrain; see `Non-Geo-Relief-Visualization.md` for the full GDAL recipe.
-
-### Bug Fixes
-- **Terrarium/TerrainRGB sources** (`6d8d24e`) — fixed after `fbae55f`'s WIP min/max-zoom and `MapSources` factoring work exposed the issue.
-- **Custom-source batch edit** (`17b7c6d`) — fixed for terrain sources (see the original batch-edit tool from Nov 2025 below).
-
-# Changelog — Light-direction spherical control, Minimap, Animation & Video Export
+# Changelog — Light-direction spherical control, Animation, Video Export & Minimap
 <!-- released: 2026-02-27 -->
 
 #### TL;DR
-- **XYPad for hillshade/Phong light-direction control** — drag a 2D pad to set illumination azimuth/elevation, instead of two separate sliders.
-- **Minimap** with footprint/frustum.
+- **Light-direction control for Hillshade via XYPad** — drag a 2D pad to set illumination azimuth/elevation, instead of two separate sliders.
 - **Animation Capabilities**, with keyframe-based (Complete vs Smooth) video export.
 - **Video export** tries **MediaBunny** first (real muxed MP4/H.264 via WebCodecs) — falling back to raw **WebCodecs** (H.264, no muxing) if MediaBunny throws, then all the way to **MediaRecorder** (WebM) if the browser lacks WebCodecs entirely.
+- **Minimap** with main viewport footprint/frustum bbox shown, fully configurable.
 - Finer Terrarium quantization (4mm vs. TerrainRGB 10cm) shipped as a High-Precision toggle.
 
 ### Features
@@ -376,16 +364,16 @@
 - **Video export overhaul** (`93cbc77`, superseding earlier attempts `3b88d97`/`878fb70`) — three-tier fallback chain: **MediaBunny** (`69c3efe`) first, a real muxed MP4/H.264 via WebCodecs under the hood, no per-browser codec-support roulette; falls back to raw **WebCodecs** (H.264-ish, no muxing) if MediaBunny itself throws; falls all the way back to **MediaRecorder** (WebM, VP9/VP8) if the browser has no WebCodecs `VideoEncoder` at all. Restored/hardened in July (`740b724`).
 - **High-Precision Elevation Quantization** (`ecd76ba`) — finer Terrarium encoding (3.9mm steps) as an alternative to TerrainRGB (10cm steps) via the Geomatico COG-protocol middleware, with a same-day fix for reset/layer state on high-res-quantized COGs (`b614aae`).
 
-# Changelog — TerraDrawSystem & Contours Fixes
+# Changelog — Drawing Tools via TerraDraw & Contours Fixes
 <!-- released: 2026-02-18 -->
 
 #### TL;DR
-- **Drawing Tools** introduced via TerraDraw — draw shapes, points, and more; import/export geojson features.
+- **Drawing Tools** via TerraDraw — draw shapes, points, and more; import/export geojson features.
 - **Contours** reworked and consolidated into their own "Contours & GeoGrid" section.
 - Fold/expand-all for every sidebar section, with collapsed state now persisted via jotai atomWithStorage.
 
 ### Features
-- **TerraDrawSystem** (`42e5760`) — introduced the drawing-tools system (shapes, points, GeoJSON import/export), alongside a rework of the main terrain-viewer component; reworked again the next day (`282304c`).
+- **TerraDrawSystem** (`42e5760`) — the drawing-tools system (shapes, points, GeoJSON import/export), alongside a rework of the main terrain-viewer component; reworked again the next day (`282304c`).
 - **Contours reworked** (`8574074`, `f136a94`) — restructured into their own "Contours & GeoGrid" section (color pickers/line-weight controls followed later, July 2026 — see above).
 - **Fold/expand-all for sidebar sections** (`4d96202`) — every section's collapsed/expanded state now persists via `atomWithStorage`, alongside a broader foldable-sections rework.
 - Custom terrain/basemap samples added to the BYOD modals (`3cd8688`) — likely also the origin of the "Load Sample" buttons on the terrain/basemap source pickers, though not confirmed by a distinct commit citing that exact label.
@@ -394,7 +382,7 @@
 <!-- released: 2026-02-13 -->
 
 #### TL;DR
-- **BYOD basemaps** finalized as their own custom-source type, alongside the existing BYOD terrain sources.
+- **BYOD basemaps** TMS, WMS, COG, finalized as their own custom-source type via custom protocol, alongside the existing BYOD terrain sources.
 - **WMS raw-elevation support** (e.g. IGN France) now stream as MapLibre raster-dem via a custom MapLibre protocol — standalone demo: [maplibre-raster-dem-wms-float32-generic.html](/maplibre-raster-dem-wms-float32-generic.html).
 - DTM-DSM LidarHD selector in samples, Graticule layer, and a Share section.
 
@@ -409,12 +397,12 @@
 <!-- released: 2025-11-30 -->
 
 #### TL;DR
-- Initial launch with all usser-controls from one sidebar control panel, with UI trnasparency on slider change for better-feedback, 2D/3D/Globe map projection modes
-- Expose **terrain visualization modes**: Hillshade (multiple types, Combined, Standard, Aspect Multidir colors, Igor, Basic), Hypsometric color-relief, Raster Basemap
-- **Sources for Terrain** (Terrarium or TerrainRGB encodings): Mapterhorn, Mapbox, Maptiler. AWS Terrain Tiles.
+- **Initial launch** with all user-controls on one foldable, sidebar control panel. UI trnasparency on slider change enables better-feedback, 2D/3D/Globe map projection modes.
+- **Terrain visualization modes**: Hillshade (Combined, Standard, Aspect Multidir colors, Igor, Basic), Hypsometric color-relief, Raster Basemap
+- **Sources for Terrain** (Terrarium /TerrainRGB): Mapterhorn, Mapbox, Maptiler. AWS Terrain Tiles.
 - Source for Raster Basemaps: Google, Bing, ESRI, Mapbox, Here, OSM
-- State persisted to URL via nuqs so any shared url results in the same exact visual map.
-- **Split Mode introduced** — an A/B side-by-side comparison, originally built for comparing terrain sources resolution/quality across different locations
+- **State persisted to URL via nuqs** so any shared url results in the same exact visual map.
+- **Split Mode** — A/B side-by-side comparison, originally built for comparing terrain sources resolution/quality across different locations
 - **Bring Your Own Data (BYOD) terrain** sources let user import their own TMS, COG remote endpoint terrain sources.
 - Offer the choice to stream COG via Geomatico's native MapLibre COG-protocol vs. Titiler — the direct client protocol avoids Titiler's rate limiting and is faster (no middleware hop), but is less permissive: it only reads COGs already in Web Mercator (EPSG:3857), where Titiler can reproject on the fly server-side.
 - Adding large open-license colorramp library, cpt-city.
