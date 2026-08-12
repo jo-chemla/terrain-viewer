@@ -23,7 +23,7 @@ import {
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
   isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
   isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom, isSettingsGeomorphometryOpenAtom,
-  isSettingsWhatsNewOpenAtom, lastSeenChangelogAtAtom,
+  isSettingsWhatsNewOpenAtom, lastSeenChangelogAtAtom, changelogViewAtom, changelogEntriesOpenAtom,
 } from "@/lib/settings-atoms"
 import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_RELEASED_AT, type ChangelogEntry } from "@/lib/changelog"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
@@ -106,25 +106,38 @@ const CHANGELOG_MARKDOWN_COMPONENTS = {
 // for both the "since you last looked" highlights and the "full changelog"
 // view (settings-dialog.tsx never renders the dev-oriented Features/Bug Fixes
 // prose from CHANGELOG.md).
-const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }) => (
-  <div className="space-y-3">
-    {entries.map((entry) => (
-      <div key={entry.releasedAt + entry.heading} className="space-y-1.5">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <Badge variant="secondary" className="rounded-full">{entry.releasedDate}</Badge>
-          <span className="text-sm font-bold text-foreground">{entry.heading}</span>
-        </div>
-        {entry.tldrMarkdown ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHANGELOG_MARKDOWN_COMPONENTS}>
-            {entry.tldrMarkdown}
-          </ReactMarkdown>
-        ) : (
-          <p className="text-xs text-muted-foreground italic">No summary for this release yet.</p>
-        )}
-      </div>
-    ))}
-  </div>
-)
+const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }) => {
+  const [entriesOpen, setEntriesOpen] = useAtom(changelogEntriesOpenAtom)
+  return (
+    <div className="space-y-3">
+      {entries.map((entry) => {
+        const key = entry.releasedAt
+        const isOpen = entriesOpen[key] ?? true // missing key = expanded by default
+        return (
+          <div key={key} className="space-y-1.5">
+            <div
+              className="flex items-center gap-2 flex-wrap cursor-pointer"
+              onClick={() => setEntriesOpen((prev) => ({ ...prev, [key]: !isOpen }))}
+            >
+              <Badge variant="secondary" className="rounded-full">{entry.releasedDate}</Badge>
+              <span className="text-xs font-semibold text-foreground flex-1 min-w-0">{entry.heading}</span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+            </div>
+            {isOpen && (
+              entry.tldrMarkdown ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHANGELOG_MARKDOWN_COMPONENTS}>
+                  {entry.tldrMarkdown}
+                </ReactMarkdown>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">No summary for this release yet.</p>
+              )
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any; historicalMode?: boolean }> = ({ isOpen, onOpenChange, state, setState, historicalMode = false }) => {
   const { theme, toggleTheme, setTheme: setAppTheme } = useTheme()
@@ -235,9 +248,18 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
     return CHANGELOG_ENTRIES.filter((e) => e.releasedAt > unseenSinceSnapshot)
   }, [unseenSinceSnapshot])
   const hasUnseenChangelog = unseenChangelogEntries.length > 0
-  // Defaults to "changes" when there's something unseen to highlight, "full"
-  // otherwise — no point defaulting to an empty "you're all caught up" view.
-  const [changelogView, setChangelogView] = useState<"changes" | "full">(hasUnseenChangelog ? "changes" : "full")
+  const [changelogView, setChangelogView] = useAtom(changelogViewAtom)
+  const [changelogEntriesOpen, setChangelogEntriesOpen] = useAtom(changelogEntriesOpenAtom)
+  const visibleChangelogEntries = changelogView === "changes" ? unseenChangelogEntries : CHANGELOG_ENTRIES
+  const allChangelogEntriesFolded = visibleChangelogEntries.length > 0 && visibleChangelogEntries.every((e) => changelogEntriesOpen[e.releasedAt] === false)
+  const handleFoldExpandAllChangelog = useCallback(() => {
+    const next = allChangelogEntriesFolded // currently all folded -> expand; otherwise -> fold
+    setChangelogEntriesOpen((prev) => {
+      const updated = { ...prev }
+      visibleChangelogEntries.forEach((e) => { updated[e.releasedAt] = next })
+      return updated
+    })
+  }, [allChangelogEntriesFolded, visibleChangelogEntries, setChangelogEntriesOpen])
 
   // First-ever visit: silently mark caught-up so the badge never flashes for
   // someone who's never had anything to catch up on.
@@ -415,6 +437,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                     <Sparkles className="h-3 w-3" /> {unseenChangelogEntries.length} new
                   </span>
                 )}
+                <TooltipIconButton
+                  icon={allChangelogEntriesFolded ? ChevronsUpDown : ChevronsDownUp}
+                  tooltip={allChangelogEntriesFolded ? "Expand all entries" : "Fold all entries"}
+                  onClick={handleFoldExpandAllChangelog}
+                  disabled={visibleChangelogEntries.length === 0}
+                />
                 <div className="flex items-center gap-2 cursor-pointer">
                   <Label htmlFor="changelog-view" className="text-xs text-muted-foreground cursor-pointer">Changes</Label>
                   <Switch
