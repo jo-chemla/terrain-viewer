@@ -109,7 +109,7 @@ const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }
   <div className="space-y-3">
     {entries.map((entry) => (
       <div key={entry.releasedAt + entry.heading} className="space-y-1">
-        <div className="text-xs font-semibold text-foreground">{entry.releasedAt} - {entry.heading}</div>
+        <div className="text-xs font-semibold text-foreground">{entry.releasedDate} - {entry.heading}</div>
         {entry.tldrMarkdown ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHANGELOG_MARKDOWN_COMPONENTS}>
             {entry.tldrMarkdown}
