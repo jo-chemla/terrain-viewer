@@ -2,6 +2,24 @@ import { atomWithStorage } from "jotai/utils"
 import { atom } from "jotai"
 import type { ProjectConfig } from "./project-config"
 
+// Builds a PrimitiveAtom<boolean>-shaped view (same [value, SetStateAction]
+// signature real atomWithStorage atoms have, so existing useAtom callers and
+// PrimitiveAtom<boolean>-typed props don't need to change) onto one field of a
+// coalesced atomWithStorage record, so N booleans can share a single
+// localStorage key instead of one entry each. Each field's setter still reads
+// the *current* record at call time, so calling several of these setters back
+// to back (e.g. a "fold all sections" loop) never clobbers a sibling field.
+function booleanField<T extends object, K extends keyof T>(storageAtom: ReturnType<typeof atomWithStorage<T>>, key: K) {
+  return atom(
+    (get) => get(storageAtom)[key] as boolean,
+    (get, set, update: boolean | ((prev: boolean) => boolean)) => {
+      const prev = get(storageAtom)
+      const next = typeof update === "function" ? (update as (prev: boolean) => boolean)(prev[key] as unknown as boolean) : update
+      set(storageAtom, { ...prev, [key]: next })
+    },
+  )
+}
+
 // Timestamp (ms) of the last time each viz-mode was switched on, keyed by its
 // show-flag name. Written by TerrainControlPanel's edge detector, read by the
 // Section header to show a 3s "just turned on" breathing dot. Lives in an atom
@@ -205,33 +223,80 @@ const renderQualityAtom = atomWithStorage<RenderQuality>('anim-render-quality', 
 const fpsAtom = atomWithStorage('anim-fps', 60)
 const targetSizeMBAtom = atomWithStorage('anim-target-size-mb', '')
 
-// One open/closed atom per top-level Settings dialog section (settings-dialog.tsx's
-// CollapsibleSection) — remembers what the user last folded, same as
-// isByodOpenAtom/isHillshadeXYPadOpenAtom above do for sidebar sections. Most
-// default open (true); "Appearance", "Save Project Preset", "Map bounds
-// constraints" and "API Keys" default folded (false) — Appearance because it's
-// rarely revisited once picked, the rest because they're setup/export actions
-// you configure once, not something you look at every time the dialog opens.
-export const isSettingsAppearanceOpenAtom = atomWithStorage("isSettingsAppearanceOpen", false)
-export const isSettingsKeyboardShortcutsOpenAtom = atomWithStorage("isSettingsKeyboardShortcutsOpen", true)
-export const isSettingsVisualizationModesOpenAtom = atomWithStorage("isSettingsVisualizationModesOpen", true)
-export const isSettingsStreamingOpenAtom = atomWithStorage("isSettingsStreamingOpen", true)
-export const isSettingsStoragePersistenceOpenAtom = atomWithStorage("isSettingsStoragePersistenceOpen", true)
-export const isSettingsBetaOpenAtom = atomWithStorage("isSettingsBetaOpen", true)
-export const isSettingsApiKeysOpenAtom = atomWithStorage("isSettingsApiKeysOpen", false)
-export const isSettingsMapBoundsOpenAtom = atomWithStorage("isSettingsMapBoundsOpen", false)
-export const isSettingsSaveProjectOpenAtom = atomWithStorage("isSettingsSaveProjectOpen", false)
-export const isSettingsResourcesOpenAtom = atomWithStorage("isSettingsResourcesOpen", false)
-export const isSettingsGeomorphometryOpenAtom = atomWithStorage("isSettingsGeomorphometryOpen", false)
-export const isSettingsWhatsNewOpenAtom = atomWithStorage("isSettingsWhatsNewOpen", true)
+// One open/closed FIELD per top-level Settings dialog section (settings-dialog.tsx's
+// CollapsibleSection), all coalesced into a single "settingsSectionsOpen"
+// localStorage key (same Record<key, boolean> shape as TerrainControlPanel's
+// sectionOpenAtom) instead of one atomWithStorage entry per section — remembers
+// what the user last folded, same as isByodOpenAtom/isHillshadeXYPadOpenAtom
+// above do for sidebar sections. Most default open (true); "Appearance", "Save
+// Project Preset", "Map bounds constraints" and "API Keys" default folded
+// (false) — Appearance because it's rarely revisited once picked, the rest
+// because they're setup/export actions you configure once, not something you
+// look at every time the dialog opens. getOnInit: true so a returning
+// visitor's folded sections (and isSettingsWhatsNewOpenAtom specifically,
+// which also gates lastSeenChangelogAtAtom's "mark as seen" effect below) read
+// their real stored value on first render instead of flashing this object's
+// defaults for one frame.
+interface SettingsSectionsOpenState {
+  whatsNew: boolean
+  appearance: boolean
+  keyboardShortcuts: boolean
+  visualizationModes: boolean
+  streaming: boolean
+  storagePersistence: boolean
+  beta: boolean
+  apiKeys: boolean
+  mapBounds: boolean
+  saveProject: boolean
+  resources: boolean
+  geomorphometry: boolean
+}
+const settingsSectionsOpenAtom = atomWithStorage<SettingsSectionsOpenState>("settingsSectionsOpen", {
+  whatsNew: true,
+  appearance: false,
+  keyboardShortcuts: true,
+  visualizationModes: true,
+  streaming: true,
+  storagePersistence: true,
+  beta: true,
+  apiKeys: false,
+  mapBounds: false,
+  saveProject: false,
+  resources: false,
+  geomorphometry: false,
+}, undefined, { getOnInit: true })
+export const isSettingsAppearanceOpenAtom = booleanField(settingsSectionsOpenAtom, "appearance")
+export const isSettingsKeyboardShortcutsOpenAtom = booleanField(settingsSectionsOpenAtom, "keyboardShortcuts")
+export const isSettingsVisualizationModesOpenAtom = booleanField(settingsSectionsOpenAtom, "visualizationModes")
+export const isSettingsStreamingOpenAtom = booleanField(settingsSectionsOpenAtom, "streaming")
+export const isSettingsStoragePersistenceOpenAtom = booleanField(settingsSectionsOpenAtom, "storagePersistence")
+export const isSettingsBetaOpenAtom = booleanField(settingsSectionsOpenAtom, "beta")
+export const isSettingsApiKeysOpenAtom = booleanField(settingsSectionsOpenAtom, "apiKeys")
+export const isSettingsMapBoundsOpenAtom = booleanField(settingsSectionsOpenAtom, "mapBounds")
+export const isSettingsSaveProjectOpenAtom = booleanField(settingsSectionsOpenAtom, "saveProject")
+export const isSettingsResourcesOpenAtom = booleanField(settingsSectionsOpenAtom, "resources")
+export const isSettingsGeomorphometryOpenAtom = booleanField(settingsSectionsOpenAtom, "geomorphometry")
+export const isSettingsWhatsNewOpenAtom = booleanField(settingsSectionsOpenAtom, "whatsNew")
 
 // ISO date ("YYYY-MM-DD") of the newest changelog entry's `<!-- released -->`
 // marker the user has already seen — see lib/changelog.ts. A plain date, not
 // the entry's (frequently-retitled) heading text, so a rename never breaks
-// "have I seen this" tracking. Empty string is the sentinel for "never seen
-// any" (a brand-new visitor) — settings-dialog.tsx uses that to silently mark
-// first-time visitors caught-up instead of flashing a badge.
-export const lastSeenChangelogAtAtom = atomWithStorage("lastSeenChangelogAt", "")
+// "have I seen this" tracking. Defaults to 2026-08-01 (rather than "never seen
+// anything") so visitors with no stored value yet — including first-ever
+// visitors — still see the "N new" pill for the batch of features shipped
+// since then, instead of it being silently marked caught-up; bump this default
+// forward whenever there's a new batch worth surfacing to everyone.
+// getOnInit: true is required here, not optional: settings-dialog.tsx freezes
+// this value into a `useState` snapshot on its very first render (so the
+// unseen-list stays stable for the dialog's lifetime even after it marks
+// things seen). Without getOnInit, that first render sees the hardcoded
+// default instead of the real localStorage value — permanently freezing the
+// snapshot at the default AND tripping settings-dialog.tsx's mark-as-seen
+// effect, which then immediately overwrites the real stored value with
+// today's latest release date. That bug was exactly reproducible by manually
+// editing localStorage's lastSeenChangelogAt and reloading: the edited value
+// got silently stomped back to "latest" instead of being honored.
+export const lastSeenChangelogAtAtom = atomWithStorage("lastSeenChangelogAt", "2026-08-01", undefined, { getOnInit: true })
 
 // "changes" (just what's new since last visit) vs "full" (every entry) —
 // always defaults to "changes", regardless of whether there's currently
@@ -246,19 +311,23 @@ export const changelogViewAtom = atomWithStorage<"changes" | "full">("changelogV
 // entries show up open without needing an explicit default here.
 export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>("changelogEntriesOpen", {})
 
-// Mirrors of TerrainViewer's tellsBeta/sunShadowBeta nuqs fields (the actual
-// gates the app reads) — those live in the URL so a `?tellsBeta=true` link
-// still works, but with no localStorage backing they silently reset to off on
-// every reload without the param. These atoms are the "last value the user
-// picked in Settings" and get applied as a stateOverride on first load
-// whenever the URL doesn't already specify the param (see TerrainViewer's
-// embed-config effect), then kept in sync any time the nuqs field changes.
-// getOnInit: true, same reasoning as customTerrainSourcesAtom above — these are
-// read synchronously in TerrainViewer's first-load stateOverrides effect, which
-// would otherwise see the pre-hydration default instead of the real stored value.
-export const tellsBetaEnabledAtom = atomWithStorage("tellsBetaEnabled", false, undefined, { getOnInit: true })
-export const sunShadowBetaEnabledAtom = atomWithStorage("sunShadowBetaEnabled", false, undefined, { getOnInit: true })
-export const historicalBetaEnabledAtom = atomWithStorage("historicalBetaEnabled", false, undefined, { getOnInit: true })
+// Mirrors of TerrainViewer's tellsBeta/sunShadowBeta/historicalBeta nuqs fields
+// (the actual gates the app reads) — those live in the URL so a
+// `?tellsBeta=true` link still works, but with no localStorage backing they
+// silently reset to off on every reload without the param. These atoms are
+// the "last value the user picked in Settings" and get applied as a
+// stateOverride on first load whenever the URL doesn't already specify the
+// param (see TerrainViewer's embed-config effect), then kept in sync any time
+// the nuqs field changes. Coalesced into a single "betaEnabled" localStorage
+// key (same pattern as settingsSectionsOpenAtom above) instead of one entry
+// per beta flag. getOnInit: true, same reasoning as customTerrainSourcesAtom
+// above — these are read synchronously in TerrainViewer's first-load
+// stateOverrides effect, which would otherwise see the pre-hydration default
+// instead of the real stored value.
+const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: false, historical: false }, undefined, { getOnInit: true })
+export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
+export const sunShadowBetaEnabledAtom = booleanField(betaEnabledAtom, "sunShadow")
+export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historical")
 
 // Bookmarks gallery modal: on (default) flattens every group's cards into one
 // continuous grid (each card's label prefixed with its project name) so

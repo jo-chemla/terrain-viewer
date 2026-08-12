@@ -42,6 +42,17 @@ const RELEASED_RE = /<!--\s*released:\s*(\S+?)\s*-->/
 // bullet.
 const TLDR_RE = /^#### TL;DR\s*\n([\s\S]*?)(?=\n#{1,4} |(?![\s\S]))/m
 
+// Some TL;DRs are authored as a single unbulleted paragraph rather than a
+// `- ` list (there's only one point to make, so a list felt like overkill) —
+// but settings-dialog.tsx's CHANGELOG_MARKDOWN_COMPONENTS only styles `ul`,
+// not `p`, so those rendered at the browser's default paragraph size/weight
+// instead of matching the muted text-sm bullets next to them. Forcing every
+// TL;DR through a single bullet keeps every entry visually consistent
+// regardless of how it was authored.
+function normalizeTldr(tldr: string): string {
+  return tldr.startsWith("- ") ? tldr : `- ${tldr}`
+}
+
 function parseChangelog(text: string): ChangelogEntry[] {
   const headingMatches = [...text.matchAll(HEADING_RE)]
   return headingMatches.map((match, i) => {
@@ -56,7 +67,7 @@ function parseChangelog(text: string): ChangelogEntry[] {
       heading,
       releasedAt,
       releasedDate: releasedAt.slice(0, 10),
-      tldrMarkdown: tldrMatch ? tldrMatch[1].trim() : "",
+      tldrMarkdown: tldrMatch ? normalizeTldr(tldrMatch[1].trim()) : "",
     }
   })
 }

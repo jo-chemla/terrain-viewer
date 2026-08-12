@@ -146,9 +146,9 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const setCustomThemes = useSetAtom(customThemesAtom)
 
   // Fold-all/expand-all for the settings dialog's own sections — same idea as
-  // the sidebar's chevron button (TerrainControlPanel.tsx), just against N
-  // separate atomWithStorage atoms here instead of one combined open-state
-  // object, since each settings section persists independently.
+  // the sidebar's chevron button (TerrainControlPanel.tsx). Each of these is a
+  // PrimitiveAtom<boolean>-shaped view onto one field of the single coalesced
+  // "settingsSectionsOpen" atom (see lib/settings-atoms.ts's booleanField).
   const [isWhatsNewOpen, setIsWhatsNewOpen] = useAtom(isSettingsWhatsNewOpenAtom)
   const [isAppearanceOpen, setIsAppearanceOpen] = useAtom(isSettingsAppearanceOpenAtom)
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useAtom(isSettingsKeyboardShortcutsOpenAtom)
@@ -241,13 +241,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // component lifetime even once opening the dialog marks everything seen
   // for *next* time.
   const [unseenSinceSnapshot] = useState(lastSeenChangelogAt)
-  const unseenChangelogEntries = useMemo(() => {
-    if (unseenSinceSnapshot === "") return [] // sentinel for "never seen any" — a brand-new visitor, not stale data
+  const unseenChangelogEntries = useMemo(() => (
     // Plain ISO-string comparison — robust to CHANGELOG.md entries being
     // retitled (unlike comparing by heading text) and to reordering, since it
     // doesn't rely on array position at all.
-    return CHANGELOG_ENTRIES.filter((e) => e.releasedAt > unseenSinceSnapshot)
-  }, [unseenSinceSnapshot])
+    CHANGELOG_ENTRIES.filter((e) => e.releasedAt > unseenSinceSnapshot)
+  ), [unseenSinceSnapshot])
   const hasUnseenChangelog = unseenChangelogEntries.length > 0
   const [changelogView, setChangelogView] = useAtom(changelogViewAtom)
   const [changelogEntriesOpen, setChangelogEntriesOpen] = useAtom(changelogEntriesOpenAtom)
@@ -262,16 +261,11 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
     })
   }, [allChangelogEntriesFolded, visibleChangelogEntries, setChangelogEntriesOpen])
 
-  // First-ever visit: silently mark caught-up so the badge never flashes for
-  // someone who's never had anything to catch up on.
+  // Only once the What's New section is actually open (not merely because
+  // Settings itself is open for something unrelated, like API keys) does it
+  // clear the badge for next time, same as Discord/Slack.
   useEffect(() => {
-    if (unseenSinceSnapshot === "") setLastSeenChangelogAt(LATEST_CHANGELOG_RELEASED_AT)
-  }, [])
-  // Returning visitor: only once the What's New section is actually open (not
-  // merely because Settings itself is open for something unrelated, like API
-  // keys) does it clear the badge for next time, same as Discord/Slack.
-  useEffect(() => {
-    if (isOpen && isWhatsNewSectionOpen && unseenSinceSnapshot !== "") setLastSeenChangelogAt(LATEST_CHANGELOG_RELEASED_AT)
+    if (isOpen && isWhatsNewSectionOpen) setLastSeenChangelogAt(LATEST_CHANGELOG_RELEASED_AT)
   }, [isOpen, isWhatsNewSectionOpen])
 
   // Excluded from initialState: `project` itself (avoid self-reference) and
