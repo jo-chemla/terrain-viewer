@@ -65,7 +65,8 @@
 - **New "Historical Imagery" mode**: scrub a real per-tile capture-date timeline bottom panel, across **ESRI Wayback, Google Earth Historical**, Landsat/Sentinel, Planet, and Bing.
 - **Mode Picker** switches the whole sidebar between Terrain Viewer and a simplified Historical Imagery layout.
 - Every historical basemap source feeds real attribution, including dynamically-resolved provider/date info for Wayback, Google Earth Historical, and Bing.
-- Sun Shadow Calculator: new **Reverse** mode — click a shadow to back-solve the light direction and time of day; the light-direction pad itself gained the same inverse lookup. Also see the standalone [sun-position estimator](/sun-position-estimator.html) tool.
+- **The light-direction XY pad itself gained a full bidirectional datetime binding** — drag it and it back-solves the closest matching day-of-year/time-of-day (and the sliders still drive it forward as before), hatching every position the sun can't physically reach at the current latitude (a real day/night-boundary constraint).
+- Sun Shadow Calculator: new **Reverse** mode — click a shadow to back-solve the light direction and time of day. Also see the standalone [sun-position estimator](/sun-position-estimator.html) tool.
 
 ### Features
 - **Historical satellite imagery basemaps + timeline scrubber** — five date-driven basemap sources (ESRI Wayback, NASA HLS Landsat/Sentinel, Google Earth Historical via a reverse-engineered `gehist://` MapLibre protocol, Planet Monthly Mosaics behind an API key, and Bing's single current mosaic), consolidated into one "Historical Imagery" sidebar entry rather than five separate rows (which underlying source is active per side is a separate `historicalActiveSource(A/B)` field). A bottom timeline panel shows per-source colored pills (toggle which sources' ticks are shown, filterable by VHR/medium resolution) and a scrubbable track of real per-tile capture dates — not each source's own catalog-wide "release date." Split-screen/per-view mode gets a sync toggle (single chain icon) to move both sides' scrub position together or independently via an A/B picker. Off-screen A/B handles collapse into a rounded chevron chip ("A>"/"<B") that recenters the view on click instead of colliding with the round in-view handle. A "Open in…" launcher opens the current view in BBBike MapCompare or similar external tools.
@@ -406,11 +407,11 @@
 - **Sources for Terrain** (Terrarium /TerrainRGB): Mapterhorn, Mapbox, Maptiler. AWS Terrain Tiles.
 - Source for Raster Basemaps: Google, Bing, ESRI, Mapbox, Here, OSM
 - **State persisted to URL via nuqs** so any shared url results in the same exact visual map.
-- **Split Mode** — A/B side-by-side comparison, originally built for comparing terrain sources resolution/quality across different locations
-- **Bring Your Own Data (BYOD) terrain** sources let user import their own TMS, COG remote endpoint terrain sources.
-- Offer the choice to stream COG via Geomatico's native MapLibre COG-protocol vs. Titiler — the direct client protocol avoids Titiler's rate limiting and is faster (no middleware hop), but is less permissive: it only reads COGs already in Web Mercator (EPSG:3857), where Titiler can reproject on the fly server-side.
-- Adding large open-license colorramp library, cpt-city.
-- Batch-editing custom terrain/basemap sources as JSON.
+- **Split Mode** — A/B side-by-side comparison, originally built for comparing the same location's resolution/quality across different terrain sources (Mapterhorn vs. Mapbox/MapLibre terrain-RGB vs. AWS Terrain Tiles).
+- **Bring Your Own Data (BYOD) terrain** sources (a follow-up landing 3 days after launch, not part of the initial commit) let user import their own TMS, COG remote endpoint terrain sources.
+- Offer the choice to stream COG via Geomatico's native MapLibre COG-protocol vs. Titiler (also a follow-up, 10 days after launch) — the direct client protocol avoids Titiler's rate limiting and is faster (no middleware hop), but is less permissive: it only reads COGs already in Web Mercator (EPSG:3857), where Titiler can reproject on the fly server-side.
+- Adding large open-license colorramp library, cpt-city (another follow-up, two weeks after launch).
+- Batch-editing custom terrain/basemap sources as JSON (also a follow-up, 8 days after launch).
 
 ### Features
 - **Initial launch** (`29ced9e`, `1e12655`, `535bb2a`, `c4d067f`) — the app's first version already had Hillshade, hypsometric tint (color-relief), a raster basemap, split-screen A/B comparison, and a UI-transparency option, all driven from the sidebar control panel (`components/terrain-controls.tsx`, `components/terrain-viewer.tsx`, `components/ui/sidebar.tsx`) — contours were present too, stabilized two days later (`069570e`).
