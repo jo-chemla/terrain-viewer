@@ -6,12 +6,13 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, planetKeyAtom } from "@/lib/settings-atoms"
+import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, planetKeyAtom, maxarKeyAtom, maxarResolutionTierAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, CycleButtonGroup, SliderControl, SourceGridToggle, GroupHeading } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
 import { useBingCaptureDate } from "@/lib/bing"
 import { useEsriLiveCaptureDate } from "@/lib/wayback"
+import { useMaxarLatestCaptureDate } from "@/lib/maxar"
 import { viewFieldName, type ViewId } from "@/lib/grid-layouts"
 
 // Kept as the full static list (including key-gated providers) so callers like
@@ -26,6 +27,10 @@ export const BUILTIN_BASEMAP_OPTIONS = [
   { value: "historical", label: "Historical Imagery", shortLabel: "Historical" },
   { value: "google", label: "Google Hybrid", shortLabel: "Google" },
   { value: "bing", label: "Bing Aerial", shortLabel: "Bing" },
+  // UNTESTED (see lib/maxar.ts's header) — always-latest mosaic, modeled on
+  // Bing directly above: no browsable archive of its own here (that's the
+  // separate "maxar-historical" nested source under Historical Imagery).
+  { value: "maxar", label: "Maxar Latest", shortLabel: "Maxar" },
   { value: "esri", label: "ESRI World Imagery", shortLabel: "ESRI" },
   { value: "mapbox", label: "Mapbox Satellite", shortLabel: "Mapbox" },
   { value: "here", label: "HERE Satellite", shortLabel: "HERE" },
@@ -45,7 +50,7 @@ export const BASEMAP_SHORT_LABELS: Record<string, string> = Object.fromEntries(
 // VITE_MAPBOX_ACCESS_TOKEN in .env) so users don't select a basemap that just
 // fails to render. Both mapboxKeyAtom and hereKeyAtom default to "" unless
 // that local .env var is present — see settings-atoms.ts.
-const KEY_GATED_BASEMAPS = { here: hereKeyAtom, mapbox: mapboxKeyAtom, planet: planetKeyAtom } as const
+const KEY_GATED_BASEMAPS = { here: hereKeyAtom, mapbox: mapboxKeyAtom, planet: planetKeyAtom, maxar: maxarKeyAtom } as const
 
 export const RasterBasemapSection: React.FC<{
   state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef>;
@@ -58,6 +63,8 @@ export const RasterBasemapSection: React.FC<{
   const [hereKey] = useAtom(hereKeyAtom)
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [planetKey] = useAtom(planetKeyAtom)
+  const [maxarKey] = useAtom(maxarKeyAtom)
+  const [maxarResolutionTier, setMaxarResolutionTier] = useAtom(maxarResolutionTierAtom)
   const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
   // Real "as-of" capture date for Bing's single live mosaic (see lib/bing.ts)
   // — read from the current view center's tile, not per-row/per-selection.
@@ -67,8 +74,11 @@ export const RasterBasemapSection: React.FC<{
   // useEsriLiveCaptureDate's own doc comment), so it has a real capture date
   // too, not just a static "always current" implication.
   const { label: esriCaptureLabel } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
+  // Same idea for Maxar's always-latest mosaic — UNTESTED, see lib/maxar.ts's
+  // header. No-ops (label stays null) while maxarKey is empty.
+  const { label: maxarCaptureLabel } = useMaxarLatestCaptureDate(maxarKey, state.lat, state.lng)
 
-  const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, planet: planetKey }
+  const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, planet: planetKey, maxar: maxarKey }
   const visibleBuiltinOptions = useMemo(
     () => BUILTIN_BASEMAP_OPTIONS
       .filter((o) => !(o.value in KEY_GATED_BASEMAPS) || !!gatedKeyValues[o.value])
@@ -172,6 +182,9 @@ export const RasterBasemapSection: React.FC<{
                       {value === "esri" && esriCaptureLabel && (
                         <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
                       )}
+                      {value === "maxar" && maxarCaptureLabel && (
+                        <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({maxarCaptureLabel})</span>
+                      )}
                     </Label>
                   </div>
                 ))}
@@ -212,6 +225,32 @@ export const RasterBasemapSection: React.FC<{
               onChange={(v) => setState({ basemapSource: v })}
               onCycle={cycleBasemapSource}
             />
+          )}
+
+          {/* UNTESTED (see lib/maxar.ts's header) — which seamline product
+              tier the "maxar-historical" nested source (Historical Imagery,
+              below) looks up; not fed into the CQL date filter itself (plan
+              doc §3.4). Shown whenever a Maxar key is set, regardless of
+              which basemap is currently selected, since it also governs the
+              latest-mosaic branch's "as of" badge lookup above. */}
+          {maxarKey && (
+            <div className="flex items-center gap-2 pt-1">
+              <Label className="text-xs text-muted-foreground shrink-0">Maxar resolution</Label>
+              <div className="flex items-center rounded-md border border-border overflow-hidden">
+                {(["vhr", "medium"] as const).map((tier) => (
+                  <button
+                    key={tier}
+                    type="button"
+                    onClick={() => setMaxarResolutionTier(tier)}
+                    className={`cursor-pointer px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                      maxarResolutionTier === tier ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {tier === "vhr" ? "VHR" : "Medium res"}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </CollapsibleContent>
       </Collapsible>

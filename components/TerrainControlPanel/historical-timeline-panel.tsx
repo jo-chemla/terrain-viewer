@@ -13,8 +13,11 @@ import { useGeHistoricalDates } from "@/lib/ge-historical"
 import { planetMonthlyTicks } from "@/lib/planet"
 import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
+import { planetaryComputerQuarterTicks } from "@/lib/planetary-computer"
+import { useMaxarSeamlineTicks } from "@/lib/maxar"
+import { sentinelHubQuarterTicks } from "@/lib/sentinel-hub"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
-import { planetKeyAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, maxarKeyAtom, maxarResolutionTierAtom, sentinelHubInstanceIdAtom } from "@/lib/settings-atoms"
 import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
@@ -63,6 +66,18 @@ export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; s
   planet: { label: "Planet Monthly", fullLabel: "Planet Global Monthly Basemap", shortLabel: "Planet", color: "#fdba74", resClass: "medium" }, // pastel orange
   "eox-s2": { label: "EOX Sentinel 2", fullLabel: "EOX Sentinel-2 Cloudless (Yearly)", shortLabel: "EOX", color: "#fca5a5", resClass: "medium" }, // pastel red
   hls: { label: "NASA HLS", fullLabel: "NASA Harmonized Landsat Sentinel-2", shortLabel: "NASA", color: "#f9a8d4", resClass: "medium" }, // pastel pink
+  // 10m native Sentinel-2 (vs. HLS's harmonized 30m grid above) — still
+  // bucketed "medium" alongside HLS/Planet/EOX since it's the same
+  // multispectral-satellite tier as those, just a sharper source within it.
+  "planetary-computer": { label: "MS Planetary Computer", fullLabel: "Microsoft Planetary Computer — Sentinel-2 L2A", shortLabel: "MPC", color: "#5eead4", resClass: "medium" }, // pastel teal, distinct from every other pastel already in use
+  // UNTESTED (see lib/maxar.ts's header) — resClass is nominally "vhr" (that's
+  // the whole point of Maxar) but the pill's own resolutionClasses filter is
+  // a DIFFERENT, source-selecting mechanism than the Maxar-specific VHR/
+  // Medium product-tier toggle in raster-basemap-section.tsx (plan doc §3.4)
+  // — the two happen to share terminology, not implementation.
+  "maxar-historical": { label: "Maxar Seamlines", fullLabel: "Maxar Basemaps (seamlines-driven historical)", shortLabel: "Maxar", color: "#fde68a", resClass: "vhr" }, // pastel amber
+  // Confirmed live against a real CDSE instance — see lib/sentinel-hub.ts's header.
+  "sentinel-hub": { label: "Sentinel Hub", fullLabel: "Copernicus Data Space Ecosystem — Sentinel Hub WMS", shortLabel: "CDSE", color: "#a5f3fc", resClass: "medium" }, // pastel cyan
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 
@@ -227,6 +242,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const gutterDragRef = useRef<{ startClientX: number; startMin: number; gutterWidthPx: number } | null>(null)
   const [planetKey] = useAtom(planetKeyAtom)
   const hasPlanetKey = !!planetKey
+  // UNTESTED (see lib/maxar.ts's header).
+  const [maxarKey] = useAtom(maxarKeyAtom)
+  const [maxarResolutionTier] = useAtom(maxarResolutionTierAtom)
+  const hasMaxarKey = !!maxarKey
+  // Confirmed live — see lib/sentinel-hub.ts's header.
+  const [sentinelHubInstanceId] = useAtom(sentinelHubInstanceIdAtom)
+  const hasSentinelHubInstance = !!sentinelHubInstanceId
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
   const isMobile = useIsMobile()
 
@@ -425,9 +447,31 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => eoxS2CloudlessTicks().map((t) => ({ source: "eox-s2", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [],
   )
+  // Real quarterly mosaic-search windows (see lib/planetary-computer.ts) —
+  // computed locally like eoxS2Ticks above, no key/account needed.
+  const planetaryComputerTicks = useMemo<TimelineTick[]>(
+    () => planetaryComputerQuarterTicks().map((t) => ({ source: "planetary-computer", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
+    [],
+  )
+  // Real per-location capture dates from Maxar's seamlines (see lib/maxar.ts)
+  // — only generated once a Maxar API key is set, same "no key -> no ticks,
+  // pill hidden" pattern as planetTicks above. UNTESTED — see that module's
+  // header.
+  const { ticks: rawMaxarTicks } = useMaxarSeamlineTicks(maxarKey, state.lat, state.lng, maxarResolutionTier)
+  const maxarHistoricalTicks = useMemo<TimelineTick[]>(
+    () => rawMaxarTicks.map((t) => ({ source: "maxar-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
+    [rawMaxarTicks],
+  )
+  // Real quarterly WMS windows (see lib/sentinel-hub.ts) — same shape as
+  // planetaryComputerTicks above, only generated once a CDSE instance id is
+  // set, same "no key -> no ticks, pill hidden" pattern as planetTicks.
+  const sentinelHubTicks = useMemo<TimelineTick[]>(
+    () => (hasSentinelHubInstance ? sentinelHubQuarterTicks().map((t) => ({ source: "sentinel-hub", key: t.dateMs, dateMs: t.dateMs, label: t.label })) : []),
+    [hasSentinelHubInstance],
+  )
   const allTicks = useMemo(
-    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks].sort((a, b) => a.dateMs - b.dateMs),
-    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks],
+    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks, ...planetaryComputerTicks, ...maxarHistoricalTicks, ...sentinelHubTicks].sort((a, b) => a.dateMs - b.dateMs),
+    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks, planetaryComputerTicks, maxarHistoricalTicks, sentinelHubTicks],
   )
   // NEAREST match, not exact equality — a stored date (state.dateA-F) and a
   // wayback tick's own real.dateMs both ultimately come from Esri's
@@ -451,7 +495,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     return best
   }, [allTicks])
 
-  const visibleSourceIds = useMemo(() => SOURCE_IDS.filter((id) => id !== "planet" || hasPlanetKey), [hasPlanetKey])
+  const visibleSourceIds = useMemo(
+    () => SOURCE_IDS.filter((id) =>
+      (id !== "planet" || hasPlanetKey) &&
+      (id !== "maxar-historical" || hasMaxarKey) &&
+      (id !== "sentinel-hub" || hasSentinelHubInstance)),
+    [hasPlanetKey, hasMaxarKey, hasSentinelHubInstance],
+  )
 
   // Which pill-toggle array the source/resolution chips edit: the shared
   // state.timelineSources when synced (or single-view), or whichever side is
