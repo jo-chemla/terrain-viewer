@@ -16,7 +16,7 @@ import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, 
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
+  mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, maxarKeyAtom, maxarResolutionTierAtom, sentinelHubInstanceIdAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
   appModeAtom, type AppMode,
   type CustomTerrainSource, type CustomBasemapSource,
@@ -789,6 +789,12 @@ export function TerrainViewer() {
   const [maptilerKey] = useAtom(maptilerKeyAtom)
   const [hereKey] = useAtom(hereKeyAtom)
   const [planetKey] = useAtom(planetKeyAtom)
+  // UNTESTED (see lib/maxar.ts's header) — no Maxar key has ever actually
+  // been used against this yet.
+  const [maxarKey] = useAtom(maxarKeyAtom)
+  const [maxarResolutionTier] = useAtom(maxarResolutionTierAtom)
+  // Confirmed live against a real CDSE instance — see lib/sentinel-hub.ts's header.
+  const [sentinelHubInstanceId] = useAtom(sentinelHubInstanceIdAtom)
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
   const bumpLocalFileVersion = useSetAtom(localFileVersionAtom)
@@ -2273,6 +2279,9 @@ export function TerrainViewer() {
             longitude={state.lng}
             zoom={state.zoom}
             planetKey={planetKey}
+            maxarKey={maxarKey}
+            maxarResolutionTier={maxarResolutionTier}
+            sentinelHubInstanceId={sentinelHubInstanceId}
             historicalBeta={state.historicalBeta}
             customBasemapSources={customBasemapSources}
             titilerEndpoint={titilerEndpoint}

@@ -33,6 +33,15 @@ export const STATIC_BASEMAP_ATTRIBUTIONS: Record<string, string> = {
   hls: "NASA/USGS Harmonized Landsat Sentinel-2 (HLS)",
   planet: "© Planet Labs PBC",
   "eox-s2": "Sentinel-2 cloudless — Copernicus Sentinel data, processed by EOX IT Services GmbH",
+  "planetary-computer": "Contains modified Copernicus Sentinel data, processed by Microsoft Planetary Computer",
+  // UNTESTED (see lib/maxar.ts's header) — Maxar's standard public
+  // attribution string, used for both the latest-mosaic and historical
+  // branches since neither currently resolves a real per-scene contributor.
+  maxar: "© Maxar Technologies",
+  "maxar-historical": "© Maxar Technologies",
+  // Confirmed live — see lib/sentinel-hub.ts's header (tiles also carry a
+  // baked-in Copernicus watermark logo, worth knowing for a demo).
+  "sentinel-hub": "Contains modified Copernicus Sentinel data, processed by Sentinel Hub / Copernicus Data Space Ecosystem",
   // These two DO have a real dynamic value (see header comment) — this
   // string is deliberately just a pointer to it, not the value itself,
   // since a <Source>'s `attribution` prop can never be live-updated post-

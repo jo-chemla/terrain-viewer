@@ -9,13 +9,15 @@ import { GRID_LAYOUTS, viewFieldName, type GridLayoutId } from "./grid-layouts"
 // alongside Google/HERE/Mapbox/ESRI — see TIMELINE_SOURCE_IDS below for where
 // it's still included (its pill still works inside the combined historical
 // entry's timeline, it just isn't itself one of the 4 nested sources).
-export const HISTORICAL_BASEMAP_IDS = new Set(["wayback", "hls", "ge-historical", "planet", "eox-s2"])
+export const HISTORICAL_BASEMAP_IDS = new Set(["wayback", "hls", "ge-historical", "planet", "eox-s2", "planetary-computer", "maxar-historical", "sentinel-hub"])
 
-// Superset of HISTORICAL_BASEMAP_IDS that also includes Bing — used only for
-// "should the bottom timeline panel/minimap-offset react to this basemap
-// selection", since Bing's real (if singular) capture date still deserves a
-// spot on the timeline even though it's not one of the nested sources.
-export const TIMELINE_SOURCE_IDS = new Set([...HISTORICAL_BASEMAP_IDS, "bing"])
+// Superset of HISTORICAL_BASEMAP_IDS that also includes Bing and Maxar's
+// always-latest mosaic — used only for "should the bottom timeline panel/
+// minimap-offset react to this basemap selection", since each still has a
+// real (if singular) capture date worth a spot on the timeline even though
+// neither is one of the nested "Historical Imagery" sources. Maxar branch is
+// UNTESTED scaffolding — see lib/maxar.ts's header.
+export const TIMELINE_SOURCE_IDS = new Set([...HISTORICAL_BASEMAP_IDS, "bing", "maxar"])
 
 // The sidebar exposes exactly one "Historical Imagery" basemap entry
 // (basemapSource === "historical") instead of 4 separate rows. Which concrete

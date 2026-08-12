@@ -29,6 +29,22 @@ export const hereKeyAtom = atomWithStorage("hereKey", import.meta.env.VITE_HERE_
 // section.tsx) once a real key is set, from a local VITE_PLANET_API_KEY or
 // pasted into Settings.
 export const planetKeyAtom = atomWithStorage("planetKey", import.meta.env.VITE_PLANET_API_KEY ?? "")
+// Same gating pattern as hereKeyAtom/planetKeyAtom — Maxar's Basemaps/
+// Seamlines APIs require an account, so "maxar" only appears as a Basemap
+// option (raster-basemap-section.tsx) once a real key is set, from a local
+// VITE_MAXAR_API_KEY or pasted into Settings. UNTESTED — see lib/maxar.ts's
+// header (no Maxar key has ever actually been used against this yet).
+export const maxarKeyAtom = atomWithStorage("maxarKey", import.meta.env.VITE_MAXAR_API_KEY ?? "")
+// VHR vs. Medium-resolution pill for the Maxar historical branch (plan doc
+// §3.4) — which seamline product tier to look up, not fed into the CQL date
+// filter itself.
+export const maxarResolutionTierAtom = atomWithStorage<"vhr" | "medium">("maxarResolutionTier", "vhr")
+// Same gating pattern as maxarKeyAtom above — Sentinel Hub's WMS requires a
+// CDSE Configuration Instance ID, so "sentinel-hub" only appears as a nested
+// Historical Imagery source (historical-timeline-panel.tsx) once one is set,
+// from a local VITE_SENTINEL_HUB_INSTANCE_ID or pasted into Settings.
+// Confirmed live against a real CDSE instance — see lib/sentinel-hub.ts's header.
+export const sentinelHubInstanceIdAtom = atomWithStorage("sentinelHubInstanceId", import.meta.env.VITE_SENTINEL_HUB_INSTANCE_ID ?? "")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
 

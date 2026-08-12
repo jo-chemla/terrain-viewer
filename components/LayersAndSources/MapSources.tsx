@@ -32,6 +32,9 @@ import { hlsTileUrl } from "@/lib/hls"
 import { geHistoricalTileSource } from "@/lib/ge-historical"
 import { planetTileUrl, PLANET_TILE_SIZE, PLANET_MAXZOOM } from "@/lib/planet"
 import { eoxS2CloudlessTileUrl, EOX_S2_TILE_SIZE, EOX_S2_MAXZOOM } from "@/lib/eox-s2-cloudless"
+import { useResolvedPlanetaryComputerMosaic, PC_TILE_SIZE, PC_MAXZOOM, PC_MINZOOM } from "@/lib/planetary-computer"
+import { maxarLatestTileUrl, maxarHistoricalTileUrl, MAXAR_TILE_SIZE, MAXAR_MAXZOOM, type MaxarResolutionTier } from "@/lib/maxar"
+import { sentinelHubTileUrl, SH_TILE_SIZE, SH_MAXZOOM } from "@/lib/sentinel-hub"
 import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
 import { STATIC_BASEMAP_ATTRIBUTIONS } from "@/lib/basemap-attribution"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
@@ -308,12 +311,17 @@ const RASTER_SOURCE_DEBOUNCE_MS = 150
 
 export const RasterBasemapSource = memo(({
     // basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint,
-    basemapSource: rawBasemapSource, mapboxKey, hereKey, planetKey, date: rawDate, latitude, longitude, zoom, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
+    basemapSource: rawBasemapSource, mapboxKey, hereKey, planetKey, maxarKey, maxarResolutionTier, sentinelHubInstanceId, date: rawDate, latitude, longitude, zoom, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
 }: {
     basemapSource: string
     mapboxKey: string
     hereKey?: string
     planetKey?: string
+    /** UNTESTED — see lib/maxar.ts's header. No-ops (renders nothing) while empty. */
+    maxarKey?: string
+    maxarResolutionTier?: MaxarResolutionTier
+    /** Confirmed live — see lib/sentinel-hub.ts's header. No-ops while empty. */
+    sentinelHubInstanceId?: string
     /** Settings > Beta > "Historical Imagery Sources" gate — when false, the
      *  historical sources (wayback/hls/ge-historical/planet/eox-s2) render
      *  nothing even if somehow still selected (e.g. a stale `?basemapSource=` URL). */
@@ -347,6 +355,10 @@ export const RasterBasemapSource = memo(({
     // this unconditionally (hooks can't be conditional) costs nothing when
     // this side isn't on Wayback.
     const { item: resolvedWaybackItem } = useResolvedWaybackRelease(latitude, longitude, zoom, basemapSource === "wayback" ? date ?? 0 : 0)
+    // Only actually registers a mosaic search network-side when basemapSource
+    // === "planetary-computer" — see that hook's own no-op-on-falsy-date
+    // convention, same reasoning as the wayback hook above.
+    const { tileUrl: planetaryComputerTileUrl } = useResolvedPlanetaryComputerMosaic(basemapSource === "planetary-computer" ? date ?? 0 : 0)
 
     const customBasemap = customBasemapSources.find((s) => s.id === basemapSource)
     // A local file can only ever stream via the in-browser geomatico protocol —
@@ -413,6 +425,40 @@ export const RasterBasemapSource = memo(({
             return { tiles: [eoxS2CloudlessTileUrl(new Date(date).getUTCFullYear())], tileSize: EOX_S2_TILE_SIZE, maxzoom: EOX_S2_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["eox-s2"] }
         }
 
+        if (basemapSource === "planetary-computer") {
+            // Catalog still registering this quarter's mosaic search (see
+            // lib/planetary-computer.ts's useResolvedPlanetaryComputerMosaic) —
+            // render nothing rather than a broken/stale tile request, same as
+            // the wayback branch above.
+            if (!date || !planetaryComputerTileUrl) return null
+            return { tiles: [planetaryComputerTileUrl], tileSize: PC_TILE_SIZE, maxzoom: PC_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["planetary-computer"] }
+        }
+
+        // UNTESTED (see lib/maxar.ts's header) — always-latest mosaic, no
+        // cql_filter, modeled on Bing directly below.
+        if (basemapSource === "maxar") {
+            if (!maxarKey) return null
+            return { tiles: [maxarLatestTileUrl(maxarKey)], tileSize: MAXAR_TILE_SIZE, maxzoom: MAXAR_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.maxar }
+        }
+
+        // UNTESTED (see lib/maxar.ts's header) — seamlines-driven historical
+        // branch: `date` picks the CQL "acq_date <= date" cutoff, not an
+        // exact-equality match (plan doc §3.3 step 3).
+        if (basemapSource === "maxar-historical") {
+            if (!date || !maxarKey) return null
+            return { tiles: [maxarHistoricalTileUrl(maxarKey, date, maxarResolutionTier ?? "vhr")], tileSize: MAXAR_TILE_SIZE, maxzoom: MAXAR_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["maxar-historical"] }
+        }
+
+        // Confirmed live (see lib/sentinel-hub.ts's header) — WMS GetMap with
+        // a TIME window, resolved synchronously from `date` (no async
+        // register step, unlike Planetary Computer's mosaic API).
+        if (basemapSource === "sentinel-hub") {
+            if (!date || !sentinelHubInstanceId) return null
+            const shTileUrl = sentinelHubTileUrl(sentinelHubInstanceId, date)
+            if (!shTileUrl) return null
+            return { tiles: [shTileUrl], tileSize: SH_TILE_SIZE, maxzoom: SH_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["sentinel-hub"] }
+        }
+
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         const tileUrl = basemapSource === "mapbox"
             ? basemap.url.replace("{API_KEY}", mapboxKey)
@@ -420,7 +466,7 @@ export const RasterBasemapSource = memo(({
             ? basemap.url.replace("{API_KEY}", hereKey ?? "")
             : basemap.url
         return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom, attribution: STATIC_BASEMAP_ATTRIBUTIONS[basemapSource] }
-    }, [customBasemap, basemapSource, historicalBeta, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
+    }, [customBasemap, basemapSource, historicalBeta, resolvedWaybackItem, date, planetKey, planetaryComputerTileUrl, maxarKey, maxarResolutionTier, sentinelHubInstanceId, useCogProtocol, titilerEndpoint, mapboxKey, hereKey, isCogLocal, resolvedCogUrl])
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
@@ -430,6 +476,13 @@ export const RasterBasemapSource = memo(({
         if (basemapSource === "ge-historical") return { minzoom: 0, maxzoom: 23, isCustom: false }
         if (basemapSource === "planet") return { minzoom: 0, maxzoom: PLANET_MAXZOOM, isCustom: false }
         if (basemapSource === "eox-s2") return { minzoom: 0, maxzoom: EOX_S2_MAXZOOM, isCustom: false }
+        // minzoom PC_MINZOOM (9), not 0 — the mosaic search's own render
+        // preset declares that same floor (too many matching scenes to
+        // composite cheaply below it), so this keeps maplibre from ever
+        // requesting a tile the server would reject anyway.
+        if (basemapSource === "planetary-computer") return { minzoom: PC_MINZOOM, maxzoom: PC_MAXZOOM, isCustom: false }
+        if (basemapSource === "maxar" || basemapSource === "maxar-historical") return { minzoom: 0, maxzoom: MAXAR_MAXZOOM, isCustom: false }
+        if (basemapSource === "sentinel-hub") return { minzoom: 0, maxzoom: SH_MAXZOOM, isCustom: false }
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         return { minzoom: 0, maxzoom: basemap.maxzoom, isCustom: false }
     }, [customBasemap, basemapSource, historicalBeta])
