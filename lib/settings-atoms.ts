@@ -223,6 +223,28 @@ export const isSettingsMapBoundsOpenAtom = atomWithStorage("isSettingsMapBoundsO
 export const isSettingsSaveProjectOpenAtom = atomWithStorage("isSettingsSaveProjectOpen", false)
 export const isSettingsResourcesOpenAtom = atomWithStorage("isSettingsResourcesOpen", false)
 export const isSettingsGeomorphometryOpenAtom = atomWithStorage("isSettingsGeomorphometryOpen", false)
+export const isSettingsWhatsNewOpenAtom = atomWithStorage("isSettingsWhatsNewOpen", true)
+
+// ISO date ("YYYY-MM-DD") of the newest changelog entry's `<!-- released -->`
+// marker the user has already seen — see lib/changelog.ts. A plain date, not
+// the entry's (frequently-retitled) heading text, so a rename never breaks
+// "have I seen this" tracking. Empty string is the sentinel for "never seen
+// any" (a brand-new visitor) — settings-dialog.tsx uses that to silently mark
+// first-time visitors caught-up instead of flashing a badge.
+export const lastSeenChangelogAtAtom = atomWithStorage("lastSeenChangelogAt", "")
+
+// "changes" (just what's new since last visit) vs "full" (every entry) —
+// always defaults to "changes", regardless of whether there's currently
+// anything unseen.
+export const changelogViewAtom = atomWithStorage<"changes" | "full">("changelogView", "changes")
+
+// Per-entry collapsed/expanded state for the What's New / full-changelog
+// list, keyed by each entry's `releasedAt` (stable across retitles, unlike
+// heading text) — same Record<key, boolean> shape as the main sidebar's
+// sectionOpenAtom. A missing key defaults to expanded (see
+// ChangelogEntryList in settings-dialog.tsx), so newly-added changelog
+// entries show up open without needing an explicit default here.
+export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>("changelogEntriesOpen", {})
 
 // Mirrors of TerrainViewer's tellsBeta/sunShadowBeta nuqs fields (the actual
 // gates the app reads) — those live in the URL so a `?tellsBeta=true` link

@@ -1,11 +1,14 @@
 import type React from "react"
-import { useState, useCallback, useEffect } from "react"
-import { useAtom, useSetAtom, type PrimitiveAtom } from "jotai"
-import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
+import { useState, useCallback, useEffect, useMemo } from "react"
+import { useAtom, useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai"
+import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
@@ -20,7 +23,9 @@ import {
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
   isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
   isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom, isSettingsGeomorphometryOpenAtom,
+  isSettingsWhatsNewOpenAtom, lastSeenChangelogAtAtom, changelogViewAtom, changelogEntriesOpenAtom,
 } from "@/lib/settings-atoms"
+import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_RELEASED_AT, type ChangelogEntry } from "@/lib/changelog"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
 import { persistLocalCogsAtom } from "@/lib/local-file-store"
 import { isOpfsSupported, estimateStorage, listPersistedCogs, clearAllPersistedCogs, formatBytes } from "@/lib/opfs-file-store"
@@ -83,6 +88,57 @@ const CollapsibleSection: React.FC<{
   )
 }
 
+// Shared markdown-element styling for changelog TL;DR bullets — this dialog has
+// no markdown renderer anywhere else, so these mirror the same text-xs/text-sm/
+// text-muted-foreground conventions already used throughout it rather than
+// pulling in a typography plugin for one section. Only inline-level elements:
+// a TL;DR block is always just a bullet list (see lib/changelog.ts), never
+// headings/paragraphs.
+const CHANGELOG_MARKDOWN_COMPONENTS = {
+  ul: ({ children }: any) => <ul className="list-disc pl-4 space-y-1.5 text-sm text-muted-foreground">{children}</ul>,
+  strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
+  code: ({ children }: any) => <code className="bg-muted px-1 rounded text-xs">{children}</code>,
+  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline">{children}</a>,
+  img: ({ src, alt }: any) => <img src={src} alt={alt} className="rounded border max-w-full my-2" />,
+}
+
+// Renders a list of changelog entries as heading + TL;DR-only markdown — used
+// for both the "since you last looked" highlights and the "full changelog"
+// view (settings-dialog.tsx never renders the dev-oriented Features/Bug Fixes
+// prose from CHANGELOG.md).
+const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }) => {
+  const [entriesOpen, setEntriesOpen] = useAtom(changelogEntriesOpenAtom)
+  return (
+    <div className="space-y-3">
+      {entries.map((entry) => {
+        const key = entry.releasedAt
+        const isOpen = entriesOpen[key] ?? true // missing key = expanded by default
+        return (
+          <div key={key} className="space-y-1.5">
+            <div
+              className="flex items-center gap-2 flex-wrap cursor-pointer"
+              onClick={() => setEntriesOpen((prev) => ({ ...prev, [key]: !isOpen }))}
+            >
+              <Badge variant="secondary" className="rounded-full">{entry.releasedDate}</Badge>
+              <span className="text-xs font-semibold text-foreground flex-1 min-w-0">{entry.heading}</span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+            </div>
+            {isOpen && (
+              entry.tldrMarkdown ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHANGELOG_MARKDOWN_COMPONENTS}>
+                  {entry.tldrMarkdown}
+                </ReactMarkdown>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">No summary for this release yet.</p>
+              )
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any; historicalMode?: boolean }> = ({ isOpen, onOpenChange, state, setState, historicalMode = false }) => {
   const { theme, toggleTheme, setTheme: setAppTheme } = useTheme()
   const { setTheme: setColorTheme } = useColorTheme()
@@ -93,6 +149,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // the sidebar's chevron button (TerrainControlPanel.tsx), just against N
   // separate atomWithStorage atoms here instead of one combined open-state
   // object, since each settings section persists independently.
+  const [isWhatsNewOpen, setIsWhatsNewOpen] = useAtom(isSettingsWhatsNewOpenAtom)
   const [isAppearanceOpen, setIsAppearanceOpen] = useAtom(isSettingsAppearanceOpenAtom)
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useAtom(isSettingsKeyboardShortcutsOpenAtom)
   const [isVisualizationModesOpen, setIsVisualizationModesOpen] = useAtom(isSettingsVisualizationModesOpenAtom)
@@ -105,12 +162,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [isResourcesOpen, setIsResourcesOpen] = useAtom(isSettingsResourcesOpenAtom)
   const [isGeomorphometryOpen, setIsGeomorphometryOpen] = useAtom(isSettingsGeomorphometryOpenAtom)
   const settingsSectionOpenStates = [
-    isAppearanceOpen, isKeyboardShortcutsOpen, isVisualizationModesOpen, isStreamingOpen,
+    isWhatsNewOpen, isAppearanceOpen, isKeyboardShortcutsOpen, isVisualizationModesOpen, isStreamingOpen,
     isStoragePersistenceOpen, isBetaOpen,
     isApiKeysOpen, isMapBoundsOpen, isSaveProjectOpen, isResourcesOpen, isGeomorphometryOpen,
   ]
   const settingsSectionSetters = [
-    setIsAppearanceOpen, setIsKeyboardShortcutsOpen, setIsVisualizationModesOpen, setIsStreamingOpen,
+    setIsWhatsNewOpen, setIsAppearanceOpen, setIsKeyboardShortcutsOpen, setIsVisualizationModesOpen, setIsStreamingOpen,
     setIsStoragePersistenceOpen, setIsBetaOpen,
     setIsApiKeysOpen, setIsMapBoundsOpen, setIsSaveProjectOpen, setIsResourcesOpen, setIsGeomorphometryOpen,
   ]
@@ -159,7 +216,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [planetKey, setPlanetKey] = useAtom(planetKeyAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
-  const [batchEditMode, setBatchEditMode] = useState(false)
+  const [apiKeysViewMode, setApiKeysViewMode] = useState<"individual" | "batch">("individual")
   const [batchApiKeys, setBatchApiKeys] = useState("")
   const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [isTransparentUi, setTransparentUi] = useAtom(transparentUiAtom)
@@ -176,6 +233,46 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [projectId, setProjectId] = useState("")
   const [projectName, setProjectName] = useState("")
   const [projectCopied, setProjectCopied] = useState(false)
+
+  const [lastSeenChangelogAt, setLastSeenChangelogAt] = useAtom(lastSeenChangelogAtAtom)
+  const isWhatsNewSectionOpen = useAtomValue(isSettingsWhatsNewOpenAtom)
+  // Frozen at first render, before either effect below can overwrite the atom —
+  // so the "N new"/highlighted-entries list stays stable for this whole
+  // component lifetime even once opening the dialog marks everything seen
+  // for *next* time.
+  const [unseenSinceSnapshot] = useState(lastSeenChangelogAt)
+  const unseenChangelogEntries = useMemo(() => {
+    if (unseenSinceSnapshot === "") return [] // sentinel for "never seen any" — a brand-new visitor, not stale data
+    // Plain ISO-string comparison — robust to CHANGELOG.md entries being
+    // retitled (unlike comparing by heading text) and to reordering, since it
+    // doesn't rely on array position at all.
+    return CHANGELOG_ENTRIES.filter((e) => e.releasedAt > unseenSinceSnapshot)
+  }, [unseenSinceSnapshot])
+  const hasUnseenChangelog = unseenChangelogEntries.length > 0
+  const [changelogView, setChangelogView] = useAtom(changelogViewAtom)
+  const [changelogEntriesOpen, setChangelogEntriesOpen] = useAtom(changelogEntriesOpenAtom)
+  const visibleChangelogEntries = changelogView === "changes" ? unseenChangelogEntries : CHANGELOG_ENTRIES
+  const allChangelogEntriesFolded = visibleChangelogEntries.length > 0 && visibleChangelogEntries.every((e) => changelogEntriesOpen[e.releasedAt] === false)
+  const handleFoldExpandAllChangelog = useCallback(() => {
+    const next = allChangelogEntriesFolded // currently all folded -> expand; otherwise -> fold
+    setChangelogEntriesOpen((prev) => {
+      const updated = { ...prev }
+      visibleChangelogEntries.forEach((e) => { updated[e.releasedAt] = next })
+      return updated
+    })
+  }, [allChangelogEntriesFolded, visibleChangelogEntries, setChangelogEntriesOpen])
+
+  // First-ever visit: silently mark caught-up so the badge never flashes for
+  // someone who's never had anything to catch up on.
+  useEffect(() => {
+    if (unseenSinceSnapshot === "") setLastSeenChangelogAt(LATEST_CHANGELOG_RELEASED_AT)
+  }, [])
+  // Returning visitor: only once the What's New section is actually open (not
+  // merely because Settings itself is open for something unrelated, like API
+  // keys) does it clear the badge for next time, same as Discord/Slack.
+  useEffect(() => {
+    if (isOpen && isWhatsNewSectionOpen && unseenSinceSnapshot !== "") setLastSeenChangelogAt(LATEST_CHANGELOG_RELEASED_AT)
+  }, [isOpen, isWhatsNewSectionOpen])
 
   // Excluded from initialState: `project` itself (avoid self-reference) and
   // terrainUrl/basemapUrl (the *other* embed mechanism — redundant/conflicting
@@ -258,8 +355,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // Names match each var's VITE_-prefixed .env counterpart exactly (see .env) —
   // so a key=value block can be copy-pasted either direction just by adding or
   // stripping "VITE_", rather than needing a mental mapping between the two.
-  const handleBatchToggle = useCallback(() => {
-    if (!batchEditMode) {
+  // A plain view-mode toggle (not a modal edit flow), so every switch commits
+  // immediately in whichever direction it's headed — into batch mode snapshots
+  // the current individual values into the textarea, out of it parses the
+  // textarea back into them. There's deliberately no "Cancel": switching away
+  // from Batch always commits whatever text is currently there.
+  const handleApiKeysViewModeChange = useCallback((mode: "individual" | "batch") => {
+    if (mode === "batch") {
       setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`].join("\n"))
     } else {
       batchApiKeys.split("\n").forEach((line) => {
@@ -273,8 +375,8 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
         }
       })
     }
-    setBatchEditMode(!batchEditMode)
-  }, [batchEditMode, batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey])
+    setApiKeysViewMode(mode)
+  }, [batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey])
 
   return (
     <Dialog
@@ -295,14 +397,19 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
         onOpenChange(open)
       }}
     >
-      <DialogTrigger
-        render={
-          <TooltipIconButton
-            icon={Settings}
-            tooltip="Settings"
-          />
-        }
-      />
+      <div className="relative inline-block">
+        <DialogTrigger
+          render={
+            <TooltipIconButton
+              icon={Settings}
+              tooltip="Settings"
+            />
+          }
+        />
+        {hasUnseenChangelog && (
+          <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-primary pointer-events-none" />
+        )}
+      </div>
 
       <DialogContent
         className="sm:max-w-2xl max-h-[80vh] overflow-y-auto"
@@ -321,6 +428,49 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           <DialogDescription>Configure API keys, application settings, and explore related resources</DialogDescription>
         </DialogHeader>
         <div className="space-y-6">
+          <CollapsibleSection
+            title="What's New"
+            openAtom={isSettingsWhatsNewOpenAtom}
+            contentClassName="space-y-3 pt-2"
+            headerExtra={
+              <div className="flex items-center gap-3">
+                {hasUnseenChangelog && (
+                  <span className="flex items-center gap-1 text-xs font-medium text-primary-foreground bg-primary rounded-full px-2 py-0.5">
+                    <Sparkles className="h-3 w-3" /> {unseenChangelogEntries.length} new
+                  </span>
+                )}
+                <TooltipIconButton
+                  icon={allChangelogEntriesFolded ? ChevronsUpDown : ChevronsDownUp}
+                  tooltip={allChangelogEntriesFolded ? "Expand all entries" : "Fold all entries"}
+                  onClick={handleFoldExpandAllChangelog}
+                  disabled={visibleChangelogEntries.length === 0}
+                />
+                <div className="flex items-center gap-2 cursor-pointer">
+                  <Label htmlFor="changelog-view" className="text-xs text-muted-foreground cursor-pointer">Changes</Label>
+                  <Switch
+                    id="changelog-view"
+                    checked={changelogView === "full"}
+                    onCheckedChange={(checked) => setChangelogView(checked ? "full" : "changes")}
+                    className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+                  />
+                  <Label htmlFor="changelog-view" className="text-xs text-muted-foreground cursor-pointer">Full</Label>
+                </div>
+              </div>
+            }
+          >
+            {changelogView === "changes" ? (
+              hasUnseenChangelog ? (
+                <ChangelogEntryList entries={unseenChangelogEntries} />
+              ) : (
+                <p className="text-xs text-muted-foreground">You&apos;re all caught up.</p>
+              )
+            ) : (
+              <div className="max-h-96 overflow-y-auto pr-1">
+                <ChangelogEntryList entries={CHANGELOG_ENTRIES} />
+              </div>
+            )}
+          </CollapsibleSection>
+          <Separator />
           <CollapsibleSection title="Appearance" openAtom={isSettingsAppearanceOpenAtom}>
             <div className="flex items-center justify-between">
               <Label>Theme</Label>
@@ -685,17 +835,19 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             openAtom={isSettingsApiKeysOpenAtom}
             contentClassName="space-y-4 pt-2"
             headerExtra={
-              <div className="flex gap-2">
-                {batchEditMode && (
-                  <Button variant="outline" size="sm" onClick={() => setBatchEditMode(false)} className="cursor-pointer">
-                    Cancel
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" onClick={handleBatchToggle} className="cursor-pointer">{batchEditMode ? "Save" : "Batch Edit"}</Button>
+              <div className="flex items-center gap-2 cursor-pointer">
+                <Label htmlFor="api-keys-view" className="text-xs text-muted-foreground cursor-pointer">One per key</Label>
+                <Switch
+                  id="api-keys-view"
+                  checked={apiKeysViewMode === "batch"}
+                  onCheckedChange={(checked) => handleApiKeysViewModeChange(checked ? "batch" : "individual")}
+                  className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+                />
+                <Label htmlFor="api-keys-view" className="text-xs text-muted-foreground cursor-pointer">Batch</Label>
               </div>
             }
           >
-            {batchEditMode ? (
+            {apiKeysViewMode === "batch" ? (
               <div className="space-y-2">
                 <Label htmlFor="batch-keys">API Keys (one per line: key=value)</Label>
                 <JsonEditor
