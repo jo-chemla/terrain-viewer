@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
@@ -108,8 +109,11 @@ const CHANGELOG_MARKDOWN_COMPONENTS = {
 const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }) => (
   <div className="space-y-3">
     {entries.map((entry) => (
-      <div key={entry.releasedAt + entry.heading} className="space-y-1">
-        <div className="text-xs font-semibold text-foreground">{entry.releasedDate} - {entry.heading}</div>
+      <div key={entry.releasedAt + entry.heading} className="space-y-1.5">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <Badge variant="secondary" className="rounded-full">{entry.releasedDate}</Badge>
+          <span className="text-sm font-bold text-foreground">{entry.heading}</span>
+        </div>
         {entry.tldrMarkdown ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHANGELOG_MARKDOWN_COMPONENTS}>
             {entry.tldrMarkdown}
@@ -405,21 +409,22 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             openAtom={isSettingsWhatsNewOpenAtom}
             contentClassName="space-y-3 pt-2"
             headerExtra={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {hasUnseenChangelog && (
                   <span className="flex items-center gap-1 text-xs font-medium text-primary-foreground bg-primary rounded-full px-2 py-0.5">
                     <Sparkles className="h-3 w-3" /> {unseenChangelogEntries.length} new
                   </span>
                 )}
-                <SegmentedToggle
-                  className="w-[140px]"
-                  value={changelogView}
-                  onChange={setChangelogView}
-                  options={[
-                    { value: "changes", label: "Changes" },
-                    { value: "full", label: "Full" },
-                  ]}
-                />
+                <div className="flex items-center gap-2 cursor-pointer">
+                  <Label htmlFor="changelog-view" className="text-xs text-muted-foreground cursor-pointer">Changes</Label>
+                  <Switch
+                    id="changelog-view"
+                    checked={changelogView === "full"}
+                    onCheckedChange={(checked) => setChangelogView(checked ? "full" : "changes")}
+                    className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+                  />
+                  <Label htmlFor="changelog-view" className="text-xs text-muted-foreground cursor-pointer">Full</Label>
+                </div>
               </div>
             }
           >
@@ -800,15 +805,16 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             openAtom={isSettingsApiKeysOpenAtom}
             contentClassName="space-y-4 pt-2"
             headerExtra={
-              <SegmentedToggle
-                className="w-[180px]"
-                value={apiKeysViewMode}
-                onChange={handleApiKeysViewModeChange}
-                options={[
-                  { value: "individual", label: "One per key" },
-                  { value: "batch", label: "Batch" },
-                ]}
-              />
+              <div className="flex items-center gap-2 cursor-pointer">
+                <Label htmlFor="api-keys-view" className="text-xs text-muted-foreground cursor-pointer">One per key</Label>
+                <Switch
+                  id="api-keys-view"
+                  checked={apiKeysViewMode === "batch"}
+                  onCheckedChange={(checked) => handleApiKeysViewModeChange(checked ? "batch" : "individual")}
+                  className="h-5 w-9 bg-muted data-checked:bg-primary rounded-full p-1 cursor-pointer border-transparent"
+                />
+                <Label htmlFor="api-keys-view" className="text-xs text-muted-foreground cursor-pointer">Batch</Label>
+              </div>
             }
           >
             {apiKeysViewMode === "batch" ? (
