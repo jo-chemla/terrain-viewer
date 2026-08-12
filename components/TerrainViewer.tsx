@@ -16,7 +16,7 @@ import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, 
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
-  mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, maxarKeyAtom, maxarResolutionTierAtom, sentinelHubInstanceIdAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
+  mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, maxarKeyAtom, sentinelHubInstanceIdAtom, nearmapKeyAtom, vexcelTokenAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
   appModeAtom, type AppMode,
   type CustomTerrainSource, type CustomBasemapSource,
@@ -792,9 +792,11 @@ export function TerrainViewer() {
   // UNTESTED (see lib/maxar.ts's header) — no Maxar key has ever actually
   // been used against this yet.
   const [maxarKey] = useAtom(maxarKeyAtom)
-  const [maxarResolutionTier] = useAtom(maxarResolutionTierAtom)
   // Confirmed live against a real CDSE instance — see lib/sentinel-hub.ts's header.
   const [sentinelHubInstanceId] = useAtom(sentinelHubInstanceIdAtom)
+  // UNTESTED — see lib/nearmap.ts's/lib/vexcel.ts's headers.
+  const [nearmapKey] = useAtom(nearmapKeyAtom)
+  const [vexcelToken] = useAtom(vexcelTokenAtom)
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
   const bumpLocalFileVersion = useSetAtom(localFileVersionAtom)
@@ -2280,8 +2282,9 @@ export function TerrainViewer() {
             zoom={state.zoom}
             planetKey={planetKey}
             maxarKey={maxarKey}
-            maxarResolutionTier={maxarResolutionTier}
             sentinelHubInstanceId={sentinelHubInstanceId}
+            nearmapKey={nearmapKey}
+            vexcelToken={vexcelToken}
             historicalBeta={state.historicalBeta}
             customBasemapSources={customBasemapSources}
             titilerEndpoint={titilerEndpoint}
