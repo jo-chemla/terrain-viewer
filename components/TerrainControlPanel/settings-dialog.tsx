@@ -436,9 +436,11 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             tooltip="Open Documentation"
             // Relative (not "/docs/") so this resolves correctly whichever
             // domain/subpath the app itself is currently served from — see
-            // vite.config.ts's own `base: "./"` and docs/.vitepress/config.ts's
-            // matching `base: "/docs/"` (the docs build is copied into
-            // dist/docs alongside the app by the GH Pages workflow).
+            // vite.config.ts's own `base: "./"` and docs/next.config.mjs's
+            // matching `basePath: "/docs"` (the docs app's static export is
+            // copied into dist/docs alongside the app by the GH Pages
+            // workflow; in dev, vite.config.ts's own /docs proxy forwards
+            // here to the docs app's separate dev server instead).
             onClick={() => window.open("docs/", "_blank", "noopener,noreferrer")}
           />
           <TooltipIconButton

@@ -30,6 +30,16 @@ export default defineConfig({
   publicDir: 'public',
   server: {
     host: true, // bind to 0.0.0.0 so the dev server is reachable on the LAN, not just localhost
+    // /docs is a separate Next.js app (docs/), not part of this Vite app —
+    // without this, a request for e.g. /docs/getting-started/ falls through
+    // Vite's own SPA history-fallback and silently serves this app's
+    // index.html instead, reading as "/docs/ redirects to the app". Run the
+    // docs dev server alongside this one (`pnpm run docs:dev`, fixed port
+    // 3100) for /docs to work here too; if it isn't running, this proxy
+    // fails loudly (connection refused) instead of that silent wrong page.
+    proxy: {
+      "/docs": { target: "http://localhost:3100", changeOrigin: true },
+    },
   },
   build: {
     outDir: 'dist',

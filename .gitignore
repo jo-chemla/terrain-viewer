@@ -5,10 +5,6 @@
 
 /dist
 
-# vitepress docs build output/cache (see docs/, built by the docs:build script)
-/docs/.vitepress/cache
-/docs/.vitepress/dist
-
 # next.js
 /.next/
 /out/
