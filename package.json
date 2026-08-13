@@ -8,7 +8,10 @@
     "build": "vite build",
     "zip": "del dist.zip && vite build && \"C:\\Program Files\\7-Zip\\7z.exe\" a dist.zip dist",
     "preview": "vite preview",
-    "shadcn:add": "shadcn add -b base"
+    "shadcn:add": "shadcn add -b base",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "packageManager": "pnpm@10.20.0",
   "dependencies": {
@@ -86,6 +89,7 @@
     "knip": "^6.29.0",
     "react-scan": "^0.5.7",
     "tailwindcss": "^4.1.17",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitepress": "^1.6.4"
   }
 }

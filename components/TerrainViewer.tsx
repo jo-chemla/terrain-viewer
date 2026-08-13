@@ -18,7 +18,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
-  appModeAtom, type AppMode,
+  appModeAtom, type AppMode, isHistoricalHostname,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -1428,7 +1428,21 @@ export function TerrainViewer() {
     if (!searchParams.has("tellsBeta") && tellsBetaEnabled) stateOverrides.tellsBeta = true
     if (!searchParams.has("sunShadowBeta") && sunShadowBetaEnabled) stateOverrides.sunShadowBeta = true
     if (!searchParams.has("historicalBeta") && historicalBetaEnabled) stateOverrides.historicalBeta = true
-    if (!searchParams.has("appMode") && appModeEnabled !== "terrain") stateOverrides.appMode = appModeEnabled
+    if (!searchParams.has("appMode")) {
+      if (appModeEnabled !== "terrain") {
+        stateOverrides.appMode = appModeEnabled
+      } else {
+        // No explicit `?appMode=` and nothing persisted yet for this origin
+        // (a brand-new visitor, or one whose browser never stored an
+        // appMode preference here) — let the hostname itself pick a default.
+        // A domain unrelated to either deploy (a fork, localhost, a preview
+        // URL) matches neither branch and just keeps the normal "terrain"
+        // default, so this never breaks serving from another domain.
+        let hasStoredAppMode = false
+        try { hasStoredAppMode = window.localStorage.getItem("appMode") !== null } catch { /* storage blocked (e.g. embed sandbox) — fall through to hostname default */ }
+        if (!hasStoredAppMode && isHistoricalHostname(window.location.hostname)) stateOverrides.appMode = "historical"
+      }
+    }
 
     // Historical mode only ever shows the raster basemap (its Options/
     // Visualization Modes/Detectors/Elevation Picker sections are hidden

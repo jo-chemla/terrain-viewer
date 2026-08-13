@@ -195,6 +195,19 @@ export const vizModePinnedAtom = atomWithStorage("vizModePinned", true)
 export type AppMode = "terrain" | "historical"
 export const appModeAtom = atomWithStorage<AppMode>("appMode", "terrain")
 
+// Hostnames whose whole purpose is "a dedicated historical imagery viewer" —
+// a first-ever visit there (no `?appMode=` in the URL, no locally-stored
+// appMode preference yet for that origin) should land straight in Historical
+// mode rather than the app's normal Terrain default. Matches the bare domain
+// and any subdomain of it (e.g. a legacy "old.historical-satellite.iconem.com"),
+// so the terrain-viewer.iconem.com deploy (and any other/unknown domain —
+// a fork, localhost, a preview URL) is unaffected and just keeps today's
+// Terrain default.
+const HISTORICAL_HOSTNAME_RE = /(^|\.)historical-satellite\.iconem\.com$/
+export function isHistoricalHostname(hostname: string): boolean {
+  return HISTORICAL_HOSTNAME_RE.test(hostname)
+}
+
 export const transparentUiAtom = atomWithStorage("isTransparentUi", true)
 export const activeSliderAtom = atom<string | null>(null)
 

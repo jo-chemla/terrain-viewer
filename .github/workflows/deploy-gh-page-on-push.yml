@@ -44,6 +44,15 @@ jobs:
       - name: Build
         run: |
           pnpm build
+      - name: Build docs
+        run: |
+          pnpm run docs:build
+          # dist/docs already exists at this point (public/docs/* — changelog
+          # screenshots/gifs — was copied there by the app's own `pnpm build`
+          # above) — merge the VitePress output's *contents* into it rather
+          # than copying the "dist" folder itself as a new subdirectory.
+          mkdir -p dist/docs
+          cp -r docs/.vitepress/dist/. dist/docs/
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

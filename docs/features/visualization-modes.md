@@ -1,0 +1,47 @@
+# Terrain Visualization Modes
+
+Most of these are inspired by `gdaldem` and the [RVT (Relief Visualization Toolbox)](https://github.com/EarthObservation/RVT) QGIS plugin. "Neighborhood" usually means a 3×3 kernel centered on the pixel.
+
+## Hillshade
+
+Native MapLibre hillshade with multiple illumination methods (Standard, Combined, Igor, Basic, Multidirectional and a colored/aspect-tinted variant) — see [MapLibre PR #5768](https://github.com/maplibre/maplibre-gl-js/pull/5768).
+
+## Elevation Hypso (Hypsometric Tint)
+
+Color-encoded elevation with a choice of color ramps (including [CPT City](http://seaviewsensing.com/pub/cpt-city/) ramps) — see [MapLibre PR #5913](https://github.com/maplibre/maplibre-gl-js/pull/5913).
+
+## Contours + Geo Grid
+
+Configurable-interval contour lines via [onthegomap/maplibre-contour](https://github.com/onthegomap/maplibre-contour), plus a lat/lng graticule overlay.
+
+## Terrain Analysis
+
+- **Slope** — magnitude of the gradient
+- **Aspect** — direction of the gradient
+- **Curvature** — rate of slope change: Profile (flow acceleration), Plan/Divergence (flow convergence), Det Hessian (blob/saddle detector), or Combined (discrete Laplacian)
+- **TRI** (Terrain Ruggedness Index) — mean elevation difference to neighbors
+- **TPI** (Topographic Position Index) — elevation relative to the neighborhood mean
+- **Roughness** — max − min elevation in a neighborhood
+- **Blobness** — structure-tensor measure of gradient-direction variance; high at peaks/pits/saddles/knolls
+- **Shape Index**, **Eigen Ratio**, **Orientation** — further curvature-tensor-derived shape descriptors
+
+## Relief Visualization
+
+- **LRM (Local Relief Model)** — raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography (the low-pass layer comes from a coarser pyramid tile, bilinearly upsampled)
+- **Sky-View Factor (SVF)** — fraction of the visible sky hemisphere from each point (low in enclosed pits/canyons, high on open summits/ridges), from a ray-marched horizon angle in 8 directions ([Zakšek, Oštir & Kokalj, 2011](https://www.mdpi.com/2072-4292/3/2/398))
+- **Openness** — mean angular distance from zenith to the horizon across the same 8 directions; **Positive** highlights ridges/summits, **Negative** highlights valleys/pits
+- **Local Dominance** — local visibility-weighted elevation contrast
+
+## Lighting Effects
+
+- **Matcap** — material-capture-style shading looked up by surface normal, independent of any real light direction
+- **Phong** — ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light, sharing the "hold L, drag" on-map light control
+
+## Tells (Mound Candidate) Detection — Beta
+
+Computes a Difference-of-Gaussians of the LRM as the primary bump signal, keeps only its local maxima (non-maximum suppression scaled to the configured tell size), then vetoes candidates failing any of three shape filters (Blobness, Plan Curvature, Det-Hessian). Opt in via Settings or `?tellsBeta=true`.
+
+::: warning Known limitations
+- COG-streamed sources fetch ancestor (low-pass) tiles with nearest-neighbor resampling only, which can introduce aliasing into the low-pass signal.
+- Detection quality is capped by the underlying DEM's real resolution — global ~30m tilesets (Copernicus GLO-30-derived) will miss or false-positive on the smaller end of typical Bronze/Iron-Age mound sizes (50–300m across, 3–20m tall). A finer-resolution source (LiDAR, a local high-res COG) improves results where available.
+:::

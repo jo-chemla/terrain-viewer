@@ -5,13 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Terrain Viewer</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- Purple favicon everywhere except the real production domain (any local
+    <!-- Purple favicon everywhere except the real production domains (any local
          dev port, preview/staging deploy, etc.) so an open prod tab is never
          visually confusable with a dev one. Inline + synchronous (not a React
-         effect) so it swaps before first paint, no flash of the wrong icon. -->
+         effect) so it swaps before first paint, no flash of the wrong icon.
+         historical-satellite.iconem.com (and any subdomain, e.g. a legacy
+         "old." one) is the historical-imagery-only deploy of this same app —
+         see isHistoricalHostname in lib/settings-atoms.ts — and counts as
+         prod too. Any other/unknown hostname (a fork, a preview URL) falls
+         through to the dev favicon, which is the safe default either way. -->
     <script>
       (function () {
-        if (location.hostname === "terrain-viewer.iconem.com") return
+        var host = location.hostname
+        var isProd = host === "terrain-viewer.iconem.com" ||
+          host === "historical-satellite.iconem.com" || /\.historical-satellite\.iconem\.com$/.test(host)
+        if (isProd) return
         var link = document.querySelector('link[rel="icon"]')
         if (link) link.href = "/favicon-dev.svg"
       })()

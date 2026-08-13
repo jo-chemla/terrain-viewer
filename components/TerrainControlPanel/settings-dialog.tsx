@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useEffect, useMemo } from "react"
 import { useAtom, useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai"
-import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles } from "lucide-react"
+import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles, BookOpen } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Label } from "@/components/ui/label"
@@ -94,19 +94,34 @@ const CollapsibleSection: React.FC<{
 // pulling in a typography plugin for one section. Only inline-level elements:
 // a TL;DR block is always just a bullet list (see lib/changelog.ts), never
 // headings/paragraphs.
-const CHANGELOG_MARKDOWN_COMPONENTS = {
-  ul: ({ children }: any) => <ul className="list-disc pl-4 space-y-1.5 text-sm text-muted-foreground">{children}</ul>,
-  strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
-  code: ({ children }: any) => <code className="bg-muted px-1 rounded text-xs">{children}</code>,
-  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline">{children}</a>,
-  img: ({ src, alt }: any) => <img src={src} alt={alt} className="rounded border max-w-full my-2" />,
+// `onImageClick` is threaded in from SettingsDialog rather than reading/
+// writing a module-level ref — a screenshot/gif is embedded at whatever width
+// fits the TL;DR bullet list (see the `img` renderer below), far too small to
+// actually read, so clicking one opens it full-size in the lightbox dialog
+// instead (see SettingsDialog's lightboxImage state).
+function changelogMarkdownComponents(onImageClick: (src: string, alt?: string) => void) {
+  return {
+    ul: ({ children }: any) => <ul className="list-disc pl-4 space-y-1.5 text-sm text-muted-foreground">{children}</ul>,
+    strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
+    code: ({ children }: any) => <code className="bg-muted px-1 rounded text-xs">{children}</code>,
+    a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline">{children}</a>,
+    img: ({ src, alt }: any) => (
+      <img
+        src={src}
+        alt={alt}
+        className="rounded border max-w-full my-2 cursor-zoom-in hover:opacity-90 transition-opacity"
+        onClick={() => onImageClick(src, alt)}
+      />
+    ),
+  }
 }
 
 // Renders a list of changelog entries as heading + TL;DR-only markdown — used
 // for both the "since you last looked" highlights and the "full changelog"
 // view (settings-dialog.tsx never renders the dev-oriented Features/Bug Fixes
 // prose from CHANGELOG.md).
-const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }) => {
+const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[]; onImageClick: (src: string, alt?: string) => void }> = ({ entries, onImageClick }) => {
+  const markdownComponents = useMemo(() => changelogMarkdownComponents(onImageClick), [onImageClick])
   const [entriesOpen, setEntriesOpen] = useAtom(changelogEntriesOpenAtom)
   return (
     <div className="space-y-3">
@@ -125,7 +140,7 @@ const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }
             </div>
             {isOpen && (
               entry.tldrMarkdown ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHANGELOG_MARKDOWN_COMPONENTS}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {entry.tldrMarkdown}
                 </ReactMarkdown>
               ) : (
@@ -233,6 +248,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [projectId, setProjectId] = useState("")
   const [projectName, setProjectName] = useState("")
   const [projectCopied, setProjectCopied] = useState(false)
+
+  // Which changelog screenshot/gif is currently blown up in the lightbox
+  // dialog (see changelogMarkdownComponents' `img` renderer above) — null
+  // means the lightbox is closed.
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; alt?: string } | null>(null)
+  const handleChangelogImageClick = useCallback((src: string, alt?: string) => setLightboxImage({ src, alt }), [])
 
   const [lastSeenChangelogAt, setLastSeenChangelogAt] = useAtom(lastSeenChangelogAtAtom)
   const isWhatsNewSectionOpen = useAtomValue(isSettingsWhatsNewOpenAtom)
@@ -411,6 +432,16 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
       >
         <div className="absolute top-4 right-4 flex items-center gap-1">
           <TooltipIconButton
+            icon={BookOpen}
+            tooltip="Open Documentation"
+            // Relative (not "/docs/") so this resolves correctly whichever
+            // domain/subpath the app itself is currently served from — see
+            // vite.config.ts's own `base: "./"` and docs/.vitepress/config.ts's
+            // matching `base: "/docs/"` (the docs build is copied into
+            // dist/docs alongside the app by the GH Pages workflow).
+            onClick={() => window.open("docs/", "_blank", "noopener,noreferrer")}
+          />
+          <TooltipIconButton
             icon={allSettingsFolded ? ChevronsUpDown : ChevronsDownUp}
             tooltip={allSettingsFolded ? "Expand all sections" : "Fold all sections"}
             onClick={handleFoldExpandAllSettings}
@@ -423,7 +454,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
         </DialogHeader>
         <div className="space-y-6">
           <CollapsibleSection
-            title="What's New"
+            title="What's New - Changelog"
             openAtom={isSettingsWhatsNewOpenAtom}
             contentClassName="space-y-3 pt-2"
             headerExtra={
@@ -454,13 +485,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           >
             {changelogView === "changes" ? (
               hasUnseenChangelog ? (
-                <ChangelogEntryList entries={unseenChangelogEntries} />
+                <ChangelogEntryList entries={unseenChangelogEntries} onImageClick={handleChangelogImageClick} />
               ) : (
                 <p className="text-xs text-muted-foreground">You&apos;re all caught up.</p>
               )
             ) : (
               <div className="max-h-96 overflow-y-auto pr-1">
-                <ChangelogEntryList entries={CHANGELOG_ENTRIES} />
+                <ChangelogEntryList entries={CHANGELOG_ENTRIES} onImageClick={handleChangelogImageClick} />
               </div>
             )}
           </CollapsibleSection>
@@ -1080,6 +1111,29 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
 
         </div>
       </DialogContent>
+
+      {/* Changelog image lightbox — a nested Dialog (Base UI portals it to
+          <body>, same as the advanced theme editor below, so it layers fine
+          on top of the already-open Settings dialog). Plain img at near-
+          viewport size instead of a gallery/carousel: each screenshot/gif
+          already sits next to its own caption in the TL;DR list it was
+          clicked from, so there's no separate multi-image browsing need. */}
+      <Dialog open={!!lightboxImage} onOpenChange={(open) => !open && setLightboxImage(null)}>
+        <DialogContent
+          className="sm:max-w-[90vw] max-h-[90vh] w-fit p-2 flex items-center justify-center"
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">{lightboxImage?.alt || "Changelog screenshot"}</DialogTitle>
+          {lightboxImage && (
+            <img
+              src={lightboxImage.src}
+              alt={lightboxImage.alt}
+              className="max-w-full max-h-[85vh] rounded object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {showThemeEditor && (
         <ThemeEditorPanel
           onClose={() => setShowThemeEditor(false)}
