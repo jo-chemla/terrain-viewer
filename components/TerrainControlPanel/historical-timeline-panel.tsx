@@ -689,19 +689,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Once the user has actually zoomed/panned (viewWindow set), this floor
   // no longer applies at all — see effectiveMin below.
   const DEFAULT_VIEW_FLOOR_MS = Date.UTC(2010, 0, 1)
-  // Padded 10% beyond the true outermost ticks on each side (20% total) —
-  // otherwise the oldest/newest tick sits exactly at the track's 0%/100%
-  // edge once fully zoomed out, which reads as clipped/hard to see or click.
-  // Every other calculation below (zoom clamps, pan-gutter clamp, year
-  // gridlines, hasHiddenRange) already just consumes fullMin/fullMax/
-  // fullSpan generically, so padding them here is the one place this needs
-  // to happen.
-  const FULL_RANGE_PADDING_FRACTION = 0.1
-  const tickMin = items[0]?.dateMs ?? 0
-  const tickMax = items[items.length - 1]?.dateMs ?? tickMin + 1
-  const tickSpan = Math.max(1, tickMax - tickMin)
-  const fullMin = tickMin - tickSpan * FULL_RANGE_PADDING_FRACTION
-  const fullMax = tickMax + tickSpan * FULL_RANGE_PADDING_FRACTION
+  const fullMin = items[0]?.dateMs ?? 0
+  const fullMax = items[items.length - 1]?.dateMs ?? fullMin + 1
   const fullSpan = Math.max(1, fullMax - fullMin)
   const defaultMin = fullMax > DEFAULT_VIEW_FLOOR_MS ? Math.max(fullMin, DEFAULT_VIEW_FLOOR_MS) : fullMin
   // Sticky once true — the wheel-zoom handler and the pan-gutter below both
