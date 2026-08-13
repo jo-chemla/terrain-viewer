@@ -7,7 +7,7 @@ description: Running the hosted app, or locally
 
 The app is deployed at [terrain-viewer.iconem.com](https://terrain-viewer.iconem.com/) — no install needed. Open it, pick a location, and toggle visualization modes from the sidebar.
 
-A dedicated historical-imagery-only entry point is available at [historical-satellite.iconem.com](https://historical-satellite.iconem.com/) — same app, defaulting straight into Historical mode on a first visit (see [Basemaps & Historical Imagery](/docs/features/basemaps-and-historical)).
+A dedicated historical-imagery-only entry point is available at [historical-satellite.iconem.com](https://historical-satellite.iconem.com/) — same app, defaulting straight into Historical mode on a first visit (see [Basemaps & Historical Imagery](/features/basemaps-and-historical)).
 
 ## Running locally
 
@@ -25,5 +25,5 @@ pnpm run build    # bundles to dist/
 Nearly every sidebar control — viewport (lat/lng/zoom/pitch/bearing), active terrain/basemap sources, every visualization toggle and its options, split-screen layout, historical dates — is mirrored to the URL query string via [nuqs](https://nuqs.dev/docs/basic-usage). That means:
 
 - Copying the address bar URL always reproduces the exact current view for someone else.
-- [Bookmarks](/docs/features/bookmarks) are really just a saved query string plus a thumbnail.
+- [Bookmarks](/features/bookmarks) are really just a saved query string plus a thumbnail.
 - Embedding a specific configuration (e.g. in an iframe) is just linking to the right URL — see `?project=` and `terrainUrl=`/`basemapUrl=` for pointing straight at a custom source without registering it first.

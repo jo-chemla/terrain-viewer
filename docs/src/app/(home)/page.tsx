@@ -54,7 +54,7 @@ export default function HomePage() {
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
-              href="/docs"
+              href="/overview"
               className="rounded-lg bg-fd-primary px-5 py-2.5 font-medium text-fd-primary-foreground transition-opacity hover:opacity-90"
             >
               Read the Docs
@@ -97,7 +97,7 @@ export default function HomePage() {
             anyone else, or save it as a bookmark.
           </p>
           <Link
-            href="/docs/getting-started"
+            href="/getting-started"
             className="mt-6 inline-block rounded-lg bg-fd-primary px-5 py-2.5 font-medium text-fd-primary-foreground transition-opacity hover:opacity-90"
           >
             Get Started
