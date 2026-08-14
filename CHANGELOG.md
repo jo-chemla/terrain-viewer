@@ -1,3 +1,31 @@
+# Changelog — Docs Site, Featured Bookmarks, and Tells Freeze Fixes
+<!-- released: 2026-08-14 -->
+
+#### TL;DR
+- Added a [documentation site](/docs), live-linked from the app general settings.
+- **Featured bookmarks**: a curated "Featured" strip of starter viewpoints (different terrain shapes, visualization combinations, and a historical-imagery example) now sits above your own saved bookmark list.
+- **Mound detector (Tells)**: new Frozen/Live toggle — pin the currently-detected candidates in place so panning/zooming doesn't keep re-querying and recomputing them.
+- Visiting historical-satellite.iconem.com now lands you straight in **Historical Imagery mode**, with its own clock-shaped favicon (matching the timeline toggle's own icon) instead of the terrain mountain.
+- In split/grid compare mode, clicking a basemap's **name** (not just its per-view toggle) now sets that source on every active view at once.
+
+### Features
+- **Documentation site** (`docs/`) — a separate Fumadocs (Next.js) app, deployed alongside the main app and proxied at `/docs` in dev, covering Overview, Visualization Modes (a shared markdown source also rendered inline in Settings → Visualization Modes, so both stay in sync), Keyboard Shortcuts, Changelog (renders the same TL;DRs shown in-app, sourced straight from this file), Resources and Inspiration (MapLibre features, geomorphometry/hydrology literature, credits), and a Dev page (structure, architecture, running the app). Homepage and docs images open in a lightbox on click.
+- **Featured bookmarks** (`lib/preset-bookmarks.ts`) — a small, read-only set of curated viewpoints shipped with the app, separate from the user's own `bookmarksAtom`-backed list: restoring one never edits or removes it, and an app update to this set never touches anyone's own saved bookmarks.
+- **Tells Frozen/Live toggle** — "Frozen" snapshots the currently-rendered mound candidates (via `querySourceFeatures` off the live vector tiles) into a static geojson source, so panning/zooming stops triggering new `tells://` tile fetches and recomputation; "Live" (the default) resumes the normal fetch-as-you-pan behavior and forces an immediate tile reload for wherever you'd panned to while frozen, rather than waiting for the next pan.
+- **Historical hostname auto-routing** — a first-ever visit to historical-satellite.iconem.com (no `?appMode=` in the URL, no locally-stored preference yet) now opens in Historical mode by default instead of the app's normal Terrain default; any other/unknown hostname is unaffected.
+- **Click a basemap's label to sync it everywhere** — in split/N-grid compare mode, clicking a basemap's name now applies it to every currently active view, not just the row it was clicked from.
+
+### Bug Fixes
+- **Tells freeze — three real, distinct bugs**:
+  - `Error: can't serialize object of unregistered class nf` — `querySourceFeatures()` returns MapLibre's internal feature-wrapper instances, not plain objects; handing those straight to a new geojson `<Source>` failed MapLibre's worker-side structured-clone step. Fixed by round-tripping through `JSON.parse(JSON.stringify(...))` first.
+  - `DataCloneError: ArrayBuffer ... already detached` — root cause was actually in the shared finished-tile LRU cache (`lib/tile-result-cache.ts`, used by every "Slope and More" derivative — Slope/Curvature/TPI/Roughness/LRM/SVF/Openness and more, not just Tells): it handed out the exact same underlying `ArrayBuffer` on every cache hit, and MapLibre detaches a tile response's buffer when transferring it to a worker — so a second request for an already-cached tile tried to transfer an already-dead buffer. Fixed by always storing and returning independent copies.
+  - Unfreezing (back to Live) didn't recompute for wherever the view had panned to while frozen, until an extra pan/zoom — MapLibre only fetches a source's tiles when a visible layer references it, and no layer referenced the live vector source while frozen, so tiles for a newly-panned-to area were never requested. Fixed by forcing a tile reload (`source.setTiles(...)`) the moment Live resumes.
+  - The frozen geojson source also now mounts under its own id instead of swapping the live vector source's type in place under the same one, avoiding a MapLibre worker-teardown race when a tile request was still in flight the instant Frozen flipped on.
+- **Historical mode wiping Terrain-mode visualization settings** — switching into Historical mode used to force roughly a dozen viz-mode flags (Hillshade, Lighting, Shadows, Color Relief, Terrain Analysis, Relief Visualization, Plane Slicer, Tells, Contours/Graticules, Background) to off, destroying whatever a visitor had set in Terrain mode. Every one of those is now instead gated on "not Historical mode" directly at render time, so the underlying settings are preserved and simply resume when switching back.
+- **Historical timeline zoom-out over-padding** — the zoom-out limit and pan-gutter extent padded a flat 10% of the full date range past each real end, which for a very long outlier range (e.g. an 80-year span) let the zoomed-out view pan years past either real boundary. Now capped at 6 months per side, whichever of the two is smaller.
+- **Changelog image lightbox** — was rendering far too small with no dimmed background, then (once resized correctly) showed black letterbox bars whenever an image's aspect ratio didn't match a fixed 90vw×90vh box, and outside-click/Escape didn't reliably close it due to a Base UI nested-dialog dismiss quirk (confirmed: Escape closed it while a real backdrop click did not, and a naive workaround ended up closing the Settings dialog behind it too). Rebuilt as a plain, correctly-dimmed overlay that shrink-wraps to the image's own aspect ratio (never upscaling past it), with its own outside-click/Escape handling scoped to just the lightbox.
+- **`@tanstack/devtools-vite`'s dev-tooling breaking MapLibre sources** — its "click to open in editor" `data-tsd-source` attribute, injected onto every JSX element in dev, was landing on react-map-gl's `<Source>`/`<Layer>` components, which spread all received props straight into `map.addSource()`/`addLayer()` — tripping MapLibre's schema validator ("unknown property") whenever such a source/layer mounted fresh at runtime. Scoped out via the plugin's own `injectSource.ignore.components` option.
+
 # Changelog — Histogram Color Matching in Compare and Blend
 <!-- released: 2026-08-11 -->
 
@@ -22,6 +50,8 @@
 
 #### TL;DR
 - **N-Map Grid mode**: in addition to 2x1, can now also do 3x1, 4x1, or 2 rows, 2x2 up to 4x2. Gains a **Grid** shape, now supporting up to 8 synced map views, not just a 2-way split.
+
+  ![Comparing basemap sources side-by-side in grid mode](/docs/screenshots/n-grid.jpg)
 - **Compare and Blend's Split Mode: Off/Side/Overlay**, where gutter can be horizontally dragged for clip ratio, or the pill vertical position controls map view B transparency
 - **Blend Mode for overlaid Map View**: Multiply, Difference, Soft-Light etc. Dropdown now exposes every CSS blend mode, not just a curated handful.
 - **Export historical GeoTIFFs** across a date range, with an option to generate ready-to-run `gdal_translate` scripts.
@@ -62,14 +92,16 @@
 <!-- released: 2026-08-07 -->
 
 #### TL;DR
-- **New "Historical Imagery" mode**: scrub a real per-tile capture-date timeline bottom panel, across **ESRI Wayback, Google Earth Historical**, Landsat/Sentinel, Planet, and Bing.
+- **New "Historical Imagery" mode**: scrub a real per-tile capture-date timeline bottom panel, across **[ESRI Wayback](https://livingatlas.arcgis.com/wayback/), [Google Earth Historical](https://github.com/Iconem/GE_TimeMachine)**, [Landsat/Sentinel (HLS)](https://hls.gsfc.nasa.gov/), [Planet](https://www.planet.com/products/basemap/), and [Bing](https://www.bing.com/maps/aerial).
+
+  ![Scrubbing the historical timeline across capture dates](/docs/screenshots/historical-timeline.jpg)
 - **Mode Picker: Terrain vs Historical** switches the whole sidebar between Terrain Viewer and a simplified Historical Imagery layout.
 - Every historical basemap source feeds real attribution, including dynamically-resolved provider/date info for Wayback, Google Earth Historical, and Bing.
 - **The light-direction XY pad itself gained a full bidirectional datetime binding**: drag it and it back-solves the closest matching day-of-year/time-of-day (and the sliders still drive it forward as before), hatching every position the sun can't physically reach at the current latitude (a real day/night-boundary constraint).
 - Sun Shadow Calculator: new **Reverse** mode: click a shadow to back-solve the light direction and time of day, knowing building height. Also see the standalone [sun-position estimator](/sun-position-estimator.html) tool.
 
 ### Features
-- **Historical satellite imagery basemaps + timeline scrubber** — five date-driven basemap sources (ESRI Wayback, NASA HLS Landsat/Sentinel, Google Earth Historical via a reverse-engineered `gehist://` MapLibre protocol, Planet Monthly Mosaics behind an API key, and Bing's single current mosaic), consolidated into one "Historical Imagery" sidebar entry rather than five separate rows (which underlying source is active per side is a separate `historicalActiveSource(A/B)` field). A bottom timeline panel shows per-source colored pills (toggle which sources' ticks are shown, filterable by VHR/medium resolution) and a scrubbable track of real per-tile capture dates — not each source's own catalog-wide "release date." Split-screen/per-view mode gets a sync toggle (single chain icon) to move both sides' scrub position together or independently via an A/B picker. Off-screen A/B handles collapse into a rounded chevron chip ("A>"/"<B") that recenters the view on click instead of colliding with the round in-view handle. A "Open in…" launcher opens the current view in BBBike MapCompare or similar external tools.
+- **Historical satellite imagery basemaps + timeline scrubber** — five date-driven basemap sources (ESRI Wayback, NASA HLS Landsat/Sentinel, Google Earth Historical via a reverse-engineered `gehist://` MapLibre protocol (scaffolded from [Iconem/GE_TimeMachine](https://github.com/Iconem/GE_TimeMachine)), Planet Monthly Mosaics behind an API key, and Bing's single current mosaic), consolidated into one "Historical Imagery" sidebar entry rather than five separate rows (which underlying source is active per side is a separate `historicalActiveSource(A/B)` field). A bottom timeline panel shows per-source colored pills (toggle which sources' ticks are shown, filterable by VHR/medium resolution) and a scrubbable track of real per-tile capture dates — not each source's own catalog-wide "release date." Split-screen/per-view mode gets a sync toggle (single chain icon) to move both sides' scrub position together or independently via an A/B picker. Off-screen A/B handles collapse into a rounded chevron chip ("A>"/"<B") that recenters the view on click instead of colliding with the round in-view handle. A "Open in…" launcher opens the current view in BBBike MapCompare or similar external tools.
 - **Real per-tile capture dates, not catalog metadata** — Wayback resolves via its own metadata endpoint (deduped by resolved real date, since distinct releases commonly share one — the earlier culprit behind ticks piling onto one pixel), Bing reads a deliberately CORS-exposed `X-VE-TILEMETA-CaptureDatesRange` response header (undocumented but confirmed live to vary genuinely by location/zoom), GE Historical decodes Google's own encrypted `dbRoot`/quadtree-packet protocol.
 - **Mode Picker** — clicking the sidebar title ("Terrain Viewer" / "Historical Sat") opens a dialog to switch the app's meta-mode between **Terrain** (the full toolset, unchanged) and **Historical Imagery** (a deliberately stripped-down 2D-only sidebar: no View Mode toggle, no Visualization Modes/Options/Detectors groups, no Elevation Picker, just General Settings, Bookmarks, Download, an ungrouped Basemap picker, and Tools). Settings dialog hides what's terrain-only in this mode too (the Visualization Modes reference section, Tells/Mound-detector beta toggle, high-precision Terrarium-vs-TerrainRGB toggle, MapTiler API key). `appMode` is nuqs/URL state (sorted right after `project` in the URL's own param order), not a local-only setting, and persists its last value across a fresh session like the existing beta-gate flags.
 - **Basemap attribution** — every basemap source now feeds MapLibre's attribution control (previously only terrain sources did). Static per-provider strings for OSM/Mapbox/HERE/Bing/Google/Planet/HLS/EOX Sentinel-2-cloudless; genuinely dynamic, current-view-resolved attribution for Esri/Wayback (Esri's public contributor-coverage feed, `static.arcgis.com/attribution/World_Imagery`), Google Earth Historical (the real per-tile capturing provider, decoded straight from Google's own `dbRoot` — a `providerId → copyright` table shipped in the same response already fetched for other purposes, reverse-engineered against Open GEE's `dbroot_v2.proto` and cross-checked against CesiumJS's own `GoogleEarthEnterpriseMetadata`), and Bing (real per-tile capture-date range, see above). The corner `AttributionControl` shows a short static pointer for the three dynamic sources ("see dynamic source attribution in sidebar source panel") since a `<Source>`'s `attribution` prop can never be live-updated post-mount (react-map-gl's own reconciler has no case for it) — but is *also* pushed the real resolved text directly via the underlying MapLibre `Map` instance plus a synthetic `sourcedata` event (`Map.fire`, fully public API, no private methods), so the corner control shows it live too. The sidebar's Source Info section lists every historical source's attribution (dynamic + static) and works in both Terrain and Historical app modes — a raster basemap can be active in either.
@@ -237,7 +269,9 @@ New standalone **Theme Editor**: live Tailwind v4/shadcn theming with tweakcn/sh
 <!-- released: 2026-07-18T19:05 -->
 
 #### TL;DR
-- **Relief Visualization** split into its own separate group (**Sky View Factor SVF, Openness**) from **Terrain-analysis (Curvature, TPI, Roughness, Det-Hessian, Blobness)**. 
+- **Relief Visualization** split into its own separate group (**Sky View Factor SVF, Openness**) from **Terrain-analysis (Curvature, TPI, Roughness, Det-Hessian, Blobness)**.
+
+  ![Sky-View Factor relief visualization](/docs/screenshots/svf.jpg)
 - Relief Visualization and Terrain Analysishave a Basic/Advanced collapse toggle to either just activate/deactivate the additional sub-modes, or go further and edit their symbology.
 - **Keyboard shortcuts**: Shift-tap to peek at the raster basemap, Ctrl-tap to hide every overlay down to just the basemap. See all keyboard shortcuts in the dedicated section of General Settings modal. 
 - **Labeled Sources / Options / Detectors / Tools sidebar dividers** for scanning a long control panel.
@@ -335,6 +369,8 @@ Experimental **"Tells" archaeological mound detector**, gated behind a Beta togg
 #### TL;DR
 **Slope visualization mode**: launched as a PlanTopo server-hosted overlay (computed offline from Mapterhorn), upgraded to a client-side "Slope and More" v2: a custom MapLibre protocol computed directly from whichever terrain source is active (BYOD included), rather than PlanTopo's own fixed dataset. Later grew into the full curvature/TPI/roughness/LRM/Tells suite above.
 
+![Slope-angle visualization mode](/docs/screenshots/slope.jpg)
+
 ### Features
 - **Slope viz mode** (`ba51907`) — a PlanTopo-hosted server overlay (their own precomputed slope-angle raster); upgraded the same day (`8612990`) to a client-side custom MapLibre protocol computed from whichever terrain source is active ("Slope and More" v2) — the same viz mode that later grew into the full curvature/TPI/roughness/LRM/Tells suite (see the Jul 10–12 entries above).
 
@@ -358,6 +394,8 @@ Experimental **"Tells" archaeological mound detector**, gated behind a Beta togg
 
 #### TL;DR
 Light-direction control for Hillshade via XYPad: drag a 2D pad to set illumination azimuth/elevation, instead of two separate sliders.
+
+![Dragging the XYPad to set light azimuth/elevation](/docs/screenshots/hillshade-direction.webp)
 
 ### Features
 - **XYPad for 2D illumination-direction selection** (`07fc46e`) — drag a pad to set Hillshade/Phong light azimuth+elevation together; gained real angular constraints (can't drag past the sun's physically reachable range) five days later (`3b85160`). The *true* bidirectional datetime binding (drag the pad, back-solve the closest matching day/time; day/night-boundary hatching) came much later — see the Aug 7 entry above (`a43a99f`, `09f3803`).
@@ -443,8 +481,8 @@ Offer the choice to stream COG via **Geomatico's native MapLibre COG-protocol vs
 #### TL;DR
 - **Initial launch** with all user-controls on one foldable, sidebar control panel. UI transparency on slider change enables better-feedback, 2D/3D/Globe map projection modes.
 - **Terrain visualization modes**: Hillshade (Combined, Standard, Aspect Multidir colors, Igor, Basic), Hypsometric color-relief, Raster Basemap
-- **Sources for Terrain** (Terrarium /TerrainRGB): Mapterhorn, Mapbox, Maptiler. AWS Terrain Tiles.
-- Source for Raster Basemaps: Google, Bing, ESRI, Mapbox, Here, OSM
+- **Sources for Terrain** (Terrarium /TerrainRGB): [Mapterhorn](https://mapterhorn.com/), [Mapbox](https://www.mapbox.com/), [Maptiler](https://www.maptiler.com/). [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/).
+- Source for Raster Basemaps: [Google](https://mapsplatform.google.com/), [Bing](https://www.bing.com/maps/aerial), [ESRI](https://www.esri.com/en-us/arcgis/products/arcgis-image/services/world-imagery), [Mapbox](https://www.mapbox.com/), [Here](https://www.here.com/), [OSM](https://www.openstreetmap.org/)
 - **Shareable URLs**, State persisted to URL via nuqs so any shared url results in visually the exact same map.
 - **Split Mode**: A/B side-by-side comparison, originally built for comparing the same location's resolution/quality across different terrain sources (Mapterhorn vs. Mapbox/MapLibre terrain-RGB vs. AWS Terrain Tiles).
 

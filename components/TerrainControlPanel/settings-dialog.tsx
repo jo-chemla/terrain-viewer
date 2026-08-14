@@ -1,7 +1,8 @@
 import type React from "react"
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
+import { createPortal } from "react-dom"
 import { useAtom, useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai"
-import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles } from "lucide-react"
+import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles, BookOpen } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Label } from "@/components/ui/label"
@@ -39,6 +40,67 @@ import { ColorThemeSelect, SOURCE_GROUPS, DEFAULT_GROUP_SOURCES } from "@/compon
 import { useTheme as useColorTheme } from "@/components/theme-provider"
 import { ThemeEditorPanel } from "@/theme-editor"
 import { sortedThemes } from "@/lib/themes-config"
+import { stripFrontmatter } from "@/lib/shared-docs"
+import keyboardShortcutsRaw from "@/docs/content/docs/keyboard-shortcuts.mdx?raw"
+import resourcesMaplibreRaw from "@/docs/content/docs/resources/maplibre.mdx?raw"
+import resourcesGeomorphometryRaw from "@/docs/content/docs/resources/geomorphometry.mdx?raw"
+import creditsRaw from "@/docs/content/docs/resources/credits.mdx?raw"
+import vizModesDescriptionRaw from "@/docs/content/docs/features/visualization-modes-description.mdx?raw"
+
+// Single source of truth for these 4 sections lives in docs/content/docs/
+// (rendered as real Fumadocs pages there too) — see lib/shared-docs.ts.
+const KEYBOARD_SHORTCUTS_MARKDOWN = stripFrontmatter(keyboardShortcutsRaw)
+const RESOURCES_MAPLIBRE_MARKDOWN = stripFrontmatter(resourcesMaplibreRaw)
+const RESOURCES_GEOMORPHOMETRY_MARKDOWN = stripFrontmatter(resourcesGeomorphometryRaw)
+export const CREDITS_MARKDOWN = stripFrontmatter(creditsRaw)
+const VISUALIZATION_MODES_DESCRIPTION_MARKDOWN = stripFrontmatter(vizModesDescriptionRaw)
+
+// Renders each shortcut as a plain stacked row (no bullet marker) with every
+// backtick-code key styled as a keycap — matches the look every key already
+// had before this content moved into shared markdown.
+const KEYBOARD_SHORTCUTS_MARKDOWN_COMPONENTS = {
+  ul: ({ children }: any) => <div className="space-y-1.5 text-xs text-muted-foreground">{children}</div>,
+  li: ({ children }: any) => <div>{children}</div>,
+  code: ({ children }: any) => <kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">{children}</kbd>,
+}
+
+// Renders each link as a full-width row with a trailing external-link icon —
+// the same shape every resource link already had as hand-written JSX. Only
+// fits documents that are a flat one-link-per-bullet list (Resources), not
+// credits.mdx's multi-link bullets (Codetard, Mike Jenkin) — those need
+// CREDITS_MARKDOWN_COMPONENTS's plain inline-link treatment instead.
+const RESOURCE_LINKS_MARKDOWN_COMPONENTS = {
+  ul: ({ children }: any) => <div className="space-y-2 text-sm">{children}</div>,
+  li: ({ children }: any) => <>{children}</>,
+  a: ({ href, children }: any) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
+      <span>{children}</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
+    </a>
+  ),
+}
+
+// footer-section.tsx's "Made by / Also see / Inspired by" credits — plain
+// underlined inline links (a bullet can hold several) instead of the
+// one-icon-per-row treatment above.
+export const CREDITS_MARKDOWN_COMPONENTS = {
+  h3: ({ children }: any) => <p className="pt-1">{children}:</p>,
+  ul: ({ children }: any) => <ul className="list-disc pl-6 space-y-0.5">{children}</ul>,
+  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="hover:underline cursor-pointer">{children}</a>,
+}
+
+// Visualization Modes section body — matches the original hand-written JSX's
+// look (uppercase-tracking-wide mini group headers, bold term + muted
+// definition rows) closely enough that this markdown source is a drop-in
+// replacement, not just a same-wording approximation.
+const VIZ_MODES_DESCRIPTION_MARKDOWN_COMPONENTS = {
+  h3: ({ children }: any) => <div className="pt-2 text-xs font-semibold text-foreground">{children}</div>,
+  h4: ({ children }: any) => <div className="pt-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{children}</div>,
+  p: ({ children }: any) => <p className="text-xs text-muted-foreground">{children}</p>,
+  ul: ({ children }: any) => <ul className="list-disc pl-5 space-y-1.5 text-xs text-muted-foreground">{children}</ul>,
+  em: ({ children }: any) => <em className="italic">{children}</em>,
+  code: ({ children }: any) => <code className="bg-muted px-1 rounded text-xs">{children}</code>,
+  strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
+}
 
 // Built once at module scope (sortedThemes never changes at runtime) — the
 // Basic section's "Load Preset" picker in the advanced theme editor, grouped
@@ -94,19 +156,34 @@ const CollapsibleSection: React.FC<{
 // pulling in a typography plugin for one section. Only inline-level elements:
 // a TL;DR block is always just a bullet list (see lib/changelog.ts), never
 // headings/paragraphs.
-const CHANGELOG_MARKDOWN_COMPONENTS = {
-  ul: ({ children }: any) => <ul className="list-disc pl-4 space-y-1.5 text-sm text-muted-foreground">{children}</ul>,
-  strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
-  code: ({ children }: any) => <code className="bg-muted px-1 rounded text-xs">{children}</code>,
-  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline">{children}</a>,
-  img: ({ src, alt }: any) => <img src={src} alt={alt} className="rounded border max-w-full my-2" />,
+// `onImageClick` is threaded in from SettingsDialog rather than reading/
+// writing a module-level ref — a screenshot/gif is embedded at whatever width
+// fits the TL;DR bullet list (see the `img` renderer below), far too small to
+// actually read, so clicking one opens it full-size in the lightbox dialog
+// instead (see SettingsDialog's lightboxImage state).
+function changelogMarkdownComponents(onImageClick: (src: string, alt?: string) => void) {
+  return {
+    ul: ({ children }: any) => <ul className="list-disc pl-4 space-y-1.5 text-sm text-muted-foreground">{children}</ul>,
+    strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
+    code: ({ children }: any) => <code className="bg-muted px-1 rounded text-xs">{children}</code>,
+    a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline">{children}</a>,
+    img: ({ src, alt }: any) => (
+      <img
+        src={src}
+        alt={alt}
+        className="rounded border max-w-full my-2 cursor-zoom-in hover:opacity-90 transition-opacity"
+        onClick={() => onImageClick(src, alt)}
+      />
+    ),
+  }
 }
 
 // Renders a list of changelog entries as heading + TL;DR-only markdown — used
 // for both the "since you last looked" highlights and the "full changelog"
 // view (settings-dialog.tsx never renders the dev-oriented Features/Bug Fixes
 // prose from CHANGELOG.md).
-const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }) => {
+const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[]; onImageClick: (src: string, alt?: string) => void }> = ({ entries, onImageClick }) => {
+  const markdownComponents = useMemo(() => changelogMarkdownComponents(onImageClick), [onImageClick])
   const [entriesOpen, setEntriesOpen] = useAtom(changelogEntriesOpenAtom)
   return (
     <div className="space-y-3">
@@ -125,7 +202,7 @@ const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[] }> = ({ entries }
             </div>
             {isOpen && (
               entry.tldrMarkdown ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHANGELOG_MARKDOWN_COMPONENTS}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {entry.tldrMarkdown}
                 </ReactMarkdown>
               ) : (
@@ -233,6 +310,46 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [projectId, setProjectId] = useState("")
   const [projectName, setProjectName] = useState("")
   const [projectCopied, setProjectCopied] = useState(false)
+
+  // Which changelog screenshot/gif is currently blown up in the lightbox
+  // dialog (see changelogMarkdownComponents' `img` renderer above) — null
+  // means the lightbox is closed.
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; alt?: string } | null>(null)
+  const handleChangelogImageClick = useCallback((src: string, alt?: string) => setLightboxImage({ src, alt }), [])
+  // Deliberately NOT a nested Base UI <Dialog> (which is what this used to
+  // be) — nesting one modal Dialog inside another already-open one broke
+  // Base UI's own outside-press dismissal (DialogRoot's `outsidePress` only
+  // accepts a click as "outside" while a dialog is the topmost one AND the
+  // click lands exactly on ITS OWN tracked backdrop element; confirmed via
+  // Escape, gated by that same isTopmost check, closing the lightbox fine
+  // while a real backdrop click did not), and worse, once that WAS forced to
+  // work via a manual click-outside handler here, the exact same click event
+  // then fell through the closing lightbox to the Settings dialog's OWN
+  // Base UI dismiss listener too (mousedown/click firing after pointerdown
+  // has already unmounted the lightbox makes Settings look "topmost" again
+  // mid-gesture), closing BOTH. A plain self-contained overlay with its own
+  // Escape/outside-click handling sidesteps that whole cascade.
+  const lightboxContentRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!lightboxImage) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      // Capture phase + stopPropagation — this custom overlay never tells
+      // the Settings dialog's Base UI DialogRoot it has a nested dialog open
+      // (there's no such registration for a plain portal), so Settings
+      // always considers itself topmost and its OWN Escape handling (bubble
+      // phase) would otherwise also fire on the same keydown and close it.
+      e.stopPropagation()
+      setLightboxImage(null)
+    }
+    document.addEventListener("keydown", handleKeyDown, true)
+    return () => document.removeEventListener("keydown", handleKeyDown, true)
+  }, [lightboxImage])
+  const handleLightboxOverlayClick = useCallback((e: React.MouseEvent) => {
+    if (lightboxContentRef.current && !lightboxContentRef.current.contains(e.target as Node)) {
+      setLightboxImage(null)
+    }
+  }, [])
 
   const [lastSeenChangelogAt, setLastSeenChangelogAt] = useAtom(lastSeenChangelogAtAtom)
   const isWhatsNewSectionOpen = useAtomValue(isSettingsWhatsNewOpenAtom)
@@ -411,6 +528,18 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
       >
         <div className="absolute top-4 right-4 flex items-center gap-1">
           <TooltipIconButton
+            icon={BookOpen}
+            tooltip="Open Documentation"
+            // Relative (not "/docs/") so this resolves correctly whichever
+            // domain/subpath the app itself is currently served from — see
+            // vite.config.ts's own `base: "./"` and docs/next.config.mjs's
+            // matching `basePath: "/docs"` (the docs app's static export is
+            // copied into dist/docs alongside the app by the GH Pages
+            // workflow; in dev, vite.config.ts's own /docs proxy forwards
+            // here to the docs app's separate dev server instead).
+            onClick={() => window.open("docs/", "_blank", "noopener,noreferrer")}
+          />
+          <TooltipIconButton
             icon={allSettingsFolded ? ChevronsUpDown : ChevronsDownUp}
             tooltip={allSettingsFolded ? "Expand all sections" : "Fold all sections"}
             onClick={handleFoldExpandAllSettings}
@@ -423,7 +552,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
         </DialogHeader>
         <div className="space-y-6">
           <CollapsibleSection
-            title="What's New"
+            title="What's New - Changelog"
             openAtom={isSettingsWhatsNewOpenAtom}
             contentClassName="space-y-3 pt-2"
             headerExtra={
@@ -454,13 +583,13 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           >
             {changelogView === "changes" ? (
               hasUnseenChangelog ? (
-                <ChangelogEntryList entries={unseenChangelogEntries} />
+                <ChangelogEntryList entries={unseenChangelogEntries} onImageClick={handleChangelogImageClick} />
               ) : (
                 <p className="text-xs text-muted-foreground">You&apos;re all caught up.</p>
               )
             ) : (
               <div className="max-h-96 overflow-y-auto pr-1">
-                <ChangelogEntryList entries={CHANGELOG_ENTRIES} />
+                <ChangelogEntryList entries={CHANGELOG_ENTRIES} onImageClick={handleChangelogImageClick} />
               </div>
             )}
           </CollapsibleSection>
@@ -508,88 +637,18 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </CollapsibleSection>
           <Separator />
           <CollapsibleSection title="Keyboard Shortcuts" openAtom={isSettingsKeyboardShortcutsOpenAtom} contentClassName="space-y-2 pt-2">
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Shift</kbd> <span className="mx-1">(tap alone, either side, Terrain mode only)</span> — toggle the Raster Basemap on/off, without opening the sidebar.</div>
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd> <span className="mx-1">(tap alone, either side, Terrain mode only)</span> — hide every visualization mode down to just the plain basemap; tap again to restore whichever modes were on.</div>
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Space</kbd> — re-toggle whichever visualization-mode checkbox you last clicked, even after a map drag has moved keyboard focus onto the map canvas.</div>
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">L</kbd> <span className="mx-1">(hold, Terrain mode only)</span> + drag — set the Hillshade illumination direction/altitude directly on the map instead of panning it; release L or the mouse to exit.</div>
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd>+<kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">K</kbd> — jump focus to the search box (geocoder) from anywhere.</div>
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">←</kbd>/<kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">→</kbd> <span className="mx-1">(after editing a dropdown)</span> — cycle through that dropdown's options without reopening it.</div>
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">←</kbd>/<kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">→</kbd> <span className="mx-1">(Historical Timeline, after picking a date)</span> — step that view's picked date one mark at a time.</div>
-              <div><kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">Ctrl</kbd>+drag <span className="mx-1">(Historical Timeline handle)</span> — also sweeps every other handle on that same side along with it, by the same number of marks.</div>
-            </div>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={KEYBOARD_SHORTCUTS_MARKDOWN_COMPONENTS}>
+              {KEYBOARD_SHORTCUTS_MARKDOWN}
+            </ReactMarkdown>
           </CollapsibleSection>
           <Separator />
 
           {!historicalMode && (
           <>
           <CollapsibleSection title="Visualization Modes" openAtom={isSettingsVisualizationModesOpenAtom} contentClassName="space-y-2 pt-2">
-            <p className="text-xs text-muted-foreground">
-              Grouped as they are in the panel — <span className="font-semibold text-foreground">Terrain Analysis</span>{" "}
-              (surface derivatives + neighborhood statistics), <span className="font-semibold text-foreground">Relief Visualization</span>{" "}
-              (multi-scale relief / visibility) and <span className="font-semibold text-foreground">Light</span> (normal-based shading).
-              Most are supported by — and inspired by — <span className="font-semibold text-foreground">gdaldem</span>{" "}
-              and the <span className="font-semibold text-foreground">RVT (Relief Visualization Toolbox)</span> QGIS plugin.
-            </p>
-
-            <div className="pt-1 text-xs font-semibold text-foreground">Terrain Analysis</div>
-
-            <div className="pt-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Surface derivatives</div>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <div><span className="font-semibold text-foreground">Slope:</span> magnitude of the gradient</div>
-              <div><span className="font-semibold text-foreground">Aspect:</span> direction of the gradient</div>
-              <div>
-                <div><span className="font-semibold text-foreground">Curvature:</span> rate of slope change — Profile, Plan, Mean/Combined, Gaussian (Det Hessian), or Casorati</div>
-                <ul className="list-disc pl-5 pt-1 space-y-1">
-                  <li><span className="font-medium text-foreground">Profile (Flow Acceleration):</span> rate of slope change along the steepest-descent direction, affects flow acceleration</li>
-                  <li><span className="font-medium text-foreground">Plan (Convergence/Divergence):</span> rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)</li>
-                  <li><span className="font-medium text-foreground">Mean/Combined:</span> discrete Laplacian (∇²z) — mean curvature H = (κ₁+κ₂)/2, general surface bending that doesn't separate flow direction from contour direction</li>
-                  <li><span className="font-medium text-foreground">Gaussian Curvature (Det Hessian):</span> determinant of the Hessian (fxx·fyy − fxy²) — Gaussian curvature K = κ₁·κ₂, a blob/saddle detector, positive at bowl/dome-shaped extrema and negative at saddle points</li>
-                  <li><span className="font-medium text-foreground">Casorati:</span> κ = √((κ₁²+κ₂²)/2) — RMS of the two principal curvatures (Koch, 1993); always ≥ 0, measures how curved the surface is regardless of shape (dome, ridge, saddle, valley and bowl all read the same), zero only on flat ground</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="pt-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Neighborhood statistics</div>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <div><span className="font-semibold text-foreground">TRI (Terrain Ruggedness Index):</span> mean elevation difference to neighbors</div>
-              <div><span className="font-semibold text-foreground">TPI (Topographic Position Index):</span> elevation relative to neighborhood mean</div>
-              <div><span className="font-semibold text-foreground">Roughness:</span> max−min elevation in a neighborhood</div>
-              <div><span className="font-semibold text-foreground">Shape Index:</span> SI = (2/π)·atan2(κ₁+κ₂, κ₁−κ₂) — Koenderink &amp; van Doorn (1992); scale-free and bounded to [−1, 1] regardless of curvature magnitude: +1 dome/peak, +0.5 ridge, 0 saddle, −0.5 valley, −1 pit/bowl</div>
-            </div>
-
-            <div className="pt-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Principal Components (PCA)</div>
-            <p className="text-xs text-muted-foreground">
-              A local 2D PCA of the window's gradient vectors, via the Förstner/Harris structure tensor
-              (box-averaged Ixx/Iyy/Ixy over a 5×5 window) — the same tensor behind all three modes below.
-            </p>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <div><span className="font-semibold text-foreground">Blobness:</span> det(J)/trace(J) — large where the gradient direction varies in every direction (peaks, pits, saddles, knolls), near zero on a uniform slope or straight ridge/valley; conflates shape with steepness</div>
-              <div><span className="font-semibold text-foreground">Eigenvalue Ratio:</span> λmin/λmax of the structure tensor (0–100%) — shape only, independent of steepness: 0% is a coherent linear feature (slope/ridge/valley), 100% is an isotropic blob (peak/pit/saddle)</div>
-              <div><span className="font-semibold text-foreground">Dominant Orientation:</span> axis (0–180°) of the tensor's dominant eigenvector — which way a linear feature (ridge, valley, fault line) runs; most meaningful where Eigenvalue Ratio is low</div>
-            </div>
-
-            <div className="pt-2 text-xs font-semibold text-foreground">Relief Visualization</div>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <div><span className="font-semibold text-foreground">LRM (Local Relief Model):</span> raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree. Conceptually close to <span className="font-medium text-foreground">HAG (Height Above Ground)</span>, but with the "ground" being that smoothed local trend surface rather than a classified bare-earth model.</div>
-              <div><span className="font-semibold text-foreground">SVF (Sky-View Factor):</span> the fraction of the sky hemisphere visible from a point (0–1), estimated from horizon angles sampled in many directions — darkens enclosed valleys and pits, brightens exposed ridges and summits, independent of any light direction</div>
-              <div><span className="font-semibold text-foreground">Openness (Positive / Negative):</span> the mean zenith (positive) or nadir (negative) horizon angle over a search radius — positive openness emphasizes convex, exposed features (ridges, crests), negative openness emphasizes concave ones (channels, pits); a diffuse, illumination-free relief</div>
-              <div><span className="font-semibold text-foreground">Local Dominance:</span> how much a location visually towers over its surroundings — the mean angular drop to the terrain around it across a radius range, highlighting locally elevated features such as mounds, plateaus and terraces</div>
-            </div>
-
-            <div className="pt-2 text-xs font-semibold text-foreground">Light</div>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <div><span className="font-semibold text-foreground">Matcap (material capture):</span> looks up a surface colour from a pre-lit sphere image using the surface normal as UV coordinates — a stylized, art-directable shading that doesn't depend on a directional light</div>
-              <div><span className="font-semibold text-foreground">Phong:</span> real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; "3D Slow" drapes over terrain/globe via raster tiles, "2D Fast" is a live GPU shader (see the Lighting Effects panel)</div>
-              <div><span className="font-semibold text-foreground">Shadows:</span> hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light (a single-ray horizon-angle march toward the sun's azimuth); shares Phong/Hillshade's light direction, no separate control of its own beyond opacity and search radius</div>
-              <div className="pt-1 italic">Neighborhood usually refers to a 3×3 kernel centered on the pixel.</div>
-            </div>
-
-            <div className="pt-2 text-xs font-semibold text-foreground">Terrain Encoding Functions</div>
-            <div className="space-y-2 text-sm font-mono bg-muted p-3 rounded">
-              <div><span className="font-semibold">TerrainRGB:</span><br /><code>height = -10000 + ((R * 256 * 256 + G * 256 + B) * 0.1)</code></div>
-              <div className="mt-2"><span className="font-semibold">Terrarium:</span><br /><code>height = (R * 256 + G + B / 256) - 32768</code></div>
-            </div>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={VIZ_MODES_DESCRIPTION_MARKDOWN_COMPONENTS}>
+              {VISUALIZATION_MODES_DESCRIPTION_MARKDOWN}
+            </ReactMarkdown>
           </CollapsibleSection>
           <Separator />
           </>
@@ -1020,66 +1079,48 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           </CollapsibleSection>
           <Separator />
           <CollapsibleSection title="Resources: MapLibre GL Features" openAtom={isSettingsResourcesOpenAtom}>
-            <div className="space-y-2 text-sm">
-
-                <a href="https://github.com/maplibre/maplibre-style-spec/issues/1374" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>New Normal-Derived Methods like slope, aspect etc (Design Proposal #1374)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://github.com/maplibre/maplibre-gl-js/pull/5768" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>Additional Hillshade Methods (combined, igor, multidir, PR #5768)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://github.com/maplibre/maplibre-gl-js/pull/5913" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>Hypsometric Tint color-relief (PR #5913)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://github.com/maplibre/maplibre-style-spec/issues/583#issuecomment-2028639772" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>Contour Lines and onthegomap/maplibre-contour plugin (Issue #583)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://labs.geomatico.es/maplibre-cog-protocol-examples/#/en/pirineo" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>Geomatico COG Protocol for Maplibre</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://github.com/maplibre/maplibre-gl-js/discussions/3378" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>3D Tiles early Discussion (#3378)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://github.com/dzfranklin/plantopo/issues/258" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>PlanTopo slope-server — custom maplibre protocol inspiration</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://www.npmjs.com/package/cpt2js" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>Color-ramps (Topo, topobath etc) distributed from cpt2js Package</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://rfspace.com/RFSPACE/SpectraFlux/colormaps/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>RFSpace/SpectraFlux Colormaps — mostly a wrapper around Kovesi&apos;s CET, matplotlib and SDR community ramps</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://colorcet.com/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>CET — Peter Kovesi&apos;s perceptually-uniform colormaps</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-              </div>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={RESOURCE_LINKS_MARKDOWN_COMPONENTS}>
+              {RESOURCES_MAPLIBRE_MARKDOWN}
+            </ReactMarkdown>
           </CollapsibleSection>
           <Separator />
           <CollapsibleSection title="Resources: Topography, Geomorphometry, Hydrology Scientific Literature and Tools" openAtom={isSettingsGeomorphometryOpenAtom}>
-            <div className="space-y-2 text-sm">
-                <a href="https://www.whiteboxgeo.com/manuals/qgis/terrain-analysis.html" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>WhiteboxTools Terrain Analysis Manual</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://web.archive.org/web/20251219110853/https://www.whiteboxgeo.com/manual/wbt_book/available_tools/geomorphometric_analysis.html" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>WhiteboxTools Geomorphometric Analysis Manual (Wayback archive, with screenshots)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://www.cnr.it/sites/default/files/public/media/attivita/editoria/Proceedings_Geomorphometry_2020-compressed.pdf" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>Geomorphometry 2020 Conference Proceedings (PDF)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://www.irpi.cnr.it/wp-content/uploads/2026/03/Proceedings_Geomorphometry_2025.pdf" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>Geomorphometry 2025 Conference Proceedings (PDF)</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://geomorphometry.fns.uniba.sk/calc-service/lsp_calculator" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>LSP Calculator — land surface parameters web service</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-                <a href="https://github.com/xiceph/physical-geomorphometry-tools/tree/main/lsp-calculator" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer">
-                  <span>LSP Calculator — source code</span><ExternalLink className="h-4 w-4 ml-auto shrink-0" />
-                </a>
-              </div>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={RESOURCE_LINKS_MARKDOWN_COMPONENTS}>
+              {RESOURCES_GEOMORPHOMETRY_MARKDOWN}
+            </ReactMarkdown>
           </CollapsibleSection>
 
         </div>
       </DialogContent>
+
+      {/* Changelog image lightbox — a plain portal-to-body overlay, not a
+          nested Base UI Dialog (see the state/handlers above for why). Plain
+          img at near-viewport size instead of a gallery/carousel: each
+          screenshot/gif already sits next to its own caption in the TL;DR
+          list it was clicked from, so there's no separate multi-image
+          browsing need. */}
+      {lightboxImage && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={handleLightboxOverlayClick}
+        >
+          <div ref={lightboxContentRef} className="rounded-lg overflow-hidden">
+            <img
+              src={lightboxImage.src}
+              alt={lightboxImage.alt}
+              // No w-full/h-full (that forced a fixed-box + letterbox layout
+              // before) — width/height "auto" render the image at its native
+              // size, only capped (never upscaled) by max-width/max-height,
+              // so this box (sized to fit its own content) always hugs the
+              // image with no bars.
+              style={{ width: "auto", height: "auto", maxWidth: "90vw", maxHeight: "90vh" }}
+              className="block"
+            />
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {showThemeEditor && (
         <ThemeEditorPanel
           onClose={() => setShowThemeEditor(false)}

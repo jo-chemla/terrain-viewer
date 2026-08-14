@@ -18,7 +18,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
-  appModeAtom, type AppMode,
+  appModeAtom, type AppMode, isHistoricalHostname,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -636,6 +636,12 @@ export const QUERY_STATE_PARSERS = {
     tellDetHessianMin: parseAsFloat.withDefault(0),
     tellMeasureScale: parseAsBoolean.withDefault(true),
     tellVetoResolution: parseAsStringLiteral(TELL_VETO_RESOLUTIONS).withDefault("coarse"),
+    // "Frozen" pins the currently-computed candidates in place (snapshotted
+    // into a plain geojson source, see the tellsFrozenSnapshot state and
+    // TellsSource's frozen/frozenSnapshot props below) so panning/zooming
+    // no longer fetches new tells:// tiles or recomputes detections — "Live"
+    // (the default) resumes the normal fetch-as-you-pan vector source.
+    tellsFrozen: parseAsBoolean.withDefault(false),
     showContoursAndGraticules: parseAsBoolean.withDefault(false),
     showContours: parseAsBoolean.withDefault(true),
     showContourLabels: parseAsBoolean.withDefault(true),
@@ -869,6 +875,43 @@ export function TerrainViewer() {
   // from a previous historical-mode session. Every other split style in
   // historical mode honors the user's chosen gridLayout.
   const isHistoricalMode = state.appMode === "historical"
+  // Snapshot taken the instant tellsFrozen flips to true — the currently
+  // rendered candidates, querySourceFeatures'd off the live "tellsSource"
+  // vector tiles into a plain geojson FeatureCollection. TellsSource swaps
+  // to rendering THIS (a static geojson source) instead of the live vector
+  // source while frozen, so panning/zooming stops triggering new tells://
+  // tile fetches — cleared back to null on unfreeze so the next freeze
+  // always re-captures fresh rather than reusing a stale set.
+  const [tellsFrozenSnapshot, setTellsFrozenSnapshot] = useState<GeoJSON.FeatureCollection | null>(null)
+  useEffect(() => {
+    if (!state.tellsFrozen) {
+      setTellsFrozenSnapshot(null)
+      // The live "tellsSource" vector source stays mounted the whole time
+      // (see MapSources.tsx's TellsSource), including while frozen — but
+      // since no visible layer references it while frozen, MapLibre never
+      // fetches its tiles for whatever the viewport panned to in the
+      // meantime. Tile loading is move/zoom-event-driven, not triggered by a
+      // layer re-attaching, so without this the just-unfrozen view can sit on
+      // stale/empty tiles until the next actual pan. Re-setting the same
+      // tiles array is MapLibre's supported way to force a full reload.
+      const map = mapRefs.A.current?.getMap()
+      const liveSource = map?.getSource("tellsSource") as maplibregl.VectorTileSource | undefined
+      const tiles = (liveSource as unknown as { _options?: { tiles?: string[] } })?._options?.tiles
+      if (liveSource && tiles) liveSource.setTiles(tiles)
+      return
+    }
+    const map = mapRefs.A.current?.getMap()
+    if (!map || !map.getSource("tellsSource")) return
+    const features = map.querySourceFeatures("tellsSource", { sourceLayer: "tells" })
+    // querySourceFeatures returns maplibre's internal MapGeoJSONFeature
+    // instances, not plain objects — handing those straight to a new
+    // <Source type="geojson"> fails maplibre's worker-side structured-clone
+    // step ("can't serialize object of unregistered class nf"). Round-trip
+    // through JSON to get plain, serializable Feature objects instead.
+    const plainFeatures = JSON.parse(JSON.stringify(features)) as GeoJSON.Feature[]
+    setTellsFrozenSnapshot({ type: "FeatureCollection", features: plainFeatures })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.tellsFrozen])
   const isSplit = state.splitStyle !== "off"
   const isOverlaySplit = state.splitStyle === "overlay"
   const effectiveGridLayout: GridLayoutId = (isOverlaySplit || !isHistoricalMode) ? "2x1" : state.gridLayout
@@ -1428,7 +1471,21 @@ export function TerrainViewer() {
     if (!searchParams.has("tellsBeta") && tellsBetaEnabled) stateOverrides.tellsBeta = true
     if (!searchParams.has("sunShadowBeta") && sunShadowBetaEnabled) stateOverrides.sunShadowBeta = true
     if (!searchParams.has("historicalBeta") && historicalBetaEnabled) stateOverrides.historicalBeta = true
-    if (!searchParams.has("appMode") && appModeEnabled !== "terrain") stateOverrides.appMode = appModeEnabled
+    if (!searchParams.has("appMode")) {
+      if (appModeEnabled !== "terrain") {
+        stateOverrides.appMode = appModeEnabled
+      } else {
+        // No explicit `?appMode=` and nothing persisted yet for this origin
+        // (a brand-new visitor, or one whose browser never stored an
+        // appMode preference here) — let the hostname itself pick a default.
+        // A domain unrelated to either deploy (a fork, localhost, a preview
+        // URL) matches neither branch and just keeps the normal "terrain"
+        // default, so this never breaks serving from another domain.
+        let hasStoredAppMode = false
+        try { hasStoredAppMode = window.localStorage.getItem("appMode") !== null } catch { /* storage blocked (e.g. embed sandbox) — fall through to hostname default */ }
+        if (!hasStoredAppMode && isHistoricalHostname(window.location.hostname)) stateOverrides.appMode = "historical"
+      }
+    }
 
     // Historical mode only ever shows the raster basemap (its Options/
     // Visualization Modes/Detectors/Elevation Picker sections are hidden
@@ -2223,7 +2280,7 @@ export function TerrainViewer() {
             // }
 
           }}
-          sky={state.showBackground ? getSkyConfig() : getNoSkyConfig()}
+          sky={state.showBackground && !isHistoricalMode ? getSkyConfig() : getNoSkyConfig()}
           minPitch={0}
           // 2D is a locked nadir top-down view: no pitch (maxPitch 0) and no
           // rotation (dragRotate off, roll off). 3D/globe stay free.
@@ -2321,7 +2378,7 @@ export function TerrainViewer() {
               Aspect/TRI/Curvature/Det Hessian/TPI/Roughness/Blobness gate on
               showTerrainAnalysis; LRM/SVF/Openness gate on showReliefVisualization. */}
           <SlopeSource
-            enabled={state.showTerrainAnalysis}
+            enabled={state.showTerrainAnalysis && !isHistoricalMode}
             sourceMode={state.slopeSourceMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
@@ -2330,7 +2387,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <AspectSource
-            enabled={state.showTerrainAnalysis}
+            enabled={state.showTerrainAnalysis && !isHistoricalMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2338,7 +2395,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <TriSource
-            enabled={state.showTerrainAnalysis}
+            enabled={state.showTerrainAnalysis && !isHistoricalMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2346,7 +2403,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <CurvatureSource
-            enabled={state.showTerrainAnalysis}
+            enabled={state.showTerrainAnalysis && !isHistoricalMode}
             mode={state.curvatureMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
@@ -2355,7 +2412,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <TpiSource
-            enabled={state.showTerrainAnalysis}
+            enabled={state.showTerrainAnalysis && !isHistoricalMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2367,7 +2424,7 @@ export function TerrainViewer() {
             // Relief Visualization's own master toggle — otherwise a
             // `source="lrmSource"` on PlaneSlicerLayer could point at a source
             // id that was never actually added to the map.
-            enabled={state.showReliefVisualization || (state.showPlaneSlicer && state.planeSlicerReferenceMode === "lrm")}
+            enabled={!isHistoricalMode && (state.showReliefVisualization || (state.showPlaneSlicer && state.planeSlicerReferenceMode === "lrm"))}
             radius={state.lrmRadius}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
@@ -2378,7 +2435,7 @@ export function TerrainViewer() {
             lng={state.lng}
           />
           <RoughnessSource
-            enabled={state.showTerrainAnalysis}
+            enabled={state.showTerrainAnalysis && !isHistoricalMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2386,7 +2443,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <ShapeIndexSource
-            enabled={state.showTerrainAnalysis}
+            enabled={state.showTerrainAnalysis && !isHistoricalMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2394,7 +2451,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <BlobnessSource
-            enabled={state.showTerrainAnalysis}
+            enabled={state.showTerrainAnalysis && !isHistoricalMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2402,7 +2459,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <EigenRatioSource
-            enabled={state.showTerrainAnalysis}
+            enabled={state.showTerrainAnalysis && !isHistoricalMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2410,7 +2467,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <OrientationSource
-            enabled={state.showTerrainAnalysis}
+            enabled={state.showTerrainAnalysis && !isHistoricalMode}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -2418,7 +2475,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <SvfSource
-            enabled={state.showReliefVisualization}
+            enabled={state.showReliefVisualization && !isHistoricalMode}
             radius={state.svfRadius}
             precision={state.svfPrecision}
             terrainSource={source}
@@ -2428,7 +2485,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <OpennessSource
-            enabled={state.showReliefVisualization}
+            enabled={state.showReliefVisualization && !isHistoricalMode}
             radius={state.opennessRadius}
             mode={state.opennessMode}
             precision={state.opennessPrecision}
@@ -2439,7 +2496,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <LocalDominanceSource
-            enabled={state.showReliefVisualization}
+            enabled={state.showReliefVisualization && !isHistoricalMode}
             minRadius={state.localDominanceMinRadius}
             maxRadius={state.localDominanceMaxRadius}
             terrainSource={source}
@@ -2449,7 +2506,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <MatcapSource
-            enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "raster"}
+            enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "raster" && !isHistoricalMode}
             matcapUrl={matcapUrlFor(state.matcapTextureId)}
             rotationDeg={matcapRasterRotationDeg}
             // Reapplied live to the cached (unexaggerated) normal map inside
@@ -2466,7 +2523,7 @@ export function TerrainViewer() {
           />
           <MatcapLiveGlLayer
             mapRef={mapRefs[side]}
-            enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "live"}
+            enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "live" && !isHistoricalMode}
             matcapUrl={matcapUrlFor(state.matcapTextureId)}
             rotationDeg={state.matcapRotationDeg}
             exaggeration={state.exaggeration}
@@ -2479,7 +2536,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <PhongSource
-            enabled={state.showLightingEffects && state.showPhong && effectivePhongRenderer === "raster"}
+            enabled={state.showLightingEffects && state.showPhong && effectivePhongRenderer === "raster" && !isHistoricalMode}
             diffuseStrength={phongRasterDiffuseStrength}
             specularStrength={phongRasterSpecularStrength}
             // 3D Slow (raster) is always ABSOLUTE — a per-frame camera headlamp
@@ -2499,7 +2556,7 @@ export function TerrainViewer() {
           />
           <PhongLiveGlLayer
             mapRef={mapRefs[side]}
-            enabled={state.showLightingEffects && state.showPhong && effectivePhongRenderer === "live"}
+            enabled={state.showLightingEffects && state.showPhong && effectivePhongRenderer === "live" && !isHistoricalMode}
             diffuseStrength={state.phongDiffuseStrength}
             specularStrength={state.phongSpecularStrength}
             // Raw compass azimuth + a relative flag: the live layer adds the
@@ -2518,7 +2575,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <ShadowSource
-            enabled={state.showLightingEffects && state.showShadows}
+            enabled={state.showLightingEffects && state.showShadows && !isHistoricalMode}
             lightDir={shadowLightDir}
             lightAlt={shadowLightAlt}
             radiusPx={state.shadowRadiusPx}
@@ -2537,6 +2594,8 @@ export function TerrainViewer() {
               maptilerKey={maptilerKey}
               titilerEndpoint={titilerEndpoint}
               tellsOptions={tellsOptions}
+              frozen={state.tellsFrozen}
+              frozenSnapshot={tellsFrozenSnapshot}
             />
           )}
           {isPrimary && (
@@ -2559,7 +2618,7 @@ export function TerrainViewer() {
               own react-map-gl <Layer> tree needs its own background fill;
               the mapRef prop itself is currently dead code inside
               BackgroundLayer (getBeforeId defined but unused). */}
-          {state.backgroundLayerActive && (
+          {state.backgroundLayerActive && !isHistoricalMode && (
             <BackgroundLayer theme={theme as any} mapRef={mapRefs[side] as any} />
           )}
           <RasterLayer
@@ -2570,34 +2629,35 @@ export function TerrainViewer() {
             <OverlayBasemapLayers overlayIds={state.overlayBasemapIds} opacity={state.rasterBasemapOpacity} customBasemapSources={customBasemapSources} />
           )}
           <ColorReliefLayer
-            showColorRelief={state.showColorRelief}
+            showColorRelief={state.showColorRelief && !isHistoricalMode}
             colorReliefPaint={colorReliefPaint}
           />
-          <SlopeReliefLayer enabled={state.showTerrainAnalysis} showSlope={state.showSlope} slopeReliefPaint={slopeReliefPaint} />
-          <AspectReliefLayer enabled={state.showTerrainAnalysis} showAspect={state.showAspect} aspectReliefPaint={aspectReliefPaint} />
-          <TriReliefLayer enabled={state.showTerrainAnalysis} showTri={state.showTri} triReliefPaint={triReliefPaint} />
-          <CurvatureReliefLayer enabled={state.showTerrainAnalysis} showCurvature={state.showCurvature} curvatureReliefPaint={curvatureReliefPaint} />
-          <TpiReliefLayer enabled={state.showTerrainAnalysis} showTpi={state.showTpi} tpiReliefPaint={tpiReliefPaint} />
-          <LrmReliefLayer enabled={state.showReliefVisualization} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
-          <RoughnessReliefLayer enabled={state.showTerrainAnalysis} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
-          <ShapeIndexReliefLayer enabled={state.showTerrainAnalysis} showShapeIndex={state.showShapeIndex} shapeIndexReliefPaint={shapeIndexReliefPaint} />
-          <BlobnessReliefLayer enabled={state.showTerrainAnalysis} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
-          <EigenRatioReliefLayer enabled={state.showTerrainAnalysis} showEigenRatio={state.showEigenRatio} eigenRatioReliefPaint={eigenRatioReliefPaint} />
-          <OrientationReliefLayer enabled={state.showTerrainAnalysis} showOrientation={state.showOrientation} orientationReliefPaint={orientationReliefPaint} />
-          <SvfReliefLayer enabled={state.showReliefVisualization} showSvf={state.showSvf} svfReliefPaint={svfReliefPaint} />
-          <OpennessReliefLayer enabled={state.showReliefVisualization} showOpenness={state.showOpenness} opennessReliefPaint={opennessReliefPaint} />
-          <LocalDominanceReliefLayer enabled={state.showReliefVisualization} showLocalDominance={state.showLocalDominance} localDominanceReliefPaint={localDominanceReliefPaint} />
-          <PlaneSlicerLayer enabled={state.showPlaneSlicer} referenceMode={state.planeSlicerReferenceMode} planeSlicerPaint={planeSlicerPaint} />
+          <SlopeReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode} showSlope={state.showSlope} slopeReliefPaint={slopeReliefPaint} />
+          <AspectReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode} showAspect={state.showAspect} aspectReliefPaint={aspectReliefPaint} />
+          <TriReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode} showTri={state.showTri} triReliefPaint={triReliefPaint} />
+          <CurvatureReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode} showCurvature={state.showCurvature} curvatureReliefPaint={curvatureReliefPaint} />
+          <TpiReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode} showTpi={state.showTpi} tpiReliefPaint={tpiReliefPaint} />
+          <LrmReliefLayer enabled={state.showReliefVisualization && !isHistoricalMode} showLrm={state.showLrm} lrmReliefPaint={lrmReliefPaint} />
+          <RoughnessReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode} showRoughness={state.showRoughness} roughnessReliefPaint={roughnessReliefPaint} />
+          <ShapeIndexReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode} showShapeIndex={state.showShapeIndex} shapeIndexReliefPaint={shapeIndexReliefPaint} />
+          <BlobnessReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode} showBlobness={state.showBlobness} blobnessReliefPaint={blobnessReliefPaint} />
+          <EigenRatioReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode} showEigenRatio={state.showEigenRatio} eigenRatioReliefPaint={eigenRatioReliefPaint} />
+          <OrientationReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode} showOrientation={state.showOrientation} orientationReliefPaint={orientationReliefPaint} />
+          <SvfReliefLayer enabled={state.showReliefVisualization && !isHistoricalMode} showSvf={state.showSvf} svfReliefPaint={svfReliefPaint} />
+          <OpennessReliefLayer enabled={state.showReliefVisualization && !isHistoricalMode} showOpenness={state.showOpenness} opennessReliefPaint={opennessReliefPaint} />
+          <LocalDominanceReliefLayer enabled={state.showReliefVisualization && !isHistoricalMode} showLocalDominance={state.showLocalDominance} localDominanceReliefPaint={localDominanceReliefPaint} />
+          <PlaneSlicerLayer enabled={state.showPlaneSlicer && !isHistoricalMode} referenceMode={state.planeSlicerReferenceMode} planeSlicerPaint={planeSlicerPaint} />
           {isPrimary && (
             <TellsMarkersLayer
               enabled={state.tellsBeta}
-              visible={state.showTellsDetector && state.tellsMarkersVisible}
+              visible={state.showTellsDetector && state.tellsMarkersVisible && !isHistoricalMode}
               style={state.tellsStyle}
               outlineColor={state.tellsOutlineColor}
               sizeByMeasuredScale={state.tellMeasureScale && state.tellsScaleMarkers}
               scaleMultiplier={state.tellsScaleMultiplier}
               latDeg={state.lat}
               colorByPaints={tellsColorByPaints}
+              frozen={state.tellsFrozen}
             />
           )}
           {isPrimary && <TellsUnfilteredLoaderLayer enabled={state.tellsBeta && tellsEverActivated} />}
@@ -2608,26 +2668,26 @@ export function TerrainViewer() {
             />
           )}
           <MatcapRasterLayer
-            enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "raster"}
+            enabled={state.showLightingEffects && state.showMatcap && state.matcapRenderer === "raster" && !isHistoricalMode}
             opacity={state.lightingEffectsOpacity * state.matcapOpacity}
           />
           <PhongRasterLayer
-            enabled={state.showLightingEffects && state.showPhong && state.phongRenderer === "raster"}
+            enabled={state.showLightingEffects && state.showPhong && state.phongRenderer === "raster" && !isHistoricalMode}
             opacity={state.lightingEffectsOpacity * state.phongOpacity}
           />
           <ShadowRasterLayer
-            enabled={state.showLightingEffects && state.showShadows}
+            enabled={state.showLightingEffects && state.showShadows && !isHistoricalMode}
             opacity={state.lightingEffectsOpacity * state.shadowOpacity}
           />
           <HillshadeLayer
-            showHillshade={state.showHillshade}
+            showHillshade={state.showHillshade && !isHistoricalMode}
             hillshadePaint={hillshadePaint}
           />
 
           {/* Contours — self-contained, primary map only */}
           {isPrimary && (
             <ContoursLayer
-              showContours={state.showContoursAndGraticules && state.showContours}
+              showContours={state.showContoursAndGraticules && state.showContours && !isHistoricalMode}
               showContourLabels={state.showContourLabels}
               sourceId={source}
               referenceMode={state.contourReferenceMode}
@@ -2646,9 +2706,9 @@ export function TerrainViewer() {
           )}
 
           {/* Graticules — primary map only */}
-          {isPrimary && state.showGraticules && (
+          {isPrimary && state.showGraticules && !isHistoricalMode && (
             <GraticuleLayer
-              showGraticules={state.showContoursAndGraticules && state.showGraticules}
+              showGraticules={state.showContoursAndGraticules && state.showGraticules && !isHistoricalMode}
               graticuleColor={state.graticuleColor || themeAntiColor}
               graticuleWidth={state.graticuleWidth}
               showLabels={state.showGraticuleLabels}
@@ -2713,6 +2773,7 @@ export function TerrainViewer() {
       )
     },
     [
+      isHistoricalMode,
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
       state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB, state.overlayBasemapIds,
       state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity,
@@ -2736,6 +2797,7 @@ export function TerrainViewer() {
       // them out of these deps was the "toggle it on but nothing shows until I
       // pan or edit a slider" desync — the memoized JSX simply never re-rendered.
       state.tellsStyle, state.showTellsDetector, state.tellsMarkersVisible, tellsOptions, state.tellsBeta, tellsEverActivated,
+      state.tellsFrozen, tellsFrozenSnapshot,
       tellsColorByPaints, state.tellsOutlineColor, state.tellsScaleMarkers, state.tellsScaleMultiplier, state.tellMeasureScale,
       state.showBackground, state.showGraticules, state.graticuleWidth, state.minimapMinimized,
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF, state.sourceG, state.sourceH, isSplit,

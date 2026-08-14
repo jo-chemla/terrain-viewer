@@ -1,0 +1,18 @@
+---
+title: Keyboard Shortcuts
+description: Every global keyboard shortcut, in one place
+---
+
+{/* Single source of truth: this file is rendered as-is here, and its body
+     (frontmatter stripped) is imported raw and rendered via react-markdown
+     in the app's Settings dialog — see lib/shared-docs.ts. Keep every bullet
+     as `key` (description) so both renderers can style the key consistently. */}
+
+- `Shift` (tap alone, either side, Terrain mode only) — toggle the Raster Basemap on/off, without opening the sidebar.
+- `Ctrl` (tap alone, either side, Terrain mode only) — hide every visualization mode down to just the plain basemap; tap again to restore whichever modes were on.
+- `Space` — re-toggle whichever visualization-mode checkbox you last clicked, even after a map drag has moved keyboard focus onto the map canvas.
+- `L` (hold, Terrain mode only) + drag — set the Hillshade illumination direction/altitude directly on the map instead of panning it; release L or the mouse to exit.
+- `Ctrl` + `K` — jump focus to the search box (geocoder) from anywhere.
+- `←` / `→` (after editing a dropdown) — cycle through that dropdown's options without reopening it.
+- `←` / `→` (Historical Timeline, after picking a date) — step that view's picked date one mark at a time.
+- `Ctrl` + drag (Historical Timeline handle) — also sweeps every other handle on that same side along with it, by the same number of marks.

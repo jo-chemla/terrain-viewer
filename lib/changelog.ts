@@ -22,7 +22,11 @@ export interface ChangelogEntry {
   /** Raw markdown of this entry's "#### TL;DR" bullet list (empty string if
    *  the entry has none). Kept as markdown rather than split into plain
    *  strings so a bullet can carry inline formatting or an image/gif
-   *  (public/docs/changelog/*, referenced root-relative) — rendered via
+   *  (docs/public/screenshots/*, referenced as /docs/screenshots/* — served
+   *  by the docs app, itself proxied at /docs in dev and merged into
+   *  dist/docs in prod, see vite.config.ts and the GH Pages workflow; this
+   *  keeps one canonical copy shared with the docs/marketing site itself
+   *  rather than a separate copy for the changelog) — rendered via
    *  ReactMarkdown wherever this entry appears. Both the "since you last
    *  looked" list and the "full changelog" view show ONLY this — the
    *  detailed Features/Bug Fixes prose below it in CHANGELOG.md is written

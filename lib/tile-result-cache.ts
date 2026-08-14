@@ -76,11 +76,20 @@ export function withTileResultCache<
       // Re-insert to refresh LRU recency.
       lru.delete(params.url)
       lru.set(params.url, hit)
-      return { data: hit }
+      // maplibre transfers a protocol response's ArrayBuffer to its worker
+      // (detaching it) — handing out the cache's own retained buffer would
+      // detach OUR copy too, so the next hit on this key tries to transfer
+      // an already-detached buffer ("DataCloneError: ArrayBuffer ... already
+      // detached"). .slice() hands over an independent copy every time.
+      return { data: hit.slice() }
     }
     misses++
     const result = await inner(params, abortController)
-    if (result?.data instanceof Uint8Array) put(params.url, result.data)
+    // Same detachment risk as above, from the other direction: `result.data`
+    // is about to be returned to maplibre (and transferred/detached) below,
+    // so the LRU must retain its own independent copy rather than that same
+    // object, or the very first future hit on this key would already be dead.
+    if (result?.data instanceof Uint8Array) put(params.url, result.data.slice())
     return result
   }
   return wrapped as T

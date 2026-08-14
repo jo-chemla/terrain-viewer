@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label"
 import { useIsTruncated } from "@/hooks/use-is-truncated"
 import { cn } from "@/lib/utils"
 import { restoreBookmark, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, type Bookmark } from "@/lib/bookmarks"
-import { galleryFlattenGroupsAtom } from "@/lib/settings-atoms"
+import { PRESET_BOOKMARKS, restorePreset } from "@/lib/preset-bookmarks"
+import { galleryFlattenGroupsAtom, galleryShowFeaturedAtom } from "@/lib/settings-atoms"
 
 // Fullscreen gallery — the other half of bookmarks-section.tsx's sidebar
 // list. Built on the same Dialog primitives as settings-dialog.tsx (rather
@@ -37,7 +38,7 @@ const BookmarkCard: React.FC<{
   onCommitRename: (id: string, name: string) => void
   onStartEdit: (b: Bookmark) => void
   onCancelEdit: () => void
-  onDelete: (id: string) => void
+  onDelete?: (id: string) => void
   onRename?: (id: string, name: string) => void
 }> = ({
   bookmark: b, parentName, isReferenceProject, isActive, editId, editName,
@@ -102,9 +103,11 @@ const BookmarkCard: React.FC<{
             </button>
           )
         )}
-        <button onClick={() => onDelete(b.id)} className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
-          <Trash2 className="h-3 w-3" />
-        </button>
+        {onDelete && (
+          <button onClick={() => onDelete(b.id)} className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
+            <Trash2 className="h-3 w-3" />
+          </button>
+        )}
       </div>
     </div>
   )
@@ -125,6 +128,14 @@ export const BookmarksGalleryModal: React.FC<{
   const [activeProjectId, setActiveProjectId] = useAtom(activeBookmarkProjectIdAtom)
   const [activeBookmarkId, setActiveBookmarkId] = useAtom(activeBookmarkIdAtom)
   const [flattenGroups, setFlattenGroups] = useAtom(galleryFlattenGroupsAtom)
+  const [showFeatured, setShowFeatured] = useAtom(galleryShowFeaturedAtom)
+
+  const handleRestorePreset = (preset: Bookmark) => {
+    restorePreset(preset, setState, mapRef)
+    setActiveBookmarkId(null)
+    setActiveProjectId(null)
+    onClose()
+  }
 
   const compareBookmarks = useCallback((a: Bookmark, b: Bookmark) => {
     if (sort === "name") return a.name.localeCompare(b.name)
@@ -196,6 +207,21 @@ export const BookmarksGalleryModal: React.FC<{
             <TooltipTrigger
               render={
                 <div className="flex items-center gap-1.5">
+                  <Label htmlFor="gallery-show-featured" className="text-xs text-muted-foreground cursor-pointer">Featured</Label>
+                  <Switch id="gallery-show-featured" checked={showFeatured} onCheckedChange={setShowFeatured} className="cursor-pointer" />
+                </div>
+              }
+            />
+            <TooltipContent>
+              <p>{showFeatured
+                ? "Curated example viewpoints shown at the top, above your own bookmarks"
+                : "Hide the curated examples — only your own bookmarks"}</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <div className="flex items-center gap-1.5">
                   <Label htmlFor="gallery-flatten" className="text-xs text-muted-foreground cursor-pointer">Flatten</Label>
                   <Switch id="gallery-flatten" checked={flattenGroups} onCheckedChange={setFlattenGroups} className="cursor-pointer" />
                 </div>
@@ -223,6 +249,31 @@ export const BookmarksGalleryModal: React.FC<{
           </Select>
         </div>
 
+        <div className="space-y-4">
+        {showFeatured && (
+          <div>
+            <h3 className="mb-1.5 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Featured
+            </h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {PRESET_BOOKMARKS.map((preset) => (
+                <BookmarkCard
+                  key={preset.id}
+                  bookmark={preset}
+                  isReferenceProject={false}
+                  isActive={false}
+                  editId={null}
+                  editName=""
+                  onRestore={handleRestorePreset}
+                  onEditNameChange={() => {}}
+                  onCommitRename={() => {}}
+                  onStartEdit={() => {}}
+                  onCancelEdit={() => {}}
+                />
+              ))}
+            </div>
+          </div>
+        )}
         {groups.length === 0 ? (
           <p className="text-sm text-muted-foreground">No bookmarks yet — save your current view from the Bookmarks panel.</p>
         ) : flattenGroups ? (
@@ -278,6 +329,7 @@ export const BookmarksGalleryModal: React.FC<{
             ))}
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   )

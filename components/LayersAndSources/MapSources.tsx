@@ -1113,9 +1113,19 @@ export interface TellsSourceProps {
     // on the regular "tellsSource" can never see rejected candidates without a
     // second differently-configured source like this one.
     variant?: "filtered" | "unfiltered"
+    // "Frozen" (see the tellsFrozen nuqs state and its capture effect in
+    // TerrainViewer.tsx) swaps this source from the live tells:// vector
+    // tiles to a static geojson snapshot of whatever was already loaded the
+    // instant freezing began — panning/zooming a frozen map no longer
+    // fetches new tiles or changes what's shown. Only meaningful for the
+    // "filtered" variant: the unfiltered source only ever exists for the
+    // Export button's on-demand querySourceFeatures, which freezing has no
+    // reason to affect.
+    frozen?: boolean
+    frozenSnapshot?: GeoJSON.FeatureCollection | null
 }
 
-export const TellsSource = memo(({ enabled, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, tellsOptions, variant = "filtered" }: TellsSourceProps) => {
+export const TellsSource = memo(({ enabled, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, tellsOptions, variant = "filtered", frozen = false, frozenSnapshot = null }: TellsSourceProps) => {
     const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
     if (!enabled || !clientUpstream) return null
     const effectiveOptions = variant === "unfiltered"
@@ -1123,14 +1133,29 @@ export const TellsSource = memo(({ enabled, terrainSource, customTerrainSources,
         : tellsOptions
     const sourceId = variant === "unfiltered" ? "tellsSourceUnfiltered" : "tellsSource"
     const url = buildTellsProtocolUrl(clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize, effectiveOptions)
+    // The live vector source stays mounted (under its own stable key) even
+    // while frozen — TellsMarkersLayer stops referencing it (switches to
+    // "tellsSourceFrozen" instead, see MapLayers.tsx), which per MapLibre's
+    // own "no visible layer -> no tile fetch" behavior already satisfies
+    // Frozen's "pan/zoom won't refresh them" contract, without ever calling
+    // removeSource on a source that may still have tiles in flight. Actually
+    // removing/re-adding "tellsSource" the instant Frozen flips on raced
+    // MapLibre's worker tile-transfer teardown ("DataCloneError: ArrayBuffer
+    // ... already detached") whenever a tile request was still in flight at
+    // that exact moment.
     return (
-        <Source
-            id={sourceId}
-            key={`${sourceId}-${terrainSource}-${clientUpstream.template}-${effectiveOptions.tellSizeMeters}-${effectiveOptions.radiusPx}-${effectiveOptions.minReliefMeters}-${effectiveOptions.blobnessMin}-${effectiveOptions.planMin}-${effectiveOptions.detHessianMin}-${effectiveOptions.measureScale}-${effectiveOptions.vetoResolution}`}
-            type="vector"
-            tiles={[url]}
-            maxzoom={15}
-        />
+        <>
+            <Source
+                id={sourceId}
+                key={`${sourceId}-${terrainSource}-${clientUpstream.template}-${effectiveOptions.tellSizeMeters}-${effectiveOptions.radiusPx}-${effectiveOptions.minReliefMeters}-${effectiveOptions.blobnessMin}-${effectiveOptions.planMin}-${effectiveOptions.detHessianMin}-${effectiveOptions.measureScale}-${effectiveOptions.vetoResolution}`}
+                type="vector"
+                tiles={[url]}
+                maxzoom={15}
+            />
+            {variant === "filtered" && frozen && frozenSnapshot && (
+                <Source id="tellsSourceFrozen" key="tellsSourceFrozen" type="geojson" data={frozenSnapshot} />
+            )}
+        </>
     )
 })
 TellsSource.displayName = "TellsSource"

@@ -12,7 +12,7 @@ import { Section, CycleButtonGroup, SliderControl, SourceGridToggle, GroupHeadin
 import { BasemapByodSection } from "./basemap-byod-section"
 import { useBingCaptureDate } from "@/lib/bing"
 import { useEsriLiveCaptureDate } from "@/lib/wayback"
-import { viewFieldName, type ViewId } from "@/lib/grid-layouts"
+import { activeViews, viewFieldName, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 
 // Kept as the full static list (including key-gated providers) so callers like
 // TerrainViewer's isKnownId check still recognize a persisted "here" selection
@@ -147,34 +147,46 @@ export const RasterBasemapSection: React.FC<{
             isSplit ? (
               <div className="space-y-1.5">
                 <GroupHeading>Basemaps</GroupHeading>
-                {visibleBuiltinOptions.map(({ value, label }) => (
-                  <div key={value} className="flex items-center gap-2 min-w-0">
-                    <SourceGridToggle
-                      // Terrain mode's own split (Overlay or Side) is always
-                      // forced to 2x1 (see TerrainViewer's effectiveGridLayout),
-                      // but state.gridLayout itself isn't reset on a mode
-                      // switch — without the !historicalMode check here, this
-                      // picker kept showing whichever grid (e.g. 3x2, A-F) was
-                      // last picked in Historical mode even after the map
-                      // itself had already collapsed back to just A/B.
-                      gridLayout={(state.splitStyle === "overlay" || !historicalMode) ? "2x1" : state.gridLayout}
-                      // isSplit always means per-view basemap fields, even if
-                      // basemapPerView's own persisted value happens to be
-                      // false — see perViewEffective's header comment above.
-                      isActive={(side: ViewId) => state[viewFieldName(side, "basemapSource", true)] === value}
-                      onSelect={(side: ViewId) => setState({ [viewFieldName(side, "basemapSource", true)]: value })}
-                    />
-                    <Label className="flex-1 text-sm truncate min-w-0">
-                      {label}
-                      {value === "bing" && bingCaptureLabel && (
-                        <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
-                      )}
-                      {value === "esri" && esriCaptureLabel && (
-                        <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
-                      )}
-                    </Label>
-                  </div>
-                ))}
+                {visibleBuiltinOptions.map(({ value, label }) => {
+                  // Terrain mode's own split (Overlay or Side) is always
+                  // forced to 2x1 (see TerrainViewer's effectiveGridLayout),
+                  // but state.gridLayout itself isn't reset on a mode
+                  // switch — without the !historicalMode check here, this
+                  // picker kept showing whichever grid (e.g. 3x2, A-F) was
+                  // last picked in Historical mode even after the map
+                  // itself had already collapsed back to just A/B.
+                  const gridLayout: GridLayoutId = (state.splitStyle === "overlay" || !historicalMode) ? "2x1" : state.gridLayout
+                  const setAllViewsToThisSource = () => {
+                    const patch: Record<string, string> = {}
+                    for (const side of activeViews(gridLayout)) patch[viewFieldName(side, "basemapSource", true)] = value
+                    setState(patch)
+                  }
+                  return (
+                    <div key={value} className="flex items-center gap-2 min-w-0">
+                      <SourceGridToggle
+                        gridLayout={gridLayout}
+                        // isSplit always means per-view basemap fields, even if
+                        // basemapPerView's own persisted value happens to be
+                        // false — see perViewEffective's header comment above.
+                        isActive={(side: ViewId) => state[viewFieldName(side, "basemapSource", true)] === value}
+                        onSelect={(side: ViewId) => setState({ [viewFieldName(side, "basemapSource", true)]: value })}
+                      />
+                      <Label
+                        className="flex-1 text-sm truncate min-w-0 cursor-pointer"
+                        title={`Set all views to ${label}`}
+                        onClick={setAllViewsToThisSource}
+                      >
+                        {label}
+                        {value === "bing" && bingCaptureLabel && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
+                        )}
+                        {value === "esri" && esriCaptureLabel && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
+                        )}
+                      </Label>
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <div className="space-y-1">

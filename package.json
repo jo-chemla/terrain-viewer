@@ -8,7 +8,11 @@
     "build": "vite build",
     "zip": "del dist.zip && vite build && \"C:\\Program Files\\7-Zip\\7z.exe\" a dist.zip dist",
     "preview": "vite preview",
-    "shadcn:add": "shadcn add -b base"
+    "shadcn:add": "shadcn add -b base",
+    "docs:install": "pnpm --dir docs install",
+    "docs:dev": "pnpm --dir docs dev",
+    "docs:build": "pnpm --dir docs build",
+    "docs:preview": "pnpm --dir docs start"
   },
   "packageManager": "pnpm@10.20.0",
   "dependencies": {
@@ -83,6 +87,7 @@
     "@types/tinycolor2": "^1.4.6",
     "@types/tz-lookup": "^6.1.2",
     "@types/vt-pbf": "^3.1.1",
+    "ffmpeg-static": "^5.3.0",
     "knip": "^6.29.0",
     "react-scan": "^0.5.7",
     "tailwindcss": "^4.1.17",

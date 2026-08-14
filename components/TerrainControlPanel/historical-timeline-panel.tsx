@@ -79,6 +79,19 @@ type TimelineTick = { source: string; key: number; dateMs: number; label: string
 // controlling how much each wheel tick zooms by.
 const MIN_VISIBLE_SPAN_MS = 1000 * 60 * 60 * 24 * 14
 const ZOOM_FACTOR = 0.85
+// How far the zoom-out limit (and the pan-gutter's own 100%-width extent)
+// reaches PAST the true oldest/newest tick on each side — without this, the
+// two extreme ticks sit exactly at frac 0/1, pinned right against the
+// track's edge with no breathing room, and half a handle can render clipped
+// off the visible track. 10% of the true span per side, but capped at 6
+// months — a flat 10% is fine for a typical multi-year span, but for a very
+// long one (e.g. a 1945-2025 GE Historical outlier) it let the zoomed-out
+// view pan years past both real ends (8 years each side for an 80-year
+// span). Whichever of the two is smaller applies, so a short span still
+// gets its full proportional padding instead of being swallowed by a fixed
+// cap sized for decades-long spans.
+const ZOOM_OUT_PADDING_FRACTION = 0.1
+const ZOOM_OUT_PADDING_MAX_MS = 1000 * 60 * 60 * 24 * 182.5 // ~6 months
 // How long a gap between wheel events ends the current pan/zoom gesture and
 // lets the next event's own deltaX/deltaY ratio re-decide the mode — see
 // wheelGestureRef above.
@@ -611,34 +624,41 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const fullMax = items[items.length - 1]?.dateMs ?? fullMin + 1
   const fullSpan = Math.max(1, fullMax - fullMin)
   const defaultMin = fullMax > DEFAULT_VIEW_FLOOR_MS ? Math.max(fullMin, DEFAULT_VIEW_FLOOR_MS) : fullMin
+  // The actual reachable zoom-out/pan boundary — every fullMin/fullMax used
+  // below as a hard zoom/pan limit (as opposed to the raw tick data itself)
+  // is now this, not the true unpadded domain — see ZOOM_OUT_PADDING_FRACTION.
+  const zoomOutPaddingMs = Math.min(fullSpan * ZOOM_OUT_PADDING_FRACTION, ZOOM_OUT_PADDING_MAX_MS)
+  const paddedMin = fullMin - zoomOutPaddingMs
+  const paddedMax = fullMax + zoomOutPaddingMs
+  const paddedSpan = paddedMax - paddedMin
   // Sticky once true — the wheel-zoom handler and the pan-gutter below both
   // set this on the FIRST real interaction. Needed because zooming/panning
-  // all the way back out to the true full extent resets viewWindow to null
+  // all the way back out to the padded full extent resets viewWindow to null
   // (same "no zoom active" state as the pristine initial render, see the
-  // wheel handler's own `newSpan >= fullSpan ? null : ...`) — without this,
+  // wheel handler's own `newSpan >= paddedSpan ? null : ...`) — without this,
   // effectiveMin would then snap back to the floored defaultMin instead of
-  // staying at the true fullMin, undoing the very zoom-out the user just did.
+  // staying at paddedMin, undoing the very zoom-out the user just did.
 
   // Re-clamp a zoomed window whenever the full extent itself shifts (e.g. a
   // pill toggle shrinks the dataset) so a stale window can't reference dates
   // outside the new full range.
   useEffect(() => {
     if (!viewWindow) return
-    const min = Math.max(fullMin, viewWindow.min)
-    const max = Math.min(fullMax, viewWindow.max)
+    const min = Math.max(paddedMin, viewWindow.min)
+    const max = Math.min(paddedMax, viewWindow.max)
     if (max <= min) { setViewWindow(null); return }
     if (min !== viewWindow.min || max !== viewWindow.max) setViewWindow({ min, max })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullMin, fullMax])
+  }, [paddedMin, paddedMax])
 
-  const effectiveMin = viewWindow ? Math.max(fullMin, viewWindow.min) : (hasZoomedRef.current ? fullMin : defaultMin)
-  const effectiveMax = viewWindow ? Math.min(fullMax, viewWindow.max) : fullMax
+  const effectiveMin = viewWindow ? Math.max(paddedMin, viewWindow.min) : (hasZoomedRef.current ? paddedMin : defaultMin)
+  const effectiveMax = viewWindow ? Math.min(paddedMax, viewWindow.max) : paddedMax
   const effectiveSpan = Math.max(1, effectiveMax - effectiveMin)
   // Is there real content outside the current view (pan gutter's own
   // visibility gate) — independent of whether the user has ever actually
   // zoomed (viewWindow can be null while this is still true, e.g. the very
   // first render with an outlier tick clipped by the 2010 default-view floor).
-  const hasHiddenRange = effectiveSpan < fullSpan - 1
+  const hasHiddenRange = effectiveSpan < paddedSpan - 1
   const fracForTick = useCallback((tick: TimelineTick) => Math.min(1, Math.max(0, (tick.dateMs - effectiveMin) / effectiveSpan)), [effectiveMin, effectiveSpan])
 
   // Only ticks inside the current zoom window actually render — clamping
@@ -761,9 +781,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     if (dateMs >= effectiveMin && dateMs <= effectiveMax) return
     const span = effectiveMax - effectiveMin
     let newMin = dateMs - span / 2
-    newMin = Math.max(fullMin, Math.min(fullMax - span, newMin))
+    newMin = Math.max(paddedMin, Math.min(paddedMax - span, newMin))
     setViewWindow({ min: newMin, max: newMin + span })
-  }, [viewWindow, effectiveMin, effectiveMax, fullMin, fullMax])
+  }, [viewWindow, effectiveMin, effectiveMax, paddedMin, paddedMax])
 
   // An off-screen handle's chevron click used to recenter the view exactly
   // on that handle's own date — jumping straight to it rather than letting
@@ -786,13 +806,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     let newMax = effectiveMax
     if (dir === "left") {
       const delta = effectiveMin - targetDateMs
-      newMin = Math.max(fullMin, targetDateMs - delta * CHEVRON_EXPAND_FRACTION)
+      newMin = Math.max(paddedMin, targetDateMs - delta * CHEVRON_EXPAND_FRACTION)
     } else {
       const delta = targetDateMs - effectiveMax
-      newMax = Math.min(fullMax, targetDateMs + delta * CHEVRON_EXPAND_FRACTION)
+      newMax = Math.min(paddedMax, targetDateMs + delta * CHEVRON_EXPAND_FRACTION)
     }
-    setViewWindow(newMax - newMin >= fullSpan ? null : { min: newMin, max: newMax })
-  }, [effectiveMin, effectiveMax, fullMin, fullMax, fullSpan])
+    setViewWindow(newMax - newMin >= paddedSpan ? null : { min: newMin, max: newMax })
+  }, [effectiveMin, effectiveMax, paddedMin, paddedMax, paddedSpan])
 
   // The single entry point for "a tick was picked", whether by click, drag,
   // or arrow-key step — always applies to exactly ONE side (explicit, from a
@@ -872,7 +892,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     return () => window.removeEventListener("keydown", handler)
   }, [panelVisible, step])
 
-  // Mousewheel zoom/pan reads effectiveMin/Max/Span, fullMin/Max/Span and
+  // Mousewheel zoom/pan reads effectiveMin/Max/Span, paddedMin/Max/Span and
   // viewWindow — all of which change on EVERY wheel tick once zoomed in.
   // Keeping those in the listener effect's own dependency array (as before)
   // meant the effect tore down and re-added the native "wheel" listener on
@@ -887,9 +907,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // lets the listener itself be attached exactly ONCE (whenever
   // panelVisible flips true) while always reading the LATEST values on each
   // event, regardless of how fast they arrive.
-  const wheelStateRef = useRef({ effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow, hasHiddenRange })
+  const wheelStateRef = useRef({ effectiveMin, effectiveMax, effectiveSpan, paddedMin, paddedMax, paddedSpan, viewWindow, hasHiddenRange })
   useEffect(() => {
-    wheelStateRef.current = { effectiveMin, effectiveMax, effectiveSpan, fullMin, fullMax, fullSpan, viewWindow, hasHiddenRange }
+    wheelStateRef.current = { effectiveMin, effectiveMax, effectiveSpan, paddedMin, paddedMax, paddedSpan, viewWindow, hasHiddenRange }
   })
 
   // Coalesces rapid wheel events (a trackpad's momentum-deceleration tail
@@ -929,9 +949,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       // however many events got batched into that frame.
       const pending = pendingViewWindowRef.current
       const committed = wheelStateRef.current
-      const { fullMin, fullMax, fullSpan, hasHiddenRange } = committed
-      const effectiveMin = pending ? (pending.window?.min ?? fullMin) : committed.effectiveMin
-      const effectiveMax = pending ? (pending.window?.max ?? fullMax) : committed.effectiveMax
+      const { paddedMin, paddedMax, paddedSpan, hasHiddenRange } = committed
+      const effectiveMin = pending ? (pending.window?.min ?? paddedMin) : committed.effectiveMin
+      const effectiveMax = pending ? (pending.window?.max ?? paddedMax) : committed.effectiveMax
       const effectiveSpan = effectiveMax - effectiveMin
       // A trackpad's two-finger swipe fires wheel events with deltaX
       // dominant (vs. deltaY for a mouse wheel / vertical scroll gesture) —
@@ -962,18 +982,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         const span = effectiveMax - effectiveMin
         const deltaMs = (e.deltaX / rect.width) * effectiveSpan
         let newMin = effectiveMin + deltaMs
-        newMin = Math.max(fullMin, Math.min(fullMax - span, newMin))
+        newMin = Math.max(paddedMin, Math.min(paddedMax - span, newMin))
         scheduleViewWindow({ min: newMin, max: newMin + span })
         return
       }
       const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
       const cursorDate = effectiveMin + frac * effectiveSpan
       const factor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR
-      const newSpan = Math.min(fullSpan, Math.max(MIN_VISIBLE_SPAN_MS, effectiveSpan * factor))
+      const newSpan = Math.min(paddedSpan, Math.max(MIN_VISIBLE_SPAN_MS, effectiveSpan * factor))
       let newMin = cursorDate - frac * newSpan
-      newMin = Math.max(fullMin, Math.min(fullMax - newSpan, newMin))
+      newMin = Math.max(paddedMin, Math.min(paddedMax - newSpan, newMin))
       const newMax = newMin + newSpan
-      scheduleViewWindow(newSpan >= fullSpan ? null : { min: newMin, max: newMax })
+      scheduleViewWindow(newSpan >= paddedSpan ? null : { min: newMin, max: newMax })
     }
     el.addEventListener("wheel", handleWheel, { passive: false })
     return () => {
@@ -1501,7 +1521,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             const rect = e.currentTarget.getBoundingClientRect()
             const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
             const span = effectiveMax - effectiveMin
-            const newMin = Math.max(fullMin, Math.min(fullMax - span, fullMin + frac * fullSpan - span / 2))
+            const newMin = Math.max(paddedMin, Math.min(paddedMax - span, paddedMin + frac * paddedSpan - span / 2))
             setViewWindow({ min: newMin, max: newMin + span })
           }}
         >
@@ -1520,9 +1540,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             onPointerMove={(e: React.PointerEvent) => {
               const drag = gutterDragRef.current
               if (!drag || !e.currentTarget.hasPointerCapture(e.pointerId)) return
-              const deltaMs = ((e.clientX - drag.startClientX) / drag.gutterWidthPx) * fullSpan
+              const deltaMs = ((e.clientX - drag.startClientX) / drag.gutterWidthPx) * paddedSpan
               const span = effectiveMax - effectiveMin
-              const newMin = Math.max(fullMin, Math.min(fullMax - span, drag.startMin + deltaMs))
+              const newMin = Math.max(paddedMin, Math.min(paddedMax - span, drag.startMin + deltaMs))
               setViewWindow({ min: newMin, max: newMin + span })
             }}
             onPointerUp={(e: React.PointerEvent) => { e.currentTarget.releasePointerCapture(e.pointerId); gutterDragRef.current = null }}
@@ -1531,8 +1551,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               hasHiddenRange ? "bg-muted-foreground/50 hover:bg-muted-foreground/70 cursor-grab active:cursor-grabbing" : "bg-transparent",
             )}
             style={{
-              left: hasHiddenRange ? `${((effectiveMin - fullMin) / fullSpan) * 100}%` : "0%",
-              width: hasHiddenRange ? `${Math.max(4, (effectiveSpan / fullSpan) * 100)}%` : "100%",
+              left: hasHiddenRange ? `${((effectiveMin - paddedMin) / paddedSpan) * 100}%` : "0%",
+              width: hasHiddenRange ? `${Math.max(4, (effectiveSpan / paddedSpan) * 100)}%` : "100%",
             }}
           />
         </div>

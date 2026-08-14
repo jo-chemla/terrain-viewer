@@ -33,8 +33,15 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            docs/pnpm-lock.yaml
       - name: Install
         run: pnpm install --frozen-lockfile
+      - name: Install docs
+        # docs/ is a separate standalone Next.js (Fumadocs) app — its own
+        # pnpm-lock.yaml/node_modules, not covered by the install above.
+        run: pnpm --dir docs install --frozen-lockfile
       - name: Create .env
         shell: bash
         run: |
@@ -44,6 +51,18 @@ jobs:
       - name: Build
         run: |
           pnpm build
+      - name: Build docs
+        run: |
+          pnpm run docs:build
+          # dist/docs already exists at this point (public/docs/* — changelog
+          # screenshots/gifs — was copied there by the app's own `pnpm build`
+          # above). Next's static export (docs/out/) doesn't itself nest
+          # under a "docs" folder (basePath only affects generated asset/link
+          # URLs, not the output file layout) — merge its *contents* into
+          # dist/docs rather than copying the "out" folder itself as a new
+          # subdirectory.
+          mkdir -p dist/docs
+          cp -r docs/out/. dist/docs/
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

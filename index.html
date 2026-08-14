@@ -5,15 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Terrain Viewer</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- Purple favicon everywhere except the real production domain (any local
+    <!-- Purple favicon everywhere except the real production domains (any local
          dev port, preview/staging deploy, etc.) so an open prod tab is never
          visually confusable with a dev one. Inline + synchronous (not a React
-         effect) so it swaps before first paint, no flash of the wrong icon. -->
+         effect) so it swaps before first paint, no flash of the wrong icon.
+         historical-satellite.iconem.com (and any subdomain, e.g. a legacy
+         "old." one) is the historical-imagery-only deploy of this same app —
+         see isHistoricalHostname in lib/settings-atoms.ts — and gets its own
+         icon shape (a clock, matching the historical-timeline toggle's own
+         lucide Clock icon, see HistoricalTimelineToggle.tsx) instead of the
+         mountain, on top of the same prod/dev color convention. Any other/
+         unknown hostname (a fork, a preview URL) falls through to the plain
+         dev mountain favicon, the safe default either way. -->
     <script>
       (function () {
-        if (location.hostname === "terrain-viewer.iconem.com") return
+        var host = location.hostname
+        var isHistorical = host === "historical-satellite.iconem.com" || /\.historical-satellite\.iconem\.com$/.test(host)
+        var isProd = host === "terrain-viewer.iconem.com" || isHistorical
+        var href = isHistorical
+          ? (isProd ? "/favicon-historical.svg" : "/favicon-historical-dev.svg")
+          : (isProd ? "/favicon.svg" : "/favicon-dev.svg")
         var link = document.querySelector('link[rel="icon"]')
-        if (link) link.href = "/favicon-dev.svg"
+        if (link) link.href = href
       })()
     </script>
     <!-- HeritageWatch AI brand fonts (Bebas Neue headings + Inter body) — only

@@ -1,0 +1,61 @@
+---
+title: Visualization Modes Description
+description: Not a standalone page — single source of truth embedded into the Visualization Modes docs page and the app's own Settings dialog
+---
+
+{/* Single source of truth, see keyboard-shortcuts.mdx's comment for the
+     mechanism — this one isn't listed in features/meta.json's pages array,
+     so it never appears in the sidebar nav on its own. */}
+
+Grouped as they are in the panel — **Terrain Analysis** (surface derivatives + neighborhood statistics), **Relief Visualization** (multi-scale relief / visibility) and **Light** (normal-based shading). Most are supported by — and inspired by — **gdaldem** and the **RVT (Relief Visualization Toolbox)** QGIS plugin.
+
+### Terrain Analysis
+
+#### Surface derivatives
+
+- **Slope:** magnitude of the gradient
+- **Aspect:** direction of the gradient
+- **Curvature:** rate of slope change — Profile, Plan, Mean/Combined, Gaussian (Det Hessian), or Casorati
+  - **Profile (Flow Acceleration):** rate of slope change along the steepest-descent direction, affects flow acceleration
+  - **Plan (Convergence/Divergence):** rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)
+  - **Mean/Combined:** discrete Laplacian (∇²z) — mean curvature H = (κ₁+κ₂)/2, general surface bending that doesn't separate flow direction from contour direction
+  - **Gaussian Curvature (Det Hessian):** determinant of the Hessian (fxx·fyy − fxy²) — Gaussian curvature K = κ₁·κ₂, a blob/saddle detector, positive at bowl/dome-shaped extrema and negative at saddle points
+  - **Casorati:** κ = √((κ₁²+κ₂²)/2) — RMS of the two principal curvatures (Koch, 1993); always ≥ 0, measures how curved the surface is regardless of shape (dome, ridge, saddle, valley and bowl all read the same), zero only on flat ground
+
+#### Neighborhood statistics
+
+- **TRI (Terrain Ruggedness Index):** mean elevation difference to neighbors
+- **TPI (Topographic Position Index):** elevation relative to neighborhood mean
+- **Roughness:** max−min elevation in a neighborhood
+- **Shape Index:** SI = (2/π)·atan2(κ₁+κ₂, κ₁−κ₂) — Koenderink & van Doorn (1992); scale-free and bounded to [−1, 1] regardless of curvature magnitude: +1 dome/peak, +0.5 ridge, 0 saddle, −0.5 valley, −1 pit/bowl
+
+#### Principal Components (PCA)
+
+A local 2D PCA of the window's gradient vectors, via the Förstner/Harris structure tensor (box-averaged Ixx/Iyy/Ixy over a 5×5 window) — the same tensor behind all three modes below.
+
+- **Blobness:** det(J)/trace(J) — large where the gradient direction varies in every direction (peaks, pits, saddles, knolls), near zero on a uniform slope or straight ridge/valley; conflates shape with steepness
+- **Eigenvalue Ratio:** λmin/λmax of the structure tensor (0–100%) — shape only, independent of steepness: 0% is a coherent linear feature (slope/ridge/valley), 100% is an isotropic blob (peak/pit/saddle)
+- **Dominant Orientation:** axis (0–180°) of the tensor's dominant eigenvector — which way a linear feature (ridge, valley, fault line) runs; most meaningful where Eigenvalue Ratio is low
+
+### Relief Visualization
+
+- **LRM (Local Relief Model):** raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree. Conceptually close to **HAG (Height Above Ground)**, but with the "ground" being that smoothed local trend surface rather than a classified bare-earth model.
+- **SVF (Sky-View Factor):** the fraction of the sky hemisphere visible from a point (0–1), estimated from horizon angles sampled in many directions — darkens enclosed valleys and pits, brightens exposed ridges and summits, independent of any light direction
+- **Openness (Positive / Negative):** the mean zenith (positive) or nadir (negative) horizon angle over a search radius — positive openness emphasizes convex, exposed features (ridges, crests), negative openness emphasizes concave ones (channels, pits); a diffuse, illumination-free relief
+- **Local Dominance:** how much a location visually towers over its surroundings — the mean angular drop to the terrain around it across a radius range, highlighting locally elevated features such as mounds, plateaus and terraces
+
+### Light
+
+- **Matcap (material capture):** looks up a surface colour from a pre-lit sphere image using the surface normal as UV coordinates — a stylized, art-directable shading that doesn't depend on a directional light
+- **Phong:** real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; "3D Slow" drapes over terrain/globe via raster tiles, "2D Fast" is a live GPU shader (see the Lighting Effects panel)
+- **Shadows:** hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light (a single-ray horizon-angle march toward the sun's azimuth); shares Phong/Hillshade's light direction, no separate control of its own beyond opacity and search radius
+
+*Neighborhood usually refers to a 3×3 kernel centered on the pixel.*
+
+### Terrain Encoding Functions
+
+**TerrainRGB:**
+`height = -10000 + ((R * 256 * 256 + G * 256 + B) * 0.1)`
+
+**Terrarium:**
+`height = (R * 256 + G + B / 256) - 32768`

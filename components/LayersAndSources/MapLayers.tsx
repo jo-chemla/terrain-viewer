@@ -619,8 +619,15 @@ function tellsMeasuredScaleRadius(latDeg: number, scaleMultiplier: number) {
   ]
 }
 
-export const TellsMarkersLayer = memo(({ enabled, visible, style, outlineColor, sizeByMeasuredScale, scaleMultiplier, latDeg, colorByPaints }: {
+export const TellsMarkersLayer = memo(({ enabled, visible, style, outlineColor, sizeByMeasuredScale, scaleMultiplier, latDeg, colorByPaints, frozen = false }: {
   enabled: boolean
+  /** Mirrors TellsSource's own frozen prop — when frozen, TellsSource mounts
+   *  a plain geojson source under "tellsSourceFrozen" (a distinct id from the
+   *  live "tellsSource", see MapSources.tsx) instead of the vector "tellsSource",
+   *  and MapLibre rejects a "source-layer" on a geojson source (that key is
+   *  vector-source-only) — so this switches both the source id and omits
+   *  source-layer instead of the hardcoded "tells" below. */
+  frozen?: boolean
   /** Whether markers should currently be painted visible — false because the
    *  detector as a whole is off (showTellsDetector) and/or just its markers
    *  are toggled off (tellsMarkersVisible, the Mound Candidates section's own
@@ -683,9 +690,10 @@ export const TellsMarkersLayer = memo(({ enabled, visible, style, outlineColor, 
     <Layer
       beforeId={LAYER_SLOTS.TELLS}
       id="tells-markers"
+      key={frozen ? "tells-markers-frozen" : "tells-markers-live"}
       type="circle"
-      source="tellsSource"
-      source-layer="tells"
+      source={frozen ? "tellsSourceFrozen" : "tellsSource"}
+      source-layer={frozen ? undefined : "tells"}
       layout={{ visibility: "visible" }}
       paint={paint as any}
     />

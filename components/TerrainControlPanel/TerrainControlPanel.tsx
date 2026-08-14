@@ -410,35 +410,27 @@ export function TerrainControlPanel({
     if (historicalMode && !state.showRasterBasemap) setState({ showRasterBasemap: true })
   }, [historicalMode, state.showRasterBasemap, setState])
 
+  // Every other viz-mode master toggle (Hillshade/Lighting Effects/Shadows/
+  // Color Relief/Terrain Analysis/Relief Visualization/Plane Slicer/Tells/
+  // Contours+Graticules/Background) needs no equivalent reset effect here —
+  // historical mode's whole Options/Visualization Modes/Detectors/Elevation
+  // Picker groups are hidden entirely, but rather than un-checking a flag a
+  // visitor left on from Terrain mode, TerrainViewer.tsx gates every one of
+  // those Sources/Layers on `!isHistoricalMode` directly at render time, so
+  // the underlying state is left untouched (still restorable on switching
+  // back) and nothing ever actually renders while historical either way.
+
   const handleSelectMode = (next: AppMode) => {
     setState({ appMode: next })
     setIsModePickerOpen(false)
-    // Only switching INTO historical mode needs a nudge — it unlocks the
-    // beta flag gating historical basemaps at all, turns on the one source
-    // (raster basemap) this mode actually shows, expands that section
-    // (rather than leaving the visitor to find and open it themselves), and
-    // forces off every other viz-mode master toggle (Hillshade/Lighting
-    // Effects/Shadows/Color Relief/Terrain Analysis/Relief Visualization/
-    // Plane Slicer/Tells/Contours+Graticules/Background) — historical mode's
-    // whole Options/Visualization Modes/Detectors/Elevation Picker groups are
-    // hidden entirely (no elevation source to derive any of it from, see
-    // TerrainControlPanel's render tree), but hiding a section only stops
-    // showing its checkbox — it doesn't un-check one a visitor had already
-    // turned on while still in Terrain mode. Defaults alone aren't enough to
-    // rely on here (that's only true for a session that never touched any of
-    // these), so every one of them is explicitly forced off on this
-    // transition instead of just showHillshade (the one that happens to
-    // default *on*). Switching back to Terrain needs no equivalent nudge;
-    // every one of its sections is just hidden, not disabled, so nothing
-    // needs restoring.
+    // Only switching INTO historical mode needs a nudge beyond the two
+    // continuous-enforcement effects above — it unlocks the beta flag gating
+    // historical basemaps at all, and expands the raster-basemap section
+    // (rather than leaving the visitor to find and open it themselves).
+    // Switching back to Terrain needs no equivalent nudge; every one of its
+    // sections is just hidden, not disabled, so nothing needs restoring.
     if (next === "historical" && !historicalMode) {
-      setState({
-        historicalBeta: true, showRasterBasemap: true, viewMode: "2d",
-        showHillshade: false, showLightingEffects: false, showShadows: false, showColorRelief: false,
-        showTerrainAnalysis: false, showReliefVisualization: false, showPlaneSlicer: false,
-        showTellsDetector: false, showContoursAndGraticules: false, showContours: false,
-        showGraticules: false, showBackground: false,
-      })
+      setState({ historicalBeta: true, viewMode: "2d" })
       setSectionOpen((prev) => ({ ...prev, rasterBasemap: true }))
     }
   }

@@ -7,7 +7,20 @@ import { fileURLToPath, URL } from "url"
 
 export default defineConfig({
   plugins: [
-    devtools({ eventBusConfig: { port: 42169 } }),
+    devtools({
+      eventBusConfig: { port: 42169 },
+      // react-map-gl's <Source>/<Layer> spread ALL received JSX props
+      // straight into the maplibre style-spec source/layer definition object
+      // (addSource/addLayer), with no allowlist — the injected data-tsd-source
+      // debug attribute this plugin normally adds to every JSX element trips
+      // maplibre's schema validator ("unknown property") the moment such a
+      // source/layer is freshly mounted (confirmed via TellsSource's frozen
+      // geojson variant, MapSources.tsx — a source id/type combo that only
+      // gets added at runtime, unlike the ones already present at initial
+      // mount). Every other JSX element is a plain DOM node, where an extra
+      // data-* attribute is harmless, so this is scoped to just these two.
+      injectSource: { enabled: true, ignore: { components: [/^Source$/, /^Layer$/] } },
+    }),
     react(),
     tailwindcss(),
     nodePolyfills({
@@ -30,6 +43,35 @@ export default defineConfig({
   publicDir: 'public',
   server: {
     host: true, // bind to 0.0.0.0 so the dev server is reachable on the LAN, not just localhost
+    // /docs is a separate Next.js app (docs/), not part of this Vite app —
+    // without this, a request for e.g. /docs/getting-started/ falls through
+    // Vite's own SPA history-fallback and silently serves this app's
+    // index.html instead, reading as "/docs/ redirects to the app". Run the
+    // docs dev server alongside this one (`pnpm run docs:dev`, fixed port
+    // 3100) for /docs to work here too; if it isn't running, this proxy
+    // fails loudly (connection refused) instead of that silent wrong page.
+    proxy: {
+      // ws: true also forwards the WebSocket upgrade for Next/Turbopack's
+      // own dev-time HMR channel — without it, plain page loads still work
+      // (confirmed: identical HTML/JS all load fine), but every client
+      // component stayed inert (theme toggle, search, sidebar sections all
+      // no-op with zero DOM change and no thrown error) since Next's dev
+      // client apparently gates finishing its own setup on that socket.
+      "/docs": {
+        target: "http://localhost:3100",
+        changeOrigin: true,
+        ws: true,
+        // docs/content/docs/*.mdx files are also imported here (via `?raw`)
+        // as the single source of truth for Settings-dialog sections like
+        // Keyboard Shortcuts — Vite serves that raw-string module at the
+        // same on-disk-relative URL, which happens to start with "/docs" and
+        // would otherwise be swallowed by the proxy above before Vite's own
+        // module-serving middleware ever sees it. Returning the untouched
+        // req.url here tells http-proxy-middleware to skip proxying and let
+        // the request fall through to Vite instead.
+        bypass: (req) => (req.url?.startsWith("/docs/content/") ? req.url : undefined),
+      },
+    },
   },
   build: {
     outDir: 'dist',
