@@ -24,7 +24,7 @@ const FEATURES = [
   {
     title: 'Light-Direction XYPad',
     body: 'Drag a 2D pad to set Hillshade/Phong illumination azimuth and elevation together, bound to real sun position and day/night constraints.',
-    image: '/docs/screenshots/hillshade-direction.gif',
+    image: '/docs/screenshots/hillshade-direction.mp4',
     alt: 'Dragging the XYPad to set light direction',
   },
   {

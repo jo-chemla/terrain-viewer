@@ -27,12 +27,21 @@ export function FeatureGrid({ features }: { features: Feature[] }) {
         {features.map((f) => (
           <div key={f.title} className="flex flex-col gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={f.image}
-              alt={f.alt}
-              onClick={() => setLightbox(f)}
-              className="w-full cursor-zoom-in rounded-xl border object-cover transition-opacity hover:opacity-90"
-            />
+            {f.image.endsWith('.mp4') ? (
+              <video
+                src={f.image}
+                autoPlay loop muted playsInline
+                onClick={() => setLightbox(f)}
+                className="w-full cursor-zoom-in rounded-xl border object-cover transition-opacity hover:opacity-90"
+              />
+            ) : (
+              <img
+                src={f.image}
+                alt={f.alt}
+                onClick={() => setLightbox(f)}
+                className="w-full cursor-zoom-in rounded-xl border object-cover transition-opacity hover:opacity-90"
+              />
+            )}
             <h2 className="text-lg font-semibold">{f.title}</h2>
             <p className="text-sm text-fd-muted-foreground">{f.body}</p>
           </div>
@@ -52,13 +61,22 @@ export function FeatureGrid({ features }: { features: Feature[] }) {
           >
             ✕
           </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={lightbox.image}
-            alt={lightbox.alt}
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-full max-w-full rounded-lg object-contain"
-          />
+          {lightbox.image.endsWith('.mp4') ? (
+            <video
+              src={lightbox.image}
+              autoPlay loop muted playsInline controls
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-full max-w-full rounded-lg object-contain"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={lightbox.image}
+              alt={lightbox.alt}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-full max-w-full rounded-lg object-contain"
+            />
+          )}
         </div>
       )}
     </>

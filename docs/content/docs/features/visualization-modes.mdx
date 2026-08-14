@@ -12,7 +12,11 @@ Most of these are inspired by `gdaldem` and the [RVT (Relief Visualization Toolb
 
 Native MapLibre hillshade with multiple illumination methods (Standard, Combined, Igor, Basic, Multidirectional and a colored/aspect-tinted variant) — see [MapLibre PR #5768](https://github.com/maplibre/maplibre-gl-js/pull/5768).
 
-![Dragging the XYPad to set light azimuth/elevation](/screenshots/hillshade-direction.gif)
+{/* A plain markdown ![]() here gets statically resolved as a module import
+    by Fumadocs' MDX compiler, which has no loader registered for .mp4 (fails
+    the whole page at compile time) — inline JSX bypasses that entirely. */}
+<video src="/screenshots/hillshade-direction.mp4" autoPlay loop muted playsInline className="rounded-lg border" />
+<p className="text-sm text-fd-muted-foreground italic">Dragging the XYPad to set light azimuth/elevation</p>
 
 ## Elevation Hypso (Hypsometric Tint)
 
