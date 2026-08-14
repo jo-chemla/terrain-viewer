@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { FeatureGrid } from '@/components/feature-lightbox';
 
 // Plain public/-relative string paths, explicitly prefixed with the app's
 // own basePath ("/docs", see next.config.mjs) — unlike next/link's href,
@@ -70,20 +71,7 @@ export default function HomePage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-16">
-        <div className="grid gap-10 sm:grid-cols-2">
-          {FEATURES.map((f) => (
-            <div key={f.title} className="flex flex-col gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={f.image}
-                alt={f.alt}
-                className="w-full rounded-xl border object-cover"
-              />
-              <h2 className="text-lg font-semibold">{f.title}</h2>
-              <p className="text-sm text-fd-muted-foreground">{f.body}</p>
-            </div>
-          ))}
-        </div>
+        <FeatureGrid features={FEATURES} />
       </section>
 
       <section className="border-t">
@@ -97,7 +85,7 @@ export default function HomePage() {
             anyone else, or save it as a bookmark.
           </p>
           <Link
-            href="/getting-started"
+            href="/overview"
             className="mt-6 inline-block rounded-lg bg-fd-primary px-5 py-2.5 font-medium text-fd-primary-foreground transition-opacity hover:opacity-90"
           >
             Get Started

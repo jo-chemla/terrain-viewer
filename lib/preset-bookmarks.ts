@@ -8,15 +8,15 @@
 // saved data. Rendered as its own small read-only strip above the user's own
 // bookmark list (see bookmarks-section.tsx's "Featured" section).
 //
-// `thumb` is left null (renders as the existing neutral placeholder — see
-// BookmarkRow/BookmarkGroupHeader's `b.thumb ? <img> : <ImageOff>` fallback)
-// since a real preview image needs an actual rendered screenshot per
-// location; drop one in here (a JPEG/PNG data URL or a bundled /public
-// asset path both work, since the row just does `<img src={thumb}>`) once
-// one's been captured.
+// `thumb` points at a bundled /public asset (a plain path works fine here —
+// the row just does `<img src={thumb}>`, same as a real bookmark's own
+// captureBookmarkThumbnail() data URL) rather than the neutral ImageOff
+// placeholder BookmarkRow/BookmarkGroupHeader fall back to when thumb is
+// null. Captured at public/bookmark-thumbs/ — the map canvas only, clipped
+// to exclude the sidebar, at each preset's own saved viewport.
 import type React from "react"
 import type { MapRef } from "react-map-gl/maplibre"
-import { parseBookmarkSearch, type Bookmark } from "./bookmarks"
+import { parseBookmarkSearch, easeToBookmarkViewport, type Bookmark } from "./bookmarks"
 
 /** Builds a bookmark-shaped query string from a sparse set of field
  *  overrides — any field left unspecified resolves to that field's own
@@ -31,54 +31,48 @@ function presetSearch(overrides: Record<string, string | number | boolean>): str
 export const PRESET_BOOKMARKS: Bookmark[] = [
   {
     id: "preset-matterhorn",
-    name: "Matterhorn, Alps — Hypsometric Relief",
+    name: "Matterhorn, Alps — Custom Hypsometric Relief",
     ts: 0,
-    thumb: null,
+    thumb: "/bookmark-thumbs/matterhorn.jpg",
     search: presetSearch({
-      lat: 45.9763, lng: 7.6586, zoom: 12.5, pitch: 60, bearing: 0,
-      viewMode: "3d", showHillshade: true, showColorRelief: true, colorRamp: "hypsometric",
+      zoom: 12.31, lat: 45.9686, lng: 7.6499,
+      showColorRelief: true, colorRamp: "temp_19lev",
+      hypsoSliderMinBound: 0, hypsoSliderMaxBound: 20, customHypsoMinMax: true,
+      minElevation: 2330, maxElevation: 4220, colorReliefOpacity: 0.5,
     }),
   },
   {
     id: "preset-grand-canyon",
-    name: "Grand Canyon, USA — Hillshade",
+    name: "Grand Canyon, USA — Hypsometric Tint",
     ts: 0,
-    thumb: null,
+    thumb: "/bookmark-thumbs/grand-canyon.jpg",
     search: presetSearch({
-      lat: 36.0544, lng: -112.1401, zoom: 12, pitch: 65, bearing: -20,
-      viewMode: "3d", showHillshade: true, showColorRelief: true, colorRamp: "wiki",
-    }),
-  },
-  {
-    id: "preset-petra",
-    name: "Petra, Jordan — Sky-View Factor",
-    ts: 0,
-    thumb: null,
-    search: presetSearch({
-      lat: 30.3285, lng: 35.4444, zoom: 15, pitch: 55, bearing: 0,
-      viewMode: "3d", showReliefVisualization: true, showSvf: true, showLrm: false,
+      zoom: 11.13, lat: 36.1257, lng: -112.146, pitch: 61, bearing: 58.6,
+      showColorRelief: true, colorRamp: "wiki",
+      hypsoSliderMinBound: 400, hypsoSliderMaxBound: 3500,
     }),
   },
   {
     id: "preset-paris-historical",
-    name: "Paris — Historical Imagery",
+    name: "Paris — Historical Imagery (Google Earth)",
     ts: 0,
-    thumb: null,
+    thumb: "/bookmark-thumbs/paris-historical.jpg",
     search: presetSearch({
-      lat: 48.8566, lng: 2.3522, zoom: 15.5, pitch: 0, bearing: 0,
-      viewMode: "2d", appMode: "historical", historicalBeta: true,
-      showRasterBasemap: true, basemapSourceA: "historical",
+      appMode: "historical", viewMode: "2d", zoom: 12.64, lat: 48.8569, lng: 2.3264, pitch: 0,
+      showRasterBasemap: true, basemapSourceA: "historical", dateA: 1648339200000,
+      historicalBeta: true, historicalActiveSourceA: "ge-historical",
     }),
   },
   {
-    id: "preset-iceland-compare",
-    name: "Iceland — Basemap Compare",
+    id: "preset-iceland-overlay",
+    name: "Iceland — Bing vs. AWS Overlay Compare",
     ts: 0,
-    thumb: null,
+    thumb: "/bookmark-thumbs/iceland-overlay.jpg",
     search: presetSearch({
-      lat: 63.9850, lng: -19.0450, zoom: 12, pitch: 50, bearing: 0,
-      viewMode: "3d", splitStyle: "side-by-side", gridLayout: "2x1", basemapPerView: true,
-      basemapSourceA: "esri", basemapSourceB: "google", showHillshade: true,
+      viewMode: "2d", zoom: 6.1, lat: 63.7946, lng: -18.2345, pitch: 50,
+      splitStyle: "overlay", sourceB: "aws", showRasterBasemap: true, basemapSourceA: "bing",
+      dateA: 1072825200000, tellsBeta: true, tellsFrozen: true,
+      overlayOpacity: 0.8834786817944542, rasterBasemapOpacity: 0.8,
     }),
   },
 ]
@@ -86,7 +80,7 @@ export const PRESET_BOOKMARKS: Bookmark[] = [
 /** Restores a preset unconditionally (no "same family, skip the viewport"
  *  logic — every preset click IS a jump to a new place, unlike the user's
  *  own bookmarks/lib/bookmarks.ts's restoreBookmark, which has to tell those
- *  two cases apart) — always eases the camera there and applies every other
+ *  two cases apart) — always moves the camera there and applies every other
  *  field via setState, same mechanism as a real bookmark restore. */
 export function restorePreset(
   preset: Bookmark,
@@ -95,14 +89,6 @@ export function restorePreset(
 ) {
   const patch = parseBookmarkSearch(preset.search)
   const map = mapRef?.current?.getMap()
-  if (map) {
-    map.easeTo({
-      center: [patch.lng as number, patch.lat as number],
-      zoom: patch.zoom as number,
-      bearing: patch.bearing as number,
-      pitch: patch.pitch as number,
-      duration: 800,
-    })
-  }
+  if (map) easeToBookmarkViewport(map, patch)
   setState(patch)
 }

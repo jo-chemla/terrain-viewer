@@ -1,4 +1,4 @@
 {
   "title": "Docs",
-  "pages": ["overview", "getting-started", "features"]
+  "pages": ["overview", "features", "keyboard-shortcuts", "changelog", "tech-stack", "resources", "dev"]
 }

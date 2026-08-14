@@ -342,7 +342,7 @@ export const BookmarksSection: React.FC<{
   // convention as TerraDrawSystem.tsx's own layers editMode toggle, so
   // day-to-day use (restore a view, add a new one) isn't cluttered by them.
   const [editMode, setEditMode] = useState(false)
-  const [isFeaturedOpen, setIsFeaturedOpen] = useState(true)
+  const [isFeaturedOpen, setIsFeaturedOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleRestorePreset = useCallback((preset: Bookmark) => {
@@ -546,22 +546,6 @@ export const BookmarksSection: React.FC<{
   return (
     <Section title="Bookmarks" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
-        <Collapsible open={isFeaturedOpen} onOpenChange={setIsFeaturedOpen}>
-          <div className="flex items-center justify-between gap-2">
-            <CollapsibleTrigger className="flex-1 min-w-0 text-left cursor-pointer">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Featured</span>
-            </CollapsibleTrigger>
-            <CollapsibleTrigger className="cursor-pointer">
-              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isFeaturedOpen && "rotate-180")} />
-            </CollapsibleTrigger>
-          </div>
-          <CollapsibleContent className="space-y-0.5 pt-1">
-            {PRESET_BOOKMARKS.map((preset) => (
-              <PresetBookmarkRow key={preset.id} preset={preset} onRestore={handleRestorePreset} />
-            ))}
-          </CollapsibleContent>
-        </Collapsible>
-
         <div className="flex gap-2">
           <TooltipButton
             icon={BookmarkIcon}
@@ -606,6 +590,22 @@ export const BookmarksSection: React.FC<{
             <TooltipContent><p>{editMode ? "Done editing" : "Rename or delete bookmarks"}</p></TooltipContent>
           </Tooltip>
         </div>
+
+        <Collapsible open={isFeaturedOpen} onOpenChange={setIsFeaturedOpen}>
+          <div className="flex items-center justify-between gap-2">
+            <CollapsibleTrigger className="flex-1 min-w-0 text-left cursor-pointer">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Featured</span>
+            </CollapsibleTrigger>
+            <CollapsibleTrigger className="cursor-pointer">
+              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isFeaturedOpen && "rotate-180")} />
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent className="space-y-0.5 pt-1">
+            {PRESET_BOOKMARKS.map((preset) => (
+              <PresetBookmarkRow key={preset.id} preset={preset} onRestore={handleRestorePreset} />
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
 
         {roots.length > 0 && (
           <div>

@@ -13,6 +13,6 @@ export const docsContentRoute = '/llms.mdx/docs';
 
 export const gitConfig = {
   user: 'Iconem',
-  repo: 'elevation-terrain-visualizer',
+  repo: 'terrain-viewer',
   branch: 'main',
 };

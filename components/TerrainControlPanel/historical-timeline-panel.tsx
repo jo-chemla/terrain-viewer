@@ -83,8 +83,15 @@ const ZOOM_FACTOR = 0.85
 // reaches PAST the true oldest/newest tick on each side — without this, the
 // two extreme ticks sit exactly at frac 0/1, pinned right against the
 // track's edge with no breathing room, and half a handle can render clipped
-// off the visible track. 0.1 = 10% of the true span per side, 20% total.
+// off the visible track. 10% of the true span per side, but capped at 6
+// months — a flat 10% is fine for a typical multi-year span, but for a very
+// long one (e.g. a 1945-2025 GE Historical outlier) it let the zoomed-out
+// view pan years past both real ends (8 years each side for an 80-year
+// span). Whichever of the two is smaller applies, so a short span still
+// gets its full proportional padding instead of being swallowed by a fixed
+// cap sized for decades-long spans.
 const ZOOM_OUT_PADDING_FRACTION = 0.1
+const ZOOM_OUT_PADDING_MAX_MS = 1000 * 60 * 60 * 24 * 182.5 // ~6 months
 // How long a gap between wheel events ends the current pan/zoom gesture and
 // lets the next event's own deltaX/deltaY ratio re-decide the mode — see
 // wheelGestureRef above.
@@ -620,8 +627,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // The actual reachable zoom-out/pan boundary — every fullMin/fullMax used
   // below as a hard zoom/pan limit (as opposed to the raw tick data itself)
   // is now this, not the true unpadded domain — see ZOOM_OUT_PADDING_FRACTION.
-  const paddedMin = fullMin - fullSpan * ZOOM_OUT_PADDING_FRACTION
-  const paddedMax = fullMax + fullSpan * ZOOM_OUT_PADDING_FRACTION
+  const zoomOutPaddingMs = Math.min(fullSpan * ZOOM_OUT_PADDING_FRACTION, ZOOM_OUT_PADDING_MAX_MS)
+  const paddedMin = fullMin - zoomOutPaddingMs
+  const paddedMax = fullMax + zoomOutPaddingMs
   const paddedSpan = paddedMax - paddedMin
   // Sticky once true — the wheel-zoom handler and the pan-gutter below both
   // set this on the FIRST real interaction. Needed because zooming/panning

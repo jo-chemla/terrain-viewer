@@ -350,3 +350,10 @@ export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historic
 // project) leaves a visibly empty row/near-empty row before the next group's
 // heading.
 export const galleryFlattenGroupsAtom = atomWithStorage("galleryFlattenGroups", true)
+
+// Bookmarks gallery modal: whether the read-only Featured/preset strip (see
+// lib/preset-bookmarks.ts) shows as its own section at the top of the
+// gallery, alongside the visitor's own saved bookmarks. On by default —
+// off lets someone hide the curated examples entirely once their own list
+// has grown past needing them.
+export const galleryShowFeaturedAtom = atomWithStorage("galleryShowFeatured", true)

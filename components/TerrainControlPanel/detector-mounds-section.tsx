@@ -3,6 +3,7 @@ import { useCallback } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Section, CycleButtonGroup } from "./controls-components"
 import { TellsFields } from "./tells-options-section"
 import { ColorAlphaSwatch } from "./color-picker"
@@ -68,6 +69,24 @@ export const DetectorMoundsSection: React.FC<{
           of-Gaussians relief signal, filtered by blobness/curvature to reject
           ridges and saddles.
         </p>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col gap-0.5">
+            <Label htmlFor="tells-frozen" className="text-sm cursor-pointer">
+              {state.tellsFrozen ? "Frozen" : "Live"}
+            </Label>
+            <span className="text-xs text-muted-foreground">
+              {state.tellsFrozen
+                ? "Detections pinned — pan/zoom won't refresh them"
+                : "Detections refresh as you pan/zoom"}
+            </span>
+          </div>
+          <Switch
+            id="tells-frozen"
+            checked={state.tellsFrozen === true}
+            className="cursor-pointer"
+            onCheckedChange={(checked) => setState({ tellsFrozen: checked === true })}
+          />
+        </div>
         <CycleButtonGroup
           value={state.tellsStyle}
           options={TELLS_STYLE_OPTIONS}

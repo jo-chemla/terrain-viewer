@@ -3,9 +3,35 @@ title: Terrain Visualization Modes
 description: Hillshade, hypsometric tint, relief and terrain-analysis derivatives
 ---
 
+import { VisualizationModesDescription } from "@/components/visualization-modes-description";
+import { VizModeGrid } from "@/components/viz-mode-grid";
+
 Most of these are inspired by `gdaldem` and the [RVT (Relief Visualization Toolbox)](https://github.com/EarthObservation/RVT) QGIS plugin. "Neighborhood" usually means a 3×3 kernel centered on the pixel.
 
-![Slope-angle visualization mode](/screenshots/slope.jpg)
+<VizModeGrid
+  groups={[
+    {
+      category: "Terrain Analysis",
+      modes: [
+        { label: "Slope", image: "/docs/screenshots/viz-modes/slope.jpg", alt: "Slope visualization mode, with its Terrain Analysis controls panel open" },
+        { label: "Curvature", image: "/docs/screenshots/viz-modes/curvature.jpg", alt: "Curvature visualization mode, with its Terrain Analysis controls panel open" },
+      ],
+    },
+    {
+      category: "Relief Visualization",
+      modes: [
+        { label: "LRM", image: "/docs/screenshots/viz-modes/lrm.jpg", alt: "Local Relief Model (LRM) visualization mode, with its Relief Visualization controls panel open" },
+        { label: "Sky-View Factor", image: "/docs/screenshots/viz-modes/svf.jpg", alt: "Sky-View Factor (SVF) visualization mode, with its Relief Visualization controls panel open" },
+      ],
+    },
+    {
+      category: "Light",
+      modes: [
+        { label: "Phong", image: "/docs/screenshots/viz-modes/phong.jpg", alt: "Phong lighting visualization mode, with its Lighting Effects controls panel open" },
+      ],
+    },
+  ]}
+/>
 
 ## Hillshade
 
@@ -34,8 +60,6 @@ Configurable-interval contour lines via [onthegomap/maplibre-contour](https://gi
 
 ## Relief Visualization
 
-![Sky-View Factor relief visualization](/screenshots/svf.jpg)
-
 - **LRM (Local Relief Model)** — raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography (the low-pass layer comes from a coarser pyramid tile, bilinearly upsampled)
 - **Sky-View Factor (SVF)** — fraction of the visible sky hemisphere from each point (low in enclosed pits/canyons, high on open summits/ridges), from a ray-marched horizon angle in 8 directions ([Zakšek, Oštir & Kokalj, 2011](https://www.mdpi.com/2072-4292/3/2/398))
 - **Openness** — mean angular distance from zenith to the horizon across the same 8 directions; **Positive** highlights ridges/summits, **Negative** highlights valleys/pits
@@ -53,3 +77,9 @@ Computes a Difference-of-Gaussians of the LRM as the primary bump signal, keeps 
 <Callout title="Known limitations" type="warn">
 COG-streamed sources fetch ancestor (low-pass) tiles with nearest-neighbor resampling only, which can introduce aliasing into the low-pass signal. Detection quality is also capped by the underlying DEM's real resolution — global ~30m tilesets (Copernicus GLO-30-derived) will miss or false-positive on the smaller end of typical Bronze/Iron-Age mound sizes (50–300m across, 3–20m tall). A finer-resolution source (LiDAR, a local high-res COG) improves results where available.
 </Callout>
+
+## Full Reference
+
+The same description shown in the app's own Settings → Visualization Modes:
+
+<VisualizationModesDescription />

@@ -16,6 +16,7 @@ import type React from "react"
 import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import type { MapRef } from "react-map-gl/maplibre"
+import type maplibregl from "maplibre-gl"
 import { QUERY_STATE_PARSERS } from "@/components/TerrainViewer"
 
 export interface Bookmark {
@@ -54,6 +55,57 @@ export const activeBookmarkIdAtom = atom<string | null>(null)
  *  map doesn't visibly re-settle onto the exact spot it's already at. */
 const VIEWPORT_KEYS = ["lat", "lng", "zoom", "pitch", "bearing"] as const
 
+/** Pending "did the ease actually land" check per map instance — keyed so a
+ *  second restore fired before the first one's check runs (rapid clicks
+ *  through several bookmarks) cancels the stale check instead of it firing
+ *  later and yanking the camera back toward an already-superseded target. */
+const pendingEaseVerifyTimeouts = new WeakMap<maplibregl.Map, ReturnType<typeof setTimeout>>()
+
+/** Pixel-space "is the camera basically at this target already" check — pixel
+ *  distance (via `project`, which is inherently zoom-normalized) rather than
+ *  a raw lng/lat delta, since a fixed degrees threshold would be meaninglessly
+ *  loose at a low zoom and too strict at a high one. */
+function isCameraNear(map: maplibregl.Map, target: { lng: number; lat: number; zoom: number }): boolean {
+  const targetPx = map.project([target.lng, target.lat])
+  const currentPx = map.project(map.getCenter())
+  const pixelDistance = Math.hypot(targetPx.x - currentPx.x, targetPx.y - currentPx.y)
+  return pixelDistance < 5 && Math.abs(map.getZoom() - target.zoom) < 0.05
+}
+
+/** Eases the camera to a bookmark/preset's saved viewport — an 800ms
+ *  animated flight, MapLibre's usual "restore a saved view" feel. Verified
+ *  this animation can, at least in principle, silently never actually
+ *  progress at all: `easeTo` drives its transition off
+ *  `requestAnimationFrame`, which a backgrounded/throttled tab or a heavy
+ *  render tick can starve — the rest of a bookmark's settings still visibly
+ *  apply (those don't depend on rAF) while the camera would then silently
+ *  stay put. Rather than give up the animation over that edge case, this
+ *  schedules a one-time check shortly after the ease should have finished
+ *  and snaps straight to the target with `jumpTo` only if the camera didn't
+ *  actually get there — invisible in the overwhelmingly common case where
+ *  the ease worked fine, a safety net for the rest. */
+export function easeToBookmarkViewport(
+  map: maplibregl.Map,
+  patch: Record<string, unknown>,
+): void {
+  const target = {
+    lng: patch.lng as number,
+    lat: patch.lat as number,
+    zoom: patch.zoom as number,
+    bearing: patch.bearing as number,
+    pitch: patch.pitch as number,
+  }
+  map.easeTo({ center: [target.lng, target.lat], zoom: target.zoom, bearing: target.bearing, pitch: target.pitch, duration: 800 })
+  const existing = pendingEaseVerifyTimeouts.get(map)
+  if (existing) clearTimeout(existing)
+  pendingEaseVerifyTimeouts.set(map, setTimeout(() => {
+    pendingEaseVerifyTimeouts.delete(map)
+    if (!isCameraNear(map, target)) {
+      map.jumpTo({ center: [target.lng, target.lat], zoom: target.zoom, bearing: target.bearing, pitch: target.pitch })
+    }
+  }, 1000))
+}
+
 /** Parses a saved query string back into typed state using the exact same
  *  nuqs parsers useQueryStates itself is built from (see
  *  components/TerrainViewer.tsx's QUERY_STATE_PARSERS) — every field parses
@@ -83,27 +135,30 @@ export function parseBookmarkSearch(search: string): Record<string, unknown> {
 }
 
 /** Applies a bookmark's saved state in place via nuqs's own setState — no SPA
- *  reload, unlike the earlier version of this function. Restoring any
- *  bookmark from the same "family" (project or one of its children) as
- *  whichever one was active before drops the viewport keys from the patch
- *  first (see VIEWPORT_KEYS) so the camera stays put — not just a child
- *  restored while its own parent project is active, but also the reverse
- *  (its parent restored while that child is active) and siblings restored
- *  after one another, since a project and all its children always share one
- *  viewport by construction. activeProjectId already names "whichever
- *  project family was active" regardless of whether a project or one of its
+ *  reload, unlike the earlier version of this function. Always eases the
+ *  camera to the bookmark's own saved viewport (see easeToBookmarkViewport)
+ *  — setState alone is NOT enough to move it: TerrainViewer's <Map> only
+ *  reads lat/lng/zoom/pitch/bearing once, as `initialViewState`, and after
+ *  mount those state fields are downstream of the map's own onMove handler
+ *  (committed there on a debounce), not an input that drives it. The old
+ *  page-reload version of this function got away with that because a reload
+ *  remounts the map fresh against the just-updated URL; restoring in place
+ *  has to explicitly move the camera itself instead.
+ *
+ *  Restoring any bookmark from the same "family" (project or one of its
+ *  children) as whichever one was active before is deliberately a no-op for
+ *  the camera (on top of dropping the viewport keys from the STATE patch,
+ *  see VIEWPORT_KEYS) — not just a child restored while its own parent
+ *  project is active, but also the reverse (its parent restored while that
+ *  child is active) and siblings restored after one another, since a
+ *  project and all its children always share one viewport by construction:
+ *  switching between them should read as "just the visualization changed,"
+ *  not a camera move. activeProjectId already names "whichever project
+ *  family was active" regardless of whether a project or one of its
  *  children was the exact bookmark last restored (see the setActiveProjectId
  *  call below), so comparing the newly selected bookmark's own family id
  *  (its parentId, or its own id if it has none) against it covers all three
- *  relationships in one check.
- *
- *  setState alone is NOT enough to move the camera, though: TerrainViewer's
- *  <Map> only reads lat/lng/zoom/pitch/bearing once, as `initialViewState` —
- *  after mount the state fields are downstream of the map's own onMove
- *  handler (committed there on a debounce), not an input that drives it. The
- *  old page-reload version of this function got away with that because a
- *  reload remounts the map fresh against the just-updated URL; restoring in
- *  place has to explicitly ease the camera there itself instead. */
+ *  relationships in one check. */
 export function restoreBookmark(
   bookmark: Bookmark,
   setState: (updates: Record<string, unknown>) => void,
@@ -118,17 +173,9 @@ export function restoreBookmark(
     for (const key of VIEWPORT_KEYS) delete patch[key]
   } else {
     const map = mapRef?.current?.getMap()
-    if (map) {
-      // Split-screen's own onMove sync (TerrainViewer.tsx's onMoveA/onMoveB)
-      // mirrors this onto the secondary map — no need to touch it here too.
-      map.easeTo({
-        center: [patch.lng as number, patch.lat as number],
-        zoom: patch.zoom as number,
-        bearing: patch.bearing as number,
-        pitch: patch.pitch as number,
-        duration: 800,
-      })
-    }
+    // Split-screen's own onMove sync (TerrainViewer.tsx's onMoveA/onMoveB)
+    // mirrors this onto the secondary map — no need to touch it here too.
+    if (map) easeToBookmarkViewport(map, patch)
   }
   setState(patch)
   setActiveProjectId(bookmark.parentId ?? bookmark.id)
