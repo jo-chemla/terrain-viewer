@@ -8,36 +8,11 @@ import { VizModeGrid } from "@/components/viz-mode-grid";
 
 Most of these are inspired by `gdaldem` and the [RVT (Relief Visualization Toolbox)](https://github.com/EarthObservation/RVT) QGIS plugin. "Neighborhood" usually means a 3×3 kernel centered on the pixel.
 
-<VizModeGrid
-  groups={[
-    {
-      category: "Terrain Analysis",
-      modes: [
-        { label: "Slope", image: "/docs/screenshots/viz-modes/slope.jpg", alt: "Slope visualization mode, with its Terrain Analysis controls panel open" },
-        { label: "Curvature", image: "/docs/screenshots/viz-modes/curvature.jpg", alt: "Curvature visualization mode, with its Terrain Analysis controls panel open" },
-      ],
-    },
-    {
-      category: "Relief Visualization",
-      modes: [
-        { label: "LRM", image: "/docs/screenshots/viz-modes/lrm.jpg", alt: "Local Relief Model (LRM) visualization mode, with its Relief Visualization controls panel open" },
-        { label: "Sky-View Factor", image: "/docs/screenshots/viz-modes/svf.jpg", alt: "Sky-View Factor (SVF) visualization mode, with its Relief Visualization controls panel open" },
-      ],
-    },
-    {
-      category: "Light",
-      modes: [
-        { label: "Phong", image: "/docs/screenshots/viz-modes/phong.jpg", alt: "Phong lighting visualization mode, with its Lighting Effects controls panel open" },
-      ],
-    },
-  ]}
-/>
-
 ## Hillshade
 
 Native MapLibre hillshade with multiple illumination methods (Standard, Combined, Igor, Basic, Multidirectional and a colored/aspect-tinted variant) — see [MapLibre PR #5768](https://github.com/maplibre/maplibre-gl-js/pull/5768).
 
-![Dragging the XYPad to set light azimuth/elevation](/screenshots/xypad.gif)
+![Dragging the XYPad to set light azimuth/elevation](/screenshots/hillshade-direction.gif)
 
 ## Elevation Hypso (Hypsometric Tint)
 
@@ -83,3 +58,29 @@ COG-streamed sources fetch ancestor (low-pass) tiles with nearest-neighbor resam
 The same description shown in the app's own Settings → Visualization Modes:
 
 <VisualizationModesDescription />
+
+
+<VizModeGrid
+  groups={[
+    {
+      category: "Terrain Analysis",
+      modes: [
+        { label: "Slope", image: "/docs/screenshots/viz-modes/slope.jpg", alt: "Slope visualization mode, with its Terrain Analysis controls panel open" },
+        { label: "Curvature", image: "/docs/screenshots/viz-modes/curvature.jpg", alt: "Curvature visualization mode, with its Terrain Analysis controls panel open" },
+      ],
+    },
+    {
+      category: "Relief Visualization",
+      modes: [
+        { label: "LRM", image: "/docs/screenshots/viz-modes/lrm.jpg", alt: "Local Relief Model (LRM) visualization mode, with its Relief Visualization controls panel open" },
+        { label: "Sky-View Factor", image: "/docs/screenshots/viz-modes/svf.jpg", alt: "Sky-View Factor (SVF) visualization mode, with its Relief Visualization controls panel open" },
+      ],
+    },
+    {
+      category: "Light",
+      modes: [
+        { label: "Phong", image: "/docs/screenshots/viz-modes/phong.jpg", alt: "Phong lighting visualization mode, with its Lighting Effects controls panel open" },
+      ],
+    },
+  ]}
+/>

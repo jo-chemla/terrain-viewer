@@ -94,7 +94,7 @@
 #### TL;DR
 - **New "Historical Imagery" mode**: scrub a real per-tile capture-date timeline bottom panel, across **[ESRI Wayback](https://livingatlas.arcgis.com/wayback/), [Google Earth Historical](https://github.com/Iconem/GE_TimeMachine)**, [Landsat/Sentinel (HLS)](https://hls.gsfc.nasa.gov/), [Planet](https://www.planet.com/products/basemap/), and [Bing](https://www.bing.com/maps/aerial).
 
-  ![Scrubbing the historical timeline across capture dates](/docs/screenshots/timeline.gif)
+  ![Scrubbing the historical timeline across capture dates](/docs/screenshots/historical-timeline.jpg)
 - **Mode Picker: Terrain vs Historical** switches the whole sidebar between Terrain Viewer and a simplified Historical Imagery layout.
 - Every historical basemap source feeds real attribution, including dynamically-resolved provider/date info for Wayback, Google Earth Historical, and Bing.
 - **The light-direction XY pad itself gained a full bidirectional datetime binding**: drag it and it back-solves the closest matching day-of-year/time-of-day (and the sliders still drive it forward as before), hatching every position the sun can't physically reach at the current latitude (a real day/night-boundary constraint).
@@ -395,7 +395,7 @@ Experimental **"Tells" archaeological mound detector**, gated behind a Beta togg
 #### TL;DR
 Light-direction control for Hillshade via XYPad: drag a 2D pad to set illumination azimuth/elevation, instead of two separate sliders.
 
-![Dragging the XYPad to set light azimuth/elevation](/docs/screenshots/xypad.gif)
+![Dragging the XYPad to set light azimuth/elevation](/docs/screenshots/hillshade-direction.gif)
 
 ### Features
 - **XYPad for 2D illumination-direction selection** (`07fc46e`) — drag a pad to set Hillshade/Phong light azimuth+elevation together; gained real angular constraints (can't drag past the sun's physically reachable range) five days later (`3b85160`). The *true* bidirectional datetime binding (drag the pad, back-solve the closest matching day/time; day/night-boundary hatching) came much later — see the Aug 7 entry above (`a43a99f`, `09f3803`).
