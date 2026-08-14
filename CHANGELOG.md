@@ -395,7 +395,7 @@ Experimental **"Tells" archaeological mound detector**, gated behind a Beta togg
 #### TL;DR
 Light-direction control for Hillshade via XYPad: drag a 2D pad to set illumination azimuth/elevation, instead of two separate sliders.
 
-![Dragging the XYPad to set light azimuth/elevation](/docs/screenshots/hillshade-direction.gif)
+![Dragging the XYPad to set light azimuth/elevation](/docs/screenshots/hillshade-direction.webp)
 
 ### Features
 - **XYPad for 2D illumination-direction selection** (`07fc46e`) — drag a pad to set Hillshade/Phong light azimuth+elevation together; gained real angular constraints (can't drag past the sun's physically reachable range) five days later (`3b85160`). The *true* bidirectional datetime binding (drag the pad, back-solve the closest matching day/time; day/night-boundary hatching) came much later — see the Aug 7 entry above (`a43a99f`, `09f3803`).
