@@ -309,7 +309,7 @@ export const DownloadSection: React.FC<{
 
   if (historicalMode) {
     return (
-      <Section title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
+      <Section id="tour-download-section" title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
         <div className="flex gap-2">
           <TooltipButton
             icon={Camera}
@@ -341,7 +341,7 @@ export const DownloadSection: React.FC<{
   }
 
   return (
-    <Section title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
+    <Section id="tour-download-section" title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
       <div className="space-y-2">
         <div className="flex gap-2">
           <TooltipButton

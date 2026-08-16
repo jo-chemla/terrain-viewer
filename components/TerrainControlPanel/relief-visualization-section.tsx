@@ -39,6 +39,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
 
   return (
     <Section
+      id="tour-relief-visualization-section"
       title="Relief Visualization"
       isOpen={isOpen}
       onOpenChange={onOpenChange}

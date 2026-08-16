@@ -140,8 +140,15 @@ export const ComparisonMixSection: React.FC<{
   const effectiveGridLayout: GridLayoutId = isOverlay ? "2x1" : (state.gridLayout ?? "2x1")
 
   return (
-    <Section title="Compare and Blend" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
-      <div className="flex items-center justify-between gap-2">
+    <Section id="tour-historical-compare-blend" title="Compare and Blend" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
+      {/* Grid Layout and Blend Mode (+ its Opacity slider) are mutually
+          exclusive siblings of Split Mode (gated on the same splitStyle
+          value) — wrapped together so the guided tour's Blend Modes/Grid
+          Layout steps can spotlight the Split Mode control alongside
+          whichever of the two actually applies, instead of just the one
+          control in isolation. */}
+      <div id="tour-historical-split-and-mode">
+      <div id="tour-historical-split-mode" className="flex items-center justify-between gap-2">
         <Label className="text-sm font-medium">Split Mode</Label>
         <SegmentedToggle
           className="w-[180px]"
@@ -233,6 +240,7 @@ export const ComparisonMixSection: React.FC<{
           />
         </>
       )}
+      </div>
 
       {isSplit && (
         <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>

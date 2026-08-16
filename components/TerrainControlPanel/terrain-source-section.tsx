@@ -248,7 +248,7 @@ export const TerrainSourceSection: React.FC<{
 
   return (
     <>
-      <Section title="Terrain" isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Section id="tour-terrain-section" title="Terrain" isOpen={isOpen} onOpenChange={onOpenChange}>
         <Collapsible open={isWorldwideOpen} onOpenChange={setIsWorldwideOpen}>
           <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer">
             <GroupHeading>Worldwide Defaults</GroupHeading>
@@ -290,7 +290,7 @@ export const TerrainSourceSection: React.FC<{
 
           <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
             <TooltipProvider>
-              <div className="grid grid-cols-3 gap-2">
+              <div id="tour-byod-terrain-row" className="grid grid-cols-3 gap-2">
                 <TooltipButton
                   icon={Plus}
                   label="Add Dataset"

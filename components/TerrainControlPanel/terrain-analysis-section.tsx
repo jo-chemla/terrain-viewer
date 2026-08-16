@@ -32,6 +32,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
 
   return (
     <Section
+      id="tour-terrain-analysis-section"
       title="Terrain Analysis"
       isOpen={isOpen}
       onOpenChange={onOpenChange}

@@ -174,8 +174,12 @@ export const Section: React.FC<{
   // TerrainControlPanel) rather than tracked here, because the section remounts
   // already-on when toggled, hiding any local false→true edge.
   pulseKey?: string
+  // Plain DOM id on the header row — a stable hook for the guided product
+  // tour (product-tour.tsx) to spotlight/anchor a whole section by its
+  // title, without needing a forwarded ref through every call site.
+  id?: string
   children: React.ReactNode
-}> = ({ title, isOpen, onOpenChange, withSeparator = true, headerExtra, pulseKey, children }) => {
+}> = ({ title, isOpen, onOpenChange, withSeparator = true, headerExtra, pulseKey, id, children }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   const [vizActivation] = useAtom(vizActivationAtom)
   const autoId = useId()
@@ -197,7 +201,14 @@ export const Section: React.FC<{
   }, [activatedAt])
 
   return (
-    <>
+    // Wraps the whole section (header + content + its own trailing separator)
+    // in one element carrying `id` — so a guided-tour step that targets this
+    // section spotlights the entire thing, not just the header row. The
+    // wrapper's own `space-y-2` reproduces the gap the surrounding scroll
+    // container's `space-y-2` used to provide between these same two nodes
+    // when they were direct siblings of it (see Fragment history) — without
+    // it, the separator would sit flush against the content above it.
+    <div id={id} className="space-y-2">
       <Collapsible open={isOpen} onOpenChange={onOpenChange}>
         <div className={cn(
           "flex items-center justify-between w-full py-2 transition-opacity duration-150",
@@ -238,7 +249,7 @@ export const Section: React.FC<{
        {withSeparator && (
          <Separator className={cn("transition-opacity duration-150", activeSlider !== null && "opacity-20")} />
       )}
-    </>
+    </div>
   )
 }
 
@@ -511,6 +522,9 @@ interface TooltipButtonProps {
   onClick: () => void
   disabled?: boolean
   className?: string
+  // Plain DOM id on the wrapping span — a stable hook for the guided
+  // product tour (product-tour.tsx) to target this button.
+  id?: string
 }
 
 export const TooltipButton: React.FC<TooltipButtonProps> = ({
@@ -519,7 +533,8 @@ export const TooltipButton: React.FC<TooltipButtonProps> = ({
   tooltip,
   onClick,
   disabled = false,
-  className = "flex-1"
+  className = "flex-1",
+  id,
 }) => {
   return (
     <Tooltip>
@@ -528,7 +543,7 @@ export const TooltipButton: React.FC<TooltipButtonProps> = ({
           open if the Button itself were the trigger. */}
       <TooltipTrigger
         render={
-          <span className={className}>
+          <span id={id} className={className}>
             <Button
               variant="outline"
               size="sm"
@@ -559,6 +574,9 @@ interface TooltipIconButtonProps {
   className?: string
   variant?: React.ComponentProps<typeof Button>["variant"]
   size?: React.ComponentProps<typeof Button>["size"]
+  // Plain DOM id on the underlying button — a stable hook for the guided
+  // product tour (product-tour.tsx) to target this control.
+  id?: string
 }
 
 export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButtonProps>(({
@@ -569,6 +587,7 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
   className = "",
   variant = "ghost",
   size = "icon",
+  id,
 }, ref) => {
   return (
     <Tooltip>
@@ -577,6 +596,7 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
         render={
           <Button
             ref={ref}  // ← forward to the actual button
+            id={id}
             variant={variant}
             size={size}
             onClick={onClick}
