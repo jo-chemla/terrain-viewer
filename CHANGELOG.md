@@ -1,5 +1,21 @@
-# Changelog — Docs Site, Featured Bookmarks, and Tells Freeze Fixes
-<!-- released: 2026-08-14 -->
+# Changelog — Guided Product Tour
+<!-- released: 2026-08-16 -->
+
+#### TL;DR
+- New **guided product tour** (Compass icon in Settings, or auto-starts on first visit): a branching walkthrough covering the shared basics, then either the Terrain visualization tools or Historical Satellite imagery mode, chosen at a fork partway through.
+- Each branch ends with a **Tools** step listing that mode's map-based utilities (Drawing, Elevation Picker, Sun/Shadow Calculator beta, Animation, Source Info — the historical branch's subset excludes the terrain-only ones).
+
+### Features
+- **Guided product tour** (`components/TerrainControlPanel/product-tour.tsx`, built on the `coachmark` library) — walks through the map viewport, control panel, general settings, and Terrain-vs-Historical mode switch, then forks into either the Terrain tools (Hillshade, Hypsometric Color, Terrain Analysis, Relief Visualization, Sources, BYOD, Split Mode, Tools, Keyboard Shortcuts) or Historical Satellite imagery (Compare and Blend, Split Mode, Blend Modes, Grid Layout, Timeline, Tools) branch. Each step temporarily forces whatever sidebar/section/mode state its target needs to exist, and everything is snapshotted at tour start and restored verbatim on close/finish, regardless of which steps were actually visited.
+- **Tools step** (one per branch) — a bulleted rundown of that mode's Tools group, with every tool section folded and the whole group (separator + all tool titles) spotlighted together as one block.
+
+### Bug Fixes
+- **Popup silently not appearing for several steps** (Hypsometric, Terrain Analysis, Relief Visualization — Hillshade, near the top of the panel, was unaffected) — root cause: Coachmark's own built-in scroll-into-view could resolve before the actual scroll distance was covered for a target further down the sidebar's scroll container, leaving the popup positioned against a target rect still (partly) below the fold — visually indistinguishable from no popup at all, just the dimmed backdrop. Fixed by having the tour scroll its own target into view itself (instant, before Coachmark's own step-change effect ever runs), so Coachmark's internal attempt finds nothing left to do.
+- **Raster Basemap / Terrain Sources steps** could scroll the section's own title off-screen once enough BYOD custom sources were added to make the section unusually tall — switched the tour's default scroll alignment from centering the (possibly very tall) target to anchoring its top edge instead, so the title stays visible with as much of the rest as fits below it.
+- Terrain Analysis step was switching on both Slope and Curvature as its demo; now just Slope, matching its own description text.
+- The "Curious about the other mode? Take that tour instead" link could overflow its popup at typical widths — shortened and restyled as a proper full-width button.
+
+
 
 #### TL;DR
 - Added a [documentation site](/docs), live-linked from the app general settings.

@@ -651,44 +651,51 @@ export function TerrainControlPanel({
           />
         )}
         {!historicalMode && !hiddenSections.includes("terrainAnalysis") && showDetectors && <MacroSeparator />}
-        <MacroSeparator label="Tools" isOpen={macroGroupOpen.Tools} onToggle={() => toggleMacroGroup("Tools")} />
-        {macroGroupOpen.Tools && (
-          <>
-            <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
-            {/* Elevation Picker reads elevation off the active terrain (DEM)
-                source — meaningless in historical mode, which has none. */}
-            {!historicalMode && !hiddenSections.includes("elevationPicker") && (
-              <ElevationPickerSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
-            )}
-            {!hiddenSections.includes("sunShadowCalculator") && state.sunShadowBeta && (
-              <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
-            )}
-            {/* Camera-pose animation has no meaning without a terrain/DEM
-                scene to fly a camera through — historical mode is a flat 2D
-                basemap view only. */}
-            {!historicalMode && (
-              <AnimationSection
-                mapRef={mapRef}
-                isOpen={sectionOpen.animation}
-                onOpenChange={toggle("animation")}
-                appState={state}
-                setAppState={setAppState}
-                setAppStateSafe={setAppState}
-                withSeparator={!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap)}
-              />
-            )}
-            {/* Shows terrain-source provenance (mapterhorn/another DEM,
-                meaningless in historical mode) AND/OR basemap attribution
-                (Esri/Wayback/GE Historical dynamic, everything else static)
-                — a raster basemap can be active in EITHER app mode (it's
-                just the only thing historical mode shows), so this isn't an
-                either/or gated on historicalMode; SourceInfoSection renders
-                whichever of its two blocks actually applies. */}
-            {!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap) && (
-              <SourceInfoSection state={state} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} />
-            )}
-          </>
-        )}
+        {/* Single id spanning the separator AND every section below it (own
+            "space-y-2" replicates the scroll container's own spacing, lost by
+            wrapping — see controls-components.tsx) — so the product tour's
+            own Tools step can spotlight the whole group as one block instead
+            of just the separator's own thin label row. */}
+        <div id="tour-tools-group" className="space-y-2">
+          <MacroSeparator label="Tools" isOpen={macroGroupOpen.Tools} onToggle={() => toggleMacroGroup("Tools")} />
+          {macroGroupOpen.Tools && (
+            <>
+              <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
+              {/* Elevation Picker reads elevation off the active terrain (DEM)
+                  source — meaningless in historical mode, which has none. */}
+              {!historicalMode && !hiddenSections.includes("elevationPicker") && (
+                <ElevationPickerSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
+              )}
+              {!hiddenSections.includes("sunShadowCalculator") && state.sunShadowBeta && (
+                <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
+              )}
+              {/* Camera-pose animation has no meaning without a terrain/DEM
+                  scene to fly a camera through — historical mode is a flat 2D
+                  basemap view only. */}
+              {!historicalMode && (
+                <AnimationSection
+                  mapRef={mapRef}
+                  isOpen={sectionOpen.animation}
+                  onOpenChange={toggle("animation")}
+                  appState={state}
+                  setAppState={setAppState}
+                  setAppStateSafe={setAppState}
+                  withSeparator={!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap)}
+                />
+              )}
+              {/* Shows terrain-source provenance (mapterhorn/another DEM,
+                  meaningless in historical mode) AND/OR basemap attribution
+                  (Esri/Wayback/GE Historical dynamic, everything else static)
+                  — a raster basemap can be active in EITHER app mode (it's
+                  just the only thing historical mode shows), so this isn't an
+                  either/or gated on historicalMode; SourceInfoSection renders
+                  whichever of its two blocks actually applies. */}
+              {!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap) && (
+                <SourceInfoSection state={state} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} />
+              )}
+            </>
+          )}
+        </div>
         <FooterSection isOpen={sectionOpen.footer} onOpenChange={toggle("footer")} />
         </div>
       </Card>

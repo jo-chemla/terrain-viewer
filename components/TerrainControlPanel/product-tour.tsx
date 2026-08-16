@@ -138,7 +138,7 @@ function prepareHypsoOnly(a: TourActions) {
 function prepareTerrainAnalysisOnly(a: TourActions) {
   prepareTerrainBase(a, {
     showHillshade: false, showColorRelief: false, showReliefVisualization: false,
-    showTerrainAnalysis: true, showSlope: true, showCurvature: true,
+    showTerrainAnalysis: true, showSlope: true, showCurvature: false,
   })
 }
 
@@ -147,6 +147,26 @@ function prepareReliefVisualizationOnly(a: TourActions) {
     showHillshade: false, showColorRelief: false, showTerrainAnalysis: false,
     showReliefVisualization: true, showLrm: true,
   })
+}
+
+// Every tool section's own sectionOpen key (TerrainControlPanel.tsx's Tools
+// group) — folded (not unmounted: these have no showX gate, just a
+// collapsed/expanded header like every other Section) so the Tools step's
+// target (the wrapping "tour-tools-group" div around the separator AND every
+// section below it) is just a compact stack of titles, letting one spotlight
+// cover all of them at once instead of whichever one happened to be expanded
+// coming in. Includes terrain-only keys (elevationPicker/animation) even
+// though the historical branch's own Tools step never renders those
+// sections — an unused sectionOpen key is harmless.
+const TOOL_SECTION_KEYS = ["drawing", "elevationPicker", "sunShadowCalculator", "animation", "sourceInfo"] as const
+
+// Every viz mode off — the Tools step isn't about any one of them, so this
+// clears the Options group back down to just its own collapsed sections,
+// leaving the panel's remaining room to the Tools group below it (already
+// forced open by prepareTerrainBase's own setMacroGroupOpen call).
+function prepareTerrainTools(a: TourActions) {
+  prepareTerrainBase(a, { showHillshade: false, showColorRelief: false, showTerrainAnalysis: false, showReliefVisualization: false })
+  a.setSectionOpen((prev) => ({ ...prev, ...Object.fromEntries(TOOL_SECTION_KEYS.map((k) => [k, false])) }))
 }
 
 // Same single-setState-call merging as prepareTerrainBase above, via
@@ -167,17 +187,19 @@ function prepareHistoricalGrid(a: TourActions, extraState: Record<string, unknow
   a.setComparisonMixAdvancedOpen(true)
 }
 
+// Tools group renders identically regardless of app mode (TerrainControlPanel.tsx
+// doesn't gate its MacroSeparator on historicalMode) — only the mode-specific
+// content it lists differs (see HISTORICAL_TOOLS_STEP vs TERRAIN_TOOLS_STEP's
+// own description). Back to the plain intro state (no grid/timeline) since
+// this step isn't about imagery comparison.
+function prepareHistoricalTools(a: TourActions) {
+  prepareHistoricalIntro(a)
+  a.setMacroGroupOpen((prev) => ({ ...prev, Tools: true }))
+  a.setSectionOpen((prev) => ({ ...prev, ...Object.fromEntries(TOOL_SECTION_KEYS.map((k) => [k, false])) }))
+}
+
 function prepareHistoricalTimeline(a: TourActions) {
   prepareHistoricalGrid(a, { historicalTimelineCollapsed: false, historicalControlsExpanded: true })
-  // The timeline itself is the spotlighted target, but the evidence that
-  // every view actually resolved to a historical source lives up in the
-  // Basemap section — scroll the sidebar's own scroll container to reveal
-  // it alongside the timeline, once the section-open state above has had a
-  // couple of frames to actually render (raster-basemap-section.tsx renders
-  // this same "tour-basemap-section" id in both terrain and historical mode).
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    document.getElementById("tour-basemap-section")?.scrollIntoView({ behavior: "smooth", block: "center" })
-  }))
 }
 
 interface TourStepDef {
@@ -199,11 +221,21 @@ interface TourStepDef {
   // screen as possible on any aspect ratio, not just a fixed square tuned
   // for desktop.
   fullScreenSpotlight?: boolean
-  // false disables Coachmark's own auto-scroll-to-target for this step —
-  // used by steps whose onEnter does its own, differently-aimed scrollIntoView
-  // (e.g. byod-terrain scrolls to the section's own TOP rather than all the
-  // way down to its target button row), so the two don't fight over where to
-  // land.
+  // Overrides which element goToIndex/chooseBranch's own scrollTargetIntoView
+  // scrolls to — defaults to this step's own `domId` (the Coachmark target
+  // itself) when absent. Used by a step whose most useful scroll destination
+  // ISN'T its own target: byod-terrain's target is a button ROW, but
+  // scrolling to the section's own TOP shows more of it above that row.
+  scrollTargetId?: string
+  // Overrides scrollTargetIntoView's own default ("start") for this step —
+  // unused today (every step redirecting via scrollTargetId is happy with
+  // "start"), kept for the next one that isn't.
+  scrollBlock?: ScrollLogicalPosition
+  // false disables Coachmark's OWN internal scroll-to-target for this step —
+  // needed whenever scrollTargetId redirects OUR OWN scroll elsewhere:
+  // without this, Coachmark's internal (separate, less reliable — see
+  // scrollTargetIntoView's own comment) attempt still aims at THIS step's own
+  // domId and can fight with ours over final scroll position.
   scrollIntoView?: boolean
   // Renders a small "curious about the other mode?" link (below the normal
   // Skip/Back/Finish row) that jumps straight into whichever branch this one
@@ -325,18 +357,14 @@ const TERRAIN_STEPS: TourStepDef[] = [
     key: "byod-terrain", domId: "tour-byod-terrain-row", side: "left", align: "center",
     title: "Bring Your Own Data",
     description: "Add your own COG, VRT, or WMS terrain source with \"Add Dataset\", batch-edit every source as JSON, or click Sample to load a set of ready-made examples — the same options exist for basemaps too.",
-    // Coachmark's own auto-scroll (disabled here) would scroll straight to
-    // this button row, which can push the Terrain Sources section's own
-    // title off the top of the panel if there's a long list of sources
-    // above it. Scrolling the SECTION's top into view instead shows as much
-    // of it as fits, title included, even if the button row ends up right at
-    // the bottom edge (or just past it) when the list is long.
+    // Scrolling straight to this button row (its own target) can push the
+    // Terrain Sources section's own title off the top of the panel if there's
+    // a long list of sources above it. Scrolling the SECTION's top into view
+    // instead shows as much of it as fits, title included, even if the
+    // button row ends up right at the bottom edge (or just past it) when the
+    // list is long.
+    scrollTargetId: "tour-terrain-section",
     scrollIntoView: false,
-    onEnter: () => {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        document.getElementById("tour-terrain-section")?.scrollIntoView({ behavior: "smooth", block: "start" })
-      }))
-    },
   },
   {
     key: "split-mode", domId: "tour-split-mode", side: "left", align: "center",
@@ -352,7 +380,7 @@ const TERRAIN_STEPS: TourStepDef[] = [
   {
     key: "terrain-analysis-section", domId: "tour-terrain-analysis-section", side: "left", align: "start",
     title: "Terrain Analysis",
-    description: "Surface derivatives (Slope, Aspect, Curvature) and neighborhood statistics (TPI, TRI, Roughness, and more) — each sub-mode has its own checkbox, and checking one reveals its own color ramp and range options directly beneath it. Slope and Curvature are switched on here as an example.",
+    description: "Surface derivatives (Slope, Aspect, Curvature) and neighborhood statistics (TPI, TRI, Roughness, and more) — each sub-mode has its own checkbox, and checking one reveals its own color ramp and range options directly beneath it. Slope is switched on here as an example.",
     onEnter: prepareTerrainAnalysisOnly,
   },
   {
@@ -360,6 +388,23 @@ const TERRAIN_STEPS: TourStepDef[] = [
     title: "Relief Visualization",
     description: "Multi-scale relief and visibility modes: Local Relief Model, Sky View Factor, Openness, and Local Dominance — heavier computations that reveal subtle terrain structure standard hillshading misses. LRM (cheap) is switched on here; Sky View Factor and the others are ray-marched and noticeably slower, worth trying once you're exploring your own data.",
     onEnter: prepareReliefVisualizationOnly,
+  },
+  {
+    key: "terrain-tools", domId: "tour-tools-group", side: "left", align: "start",
+    title: "Tools",
+    description: (
+      <>
+        <p className="pb-2">A grab bag of map-based utilities, independent of any visualization mode:</p>
+        <ul className="list-disc pl-4 space-y-1.5">
+          <li><span className="font-semibold text-foreground">Drawing</span> — sketch points, lines, and polygons directly on the map.</li>
+          <li><span className="font-semibold text-foreground">Elevation Picker</span> — click anywhere on the terrain to read off its elevation.</li>
+          <li><span className="font-semibold text-foreground">Sun/Shadow Calculator</span> <span className="text-muted-foreground/70 italic">(beta)</span> — estimate shadow length and direction for a chosen date, time, and location.</li>
+          <li><span className="font-semibold text-foreground">Animation</span> — fly the camera along a scripted path through the scene.</li>
+          <li><span className="font-semibold text-foreground">Source Info</span> — provenance and attribution for the active terrain/basemap source.</li>
+        </ul>
+      </>
+    ),
+    onEnter: prepareTerrainTools,
   },
   KEYBOARD_SHORTCUTS_STEP,
 ]
@@ -395,10 +440,33 @@ const HISTORICAL_STEPS: TourStepDef[] = [
   },
   {
     key: "historical-timeline", domId: "tour-historical-timeline", side: "top", align: "center",
-    offerOtherBranch: true,
     title: "Historical Imagery Timeline",
     description: "Timeline activates automatically once at least one grid view is set to the Historical Imagery raster basemap source. Aggregates ESRI Wayback, Google Earth Historical, Bing, Planet Monthly, NASA HLS, and EOX Sentinel-2 into one scrubbable timeline. Click any tick to jump that view to its resolved capture date — each view's handle is colored to match its border above. Dates may take a moment to resolve.",
+    // Tried scrolling to "tour-basemap-section" (the evidence every view
+    // resolved to a historical source) instead of this step's own target —
+    // confirmed live it isn't reliably possible: the panel's scroll range
+    // is exhausted right around there regardless of "start" vs "center"
+    // alignment, and squeezing the basemap section into view left no room
+    // above for this step's own `side="top"` popup, which floating-ui then
+    // couldn't place on-screen at all. Left at the default (scroll this
+    // step's own target) instead.
     onEnter: prepareHistoricalTimeline,
+  },
+  {
+    key: "historical-tools", domId: "tour-tools-group", side: "left", align: "start",
+    offerOtherBranch: true,
+    title: "Tools",
+    description: (
+      <>
+        <p className="pb-2">Historical mode keeps a smaller subset — just the ones that make sense without a live elevation source:</p>
+        <ul className="list-disc pl-4 space-y-1.5">
+          <li><span className="font-semibold text-foreground">Drawing</span> — sketch points, lines, and polygons directly on the map.</li>
+          <li><span className="font-semibold text-foreground">Sun/Shadow Calculator</span> <span className="text-muted-foreground/70 italic">(beta)</span> — estimate shadow length and direction for a chosen date, time, and location.</li>
+          <li><span className="font-semibold text-foreground">Source Info</span> — provenance and attribution for the active historical imagery source.</li>
+        </ul>
+      </>
+    ),
+    onEnter: prepareHistoricalTools,
   },
 ]
 
@@ -536,6 +604,44 @@ function waitForStableRect(domId: string, timeoutMs = 1500): Promise<void> {
   })
 }
 
+// Coachmark's own built-in scroll-into-view (triggered internally off the
+// `stepIndex` prop, via the native Element.scrollIntoView + a scroll/scrollend
+// listener race) turns out to be unreliable for a target buried deep in the
+// sidebar's own scroll container: confirmed live that for a target requiring
+// a large scroll distance (e.g. Hypsometric/Terrain Analysis/Relief
+// Visualization — each progressively further down the Options list than
+// Hillshade above them), its internal wait can resolve before the actual
+// scroll has gone far enough, leaving the popup positioned against a target
+// rect that's still (partly) below the fold — visually indistinguishable
+// from "no popup at all", just the dimmed backdrop. This function, awaited
+// before a step is ever committed (see goToIndex/chooseBranch), sidesteps
+// that race entirely — by the time Coachmark's own attempt runs, the target
+// is already in view, so its internal path finds nothing left to do.
+// NOTE: tried disabling Coachmark's own scrollIntoView globally (since this
+// function makes it redundant) — confirmed live that broke something ELSE:
+// its own scroll phase also does some internal re-measurement step this
+// codebase doesn't fully understand, and skipping that phase entirely could
+// leave a LATER step positioned against a stale/wrong-sized anchor rect even
+// once this function's own scroll had already landed correctly. Left at
+// Coachmark's own default (true) for that reason — only steps whose
+// `scrollTargetId` redirects the scroll elsewhere disable it per-step (see
+// `scrollIntoView` on TourStepDef), since leaving Coachmark's own attempt
+// aimed at the step's own domId in THOSE cases would fight this one over the
+// final scroll position.
+// `block: "start"` (not "center"/"nearest") always surfaces the target's OWN
+// top edge — for most steps that's simply the more predictable choice, but
+// it matters most for a target whose height varies with user data (Raster
+// Basemap/Terrain Sources, once BYOD custom sources pile up): "center" tries
+// to vertically center the whole (possibly very tall) element, which can
+// push its own title — and the section header `side="left" align="start"`
+// popups are anchored to — above the top of the viewport, i.e. off-screen,
+// even though plenty of the section's OWN content is technically "in view"
+// further down. "start" always leaves the title (and as much of what follows
+// as fits) visible.
+function scrollTargetIntoView(domId: string, block: ScrollLogicalPosition = "start") {
+  document.getElementById(domId)?.scrollIntoView({ behavior: "instant", block })
+}
+
 interface ProductTourProps {
   state: any
   setState: (updates: any) => void
@@ -635,6 +741,20 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     stateFields: Record<string, unknown>
   }>(null)
 
+  // Guards goToIndex/chooseBranch's async prepare chain against overlapping
+  // calls — e.g. Next clicked again before the previous transition's own
+  // wait finished, or Coachmark's own internal transition (which runs BEFORE
+  // ever calling onStepChange, i.e. before goToIndex even starts) takes long
+  // enough that a second call starts in the meantime. Confirmed live: without
+  // this, a slower stale chain resolving AFTER a newer one already committed
+  // could call setStepIndex with ITS OWN (now stale) index, silently
+  // reverting the visible step while the app state a differently-ordered
+  // onEnter left behind stays put — stepper and panel state visibly
+  // disagreeing on which step is "current". Each call stamps its own
+  // generation; only the chain whose generation is still current when its
+  // wait resolves is allowed to actually commit.
+  const transitionGenerationRef = useRef(0)
+
   // Moves to `newIndex` within the CURRENT branch's step list: runs that
   // step's own onEnter (forcing whatever sidebar/section/mode state its
   // target needs to exist), waits for that to actually land in the DOM,
@@ -644,8 +764,12 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   const goToIndex = useCallback((newIndex: number) => {
     const step = activeSteps[newIndex]
     if (!step) return
+    const generation = ++transitionGenerationRef.current
     step.onEnter?.(actionsRef.current)
-    void waitForTarget(step.domId).then(() => waitForStableRect(step.domId)).then(() => {
+    void waitForTarget(step.domId).then(() => {
+      scrollTargetIntoView(step.scrollTargetId ?? step.domId, step.scrollBlock)
+    }).then(() => waitForStableRect(step.domId)).then(() => {
+      if (transitionGenerationRef.current !== generation) return
       resolveAllRefs()
       setStepIndex(newIndex)
       setOpen(true)
@@ -659,9 +783,13 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     const steps = getStepsForBranch(next)
     const targetIndex = GENERAL_STEPS.length + 1
     const step = steps[targetIndex]
+    const generation = ++transitionGenerationRef.current
     setBranch(next)
     step?.onEnter?.(actionsRef.current)
-    void waitForTarget(step?.domId ?? "").then(() => waitForStableRect(step?.domId ?? "")).then(() => {
+    void waitForTarget(step?.domId ?? "").then(() => {
+      if (step) scrollTargetIntoView(step.scrollTargetId ?? step.domId, step.scrollBlock)
+    }).then(() => waitForStableRect(step?.domId ?? "")).then(() => {
+      if (transitionGenerationRef.current !== generation) return
       resolveAllRefs()
       setStepIndex(targetIndex)
     })
@@ -852,6 +980,18 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
         stepIndex={stepIndex}
         onStepChange={handleStepChange}
         modal={false}
+        // Left at Coachmark's own default (true) here — goToIndex's own
+        // scrollTargetIntoView (see its comment) is the RELIABLE one and
+        // always runs regardless, but disabling this globally turned out to
+        // have its own cost: confirmed live it also skips some internal
+        // re-measurement Coachmark does as part of its own scroll phase,
+        // occasionally leaving a step positioned against a stale/wrong-sized
+        // anchor rect even once our own scroll had already landed correctly.
+        // Only individual steps whose scrollTargetId redirects OUR scroll
+        // elsewhere disable this (scrollIntoView: false on their own
+        // TourStepDef, below) — those are exactly the ones where leaving
+        // Coachmark's own attempt aimed at the step's own domId would fight
+        // with ours over the final scroll position.
         scrollIntoView
       >
       <Coachmark.Backdrop className="fixed inset-0 z-[60] bg-black/50 transition-opacity data-starting-style:opacity-0 data-ending-style:opacity-0" />
@@ -948,9 +1088,9 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
                       <button
                         type="button"
                         onClick={() => chooseBranch(otherBranch)}
-                        className="text-left text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground cursor-pointer"
+                        className={cn(buttonVariants({ variant: "outline", size: "sm" }), buttonBase, "w-full h-auto whitespace-normal py-1.5 text-center leading-snug")}
                       >
-                        Curious about {otherBranch === "historical" ? "Historical Satellite mode" : "the Terrain tools"}? Take that tour instead →
+                        Continue to {otherBranch === "historical" ? "Historical Satellite mode" : "the Terrain tools"} →
                       </button>
                     )}
                     <div className="flex items-center justify-between gap-3">
