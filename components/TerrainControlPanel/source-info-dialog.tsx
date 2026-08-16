@@ -110,6 +110,17 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
           </div>
 
           <div>
+            <a
+              href="/docs/features/terrain-sources"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline text-xs"
+            >
+              Compare all built-in terrain sources →
+            </a>
+          </div>
+
+          <div>
             <span className="font-semibold">Encoding Type:</span> {config.encoding}
           </div>
 

@@ -100,7 +100,7 @@ const POSE_KEYS: (keyof CameraPose)[] = [
 // Fallback values for decoding a pose that's missing fields (e.g. an older/newer
 // URL than this build expects) — matches this app's own default camera view.
 const DEFAULT_POSE: CameraPose = {
-  lat: 45.9763, lng: 7.6586, zoom: 12.5, pitch: 60, bearing: 0, roll: 0, vfov: 36.869898, refWidth: 800,
+  lat: 45.9788, lng: 7.674, zoom: 12.37, pitch: 60, bearing: 0, roll: 0, vfov: 36.869898, refWidth: 800,
 }
 
 // Default values for the numeric (non-camera) state fields that can end up in a

@@ -18,7 +18,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
-  appModeAtom, type AppMode, isHistoricalHostname,
+  appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -219,7 +219,7 @@ export const QUERY_STATE_PARSERS = {
     // depending on grid shape and whether the timeline panel is docked below it).
     showCaptureDatePill: parseAsStringLiteral(["off", "date", "source-date"] as const).withDefault("off"),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
-    sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
+    sourceB: parseAsString.withDefault("aws"),   // aws needs no API key, unlike maptiler/mapbox — safe default for a fresh visitor's first split view
     // C-H only ever matter for gridLayout "2x2"/"3x1"/"3x2"/"4x1"/"4x2" — same
     // shape as sourceA/B, just extra slots so bigger grids need no schema change.
     sourceC: parseAsString.withDefault("aws"),
@@ -672,9 +672,9 @@ export const QUERY_STATE_PARSERS = {
     // section) — only affects the single/split basemap layer, not overlays.
     basemapSourceOpacity: parseAsFloat.withDefault(1.0),
     exaggeration: parseAsFloat.withDefault(1),
-    lat: parseAsFloat.withDefault(45.9763),
-    lng: parseAsFloat.withDefault(7.6586),
-    zoom: parseAsFloat.withDefault(12.5),
+    lat: parseAsFloat.withDefault(45.9788),
+    lng: parseAsFloat.withDefault(7.674),
+    zoom: parseAsFloat.withDefault(12.37),
     // -- try getting out of pitch 0 loop in 3d
     // pitch: parseAsFloat.withDefault(60.001),
     pitch: parseAsFloatPrecise.withDefault(60),
@@ -849,6 +849,17 @@ export function TerrainViewer() {
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
   const [, setSectionOpen] = useAtom(sectionOpenAtom)
   const hasAppliedEmbedConfig = useRef(false)
+  // Snapshotted during render — BEFORE any effect runs — not read live inside
+  // the hasAppliedEmbedConfig effect below: the sibling effect that mirrors
+  // state.appMode into appModeAtom (a few lines down) fires first on mount
+  // (effects run in declaration order) and unconditionally persists the
+  // current value, "terrain" default included. A live localStorage read
+  // inside the embed-config effect would therefore always see that just-
+  // written entry and never treat any fresh visit as first-ever, silently
+  // defeating isHistoricalHostname's first-visit default below.
+  const hadStoredAppModeAtMount = useRef<boolean>((() => {
+    try { return window.localStorage.getItem("appMode") !== null } catch { return false }
+  })())
 
   const [state, setState] = useQueryStates(QUERY_STATE_PARSERS,
   {
@@ -875,6 +886,21 @@ export function TerrainViewer() {
   // from a previous historical-mode session. Every other split style in
   // historical mode honors the user's chosen gridLayout.
   const isHistoricalMode = state.appMode === "historical"
+  // Keeps the tab favicon's SHAPE (mountain vs clock) in sync with the live
+  // app mode — index.html's own inline script only gets one best-effort
+  // guess in before this component ever mounts (stored appMode if any, else
+  // isHistoricalHostname), so a mode switch mid-session (or a first guess
+  // that turns out wrong, e.g. a stored "historical" preference on a domain
+  // that isn't historical-satellite.iconem.com) needs this to actually
+  // follow it. isProdHostname decides blue vs purple exactly like that
+  // inline script — this only ever changes the shape half, never the color.
+  useEffect(() => {
+    const href = isHistoricalMode
+      ? (isProdHostname(window.location.hostname) ? "/favicon-historical.svg" : "/favicon-historical-dev.svg")
+      : (isProdHostname(window.location.hostname) ? "/favicon.svg" : "/favicon-dev.svg")
+    const link = document.querySelector('link[rel="icon"]')
+    if (link) link.setAttribute("href", href)
+  }, [isHistoricalMode])
   // Snapshot taken the instant tellsFrozen flips to true — the currently
   // rendered candidates, querySourceFeatures'd off the live "tellsSource"
   // vector tiles into a plain geojson FeatureCollection. TellsSource swaps
@@ -918,11 +944,23 @@ export function TerrainViewer() {
   const gridConfig = GRID_LAYOUTS[effectiveGridLayout]
   const activeViewIds: ViewId[] = isSplit ? gridConfig.grid.flat() : ["A"]
   const bottomRightViewId: ViewId = isSplit ? bottomRightView(effectiveGridLayout) : "A"
-  const rightmostPerRow: ViewId[] = isSplit ? rightmostViewsPerRow(effectiveGridLayout) : ["A"]
-  // Only the LAST row needs the historical-timeline bottom-padding
-  // correction (mapPaddingFor below) — a top-row pane in a 2-row grid isn't
-  // anywhere near the true bottom edge the panel actually docks to.
-  const bottomRowViews: ViewId[] = isSplit ? gridConfig.grid[gridConfig.grid.length - 1] : ["A"]
+  // Empty outside split/grid mode, AND whenever the grid is only one column
+  // wide (e.g. "1x2"'s vertical stack): the sidebar-footprint padding this
+  // feeds into mapPaddingFor below exists to keep vanishing points aligned
+  // ACROSS multiple side-by-side panes — meaningless with only one pane per
+  // row, and its side effect there was silently shifting the single default
+  // view (and every bookmark/preset restore, and every column of a purely
+  // vertical grid) away from its own saved lat/lng, e.g. the Matterhorn
+  // preset rendering right-of-center instead of centered.
+  const rightmostPerRow: ViewId[] = isSplit && gridConfig.cols > 1 ? rightmostViewsPerRow(effectiveGridLayout) : []
+  // Same reasoning, the other axis: only a genuinely multi-ROW grid (e.g.
+  // "2x2") has a top row whose panes AREN'T already at the true bottom edge,
+  // making the last row's own padding correction meaningful by comparison.
+  // A single-row grid — non-split, OR a side-by-side "2x1"/"3x1"/"4x1" split
+  // — has every pane sitting at that same true bottom edge already, so
+  // correcting only the "last" (i.e. every) row here would just be the same
+  // unwanted whole-view shift the rightmost-column fix above addresses.
+  const bottomRowViews: ViewId[] = isSplit && gridConfig.rows > 1 ? gridConfig.grid[gridConfig.grid.length - 1] : []
 
   // Session-only (never persisted) live ramp tweaks — see rampSessionOverridesAtom's
   // own header. Read once here and threaded into every computeColorReliefPaint call
@@ -1481,9 +1519,7 @@ export function TerrainViewer() {
         // A domain unrelated to either deploy (a fork, localhost, a preview
         // URL) matches neither branch and just keeps the normal "terrain"
         // default, so this never breaks serving from another domain.
-        let hasStoredAppMode = false
-        try { hasStoredAppMode = window.localStorage.getItem("appMode") !== null } catch { /* storage blocked (e.g. embed sandbox) — fall through to hostname default */ }
-        if (!hasStoredAppMode && isHistoricalHostname(window.location.hostname)) stateOverrides.appMode = "historical"
+        if (!hadStoredAppModeAtMount.current && isHistoricalHostname(window.location.hostname)) stateOverrides.appMode = "historical"
       }
     }
 
@@ -1642,16 +1678,27 @@ export function TerrainViewer() {
   const handleViewMove = useCallback((side: ViewId, evt: any) => {
     if (isSyncing.current || !isSplit) return
     isSyncing.current = true
-    for (const other of activeViewIds) {
-      if (other === side) continue
-      mapRefs[other].current?.getMap()?.jumpTo({
-        center: [evt.viewState.longitude, evt.viewState.latitude],
-        zoom: evt.viewState.zoom,
-        bearing: evt.viewState.bearing,
-        pitch: evt.viewState.pitch,
-      })
+    try {
+      for (const other of activeViewIds) {
+        if (other === side) continue
+        mapRefs[other].current?.getMap()?.jumpTo({
+          center: [evt.viewState.longitude, evt.viewState.latitude],
+          zoom: evt.viewState.zoom,
+          bearing: evt.viewState.bearing,
+          pitch: evt.viewState.pitch,
+        })
+      }
+    } finally {
+      // jumpTo() fires 'move'/'moveend' synchronously (see padding effect
+      // comment above), so any re-entrant call from the other views' own
+      // handlers has already run and bailed out (isSyncing was still true)
+      // by the time this loop returns — safe to clear the guard immediately
+      // instead of on a timer. A timed reset (the old approach) blocked
+      // legitimate subsequent drag frames too (they fire every ~16ms, far
+      // more often than a 50ms window), leaving the other view a few frames
+      // behind and requiring a manual pan on it to resync.
+      isSyncing.current = false
     }
-    setTimeout(() => { isSyncing.current = false }, 50)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSplit, activeViewIds.join(",")])
 
@@ -1794,14 +1841,24 @@ export function TerrainViewer() {
   // ----------------------------------------
   // Handle terrain source changes and sync terrain with view mode changes
   // ----------------------------------------
+  // Keyed by view — whether live ground-clamping has already been disabled
+  // once for it (see the persistent 'idle' listener set up in each view's
+  // onLoad below). Prevents redoing it every idle tick once it's already off.
+  const terrainClampDisabledRef = useRef<Partial<Record<ViewId, boolean>>>({})
+
   const applyTerrain = useCallback((map: maplibregl.Map, viewMode: string) => {
     // Remove terrain in 2D mode
     if (viewMode === '2d') {
       map.setTerrain(null)
       return
     }
-    
-    // Apply terrain in 3D/globe mode
+
+    // Apply terrain in 3D/globe mode — the persistent 'idle' listener set up
+    // in this view's onLoad (below) re-affirms this same call every time the
+    // map settles, which is what actually keeps the terrain-aware camera
+    // correctly centered through any disturbance (see that listener's own
+    // comment for the full root-cause writeup); this initial application
+    // just needs to get terrain switched on at all.
     const apply = () => {
       if (map.getSource('terrainSource')) {
         map.setTerrain({
@@ -2038,9 +2095,40 @@ export function TerrainViewer() {
   // correct target value but getPadding() reads back {0,0,0,0} seconds
   // later; with duration: 0 it reliably sticks.
   useEffect(() => {
-    for (const side of activeViewIds) {
-      if (!mapLoaded[side]) continue
-      mapRefs[side].current?.getMap().easeTo({ padding: mapPaddingFor(side), duration: 0 })
+    // Guard against the split-view sync handler (handleViewMove above):
+    // easeTo() — even at duration:0 — fires a 'move' event synchronously,
+    // same as jumpTo, which handleViewMove treats as a real navigation and
+    // propagates via jumpTo() to every OTHER active view. That cross-view
+    // jumpTo is itself an elevation-resetting camera command (see
+    // resettleCameraForTerrain's own comment) — confirmed live: without this
+    // guard, view B's own padding-driven easeTo synced back to view A a
+    // moment after A's own reaffirm below had already fixed it, corrupting
+    // it right back off-center. isSyncing already exists for exactly this
+    // kind of re-entrancy; just reusing it here for a different source of
+    // unwanted cross-view propagation.
+    isSyncing.current = true
+    try {
+      for (const side of activeViewIds) {
+        if (!mapLoaded[side]) continue
+        const map = mapRefs[side].current?.getMap()
+        if (!map) continue
+        map.easeTo({ padding: mapPaddingFor(side), duration: 0 })
+        // easeTo (like jumpTo) also resets the center's elevation to a flat
+        // guess at call time, regardless of centerClampedToGround — this is
+        // what actually re-broke a correctly-centered high-elevation focal
+        // point (e.g. the Matterhorn summit) back off-center on every
+        // Off/Overlay/Side toggle, since terrain data was already fully
+        // loaded by then so nothing else was going to re-trigger a reactive
+        // reclamp. Re-affirming setTerrain() immediately (synchronously, not
+        // waiting for the persistent 'idle' listener in onLoad below — that
+        // one's the backstop for every OTHER disturbance, this is just the
+        // fast path for this specific, very common one) forces MapLibre to
+        // resolve elevation fresh from the already-loaded DEM data right away.
+        const currentTerrain = map.getTerrain()
+        if (currentTerrain) map.setTerrain(currentTerrain)
+      }
+    } finally {
+      isSyncing.current = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapPaddingFor, mapLoaded, activeViewIds.join(",")])
@@ -2251,6 +2339,47 @@ export function TerrainViewer() {
             // while the map is settled instead of being wiped every frame.
             mapInstance.on('movestart', () => resetSlowTileProgress())
             mapInstance.on('zoomstart', () => resetSlowTileProgress())
+
+            // Any camera- or viewport-transform-affecting call — easeTo,
+            // jumpTo (including the split-sync handler's own cross-view
+            // jumps above), resize() (pane dimensions changing between
+            // Overlay/Side/grid shapes) — resets the center's terrain
+            // elevation reference to a flat/stale guess, REGARDLESS of
+            // centerClampedToGround, and nothing else automatically
+            // re-resolves it once real DEM data is already loaded (see
+            // resettleCameraForTerrain's own comment for the full
+            // root-cause writeup). Confirmed live, repeatedly, that each of
+            // these individually re-broke an already-correctly-centered
+            // high-elevation focal point (e.g. the Matterhorn summit) a
+            // moment after some totally different trigger (split-style
+            // switch, cross-view sync, pane resize) — chasing every
+            // individual call site one at a time was a losing battle.
+            // 'idle' fires after EVERY one of these settles, whatever
+            // caused it, so reaffirming setTerrain there — persistently,
+            // not just once — catches all of them uniformly instead.
+            mapInstance.on('idle', () => {
+              const currentTerrain = mapInstance.getTerrain()
+              if (!currentTerrain) return
+              mapInstance.setTerrain(currentTerrain)
+              // Live ground-clamping (centerClampedToGround, default true) is
+              // what actually gets elevation right in the first place — it
+              // must be ON for the reaffirm just above to resolve real
+              // elevation instead of a stale flat-earth guess (confirmed
+              // live: disabling it before this point left the reaffirm
+              // re-affirming the wrong height). But once terrain is up and
+              // idle at least once, it's served its purpose: leaving it on
+              // means every subsequent drag frame keeps re-resolving
+              // elevation live, which is the "weird follow-terrain" bob/climb
+              // while panning, and inconsistent between views on different
+              // DEM providers. Disable it here, once — same knob this file's
+              // keyframe-recording animation already disables for its own
+              // one map instance (see setCenterClampedToGround(false) in
+              // CameraUtilities.tsx), just applied to every split view too.
+              if (!terrainClampDisabledRef.current[side]) {
+                terrainClampDisabledRef.current[side] = true
+                mapInstance.setCenterClampedToGround(false)
+              }
+            })
 
             // const applyTerrain = () => {
             //   if (mapInstance.getSource("terrainSource")) {

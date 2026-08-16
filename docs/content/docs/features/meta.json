@@ -1,8 +1,10 @@
 {
   "title": "Features",
+  "defaultOpen": true,
   "pages": [
     "index",
     "visualization-modes",
+    "terrain-sources",
     "basemaps-and-historical",
     "bookmarks",
     "byod"

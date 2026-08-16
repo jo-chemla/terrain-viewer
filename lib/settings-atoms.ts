@@ -208,6 +208,15 @@ export function isHistoricalHostname(hostname: string): boolean {
   return HISTORICAL_HOSTNAME_RE.test(hostname)
 }
 
+// Real deploys of this app (as opposed to local dev, a fork, or a preview
+// URL) — used by the favicon swap (index.html's inline script AND the
+// appMode-reactive effect in TerrainViewer.tsx) to pick the blue/purple
+// color half of the icon, independently of isHistoricalHostname's own
+// mountain-vs-clock SHAPE decision above.
+export function isProdHostname(hostname: string): boolean {
+  return hostname === "terrain-viewer.iconem.com" || hostname === "jo-chemla.github.io" || isHistoricalHostname(hostname)
+}
+
 export const transparentUiAtom = atomWithStorage("isTransparentUi", true)
 export const activeSliderAtom = atom<string | null>(null)
 

@@ -14,8 +14,13 @@ Native MapLibre hillshade with multiple illumination methods (Standard, Combined
 
 {/* A plain markdown ![]() here gets statically resolved as a module import
     by Fumadocs' MDX compiler, which has no loader registered for .mp4 (fails
-    the whole page at compile time) — inline JSX bypasses that entirely. */}
-<video src="/screenshots/hillshade-direction.mp4" autoPlay loop muted playsInline className="rounded-lg border" />
+    the whole page at compile time) — inline JSX bypasses that entirely.
+    Plain <video src> (unlike next/image or next/link) never gets this app's
+    own basePath ("/docs") auto-applied, so it has to be included by hand —
+    same reason every other asset path in this file/repo is /docs/-prefixed
+    (see (home)/page.tsx's own comment on this). Without it this 404s in dev
+    and prod alike, since docs is a standalone Next app mounted under /docs. */}
+<video src="/docs/screenshots/hillshade-direction.mp4" autoPlay loop muted playsInline className="rounded-lg border" />
 <p className="text-sm text-fd-muted-foreground italic">Dragging the XYPad to set light azimuth/elevation</p>
 
 ## Elevation Hypso (Hypsometric Tint)
