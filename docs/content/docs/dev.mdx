@@ -1,0 +1,43 @@
+---
+title: Dev
+description: Running the app, its structure, and its architecture
+---
+
+## Using the hosted app
+
+The app is deployed at [terrain-viewer.iconem.com](https://terrain-viewer.iconem.com/) — no install needed. Open it, pick a location, and toggle visualization modes from the sidebar.
+
+A dedicated historical-imagery-only entry point is available at [historical-satellite.iconem.com](https://historical-satellite.iconem.com/) — same app, defaulting straight into Historical mode on a first visit (see [Basemaps & Historical Imagery](/features/basemaps-and-historical)).
+
+## Running locally
+
+```bash
+git clone https://github.com/Iconem/terrain-viewer.git
+cd terrain-viewer
+
+pnpm install
+pnpm run dev      # http://localhost:5173
+pnpm run build    # bundles to dist/
+```
+
+## The URL as app state
+
+Nearly every sidebar control — viewport (lat/lng/zoom/pitch/bearing), active terrain/basemap sources, every visualization toggle and its options, split-screen layout, historical dates — is mirrored to the URL query string via [nuqs](https://nuqs.dev/docs/basic-usage). That means:
+
+- Copying the address bar URL always reproduces the exact current view for someone else.
+- [Bookmarks](/features/bookmarks) are really just a saved query string plus a thumbnail.
+- Embedding a specific configuration (e.g. in an iframe) is just linking to the right URL — see `?project=` and `terrainUrl=`/`basemapUrl=` for pointing straight at a custom source without registering it first.
+
+## Structure
+
+- `components/TerrainViewer.tsx` (~3,200 lines) — central orchestrator, all state wiring
+- `components/TerrainControlPanel/` — the big sidebar, one file per settings section
+- `components/LayersAndSources/` — MapLibre layer/source composition
+- `lib/` — the real domain logic: one `*-protocol.ts` file per terrain-derivative raster computation, historical-imagery source adapters, export pipelines, `settings-atoms.ts`
+
+## Architecture
+
+- State is split: `nuqs` for shareable URL state (viz toggles, camera, ramps), `jotai` (`atomWithStorage`) for local persistence (API keys, UI collapse state)
+- No router — app "modes" are just state, not routes
+- No real backend — everything streams from tile/COG providers client-side, with an optional self-hosted `titiler` for export/contours
+- Custom MapLibre protocols intercept tile requests to compute derived rasters (some GPU-accelerated) client-side

@@ -3,7 +3,7 @@
 # dependencies
 /node_modules
 
-/dist 
+/dist
 
 # next.js
 /.next/

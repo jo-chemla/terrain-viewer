@@ -1,0 +1,29 @@
+---
+title: Overview
+description: What Terrain Viewer is and how the sidebar is organized
+---
+
+Terrain Viewer is a browser-based terrain and historical-imagery visualization tool built on [MapLibre GL](https://maplibre.org/maplibre-gl-js/docs/) via [react-map-gl](https://visgl.github.io/react-map-gl/). Every setting lives in the URL query string, so any view is shareable as a plain link.
+
+**Elevation Terrain Visualizer** is a browser-based terrain visualization/export tool built on MapLibre GL (React + TypeScript + Vite, pnpm).
+
+**Two main modes:**
+
+1. **Terrain mode** — pick a source (Mapterhorn, Mapbox, MapTiler, AWS Mapzen, or your own COG/GeoTIFF), render with many relief techniques (hillshade, hypsometric tint, contours, slope/aspect/curvature, TRI/TPI/roughness, sky-view-factor/openness, LRM, an experimental mound detector called "Tells"), in 2D/3D/Globe, exportable as GeoTIFF/screenshots/QGIS templates.
+2. **Historical Imagery mode** — scrub a per-tile capture-date timeline across providers (ESRI Wayback, Google Earth Historical, Landsat/Sentinel HLS, Planet, Bing), with N-way grid/split compare and CSS-blend-mode overlay.
+
+## Sidebar groups
+
+- **General Settings** — View Mode (2D/3D/Globe), Split Mode (Off/Overlay/Side, up to an 8-view grid), Project import/export
+- **[Visualization Modes](/features/visualization-modes)**
+- **[Bookmarks](/features/bookmarks)**
+- **Sources** — Terrain and Basemap, including the combined **[Basemaps & Historical Imagery](/features/basemaps-and-historical)** entry
+- **Options / Tools** — per-mode option panels, Drawing, Elevation Picker, Animation, Source Info
+
+## Where to go next
+
+- [Terrain Visualization Modes](/features/visualization-modes)
+- [Basemaps & Historical Imagery](/features/basemaps-and-historical)
+- [Bookmarks](/features/bookmarks)
+- [Bring Your Own Data](/features/byod)
+- [Dev](/dev)

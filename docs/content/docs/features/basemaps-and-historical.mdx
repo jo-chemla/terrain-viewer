@@ -1,0 +1,39 @@
+---
+title: Basemaps & Historical Imagery
+description: Satellite basemaps and the historical imagery timeline
+---
+
+## Basemap sources
+
+The **Basemap** section under Sources offers several satellite/hybrid basemaps ([Google Hybrid](https://mapsplatform.google.com/), [Bing Aerial](https://www.bing.com/maps/aerial), [ESRI World Imagery](https://www.esri.com/en-us/arcgis/products/arcgis-image/services/world-imagery), [Mapbox Satellite](https://www.mapbox.com/), [HERE Satellite](https://www.here.com/), [Google Satellite](https://mapsplatform.google.com/), [OpenStreetMap](https://www.openstreetmap.org/)) plus any custom source you've added — see [Bring Your Own Data](/features/byod).
+
+In **split view** (grid layouts up to 4×2 / 8 views, labeled A–H), each basemap row shows an A–H button grid so a different source can be assigned per view. Clicking a row's **label** (not just its A–H buttons) sets *every* active view in the current grid layout to that source in one click — handy for putting a whole 4×2 comparison grid onto Historical Imagery without clicking each pane individually.
+
+![Comparing basemap sources side-by-side in grid mode](/screenshots/n-grid.jpg)
+
+## Historical Imagery mode
+
+"Historical Imagery" is a single combined basemap entry covering four underlying providers:
+
+- **[ESRI Wayback](https://livingatlas.arcgis.com/wayback/)** — dated releases of ESRI World Imagery
+- **[HLS](https://hls.gsfc.nasa.gov/)** (Harmonized Landsat/Sentinel-2) — monthly, coarser resolution
+- **[Google Earth Historical](https://github.com/Iconem/GE_TimeMachine)** — occasional very old outlier captures for well-covered areas, via a reverse-engineered `gehist://` protocol scaffolded from Iconem's own GE_TimeMachine
+- **[Planet Monthly Mosaic](https://www.planet.com/products/basemap/)** — requires an API key
+
+Which one actually renders for a given view/date is chosen via the timeline panel at the bottom of the map, not the sidebar.
+
+### The timeline panel
+
+![Scrubbing the historical timeline across capture dates](/screenshots/historical-timeline.jpg)
+
+- Each active view gets a draggable handle on the timeline, positioned at its currently selected capture date.
+- Source pills toggle which providers contribute ticks to the shared timeline; resolution-class filters (VHR vs. medium) narrow it further.
+- **Zoom**: mouse wheel zooms the timeline in/out around the cursor; a trackpad two-finger swipe pans. The zoom-out limit extends slightly (10% per side) past the oldest/newest real tick, so those extreme marks always have breathing room instead of sitting flush against the track's edge.
+- **Pan gutter**: when zoomed in, a small gutter below the track shows where the current window sits within the full range — drag it, or click it, to jump.
+- An off-screen handle shows a chevron; clicking it nudges the relevant edge of the view window out to reveal it.
+
+## Dedicated historical-imagery entry point
+
+The app's `appMode` (`terrain` | `historical`) controls whether the full sidebar or a stripped-down historical-imagery-only sidebar is shown — see the in-app Mode Picker (click the sidebar title). It's a shareable/bookmarkable URL param (`?appMode=historical`) like every other setting.
+
+Visiting **historical-satellite.iconem.com** (and any subdomain of it) defaults straight into Historical mode on a first visit, with no query param needed — the main **terrain-viewer.iconem.com** deploy (or any other/unknown domain, a fork, localhost, a preview URL) keeps the normal Terrain default. Once you've explicitly switched modes in your browser on a given domain, that choice is remembered for next time.

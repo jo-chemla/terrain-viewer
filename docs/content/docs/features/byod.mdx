@@ -1,0 +1,36 @@
+---
+title: Bring Your Own Data
+description: Adding your own terrain/basemap sources, including local files
+---
+
+Add your own terrain or basemap source from the "Add New Terrain Dataset" dialog (Sources → Terrain/Basemap). Supported shapes:
+
+- **XYZ Terrarium or Terrain-RGB** tiles (a raw tile URL template) — the same encoding used by [Mapterhorn](https://mapterhorn.com/), [Mapbox](https://www.mapbox.com/), [MapTiler](https://www.maptiler.com/), and [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/), this app's built-in terrain sources
+- **COG** (Cloud-Optimized GeoTIFF), via [Titiler](https://developmentseed.org/titiler/) or read directly in-browser via [@geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol/)
+
+## Local (offline) COG terrain sources
+
+Two ways to use a COG that lives on your own disk, without uploading it anywhere:
+
+### Local COG file (built into the app)
+
+Pick a `.tif`/`.tiff` with the **Local COG file (this browser only)** type — the app streams it straight off disk via a `blob:` URL through the same `cog://` reader used for remote COGs.
+
+- Never uploaded, but also never persisted — after a reload, re-select the same file to resume.
+- Works for the primary terrain source and its derivative visualizations, the Elevation Picker, and client-side GeoTIFF export. Contour Lines still needs Titiler (it can't reach a local file).
+- **Must be a genuinely tiled COG** (e.g. `gdal_translate -of COG src.tif out_cog.tif`), not a plain strip-organized GeoTIFF — an untiled file forces large repeated decodes and can crash the tab.
+- **Must already be in Web Mercator (EPSG:3857)** — reproject first with `gdalwarp -t_srs EPSG:3857 -of COG src.tif out_3857.tif` if it isn't, or use the remote **COG** type in Titiler mode instead (which reprojects server-side).
+
+### Localhost static file server
+
+Serve the directory containing your COG with any Range-request-capable static server:
+
+```bash
+npx serve --cors -p 8080 .
+```
+
+Then add it as a normal **COG** source with URL `http://localhost:8080/your-file.tif`. `http://localhost` is exempt from mixed-content blocking, so this HTTPS app can fetch it directly. Unlike the built-in local-file picker, this survives reloads and works in any browser.
+
+## Non-geo relief visualization
+
+For non-georeferenced data (e.g. frescoes, artifact scans), see the dedicated [Non-Geo Relief Visualization guide](https://github.com/Iconem/terrain-viewer/blob/main/Non-Geo-Relief-Visualization.md) for the COG parameters needed to avoid artifacts.
