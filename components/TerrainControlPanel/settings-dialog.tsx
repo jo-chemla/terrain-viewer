@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useEffect, useMemo } from "react"
 import { useAtom, useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai"
-import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles } from "lucide-react"
+import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles, Compass } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Label } from "@/components/ui/label"
@@ -24,6 +24,7 @@ import {
   isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
   isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom, isSettingsGeomorphometryOpenAtom,
   isSettingsWhatsNewOpenAtom, lastSeenChangelogAtAtom, changelogViewAtom, changelogEntriesOpenAtom,
+  isTourOpenAtom,
 } from "@/lib/settings-atoms"
 import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_RELEASED_AT, type ChangelogEntry } from "@/lib/changelog"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
@@ -144,6 +145,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const { setTheme: setColorTheme } = useColorTheme()
   const [showThemeEditor, setShowThemeEditor] = useState(false)
   const setCustomThemes = useSetAtom(customThemesAtom)
+  const setIsTourOpen = useSetAtom(isTourOpenAtom)
 
   // Fold-all/expand-all for the settings dialog's own sections — same idea as
   // the sidebar's chevron button (TerrainControlPanel.tsx). Each of these is a
@@ -395,6 +397,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
         <DialogTrigger
           render={
             <TooltipIconButton
+              id="tour-settings-button"
               icon={Settings}
               tooltip="Settings"
             />
@@ -410,6 +413,11 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
         showCloseButton={false}
       >
         <div className="absolute top-4 right-4 flex items-center gap-1">
+          <TooltipIconButton
+            icon={Compass}
+            tooltip="Take the tour"
+            onClick={() => { onOpenChange(false); setIsTourOpen(true) }}
+          />
           <TooltipIconButton
             icon={allSettingsFolded ? ChevronsUpDown : ChevronsDownUp}
             tooltip={allSettingsFolded ? "Expand all sections" : "Fold all sections"}

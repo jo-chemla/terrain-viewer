@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom, type AppMode } from "@/lib/settings-atoms"
+import { ProductTour } from "./product-tour"
 import type { MapRef } from "react-map-gl/maplibre"
 
 import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
@@ -46,7 +47,7 @@ import { cn } from "@/lib/utils"
 // --- Persisted state ---
 export const isSidebarOpenAtom = atomWithStorage("isSidebarOpen", true)
 
-const SECTION_KEYS = [
+export const SECTION_KEYS = [
   "general",
   "comparisonMix",
   "terrainSource",
@@ -70,7 +71,7 @@ const SECTION_KEYS = [
   "footer"
 ] as const
 
-type SectionKey = (typeof SECTION_KEYS)[number]
+export type SectionKey = (typeof SECTION_KEYS)[number]
 type SectionOpenState = Record<SectionKey, boolean>
 
 const DEFAULT_OPEN_STATE: SectionOpenState = {
@@ -105,10 +106,10 @@ const sidebarScrollAtom = atomWithStorage("sidebarScroll", 0)
 // separator. Independent of per-section sectionOpenAtom (folding a group just
 // hides its sections; each section's own open/closed state is preserved
 // underneath and reappears as-is when the group is expanded again).
-const MACRO_GROUP_KEYS = ["Sources", "Options", "Detectors", "Tools"] as const
-type MacroGroupKey = (typeof MACRO_GROUP_KEYS)[number]
+export const MACRO_GROUP_KEYS = ["Sources", "Options", "Detectors", "Tools"] as const
+export type MacroGroupKey = (typeof MACRO_GROUP_KEYS)[number]
 type MacroGroupOpenState = Record<MacroGroupKey, boolean>
-const macroGroupOpenAtom = atomWithStorage<MacroGroupOpenState>("macroGroupOpen", {
+export const macroGroupOpenAtom = atomWithStorage<MacroGroupOpenState>("macroGroupOpen", {
   Sources: true, Options: true, Detectors: true, Tools: true,
 })
 
@@ -468,24 +469,32 @@ export function TerrainControlPanel({
 
   if (!isSidebarOpen) {
     return (
-      <TooltipProvider delay={0} timeout={0}>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button variant="secondary" size="icon" className="absolute right-4 top-4 cursor-pointer" onClick={() => setIsSidebarOpen(true)}>
-                <PanelRightOpen className="h-5 w-5" />
-              </Button>
-            }
-          />
-          <TooltipContent>
-            <p>Open sidebar</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <>
+        <TooltipProvider delay={0} timeout={0}>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button variant="secondary" size="icon" className="absolute right-4 top-4 cursor-pointer" onClick={() => setIsSidebarOpen(true)}>
+                  <PanelRightOpen className="h-5 w-5" />
+                </Button>
+              }
+            />
+            <TooltipContent>
+              <p>Open sidebar</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        {/* Same position (2nd child of this Fragment) as in the open-panel
+            return below, so React keeps this instance mounted — not
+            remounted — across an isSidebarOpen flip the tour itself
+            triggers (see product-tour.tsx's "prepare" step). */}
+        <ProductTour state={state} setState={setState} switchAppMode={handleSelectMode} />
+      </>
     )
   }
 
   return (
+    <>
     <TooltipProvider delay={0} timeout={0}>
       {/* Mobile backdrop — tap outside to close */}
       {isMobile && isSidebarOpen &&  (
@@ -509,6 +518,7 @@ export function TerrainControlPanel({
           edge, so it never has the old "scrollbar squares off the corner"
           problem despite Card itself carrying `overflow-hidden`. */}
       <Card
+        id="tour-sidepanel"
         className={cn(
           "absolute z-50 overflow-hidden flex flex-col p-0 gap-0 backdrop-blur-[2px] text-base",
           "right-0 top-0 bottom-0 w-80 rounded-none",
@@ -525,6 +535,7 @@ export function TerrainControlPanel({
             <TooltipTrigger
               render={
                 <h2
+                  id="tour-mode-label"
                   className="flex items-center gap-1.5 text-xl font-semibold cursor-pointer hover:text-muted-foreground"
                   onClick={() => setIsModePickerOpen(true)}
                 >
@@ -690,5 +701,9 @@ export function TerrainControlPanel({
         </div>
       </Card>
     </TooltipProvider>
+    {/* Same position (2nd child of this Fragment) as in the closed-sidebar
+        return above — see that branch's comment. */}
+    <ProductTour state={state} setState={setState} switchAppMode={handleSelectMode} />
+    </>
   )
 }

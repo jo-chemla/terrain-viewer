@@ -78,6 +78,15 @@ export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
 export const terrainAnalysisAdvancedAtom = atomWithStorage("terrainAnalysisAdvanced", true)
 export const reliefVisualizationAdvancedAtom = atomWithStorage("reliefVisualizationAdvanced", true)
 
+// Guided product tour (components/TerrainControlPanel/product-tour.tsx).
+// hasSeenTourAtom gates the one-time auto-start; isTourOpenAtom is the
+// tour's own open/closed state, shared (not prop-drilled) so both the
+// sidebar header button and Settings dialog's "Take the Tour" entry can
+// start the same mounted <ProductTour> instance — not persisted, a reload
+// mid-tour should just land back on the closed app, not resume it.
+export const hasSeenTourAtom = atomWithStorage("hasSeenTour", false)
+export const isTourOpenAtom = atom(false)
+
 // Sky/horizon/fog colors used to live here as a plain (unpersisted) atom —
 // moved to URL/nuqs state instead (components/TerrainViewer.tsx's
 // QUERY_STATE_PARSERS: skyColor/skyHorizonBlend/horizonColor/etc.) so they're
