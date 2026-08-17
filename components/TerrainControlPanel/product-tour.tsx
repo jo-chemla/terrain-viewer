@@ -224,10 +224,12 @@ function prepareHistoricalTools(a: TourActions) {
 function prepareHistoricalTimeline(a: TourActions) {
   // C/D aren't historical (only A/B are, per prepareHistoricalGrid) — gives
   // the demo grid a mix of static references alongside the two historical
-  // views the timeline itself actually drives.
+  // views the timeline itself actually drives. matchColorsToA reset to false:
+  // the Match Colors step enables it, and it should not persist here.
   prepareHistoricalGrid(a, {
     historicalTimelineCollapsed: false, historicalControlsExpanded: true,
     basemapSourceC: "bing", basemapSourceD: "esri",
+    matchColorsToA: false,
   })
 }
 

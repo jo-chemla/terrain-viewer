@@ -355,7 +355,7 @@ export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>
 // above — these are read synchronously in TerrainViewer's first-load
 // stateOverrides effect, which would otherwise see the pre-hydration default
 // instead of the real stored value.
-const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: false, historical: false }, undefined, { getOnInit: true })
+const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true }, undefined, { getOnInit: true })
 export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
 export const sunShadowBetaEnabledAtom = booleanField(betaEnabledAtom, "sunShadow")
 export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historical")

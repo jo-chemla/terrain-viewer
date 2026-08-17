@@ -33,7 +33,7 @@ const PresetBookmarkRow: React.FC<{ preset: Bookmark; onRestore: (b: Bookmark) =
   <button
     onClick={() => onRestore(preset)}
     title={`Load "${preset.name}"`}
-    className="flex items-center gap-2 min-w-0 rounded-md p-0.5 text-left cursor-pointer hover:bg-muted/50"
+    className="flex w-full items-center gap-2 min-w-0 rounded-md p-0.5 text-left cursor-pointer hover:bg-muted/50"
   >
     <span className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center text-muted-foreground">
       {preset.thumb ? <img src={preset.thumb} alt="" className="h-full w-full object-cover" /> : <ImageOff className="h-3.5 w-3.5" />}
