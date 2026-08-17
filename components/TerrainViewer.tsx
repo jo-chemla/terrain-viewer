@@ -873,6 +873,11 @@ export function TerrainViewer() {
   const hadStoredAppModeAtMount = useRef<boolean>((() => {
     try { return window.localStorage.getItem("appMode") !== null } catch { return false }
   })())
+  // Same pattern for sectionOpen — used below to avoid overriding a returning
+  // visitor's deliberate panel choices on the historical-satellite hostname.
+  const hadStoredSectionAtMount = useRef<boolean>((() => {
+    try { return window.localStorage.getItem("sectionOpen") !== null } catch { return false }
+  })())
 
   const [state, setState] = useQueryStates(QUERY_STATE_PARSERS,
   {
@@ -1538,7 +1543,35 @@ export function TerrainViewer() {
         // A visitor who genuinely wants terrain mode on this hostname can use
         // `?appMode=terrain` — that case is already handled by the
         // `!searchParams.has("appMode")` guard above.
-        if (isHistoricalHostname(window.location.hostname)) stateOverrides.appMode = "historical"
+        if (isHistoricalHostname(window.location.hostname)) {
+          stateOverrides.appMode = "historical"
+          // Default camera, layout, and basemap so a fresh visitor lands on a
+          // meaningful world view in overlay-compare mode. Each field is guarded
+          // so an explicit URL param always wins.
+          const HISTORICAL_HOSTNAME_DEFAULTS: Record<string, unknown> = {
+            viewMode: "2d",
+            zoom: 1.95,
+            lat: 21.0692,
+            lng: 10.6095,
+            pitch: 0,
+            splitStyle: "overlay",
+            showRasterBasemap: true,
+            basemapSourceA: "historical",
+            dateA: 1514678400000,
+            basemapSourceB: "historical",
+            dateB: 1295049600000,
+            historicalActiveSourceA: "ge-historical",
+          }
+          for (const [key, value] of Object.entries(HISTORICAL_HOSTNAME_DEFAULTS)) {
+            if (!searchParams.has(key)) stateOverrides[key] = value
+          }
+          // Open Compare-and-Blend + Basemaps panels on first-ever visit (no
+          // stored sectionOpen). Returning visitors who closed them keep their
+          // preference.
+          if (!hadStoredSectionAtMount.current) {
+            setSectionOpen(prev => ({ ...prev, comparisonMix: true, rasterBasemap: true }))
+          }
+        }
       }
     }
 
