@@ -40,7 +40,13 @@ export const SplitPill: React.FC<{
   onOpacityChange?: (next: number) => void
   /** 2D mode only — see header comment on why this differs from `ratio * 100`. */
   leftPercent?: number
-}> = ({ ratio, onRatioChange, availableWidthPx, min, max, opacity, onOpacityChange, leftPercent }) => {
+  /** CSS transition for `left`, set by the caller ONLY while a side/bottom
+   *  panel is opening or closing — that changes availableWidthPx underneath a
+   *  fixed ratio, so this would otherwise jump while the panes it divides
+   *  glide. Must stay undefined the rest of the time, or dragging the divider
+   *  would lag behind the pointer. */
+  leftTransition?: string
+}> = ({ ratio, onRatioChange, availableWidthPx, min, max, opacity, onOpacityChange, leftPercent, leftTransition }) => {
   const [isDragging, setIsDragging] = useState(false)
   const is2D = onOpacityChange !== undefined
   // Both the gutter strip and the pill circle need the SAME container rect
@@ -115,7 +121,7 @@ export const SplitPill: React.FC<{
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         className="absolute inset-y-0 z-10 w-8 -translate-x-1/2 cursor-col-resize touch-none select-none"
-        style={{ left: `${leftPercent ?? ratio * 100}%` }}
+        style={{ left: `${leftPercent ?? ratio * 100}%`, transition: leftTransition }}
       >
         <div
           onPointerDown={handlePillPointerDown}
@@ -148,7 +154,7 @@ export const SplitPill: React.FC<{
         "after:absolute after:inset-y-0 after:left-0 after:w-px after:content-['']",
         isDragging ? "after:w-0.5 after:-translate-x-px after:bg-primary" : "after:bg-transparent",
       )}
-      style={{ left: `${leftPercent ?? ratio * 100}%` }}
+      style={{ left: `${leftPercent ?? ratio * 100}%`, transition: leftTransition }}
     />
   )
 }

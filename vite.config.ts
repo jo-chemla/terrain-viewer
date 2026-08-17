@@ -8,7 +8,14 @@ import { fileURLToPath, URL } from "url"
 export default defineConfig({
   plugins: [
     devtools({
-      eventBusConfig: { port: 42169 },
+      // Fixed port, so two dev servers started from this repo at once (a git
+      // worktree alongside the main checkout, say) collide on it and the
+      // second one dies with EADDRINUSE — even though --port for the dev
+      // server itself was already unique. Overridable so those can coexist:
+      //   DEVTOOLS_EVENT_BUS_PORT=42170 pnpm dev --port 5173
+      // Default unchanged, so nothing has to be set for the usual single-
+      // server case.
+      eventBusConfig: { port: Number(process.env.DEVTOOLS_EVENT_BUS_PORT) || 42169 },
       // react-map-gl's <Source>/<Layer> spread ALL received JSX props
       // straight into the maplibre style-spec source/layer definition object
       // (addSource/addLayer), with no allowlist — the injected data-tsd-source
