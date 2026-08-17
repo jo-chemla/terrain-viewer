@@ -40,7 +40,7 @@ export const GeneralSettings: React.FC<{
   )
 
   return (
-    <Section title="General Settings" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
+    <Section id="tour-general-settings" title="General Settings" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
       {!historicalMode && (
         <div className="flex items-center justify-between gap-2">
           <Label className="text-sm font-medium">View Mode</Label>
@@ -64,7 +64,7 @@ export const GeneralSettings: React.FC<{
           regardless of state.gridLayout's own stored value — see
           TerrainViewer.tsx's effectiveGridLayout. */}
       {!historicalMode && !hideSplitScreen && (
-        <div className="flex items-center justify-between gap-2">
+        <div id="tour-split-mode" className="flex items-center justify-between gap-2">
           <Label className="text-sm font-medium">Split Mode</Label>
           <SegmentedToggle
             className="w-[180px]"

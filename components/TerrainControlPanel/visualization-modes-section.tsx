@@ -29,6 +29,7 @@ export const VisualizationModesSection: React.FC<{
 
   return (
     <Section
+      id="tour-viz-modes"
       title="Visualization Modes"
       isOpen={isOpen}
       onOpenChange={handleOpenChange}

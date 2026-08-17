@@ -1,0 +1,46 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 81ba22d91d4ce9d6d950d0e4bf0175cddc9d056e..2382ee28feeca3c4811d7b45bb15de9381a9fcbd 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -338,8 +338,10 @@ function waitForAnimationFrames(count, signal) {
+   return new Promise((resolve) => {
+     let animationFrame = 0;
+     let remaining = count;
++    let fallbackTimeout = 0;
+     const cleanup = () => {
+       window.cancelAnimationFrame(animationFrame);
++      window.clearTimeout(fallbackTimeout);
+       signal.removeEventListener("abort", finish);
+     };
+     const finish = () => {
+@@ -355,6 +357,7 @@ function waitForAnimationFrames(count, signal) {
+       animationFrame = window.requestAnimationFrame(next);
+     };
+     signal.addEventListener("abort", finish, { once: true });
++    fallbackTimeout = window.setTimeout(finish, 500);
+     next();
+   });
+ }
+diff --git a/dist/index.js b/dist/index.js
+index 906bb6aa3dd20c3ee9ef5c25e3e6c68c40c95090..93c3037d446aa035cee89d7e69dc390e6729625b 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -311,8 +311,10 @@ function waitForAnimationFrames(count, signal) {
+   return new Promise((resolve) => {
+     let animationFrame = 0;
+     let remaining = count;
++    let fallbackTimeout = 0;
+     const cleanup = () => {
+       window.cancelAnimationFrame(animationFrame);
++      window.clearTimeout(fallbackTimeout);
+       signal.removeEventListener("abort", finish);
+     };
+     const finish = () => {
+@@ -328,6 +330,7 @@ function waitForAnimationFrames(count, signal) {
+       animationFrame = window.requestAnimationFrame(next);
+     };
+     signal.addEventListener("abort", finish, { once: true });
++    fallbackTimeout = window.setTimeout(finish, 500);
+     next();
+   });
+ }

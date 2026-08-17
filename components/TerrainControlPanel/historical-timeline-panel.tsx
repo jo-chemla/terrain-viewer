@@ -1223,6 +1223,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   return (
     <div
       ref={setPanelRef}
+      id="tour-historical-timeline"
       className={cn(
         "fixed z-10 backdrop-blur-[2px] border border-border bg-background/95 shadow-sm transition-[background-color,right] duration-150",
         "bottom-0 left-0 right-0 rounded-none",

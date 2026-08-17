@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  coachmark:
+    hash: bf975d63d8944e3aaeef2bc9fdb9d1ec2e91e6ae5a7e4de9ffc5297391e31666
+    path: patches/coachmark.patch
+
 importers:
 
   .:
@@ -71,6 +76,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      coachmark:
+        specifier: ^0.1.1
+        version: 0.1.1(patch_hash=bf975d63d8944e3aaeef2bc9fdb9d1ec2e91e6ae5a7e4de9ffc5297391e31666)(@date-fns/tz@1.5.0)(@types/react@18.3.31)(date-fns@4.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
@@ -307,11 +315,6 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
-  '@babel/parser@7.29.8':
-    resolution: {integrity: sha512-E8lTAYNB1KW+FH+VGJuZM1ioAx2E6oVlvQFRrf5P8ZZmsiJXYAD9vTFV7yyEURNzgh1dFqMZuO6tUwcARbqFCA==}
-    engines: {node: '>=6.0.0'}
-    hasBin: true
-
   '@babel/plugin-transform-react-jsx-self@7.29.7':
     resolution: {integrity: sha512-TL0hMc9xzy86VD31nUiwzd5otRAcyEPcsegCxolO0PvcXuH1v0kECe/UIznYFihpkvU5wg/jk4v0TTEFfm53fw==}
     engines: {node: '>=6.9.0'}
@@ -340,10 +343,6 @@ packages:
     resolution: {integrity: sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/types@7.29.8':
-    resolution: {integrity: sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg==}
-    engines: {node: '>=6.9.0'}
-
   '@base-ui/react@1.6.0':
     resolution: {integrity: sha512-/jzjTWJYXhRFO45Bev9lc3cHbmjzCMpUqbMZ2AgKy/z25mY9B6shGSNcXcjQar9n5doM0KYW1W8fcFv2jZBuMw==}
     engines: {node: '>=14.0.0'}
@@ -361,8 +360,35 @@ packages:
       date-fns:
         optional: true
 
+  '@base-ui/react@1.7.0':
+    resolution: {integrity: sha512-j+8QjX44C32jrXD/qyEAGpFr70FRpGL2CY61mQd9nBPWN737CK0xxD1ceJ055rW4RtdvFDT1e7otzdlfxvsYug==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      '@date-fns/tz': ^1.2.0
+      '@types/react': ^17 || ^18 || ^19
+      date-fns: ^4.0.0
+      react: ^17 || ^18 || ^19
+      react-dom: ^17 || ^18 || ^19
+    peerDependenciesMeta:
+      '@date-fns/tz':
+        optional: true
+      '@types/react':
+        optional: true
+      date-fns:
+        optional: true
+
   '@base-ui/utils@0.3.1':
     resolution: {integrity: sha512-gFFiltORVmW/N6IILTGxizP3PBpVpysqML1ALY5Vk0mH+7faVkCknOU31goYHN5Aoek2dkjxva1XOD2Ce9WuIg==}
+    peerDependencies:
+      '@types/react': ^17 || ^18 || ^19
+      react: ^17 || ^18 || ^19
+      react-dom: ^17 || ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
+  '@base-ui/utils@0.3.2':
+    resolution: {integrity: sha512-oWy1aq/I2GmYjpl4PhEAhzflF8VPGKgZeq0xAWTbfD5KBWyxcN0ZP2+WHSUm/5Z6lVMBDLReLcoXwSYoRc/zNQ==}
     peerDependencies:
       '@types/react': ^17 || ^18 || ^19
       react: ^17 || ^18 || ^19
@@ -1292,8 +1318,8 @@ packages:
   '@probe.gl/stats@4.1.1':
     resolution: {integrity: sha512-4VpAyMHOqydSvPlEyHwXaE+AkIdR03nX+Qhlxsk2D/IW4OVmDZgIsvJB1cDzyEEtcfKcnaEbfXeiPgejBceT6g==}
 
-  '@react-grab/cli@0.1.50':
-    resolution: {integrity: sha512-Px/Hwhhyk2PubCA4ZaRFsfvwxhbxXsetJyvqC6aFFi8WhJhA+oVC33aTzuAeWmM3fhb4/8ce8YsHXI1d6ChcKg==}
+  '@react-grab/cli@0.2.0':
+    resolution: {integrity: sha512-LVfA+j5cFT0Szd958WRD8W/B8ucCtz4ViiveDKWLqAwBkZFW9VRW1ZvwOUhp/M3SmVPtjDaRkW12GvAuTArP+Q==}
     hasBin: true
 
   '@remix-run/react@2.17.5':
@@ -2432,6 +2458,13 @@ packages:
   clsx@2.1.1:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
     engines: {node: '>=6'}
+
+  coachmark@0.1.1:
+    resolution: {integrity: sha512-MFr0oPPyvo3+cFLPRkgfeBQ0ZmMASKaapntkgqxtvhfJTR6xb6av8OIa3Op+AAilJY33AD+j/GIKaXWNib28Ag==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      react: '>=18 <20'
+      react-dom: '>=18 <20'
 
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
@@ -3863,8 +3896,8 @@ packages:
     peerDependencies:
       react: ^18.3.1
 
-  react-grab@0.1.50:
-    resolution: {integrity: sha512-zRkHKq/8a1msCpEOp8BDROeQZT50m0OH2XPrP6jk5op+JAHrlsm3pj7eAQMOsct87EZDeGNnu4r+sGsJJzyw1Q==}
+  react-grab@0.2.0:
+    resolution: {integrity: sha512-ohhsfXD4qN0j6cMQd56aaVJBPDF3kUdviF/Od1Eak/rEIXQ3svQ4gjkwTfuTZwTBnxHRL16p9JqdlVQO5nUHqA==}
     hasBin: true
     peerDependencies:
       react: '>=17.0.0'
@@ -4689,10 +4722,6 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.7
 
-  '@babel/parser@7.29.8':
-    dependencies:
-      '@babel/types': 7.29.8
-
   '@babel/plugin-transform-react-jsx-self@7.29.7(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
@@ -4728,11 +4757,6 @@ snapshots:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
 
-  '@babel/types@7.29.8':
-    dependencies:
-      '@babel/helper-string-parser': 7.29.7
-      '@babel/helper-validator-identifier': 7.29.7
-
   '@base-ui/react@1.6.0(@date-fns/tz@1.5.0)(@types/react@18.3.31)(date-fns@4.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@babel/runtime': 7.29.7
@@ -4747,7 +4771,32 @@ snapshots:
       '@types/react': 18.3.31
       date-fns: 4.4.0
 
+  '@base-ui/react@1.7.0(@date-fns/tz@1.5.0)(@types/react@18.3.31)(date-fns@4.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@babel/runtime': 7.29.7
+      '@base-ui/utils': 0.3.2(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@floating-ui/react-dom': 2.1.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@floating-ui/utils': 0.2.12
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      use-sync-external-store: 1.6.0(react@18.3.1)
+    optionalDependencies:
+      '@date-fns/tz': 1.5.0
+      '@types/react': 18.3.31
+      date-fns: 4.4.0
+
   '@base-ui/utils@0.3.1(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@babel/runtime': 7.29.7
+      '@floating-ui/utils': 0.2.12
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      reselect: 5.2.0
+      use-sync-external-store: 1.6.0(react@18.3.1)
+    optionalDependencies:
+      '@types/react': 18.3.31
+
+  '@base-ui/utils@0.3.2(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@babel/runtime': 7.29.7
       '@floating-ui/utils': 0.2.12
@@ -5463,7 +5512,7 @@ snapshots:
 
   '@probe.gl/stats@4.1.1': {}
 
-  '@react-grab/cli@0.1.50':
+  '@react-grab/cli@0.2.0':
     dependencies:
       agent-install: 0.0.6
       commander: 14.0.3
@@ -7394,6 +7443,16 @@ snapshots:
 
   clsx@2.1.1: {}
 
+  coachmark@0.1.1(patch_hash=bf975d63d8944e3aaeef2bc9fdb9d1ec2e91e6ae5a7e4de9ffc5297391e31666)(@date-fns/tz@1.5.0)(@types/react@18.3.31)(date-fns@4.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      '@base-ui/react': 1.7.0(@date-fns/tz@1.5.0)(@types/react@18.3.31)(date-fns@4.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+    transitivePeerDependencies:
+      - '@date-fns/tz'
+      - '@types/react'
+      - date-fns
+
   comma-separated-tokens@2.0.3: {}
 
   commander@14.0.3: {}
@@ -7671,7 +7730,7 @@ snapshots:
   eslint-plugin-react-hooks@7.1.1(eslint@10.8.0(jiti@2.7.0)):
     dependencies:
       '@babel/core': 7.29.7
-      '@babel/parser': 7.29.8
+      '@babel/parser': 7.29.7
       eslint: 10.8.0(jiti@2.7.0)
       hermes-parser: 0.25.1
       zod: 4.4.3
@@ -8322,8 +8381,8 @@ snapshots:
 
   magicast@0.5.3:
     dependencies:
-      '@babel/parser': 7.29.8
-      '@babel/types': 7.29.8
+      '@babel/parser': 7.29.7
+      '@babel/types': 7.29.7
       source-map-js: 1.2.1
 
   maplibre-contour@0.1.0: {}
@@ -9174,9 +9233,9 @@ snapshots:
       react: 18.3.1
       scheduler: 0.23.2
 
-  react-grab@0.1.50(react@18.3.1):
+  react-grab@0.2.0(react@18.3.1):
     dependencies:
-      '@react-grab/cli': 0.1.50
+      '@react-grab/cli': 0.2.0
       bippy: 0.6.1(react@18.3.1)
     optionalDependencies:
       react: 18.3.1
@@ -9240,7 +9299,7 @@ snapshots:
       react: 18.3.1
       react-doctor: 0.9.12(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(eslint@10.8.0(jiti@2.7.0))
       react-dom: 18.3.1(react@18.3.1)
-      react-grab: 0.1.50(react@18.3.1)
+      react-grab: 0.2.0(react@18.3.1)
     optionalDependencies:
       esbuild: 0.28.1
       unplugin: 3.3.0(esbuild@0.28.1)(rollup@4.62.3)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))

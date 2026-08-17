@@ -227,6 +227,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                 onClick={() => setIsBatchEditModalOpen(true)}
               />
               <TooltipButton
+                id="tour-load-basemap-samples"
                 icon={TestTube}
                 label="Sample"
                 tooltip="Load sample basemap sources"
