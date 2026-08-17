@@ -70,6 +70,7 @@ const TOUR_STATE_KEYS = [
   "showContoursAndGraticules", "showContours", "showGraticules", "showBackground",
   "showSlope", "showCurvature", "showLrm", "showSvf",
   "hillshadeOpacity", "colorReliefOpacity", "terrainAnalysisOpacity", "reliefVisualizationOpacity",
+  "showCaptureDatePill", "matchColorsToA", "matchColorsColorSpace",
   "basemapSource", "basemapSourceA", "basemapSourceB", "basemapPerView",
   "splitStyle", "gridLayout", "splitBlendModeEnabled", "splitBlendMode", "overlayOpacity",
   "historicalTimelineCollapsed", "historicalControlsExpanded",
@@ -201,7 +202,10 @@ function prepareHistoricalOverlayBlend(a: TourActions) {
 }
 
 function prepareHistoricalGrid(a: TourActions, extraState: Record<string, unknown> = {}) {
-  prepareHistoricalIntro(a, { splitStyle: "side-by-side", gridLayout: "2x2", basemapPerView: true, basemapSourceB: "historical", ...extraState })
+  prepareHistoricalIntro(a, {
+    splitStyle: "side-by-side", gridLayout: "2x2", basemapPerView: true, basemapSourceB: "historical",
+    showCaptureDatePill: "source-date", ...extraState,
+  })
   a.setColorizeMapBorders(true)
   a.setComparisonMixAdvancedOpen(true)
 }
@@ -479,19 +483,31 @@ const HISTORICAL_STEPS: TourStepDef[] = [
   },
   {
     key: "historical-blend-mode", domId: "tour-historical-split-and-mode", side: "left", align: "center",
-    title: "Blend Modes",
+    title: "Overlay Blend Modes",
     description: (
-      <>With <span className="font-semibold text-foreground">Overlay</span> active, blend two views together live — e.g. Multiply (shown here), Difference, or Screen. This is the same compositing modes you'd find in an image editor, applied to two points in time.</>
+      <>
+        <p className="pb-2">With <span className="font-semibold text-foreground">Overlay</span> active, blend two views together live — e.g. Multiply (shown here), Difference, or Screen. This is the same compositing modes you'd find in an image editor, applied to two points in time.</p>
+        <p>On the map itself, the gutter can be dragged horizontally to move the clip between views A and B, and the circular pill on it can be dragged vertically to set view B's opacity — revealing map A underneath, or diminishing the blend effect.</p>
+      </>
     ),
     onEnter: prepareHistoricalOverlayBlend,
   },
   {
     key: "historical-grid-layout", domId: "tour-historical-split-and-mode", side: "left", align: "start",
-    title: "Grid Layout & Colored Borders",
+    title: "Split Side Grid Layout",
     description: (
-      <><span className="font-semibold text-foreground">Side mode</span> splits into a full grid — up to 4×2 panes. Each view can get its own colored border, matching the colored handle for that same view on the timeline bottom panel.</>
+      <>
+        <p className="pb-2"><span className="font-semibold text-foreground">Side mode</span> splits into a full grid — up to 4×2 panes. Each view can get its own colored border, matching the colored handle for that same view on the timeline bottom panel.</p>
+        <p>Every basemap source now also shows a corresponding-shaped button group — A, B, C... up to however many views are active — to pick which map view that source applies to.</p>
+      </>
     ),
     onEnter: prepareHistoricalGrid,
+  },
+  {
+    key: "historical-match-colors", domId: "tour-historical-match-colors", side: "left", align: "center",
+    title: "Match Colors",
+    description: "Performs histogram matching onto reference View A — a quick RGB-channel CSS filter by default, or slower HSL/HSV/LAB/LCH modes when a closer match is worth the extra cost.",
+    onEnter: (a) => prepareHistoricalGrid(a, { matchColorsToA: true, matchColorsColorSpace: "rgb" }),
   },
   {
     key: "historical-timeline", domId: "tour-historical-timeline", side: "top", align: "center",

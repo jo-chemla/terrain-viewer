@@ -329,7 +329,7 @@ export const ComparisonMixSection: React.FC<{
       )}
 
       {isSplit && (
-        <div className="flex items-center justify-between gap-2 pt-1">
+        <div id="tour-historical-match-colors" className="flex items-center justify-between gap-2 pt-1">
           <div className="flex items-center gap-2">
             <Checkbox
               id="match-colors-to-a"
