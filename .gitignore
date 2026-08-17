@@ -24,8 +24,10 @@ yarn-error.log*
 # vercel
 .vercel
 
-# local Claude Code tooling config
-/.claude
+# Claude Code tooling — ignore local settings but track shared project context
+/.claude/settings.json
+/.claude/settings.local.json
+# .claude/CLAUDE.md and .claude/memory/ are intentionally tracked
 
 # typescript
 *.tsbuildinfo
