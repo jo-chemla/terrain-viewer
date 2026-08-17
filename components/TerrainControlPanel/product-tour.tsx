@@ -638,8 +638,26 @@ function waitForStableRect(domId: string, timeoutMs = 1500): Promise<void> {
 // even though plenty of the section's OWN content is technically "in view"
 // further down. "start" always leaves the title (and as much of what follows
 // as fits) visible.
+// "smooth" (not "instant") keeps a visitor from losing all visual context on
+// a big jump between sections — safe despite the race this whole function
+// exists to avoid, since goToIndex/chooseBranch always follow this with
+// waitForStableRect, which polls the target's rect every frame until two
+// consecutive frames match; an in-progress scroll changes that rect every
+// frame, so the poll naturally rides out the animation and only resolves
+// (letting the popup appear) once scrolling has actually finished.
+// BUT: confirmed live that a smooth scroll can fully stall in a backgrounded
+// (focus-less) tab — the exact same compositor/rAF-suspension this codebase
+// already documented elsewhere (waitForStableRect's own NOTE above) — and
+// unlike that case, there's no recovering the CORRECT scroll position once
+// waitForStableRect's timeout backstop gives up and lets the popup render
+// against a target that never actually scrolled into view. `document.hasFocus()`
+// is the cheapest signal for "is anyone actually watching this animate right
+// now" — when false, fall back to the instant jump this function used
+// exclusively before, trading the nicer animation for the reliability a
+// backgrounded tab still needs.
 function scrollTargetIntoView(domId: string, block: ScrollLogicalPosition = "start") {
-  document.getElementById(domId)?.scrollIntoView({ behavior: "instant", block })
+  const behavior: ScrollBehavior = document.hasFocus() ? "smooth" : "instant"
+  document.getElementById(domId)?.scrollIntoView({ behavior, block })
 }
 
 interface ProductTourProps {

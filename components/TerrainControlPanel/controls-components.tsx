@@ -208,7 +208,13 @@ export const Section: React.FC<{
     // container's `space-y-2` used to provide between these same two nodes
     // when they were direct siblings of it (see Fragment history) — without
     // it, the separator would sit flush against the content above it.
-    <div id={id} className="space-y-2">
+    // `scroll-mt-[100px]`: this component only ever sits inside
+    // TerrainControlPanel.tsx's own scrollable panel, whose `maskImage`
+    // fades its top/bottom 56px (FADE_PX) to hint more content is
+    // scrollable — natively respected by scrollIntoView's `block: "start"`
+    // (see product-tour.tsx), so a tour step landing on this section's own
+    // title leaves it clear of that fade instead of sitting right under it.
+    <div id={id} className="space-y-2 scroll-mt-[100px]">
       <Collapsible open={isOpen} onOpenChange={onOpenChange}>
         <div className={cn(
           "flex items-center justify-between w-full py-2 transition-opacity duration-150",
