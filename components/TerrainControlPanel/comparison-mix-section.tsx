@@ -147,8 +147,8 @@ export const ComparisonMixSection: React.FC<{
           Layout steps can spotlight the Split Mode control alongside
           whichever of the two actually applies, instead of just the one
           control in isolation. */}
-      <div id="tour-historical-split-and-mode">
-      <div id="tour-historical-split-mode" className="flex items-center justify-between gap-2">
+      <div id="tour-historical-split-and-mode" className="scroll-mt-[100px]">
+      <div id="tour-historical-split-mode" className="flex items-center justify-between gap-2 scroll-mt-[100px]">
         <Label className="text-sm font-medium">Split Mode</Label>
         <SegmentedToggle
           className="w-[180px]"

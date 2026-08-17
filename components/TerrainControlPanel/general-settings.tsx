@@ -64,7 +64,7 @@ export const GeneralSettings: React.FC<{
           regardless of state.gridLayout's own stored value — see
           TerrainViewer.tsx's effectiveGridLayout. */}
       {!historicalMode && !hideSplitScreen && (
-        <div id="tour-split-mode" className="flex items-center justify-between gap-2">
+        <div id="tour-split-mode" className="flex items-center justify-between gap-2 scroll-mt-[100px]">
           <Label className="text-sm font-medium">Split Mode</Label>
           <SegmentedToggle
             className="w-[180px]"

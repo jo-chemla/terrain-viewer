@@ -656,7 +656,7 @@ export function TerrainControlPanel({
             wrapping — see controls-components.tsx) — so the product tour's
             own Tools step can spotlight the whole group as one block instead
             of just the separator's own thin label row. */}
-        <div id="tour-tools-group" className="space-y-2">
+        <div id="tour-tools-group" className="space-y-2 scroll-mt-[100px]">
           <MacroSeparator label="Tools" isOpen={macroGroupOpen.Tools} onToggle={() => toggleMacroGroup("Tools")} />
           {macroGroupOpen.Tools && (
             <>

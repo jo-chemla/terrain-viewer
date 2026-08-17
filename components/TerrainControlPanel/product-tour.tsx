@@ -199,7 +199,13 @@ function prepareHistoricalTools(a: TourActions) {
 }
 
 function prepareHistoricalTimeline(a: TourActions) {
-  prepareHistoricalGrid(a, { historicalTimelineCollapsed: false, historicalControlsExpanded: true })
+  // C/D aren't historical (only A/B are, per prepareHistoricalGrid) — gives
+  // the demo grid a mix of static references alongside the two historical
+  // views the timeline itself actually drives.
+  prepareHistoricalGrid(a, {
+    historicalTimelineCollapsed: false, historicalControlsExpanded: true,
+    basemapSourceC: "bing", basemapSourceD: "esri",
+  })
 }
 
 interface TourStepDef {
@@ -269,7 +275,7 @@ const GENERAL_STEPS: TourStepDef[] = [
   {
     key: "general-settings", domId: "tour-general-settings", side: "left", align: "start",
     title: "General Settings",
-    description: "Switch between 2D, Globe, and 3D view, adjust terrain exaggeration, and control Split Mode.",
+    description: "Switch between 2D, Globe, and 3D view, adjust terrain exaggeration, and control Split Mode. Import/Export Project also lives here — bundles your bookmarks (viewport + visualization-mode groups), local terrain/basemap COGs, and drawings into one shareable file.",
   },
   {
     key: "historical-mode-intro", domId: "tour-mode-label", side: "left", align: "start",
@@ -283,7 +289,6 @@ const GENERAL_STEPS: TourStepDef[] = [
         </ul>
       </>
     ),
-    onEnter: prepareHistoricalIntro,
   },
   {
     key: "settings-persistence", domId: "tour-download-section", side: "left", align: "start",
@@ -323,7 +328,7 @@ const KEYBOARD_SHORTCUTS_STEP: TourStepDef = {
         <li>Ctrl — hide every mode down to just the basemap</li>
         <li>Space — re-toggle whichever mode you last clicked</li>
         <li>L + drag on the map — set the hillshade light direction</li>
-        <li>←/→ — step through this tour itself</li>
+        <li>←/→ — step through this tour itself, or loop through any select options</li>
         <li>Open Settings → Keyboard Shortcuts for the complete list</li>
       </ul>
     </>
@@ -351,7 +356,7 @@ const TERRAIN_STEPS: TourStepDef[] = [
   {
     key: "basemap-section", domId: "tour-basemap-section", side: "left", align: "start",
     title: "Raster Basemap",
-    description: "Satellite or aerial imagery draped under your terrain — including Historical Imagery, covered in the other half of this tour.",
+    description: "Satellite or aerial imagery draped over your terrain as basemap or overlay — including Historical Imagery (ESRI Wayback, Google Earth etc), covered in the other half of this tour.",
   },
   {
     key: "byod-terrain", domId: "tour-byod-terrain-row", side: "left", align: "center",
@@ -369,24 +374,38 @@ const TERRAIN_STEPS: TourStepDef[] = [
   {
     key: "split-mode", domId: "tour-split-mode", side: "left", align: "center",
     title: "Split / Compare Mode",
-    description: "Off, Overlay (two sources blended in place), or Side (two panes side by side) — compare two terrain or basemap sources directly against each other.",
+    description: (
+      <ul className="list-disc pl-4 space-y-1.5">
+        <li><span className="font-semibold text-foreground">Off</span>: single map view pane, classic.</li>
+        <li><span className="font-semibold text-foreground">Overlay</span>: two sources blended in place with adjustable gutter.</li>
+        <li><span className="font-semibold text-foreground">Side</span>: two panes side by side — compare 2+ terrain or basemap sources directly against each other.</li>
+      </ul>
+    ),
   },
   {
     key: "hypso-section", domId: "tour-hypso-section", side: "left", align: "start",
-    title: "Hypsometric Color Ramps",
+    title: "Color by Elevation (Hypsometric)",
     description: "Elevation Hypso paints terrain by altitude. Choose from dozens of curated color ramps (Classic, CET, cpt-city, and more) or build a custom one, and check Min/Max below to set a custom elevation range yourself — drag the slider, type exact values, or click the mountain-snow icon to auto-set it from the DEM tiles currently loaded in your viewport.",
     onEnter: prepareHypsoOnly,
   },
   {
     key: "terrain-analysis-section", domId: "tour-terrain-analysis-section", side: "left", align: "start",
     title: "Terrain Analysis",
-    description: "Surface derivatives (Slope, Aspect, Curvature) and neighborhood statistics (TPI, TRI, Roughness, and more) — each sub-mode has its own checkbox, and checking one reveals its own color ramp and range options directly beneath it. Slope is switched on here as an example.",
+    description: "Surface derivatives (Slope, Aspect, Curvature), neighborhood statistics (TPI, TRI, Roughness, and more), and Principal Components (Blobness, Eigenvalue Ratio, etc). Each sub-mode has its own checkbox, and checking one reveals its own color ramp and range options directly beneath it. Slope is switched on here as an example.",
     onEnter: prepareTerrainAnalysisOnly,
   },
   {
     key: "relief-visualization-section", domId: "tour-relief-visualization-section", side: "left", align: "start",
     title: "Relief Visualization",
-    description: "Multi-scale relief and visibility modes: Local Relief Model, Sky View Factor, Openness, and Local Dominance — heavier computations that reveal subtle terrain structure standard hillshading misses. LRM (cheap) is switched on here; Sky View Factor and the others are ray-marched and noticeably slower, worth trying once you're exploring your own data.",
+    description: (
+      <>
+        <p className="pb-2">Multi-scale relief and visibility modes:</p>
+        <ul className="list-disc pl-4 space-y-1.5">
+          <li><span className="font-semibold text-foreground">Local Relief Model</span>: relative elevation to neighborhood, computed by subtracting the lower-resolution terrain altitude interpolation.</li>
+          <li><span className="font-semibold text-foreground">Sky View Factor, Openness, and Local Dominance</span>: heavier computations that reveal subtle terrain structure standard hillshading misses. Sky View Factor and the others are ray-marched and noticeably slower but beautiful, worth trying once you're exploring your own data.</li>
+        </ul>
+      </>
+    ),
     onEnter: prepareReliefVisualizationOnly,
   },
   {
@@ -413,35 +432,44 @@ const HISTORICAL_STEPS: TourStepDef[] = [
   {
     key: "historical-compare-blend", domId: "tour-historical-compare-blend", side: "left", align: "start",
     title: "Compare and Blend",
-    description: "Historical mode's home for every split/grid/blend control — split style, grid layout, blend mode and opacity, and per-view border colorization.",
-    onEnter: prepareHistoricalIntro,
-  },
-  {
-    key: "historical-split-mode", domId: "tour-historical-split-mode", side: "left", align: "center",
-    title: "Split Mode",
-    // Deliberately left at "off" here (prepareHistoricalIntro, not
-    // prepareHistoricalOverlayBlend) — the next two steps switch it to
-    // Overlay then Side themselves, so this step can explain all three
-    // options before any of them jump ahead of the explanation.
-    description: "Off, Overlay (two views blended in place), or Side (a full grid of independent panes) — the foundation for everything else in this section.",
-    onEnter: prepareHistoricalIntro,
+    description: (
+      <>
+        <p className="pb-2">Historical mode's home for every split/grid/blend control — split style, grid layout, blend mode and opacity, and per-view border colorization. Split mode can be:</p>
+        <ul className="list-disc pl-4 space-y-1.5">
+          <li><span className="font-semibold text-foreground">Off</span>: single map view pane, classic.</li>
+          <li><span className="font-semibold text-foreground">Overlay</span>: two sources blended in place with adjustable gutter.</li>
+          <li><span className="font-semibold text-foreground">Side</span>: N-Grid panes side by side — compare 2+ basemap sources directly against each other, up to 4×2 synced views.</li>
+        </ul>
+      </>
+    ),
+    // Explicit "off" — without it, going Back into this step after Blend
+    // Modes/Grid Layout (which each switch splitStyle themselves) would
+    // leave whichever of those still active, contradicting "single map view
+    // pane" above.
+    onEnter: (a) => prepareHistoricalIntro(a, { splitStyle: "off" }),
   },
   {
     key: "historical-blend-mode", domId: "tour-historical-split-and-mode", side: "left", align: "center",
     title: "Blend Modes",
-    description: "With Overlay active, blend two views together live — e.g. Multiply (shown here), Difference, or Screen — the same compositing modes you'd find in an image editor, applied to two points in time.",
+    description: (
+      <>With <span className="font-semibold text-foreground">Overlay</span> active, blend two views together live — e.g. Multiply (shown here), Difference, or Screen. This is the same compositing modes you'd find in an image editor, applied to two points in time.</>
+    ),
     onEnter: prepareHistoricalOverlayBlend,
   },
   {
     key: "historical-grid-layout", domId: "tour-historical-split-and-mode", side: "left", align: "start",
     title: "Grid Layout & Colored Borders",
-    description: "Side mode splits into a full grid — up to 4×2 panes. Each view gets its own colored border, matching the colored handle for that same view on the timeline below.",
+    description: (
+      <><span className="font-semibold text-foreground">Side mode</span> splits into a full grid — up to 4×2 panes. Each view can get its own colored border, matching the colored handle for that same view on the timeline bottom panel.</>
+    ),
     onEnter: prepareHistoricalGrid,
   },
   {
     key: "historical-timeline", domId: "tour-historical-timeline", side: "top", align: "center",
     title: "Historical Imagery Timeline",
-    description: "Timeline activates automatically once at least one grid view is set to the Historical Imagery raster basemap source. Aggregates ESRI Wayback, Google Earth Historical, Bing, Planet Monthly, NASA HLS, and EOX Sentinel-2 into one scrubbable timeline. Click any tick to jump that view to its resolved capture date — each view's handle is colored to match its border above. Dates may take a moment to resolve.",
+    description: (
+      <>Timeline activates automatically once at least one grid view is set to the <span className="font-semibold text-foreground">Historical Imagery</span> raster basemap source. Aggregates ESRI Wayback, Google Earth Historical, Bing, Planet Monthly, NASA HLS, and EOX Sentinel-2 into one scrubbable timeline. Click any tick to jump that view to its resolved capture date — each view's handle is colored to match its border above. Dates may take a moment to resolve.</>
+    ),
     // Tried scrolling to "tour-basemap-section" (the evidence every view
     // resolved to a historical source) instead of this step's own target —
     // confirmed live it isn't reliably possible: the panel's scroll range
@@ -638,26 +666,25 @@ function waitForStableRect(domId: string, timeoutMs = 1500): Promise<void> {
 // even though plenty of the section's OWN content is technically "in view"
 // further down. "start" always leaves the title (and as much of what follows
 // as fits) visible.
-// "smooth" (not "instant") keeps a visitor from losing all visual context on
-// a big jump between sections — safe despite the race this whole function
-// exists to avoid, since goToIndex/chooseBranch always follow this with
-// waitForStableRect, which polls the target's rect every frame until two
-// consecutive frames match; an in-progress scroll changes that rect every
-// frame, so the poll naturally rides out the animation and only resolves
-// (letting the popup appear) once scrolling has actually finished.
-// BUT: confirmed live that a smooth scroll can fully stall in a backgrounded
-// (focus-less) tab — the exact same compositor/rAF-suspension this codebase
-// already documented elsewhere (waitForStableRect's own NOTE above) — and
-// unlike that case, there's no recovering the CORRECT scroll position once
-// waitForStableRect's timeout backstop gives up and lets the popup render
-// against a target that never actually scrolled into view. `document.hasFocus()`
-// is the cheapest signal for "is anyone actually watching this animate right
-// now" — when false, fall back to the instant jump this function used
-// exclusively before, trading the nicer animation for the reliability a
-// backgrounded tab still needs.
+// `behavior: "instant"`. TRIED "smooth" (gated on document.hasFocus(), since
+// a backgrounded tab can fully stall a smooth scroll — same rAF/compositor
+// suspension documented elsewhere in this file) to avoid a visitor losing
+// visual context on a long scroll like Raster Basemap/BYOD/Tools. REVERTED —
+// confirmed live it double-scrolls: our own scrollTargetIntoView →
+// waitForStableRect → setStepIndex chain runs to completion BEFORE
+// setStepIndex ever commits, but Coachmark's own internal scroll-check only
+// runs AFTER that commit — so it always fires second, and independently
+// re-checks isTargetOutsideVisibleArea at that moment. If our animation
+// hasn't visually finished settling yet (or floating-ui's own measurement
+// lags a frame), it sees "not quite there" and fires its own short scroll to
+// close the gap — a second, smaller motion on top of ours. Disabling
+// Coachmark's own internal scroll globally to stop that reproduces a worse,
+// separate regression (stale anchor rect on the Hypsometric step, confirmed
+// live, every time) — see Root's own scrollIntoView comment below. Instant
+// sidesteps both: it completes synchronously, so by the time Coachmark's own
+// check runs, the target is unambiguously already in its final position.
 function scrollTargetIntoView(domId: string, block: ScrollLogicalPosition = "start") {
-  const behavior: ScrollBehavior = document.hasFocus() ? "smooth" : "instant"
-  document.getElementById(domId)?.scrollIntoView({ behavior, block })
+  document.getElementById(domId)?.scrollIntoView({ behavior: "instant", block })
 }
 
 interface ProductTourProps {
@@ -998,18 +1025,19 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
         stepIndex={stepIndex}
         onStepChange={handleStepChange}
         modal={false}
-        // Left at Coachmark's own default (true) here — goToIndex's own
-        // scrollTargetIntoView (see its comment) is the RELIABLE one and
-        // always runs regardless, but disabling this globally turned out to
-        // have its own cost: confirmed live it also skips some internal
-        // re-measurement Coachmark does as part of its own scroll phase,
-        // occasionally leaving a step positioned against a stale/wrong-sized
-        // anchor rect even once our own scroll had already landed correctly.
-        // Only individual steps whose scrollTargetId redirects OUR scroll
+        // Left at Coachmark's own default (true) — goToIndex's own
+        // scrollTargetIntoView (see its comment) is the reliable one and
+        // always runs regardless, but disabling this globally (tried twice
+        // now) has a real cost: confirmed live, twice, it reproduces a
+        // stale-anchor regression on the Hypsometric step every time. Only
+        // individual steps whose scrollTargetId redirects OUR scroll
         // elsewhere disable this (scrollIntoView: false on their own
         // TourStepDef, below) — those are exactly the ones where leaving
         // Coachmark's own attempt aimed at the step's own domId would fight
-        // with ours over the final scroll position.
+        // with ours over the final scroll position. Both scrolls are instant
+        // now, so even where this stays enabled, ours always wins the race
+        // (it runs first and completes synchronously) — Coachmark's own
+        // attempt finds nothing left to do.
         scrollIntoView
       >
       <Coachmark.Backdrop className="fixed inset-0 z-[60] bg-black/50 transition-opacity data-starting-style:opacity-0 data-ending-style:opacity-0" />
@@ -1106,7 +1134,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
                       <button
                         type="button"
                         onClick={() => chooseBranch(otherBranch)}
-                        className={cn(buttonVariants({ variant: "outline", size: "sm" }), buttonBase, "w-full h-auto whitespace-normal py-1.5 text-center leading-snug")}
+                        className={cn(buttonVariants({ variant: "default", size: "sm" }), buttonBase, "w-full h-auto whitespace-normal py-1.5 text-center leading-snug")}
                       >
                         Continue to {otherBranch === "historical" ? "Historical Satellite mode" : "the Terrain tools"} →
                       </button>
