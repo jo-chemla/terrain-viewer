@@ -69,6 +69,7 @@ const TOUR_STATE_KEYS = [
   "showTerrainAnalysis", "showReliefVisualization", "showPlaneSlicer", "showTellsDetector",
   "showContoursAndGraticules", "showContours", "showGraticules", "showBackground",
   "showSlope", "showCurvature", "showLrm", "showSvf",
+  "hillshadeOpacity", "colorReliefOpacity", "terrainAnalysisOpacity", "reliefVisualizationOpacity",
   "basemapSource", "basemapSourceA", "basemapSourceB", "basemapPerView",
   "splitStyle", "gridLayout", "splitBlendModeEnabled", "splitBlendMode", "overlayOpacity",
   "historicalTimelineCollapsed", "historicalControlsExpanded",
@@ -125,28 +126,42 @@ function prepareTerrainBase(a: TourActions, extraState: Record<string, unknown> 
   a.setState({ splitStyle: "off", basemapSource: "esri", basemapSourceA: "esri", ...extraState })
 }
 
-// One mode on, the rest off — so each mode-specific step shows exactly what
-// that mode controls, instead of a wall of every layer stacked at once.
+// The only mode here — full opacity, no other layer to share visual weight
+// with.
 function prepareHillshadeOnly(a: TourActions) {
-  prepareTerrainBase(a, { showHillshade: true, showColorRelief: false, showTerrainAnalysis: false, showReliefVisualization: false })
+  prepareTerrainBase(a, { showHillshade: true, hillshadeOpacity: 1, showColorRelief: false, showTerrainAnalysis: false, showReliefVisualization: false })
 }
 
+// Layer stays ON (dimmed to 30% — a subtle relief base underneath the step's
+// own mode, which gets the full 100%) but its own SECTION is force-collapsed
+// here — prepareTerrainBase force-OPENS every Options section regardless of
+// which mode is being demoed, which previously didn't matter for the ones
+// being switched off (their section unmounts entirely once showX is false,
+// taking zero height). With Hillshade's layer staying on, its section
+// actually renders — full method selector, light-direction pad, and all —
+// and stacked on top of the step's own (already sizeable) section, the
+// combined height stopped fitting/centering in the viewport at all
+// (confirmed live). Collapsing it keeps the header (and its checked
+// checkbox) visible while dropping its content back to zero height.
 function prepareHypsoOnly(a: TourActions) {
-  prepareTerrainBase(a, { showHillshade: false, showColorRelief: true, showTerrainAnalysis: false, showReliefVisualization: false })
+  prepareTerrainBase(a, { showHillshade: true, hillshadeOpacity: 0.3, showColorRelief: true, colorReliefOpacity: 1, showTerrainAnalysis: false, showReliefVisualization: false })
+  a.setSectionOpen((prev) => ({ ...prev, hillshade: false }))
 }
 
 function prepareTerrainAnalysisOnly(a: TourActions) {
   prepareTerrainBase(a, {
-    showHillshade: false, showColorRelief: false, showReliefVisualization: false,
-    showTerrainAnalysis: true, showSlope: true, showCurvature: false,
+    showHillshade: true, hillshadeOpacity: 0.3, showColorRelief: false, showReliefVisualization: false,
+    showTerrainAnalysis: true, terrainAnalysisOpacity: 1, showSlope: true, showCurvature: false,
   })
+  a.setSectionOpen((prev) => ({ ...prev, hillshade: false }))
 }
 
 function prepareReliefVisualizationOnly(a: TourActions) {
   prepareTerrainBase(a, {
-    showHillshade: false, showColorRelief: false, showTerrainAnalysis: false,
-    showReliefVisualization: true, showLrm: true,
+    showHillshade: true, hillshadeOpacity: 0.3, showColorRelief: false, showTerrainAnalysis: false,
+    showReliefVisualization: true, reliefVisualizationOpacity: 1, showLrm: true,
   })
+  a.setSectionOpen((prev) => ({ ...prev, hillshade: false }))
 }
 
 // Every tool section's own sectionOpen key (TerrainControlPanel.tsx's Tools
@@ -160,13 +175,17 @@ function prepareReliefVisualizationOnly(a: TourActions) {
 // sections — an unused sectionOpen key is harmless.
 const TOOL_SECTION_KEYS = ["drawing", "elevationPicker", "sunShadowCalculator", "animation", "sourceInfo"] as const
 
-// Every viz mode off — the Tools step isn't about any one of them, so this
-// clears the Options group back down to just its own collapsed sections,
-// leaving the panel's remaining room to the Tools group below it (already
-// forced open by prepareTerrainBase's own setMacroGroupOpen call).
+// Hillshade only — the Tools step isn't about any viz mode, so this clears
+// every OTHER mode back down to just its own collapsed section, leaving the
+// panel's remaining room to the Tools group below it (already forced open
+// by prepareTerrainBase's own setMacroGroupOpen call). Hillshade itself
+// stays on so the map isn't a completely flat, mode-less basemap underneath.
 function prepareTerrainTools(a: TourActions) {
-  prepareTerrainBase(a, { showHillshade: false, showColorRelief: false, showTerrainAnalysis: false, showReliefVisualization: false })
-  a.setSectionOpen((prev) => ({ ...prev, ...Object.fromEntries(TOOL_SECTION_KEYS.map((k) => [k, false])) }))
+  prepareTerrainBase(a, { showHillshade: true, hillshadeOpacity: 1, showColorRelief: false, showTerrainAnalysis: false, showReliefVisualization: false })
+  // hillshade: false — same reason as prepareHypsoOnly/etc above (its layer
+  // stays on, but its own expanded section would otherwise add unrelated
+  // height above the Tools group this step actually spotlights).
+  a.setSectionOpen((prev) => ({ ...prev, hillshade: false, ...Object.fromEntries(TOOL_SECTION_KEYS.map((k) => [k, false])) }))
 }
 
 // Same single-setState-call merging as prepareTerrainBase above, via
@@ -352,11 +371,21 @@ const TERRAIN_STEPS: TourStepDef[] = [
     key: "terrain-section", domId: "tour-terrain-section", side: "left", align: "start",
     title: "Terrain Sources",
     description: "Picks the elevation (DEM) data itself — distinct from the raster Basemap imagery next.",
+    // "start" (not the default "center") — this section grows arbitrarily
+    // tall once BYOD custom sources pile up; scrollIntoView:false disables
+    // Coachmark's own (still "center") check for this step specifically, so
+    // it can't re-fight over the final position — see scrollTargetIntoView's
+    // own comment.
+    scrollBlock: "start",
+    scrollIntoView: false,
   },
   {
     key: "basemap-section", domId: "tour-basemap-section", side: "left", align: "start",
     title: "Raster Basemap",
     description: "Satellite or aerial imagery draped over your terrain as basemap or overlay — including Historical Imagery (ESRI Wayback, Google Earth etc), covered in the other half of this tour.",
+    // Same reasoning as terrain-section above — its own BYOD basemap list.
+    scrollBlock: "start",
+    scrollIntoView: false,
   },
   {
     key: "byod-terrain", domId: "tour-byod-terrain-row", side: "left", align: "center",
@@ -656,35 +685,47 @@ function waitForStableRect(domId: string, timeoutMs = 1500): Promise<void> {
 // `scrollIntoView` on TourStepDef), since leaving Coachmark's own attempt
 // aimed at the step's own domId in THOSE cases would fight this one over the
 // final scroll position.
-// `block: "start"` (not "center"/"nearest") always surfaces the target's OWN
-// top edge — for most steps that's simply the more predictable choice, but
-// it matters most for a target whose height varies with user data (Raster
-// Basemap/Terrain Sources, once BYOD custom sources pile up): "center" tries
-// to vertically center the whole (possibly very tall) element, which can
-// push its own title — and the section header `side="left" align="start"`
-// popups are anchored to — above the top of the viewport, i.e. off-screen,
-// even though plenty of the section's OWN content is technically "in view"
-// further down. "start" always leaves the title (and as much of what follows
-// as fits) visible.
-// `behavior: "instant"`. TRIED "smooth" (gated on document.hasFocus(), since
-// a backgrounded tab can fully stall a smooth scroll — same rAF/compositor
-// suspension documented elsewhere in this file) to avoid a visitor losing
-// visual context on a long scroll like Raster Basemap/BYOD/Tools. REVERTED —
-// confirmed live it double-scrolls: our own scrollTargetIntoView →
-// waitForStableRect → setStepIndex chain runs to completion BEFORE
-// setStepIndex ever commits, but Coachmark's own internal scroll-check only
-// runs AFTER that commit — so it always fires second, and independently
-// re-checks isTargetOutsideVisibleArea at that moment. If our animation
-// hasn't visually finished settling yet (or floating-ui's own measurement
-// lags a frame), it sees "not quite there" and fires its own short scroll to
-// close the gap — a second, smaller motion on top of ours. Disabling
-// Coachmark's own internal scroll globally to stop that reproduces a worse,
-// separate regression (stale anchor rect on the Hypsometric step, confirmed
-// live, every time) — see Root's own scrollIntoView comment below. Instant
-// sidesteps both: it completes synchronously, so by the time Coachmark's own
-// check runs, the target is unambiguously already in its final position.
-function scrollTargetIntoView(domId: string, block: ScrollLogicalPosition = "start") {
-  document.getElementById(domId)?.scrollIntoView({ behavior: "instant", block })
+// `block: "center"` DEFAULT — deliberately matches Coachmark's own internal
+// default (`defaultScrollIntoViewOptions` in its source, hardcoded, not
+// derived from a step's side/align). This isn't just tidiness: since
+// Coachmark's own scroll-check still runs (see Root's own scrollIntoView
+// comment below) and independently re-computes a target position on every
+// step, using a DIFFERENT block value than it does made that redundant check
+// land on a genuinely different resting spot — a real second jump, not a
+// negligible correction (confirmed live: this codebase used to default to
+// "start", which is why that jump was so visible). Matching its default
+// means its redundant check always agrees with where we already put the
+// target, so it's truly a no-op.
+// Per-step `scrollBlock: "start"` (Raster Basemap/Terrain Sources, below) is
+// the deliberate exception — those targets grow arbitrarily tall once BYOD
+// custom sources pile up, and centering a very tall element pushes its own
+// title off the top of the viewport even though plenty of it is technically
+// "in view" further down. Those two steps also set `scrollIntoView: false`
+// (disabling Coachmark's own check for THEM specifically) — same reasoning
+// as byod-terrain's existing redirect below, since leaving Coachmark's own
+// "center" attempt enabled there would reintroduce exactly the race this
+// default alignment is meant to avoid everywhere else.
+// `behavior: "smooth"` when the tab has focus — matches Coachmark's own
+// internal default (also "smooth"), so a visitor doesn't lose visual context
+// on a long scroll like Raster Basemap/BYOD/Tools. Two earlier attempts at
+// this were reverted, but both actually failed for the BLOCK MISMATCH above
+// (our "start" vs Coachmark's hardcoded "center"), not the animation itself:
+// our own scrollTargetIntoView → waitForStableRect → setStepIndex chain
+// completes BEFORE setStepIndex ever commits, but Coachmark's own internal
+// scroll-check only runs AFTER that commit — so it always fires second, and
+// with mismatched block values it was re-computing a genuinely DIFFERENT
+// resting position, producing a real second jump. Now that both target the
+// same "center" alignment, that redundant check converges on the position
+// this scroll is already animating toward, instead of fighting it.
+// Falls back to "instant" when unfocused: confirmed live a smooth scroll can
+// fully stall in a backgrounded tab (same rAF/compositor suspension
+// documented elsewhere in this file), and unlike a merely-slow scroll, a
+// STALLED one never lets waitForStableRect's timeout catch up to the right
+// position — the popup would render against a target that never actually
+// finished moving.
+function scrollTargetIntoView(domId: string, block: ScrollLogicalPosition = "center") {
+  const behavior: ScrollBehavior = document.hasFocus() ? "smooth" : "instant"
+  document.getElementById(domId)?.scrollIntoView({ behavior, block })
 }
 
 interface ProductTourProps {
@@ -707,6 +748,17 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
 
   const [open, setOpen] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
+  // True for the whole onEnter→scroll→settle window goToIndex/chooseBranch
+  // run through below. Coachmark has its own "concealed" state that does
+  // exactly this (backdrop cutout disappears) during ITS OWN scroll phase —
+  // but it's read-only via useCoachmark(), and relying on it instead of our
+  // own scroll would mean going back to the ORIGINAL bug this whole tour fix
+  // started from (its internal scroll can resolve before actually
+  // finishing). Drives Coachmark.Backdrop's own `style` prop instead (below)
+  // to force its existing cutout away during our transition — no separate
+  // overlay needed, since Backdrop's own clipPath already falls back to
+  // whatever we pass it whenever Coachmark's own "concealed" is false.
+  const [isTransitioning, setIsTransitioning] = useState(false)
   // null until the branch-choice step is answered — see chooseBranch/BRANCH_STEP.
   const [branch, setBranch] = useState<TourBranch>(null)
   const activeSteps = useMemo(() => getStepsForBranch(branch), [branch])
@@ -810,6 +862,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     const step = activeSteps[newIndex]
     if (!step) return
     const generation = ++transitionGenerationRef.current
+    setIsTransitioning(true)
     step.onEnter?.(actionsRef.current)
     void waitForTarget(step.domId).then(() => {
       scrollTargetIntoView(step.scrollTargetId ?? step.domId, step.scrollBlock)
@@ -818,6 +871,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       resolveAllRefs()
       setStepIndex(newIndex)
       setOpen(true)
+      setIsTransitioning(false)
     })
   }, [activeSteps, resolveAllRefs])
 
@@ -829,6 +883,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     const targetIndex = GENERAL_STEPS.length + 1
     const step = steps[targetIndex]
     const generation = ++transitionGenerationRef.current
+    setIsTransitioning(true)
     setBranch(next)
     step?.onEnter?.(actionsRef.current)
     void waitForTarget(step?.domId ?? "").then(() => {
@@ -837,6 +892,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       if (transitionGenerationRef.current !== generation) return
       resolveAllRefs()
       setStepIndex(targetIndex)
+      setIsTransitioning(false)
     })
   }, [resolveAllRefs])
 
@@ -1040,7 +1096,16 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
         // attempt finds nothing left to do.
         scrollIntoView
       >
-      <Coachmark.Backdrop className="fixed inset-0 z-[60] bg-black/50 transition-opacity data-starting-style:opacity-0 data-ending-style:opacity-0" />
+      {/* Backdrop's own `style` prop is exactly the escape hatch for
+          isTransitioning's own dimming, above — its internal clipPath only
+          falls back to Coachmark's OWN geometry-based cutout when we don't
+          supply one ourselves and its OWN "concealed" is false (which it is,
+          the whole time we're mid-onEnter/scroll/settle, since that's not
+          Coachmark's own transition). No separate overlay needed. */}
+      <Coachmark.Backdrop
+        className="fixed inset-0 z-[60] bg-black/50 transition-opacity data-starting-style:opacity-0 data-ending-style:opacity-0"
+        style={isTransitioning ? { clipPath: "none" } : undefined}
+      />
       {activeSteps.map((step) => {
         const flipToBottom = isNarrowViewport && (step.side === "left" || step.side === "right")
         const side = flipToBottom ? "bottom" : (step.side ?? "bottom")
