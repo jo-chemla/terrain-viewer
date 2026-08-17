@@ -18,7 +18,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
-  appModeAtom, type AppMode, isHistoricalHostname,
+  appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -132,6 +132,16 @@ const APP_MODES = ['terrain', 'historical'] as const
 // measuredPanelClearance below) and the camera bottom-padding correction
 // (mapPaddingFor) — one gap value, not two independently-guessed ones.
 const PANEL_CLEARANCE_GAP_PX = 16
+// Shared by the map-padding ease and the pane-geometry CSS transition, so the
+// camera's vanishing-point shift and the panes' own resize stay in step when a
+// side/bottom panel opens or closes.
+const PADDING_EASE_MS = 200
+// How far the camera's target height may sit off the ground under it before
+// the terrain settle bothers re-anchoring (metres). Sized to be well below
+// anything visible at normal pitch/zoom, while still being comfortably above
+// the sub-metre wobble between one re-anchor's chosen center and the next —
+// see resettleTerrainElevation for why an exact test would never converge.
+const ELEVATION_SETTLE_EPSILON_M = 1
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 // 'shape-index' stays a valid internal curvature:// mode (ShapeIndexSource
 // below reads it directly) even though nothing in the UI exposes setting
@@ -219,7 +229,7 @@ export const QUERY_STATE_PARSERS = {
     // depending on grid shape and whether the timeline panel is docked below it).
     showCaptureDatePill: parseAsStringLiteral(["off", "date", "source-date"] as const).withDefault("off"),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
-    sourceB: parseAsString.withDefault("maptiler"),   // can have custom id in addition to @/lib/terrain-sources
+    sourceB: parseAsString.withDefault("aws"),   // aws needs no API key, unlike maptiler/mapbox — safe default for a fresh visitor's first split view
     // C-H only ever matter for gridLayout "2x2"/"3x1"/"3x2"/"4x1"/"4x2" — same
     // shape as sourceA/B, just extra slots so bigger grids need no schema change.
     sourceC: parseAsString.withDefault("aws"),
@@ -672,9 +682,9 @@ export const QUERY_STATE_PARSERS = {
     // section) — only affects the single/split basemap layer, not overlays.
     basemapSourceOpacity: parseAsFloat.withDefault(1.0),
     exaggeration: parseAsFloat.withDefault(1),
-    lat: parseAsFloat.withDefault(45.9763),
-    lng: parseAsFloat.withDefault(7.6586),
-    zoom: parseAsFloat.withDefault(12.5),
+    lat: parseAsFloat.withDefault(45.9788),
+    lng: parseAsFloat.withDefault(7.674),
+    zoom: parseAsFloat.withDefault(12.37),
     // -- try getting out of pitch 0 loop in 3d
     // pitch: parseAsFloat.withDefault(60.001),
     pitch: parseAsFloatPrecise.withDefault(60),
@@ -849,6 +859,17 @@ export function TerrainViewer() {
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
   const [, setSectionOpen] = useAtom(sectionOpenAtom)
   const hasAppliedEmbedConfig = useRef(false)
+  // Snapshotted during render — BEFORE any effect runs — not read live inside
+  // the hasAppliedEmbedConfig effect below: the sibling effect that mirrors
+  // state.appMode into appModeAtom (a few lines down) fires first on mount
+  // (effects run in declaration order) and unconditionally persists the
+  // current value, "terrain" default included. A live localStorage read
+  // inside the embed-config effect would therefore always see that just-
+  // written entry and never treat any fresh visit as first-ever, silently
+  // defeating isHistoricalHostname's first-visit default below.
+  const hadStoredAppModeAtMount = useRef<boolean>((() => {
+    try { return window.localStorage.getItem("appMode") !== null } catch { return false }
+  })())
 
   const [state, setState] = useQueryStates(QUERY_STATE_PARSERS,
   {
@@ -875,6 +896,21 @@ export function TerrainViewer() {
   // from a previous historical-mode session. Every other split style in
   // historical mode honors the user's chosen gridLayout.
   const isHistoricalMode = state.appMode === "historical"
+  // Keeps the tab favicon's SHAPE (mountain vs clock) in sync with the live
+  // app mode — index.html's own inline script only gets one best-effort
+  // guess in before this component ever mounts (stored appMode if any, else
+  // isHistoricalHostname), so a mode switch mid-session (or a first guess
+  // that turns out wrong, e.g. a stored "historical" preference on a domain
+  // that isn't historical-satellite.iconem.com) needs this to actually
+  // follow it. isProdHostname decides blue vs purple exactly like that
+  // inline script — this only ever changes the shape half, never the color.
+  useEffect(() => {
+    const href = isHistoricalMode
+      ? (isProdHostname(window.location.hostname) ? "/favicon-historical.svg" : "/favicon-historical-dev.svg")
+      : (isProdHostname(window.location.hostname) ? "/favicon.svg" : "/favicon-dev.svg")
+    const link = document.querySelector('link[rel="icon"]')
+    if (link) link.setAttribute("href", href)
+  }, [isHistoricalMode])
   // Snapshot taken the instant tellsFrozen flips to true — the currently
   // rendered candidates, querySourceFeatures'd off the live "tellsSource"
   // vector tiles into a plain geojson FeatureCollection. TellsSource swaps
@@ -918,10 +954,22 @@ export function TerrainViewer() {
   const gridConfig = GRID_LAYOUTS[effectiveGridLayout]
   const activeViewIds: ViewId[] = isSplit ? gridConfig.grid.flat() : ["A"]
   const bottomRightViewId: ViewId = isSplit ? bottomRightView(effectiveGridLayout) : "A"
+  // Which panes have the floating sidebar overlapping their own right edge,
+  // and so need the matching camera-padding correction. The sidebar overlaps
+  // the full height of the viewport, so that's the rightmost pane of EVERY
+  // row — including when "every row" is just one row, and including the
+  // single non-split view, which is its own row's rightmost pane.
+  //
+  // (This was briefly gated on `gridConfig.cols > 1` / `rows > 1` below, on
+  // the theory that padding only matters for aligning vanishing points BETWEEN
+  // side-by-side panes. It doesn't: the padding's real job is to keep the
+  // camera's focus point centred in the pane's VISIBLE area rather than in its
+  // full, partly-covered rect, which applies just as much to a lone pane with
+  // a panel sitting on top of it.)
   const rightmostPerRow: ViewId[] = isSplit ? rightmostViewsPerRow(effectiveGridLayout) : ["A"]
-  // Only the LAST row needs the historical-timeline bottom-padding
-  // correction (mapPaddingFor below) — a top-row pane in a 2-row grid isn't
-  // anywhere near the true bottom edge the panel actually docks to.
+  // Same, bottom edge: the historical timeline panel docks along the true
+  // bottom of the viewport, covering the last row's panes — which in a
+  // single-row grid (or non-split) is every pane.
   const bottomRowViews: ViewId[] = isSplit ? gridConfig.grid[gridConfig.grid.length - 1] : ["A"]
 
   // Session-only (never persisted) live ramp tweaks — see rampSessionOverridesAtom's
@@ -1481,9 +1529,7 @@ export function TerrainViewer() {
         // A domain unrelated to either deploy (a fork, localhost, a preview
         // URL) matches neither branch and just keeps the normal "terrain"
         // default, so this never breaks serving from another domain.
-        let hasStoredAppMode = false
-        try { hasStoredAppMode = window.localStorage.getItem("appMode") !== null } catch { /* storage blocked (e.g. embed sandbox) — fall through to hostname default */ }
-        if (!hasStoredAppMode && isHistoricalHostname(window.location.hostname)) stateOverrides.appMode = "historical"
+        if (!hadStoredAppModeAtMount.current && isHistoricalHostname(window.location.hostname)) stateOverrides.appMode = "historical"
       }
     }
 
@@ -1633,6 +1679,162 @@ export function TerrainViewer() {
     }
   }, [isMobile])
 
+  // A terrain-aware MapLibre camera has a SIXTH parameter beyond
+  // center/zoom/bearing/pitch/roll: `transform.elevation`, the altitude of the
+  // point the camera is looking at (public readers: Map#getCameraTargetElevation,
+  // writer: Map#transform.setElevation). Two views can agree exactly on all the
+  // others and still draw the same ground at different screen heights if their
+  // camera-target elevations differ — at any nonzero pitch that difference is
+  // a straight vertical offset between the panes.
+  //
+  // Re-anchoring it uses MapLibre's own end-of-gesture routine,
+  // transform.recalculateZoomAndCenter(terrain), which holds the CAMERA
+  // POSITION fixed and solves for the center/zoom that put the target back on
+  // the ground along the same view ray (maplibre-gl 5.24,
+  // TransformHelper#recalculateZoomAndCenter). Nothing moves on screen; only
+  // the reported center/zoom change, to stay honest about where the camera
+  // actually is. The obvious alternative — transform.setElevation(ground) —
+  // preserves the requested center instead, but pays for it with a visible
+  // lurch every time it fires, since it swings the camera's target up or down
+  // by however wrong the elevation was (a valley-to-summit pan is a ~2900m
+  // correction). That lurch is the worse of the two, so the small center/zoom
+  // drift is the accepted trade.
+  //
+  // Two things keep that drift from becoming a problem:
+  //
+  // 1. ELEVATION_SETTLE_EPSILON_M. Elevation is re-anchored only when it is
+  //    genuinely stale — i.e. after the user has actually panned across
+  //    terrain, which is the one case where MapLibre freezes elevation for the
+  //    duration of the gesture and so leaves it behind. It deliberately does
+  //    NOT fire for a padding change, a resize, or a split-mode switch: none
+  //    of those move the center, so the elevation is already right and there
+  //    is nothing to correct. Without this guard those settles re-derived
+  //    center/zoom for no reason and walked the focus point off the Matterhorn
+  //    on every Off/Overlay/Side switch.
+  //
+  // 2. ONE reference view owns the result, and it is whichever view the user
+  //    last touched (lastInteractedViewRef, set on pointerdown so it is right
+  //    even for a click that never became a drag). That view is re-anchored
+  //    against its own terrain and every other view is then jumped to match it
+  //    exactly. Letting each view re-derive independently is what lets them
+  //    drift apart, since the answer depends on that view's own DEM — so the
+  //    view being driven is made authoritative and the rest follow it,
+  //    whichever one it happens to be (the single view, or any of A..H in
+  //    side/overlay/grid).
+
+  // Whether a pointer is currently held down anywhere. Programmatic camera
+  // commands are forbidden while it is: MapLibre's jumpTo/easeTo both begin
+  // with Map#stop(), which ends up calling HandlerManager#stop() ->
+  // handler.reset() on EVERY input handler (maplibre-gl 5.24). Doing that to a
+  // map the user is mid-gesture on silently kills the gesture — the button is
+  // still down but every handler has forgotten the press, so the map just
+  // stops responding until the next mousedown. That was the "cursor looks
+  // right but click-and-drag does nothing, seemingly at random" bug: a pointer
+  // pressed but not yet MOVED leaves Map#isMoving() false, so an 'idle' could
+  // still slip through and issue one out from under the press.
+  //
+  // Tracked on window in the capture phase rather than per-canvas so a release
+  // outside the map (dragged past the edge) still clears it.
+  const pointerDownRef = useRef(false)
+  // Which view the user last put a pointer on — the reference the settle below
+  // re-anchors against, and which every other view is then matched to. Set on
+  // pointerdown (see the pane's onPointerDownCapture in the JSX) rather than on
+  // the first move, so a press that hasn't turned into a drag yet already
+  // counts. Defaults to the primary view for the very first settle after load,
+  // when nothing has been touched.
+  const lastInteractedViewRef = useRef<ViewId>("A")
+  useEffect(() => {
+    const down = () => { pointerDownRef.current = true }
+    const up = () => { pointerDownRef.current = false }
+    window.addEventListener("pointerdown", down, true)
+    window.addEventListener("pointerup", up, true)
+    window.addEventListener("pointercancel", up, true)
+    return () => {
+      window.removeEventListener("pointerdown", down, true)
+      window.removeEventListener("pointerup", up, true)
+      window.removeEventListener("pointercancel", up, true)
+    }
+  }, [])
+
+  const resettleTerrainElevation = useCallback(() => {
+    if (pointerDownRef.current) return
+
+    const preferred = lastInteractedViewRef.current
+    const order = activeViewIds.includes(preferred)
+      ? [preferred, ...activeViewIds.filter((s) => s !== preferred)]
+      : activeViewIds
+    const referenceSide = order.find((s) => mapRefs[s].current?.getMap()?.getTerrain())
+    if (!referenceSide) return
+    const reference = mapRefs[referenceSide].current!.getMap()
+    const tr = reference.transform
+
+    // Is the camera height actually stale? Only a pan across terrain leaves it
+    // behind (MapLibre freezes elevation for the duration of a gesture); a
+    // padding change, a resize or a split-mode switch move the viewport, not
+    // the center, so there is nothing to re-anchor and re-deriving center/zoom
+    // would just walk the focus point off its coordinates for no reason.
+    // The epsilon also guarantees termination: recalculateZoomAndCenter picks a
+    // new center, whose ground height differs from the old one's by a hair, so
+    // an exact-equality test would let it creep from idle to idle forever —
+    // and every one of those iterations would fire the jumpTo loop below.
+    const groundElevation = reference.terrain.getElevationForLngLatZoom(tr.center, tr.tileZoom)
+    if (!Number.isFinite(groundElevation)) return
+    if (Math.abs(groundElevation - tr.elevation) < ELEVATION_SETTLE_EPSILON_M) return
+
+    tr.recalculateZoomAndCenter(reference.terrain)
+    reference.triggerRepaint()
+
+    if (!isSplit) return
+    // Same re-entrancy guard the sync handler uses — these jumps would
+    // otherwise bounce back through handleViewMove and re-sync in the opposite
+    // direction, undoing the reference view's correction.
+    isSyncing.current = true
+    try {
+      for (const side of activeViewIds) {
+        if (side === referenceSide) continue
+        const map = mapRefs[side].current?.getMap()
+        if (!map) continue
+        // Copied wholesale from the reference, elevation included — NOT
+        // re-derived per view. This is the "never drifts from the view you
+        // clicked" guarantee: the others are told where the reference ended up,
+        // they don't get a vote.
+        map.jumpTo({
+          center: tr.center,
+          zoom: tr.zoom,
+          bearing: tr.bearing,
+          pitch: tr.pitch,
+          ...(map.getTerrain() ? { elevation: tr.elevation } : {}),
+        })
+      }
+    } finally {
+      isSyncing.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeViewIds.join(","), isSplit])
+
+  // The 'idle' variant, plus the gate that only belongs there: don't re-resolve
+  // while any view still has a gesture in flight. MapLibre freezes the dragged
+  // view's elevation for the duration of a drag (Map#_elevationFreeze) exactly
+  // so the camera doesn't bob as the ground rises under it; re-resolving
+  // between drag frames would undo that, and would also overwrite the
+  // elevation handleViewMove has just mirrored onto the other views.
+  const resettleTerrainElevationOnIdle = useCallback(() => {
+    for (const side of activeViewIds) {
+      if (mapRefs[side].current?.getMap()?.isMoving()) return
+    }
+    resettleTerrainElevation()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeViewIds.join(","), resettleTerrainElevation])
+
+  // Each view's 'idle' listener is registered once, in its onLoad, so its
+  // closure would otherwise pin whichever activeViewIds happened to be current
+  // at mount — and go stale the moment split mode changes the view set. Read
+  // it through a ref instead so the listener always calls the latest one.
+  const resettleTerrainElevationOnIdleRef = useRef(resettleTerrainElevationOnIdle)
+  useEffect(() => {
+    resettleTerrainElevationOnIdleRef.current = resettleTerrainElevationOnIdle
+  }, [resettleTerrainElevationOnIdle])
+
   // Every active view is fully interactive too (drag/scroll/rotate), so sync
   // has to run both/all ways — otherwise panning or zooming any non-primary
   // view directly desyncs it with nothing to bring it back, since only one
@@ -1642,16 +1844,53 @@ export function TerrainViewer() {
   const handleViewMove = useCallback((side: ViewId, evt: any) => {
     if (isSyncing.current || !isSplit) return
     isSyncing.current = true
-    for (const other of activeViewIds) {
-      if (other === side) continue
-      mapRefs[other].current?.getMap()?.jumpTo({
-        center: [evt.viewState.longitude, evt.viewState.latitude],
-        zoom: evt.viewState.zoom,
-        bearing: evt.viewState.bearing,
-        pitch: evt.viewState.pitch,
-      })
+    try {
+      // evt.viewState carries only the five "classic" camera parameters, so
+      // the sixth (camera-target elevation, see resettleTerrainElevation) has
+      // to be read off the moved view's own transform and forwarded
+      // explicitly. Without it the panes visibly drift apart vertically for
+      // the whole duration of a drag, then snap back together the instant it
+      // ends, because MapLibre updates the two views' elevations by different
+      // rules while a drag is in flight:
+      //   - the DRAGGED view is elevation-frozen for the whole gesture
+      //     (HandlerManager sets Map#_elevationFreeze on the first drag frame
+      //     and only clears it once the gesture finishes), so its camera stays
+      //     anchored at the altitude it had when the drag started;
+      //   - every OTHER view is driven by jumpTo() below, and jumpTo
+      //     unconditionally re-resolves elevation against its own terrain
+      //     first thing (`if (this.terrain) tr.setElevation(...)`), i.e. it
+      //     tracks the live ground altitude under the moving center.
+      // Passing `elevation` explicitly wins: jumpTo applies an explicit
+      // `elevation` option AFTER that automatic re-resolve, so every view ends
+      // up anchored exactly where the dragged one is.
+      const source = mapRefs[side].current?.getMap()
+      const sourceElevation = source?.getTerrain() ? source.getCameraTargetElevation() : undefined
+      const syncElevation = Number.isFinite(sourceElevation) ? sourceElevation : undefined
+      for (const other of activeViewIds) {
+        if (other === side) continue
+        const otherMap = mapRefs[other].current?.getMap()
+        if (!otherMap) continue
+        otherMap.jumpTo({
+          center: [evt.viewState.longitude, evt.viewState.latitude],
+          zoom: evt.viewState.zoom,
+          bearing: evt.viewState.bearing,
+          pitch: evt.viewState.pitch,
+          // Only meaningful when this view has terrain of its own; a flat view
+          // belongs at elevation 0, which is what jumpTo already leaves it at.
+          ...(syncElevation !== undefined && otherMap.getTerrain() ? { elevation: syncElevation } : {}),
+        })
+      }
+    } finally {
+      // jumpTo() fires 'move'/'moveend' synchronously (see padding effect
+      // comment above), so any re-entrant call from the other views' own
+      // handlers has already run and bailed out (isSyncing was still true)
+      // by the time this loop returns — safe to clear the guard immediately
+      // instead of on a timer. A timed reset (the old approach) blocked
+      // legitimate subsequent drag frames too (they fire every ~16ms, far
+      // more often than a 50ms window), leaving the other view a few frames
+      // behind and requiring a manual pan on it to resync.
+      isSyncing.current = false
     }
-    setTimeout(() => { isSyncing.current = false }, 50)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSplit, activeViewIds.join(",")])
 
@@ -1794,29 +2033,60 @@ export function TerrainViewer() {
   // ----------------------------------------
   // Handle terrain source changes and sync terrain with view mode changes
   // ----------------------------------------
+  // Per-map pending "apply terrain once its source shows up" listener, so a
+  // re-run of the effect below can take the previous one off first. Without
+  // this the listener stacked: the effect re-runs on every mapLoaded change
+  // (and on each source/exaggeration change), and each run that found no
+  // terrainSource yet added ANOTHER 'sourcedata' handler, all of which then
+  // fired setTerrain in the same tick once the source finally appeared. Each
+  // of those calls builds a fresh Terrain + RenderToTexture and discards the
+  // render-to-texture tile cache, so the map visibly re-renders from scratch
+  // once per stacked listener — a good part of the "terrain blinks through a
+  // few states as it loads" flicker.
+  const pendingTerrainApply = useMemo(() => new WeakMap<maplibregl.Map, () => void>(), [])
+
   const applyTerrain = useCallback((map: maplibregl.Map, viewMode: string) => {
+    const pending = pendingTerrainApply.get(map)
+    if (pending) {
+      map.off('sourcedata', pending)
+      pendingTerrainApply.delete(map)
+    }
+
     // Remove terrain in 2D mode
     if (viewMode === '2d') {
-      map.setTerrain(null)
+      if (map.getTerrain()) map.setTerrain(null)
       return
     }
-    
-    // Apply terrain in 3D/globe mode
+
+    const exaggeration = state.exaggeration || 1
+    const setTerrainIfNeeded = () => {
+      const source = map.getSource('terrainSource')
+      if (!source) return false
+      // setTerrain() is expensive and destructive (new Terrain, new
+      // RenderToTexture, RTT tile cache dropped), so only call it when it
+      // would actually change something. Comparing the bound source OBJECT —
+      // not just the id — matters because <Source id="terrainSource"> is
+      // remounted (removed and re-added under the same id) whenever the
+      // terrain provider, hi-res toggle, local file or probed maxzoom change,
+      // see MapSources.tsx; a terrain still bound to the old, torn-down source
+      // has the right id but the wrong tiles.
+      const current = map.getTerrain()
+      const boundSource = map.terrain?.tileManager?.getSource()
+      if (current?.exaggeration === exaggeration && boundSource === source) return true
+      map.setTerrain({ source: 'terrainSource', exaggeration })
+      return true
+    }
+
+    if (setTerrainIfNeeded()) return
+    // Source isn't in the style yet — retry as sources arrive, then stop.
     const apply = () => {
-      if (map.getSource('terrainSource')) {
-        map.setTerrain({
-          source: 'terrainSource',
-          exaggeration: state.exaggeration || 1,
-        })
-        map.off('sourcedata', apply)
-      }
+      if (!setTerrainIfNeeded()) return
+      map.off('sourcedata', apply)
+      pendingTerrainApply.delete(map)
     }
-    if (map.getSource('terrainSource')) {
-      map.setTerrain({ source: 'terrainSource', exaggeration: state.exaggeration || 1 })
-    } else {
-      map.on('sourcedata', apply)
-    }
-  }, [state.exaggeration])
+    pendingTerrainApply.set(map, apply)
+    map.on('sourcedata', apply)
+  }, [state.exaggeration, pendingTerrainApply])
   // const applyTerrain = useCallback((map: maplibregl.Map, viewMode: string) => {
   //   if (viewMode === '2d') {
   //     map.setTerrain(null)
@@ -2011,6 +2281,33 @@ export function TerrainViewer() {
   const timelineBottomPaddingPx = historicalTimelineVisible
     ? Math.round(historicalTimelinePanelHeightPx + PANEL_CLEARANCE_GAP_PX)
     : 0
+
+  // Opening or closing the sidebar / timeline changes the space the grid has
+  // to divide up, so every pane rect and the gutter between them jump to new
+  // positions in a single frame. Arm a short window around that change during
+  // which the panes CSS-transition to their new geometry instead, matching the
+  // panel's own slide and the map-padding ease below (same duration).
+  //
+  // Deliberately keyed on the two PANEL FOOTPRINTS and nothing else. Dragging
+  // the split pill changes splitRatio, not these, so it stays pinned 1:1 to
+  // the pointer with no transition lag — which is the whole reason this isn't
+  // just an always-on CSS transition on the pane divs. Window resizes don't
+  // touch them either, so those stay immediate too.
+  const [panelGeometryEasing, setPanelGeometryEasing] = useState(false)
+  const panelFootprintKey = `${sidebarPaddingPx}:${timelineBottomPaddingPx}`
+  const lastPanelFootprintKey = useRef(panelFootprintKey)
+  useEffect(() => {
+    if (lastPanelFootprintKey.current === panelFootprintKey) return
+    lastPanelFootprintKey.current = panelFootprintKey
+    setPanelGeometryEasing(true)
+    const timer = setTimeout(() => setPanelGeometryEasing(false), PADDING_EASE_MS + 50)
+    return () => clearTimeout(timer)
+  }, [panelFootprintKey])
+  // Applied to the pane rects and their border overlays below.
+  const panelGeometryTransition = panelGeometryEasing
+    ? `top ${PADDING_EASE_MS}ms ease-out, left ${PADDING_EASE_MS}ms ease-out, width ${PADDING_EASE_MS}ms ease-out, height ${PADDING_EASE_MS}ms ease-out, right ${PADDING_EASE_MS}ms ease-out, bottom ${PADDING_EASE_MS}ms ease-out`
+    : undefined
+
   const mapPaddingFor = useCallback(
     (side: ViewId) => ({
       top: 0,
@@ -2020,30 +2317,95 @@ export function TerrainViewer() {
       // full-bleed stacked over the exact same viewport, so any difference
       // shifts one camera's center relative to the other's, visibly
       // misaligning the underlying imagery under the shared clip-path
-      // boundary (confirmed live at partial opacity). Zero for both, rather
-      // than the sidebar-avoidance value every other (non-overlay) pane gets.
-      right: isOverlaySplit ? 0 : (rightmostPerRow.includes(side) ? sidebarPaddingPx : 0),
+      // boundary (confirmed live at partial opacity). rightmostPerRow would
+      // give it to overlay's "B" only (its forced 2x1 shape), hence the
+      // explicit override — but the shared value is the sidebar-avoidance one,
+      // NOT zero. Every overlay pane is full-bleed and so runs under the
+      // sidebar exactly like a real last column does (the border inset below
+      // already treats it that way), and giving it zero here meant the camera
+      // visibly jumped sideways on every Off/Side <-> Overlay switch.
+      right: (isOverlaySplit || rightmostPerRow.includes(side)) ? sidebarPaddingPx : 0,
     }),
     [isOverlaySplit, bottomRowViews.join(","), rightmostPerRow.join(","), sidebarPaddingPx, timelineBottomPaddingPx],
   )
 
-  // Apply padding instantly (duration: 0), NOT eased — a real bug, found via
-  // live debugging: with any nonzero duration, split mode's camera-sync
-  // (handleViewMove below) races the in-progress padding transition. Every
-  // 'move' event the easing itself fires while animating gets picked up by
-  // the OTHER views' sync handler, which calls their own jumpTo — and
-  // MapLibre's jumpTo() unconditionally calls this.stop() first (it has to,
-  // to jump instantly), aborting whichever view's padding easeTo was still
-  // mid-flight. Confirmed live: with duration: 300 the effect fires with the
-  // correct target value but getPadding() reads back {0,0,0,0} seconds
-  // later; with duration: 0 it reliably sticks.
+  // Eased, to match the side/bottom panels' own open/close transition instead
+  // of snapping the camera the instant they start moving.
+  //
+  // Animating this used to be impossible: with any nonzero duration, every
+  // 'move' event the easing fired while animating got picked up by the OTHER
+  // views' sync handler, which called their own jumpTo — and MapLibre's
+  // jumpTo() unconditionally calls this.stop() first (it has to, to jump
+  // instantly), aborting whichever view's padding easeTo was still mid-flight.
+  // Confirmed live at the time: with duration 300 the effect fired with the
+  // correct target value but getPadding() read back {0,0,0,0} seconds later.
+  // The fix is holding the isSyncing guard for the WHOLE animation rather than
+  // just the synchronous call, which the timer below does — every view is
+  // eased to its own target in the same tick with the same duration, so they
+  // stay in lockstep and there is nothing legitimate to cross-sync anyway.
+  const paddingEaseRef = useRef(0)
   useEffect(() => {
+    const generation = ++paddingEaseRef.current
+    isSyncing.current = true
     for (const side of activeViewIds) {
       if (!mapLoaded[side]) continue
-      mapRefs[side].current?.getMap().easeTo({ padding: mapPaddingFor(side), duration: 0 })
+      const map = mapRefs[side].current?.getMap()
+      if (!map) continue
+      map.easeTo({
+        padding: mapPaddingFor(side),
+        duration: PADDING_EASE_MS,
+        // freezeElevation is what makes MapLibre run _finalizeElevation() when
+        // the ease ends, and _finalizeElevation is the ONLY thing that clears
+        // Map#_elevationFreeze afterwards. Without it, every easeTo leaves that
+        // flag stuck true forever (maplibre-gl 5.24: _prepareElevation sets it
+        // unconditionally, _finalizeElevation only runs when this option is
+        // set), and the only other thing that ever clears it is completing an
+        // interactive drag ON THAT MAP. That left the two views in different
+        // internal states depending on which one you'd last dragged — the
+        // second half of the "pan B and A follows the terrain" asymmetry.
+        // It also keeps the camera's height steady across the ease instead of
+        // re-deriving it per frame; resettleTerrainElevation below re-anchors
+        // it once at the end, without moving the camera.
+        freezeElevation: true,
+      })
     }
+    const timer = setTimeout(() => {
+      // A later padding change already superseded this one (the timeline
+      // panel's measured height, say, arriving frame by frame as it slides) —
+      // that newer run owns the guard and its own settle now.
+      if (paddingEaseRef.current !== generation) return
+      isSyncing.current = false
+      // Assert the final padding outright, rather than trusting the ease above
+      // to have landed on it. Switching Off/Overlay -> Side changes each pane's
+      // pixel width in the same commit as its padding, so the ease runs through
+      // a burst of resize() calls (and, with the pane geometry now animating
+      // too, one per frame of it) — and a pane that MOUNTED in this same commit
+      // never got the ease at all, since the loop above skips views that aren't
+      // loaded yet. Either way the rightmost pane could end up with the
+      // sidebar-avoidance padding only partly applied, or not at all.
+      //
+      // transform.setPadding, deliberately, not another easeTo: it early-returns
+      // when the padding already matches (maplibre-gl 5.24,
+      // TransformHelper#setPadding), so this is a no-op in the normal case, and
+      // unlike easeTo/jumpTo it never calls Map#stop() — so it cannot reset a
+      // view's input handlers or eat a gesture (see pointerDownRef).
+      for (const side of activeViewIds) {
+        const map = mapRefs[side].current?.getMap()
+        if (!mapLoaded[side] || !map) continue
+        const target = mapPaddingFor(side)
+        if (map.transform.isPaddingEqual(target)) continue
+        map.transform.setPadding(target)
+        map.triggerRepaint()
+      }
+      // A pane's pixel dimensions usually change in the same commit as its
+      // padding (Overlay's full width vs Side's half), and both that resize
+      // and this ease leave the camera-target elevation resolved against the
+      // old viewport.
+      resettleTerrainElevation()
+    }, PADDING_EASE_MS + 50)
+    return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapPaddingFor, mapLoaded, activeViewIds.join(",")])
+  }, [mapPaddingFor, mapLoaded, activeViewIds.join(","), resettleTerrainElevation])
 
   const effectiveMaxZoom = useMemo(() => {
       const candidates = [
@@ -2236,6 +2598,15 @@ export function TerrainViewer() {
             zoom: state.zoom,
             pitch: state.viewMode === "2d" ? 0 : state.pitch,
             bearing: state.viewMode === "2d" ? 0 : state.bearing,
+            // Seeded here as well as applied by the padding effect above, so
+            // this view is built with its vanishing point ALREADY shifted clear
+            // of the sidebar/timeline rather than rendering a frame or two
+            // centred on the full canvas and then sliding across to its real
+            // framing. That slide was visible on first load (and again on each
+            // newly-mounted pane when split mode turns on) as the focus point
+            // drifting sideways just after the map appeared. Only the initial
+            // value — every later change still goes through the eased effect.
+            padding: mapPaddingFor(side),
           }}
           onMove={(evt) => handleViewMove(side, evt)}
           onMoveEnd={handleViewMoveEnd}
@@ -2251,6 +2622,56 @@ export function TerrainViewer() {
             // while the map is settled instead of being wiped every frame.
             mapInstance.on('movestart', () => resetSlowTileProgress())
             mapInstance.on('zoomstart', () => resetSlowTileProgress())
+
+            // Once terrain is on, several routine operations leave the
+            // camera-target elevation stale — DEM tiles arriving AFTER
+            // setTerrain() already resolved elevation against nothing,
+            // resize() when a pane's pixel dimensions change between
+            // Overlay/Side/grid shapes, the padding easeTo below — and
+            // MapLibre will not re-resolve it on its own here, because
+            // `centerClampedToGround` is deliberately off (see just below)
+            // and the render loop's own re-resolve is gated on it
+            // (maplibre-gl 5.24, Map#_render). Left alone, a high-elevation
+            // focal point (the default viewport's Matterhorn summit, ~4478m)
+            // renders visibly off true screen-centre.
+            //
+            // 'idle' fires after every one of those settles, whatever caused
+            // it, so it's the one uniform place to re-resolve — but the work
+            // done there has to be cheap, since it can fire many times a
+            // second while DEM tiles stream in. resettleTerrainElevation is
+            // one DEM lookup plus a float assignment that MapLibre itself
+            // no-ops when unchanged; it is NOT a setTerrain() call, which
+            // would rebuild the Terrain + RenderToTexture pair and throw away
+            // the render-to-texture tile cache on every single idle (the
+            // "terrain blinks through several states while loading" flicker).
+            mapInstance.on('idle', () => {
+              if (!mapInstance.getTerrain()) return
+              // Live ground-clamping (centerClampedToGround, default true)
+              // re-resolves the camera's height from the DEM on EVERY rendered
+              // frame (maplibre-gl 5.24, Map#_render), which is the
+              // "follow-terrain" bob/climb while panning. Turn it off once
+              // terrain has settled — same knob this file's keyframe-recording
+              // animation already disables for its own one map instance (see
+              // setCenterClampedToGround(false) in CameraUtilities.tsx), just
+              // applied to every split view too. From here on elevation is
+              // resolved explicitly instead, by resettleTerrainElevation.
+              //
+              // Gated on the map's OWN live state, not on a per-view-id "have
+              // we done this yet" flag. A view id outlives the map instance
+              // behind it: turning split mode off unmounts view B and turning
+              // it back on builds a brand new <Map>, and an id-keyed flag then
+              // reads "already done" for a map that has never had it done —
+              // leaving that one pane permanently ground-clamped. That is
+              // exactly the "pan one view and the OTHER one follows the
+              // terrain" asymmetry: whichever pane still has clamping on only
+              // misbehaves when it ISN'T the pane being dragged, because being
+              // dragged is itself what suppresses the per-frame reclamp
+              // (MapLibre freezes elevation for the duration of a gesture).
+              if (mapInstance.getCenterClampedToGround()) {
+                mapInstance.setCenterClampedToGround(false)
+              }
+              resettleTerrainElevationOnIdleRef.current()
+            })
 
             // const applyTerrain = () => {
             //   if (mapInstance.getSource("terrainSource")) {
@@ -2808,7 +3229,7 @@ export function TerrainViewer() {
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint,
       svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,
       mapboxKey, maptilerKey, customTerrainSources, customBasemapSources, titilerEndpoint,
-      mapLoaded, mapRefs, handleViewMove, handleViewMoveEnd, bottomRightViewId,
+      mapLoaded, mapRefs, handleViewMove, handleViewMoveEnd, mapPaddingFor, bottomRightViewId,
       state.skyColor, state.skyHorizonBlend, state.horizonColor, state.horizonFogBlend,
       state.fogColor, state.fogGroundBlend, state.matchThemeColors, state.backgroundLayerActive,
       activeProjectConfig,
@@ -3062,12 +3483,25 @@ export function TerrainViewer() {
                 height: pane.height,
                 left: pane.left,
                 width: pane.width,
+                // Only set while a side/bottom panel is actually opening or
+                // closing — see panelGeometryTransition. Never during a split-
+                // pill drag or a window resize, which must track 1:1.
+                transition: panelGeometryTransition,
                 clipPath: isBlendedOverlayPane ? `polygon(${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 100% 100%, 100% 0%)` : undefined,
                 mixBlendMode: isBlendedOverlayPane ? ((state.splitBlendModeEnabled ? state.splitBlendMode : "normal") as any) : undefined,
                 opacity: isBlendedOverlayPane ? state.overlayOpacity : undefined,
                 ["--scale-offset" as any]: scaleBottomOffset,
                 ["--scale-right-offset" as any]: scaleRightOffset,
               }}
+              // Records which view the terrain settle should treat as
+              // authoritative (see lastInteractedViewRef). Capture phase, and on
+              // the PANE rather than the canvas, so it registers before any
+              // handler inside can stop propagation, and so a press on a pane's
+              // controls counts as "this is the view I'm working in" too. In
+              // overlay the top pane's clip-path also clips hit-testing, so a
+              // press left of the wipe boundary correctly attributes to A and
+              // one right of it to B.
+              onPointerDownCapture={() => { lastInteractedViewRef.current = pane.side }}
             >
               {renderMap(stateAny[sourceFieldName(pane.side)], pane.side)}
             </div>
@@ -3138,7 +3572,7 @@ export function TerrainViewer() {
             <div
               key={`border-${pane.side}`}
               className="absolute pointer-events-none"
-              style={{ top: pane.top, left: pane.left, width: pane.width, height: pane.height }}
+              style={{ top: pane.top, left: pane.left, width: pane.width, height: pane.height, transition: panelGeometryTransition }}
             >
               <div
                 className={cn("pointer-events-none absolute", colorizeMapBordersInset ? "rounded-sm" : "rounded-none")}
@@ -3146,6 +3580,11 @@ export function TerrainViewer() {
                   borderColor: borderColorFor(pane.side),
                   borderStyle: "solid",
                   borderWidth: fullWidth,
+                  // The right/bottom edges are pulled in by the sidebar and
+                  // timeline footprints directly, so they need the same
+                  // transition as the pane rect or the border would arrive at
+                  // its new edge before the pane it outlines does.
+                  transition: panelGeometryTransition,
                   top: insetPx,
                   left: isOverlaySplit && pane.side === "B" ? overlayGutterPx + insetPx : insetPx,
                   right: isOverlaySplit && pane.side === "A"
@@ -3163,14 +3602,14 @@ export function TerrainViewer() {
             instead, just below) and overlay (no seam at all, panes fully
             overlap). */}
         {!isOverlaySplit && effectiveGridLayout !== "2x1" && paneLayouts.filter((p) => !p.isLastCol).map((p) => (
-          <div key={`vdiv-${p.side}`} className="absolute w-px bg-border" style={{ top: p.top, height: p.height, left: p.left + p.width }} />
+          <div key={`vdiv-${p.side}`} className="absolute w-px bg-border" style={{ top: p.top, height: p.height, left: p.left + p.width, transition: panelGeometryTransition }} />
         ))}
         {/* Positioned from the next row's own (possibly taller, see
             availableSplitHeight above) top — NOT an even 1/rows percentage —
             so the seam lines up with the real row boundary. */}
         {!isOverlaySplit && rows > 1 && Array.from({ length: rows - 1 }, (_, i) => {
           const nextRowTop = paneLayouts.find((p) => p.rowIdx === i + 1)?.top ?? 0
-          return <div key={`hdiv-${i}`} className="absolute left-0 right-0 h-px bg-border" style={{ top: nextRowTop }} />
+          return <div key={`hdiv-${i}`} className="absolute left-0 right-0 h-px bg-border" style={{ top: nextRowTop, transition: panelGeometryTransition }} />
         })}
         {effectiveGridLayout === "2x1" && (
           isOverlaySplit ? (
@@ -3181,6 +3620,7 @@ export function TerrainViewer() {
               min={SPLIT_RATIO_MIN}
               max={SPLIT_RATIO_MAX}
               leftPercent={overlayBoundaryPct}
+              leftTransition={panelGeometryTransition}
               opacity={state.overlayOpacity}
               onOpacityChange={(v) => setState({ overlayOpacity: v })}
             />
@@ -3192,6 +3632,7 @@ export function TerrainViewer() {
               min={SPLIT_RATIO_MIN}
               max={SPLIT_RATIO_MAX}
               leftPercent={sideBySideBoundaryPct}
+              leftTransition={panelGeometryTransition}
             />
           )
         )}

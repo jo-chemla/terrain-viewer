@@ -217,6 +217,15 @@ export function isHistoricalHostname(hostname: string): boolean {
   return HISTORICAL_HOSTNAME_RE.test(hostname)
 }
 
+// Real deploys of this app (as opposed to local dev, a fork, or a preview
+// URL) — used by the favicon swap (index.html's inline script AND the
+// appMode-reactive effect in TerrainViewer.tsx) to pick the blue/purple
+// color half of the icon, independently of isHistoricalHostname's own
+// mountain-vs-clock SHAPE decision above.
+export function isProdHostname(hostname: string): boolean {
+  return hostname === "terrain-viewer.iconem.com" || hostname === "jo-chemla.github.io" || isHistoricalHostname(hostname)
+}
+
 export const transparentUiAtom = atomWithStorage("isTransparentUi", true)
 export const activeSliderAtom = atom<string | null>(null)
 
@@ -346,7 +355,7 @@ export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>
 // above — these are read synchronously in TerrainViewer's first-load
 // stateOverrides effect, which would otherwise see the pre-hydration default
 // instead of the real stored value.
-const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: false, historical: false }, undefined, { getOnInit: true })
+const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true }, undefined, { getOnInit: true })
 export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
 export const sunShadowBetaEnabledAtom = booleanField(betaEnabledAtom, "sunShadow")
 export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historical")

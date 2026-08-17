@@ -9,20 +9,32 @@
          dev port, preview/staging deploy, etc.) so an open prod tab is never
          visually confusable with a dev one. Inline + synchronous (not a React
          effect) so it swaps before first paint, no flash of the wrong icon.
-         historical-satellite.iconem.com (and any subdomain, e.g. a legacy
-         "old." one) is the historical-imagery-only deploy of this same app —
-         see isHistoricalHostname in lib/settings-atoms.ts — and gets its own
-         icon shape (a clock, matching the historical-timeline toggle's own
-         lucide Clock icon, see HistoricalTimelineToggle.tsx) instead of the
-         mountain, on top of the same prod/dev color convention. Any other/
-         unknown hostname (a fork, a preview URL) falls through to the plain
-         dev mountain favicon, the safe default either way. -->
+         jo-chemla.github.io is the plain GitHub Pages URL this same build is
+         also served from (terrain-viewer.iconem.com is just a custom domain
+         pointed at the same Pages deploy) — also real prod, not a fork/preview.
+         historical-satellite.iconem.com (and any subdomain) is real prod too,
+         same as any other domain here — see isProdHostname in
+         lib/settings-atoms.ts, which this duplicates (a plain HTML file can't
+         import it) since TerrainViewer's own React effect (keyed on
+         isHistoricalMode) needs the identical rule.
+         Shape (mountain vs clock, matching the historical-timeline toggle's
+         own lucide Clock icon, see HistoricalTimelineToggle.tsx) is decided by
+         the live app MODE, not the domain — historical-satellite.iconem.com
+         merely defaults a first-ever visit there into Historical mode (see
+         isHistoricalHostname), same as any domain once a visitor has actually
+         switched modes. This is only a best-effort guess for the instant
+         before React mounts and that effect takes over: stored appMode (if
+         this browser has ever set one, for this exact origin) wins; only a
+         truly first-ever visit falls back to the hostname default. -->
     <script>
       (function () {
         var host = location.hostname
-        var isHistorical = host === "historical-satellite.iconem.com" || /\.historical-satellite\.iconem\.com$/.test(host)
-        var isProd = host === "terrain-viewer.iconem.com" || isHistorical
-        var href = isHistorical
+        var isHistoricalHost = host === "historical-satellite.iconem.com" || /\.historical-satellite\.iconem\.com$/.test(host)
+        var isProd = host === "terrain-viewer.iconem.com" || host === "jo-chemla.github.io" || isHistoricalHost
+        var storedAppMode = null
+        try { storedAppMode = JSON.parse(window.localStorage.getItem("appMode") || "null") } catch (e) {}
+        var isHistoricalShape = storedAppMode ? storedAppMode === "historical" : isHistoricalHost
+        var href = isHistoricalShape
           ? (isProd ? "/favicon-historical.svg" : "/favicon-historical-dev.svg")
           : (isProd ? "/favicon.svg" : "/favicon-dev.svg")
         var link = document.querySelector('link[rel="icon"]')

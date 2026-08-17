@@ -18,29 +18,43 @@ export const metadata: Metadata = {
   // colored one. Deliberately a book-open glyph (not the main app's mountain
   // icon) since this is the docs site, not the viewer — but same
   // purple(dev)/blue(prod) color convention as the main app's own favicon
-  // (index.html at the repo root), swapped client-side below since a
-  // static-exported Next app has no request-time hostname to branch on at
-  // render time.
-  icons: { icon: '/docs/favicon.svg' },
+  // (index.html at the repo root). Defaults to the DEV (purple) icon, not
+  // prod — a static-exported Next app has no request-time hostname to branch
+  // on at render time, so this literal tag is what the browser sees (and may
+  // already cache as the tab icon) before the client-side swap below ever
+  // runs: next/script's "beforeInteractive" scripts are queued through
+  // Next's own self.__next_s bootstrap rather than a truly synchronous inline
+  // <script>, unlike index.html's — confirmed live, it can lose the race to
+  // this static tag. Defaulting to dev and only swapping UP to the prod icon
+  // once confirmed means a lost race still shows purple in dev (safe) rather
+  // than blue on a non-prod tab (confusable with the real site).
+  icons: { icon: '/docs/favicon-dev.svg' },
 };
 
 export default function Layout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="en" className={inter.className} suppressHydrationWarning>
       <head>
-        {/* beforeInteractive so this swaps before first paint, same as the
-            main app's own inline favicon script (index.html) — no flash of
-            the wrong-colored icon. historical-satellite.iconem.com (and any
-            subdomain) counts as "prod" too, same as the main app: it's a
-            real deploy of this same docs site, just a different domain. */}
+        {/* beforeInteractive so this swaps as early as possible, same intent
+            as the main app's own inline favicon script (index.html) — but
+            unlike that literal synchronous <script>, next/script's
+            "beforeInteractive" is only queued via Next's self.__next_s
+            bootstrap, not guaranteed to beat the browser to the static
+            metadata <link> tag above. Swaps UP to the prod icon (the tag
+            above already defaults to dev/purple, the safe fallback if this
+            loses that race) rather than the reverse. historical-satellite.
+            iconem.com (and any subdomain) counts as "prod" too, same as the
+            main app: it's a real deploy of this same docs site, just a
+            different domain — same for jo-chemla.github.io, the plain
+            GitHub Pages URL this same build is also served from. */}
         <Script id="favicon-swap" strategy="beforeInteractive">
           {`(function () {
             var host = location.hostname
-            var isProd = host === "terrain-viewer.iconem.com" ||
+            var isProd = host === "terrain-viewer.iconem.com" || host === "jo-chemla.github.io" ||
               host === "historical-satellite.iconem.com" || /\\.historical-satellite\\.iconem\\.com$/.test(host)
-            if (isProd) return
+            if (!isProd) return
             var link = document.querySelector('link[rel="icon"]')
-            if (link) link.href = "/docs/favicon-dev.svg"
+            if (link) link.href = "/docs/favicon.svg"
           })()`}
         </Script>
       </head>

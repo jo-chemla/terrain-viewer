@@ -16,16 +16,16 @@ const FEATURES = [
     alt: 'Sky-View Factor relief visualization',
   },
   {
-    title: 'Historical Imagery',
-    body: 'Browse decades of historical satellite imagery (Wayback, HLS, Google Earth Historical, Planet) along a draggable timeline, per view.',
-    image: '/docs/screenshots/historical-timeline.jpg',
-    alt: 'Scrubbing the historical imagery timeline',
-  },
-  {
     title: 'Light-Direction XYPad',
     body: 'Drag a 2D pad to set Hillshade/Phong illumination azimuth and elevation together, bound to real sun position and day/night constraints.',
     image: '/docs/screenshots/hillshade-direction.mp4',
     alt: 'Dragging the XYPad to set light direction',
+  },
+  {
+    title: 'Historical Imagery',
+    body: 'Browse decades of historical satellite imagery (Wayback, HLS, Google Earth Historical, Planet) along a draggable timeline, per view.',
+    image: '/docs/screenshots/historical-timeline.jpg',
+    alt: 'Scrubbing the historical imagery timeline',
   },
   {
     title: 'Split Screen & N-Map Compare',
