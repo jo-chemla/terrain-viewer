@@ -615,10 +615,13 @@ export const QUERY_STATE_PARSERS = {
     // clutter Visualization Modes for everyone by default.
     tellsBeta: parseAsBoolean.withDefault(false),
     // Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator.
-    sunShadowBeta: parseAsBoolean.withDefault(false),
+    // Default true so the URL stays clean when the feature is on (the atom
+    // default is also true); `?sunShadowBeta=false` disables it explicitly.
+    sunShadowBeta: parseAsBoolean.withDefault(true),
     // Same opt-in-beta gate as tellsBeta above, for the historical-imagery
     // basemaps (Wayback/HLS/GE Historical/Planet) + bottom timeline panel.
-    historicalBeta: parseAsBoolean.withDefault(false),
+    // Default true — same rationale as sunShadowBeta.
+    historicalBeta: parseAsBoolean.withDefault(true),
     // Master on/off (Visualization Modes' "Tells (Mound Detector)" checkbox) —
     // gates the sidebar's Mound Candidates section as well as the map layer.
     // Independent from tellsMarkersVisible below: this is "is the detector
@@ -1529,7 +1532,13 @@ export function TerrainViewer() {
         // A domain unrelated to either deploy (a fork, localhost, a preview
         // URL) matches neither branch and just keeps the normal "terrain"
         // default, so this never breaks serving from another domain.
-        if (!hadStoredAppModeAtMount.current && isHistoricalHostname(window.location.hostname)) stateOverrides.appMode = "historical"
+        // On a historical-satellite deploy, always default to historical mode
+        // regardless of any stale "terrain" value in localStorage (which could
+        // come from the user having visited the main terrain-viewer deploy).
+        // A visitor who genuinely wants terrain mode on this hostname can use
+        // `?appMode=terrain` — that case is already handled by the
+        // `!searchParams.has("appMode")` guard above.
+        if (isHistoricalHostname(window.location.hostname)) stateOverrides.appMode = "historical"
       }
     }
 
