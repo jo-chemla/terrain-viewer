@@ -1,0 +1,14 @@
+{
+  "title": "Dev",
+  "defaultOpen": true,
+  "pages": [
+    "index",
+    "terrain-analysis-pipeline",
+    "lrm",
+    "lighting-effects",
+    "equations",
+    "ge-historical",
+    "esri-wayback",
+    "wms-float32-protocol"
+  ]
+}

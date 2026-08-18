@@ -1,0 +1,71 @@
+---
+title: ESRI Wayback
+description: The release-chained alternative to Google Earth Historical's per-tile dates
+---
+
+ESRI Wayback is one of four providers behind [Historical Imagery mode](/features/basemaps-and-historical). Where [Google Earth Historical](/dev/ge-historical) is *self-contained per-tile*  — every capture date for a tile lives inside that one tile's quadtree packet — Wayback is **release-chained**: a flat, dated catalog of full, independently-addressable global tile pyramids. `lib/wayback.ts` is a thin wrapper around [`@esri/wayback-core`](https://github.com/Esri/wayback-core) (the SDK behind Esri's own Wayback app) that resolves that release model into the same "one date in, one tile source out" shape every other historical provider in this app already has.
+
+## What a "release" is
+
+`@esri/wayback-core` fetches a single JSON catalog once, `waybackconfig.json`, keyed by release number:
+
+```
+https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json
+```
+
+Each entry gives a WMTS-style tile template (`{level}/{row}/{col}`, host `maptiles.arcgis.com`) and a title like `"World Imagery (Wayback 2014-02-20)"`, parsed into a release date. A release is a **complete, standalone global mosaic** — there's no per-tile date at the catalog level, only at the release level. `waybackTileUrl()` in `lib/wayback.ts` is the one fixup this app needs before handing a release to MapLibre — WMTS placeholders to XYZ:
+
+```ts
+export function waybackTileUrl(item: WaybackItem): string {
+  return item.itemURL.replace("{level}", "{z}").replace("{row}", "{y}").replace("{col}", "{x}")
+}
+```
+
+The result is added as an **ordinary XYZ raster source** (`{ tiles: [waybackTileUrl(item)], tileSize: 256, maxzoom: 19 }` in `MapSources.tsx`) — no `addProtocol`, no custom decoding, unlike GE Historical's `gehist://` handler.
+
+## Discovery and caching
+
+The release catalog is fetched once per app session via a module-level cached promise (`cachedItemsPromise` in `lib/wayback.ts`), shared by the sidebar list, the timeline panel, and both split-view A/B basemap sources — not once per component instance. There's no hardcoded fallback list; a fetch failure just leaves an empty release array.
+
+**Local-changes filtering.** Most releases repeat the same imagery as their neighbor at any given spot — a release only matters at a location if it actually changed something there. `getWaybackItemsWithLocalChanges(location, zoom, { onlyUseSizeToFilterDuplicates: true })` filters the full catalog down to releases with a genuinely distinct tile at that exact location, trading a small chance of missing a same-size-but-different-content release for avoiding a per-candidate image fetch on every pan. This filtered, location-specific list — not the raw catalog — is what the timeline's ticks are built from, cached per rounded `(lat, lng, zoom)` key so the timeline panel and each side's own basemap source share one expensive scan instead of tripling it in split view.
+
+## Date → release resolution
+
+Every other historical source in this app takes a plain date directly. Wayback releases are addressed by release *number*, a foreign key into Esri's own catalog — so `useResolvedWaybackRelease()` is the one place that gets resolved, snapping a `state.dateA`/`dateB` timestamp to whichever release's **real per-tile capture date** (not the catalog-wide release date — a single release mosaics tiles captured at many different times) is closest, in either direction:
+
+```ts
+const item = useMemo(() => {
+  if (!targetDateMs || !items.length) return null
+  let best: WaybackItem | null = null, bestDist = Infinity
+  for (const it of items) {
+    const realDateMs = resolved[it.releaseNum]?.dateMs ?? it.releaseDatetime
+    const dist = Math.abs(realDateMs - targetDateMs)
+    if (dist < bestDist) { bestDist = dist; best = it }
+  }
+  return best
+}, [items, resolved, targetDateMs])
+```
+
+Real per-tile dates come from Esri's metadata feature service (`getMetadata`), queried per release per location and cached; a release whose real date hasn't resolved yet falls back to its own catalog-wide `releaseDatetime` so the nearest-release search always has *some* value to compare against.
+
+<Callout title="Progressive resolution, not all-or-nothing" type="info">
+`useWaybackRealCaptureDates` resolves each release's real date independently as its own request completes, rather than behind a single `Promise.all`. Esri's metadata endpoint has no `AbortSignal`/cancellation support at all, so a single slow response used to block every *other* already-resolved release from showing too. Timeline ticks now populate progressively instead of all-or-nothing, and the whole lookup is debounced 400ms (matching the app's `viewStateUpdateTimer` settle cadence) since a request that starts can't be cancelled once in flight.
+</Callout>
+
+## Live "ESRI World Imagery" vs. Wayback
+
+The plain, non-historical "ESRI World Imagery" basemap (id `esri`) has no date field of its own — but it isn't dateless, it's just always showing whichever Wayback release is *currently newest* at a location, since Wayback's newest release **is** the live World Imagery basemap, republished under its own catalog. `useEsriLiveCaptureDate()` resolves `items[0]` (both `getWaybackItems` and the local-changes variant return newest-first) through the same real-capture-date machinery as any other tick, just permanently pinned to the newest release rather than a user-picked date.
+
+## Attribution
+
+`useWaybackDynamicAttribution()` composes real per-release attribution from the same `getMetadata` call already used for capture dates (`provider`, `source`, `resolution`, `accuracy` — previously discarded) into the two-field shape Esri's own World_Imagery MapServer "identify" operation returns for a clicked point (a short `SRC_DESC` code and a full descriptive `NICE_DESC` sentence). This replaced sharing the generic "who covers this region today" contributor-coverage feed between the live basemap and every dated Wayback tick, which had made Wayback attribution always resolve to whichever provider covers the region *today* regardless of which historical date was actually selected.
+
+## Batch export
+
+`listWaybackTicksInRange()` is the non-hook equivalent used by `lib/export-multi.ts` to enumerate every real Wayback capture within a date range at a location, outside of a mounted component — resolving each candidate's real date **sequentially** rather than in parallel, since export already fans out per feature/source/date itself and this favors going easy on Esri's metadata endpoint over raw speed.
+
+## Caveats
+
+- Esri's metadata service only supports zoom 10–23 (clamped internally by `@esri/wayback-core`).
+- No request cancellation on the metadata endpoint — see the progressive-resolution callout above.
+- `onlyUseSizeToFilterDuplicates: true` can, in principle, miss a release that's genuinely different but happens to produce a same-size image at the compared tile.

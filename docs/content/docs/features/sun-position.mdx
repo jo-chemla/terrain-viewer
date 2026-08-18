@@ -1,0 +1,97 @@
+---
+title: Sun Position
+description: The astronomy behind the app's light direction, shadow calculator, and the standalone sun estimator
+---
+
+The app's [Phong lighting mode](/features/visualization-modes#lighting-effects) can be driven by real solar position instead of a manually-dragged light control, and the sidebar's shadow-length calculator inverts the same astronomy the other direction (given a shadow's length and bearing, find when it was cast). Both are powered by `lib/solar-position.ts`. A more complete, interactive version of this same math — with day/night boundary, analemma, sun-path, and full-year-coverage charts — is available as a standalone page at [terrain-viewer.iconem.com/sun-position-estimator.html](https://terrain-viewer.iconem.com/sun-position-estimator.html).
+
+<Callout title="Deliberately simple, not an ephemeris" type="info">
+Both the app's `solar-position.ts` and the standalone estimator use the same closed-form spherical-astronomy approximations (Cooper's declination, standard elevation/azimuth identities) rather than a precise NOAA-style algorithm. `solar-position.ts` additionally works entirely in **local solar time** (solar noon = 12:00) and skips longitude/timezone and the equation-of-time correction — accurate enough to place a light and show a believable day-length range on a slider, not to replace an ephemeris.
+</Callout>
+
+## The formulas
+
+**Declination** (Cooper's approximation; $N$ = day of year, $\varphi$ = latitude):
+
+$$
+\delta = 23.45° \cdot \sin\!\left(\frac{360°}{365}(284 + N)\right)
+$$
+
+**Elevation and azimuth** (forward — given latitude, declination, and hour angle $H$; $H < 0$ morning, $H > 0$ afternoon):
+
+$$
+\text{El} = \arcsin\big(\sin\varphi\sin\delta + \cos\varphi\cos\delta\cos H\big)
+$$
+
+$$
+\text{Az} = \operatorname{atan2}(\sin H,\ \cos H\sin\varphi - \tan\delta\cos\varphi) + 180°
+$$
+
+**Inverse** (given azimuth/elevation, recover declination and hour angle — used by the shadow calculator):
+
+$$
+\delta = \arcsin\big(\sin\varphi\sin(\text{El}) + \cos\varphi\cos(\text{El})\cos(\text{Az})\big)
+$$
+
+$$
+H = \operatorname{atan2}\big(\sin(\text{Az}),\ \cos(\text{Az})\sin\varphi - \tan(\text{El})\cos\varphi\big) + 180°
+$$
+
+Since declination traces a sine curve over the year (not one-to-one), recovering a day-of-year from $\delta$ generically has **two** solutions per year — mirror images around a solstice:
+
+$$
+N_1 = \frac{365}{360}\arcsin\!\left(\frac{\delta}{23.45°}\right) - 284 \pmod{365}
+$$
+
+$$
+N_2 = \frac{365}{360}\left(180° - \arcsin\!\left(\frac{\delta}{23.45°}\right)\right) - 284 \pmod{365}
+$$
+
+whichever is closer to a caller-supplied reference day is picked. Exactly one solution exists at a solstice; zero exist if the implied $|\delta| > 23.45°$ (astronomically impossible).
+
+**Day length / sunrise-sunset hour angle:**
+
+$$
+H_0 = \arccos(-\tan\varphi\tan\delta)
+\qquad
+\text{sunrise} = 12 - \frac{H_0}{15°} \qquad \text{sunset} = 12 + \frac{H_0}{15°} \quad \text{(local solar time)}
+$$
+
+**Full-year sun-position coverage** — the exact spherical-astronomy identity behind "what patch of sky does the sun ever occupy at this latitude":
+
+$$
+\text{reachable}(\text{Az}, \text{El}) \iff \big|\sin\varphi\sin(\text{El}) + \cos\varphi\cos(\text{El})\cos(\text{Az})\big| \le \sin(23.45°)
+$$
+
+Near $\text{El} \to 90°$ the $\cos(\text{El})$ term vanishes and this reduces to $\sin\varphi \approx \sin\delta$, satisfiable only where $|\varphi| \le 23.45°$ — i.e. only within the tropics does the sun ever pass directly overhead.
+
+**Shadow length**, the relation the in-app shadow calculator solves both directions:
+
+$$
+\text{shadowLength} = \frac{\text{height}}{\tan(\text{altitude})} \quad \text{(forward: gnomon height + sun altitude} \to \text{shadow length)}
+$$
+
+$$
+\text{altitude} = \operatorname{atan2}(\text{height},\ \text{shadowLength}) \quad \text{(inverse: measured shadow} \to \text{sun altitude)}
+$$
+
+Shadow azimuth is the sun's own azimuth plus $180°$ (a shadow points away from the sun); feeding that $(\text{Az}, \text{El})$ pair into the inverse solver above recovers the date/time the shadow was cast.
+
+<Callout title="What's not modeled" type="warn">
+No atmospheric refraction is applied anywhere in `solar-position.ts` (the standalone estimator optionally applies a −0.833° refraction + solar-disk-radius correction to sunrise/sunset, this app's `dayLength()` does not). Neither implementation includes the equation-of-time or longitude correction needed to convert local solar time to civil clock time — treat "solar noon" as *the* reference, not a specific clock time at your location.
+</Callout>
+
+## Charts on the standalone estimator
+
+The full interactive version renders four charts per saved location, each answering a different question:
+
+1. **Sunrise/sunset vs. day of year** — a line chart (x = day of year, y = UTC hour) with a solid sunrise curve and dashed sunset curve. How does day length and sun timing shift across the year here?
+2. **Analemma** — azimuth (x) vs. elevation (y), tracing the sun's position at one fixed clock time across all 365 days — the classic figure-eight. Where does the sun appear at the same clock time every day, and why does it trace a figure eight rather than a point?
+3. **Sun-path diagram** — the same yearly trace in a polar compass projection (angle = azimuth, N at top, clockwise; radius = elevation, center = zenith). Where in the sky, compass-relative, does the sun sit at a given hour across the year?
+4. **Full-year coverage envelope** — a filled region in the same polar projection, computed from the reachability inequality above, showing the entire dome of sky the sun occupies at any hour on any day of the year at this latitude.
+
+## Where this shows up in the app
+
+- `components/TerrainControlPanel/light-direction-control.tsx` — the datetime-driven / compass-fixed light-direction control for [Phong](/features/visualization-modes#lighting-effects), using `solarPosition()`, `inverseSunPosition()`, and `dayLength()` to bound the day-length slider.
+- `components/TerrainControlPanel/sun-shadow-calculator-section.tsx` — the shadow-length solver, using `inverseSunPosition()` in both directions as described above.
+- `components/TerrainControlPanel/XYPad.tsx` — draws the reachable-sky-dome backdrop on the light-direction XY pad (via `yearlySunEnvelope()`/`isSunPositionReachable()`) and flags an azimuth/elevation pick that the sun could never actually reach at the current latitude.

@@ -33,6 +33,8 @@ Configurable-interval contour lines via [onthegomap/maplibre-contour](https://gi
 
 ## Terrain Analysis
 
+See [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) and [Equations & Formulas](/dev/equations) for how these are computed client-side from the raster-dem source.
+
 - **Slope** — magnitude of the gradient
 - **Aspect** — direction of the gradient
 - **Curvature** — rate of slope change: Profile (flow acceleration), Plan/Divergence (flow convergence), Det Hessian (blob/saddle detector), or Combined (discrete Laplacian)
@@ -44,12 +46,16 @@ Configurable-interval contour lines via [onthegomap/maplibre-contour](https://gi
 
 ## Relief Visualization
 
+SVF/Openness/Local Dominance share the terrain-analysis pipeline above (just a ray-marched kernel instead of a 3×3 one); LRM's pyramid-ancestor mechanism is different enough to get [its own page](/dev/lrm).
+
 - **LRM (Local Relief Model)** — raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography (the low-pass layer comes from a coarser pyramid tile, bilinearly upsampled)
 - **Sky-View Factor (SVF)** — fraction of the visible sky hemisphere from each point (low in enclosed pits/canyons, high on open summits/ridges), from a ray-marched horizon angle in 8 directions ([Zakšek, Oštir & Kokalj, 2011](https://www.mdpi.com/2072-4292/3/2/398))
 - **Openness** — mean angular distance from zenith to the horizon across the same 8 directions; **Positive** highlights ridges/summits, **Negative** highlights valleys/pits
 - **Local Dominance** — local visibility-weighted elevation contrast
 
 ## Lighting Effects
+
+See [Lighting Effects](/dev/lighting-effects) for how these differ from the terrain-analysis pipeline above (real surface normals, GPU shading, a live-WebGL fast path), and [Sun Position](/features/sun-position) for the astronomy behind driving Phong's light from real solar position.
 
 - **Matcap** — material-capture-style shading looked up by surface normal, independent of any real light direction
 - **Phong** — ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light, sharing the "hold L, drag" on-map light control

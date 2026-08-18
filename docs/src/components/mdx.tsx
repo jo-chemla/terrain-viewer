@@ -1,5 +1,6 @@
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { MDXComponents } from 'mdx/types';
+import { Mermaid } from '@/components/mermaid';
 
 // Static asset paths (as opposed to other docs pages) are authored
 // root-relative from the main app's perspective, e.g.
@@ -21,6 +22,7 @@ export function getMDXComponents(components?: MDXComponents) {
       typeof href === 'string' && href.startsWith('/') && STATIC_ASSET_RE.test(href)
         ? <a href={href} {...props} />
         : <DefaultA href={href} {...props} />,
+    Mermaid,
     ...components,
   } satisfies MDXComponents;
 }

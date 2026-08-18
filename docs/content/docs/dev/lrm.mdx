@@ -1,0 +1,62 @@
+---
+title: LRM (Local Relief Model)
+description: Why LRM needs a genuinely different pipeline than slope/curvature/etc
+---
+
+LRM ("raw elevation minus a low-pass-filtered version," per [Terrain Visualization Modes](/features/visualization-modes)) is the one terrain-analysis-family mode that isn't a per-pixel function of a single same-zoom neighborhood — see [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) for what every other mode (Slope, Curvature, TRI, SVF, …) has in common. A low-pass "regional trend" surface normally means averaging over tens of pixels, which is expensive as a literal box/Gaussian blur computed fresh per tile. `lib/lrm-protocol.ts` avoids that entirely by exploiting the tile pyramid itself.
+
+## The ancestor-tile trick
+
+An ancestor tile $k$ zoom levels up is already a downsampled, low-pass version of the same ground area at $2^k\times$ coarser resolution — for free, since the tile server (or a COG's baked-in overview level) already did that averaging to produce it. So:
+
+$$
+\text{LRM} = h_{\text{fine}}(\text{this tile, native zoom}) - \operatorname{bilinear}(h_{\text{ancestor}},\ k\text{ levels up})
+$$
+
+The user-facing "Smoothing Radius" slider maps to `k` via `radiusToLevels()`:
+
+```ts
+export function radiusToLevels(radiusPx: number): number {
+  return Math.min(6, Math.max(1, Math.round(Math.log2(Math.max(2, radiusPx)))))
+}
+```
+
+clamped to `[1, 6]` — `k=1` is barely more than a 3×3 blur, `k=6` (~64px radius) is already a broad regional trend for a 256px tile. The ancestor tile's own address is then a simple bit-shift of the fine tile's coordinates: `ancestorZ = z - k`, `ancestorX = x >> k`, `ancestorY = y >> k` (clamped so `k` never pushes past the world's own root at `z=0`).
+
+## Bilinear resampling, with a half-pixel correction
+
+The ancestor tile is fetched as a padded, 3×3-tile-stitched grid (so sampling near this tile's edges has real neighbor data, not a clamped repeat of the ancestor's own edge) and read back per output pixel via bilinear interpolation:
+
+```ts
+const ancestorPxY = (yOffsetTiles * n + row + 0.5) / scale - 0.5
+const ancestorPxX = (xOffsetTiles * n + col + 0.5) / scale - 0.5
+const coarseElevation = bilinearSamplePadded(ancestorGrid, ancestorPxX, ancestorPxY)
+const fineElevation = centerTile.data[row * centerTile.width + col]
+const lrm = fineElevation - coarseElevation
+```
+
+The `+0.5 … -0.5` recentering is deliberate: `bilinearSamplePadded` indexes pixels by position (ancestor pixel `i` assumed to sit at coordinate `i`), but ancestor pixel `i` is really the box-average of fine pixels `[i·scale, (i+1)·scale)` — its true center of mass is at fine-position `i·scale + scale/2`, i.e. ancestor-coordinate `i + 0.5`, not `i`. Omitting the correction shifts every sample by up to half an *ancestor* pixel toward larger x/y (south-east) — negligible at `k=1`, but up to `scale/2` fine pixels at `k=6`. On steep terrain that reads as a strong, aspect-correlated relief bias rather than genuine local relief: the code comment notes this was confirmed empirically, taking the correlation between LRM and local slope gradient from **−0.3…−0.6 down to ~0** once fixed.
+
+## The WMS-raw exception
+
+A `float32dem-bbox://` upstream (see [WMS Float32 DEM Protocol](/dev/wms-float32-protocol)) has no real pre-built overview pyramid — each tile is generated on the fly by a WMS `GetMap` call for whatever bbox/pixel-size is requested. For the fine tile that's a small bbox at native resolution; for the ancestor, the bbox is `scale`× larger per side while the app still asks for the same `n×n` pixels, forcing the *server* to downsample `scale²`× worth of data by whatever method it defaults to — often nearest-neighbor. That server-side resampling (not this file's own bilinear math) is what produces visible block edges at large radii on IGN's LidarHD WMS, confirmed absent on Mapterhorn (a real COG/XYZ overview pyramid) at the same radius.
+
+The fix: request the ancestor at a genuinely smaller pixel size instead of trusting the server's downsampling, then bilinear-upsample client-side —
+
+```ts
+const ancestorRequestSize = Math.max(32, Math.min(n, Math.round((n / scale) * 4)))
+```
+
+(×4 oversampled for real neighboring detail, floored at 32px, capped at `n` so a barely-coarser ancestor just requests full size as before) — the same interpolation a real TMS/COG ancestor already gets from its own pre-filtered overview level, done by hand for a source that has none.
+
+<Callout title="Known limitation" type="warn">
+This is the same underlying caveat noted in [Terrain Visualization Modes](/features/visualization-modes)' Tells (Mound Candidate) Detection callout, since Tells layers a Difference-of-Gaussians on top of LRM: COG-streamed sources fetch ancestor (low-pass) tiles with nearest-neighbor resampling at the overview-generation stage — outside this file's control — which can introduce aliasing into the low-pass signal independent of the bilinear-vs-nearest choice made here at read time.
+</Callout>
+
+## Sharing and output
+
+One ancestor tile backs up to `4^k` fine sibling tiles that fall within its footprint — so unlike a same-zoom box blur (which can't share any work between neighboring output tiles), panning around within one ancestor's coverage pays for the coarse fetch only once, via the same `sharedTileCache` every other derived mode uses.
+
+The final `lrm` value (fine − coarse, in meters) is re-encoded via `elevationToTerrarium` exactly like every other terrain-analysis mode (see [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline)'s step 5) and rendered through the `"lrm-diverging"` color ramp in `lib/color-ramps.ts` — a diverging ramp centered on zero, the same shape as TPI's, but operating at the pyramid-derived regional scale rather than a fixed 3×3 window.
+
+`lib/local-dominance-protocol.ts` reuses this exact ancestor-tile trick for its own far-field sampling — one coarse ancestor pixel per octave instead of marching every native pixel — since local dominance's quantity is a *mean* across many directional samples, and a coarse per-octave sample is a legitimate low-pass proxy for an average. That trick does **not** carry over to SVF/Openness, whose horizon angle is a *max*: coarsening the search risks silently skipping past a narrow, nearby obstruction that dominates the true horizon angle — a systematic underestimate, a worse failure mode than local dominance's smoothing bias. See `lib/horizon-angle.ts`'s header comment for the full reasoning.

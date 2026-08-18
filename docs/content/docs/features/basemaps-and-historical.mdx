@@ -15,9 +15,9 @@ In **split view** (grid layouts up to 4×2 / 8 views, labeled A–H), each basem
 
 "Historical Imagery" is a single combined basemap entry covering four underlying providers:
 
-- **[ESRI Wayback](https://livingatlas.arcgis.com/wayback/)** — dated releases of ESRI World Imagery
+- **[ESRI Wayback](https://livingatlas.arcgis.com/wayback/)** — dated releases of ESRI World Imagery (see the [dev page](/dev/esri-wayback) for how this app resolves a date to a release)
 - **[HLS](https://hls.gsfc.nasa.gov/)** (Harmonized Landsat/Sentinel-2) — monthly, coarser resolution
-- **[Google Earth Historical](https://github.com/Iconem/GE_TimeMachine)** — occasional very old outlier captures for well-covered areas, via a reverse-engineered `gehist://` protocol scaffolded from Iconem's own GE_TimeMachine
+- **[Google Earth Historical](https://github.com/Iconem/GE_TimeMachine)** — occasional very old outlier captures for well-covered areas, via a reverse-engineered `gehist://` protocol scaffolded from Iconem's own GE_TimeMachine (see the [protocol deep dive](/dev/ge-historical) for how it actually works)
 - **[Planet Monthly Mosaic](https://www.planet.com/products/basemap/)** — requires an API key
 
 Which one actually renders for a given view/date is chosen via the timeline panel at the bottom of the map, not the sidebar.

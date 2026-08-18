@@ -40,4 +40,21 @@ Nearly every sidebar control — viewport (lat/lng/zoom/pitch/bearing), active t
 - State is split: `nuqs` for shareable URL state (viz toggles, camera, ramps), `jotai` (`atomWithStorage`) for local persistence (API keys, UI collapse state)
 - No router — app "modes" are just state, not routes
 - No real backend — everything streams from tile/COG providers client-side, with an optional self-hosted `titiler` for export/contours
-- Custom MapLibre protocols intercept tile requests to compute derived rasters (some GPU-accelerated) client-side
+- Custom MapLibre protocols intercept tile requests to compute derived rasters (some GPU-accelerated) client-side — see below
+
+## Custom protocols
+
+Each of these is a `maplibregl.addProtocol()` registration in `TerrainViewer.tsx`, backed by a `lib/*-protocol.ts` file:
+
+- [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) — Slope, Aspect, Curvature, TRI, TPI, Roughness, Blobness, Sky-View Factor, Openness, Local Dominance: the shared "compute a scalar, smuggle it through raster-dem" mechanism
+- [LRM (Local Relief Model)](/dev/lrm) — the one terrain-derivative mode that reads a coarser pyramid ancestor tile instead of a same-zoom neighborhood
+- [Lighting Effects](/dev/lighting-effects) — Matcap, Phong, Hard Shadows: real surface normals, GPU shading, and a live-WebGL fast path
+- [Equations & Formulas](/dev/equations) — every mode's exact math in one place
+- [WMS Float32 DEM Protocol](/dev/wms-float32-protocol) — bridging a plain WMS elevation service into MapLibre's raster-dem pipeline
+
+## Historical imagery source adapters
+
+Not custom protocols (ordinary raster/XYZ sources), but the other half of `lib/`'s domain logic:
+
+- [Google Earth Historical Protocol](/dev/ge-historical) — the one exception that IS a custom protocol: a reverse-engineered, self-contained-per-tile Time Machine quadtree
+- [ESRI Wayback](/dev/esri-wayback) — a release-chained catalog of full global mosaics, resolved to a date via nearest-real-capture matching

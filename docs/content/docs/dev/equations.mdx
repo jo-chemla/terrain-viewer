@@ -1,0 +1,279 @@
+---
+title: Equations & Formulas
+description: The exact math behind every terrain-derivative visualization mode
+---
+
+Every formula on this page is transcribed directly from its `lib/*-protocol.ts` source, not re-derived — see that file for the full derivation/attribution comments. For how these values get from a formula to a rendered layer, see [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline), [LRM](/dev/lrm), and [Lighting Effects](/dev/lighting-effects). Sun/light-position astronomy (declination, hour angle, azimuth/elevation) is covered separately on [Sun Position](/features/sun-position), since it drives Phong's light direction and the shadow calculator rather than being a terrain derivative itself.
+
+## Shared inputs
+
+**Elevation decoding** (`lib/elevation-encoding.ts`) — every mode starts by decoding an upstream raster-dem tile:
+
+$$
+h_{\text{terrarium}} = \left(R \cdot 256 + G + \frac{B}{256}\right) - 32768
+$$
+
+$$
+h_{\text{mapbox}} = -10000 + (R \cdot 256^2 + G \cdot 256 + B) \cdot 0.1
+$$
+
+**The Horn 3×3 gradient** (`hornGradient()`, ported from GDAL's `GDALSlopeHornAlg`), the shared building block for Slope, Aspect, TRI\*, Curvature, and (per-sub-cell) Blobness. For a 3×3 window $a_0..a_8$ (row-major, $a_4$ = center) with ground resolution $L$ at the tile's center latitude:
+
+$$
+\frac{\partial z}{\partial x} = \frac{a_0 + 2a_3 + a_6 - a_2 - 2a_5 - a_8}{8 L \cos(\text{lat})}
+\qquad
+\frac{\partial z}{\partial y} = \frac{a_6 + 2a_7 + a_8 - a_0 - 2a_1 - a_2}{8 L \cos(\text{lat})}
+$$
+
+<sup>\*TRI/TPI/Roughness don't use the gradient directly — they're plain 3×3 aggregations of elevation itself, see below.</sup>
+
+## Terrain analysis
+
+### Slope
+
+$$
+\text{slope}° = \arctan\left(\sqrt{\left(\tfrac{\partial z}{\partial x}\right)^2 + \left(\tfrac{\partial z}{\partial y}\right)^2}\right) \cdot \frac{180}{\pi}
+$$
+
+Re-encoded via Mapbox Terrain-RGB packing (base −10000, 0.1° step). `lib/slope-protocol.ts`.
+
+### Aspect
+
+Compass bearing of the gradient direction, converted from math convention (CCW from east) to compass convention (CW from north):
+
+$$
+\theta_{\text{math}} = \operatorname{atan2}\!\left(\tfrac{\partial z}{\partial y},\, -\tfrac{\partial z}{\partial x}\right) \cdot \frac{180}{\pi}
+\qquad
+\text{aspect}° = (90 - \theta_{\text{math}}) \bmod 360
+$$
+
+(0 if $\partial z/\partial x = \partial z/\partial y = 0$, i.e. flat ground.) `lib/aspect-protocol.ts`.
+
+### TRI (Terrain Ruggedness Index)
+
+Root-mean-square elevation difference to the 8 immediate neighbors ([Riley et al. 2006](https://en.wikipedia.org/wiki/Terrain_ruggedness_index)), in source elevation units (meters):
+
+$$
+\text{TRI} = \sqrt{\sum_{i \ne 4} (a_i - a_4)^2}
+$$
+
+`lib/tri-protocol.ts`.
+
+### TPI (Topographic Position Index)
+
+Center elevation minus the mean of its 8 neighbors:
+
+$$
+\text{TPI} = a_4 - \frac{1}{8}\sum_{i \ne 4} a_i
+$$
+
+Positive → above the local neighborhood (ridge/peak); negative → below it (valley/pit). `lib/tpi-protocol.ts`.
+
+### Roughness
+
+$$
+\text{Roughness} = \max(a_0 \ldots a_8) - \min(a_0 \ldots a_8)
+$$
+
+`lib/roughness-protocol.ts`.
+
+### Curvature
+
+Four sub-modes share one Zevenbergen & Thorne (1987) second-order fit over the 3×3 window ($p, q$ = first partials; $r, t, s$ = second partials; $L$ = ground spacing):
+
+$$
+p = \frac{a_5 - a_3}{2L} \quad r = \frac{a_5 - 2a_4 + a_3}{L^2} \qquad
+q = \frac{a_7 - a_1}{2L} \quad t = \frac{a_7 - 2a_4 + a_1}{L^2} \qquad
+s = \frac{a_2 - a_0 - a_8 + a_6}{4L^2}
+$$
+
+- **Combined** — discrete Laplacian, ×100 (no single canonical GDAL algorithm to port from, unlike slope/aspect/TRI):
+
+  $$
+  \nabla^2 z = \frac{a_1 + a_3 + a_5 + a_7 - 4a_4}{L^2} \qquad \text{combined} = 100 \cdot \nabla^2 z
+  $$
+
+- **Profile** (curvature along steepest descent — flow acceleration) / **Plan** (curvature across contours — flow convergence/divergence, $\equiv \operatorname{div}(\nabla z / |\nabla z|)$), both ×100, undefined ($\to 0$) on flat ground:
+
+  $$
+  g = p^2 + q^2 \qquad
+  \text{profile} = \frac{100\,(r p^2 + 2spq + tq^2)}{g\,(1+g)^{1.5}} \qquad
+  \text{plan} = \frac{100\,(r q^2 - 2spq + tp^2)}{g^{1.5}}
+  $$
+
+- **Det-Hessian** — $f_{xx} f_{yy} - f_{xy}^2$, a blob/saddle detector (positive at bowl/dome extrema, negative at saddles, ~0 on a uniform slope or straight ridge), ×10,000:
+
+  $$
+  \text{detHessian} = (rt - s^2) \cdot 10000
+  $$
+
+- **Casorati / Shape Index** — both derived from the principal curvatures (eigenvalues of the Hessian $\begin{bmatrix} r & s \\ s & t \end{bmatrix}$), the small-slope approximation:
+
+  $$
+  \text{tr} = r + t \qquad \text{disc} = \sqrt{(r-t)^2 + 4s^2} \qquad
+  \kappa_1 = \frac{\text{tr} + \text{disc}}{2} \qquad \kappa_2 = \frac{\text{tr} - \text{disc}}{2}
+  $$
+
+  $$
+  \text{Casorati (Koch 1993)} = \sqrt{\frac{\kappa_1^2 + \kappa_2^2}{2}} \cdot 100 \quad\text{— always} \ge 0\text{, magnitude only}
+  $$
+
+  $$
+  \text{ShapeIndex (Koenderink \& van Doorn 1992)} = \frac{2}{\pi}\operatorname{atan2}(\kappa_1+\kappa_2,\ \kappa_1-\kappa_2) \quad\text{— always in } [-1, 1]
+  $$
+
+  ($+1$ dome/peak, $+0.5$ ridge, $0$ saddle, $-0.5$ valley, $-1$ pit/bowl.)
+
+All modes ×`CURVATURE_ENCODE_SCALE = 1000` at the wire-encoding step only (undone on read), to spread the small near-zero-heavy range across more of Terrarium's discrete levels. `lib/curvature-protocol.ts`.
+
+### Blobness / Eigen-Ratio / Orientation
+
+A Förstner/Harris-style structure tensor $J = \begin{bmatrix} I_{xx} & I_{xy} \\ I_{xy} & I_{yy} \end{bmatrix}$, where each entry is the 3×3-box average of $g_x^2$, $g_y^2$, $g_x g_y$ — the Horn gradient computed at each of the window's 9 sub-cells (needs a 5×5 halo, since each sub-cell's own gradient needs its own 3×3 neighborhood):
+
+$$
+I_{xx} = \overline{g_x^2} \qquad I_{yy} = \overline{g_y^2} \qquad I_{xy} = \overline{g_x g_y} \qquad \text{tr} = I_{xx} + I_{yy}
+$$
+
+$$
+\text{disc} = \sqrt{(I_{xx}-I_{yy})^2 + 4I_{xy}^2} \qquad
+\lambda_{\max} = \frac{\text{tr} + \text{disc}}{2} \qquad \lambda_{\min} = \frac{\text{tr} - \text{disc}}{2}
+$$
+
+- **Blobness** $= \dfrac{\det(J)}{\operatorname{tr}(J)} \cdot \dfrac{100}{64}$ — the $\tfrac{100}{64}$ corrects for the Horn kernel's $8\times$ gradient inflation ($\det$ is degree-4 in the gradient, so $8^2 = 64$) and rescales to roughly match TRI/Roughness's visual range. High where gradient direction varies in every direction (peaks/pits/saddles/knolls); near zero on a uniform slope or straight ridge, however steep.
+- **Eigen-Ratio** $= \dfrac{\lambda_{\min}}{\lambda_{\max}} \cdot 100$ — shape only, independent of magnitude: 0 on a perfectly coherent edge (slope/ridge/valley), 100 on a perfectly isotropic blob (peak/pit/saddle). The $8\times$ inflation cancels in this ratio, so no extra scale correction is needed.
+- **Orientation** — dominant eigenvector's axis, folded to $0$–$180°$ (a line has no inherent direction, only an axis):
+
+  $$
+  \theta_{\text{math}} = \tfrac{1}{2}\operatorname{atan2}(2I_{xy},\, I_{xx}-I_{yy}) \cdot \frac{180}{\pi}
+  \qquad
+  \text{orientation}° = \big((90 - \theta_{\text{math}}) \bmod 180 + 180\big) \bmod 180
+  $$
+
+`lib/blobness-protocol.ts`.
+
+## Relief visualization
+
+### Horizon angle (shared core)
+
+`lib/horizon-angle.ts` — for each of 8 compass directions, march outward pixel-by-pixel (up to a user-set search radius) and find the steepest elevation angle to any point along the ray:
+
+$$
+\text{horizonAngle}(\text{dir}) = \max_{r=1}^{\text{radius}} \operatorname{atan2}\!\big(h(r) - h_{\text{center}},\ r \cdot L\big)
+$$
+
+SVF and Openness apply different aggregations to this same set of 8 angles ([Zakšek, Oštir & Kokalj, 2011](https://www.mdpi.com/2072-4292/3/2/398)).
+
+### Sky-View Factor (SVF)
+
+Each angle is clamped to $\ge 0$ first (a ray dipping downhill still leaves the *entire* sky visible in that direction — SVF can't exceed "fully open"), then:
+
+$$
+\text{SVF} = \left(1 - \overline{\sin(\max(\theta_i, 0))}\right) \cdot 100
+$$
+
+`lib/svf-protocol.ts`.
+
+### Openness (Positive / Negative)
+
+Mean angular distance from zenith to the horizon, **not** clamped to $\ge 0$ (so it can read above/below what SVF calls "fully open" — e.g. standing on a summit looking outward gives a negative angle in every direction). Negative Openness is Positive Openness computed on the terrain's mirror image (elevation differences × $-1$), turning pits into the "peaks" the same formula highlights.
+
+$$
+\text{openness} = \overline{90° - \theta_i \cdot \tfrac{180}{\pi}}
+$$
+
+`lib/openness-protocol.ts`.
+
+### Local Dominance
+
+Places a virtual observer of eye height $oh = 1.6\text{m}$ at each pixel and averages the downward-looking angle to the surrounding terrain across several compass directions and distances ([Hesse, 2016](https://doi.org/10.3390/rs8060465)):
+
+$$
+\theta(\text{dir}, d) = \arctan\!\left(\frac{z_{\text{observer}} + oh - z_{\text{terrain}}}{d}\right)
+\qquad
+\text{localDominance} = \overline{\theta(\text{dir}, d)}
+$$
+
+averaged over sampled directions × distances. Positive/high on local highs that look down on their surroundings (mounds, ridges, tells); low/negative in enclosed depressions. Distances beyond a near-field threshold are sampled from pyramid ancestor tiles (one ring per octave) rather than at native resolution — the same trick [LRM](/dev/lrm) uses, valid here because this quantity is a *mean* (a coarse per-octave sample is a legitimate low-pass proxy), unlike SVF/Openness's *max*. `lib/local-dominance-protocol.ts`.
+
+### LRM (Local Relief Model)
+
+Not a neighborhood formula — see the dedicated [LRM page](/dev/lrm) for the full pyramid-ancestor mechanism:
+
+$$
+\text{LRM} = h_{\text{fine}}(\text{native zoom}) - \operatorname{bilinear}(h_{\text{ancestor}},\ k\text{ levels up})
+\qquad
+k = \operatorname{clamp}\!\big(\operatorname{round}(\log_2(\text{radiusPx})),\ 1,\ 6\big)
+$$
+
+## Lighting effects
+
+See [Lighting Effects](/dev/lighting-effects) for the full pipeline (surface normals, live-GL fast path, staleness guards); formulas only, here.
+
+### Surface normal (shared by Matcap, Phong, Hard Shadows' input)
+
+Standard heightfield-to-normal formula from the Horn gradient, object-space (not tangent-space):
+
+$$
+\ell = \frac{1}{\sqrt{\left(\tfrac{\partial z}{\partial x}\right)^2 + \left(\tfrac{\partial z}{\partial y}\right)^2 + 1}}
+\qquad
+\vec n = \left(-\tfrac{\partial z}{\partial x}\cdot\ell,\ -\tfrac{\partial z}{\partial y}\cdot\ell,\ \ell\right)
+$$
+
+Encoded as $\text{RGB} = \vec n \cdot 0.5 + 0.5$. `lib/normals-protocol.ts`.
+
+### Matcap
+
+Rotated normal $(n_x, n_y)$ used directly as a texture UV (orthographic simplification):
+
+$$
+(r_x, r_y) = \operatorname{rotate}(n_x, n_y,\ \theta_{\text{rotation}})
+\qquad
+\text{uv} = (r_x, r_y) \cdot 0.5 + 0.5
+\qquad
+\text{color} = \text{matcapTexture}(\text{uv})
+$$
+
+`lib/matcap-protocol.ts`.
+
+### Phong (Blinn-Phong)
+
+$$
+\text{AMBIENT} = 0.35 \qquad \text{SHININESS} = 32 \qquad
+\vec H = \operatorname{normalize}(\vec L + \vec V),\ \ \vec V = (0,0,1)
+$$
+
+$$
+\text{diffuse} = k_d \cdot \max(\vec N \cdot \vec L,\ 0)
+\qquad
+I_{\text{diffuse}} = \operatorname{clamp}(\text{AMBIENT} + \text{diffuse},\ 0,\ 1)
+$$
+
+$$
+\text{specular} = k_s \cdot \max(\vec N \cdot \vec H,\ 0)^{\text{SHININESS}}
+\qquad
+\text{total} = I_{\text{diffuse}} + \text{specular}
+$$
+
+Light vector from compass azimuth/altitude:
+
+$$
+\vec L = \big(-\sin(\text{az})\cos(\text{alt}),\ -\cos(\text{az})\cos(\text{alt}),\ \sin(\text{alt})\big)
+$$
+
+(signs empirically pinned against MapLibre's native hillshade shader — see [Lighting Effects](/dev/lighting-effects)). `total` is then split into a multiply-darken regime ($\text{total} \le 1$) and a screen-brighten regime ($\text{total} > 1$) for compositing — see that page for the exact alpha encoding. `lib/phong-protocol.ts`.
+
+### Hard Shadows
+
+Single-ray horizon march toward the sun's actual azimuth (not snapped to a compass tick), compared against the sun's altitude:
+
+$$
+\vec d = (\sin(\text{az}),\ -\cos(\text{az})) \qquad \text{(dCol, dRow)}
+$$
+
+$$
+\text{horizonAngle} = \max_{r=1}^{\text{radius}} \operatorname{atan2}\!\big(h(r) - h_{\text{center}},\ r \cdot L\big)
+\qquad
+\text{inShadow} = \text{horizonAngle} > \text{alt}_{\text{rad}}
+$$
+
+`lib/shadow-protocol.ts`.

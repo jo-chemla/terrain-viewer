@@ -6,7 +6,9 @@
     "visualization-modes",
     "terrain-sources",
     "basemaps-and-historical",
+    "sun-position",
     "bookmarks",
-    "byod"
+    "byod",
+    "non-geo-relief-visualization"
   ]
 }

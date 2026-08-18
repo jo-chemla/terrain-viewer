@@ -1,0 +1,58 @@
+---
+title: WMS Float32 DEM Protocol
+description: Bridging a plain WMS elevation service into MapLibre's raster-dem pipeline
+---
+
+Most of this app's terrain sources are tile-native (XYZ Terrarium/Terrain-RGB, or a COG read directly in-browser — see [Bring Your Own Data](/features/byod)). Some elevation providers only expose a traditional **WMS** `GetMap` service, with no tiled/COG access at all — IGN France's LidarHD is the motivating example. `float32dem://` (`lib/float32dem-protocol.ts`) is a custom MapLibre protocol that bridges that gap: it issues a WMS request per tile, decodes a real float32 elevation grid out of the response, and re-packs it as standard Terrarium `raster-dem`, so every other part of the app (hillshade, terrain-analysis derivatives, 3D terrain) can treat it exactly like any other elevation source.
+
+A standalone demo of this protocol, decoupled from the rest of the app, is deployed at [terrain-viewer.iconem.com/maplibre-raster-dem-wms-float32-generic.html](https://terrain-viewer.iconem.com/maplibre-raster-dem-wms-float32-generic.html) (source: `public/maplibre-raster-dem-wms-float32-generic.html`) — useful for testing a new WMS endpoint in isolation before wiring it into the main app.
+
+## 1. The WMS request
+
+A `GetMap` request asking for `image/geotiff` — a real georeferenced float32 band, not an 8-bit styled/quantized image:
+
+```
+https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap
+  &LAYERS=IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93
+  &STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857
+  &BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514
+```
+
+`{bbox-epsg-3857}` is MapLibre's own tile-source placeholder — the same mechanism an ordinary `type: "raster"` WMS source already uses — substituted per-tile with that tile's bbox in EPSG:3857.
+
+## 2. Decode → re-encode
+
+The response is a real GeoTIFF, parsed client-side with [geotiff.js](https://geotiffjs.github.io/). Band 0 is read as raw float32 meters, then re-packed into standard Terrarium RGB (the same encoding described in [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline)) and rasterized to a PNG — so MapLibre's native `raster-dem` consumer needs no awareness this data ever passed through WMS or GeoTIFF at all:
+
+```js
+const tiff = await GeoTIFF.fromArrayBuffer(arrayBuffer)
+const image = await tiff.getImage()
+const elevationData = (await image.readRasters())[0]
+for (let i = 0; i < elevationData.length; i++) {
+  const v = elevationData[i] + 32768
+  const intPart = Math.floor(v)
+  rgbaData[i*4 + 0] = Math.floor(intPart / 256) & 0xFF
+  rgbaData[i*4 + 1] = intPart & 0xFF
+  rgbaData[i*4 + 2] = Math.floor((v - intPart) * 256) & 0xFF
+  rgbaData[i*4 + 3] = 255
+}
+```
+
+The RGBA buffer is drawn to an `OffscreenCanvas` and converted to a PNG blob — what's actually returned to MapLibre.
+
+## 3. Protocol registration
+
+Registered as `maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))` in `components/TerrainViewer.tsx`. Tile URLs are the scheme plus the WMS URL with its `https://` stripped (re-prepended by the handler before fetching): `float32dem://data.geopf.fr/wms-r?...&BBOX={bbox-epsg-3857}...`.
+
+## 4. Relation to the app's COG terrain path
+
+`float32dem://` exists specifically for the "no COG, no server-side GDAL WMS bridge" case in the pure-browser rendering path. In `lib/source-builder.ts`, a `"wms-raw"` source kind branches on rendering mode:
+
+- **Client-side** (`@geomatico/maplibre-cog-protocol`, which needs an actual COG file) always falls back to `float32dem://`, since there's no COG for it to read.
+- **TiTiler-backed** mode instead passes `WMS:<url>` through GDAL's own WMS minidriver, letting the server treat the live WMS endpoint as an addressable raster dataset and handle reprojection/tiling itself — no `float32dem://` involved.
+
+`float32dem://` is also reused as a building block by two other parts of the app: [LRM](/dev/lrm) (its ancestor-tile fetch rewrites the WMS request size for a WMS-raw upstream, since such sources have no real overview pyramid to exploit) and `lib/cog-contour-protocol.ts`/`ContoursLayer.tsx` (contour generation).
+
+## 5. Exposure in the app UI
+
+`components/TerrainControlPanel/wms-picker-panel.tsx` is a generic "bring your own WMS" picker — fetches `GetCapabilities`, lists available layers, builds a `{bbox-epsg-3857}`-templated `GetMap` URL — shared between the basemap and terrain "Add Source" flows. A `format` prop selects `image/png` for ordinary basemap layers or `image/geotiff` for elevation/terrain sources; the resulting URL is routed through `source-builder.ts`'s `"wms-raw"` case described above. It sits alongside COG uploads as one more entry in [Bring Your Own Data](/features/byod), not a separate standalone feature.
