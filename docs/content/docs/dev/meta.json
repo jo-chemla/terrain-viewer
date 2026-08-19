@@ -7,9 +7,9 @@
     "terrain-analysis-pipeline",
     "lrm",
     "lighting-effects",
-    "ge-historical",
-    "esri-wayback",
     "wms-float32-protocol",
+    "esri-wayback",
+    "ge-historical",
     "non-geo-relief-visualization"
   ]
 }

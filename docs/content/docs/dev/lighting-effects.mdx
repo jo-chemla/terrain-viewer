@@ -9,7 +9,7 @@ Matcap, Phong, and Hard Shadows are grouped as "Lighting Effects" in the app's s
 
 ![Phong lighting visualization mode, with its Lighting Effects controls panel open](/screenshots/viz-modes/phong.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">Phong + Hillshade backdrop — Matterhorn massif</p>
+<p className="text-sm text-fd-muted-foreground italic">Phong + Hillshade + Raster Basemap, Datetime-driven light direction — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showRasterBasemap=true&showLightingEffects=true&showPhong=true&hillshadeOpacity=0.2&illuminationDir=165.9&illuminationAlt=59.8&lightTimeOfDay=13&lightUseDatetime=true&rasterBasemapOpacity=0.5&lightDayOfYear=126&phongSpecularStrength=0.6&phongDiffuseStrength=0.5&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 ## Shared foundation: `normals-protocol.ts`
 
@@ -51,7 +51,7 @@ Both raster protocols also carry a hand-rolled staleness guard (`__currentParams
 
 ![Matcap lighting visualization mode, with its Lighting Effects controls panel open](/screenshots/viz-modes/matcap.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">Matcap — Matterhorn massif</p>
+<p className="text-sm text-fd-muted-foreground italic">Matcap — Clay Brown material — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9744&lng=7.6511&zoom=13.1&pitch=0&viewMode=3d&showHillshade=true&showLightingEffects=true&showPhong=false&showMatcap=true&hillshadeOpacity=0.2&matcapLightRelativeToCamera=false&matcapTextureId=clay_brown&matcapRenderer=raster&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 The rotated normal's `(x, y)` is used directly as a UV into a curated matcap material image (`lib/matcap-textures.ts`, a Potree/Blender-style set) — an orthographic simplification in the protocol/GPU-compute path:
 
@@ -124,7 +124,7 @@ The az/alt → `(x, y, z)` light-vector signs were pinned by empirical measureme
 
 ![Hard Shadows visualization mode, with its Lighting Effects controls panel open](/screenshots/viz-modes/hard-shadows.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">Hard Shadows — Matterhorn massif</p>
+<p className="text-sm text-fd-muted-foreground italic">Hard Shadows + Hillshade — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showLightingEffects=true&showPhong=false&showShadows=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 `lib/shadow-protocol.ts` does **not** call into `horizon-angle.ts`'s SVF/Openness functions — it's a hand-written single-ray variant of the same idea, explicitly framed that way in its header comment. SVF/Openness check 8 fixed compass directions and aggregate; a cast shadow only cares about **one** direction — straight toward the sun's actual azimuth (not snapped to a 45° tick):
 

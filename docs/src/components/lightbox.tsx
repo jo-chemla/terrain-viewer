@@ -1,6 +1,6 @@
 'use client';
 
-import { type MouseEvent, type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEffect, useState } from 'react';
 
 interface LightboxItem {
   src: string;
@@ -26,23 +26,27 @@ interface LightboxState {
 
 /** Prose images render as `<p><img/></p>` (remark's standalone-image
  *  wrapping); the caption `<p className="...italic">...<a href>...</a></p>`
- *  is its next sibling. Only an anchor whose own text says "open in app" is
- *  treated as the reproduction link — a caption can contain OTHER links too
- *  (e.g. "see Split & Compare Modes"), and those must never be picked up
- *  here (they'd point at an unresolved-in-lightbox internal doc path, not
- *  a live-app URL). The viz-mode grid doesn't use this shape at all (its
- *  own link precedes the image) — it sets data-lightbox-title/-href
- *  directly instead, so this is only ever consulted as a fallback. */
+ *  is its next sibling. Whatever anchor the caption itself contains (an
+ *  "open in app" reproduction link, or a plain cross-reference like "see
+ *  Split & Compare Modes") becomes the lightbox's clickable portion, using
+ *  its own text — same link the caption already shows underneath the
+ *  thumbnail. The viz-mode grid doesn't use this shape at all (its own
+ *  link precedes the image) — it sets data-lightbox-title/-href directly
+ *  instead, so this is only ever consulted as a fallback. */
 function readCaption(img: HTMLImageElement): { text: string; linkText?: string; href?: string } {
   const sibling = img.parentElement?.nextElementSibling;
   if (sibling?.tagName !== 'P') return { text: img.alt };
   const fullText = sibling.textContent?.trim() ?? '';
-  const linkEl = Array.from(sibling.querySelectorAll('a[href]')).find((a) =>
-    /open in app/i.test(a.textContent ?? ''),
-  );
+  const linkEl = sibling.querySelector('a[href]');
   if (!linkEl) return { text: fullText || img.alt };
   const linkText = linkEl.textContent ?? '';
-  const href = linkEl.getAttribute('href') ?? undefined;
+  const rawHref = linkEl.getAttribute('href') ?? undefined;
+  // Internal doc links are written relative to the docs root ("/features/...")
+  // but this app is mounted under the "/docs" basePath — a plain <a> (not
+  // Next's <Link>) opened directly at that path 404s. External "open in
+  // app" links (full https://terrain-viewer.iconem.com/... URLs) are
+  // untouched.
+  const href = rawHref?.startsWith('/') && !rawHref.startsWith('/docs') ? `/docs${rawHref}` : rawHref;
   const text = fullText.endsWith(linkText) ? fullText.slice(0, fullText.length - linkText.length) : fullText;
   return { text, linkText, href };
 }
@@ -127,7 +131,7 @@ export function LightboxProvider({ children }: { children: ReactNode }) {
   }, [state, close, step]);
 
   const current = state?.items[state.index];
-  const stop = (e: MouseEvent) => e.stopPropagation();
+  const stop = (e: ReactMouseEvent) => e.stopPropagation();
 
   return (
     <>
@@ -162,7 +166,7 @@ export function LightboxProvider({ children }: { children: ReactNode }) {
                     href={current.linkHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:text-white hover:underline"
+                    className="text-white/90 hover:text-white hover:underline"
                   >
                     {current.linkText}
                   </a>

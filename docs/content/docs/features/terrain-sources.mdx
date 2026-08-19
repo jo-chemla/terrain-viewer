@@ -1,5 +1,5 @@
 ---
-title: Sources
+title: Terrain and Basemap Sources
 description: The built-in DEM tile sources (Mapterhorn, Mapbox, MapTiler, AWS Terrain Tiles) and worldwide basemap providers
 ---
 
@@ -36,6 +36,10 @@ A composite of multiple high-resolution DEMs curated by MapTiler's geodata team 
 [registry.opendata.aws](https://registry.opendata.aws/terrain-tiles/) · Terrarium encoding · zoom 16 · 256px tiles
 
 The original open Tilezen/Joerd dataset (built by Mapzen, continuing as an AWS Open Data Registry mirror after Mapzen's shutdown) — the only built-in source with genuine **ocean bathymetry**: land elevation (SRTM at mid/high zoom, GMTED2010 at low zoom) is blended with global ETOPO1 bathymetry everywhere water replaces a zero-elevation gap, plus regional high-resolution inserts (US 3DEP/NED, ArcticDEM, EU-DEM, Canada's CDEM, and more). No API key needed.
+
+<Callout title="Which dataset is actually under my cursor?" type="info">
+The **Source Info** tool (Tools group in the sidebar) hints at exactly that for the terrain/basemap that's currently exposed at your viewport — e.g. which of Mapterhorn's composited national LiDAR datasets is active at that location (vs. its global Copernicus GLO-30 fallback), or which date/release the active ESRI imagery resolves to. Handy for knowing whether you're looking at a genuinely high-resolution local dataset or a coarser global default.
+</Callout>
 
 ## Worldwide Basemap Sources (TMS)
 
