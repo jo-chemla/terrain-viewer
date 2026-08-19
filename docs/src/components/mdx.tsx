@@ -14,6 +14,7 @@ import { Mermaid } from '@/components/mermaid';
 const STATIC_ASSET_RE = /\.[a-z0-9]+$/i
 
 const DefaultA = defaultMdxComponents.a;
+const DefaultImg = defaultMdxComponents.img;
 
 export function getMDXComponents(components?: MDXComponents) {
   return {
@@ -22,6 +23,16 @@ export function getMDXComponents(components?: MDXComponents) {
       typeof href === 'string' && href.startsWith('/') && STATIC_ASSET_RE.test(href)
         ? <a href={href} {...props} />
         : <DefaultA href={href} {...props} />,
+    // Marks every prose image click-to-open in the page's shared
+    // LightboxProvider (see [...slug]/page.tsx and lightbox.tsx) — looping
+    // left/right arrow-key navigation across all images on the page.
+    img: (props: any) => (
+      <DefaultImg
+        {...props}
+        data-lightbox=""
+        className={[props.className, 'cursor-zoom-in'].filter(Boolean).join(' ')}
+      />
+    ),
     Mermaid,
     ...components,
   } satisfies MDXComponents;

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { FeatureGrid } from '@/components/feature-lightbox';
+import { LightboxProvider } from '@/components/lightbox';
 
 // Plain public/-relative string paths, explicitly prefixed with the app's
 // own basePath ("/docs", see next.config.mjs) — unlike next/link's href,
@@ -71,7 +72,9 @@ export default function HomePage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-16">
-        <FeatureGrid features={FEATURES} />
+        <LightboxProvider>
+          <FeatureGrid features={FEATURES} />
+        </LightboxProvider>
       </section>
 
       <section className="border-t">
