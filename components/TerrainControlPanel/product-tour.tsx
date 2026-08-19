@@ -1057,6 +1057,26 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     return () => clearTimeout(t)
   }, [hasSeenTour, setHasSeenTour, setIsTourRequested])
 
+  // Explicit "?startTour=true" deep link — same auto-start delay as above
+  // (lets URL-restored state/map settle first), but fires regardless of
+  // hasSeenTour so a shared link always opens the tour, not just a first
+  // visit. Not a real nuqs param on purpose: it's a one-shot trigger, not
+  // persistent view state, so it's read directly off the URL and stripped
+  // right back out via replaceState once consumed — reloading or sharing
+  // the resulting URL should never re-open the tour unexpectedly.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("startTour") !== "true") return
+    const t = setTimeout(() => {
+      setIsTourRequested(true)
+      params.delete("startTour")
+      const query = params.toString()
+      window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`)
+    }, 1500)
+    return () => clearTimeout(t)
+  }, [setIsTourRequested])
+
   // ←/→ step through the tour the same way clicking Back/Next would — looks
   // up the actual rendered button rather than re-deriving "what should Next
   // do" (last-step Finish vs. plain Next, first-step disabled Back), so this

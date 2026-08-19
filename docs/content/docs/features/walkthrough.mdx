@@ -3,102 +3,49 @@ title: Walkthrough
 description: Every step of the in-app guided tour (Coachmark) — intro, Terrain deep dive, Historical Imagery deep dive
 ---
 
-The app ships a guided tour (Coachmark) that auto-starts on first visit, or any time from Settings → **Take the Tour**. It's five shared intro steps, then a fork — go deeper on Terrain visualization tools, or jump into Historical Imagery. This page walks through every step of both branches; the in-app tour itself is generally the faster way to get oriented, but the screenshots below are handy as a reference or before you've even opened the app.
+import { Gallery } from "@/components/gallery";
 
-## Intro (shared)
+The app ships a guided tour (Coachmark) that auto-starts on first visit, or any time from Settings → **Take the Tour**. It's five shared intro steps, then a fork — go deeper on Terrain visualization tools, or jump into Historical Imagery. This page walks through every step of both branches as a screenshot gallery; the in-app tour itself is generally the faster way to get oriented — <a href="https://terrain-viewer.iconem.com/?startTour=true" target="_blank" rel="noopener noreferrer">open the app with the tour running ↗</a> (or click any thumbnail below to zoom in, then arrow-key through the rest).
 
-![Step 1 of 6, The Map Viewport — full-screen spotlight over a tilted Hillshade render, Matterhorn massif](/screenshots/walkthrough/01-map-viewport.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 1/6 — The Map Viewport</p>
-
-![Step 2 of 6, The Control Panel — spotlighting the full sidebar](/screenshots/walkthrough/02-control-panel.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 2/6 — The Control Panel</p>
-
-![Step 3 of 6, General Settings — View Mode, Split Mode, Project import/export, Terrain Exaggeration](/screenshots/walkthrough/03-general-settings.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 3/6 — General Settings</p>
-
-![Step 4 of 6, Terrain vs Historical Satellite Modes — explaining the mode switch](/screenshots/walkthrough/04-terrain-vs-historical.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 4/6 — Terrain vs Historical Satellite Modes</p>
-
-![Step 5 of 6, Everything is Saved — URL state, local storage persistence, Download and Snapshot](/screenshots/walkthrough/05-everything-is-saved.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 5/6 — Everything is Saved</p>
-
-![Step 6 of 6, Where to next — the branch choice between Terrain Tools and Historical Imagery](/screenshots/walkthrough/06-where-to-next.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 6/6 — Where to next? (branch point)</p>
-
-## Terrain Tools branch
-
-![Step 7 of 17, Visualization Modes — each checkbox is one layer, with its own opacity slider](/screenshots/walkthrough/terrain/07-visualization-modes.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 7/17 — Visualization Modes</p>
-
-![Step 8 of 17, Hillshade — method selector and light-direction pad](/screenshots/walkthrough/terrain/08-hillshade.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 8/17 — Hillshade</p>
-
-![Step 9 of 17, Terrain Sources — the elevation (DEM) picker](/screenshots/walkthrough/terrain/09-terrain-sources.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 9/17 — Terrain Sources</p>
-
-![Step 10 of 17, Raster Basemap — satellite/aerial imagery draped over terrain](/screenshots/walkthrough/terrain/10-raster-basemap.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 10/17 — Raster Basemap</p>
-
-![Step 11 of 17, Bring Your Own Data — Add Dataset, Batch Edit, Sample sources](/screenshots/walkthrough/terrain/11-bring-your-own-data.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 11/17 — Bring Your Own Data</p>
-
-![Step 12 of 17, Split / Compare Mode — Off, Overlay, Side](/screenshots/walkthrough/terrain/12-split-compare-mode.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 12/17 — Split / Compare Mode</p>
-
-![Step 13 of 17, Color by Elevation (Hypsometric) — color ramps and min/max range](/screenshots/walkthrough/terrain/13-color-by-elevation.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 13/17 — Color by Elevation (Hypsometric)</p>
-
-![Step 14 of 17, Terrain Analysis — surface derivatives, neighborhood statistics, principal components](/screenshots/walkthrough/terrain/14-terrain-analysis.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 14/17 — Terrain Analysis</p>
-
-![Step 15 of 17, Relief Visualization — LRM, Sky View Factor, Openness, Local Dominance](/screenshots/walkthrough/terrain/15-relief-visualization.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 15/17 — Relief Visualization</p>
-
-![Step 16 of 17, Tools — Drawing, Elevation Picker, Sun/Shadow Calculator, Animation, Source Info](/screenshots/walkthrough/terrain/16-terrain-tools.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 16/17 — Tools</p>
-
-![Step 17 of 17, Keyboard Shortcuts — the Terrain-branch wrap-up](/screenshots/walkthrough/terrain/17-keyboard-shortcuts.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 17/17 — Keyboard Shortcuts</p>
-
-## Historical Imagery branch
-
-![Step 7 of 12, Compare and Blend — Historical mode's split/grid/blend home](/screenshots/walkthrough/historical/07-compare-and-blend.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 7/12 — Compare and Blend</p>
-
-![Step 8 of 12, Overlay Blend Modes — Multiply, Difference, Screen](/screenshots/walkthrough/historical/08-overlay-blend-modes.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 8/12 — Overlay Blend Modes</p>
-
-![Step 9 of 12, Split Side Grid Layout — up to 4x2 panes with colored borders](/screenshots/walkthrough/historical/09-split-side-grid-layout.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 9/12 — Split Side Grid Layout</p>
-
-![Step 10 of 12, Match Colors — histogram matching onto reference view A](/screenshots/walkthrough/historical/10-match-colors.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 10/12 — Match Colors</p>
-
-![Step 11 of 12, Historical Imagery Timeline — ESRI Wayback, Google Earth Historical, Bing, Planet, NASA HLS, EOX Sentinel-2 in one scrubbable timeline](/screenshots/walkthrough/historical/11-historical-timeline.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 11/12 — Historical Imagery Timeline</p>
-
-![Step 12 of 12, Tools — the Historical-branch wrap-up: Drawing, Sun/Shadow Calculator, Source Info](/screenshots/walkthrough/historical/12-historical-tools.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Step 12/12 — Tools</p>
+<Gallery
+  groups={[
+    {
+      category: "Intro (shared)",
+      items: [
+        { title: "Step 1/6 — The Map Viewport", image: "/docs/screenshots/walkthrough/01-map-viewport.jpg", alt: "Step 1 of 6, The Map Viewport — full-screen spotlight over a tilted Hillshade render, Matterhorn massif" },
+        { title: "Step 2/6 — The Control Panel", image: "/docs/screenshots/walkthrough/02-control-panel.jpg", alt: "Step 2 of 6, The Control Panel — spotlighting the full sidebar" },
+        { title: "Step 3/6 — General Settings", image: "/docs/screenshots/walkthrough/03-general-settings.jpg", alt: "Step 3 of 6, General Settings — View Mode, Split Mode, Project import/export, Terrain Exaggeration" },
+        { title: "Step 4/6 — Terrain vs Historical", image: "/docs/screenshots/walkthrough/04-terrain-vs-historical.jpg", alt: "Step 4 of 6, Terrain vs Historical Satellite Modes — explaining the mode switch" },
+        { title: "Step 5/6 — Everything is Saved", image: "/docs/screenshots/walkthrough/05-everything-is-saved.jpg", alt: "Step 5 of 6, Everything is Saved — URL state, local storage persistence, Download and Snapshot" },
+        { title: "Step 6/6 — Where to next?", image: "/docs/screenshots/walkthrough/06-where-to-next.jpg", alt: "Step 6 of 6, Where to next — the branch choice between Terrain Tools and Historical Imagery" },
+      ],
+    },
+    {
+      category: "Terrain Tools branch",
+      items: [
+        { title: "Step 7/17 — Visualization Modes", image: "/docs/screenshots/walkthrough/terrain/07-visualization-modes.jpg", alt: "Step 7 of 17, Visualization Modes — each checkbox is one layer, with its own opacity slider" },
+        { title: "Step 8/17 — Hillshade", image: "/docs/screenshots/walkthrough/terrain/08-hillshade.jpg", alt: "Step 8 of 17, Hillshade — method selector and light-direction pad" },
+        { title: "Step 9/17 — Terrain Sources", image: "/docs/screenshots/walkthrough/terrain/09-terrain-sources.jpg", alt: "Step 9 of 17, Terrain Sources — the elevation (DEM) picker" },
+        { title: "Step 10/17 — Raster Basemap", image: "/docs/screenshots/walkthrough/terrain/10-raster-basemap.jpg", alt: "Step 10 of 17, Raster Basemap — satellite/aerial imagery draped over terrain" },
+        { title: "Step 11/17 — Bring Your Own Data", image: "/docs/screenshots/walkthrough/terrain/11-bring-your-own-data.jpg", alt: "Step 11 of 17, Bring Your Own Data — Add Dataset, Batch Edit, Sample sources" },
+        { title: "Step 12/17 — Split / Compare Mode", image: "/docs/screenshots/walkthrough/terrain/12-split-compare-mode.jpg", alt: "Step 12 of 17, Split / Compare Mode — Off, Overlay, Side" },
+        { title: "Step 13/17 — Color by Elevation", image: "/docs/screenshots/walkthrough/terrain/13-color-by-elevation.jpg", alt: "Step 13 of 17, Color by Elevation (Hypsometric) — color ramps and min/max range" },
+        { title: "Step 14/17 — Terrain Analysis", image: "/docs/screenshots/walkthrough/terrain/14-terrain-analysis.jpg", alt: "Step 14 of 17, Terrain Analysis — surface derivatives, neighborhood statistics, principal components" },
+        { title: "Step 15/17 — Relief Visualization", image: "/docs/screenshots/walkthrough/terrain/15-relief-visualization.jpg", alt: "Step 15 of 17, Relief Visualization — LRM, Sky View Factor, Openness, Local Dominance" },
+        { title: "Step 16/17 — Tools", image: "/docs/screenshots/walkthrough/terrain/16-terrain-tools.jpg", alt: "Step 16 of 17, Tools — Drawing, Elevation Picker, Sun/Shadow Calculator, Animation, Source Info" },
+        { title: "Step 17/17 — Keyboard Shortcuts", image: "/docs/screenshots/walkthrough/terrain/17-keyboard-shortcuts.jpg", alt: "Step 17 of 17, Keyboard Shortcuts — the Terrain-branch wrap-up" },
+      ],
+    },
+    {
+      category: "Historical Imagery branch",
+      items: [
+        { title: "Step 7/12 — Compare and Blend", image: "/docs/screenshots/walkthrough/historical/07-compare-and-blend.jpg", alt: "Step 7 of 12, Compare and Blend — Historical mode's split/grid/blend home" },
+        { title: "Step 8/12 — Overlay Blend Modes", image: "/docs/screenshots/walkthrough/historical/08-overlay-blend-modes.jpg", alt: "Step 8 of 12, Overlay Blend Modes — Multiply, Difference, Screen" },
+        { title: "Step 9/12 — Split Side Grid Layout", image: "/docs/screenshots/walkthrough/historical/09-split-side-grid-layout.jpg", alt: "Step 9 of 12, Split Side Grid Layout — up to 4x2 panes with colored borders" },
+        { title: "Step 10/12 — Match Colors", image: "/docs/screenshots/walkthrough/historical/10-match-colors.jpg", alt: "Step 10 of 12, Match Colors — histogram matching onto reference view A" },
+        { title: "Step 11/12 — Historical Timeline", image: "/docs/screenshots/walkthrough/historical/11-historical-timeline.jpg", alt: "Step 11 of 12, Historical Imagery Timeline — ESRI Wayback, Google Earth Historical, Bing, Planet, NASA HLS, EOX Sentinel-2 in one scrubbable timeline" },
+        { title: "Step 12/12 — Tools", image: "/docs/screenshots/walkthrough/historical/12-historical-tools.jpg", alt: "Step 12 of 12, Tools — the Historical-branch wrap-up: Drawing, Sun/Shadow Calculator, Source Info" },
+      ],
+    },
+  ]}
+/>

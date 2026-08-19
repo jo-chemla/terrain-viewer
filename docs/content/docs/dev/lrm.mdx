@@ -3,21 +3,24 @@ title: LRM (Local Relief Model)
 description: Why LRM needs a genuinely different pipeline than slope/curvature/etc
 ---
 
+import { Gallery } from "@/components/gallery";
+
 LRM ("raw elevation minus a low-pass-filtered version," per [Terrain Visualization Modes](/features/visualization-modes)) is the one terrain-analysis-family mode that isn't a per-pixel function of a single same-zoom neighborhood — see [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) for what every other mode (Slope, Curvature, TRI, SVF, …) has in common. A low-pass "regional trend" surface normally means averaging over tens of pixels, which is expensive as a literal box/Gaussian blur computed fresh per tile. `lib/lrm-protocol.ts` avoids that entirely by exploiting the tile pyramid itself.
 
 The "Smoothing Radius" slider is a **pixel** radius, but the app shows a live `≈ N m` readout right next to it — the same real-world ground distance `radiusMeters = radiusPx * groundResolutionM(lat, zoom, tileSize)` computed in `lrm-options-section.tsx`. Since ground resolution per pixel roughly halves each zoom level in, an unchanged pixel radius covers a smaller and smaller real area as you zoom in — the metric readout is what actually tells you what neighborhood size you're looking at, not the pixel count. Below, radius 4 (barely more than a 3×3 blur) through 64 (a broad regional trend) at the same fixed zoom:
 
-![LRM at Smoothing Radius 4px — a tight, near-3x3-blur neighborhood](/screenshots/viz-modes/lrm-r4.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">LRM, Smoothing Radius 4px — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.5&lrmRadius=4&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
-
-![LRM at Smoothing Radius 16px (default) — a mid-scale neighborhood](/screenshots/viz-modes/lrm-r16.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">LRM, Smoothing Radius 16px (default) — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.5&lrmRadius=16&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
-
-![LRM at Smoothing Radius 64px — a broad regional trend](/screenshots/viz-modes/lrm-r64.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">LRM, Smoothing Radius 64px — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.5&lrmRadius=64&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+<Gallery
+  cols={3}
+  groups={[
+    {
+      items: [
+        { title: "Smoothing Radius 4px", image: "/docs/screenshots/viz-modes/lrm-r4.jpg", alt: "LRM at Smoothing Radius 4px — a tight, near-3x3-blur neighborhood", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.5&lrmRadius=4&exaggeration=1" },
+        { title: "Smoothing Radius 16px (default)", image: "/docs/screenshots/viz-modes/lrm-r16.jpg", alt: "LRM at Smoothing Radius 16px (default) — a mid-scale neighborhood", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.5&lrmRadius=16&exaggeration=1" },
+        { title: "Smoothing Radius 64px", image: "/docs/screenshots/viz-modes/lrm-r64.jpg", alt: "LRM at Smoothing Radius 64px — a broad regional trend", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.5&lrmRadius=64&exaggeration=1" },
+      ],
+    },
+  ]}
+/>
 
 ## The ancestor-tile trick
 

@@ -3,6 +3,8 @@ title: Split & Compare Modes
 description: Off, Overlay, and Side — comparing terrain/basemap sources against each other
 ---
 
+import { Gallery } from "@/components/gallery";
+
 **Split Mode** (General Settings) controls how many "views" of the map are on screen and how they relate to each other. It's the same three-way choice in both Terrain and Historical Imagery mode, but Side behaves differently between them: a fixed 2×1 pane pair in Terrain mode, or any grid up to 4×2 (8 views, labeled A–H) in Historical mode.
 
 Off, Overlay, and the Terrain-mode Side pane below all share the same tilted Matterhorn viewpoint (Mapterhorn vs. AWS Terrarium), so the three modes are directly comparable — same camera, same two terrain sources, just a different compare mechanic each time.
@@ -47,18 +49,16 @@ A smaller, 2×2 example comparing basemap sources:
 
 Overlay mode's Blend Mode dropdown controls how source A composites over source B — beyond the default Normal (opacity-only cross-fade), Multiply and Difference make change between two dates easier to spot at a glance. All four below compare the same two ESRI Wayback captures of Île de la Cité (2021 vs. 2015), Normal shown at both a near-total 100% and a near-invisible 5% to show the opacity slider's full range:
 
-![Normal blend mode, 100% opacity — source A fully replaces source B](/screenshots/split-modes/blend-normal-100.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Blend Mode: Normal, 100% opacity — Île de la Cité, Paris — <a href="https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=1&splitBlendMode=normal&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1420070400000&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
-
-![Normal blend mode, 5% opacity — source A barely visible, mostly showing source B through a thin veil](/screenshots/split-modes/blend-normal-5.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Blend Mode: Normal, 5% opacity — Île de la Cité, Paris — <a href="https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=0.05&splitBlendMode=normal&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1420070400000&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
-
-![Multiply blend mode, 100% opacity — darkens where the two dates disagree](/screenshots/split-modes/blend-multiply-100.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Blend Mode: Multiply, 100% opacity — Île de la Cité, Paris — <a href="https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=1&splitBlendMode=multiply&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1420070400000&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
-
-![Difference blend mode, 100% opacity — highlights exactly what changed between the two dates](/screenshots/split-modes/blend-difference-100.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Blend Mode: Difference, 100% opacity — Île de la Cité, Paris — <a href="https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=1&splitBlendMode=difference&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1420070400000&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+<Gallery
+  cols={4}
+  groups={[
+    {
+      items: [
+        { title: "Normal, 100% opacity", image: "/docs/screenshots/split-modes/blend-normal-100.jpg", alt: "Normal blend mode, 100% opacity — source A fully replaces source B", href: "https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=1&splitBlendMode=normal&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1420070400000&exaggeration=1" },
+        { title: "Normal, 5% opacity", image: "/docs/screenshots/split-modes/blend-normal-5.jpg", alt: "Normal blend mode, 5% opacity — source A barely visible, mostly showing source B through a thin veil", href: "https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=0.05&splitBlendMode=normal&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1420070400000&exaggeration=1" },
+        { title: "Multiply, 100% opacity", image: "/docs/screenshots/split-modes/blend-multiply-100.jpg", alt: "Multiply blend mode, 100% opacity — darkens where the two dates disagree", href: "https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=1&splitBlendMode=multiply&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1420070400000&exaggeration=1" },
+        { title: "Difference, 100% opacity", image: "/docs/screenshots/split-modes/blend-difference-100.jpg", alt: "Difference blend mode, 100% opacity — highlights exactly what changed between the two dates", href: "https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=1&splitBlendMode=difference&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1420070400000&exaggeration=1" },
+      ],
+    },
+  ]}
+/>
