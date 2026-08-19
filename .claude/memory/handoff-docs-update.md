@@ -1,0 +1,52 @@
+---
+name: handoff-docs-update
+description: Handoff state for the docs-update branch docs-expansion work — what's done, what's deliberately deferred, and what a fresh agent/instance needs to know to pick this up
+metadata:
+  type: project
+---
+
+Written for a hand-off to a fresh agent instance (new T3 session or otherwise) continuing the `docs-update` branch docs-site work. Read `.claude/memory/screenshots-context.md` first — it has the actual Playwright technique/gotchas reference this file assumes you already know. This file is state, not technique.
+
+## Where things stand
+
+As of commit `15452a9` (pushed to `origin/docs-update`, working tree clean), every screenshot/content request from the user across this entire multi-session docs effort has been addressed — see `screenshots-context.md`'s "History" section for the full commit-by-commit log, and the two full chronological audits given directly to the user earlier in this session (one covering the whole day back to the morning) confirmed everything resolved except the items below.
+
+**If the user references something as "still broken" that isn't in the list below, don't assume it's new — re-check the actual current file/screenshot first.** This session had several rounds of "I already fixed that" turning out to be real regressions (e.g. the lightbox link-clamping bug, the Overlay flat-2D AWS pane) — always verify against the live file rather than trusting a prior turn's "done" claim at face value.
+
+## Deliberately NOT done (don't "fix" these without asking)
+
+- **`react-grab` browser tool** — user asked to install it once, early in the day, with a note to make sure it doesn't conflict with `react-scan`/TanStack Devtools (both already installed, see `src/main.tsx`). Never actually installed. Flagged to the user in the full-day audit; no follow-up request since — treat as still-wanted-but-not-urgent unless re-raised.
+- **Equations & Formulas page merge into Visualization Modes** — user said "eventually even merged... probably a section at the bottom," explicitly softened as optional. The page (`docs/content/docs/features/equations.mdx`) is already in the user-facing Features group (moved there earlier), just not physically merged. Leave as its own page unless asked again.
+- **GeoLibre Open-In destination** — user said "note for later." There's a `// TODO (noted for later, not yet implemented)` comment in `components/TerrainControlPanel/open-in-links.tsx` at the end of `OPEN_IN_DESTINATIONS`. Don't implement without a real URL-shape example from the user (same as every other destination needed a real reverse-engineered URL first).
+- **Bookmarks screenshots** — explicitly, repeatedly the user's own task ("I'll do bookmarks"). Do not touch `docs/public/screenshots/bookmarks-*.jpg` or their `.mdx` captions unless the user asks directly.
+- **Historical-branch walkthrough screenshots** (steps 7-12 of that branch) — user confirmed these are "perfect," captured from prod (`terrain-viewer.iconem.com`), not localhost — so they don't have the react-scan/TanStack-devtools icon contamination that affected the Terrain-branch set (prod builds strip both behind `import.meta.env.DEV`). No action needed.
+
+## Known unresolved bug (real, not a capture-script problem)
+
+**Walkthrough step 9 (Color by Elevation / Hypso) renders with only a partial color band**, no matter the wait time (tried up to 90s) or wheel-nudge count. Root cause, fully traced this session: the coachmark tour's `prepareHypsoOnly` `onEnter` handler live-toggles `showColorRelief` fresh every time the step is entered, and the resulting MapLibre `color-relief` paint layer only fully repaints for tiles the renderer touches *after* that toggle — the rest of the visible viewport is left showing plain grayscale hillshade until a **real pan/drag** forces a fresh render pass. But a real pan/drag (`page.mouse.down/move/up` on the map canvas, or even a same-value `page.setViewportSize` round-trip) unconditionally **dismisses the coachmark tour entirely** — confirmed via `page.getByText("STEP 9 OF 17").isVisible()` going false after the "fix" attempt. Only a `page.mouse.wheel(...)` zoom in/out pair leaves the tour alone, and that alone isn't enough to force the repaint. There is currently no known way to get both a fully-painted Hypso render *and* an intact tour overlay in one screenshot. If you want to take another run at this, it's an **app-level fix** (make `prepareHypsoOnly`'s state change trigger a full repaint itself, e.g. call `map.triggerRepaint()` or force a `moveend`-equivalent programmatically without going through MapLibre's real interaction handlers) rather than another capture-script trick — every capture-script angle has been tried.
+
+## Everything else (the exhaustive list of "was it actually fixed")
+
+The last two work sessions were almost entirely the user re-flagging the same handful of screenshots/pages across multiple messages, each time with slightly sharper specifics ("wait longer," "exact same state," "250px further," etc.), and me redoing them each round. **All of the following are now confirmed correct as of `15452a9`** — camera cross-checked visually, not just by URL param inspection (URL params alone were misleading at least twice this session — e.g. SVF/Phong's hrefs already matched the standard camera on paper while the actual captured file was framed completely differently):
+
+- Walkthrough `01-map-viewport.jpg` — now the app's true unthemed default camera (`lat=45.9788, lng=7.674, zoom=12.37, pitch=60, bearing=0` — no URL override at all, just `?startTour=true`), not the hand-tuned "Matterhorn hero" camera every other walkthrough step deliberately shares.
+- Walkthrough terrain-analysis (slope) — bounds now 0–90 (`product-tour.tsx`'s `prepareTerrainAnalysisOnly`), tile-complete.
+- viz-modes SVF / Phong / Matcap — all three on one literally-identical camera+`hillshadeOpacity`+`tellsBeta` base state, differing only in their own mode flags. Matcap's previous distinct close-up camera (`zoom=13.1, lat=45.9744`) is gone.
+- viz-modes Hillshade / Hypso — same camera (hypso.jpg was a stale, far-more-zoomed-out capture from an earlier round; redone to match hillshade.jpg exactly).
+- Split Overlay / Off — Overlay's AWS (source B) pane was rendering as a flat, blurry 2D drape rather than real 3D relief after a 30s wait; fixed with a 60s initial + 60s post-nudge wait. Off recaptured using Overlay's *actual post-settle* camera (read back live via `page.url()`), not the static URL, so the two are pixel-identical.
+- `blend-normal-5.jpg` — was showing a stale/wrong historical source; redone with a 60s wait.
+- `blend-normal-100.jpg` — Compare and Blend section + its Advanced sub-panel now both expanded in-shot (previously the section was collapsed, so viewers couldn't see the Source+Date pill config).
+- Terrain source info dialog (Mapterhorn, Patagonia) — new camera (`zoom=8.19, lat=-50.5503, lng=-73.4654`) that avoids a DEM-tile-strip artifact the old zoom/pitch combo showed.
+- Elevation Picker full-app screenshot — scrolled an *additional* 250px past `scrollIntoView({block:"start"})` on the "Elevation Picker" heading itself (not the Tools group above it), so the full profile chart + all Plane Slicer options clear the sidebar's top scroll-fade.
+- Lightbox (`docs/src/components/lightbox.tsx`) — completely rewritten from a single `{titleText, linkText, linkHref}` extraction to an ordered `TitleNode[]` walk of the caption `<p>`'s actual child nodes. Two real bugs fixed in sequence: (1) a caption link followed by trailing text got the *whole* caption dumped as untruncated plain text with the link duplicated at the end, invisible past the title bar's CSS `truncate` ellipsis; (2) captions with **two** links (e.g. Features Overview's "see the Walkthrough ... or take it yourself in-app ↗") were silently clamped to just the first link + the text before it. Both now render correctly — verified live via a real click + DOM inspection, not just code review.
+- Changelog: two entries sharing bare `2026-08-16` collided as a React key (real console warning) — given `T09:00`/`T17:00` suffixes matching the file's own established multi-same-day-entry convention (see `lib/changelog.ts`'s doc comment).
+- Terrain Source "Google 3D Tiles (via DeckGL only)" — removed from Worldwide Defaults (commented out in `lib/terrain-sources.ts`, `"google3dtiles"` dropped from the `TerrainSource` union in `lib/terrain-types.ts`) and its orphaned "Google Maps API Key" field removed from the Settings modal — the experience is reachable via the Google Maps 3D / Google Earth 3D (web) Open-In destinations instead.
+- All multi-formula KaTeX `$$...$$` blocks across `dev/terrain-analysis-pipeline.mdx`, `dev/lighting-effects.mdx`, and `features/equations.mdx` split to one named equation per block (paired short definitions like `AMBIENT`/`SHININESS` or `p`/`r` left combined — that's a judgment call, revisit if the user objects).
+- Sources page: "Worldwide Basemap Sources (TMS)" → "Basemap Sources".
+- Sun Position page: now documents all four light/shadow modes (Free, Datetime-forward, Shadow-Calculator-forward, Shadow-Calculator-reverse) up top, before the existing Reverse-mode demo screenshot.
+- Tools page Animation image: 384px native → 288px (75%) → centered (`display:block; margin-inline:auto`), three incremental asks in the same thread, all applied to the same `<img style>` in `docs/content/docs/features/tools.mdx`.
+- Open-In list: final order is River-REM, Search-EO, ESRI Wayback, Google Maps 3D, Google Earth Historical (web), Google Earth 3D (web), BBBike — see `components/TerrainControlPanel/open-in-links.tsx`'s `OPEN_IN_DESTINATIONS` array top-to-bottom.
+
+## Dev-server reliability note for whoever picks this up
+
+Both dev servers (`pnpm dev` on :5173, `pnpm run docs:dev` on :3100) got killed by a background process teardown **twice** during this multi-turn session (visible as `net::ERR_CONNECTION_REFUSED` mid-turn). If a capture script suddenly can't connect, don't assume the script is broken — check `curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/` first and restart both servers in the background if needed before re-diagnosing anything else.
