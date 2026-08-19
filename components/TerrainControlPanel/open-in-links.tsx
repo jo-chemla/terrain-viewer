@@ -49,11 +49,35 @@ type OpenInDestination = {
 // call after the first in practice.
 export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
   {
+    id: "iconem-river-rem",
+    label: "Iconem River-REM",
+    buildUrl: ({ lat, lng, zoom }) => `https://rem.prod.heritagewatch.ai/?lng=${lng}&lat=${lat}&zoom=${zoom}`,
+  },
+  {
+    id: "iconem-search-eo",
+    label: "Iconem Search-EO",
+    buildUrl: ({ lat, lng, zoom }) => `https://search-eo-imagery.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
+  },
+  {
     id: "esri-wayback",
     label: "ESRI Wayback Machine",
     buildUrl: ({ lat, lng, zoom, latestWaybackRelease }) => {
       if (!latestWaybackRelease) return null
       return `https://livingatlas.arcgis.com/wayback/#mapCenter=${lng}%2C${lat}%2C${Math.round(zoom)}&mode=explore&active=${latestWaybackRelease}`
+    },
+  },
+  {
+    id: "google-maps-3d",
+    label: "Google Maps 3D",
+    // Same opaque-altitude style as Google Earth Web above, applied to Maps'
+    // own `@lat,lng,{altitude}a,{fov}y,{tilt}t/data=!3m1!1e3` 3D-mode URL
+    // shape (reverse-engineered from a real "toggle 3D" session — the `y`
+    // field stayed fixed at 35 across every capture, so it's hardcoded here
+    // too rather than derived). `!3m1!1e3` is what actually selects the 3D
+    // globe layer; `entry=ttu` matches real Maps-UI-originated links.
+    buildUrl: ({ lat, lng, zoom }) => {
+      const altitude = ((38000 * 4096) / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180)
+      return `https://www.google.com/maps/@${lat},${lng},${altitude}a,35y,45t/data=!3m1!1e3?entry=ttu`
     },
   },
   {
@@ -79,6 +103,12 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
       return `https://earth.google.com/web/@${lat},${lng},0a,${altitude}d,35y,0h,60t,0r/data=CgRCAggBOgMKATBCAggASg0I____________ARAA`
     },
   },
+  {
+    id: "bbbike-mapcompare",
+    label: "BBBike MapCompare",
+    buildUrl: ({ lat, lng, zoom }) =>
+      `https://mc.bbbike.org/mc/?lon=${lng}&lat=${lat}&zoom=${Math.round(zoom)}&num=4&mt0=mapnik-german&mt1=cyclemap&mt2=bing-hybrid`,
+  },
   // Commented out per request — kept for reference, not shown in the list.
   // {
   //   id: "google-3d-area-explorer",
@@ -91,37 +121,6 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
   //   buildUrl: ({ lat, lng }) =>
   //     `https://goo.gle/3d-area-explorer-admin#camera.orbitType=fixed-orbit&location.coordinates.lat=${lat}&location.coordinates.lng=${lng}`,
   // },
-  {
-    id: "google-maps-3d",
-    label: "Google Maps 3D (web)",
-    // Same opaque-altitude style as Google Earth Web above, applied to Maps'
-    // own `@lat,lng,{altitude}a,{fov}y,{tilt}t/data=!3m1!1e3` 3D-mode URL
-    // shape (reverse-engineered from a real "toggle 3D" session — the `y`
-    // field stayed fixed at 35 across every capture, so it's hardcoded here
-    // too rather than derived). `!3m1!1e3` is what actually selects the 3D
-    // globe layer; `entry=ttu` matches real Maps-UI-originated links.
-    buildUrl: ({ lat, lng, zoom }) => {
-      const altitude = ((38000 * 4096) / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180)
-      return `https://www.google.com/maps/@${lat},${lng},${altitude}a,35y,45t/data=!3m1!1e3?entry=ttu`
-    },
-  },
-  {
-    id: "bbbike-mapcompare",
-    label: "BBBike MapCompare",
-    buildUrl: ({ lat, lng, zoom }) =>
-      `https://mc.bbbike.org/mc/?lon=${lng}&lat=${lat}&zoom=${Math.round(zoom)}&num=4&mt0=mapnik-german&mt1=cyclemap&mt2=bing-hybrid`,
-  },
-  {
-    id: "iconem-search-eo",
-    label: "Iconem Search-EO",
-    buildUrl: ({ lat, lng, zoom }) => `https://search-eo-imagery.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
-  },
-  {
-    id: "iconem-river-rem",
-    label: "Iconem River-REM",
-    buildUrl: ({ lat, lng, zoom }) => `https://rem.prod.heritagewatch.ai/?lng=${lng}&lat=${lat}&zoom=${zoom}`,
-  },
-  // Commented out per request — kept for reference, not shown in the list.
   // {
   //   id: "iconem-historical",
   //   label: "Iconem Historical Satellite",

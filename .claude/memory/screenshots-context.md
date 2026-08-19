@@ -179,6 +179,53 @@ don't deviate without a reason.
   through the Bash tool instead (which captures output live without the
   buffering) rather than continuing to poll a redirected file.
 
+## Dev-only floating widgets (react-scan, TanStack Devtools) contaminate localhost captures
+
+`src/main.tsx` mounts react-scan's toolbar and `<TanStackDevtools />` behind
+`import.meta.env.DEV` — always on for `localhost:5173`, never present on prod.
+Any screenshot captured from the dev server (necessary for local-only code
+changes — see the earlier gotcha) shows their floating icons unless hidden.
+Hide via a CSS injection right after `page.goto`, **not** an app code change
+(keeps the dev experience untouched for real local development):
+
+```js
+const HIDE_DEVTOOLS_CSS = `#react-scan-root { display: none !important; } button[aria-label="Open TanStack Devtools"] { display: none !important; }`
+await page.goto(url, { waitUntil: "load" })
+await page.addStyleTag({ content: HIDE_DEVTOOLS_CSS })
+```
+
+`#react-scan-root` is a shadow-DOM host, safe to target directly. TanStack
+Devtools has **no stable id** on its actual toggle button — `#tanstack_devtools`
+is the (usually off-screen, `display:block` by default) drawer panel, not the
+button; the button only carries a goober-hashed class. Its `aria-label="Open
+TanStack Devtools"` is the one stable selector — use that, not the class.
+
+## Coachmark tour dismisses on ANY interaction, not just clicks outside the card
+
+Confirmed empirically: a real mouse drag on the map, a `canvas.click()` (even
+`force: true`), and even a same-size `page.setViewportSize` round-trip (no
+pointer event at all) all silently end the active tour step — the coachmark
+card disappears and viz state resets, with no exception thrown, so a script
+can easily keep "succeeding" while actually capturing a dead page. **Always
+verify** with `page.getByText("STEP N OF total", { exact: true }).isVisible()`
+after any nudge attempt during a tour-driven capture, not just after the
+initial `waitForStep`. Only a `page.mouse.wheel(...)` zoom-in/out pair reliably
+leaves the tour alone — but see the next gotcha for its limits.
+
+**One unresolved case:** the walkthrough's "Color by Elevation" (Hypso) step
+renders with only a band of terrain colored (typically near the top of frame)
+and the rest staying plain gray hillshade, no matter how long you wait (tried
+up to 90s) or how many wheel-nudge cycles you throw at it. A real pan
+*does* force the full repaint, but real pans kill the tour (see above), so
+there is currently no known fix that both keeps the tour overlay alive and
+gets Hypso to fully paint in this specific capture path — Slope, Curvature,
+TPI, LRM, and every other viz-mode-via-tour step render fine with the same
+wheel-nudge treatment. Whatever's different about Hypso's color-relief source
+specifically, it's a real, reproducible app-level quirk worth a from-scratch
+investigation outside of screenshot-script tweaking, not a capture timing
+issue. Current committed screenshot is the best achievable (tour intact,
+partial coloring) rather than a fully-colored capture.
+
 ## Gallery component (hero + filmstrip)
 
 `docs/src/components/gallery.tsx` shows a single large "hero" image (the
@@ -257,6 +304,30 @@ the link.
    redone with source+date pills (`isComparisonMixAdvancedOpen` localStorage
    key + `showCaptureDatePill=source-date` URL param); Google Earth Web
    "Open in" destinations fixed against real user-captured URLs.
+7. Elevation Picker/SVF/Hillshade/Matcap/Overlay redo, Open-In revamp, calendar
+   year fix (`bbd10aa`) — SVF/Hillshade/Matcap recaptured at correct sidebar
+   width scrolled to their own options section; Split Overlay redone with a
+   real 10px drag-and-release nudge on each pane for gutter alignment;
+   Elevation Picker scrolled so Tools sits under the scroll-fade; Open-In
+   destinations reordered/renamed/two commented out, River-REM + Google Maps
+   3D added; Datetime calendar caption drops the year.
+8. Dev-tools-icon cleanup, tour pure-hillshade enforcement, camera-matched
+   Overlay/Off pair, Open-In reorder — Open In reordered again (River-REM,
+   Search-EO, ESRI Wayback, Maps, Earth Historical, Earth 3D, BBBike) and
+   Google Maps entry shortened to "Google Maps 3D"; `product-tour.tsx`'s
+   `terrain-section` step gained `onEnter: prepareHillshadeOnly` so Terrain
+   Sources through Split Compare no longer carry over the previous step's
+   viz mode; discovered and fixed the react-scan/TanStack-devtools icon
+   contamination (see dedicated gotcha above) across the full Terrain-branch
+   walkthrough set (17 screenshots) plus viz-modes hillshade.jpg; SVF/Phong/
+   Matcap recaptured on the exact shared viz-modes camera (matcap's own
+   close-up camera retired); Overlay redone with a longer settle wait and its
+   exact post-nudge camera reused verbatim for Off so the two match pixel-for-
+   pixel; blend-normal-100 redone with Compare-and-Blend + Advanced expanded;
+   Mapterhorn terrain-source-info dialog redone at a zoomed-out Patagonia
+   camera that avoids the DEM-strip artifact; Elevation Picker's scroll target
+   changed from the Tools group to the Elevation Picker section itself so the
+   Plane Slicer options are more visible.
 
 If you're reading this expecting exact current URLs/params per screenshot,
 don't trust anything beyond point 3 above as still-current — check the actual

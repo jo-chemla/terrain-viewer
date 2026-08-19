@@ -410,6 +410,11 @@ const TERRAIN_STEPS: TourStepDef[] = [
     // own comment.
     scrollBlock: "start",
     scrollIntoView: false,
+    // Back to plain Hillshade for the rest of the Terrain branch (this step
+    // through Split Mode) — these steps are about data SOURCES, not viz
+    // modes, so the Relief Visualization state from the previous step
+    // shouldn't still be showing.
+    onEnter: prepareHillshadeOnly,
   },
   {
     key: "basemap-section", domId: "tour-basemap-section", side: "left", align: "start",
