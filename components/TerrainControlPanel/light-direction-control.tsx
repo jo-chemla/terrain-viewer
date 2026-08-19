@@ -283,6 +283,11 @@ export const LightDirectionControl: React.FC<{
                     selected={dayOfYearToDate(dayOfYear)}
                     defaultMonth={dayOfYearToDate(dayOfYear)}
                     onSelect={(d) => { if (d) setDayOfYear(dayOfYearFromDate(d)) }}
+                    // Day-of-year (not a real calendar date — see dayOfYearToDate's
+                    // fixed placeholder year) drives this, so the year in the
+                    // month/year caption would be a meaningless constant. Month
+                    // name only, matching formatDayOfYear's own month+day display.
+                    formatters={{ formatCaption: (month) => month.toLocaleDateString("en-US", { month: "long" }) }}
                   />
                 </PopoverContent>
               </Popover>

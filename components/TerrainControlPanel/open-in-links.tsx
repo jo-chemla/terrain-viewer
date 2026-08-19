@@ -49,8 +49,16 @@ type OpenInDestination = {
 // call after the first in practice.
 export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
   {
+    id: "esri-wayback",
+    label: "ESRI Wayback Machine",
+    buildUrl: ({ lat, lng, zoom, latestWaybackRelease }) => {
+      if (!latestWaybackRelease) return null
+      return `https://livingatlas.arcgis.com/wayback/#mapCenter=${lng}%2C${lat}%2C${Math.round(zoom)}&mode=explore&active=${latestWaybackRelease}`
+    },
+  },
+  {
     id: "google-earth-web",
-    label: "Google Earth Web (2D, Historical)",
+    label: "Google Earth Historical (web)",
     // The `data=` payload is opaque protobuf, reverse-engineered from a
     // real Google Earth Web session rather than derived — captured
     // directly off a live "2D + Historical layer on" URL, tilt (`t`) fixed
@@ -62,32 +70,39 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
   },
   {
     id: "google-earth-web-3d",
-    label: "Google Earth Web (3D, no Historical)",
-    // Same altitude formula as the 2D destination above; a different
-    // (shorter) `data=` payload — the Historical-layer flag isn't set in
-    // this one — and tilt (`t`) fixed at 60 for a 3D-oblique framing.
+    label: "Google Earth 3D (web)",
+    // Same altitude formula as the Historical destination above; a
+    // different (shorter) `data=` payload — the Historical-layer flag isn't
+    // set in this one — and tilt (`t`) fixed at 60 for a 3D-oblique framing.
     buildUrl: ({ lat, lng, zoom }) => {
       const altitude = ((38000 * 4096) / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180)
       return `https://earth.google.com/web/@${lat},${lng},0a,${altitude}d,35y,0h,60t,0r/data=CgRCAggBOgMKATBCAggASg0I____________ARAA`
     },
   },
+  // Commented out per request — kept for reference, not shown in the list.
+  // {
+  //   id: "google-3d-area-explorer",
+  //   label: "Google 3D Area Explorer",
+  //   // Same permalink already used by the "Google 3D Tiles" terrain source's
+  //   // own documentation link (lib/terrain-sources.ts's google3dtiles.link,
+  //   // opened via terrain-source-section.tsx's linkCallback/templateLink) —
+  //   // a fixed-orbit 3D camera over Google's Photorealistic 3D Tiles at a
+  //   // given lat/lng, independent of this app's own terrain/basemap sources.
+  //   buildUrl: ({ lat, lng }) =>
+  //     `https://goo.gle/3d-area-explorer-admin#camera.orbitType=fixed-orbit&location.coordinates.lat=${lat}&location.coordinates.lng=${lng}`,
+  // },
   {
-    id: "google-3d-area-explorer",
-    label: "Google 3D Area Explorer",
-    // Same permalink already used by the "Google 3D Tiles" terrain source's
-    // own documentation link (lib/terrain-sources.ts's google3dtiles.link,
-    // opened via terrain-source-section.tsx's linkCallback/templateLink) —
-    // a fixed-orbit 3D camera over Google's Photorealistic 3D Tiles at a
-    // given lat/lng, independent of this app's own terrain/basemap sources.
-    buildUrl: ({ lat, lng }) =>
-      `https://goo.gle/3d-area-explorer-admin#camera.orbitType=fixed-orbit&location.coordinates.lat=${lat}&location.coordinates.lng=${lng}`,
-  },
-  {
-    id: "esri-wayback",
-    label: "ESRI Wayback Machine",
-    buildUrl: ({ lat, lng, zoom, latestWaybackRelease }) => {
-      if (!latestWaybackRelease) return null
-      return `https://livingatlas.arcgis.com/wayback/#mapCenter=${lng}%2C${lat}%2C${Math.round(zoom)}&mode=explore&active=${latestWaybackRelease}`
+    id: "google-maps-3d",
+    label: "Google Maps 3D (web)",
+    // Same opaque-altitude style as Google Earth Web above, applied to Maps'
+    // own `@lat,lng,{altitude}a,{fov}y,{tilt}t/data=!3m1!1e3` 3D-mode URL
+    // shape (reverse-engineered from a real "toggle 3D" session — the `y`
+    // field stayed fixed at 35 across every capture, so it's hardcoded here
+    // too rather than derived). `!3m1!1e3` is what actually selects the 3D
+    // globe layer; `entry=ttu` matches real Maps-UI-originated links.
+    buildUrl: ({ lat, lng, zoom }) => {
+      const altitude = ((38000 * 4096) / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180)
+      return `https://www.google.com/maps/@${lat},${lng},${altitude}a,35y,45t/data=!3m1!1e3?entry=ttu`
     },
   },
   {
@@ -102,10 +117,17 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
     buildUrl: ({ lat, lng, zoom }) => `https://search-eo-imagery.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
   },
   {
-    id: "iconem-historical",
-    label: "Iconem Historical Satellite",
-    buildUrl: ({ lat, lng, zoom }) => `https://historical-satellite.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
+    id: "iconem-river-rem",
+    label: "Iconem River-REM",
+    buildUrl: ({ lat, lng, zoom }) => `https://rem.prod.heritagewatch.ai/?lng=${lng}&lat=${lat}&zoom=${zoom}`,
   },
+  // Commented out per request — kept for reference, not shown in the list.
+  // {
+  //   id: "iconem-historical",
+  //   label: "Iconem Historical Satellite",
+  //   buildUrl: ({ lat, lng, zoom }) => `https://historical-satellite.iconem.com/#${Math.round(zoom)}/${lat}/${lng}`,
+  // },
+  // TODO (noted for later, not yet implemented): "open in GeoLibre".
 ]
 
 const DEFAULT_SELECTED = "google-earth-web"

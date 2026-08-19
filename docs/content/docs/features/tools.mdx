@@ -28,14 +28,11 @@ Click anywhere on the terrain to read off its elevation, sourced from the same a
 
 <p className="text-sm text-fd-muted-foreground italic">Elevation Picker — Line Profile (two points, color-graded by elevation) + Plane Slicer flood-fill — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?viewMode=3d&zoom=12.23&lat=46.0523&lng=7.6461&pitch=26&bearing=-21.4&showHillshade=true&hillshadeOpacity=1&exaggeration=1&showPlaneSlicer=true&planeSlicerOpacity=0.5&planeSlicerValue=3023" target="_blank" rel="noopener noreferrer">open in app ↗</a> (camera/Plane Slicer state only — the two picked points aren't URL-reproducible, pick them on the map yourself)</p>
 
-![The Elevation Picker panel, showing the mode toggles: sample reference, line profile / line of sight, straight-line vs. routed path, and the Plane Slicer](/screenshots/tools/elevation-picker.jpg)
-
-<p className="text-sm text-fd-muted-foreground italic">Elevation Picker — panel only</p>
-
 ## Animation
 
 Fly the camera along a scripted path through the scene — set keyframe camera poses and interpolate between them, exportable as a rendered fly-through. Available in Terrain mode; Historical mode's own Tools group drops it since there's no single continuous elevation surface to fly a smooth camera path over.
 
-![The Animation panel](/screenshots/tools/animation.jpg)
+{/* Native panel capture is 384 CSS px wide (768px at deviceScaleFactor 2) — capped so it isn't upscaled to the full prose column width. */}
+<img src="/docs/screenshots/tools/animation.jpg" alt="The Animation panel" style={{ maxWidth: 384, width: "100%" }} />
 
 <p className="text-sm text-fd-muted-foreground italic">Animation — panel only</p>
