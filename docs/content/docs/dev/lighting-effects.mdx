@@ -49,6 +49,10 @@ Both raster protocols also carry a hand-rolled staleness guard (`__currentParams
 
 ## Matcap: material-capture lookup
 
+![Matcap lighting visualization mode, with its Lighting Effects controls panel open](/screenshots/viz-modes/matcap.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Matcap — Matterhorn massif</p>
+
 The rotated normal's `(x, y)` is used directly as a UV into a curated matcap material image (`lib/matcap-textures.ts`, a Potree/Blender-style set) — an orthographic simplification in the protocol/GPU-compute path:
 
 <Tabs items={['Code', 'Formula']}>
@@ -117,6 +121,10 @@ The az/alt → `(x, y, z)` light-vector signs were pinned by empirical measureme
 `diffuseIntensity` alone is capped at 1, so ordinary sunlit slopes (however bright) stay in the shadow/neutral regime — only specular can push `total` past 1 into the highlight regime.
 
 ## Hard Shadows: single-ray horizon march toward the sun
+
+![Hard Shadows visualization mode, with its Lighting Effects controls panel open](/screenshots/viz-modes/hard-shadows.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Hard Shadows — Matterhorn massif</p>
 
 `lib/shadow-protocol.ts` does **not** call into `horizon-angle.ts`'s SVF/Openness functions — it's a hand-written single-ray variant of the same idea, explicitly framed that way in its header comment. SVF/Openness check 8 fixed compass directions and aggregate; a cast shadow only cares about **one** direction — straight toward the sun's actual azimuth (not snapped to a 45° tick):
 

@@ -3,6 +3,8 @@ title: Overview
 description: What Terrain Viewer is and how the sidebar is organized
 ---
 
+import { VizModeGrid } from "@/components/viz-mode-grid";
+
 Terrain Viewer is a browser-based terrain and historical-imagery visualization tool built on [MapLibre GL](https://maplibre.org/maplibre-gl-js/docs/) via [react-map-gl](https://visgl.github.io/react-map-gl/). Every setting lives in the URL query string, so any view is shareable as a plain link.
 
 ![Hillshade + Elevation Hypso + Raster Basemap over the Matterhorn (Mont Cervin) massif](/screenshots/overview-hero.jpg)
@@ -16,12 +18,63 @@ Terrain Viewer is a browser-based terrain and historical-imagery visualization t
 1. **Terrain mode** — pick a source (Mapterhorn, Mapbox, MapTiler, AWS Mapzen, or your own COG/GeoTIFF), render with many relief techniques (hillshade, hypsometric tint, contours, slope/aspect/curvature, TRI/TPI/roughness, sky-view-factor/openness, LRM, an experimental mound detector called "Tells"), in 2D/3D/Globe, exportable as GeoTIFF/screenshots/QGIS templates.
 2. **Historical Imagery mode** — scrub a per-tile capture-date timeline across providers (ESRI Wayback, Google Earth Historical, Landsat/Sentinel HLS, Planet, Bing), with N-way grid/split compare and CSS-blend-mode overlay.
 
+## The two headline features
+
+**Terrain Visualization Modes** — every relief technique the app has, stackable and independently tunable. See [Terrain Visualization Modes](/features/visualization-modes) for the complete guide (equations, dev-page deep dives, per-mode controls):
+
+<VizModeGrid
+  groups={[
+    {
+      category: "Base Layers",
+      modes: [
+        { label: "Hillshade", image: "/docs/screenshots/viz-modes/hillshade.jpg", alt: "Hillshade visualization mode, with its Hillshade controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&showHillshade=true&hillshadeOpacity=1&exaggeration=1" },
+        { label: "Elevation Hypso", image: "/docs/screenshots/viz-modes/hypso.jpg", alt: "Elevation Hypso combined with Hillshade, with its Elevation Color controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&showHillshade=true&showColorRelief=true&hillshadeOpacity=0.6&colorRamp=tv-a&hypsoSliderMaxBound=4230&maxElevation=8620&minElevation=1450&colorReliefOpacity=0.9&hypsoSliderMinBound=90&exaggeration=1" },
+        { label: "Contours + GeoGrid", image: "/docs/screenshots/viz-modes/contours.jpg", alt: "Contour lines, with the Contours & GeoGrid controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.977&lng=7.6512&zoom=13.02&pitch=0&viewMode=3d&showHillshade=false&showContours=true&showContoursAndGraticules=true&contourWeight=2&contourMinor=10&contourMajor=100&showGraticuleLabels=true&exaggeration=1" },
+      ],
+    },
+    {
+      category: "Terrain Analysis",
+      modes: [
+        { label: "Slope", image: "/docs/screenshots/viz-modes/slope.jpg", alt: "Slope visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showTerrainAnalysis=true&showSlope=true&hillshadeOpacity=0.5&slopeMaxDegrees=84&exaggeration=1" },
+        { label: "Curvature", image: "/docs/screenshots/viz-modes/curvature.jpg", alt: "Curvature (Profile / Flow Acceleration) visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showTerrainAnalysis=true&showSlope=false&showCurvature=true&hillshadeOpacity=0.2&curvatureMode=profile&curvatureMin=-5&curvatureMax=5&exaggeration=1" },
+        { label: "TPI", image: "/docs/screenshots/viz-modes/tpi.jpg", alt: "Topographic Position Index (TPI) visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showTerrainAnalysis=true&showSlope=false&showTpi=true&hillshadeOpacity=0.2&tpiMin=-6&tpiMax=6&exaggeration=1" },
+      ],
+    },
+    {
+      category: "Relief Visualization",
+      modes: [
+        { label: "LRM", image: "/docs/screenshots/viz-modes/lrm.jpg", alt: "Local Relief Model (LRM) visualization mode, with its Relief Visualization controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" },
+        { label: "Sky-View Factor", image: "/docs/screenshots/viz-modes/svf.jpg", alt: "Sky-View Factor (SVF) visualization mode, with its Relief Visualization controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=false&showSvf=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" },
+        { label: "Openness", image: "/docs/screenshots/viz-modes/openness.jpg", alt: "Openness visualization mode, with its Relief Visualization controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=false&showOpenness=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" },
+      ],
+    },
+    {
+      category: "Light",
+      modes: [
+        { label: "Phong", image: "/docs/screenshots/viz-modes/phong.jpg", alt: "Phong lighting visualization mode, with its Lighting Effects controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showRasterBasemap=true&showLightingEffects=true&showPhong=true&hillshadeOpacity=0.2&illuminationDir=165.9&illuminationAlt=59.8&lightTimeOfDay=13&lightUseDatetime=true&rasterBasemapOpacity=0.5&lightDayOfYear=126&phongSpecularStrength=0.6&phongDiffuseStrength=0.5&exaggeration=1" },
+        { label: "Matcap", image: "/docs/screenshots/viz-modes/matcap.jpg", alt: "Matcap lighting visualization mode (Clay Brown material), with its Lighting Effects controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9744&lng=7.6511&zoom=13.1&pitch=0&viewMode=3d&showHillshade=true&showLightingEffects=true&showPhong=false&showMatcap=true&hillshadeOpacity=0.2&matcapLightRelativeToCamera=false&matcapTextureId=clay_brown&matcapRenderer=raster&exaggeration=1" },
+        { label: "Hard Shadows", image: "/docs/screenshots/viz-modes/hard-shadows.jpg", alt: "Hard Shadows visualization mode, with its Lighting Effects controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showLightingEffects=true&showPhong=false&showShadows=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" },
+      ],
+    },
+  ]}
+/>
+
+See [Terrain Visualization Modes](/features/visualization-modes) for the full writeup of every mode above.
+
+**Historical Imagery** — a per-tile capture-date timeline, and any grid layout up to 4×2 for comparing providers/dates side by side. Below, a 2×2 grid mixes Google Earth Historical, ESRI Wayback, and a live Bing pane over the same Paris rooftops across four different capture dates:
+
+![Historical Imagery grid mode, 2×2, mixing Google Earth Historical, ESRI Wayback, and a live Bing basemap across four capture dates](/screenshots/overview-historical-grid-2x2.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Historical Imagery, Split Mode Side (2×2) — Paris — <a href="https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=15.37&lat=48.8525&lng=2.3506&pitch=0&splitStyle=side-by-side&gridLayout=2x2&showRasterBasemap=true&showCaptureDatePill=source-date&basemapSourceA=historical&basemapSourceC=bing&basemapSourceD=historical&dateA=1192924800000&dateB=1312156800000&dateC=1633644000000&dateD=1728086400000&historicalActiveSourceA=ge-historical&basemapSourceB=historical" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+
+See [Basemaps & Historical Imagery](/features/basemaps-and-historical) for the four providers behind this and how the timeline works.
+
 ## Sidebar groups
 
 - **General Settings** — View Mode (2D/3D/Globe), Split Mode (Off/Overlay/Side, up to an 8-view grid), Project import/export
 - **[Visualization Modes](/features/visualization-modes)**
 - **[Bookmarks](/features/bookmarks)**
-- **Sources** — Terrain and Basemap, including the combined **[Basemaps & Historical Imagery](/features/basemaps-and-historical)** entry
+- **[Sources](/features/terrain-sources)** — Terrain and Basemap, including the combined **[Basemaps & Historical Imagery](/features/basemaps-and-historical)** entry
 - **Options / Tools** — per-mode option panels, Drawing, Elevation Picker, Animation, Source Info
 
 ## Where to go next

@@ -214,12 +214,11 @@ export function dayOfYearToDate(dayOfYear: number, year = 2026): Date {
   return d
 }
 
-/** Day-of-year (1–365) → "YYYY-MM-DD" (e.g. 121 → "2026-05-01"). */
+/** Day-of-year (1–365) → "Mon D" (e.g. 121 → "May 1") — no year, since
+ *  day-of-year is inherently year-agnostic (see dayOfYearFromDate). */
 export function formatDayOfYear(dayOfYear: number, year = 2026): string {
   const d = dayOfYearToDate(dayOfYear, year)
-  const mm = String(d.getMonth() + 1).padStart(2, "0")
-  const dd = String(d.getDate()).padStart(2, "0")
-  return `${d.getFullYear()}-${mm}-${dd}`
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
 /** "YYYY-MM-DD" → day-of-year (1–365); ignores the year (month/day only).

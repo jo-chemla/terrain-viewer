@@ -51,6 +51,8 @@ export function VizModeGrid({ groups }: { groups: VizModeGroup[] }) {
                   src={mode.image}
                   alt={mode.alt}
                   data-lightbox=""
+                  data-lightbox-title={mode.label}
+                  data-lightbox-href={mode.href}
                   className="aspect-video w-full cursor-zoom-in rounded-lg border object-cover transition-opacity hover:opacity-90"
                 />
               </div>

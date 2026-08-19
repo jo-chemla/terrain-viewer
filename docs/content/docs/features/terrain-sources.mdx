@@ -1,34 +1,52 @@
 ---
-title: Terrain Sources
-description: The built-in DEM tile sources — Mapterhorn, Mapbox, MapTiler, and AWS Terrain Tiles
+title: Sources
+description: The built-in DEM tile sources (Mapterhorn, Mapbox, MapTiler, AWS Terrain Tiles) and worldwide basemap providers
 ---
 
-Every built-in terrain source streams `raster-dem` tiles (Terrarium or Mapbox Terrain-RGB encoding) — pick one from Sources → Terrain, or click its **ⓘ** (info) icon there for the same summary shown here plus a ready-to-run GDAL export command. See [Bring Your Own Data](/features/byod) to add a source not listed below.
+The **Sources** group in the sidebar covers two independent pickers — **Terrain** (the DEM driving elevation/relief/exaggeration) and **Basemap** (the imagery draped on top, or shown as Raster Basemap) — see [Overview → Sidebar groups](/overview#sidebar-groups) for where this sits relative to the rest of the app. Both accept your own sources too, not just the built-ins below — see [Bring Your Own Data](/features/byod).
+
+## Terrain
+
+Every built-in terrain source streams `raster-dem` tiles (Terrarium or Mapbox Terrain-RGB encoding) — pick one from Sources → Terrain, or click its **ⓘ** (info) icon there for the same summary shown here plus a ready-to-run GDAL export command.
 
 ![The Terrain source info dialog — link, encoding, and a ready-to-run GDAL/TMS export command](/screenshots/terrain-source-info.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">Terrain source info dialog (Mapterhorn) — Patagonia, Chile — <a href="https://terrain-viewer.iconem.com/?lat=-50.9423&lng=-73.0637&zoom=11.5&pitch=60&bearing=20&viewMode=3d&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+<p className="text-sm text-fd-muted-foreground italic">Terrain source info dialog (Mapterhorn) — Patagonia, Chile — <a href="https://terrain-viewer.iconem.com/?lat=-50.9423&lng=-73.0637&zoom=11.5&pitch=60&bearing=20&viewMode=3d&showHillshade=true&hillshadeMethod=standard&hillshadeOpacity=1&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
-## Mapterhorn — Terrarium
+### Mapterhorn — Terrarium
 
 [mapterhorn.com](https://mapterhorn.com/) · Terrarium encoding · zoom 18 · 512px tiles
 
 An open, community-run "Protomaps for terrain" project: a global low-resolution base (ESA Copernicus GLO-30) with high-resolution national LiDAR data swapped in wherever it's available — its own [coverage page](https://mapterhorn.com/coverage/) maps out exactly which regions get the sharper zoom-13+ tiles.
 
-## Mapbox — Terrain-DEM v1
+### Mapbox — Terrain-DEM v1
 
 [docs.mapbox.com](https://docs.mapbox.com/data/tilesets/reference/mapbox-terrain-dem-v1/) · Terrain-RGB encoding · zoom 14 · 256px tiles
 
 Global coverage at 0.1m elevation increments — a compressed, optimized successor to Mapbox's original Terrain-RGB v1 tileset. Only available through Mapbox's own SDKs (not the plain Raster Tiles API), and requires a Mapbox API key.
 
-## MapTiler — Terrain-RGB v2
+### MapTiler — Terrain-RGB v2
 
 [maptiler.com/terrain](https://www.maptiler.com/terrain/) · Terrain-RGB encoding · zoom 12 · 512px tiles
 
 A composite of multiple high-resolution DEMs curated by MapTiler's geodata team — ~30m resolution globally, down to 5m in several European countries. MapTiler also publishes a separate "Ocean RGB" tileset for bathymetry, though this app only wires up the land-elevation Terrain-RGB one. Requires a MapTiler API key.
 
-## AWS Terrain Tiles — Terrarium (Mapzen)
+### AWS Terrain Tiles — Terrarium (Mapzen)
 
 [registry.opendata.aws](https://registry.opendata.aws/terrain-tiles/) · Terrarium encoding · zoom 16 · 256px tiles
 
 The original open Tilezen/Joerd dataset (built by Mapzen, continuing as an AWS Open Data Registry mirror after Mapzen's shutdown) — the only built-in source with genuine **ocean bathymetry**: land elevation (SRTM at mid/high zoom, GMTED2010 at low zoom) is blended with global ETOPO1 bathymetry everywhere water replaces a zero-elevation gap, plus regional high-resolution inserts (US 3DEP/NED, ArcticDEM, EU-DEM, Canada's CDEM, and more). No API key needed.
+
+## Worldwide Basemap Sources (TMS)
+
+The **Basemap** section under Sources offers several satellite/hybrid TMS providers, all built-in with no setup required beyond an API key where noted:
+
+- **[Google Hybrid](https://mapsplatform.google.com/)** — satellite + roads/labels
+- **[Google Satellite](https://mapsplatform.google.com/)** — satellite only
+- **[Bing Aerial](https://www.bing.com/maps/aerial)**
+- **[ESRI World Imagery](https://www.esri.com/en-us/arcgis/products/arcgis-image/services/world-imagery)**
+- **[Mapbox Satellite](https://www.mapbox.com/)** — requires a Mapbox API key
+- **[HERE Satellite](https://www.here.com/)** — requires a HERE API key
+- **[OpenStreetMap](https://www.openstreetmap.org/)** — vector-style street map, not satellite
+
+Plus the combined **Historical Imagery** entry (ESRI Wayback, HLS, Google Earth Historical, Planet) — see [Basemaps & Historical Imagery](/features/basemaps-and-historical) for the four providers behind it and how the timeline resolves a date to a tile.

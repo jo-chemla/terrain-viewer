@@ -5,6 +5,14 @@ description: The release-chained alternative to Google Earth Historical's per-ti
 
 ESRI Wayback is one of four providers behind [Historical Imagery mode](/features/basemaps-and-historical). Where [Google Earth Historical](/dev/ge-historical) is *self-contained per-tile*  — every capture date for a tile lives inside that one tile's quadtree packet — Wayback is **release-chained**: a flat, dated catalog of full, independently-addressable global tile pyramids. `lib/wayback.ts` is a thin wrapper around [`@esri/wayback-core`](https://github.com/Esri/wayback-core) (the SDK behind Esri's own Wayback app) that resolves that release model into the same "one date in, one tile source out" shape every other historical provider in this app already has.
 
+<Callout title="Three different dates, easy to conflate" type="warn">
+Wayback surfaces (and this app displays) **three distinct dates** for the same pixel:
+
+- **Release date** — the date a Wayback *release* was published (e.g. `"World Imagery (Wayback 2014-02-20)"`), parsed from the catalog entry's title. This is what the sidebar list and the timeline's release ticks show — it's a publish date, not a capture date.
+- **Mosaic composition date** — Esri's own general "as-of" date for a release's global mosaic, which can lag or blend imagery captured well before the release date, and varies by location (a release is composited from many underlying source images stitched together, not one single flight/pass).
+- **Imagery capture date** — the *real* per-tile date the pixels under your cursor were actually photographed, queried live from Esri's own World Imagery MapServer **identify** endpoint on click/hover (`fetchWaybackCaptureMeta()` in `lib/wayback.ts`, wrapping the same `getMetadata` call the official Wayback app's own capture-date pill uses). This is the one date that's authoritative for what you're actually looking at — it can differ from the release date by months, and this app always prefers it over the release date whenever it's available (see `useWaybackRealCaptureDates`/`useEsriLiveCaptureDate` below).
+</Callout>
+
 ## What a "release" is
 
 `@esri/wayback-core` fetches a single JSON catalog once, `waybackconfig.json`, keyed by release number:

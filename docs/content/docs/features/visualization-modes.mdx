@@ -14,32 +14,32 @@ Most of these are inspired by `gdaldem` and the [RVT (Relief Visualization Toolb
       category: "Base Layers",
       modes: [
         { label: "Hillshade", image: "/docs/screenshots/viz-modes/hillshade.jpg", alt: "Hillshade visualization mode, with its Hillshade controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&showHillshade=true&hillshadeOpacity=1&exaggeration=1" },
-        { label: "Elevation Hypso", image: "/docs/screenshots/viz-modes/hypso.jpg", alt: "Elevation Hypso combined with Hillshade, with its Elevation Color controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&showColorRelief=true&showHillshade=true&hillshadeOpacity=0.6&exaggeration=1" },
-        { label: "Contours + GeoGrid", image: "/docs/screenshots/viz-modes/contours.jpg", alt: "Contour lines, with the Contours & GeoGrid controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=13.2&pitch=0&bearing=0&viewMode=3d&showContoursAndGraticules=true&showContours=true&showHillshade=false&exaggeration=1" },
+        { label: "Elevation Hypso", image: "/docs/screenshots/viz-modes/hypso.jpg", alt: "Elevation Hypso combined with Hillshade, with its Elevation Color controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&showHillshade=true&showColorRelief=true&hillshadeOpacity=0.6&colorRamp=tv-a&hypsoSliderMaxBound=4230&maxElevation=8620&minElevation=1450&colorReliefOpacity=0.9&hypsoSliderMinBound=90&exaggeration=1" },
+        { label: "Contours + GeoGrid", image: "/docs/screenshots/viz-modes/contours.jpg", alt: "Contour lines, with the Contours & GeoGrid controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.977&lng=7.6512&zoom=13.02&pitch=0&viewMode=3d&showHillshade=false&showContours=true&showContoursAndGraticules=true&contourWeight=2&contourMinor=10&contourMajor=100&showGraticuleLabels=true&exaggeration=1" },
       ],
     },
     {
       category: "Terrain Analysis",
       modes: [
-        { label: "Slope", image: "/docs/screenshots/viz-modes/slope.jpg", alt: "Slope visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showTerrainAnalysis=true&showSlope=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" },
-        { label: "Curvature", image: "/docs/screenshots/viz-modes/curvature.jpg", alt: "Curvature visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showTerrainAnalysis=true&showSlope=false&showCurvature=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" },
-        { label: "TPI", image: "/docs/screenshots/viz-modes/tpi.jpg", alt: "Topographic Position Index (TPI) visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showTerrainAnalysis=true&showSlope=false&showTpi=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" },
+        { label: "Slope", image: "/docs/screenshots/viz-modes/slope.jpg", alt: "Slope visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showTerrainAnalysis=true&showSlope=true&hillshadeOpacity=0.5&slopeMaxDegrees=84&exaggeration=1" },
+        { label: "Curvature", image: "/docs/screenshots/viz-modes/curvature.jpg", alt: "Curvature (Profile / Flow Acceleration) visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showTerrainAnalysis=true&showSlope=false&showCurvature=true&hillshadeOpacity=0.2&curvatureMode=profile&curvatureMin=-5&curvatureMax=5&exaggeration=1" },
+        { label: "TPI", image: "/docs/screenshots/viz-modes/tpi.jpg", alt: "Topographic Position Index (TPI) visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showTerrainAnalysis=true&showSlope=false&showTpi=true&hillshadeOpacity=0.2&tpiMin=-6&tpiMax=6&exaggeration=1" },
       ],
     },
     {
       category: "Relief Visualization",
       modes: [
-        { label: "LRM", image: "/docs/screenshots/viz-modes/lrm.jpg", alt: "Local Relief Model (LRM) visualization mode, with its Relief Visualization controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" },
-        { label: "Sky-View Factor", image: "/docs/screenshots/viz-modes/svf.jpg", alt: "Sky-View Factor (SVF) visualization mode, with its Relief Visualization controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=false&showSvf=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" },
-        { label: "Openness", image: "/docs/screenshots/viz-modes/openness.jpg", alt: "Openness visualization mode, with its Relief Visualization controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=false&showOpenness=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" },
+        { label: "LRM", image: "/docs/screenshots/viz-modes/lrm.jpg", alt: "Local Relief Model (LRM) visualization mode, with its Relief Visualization controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" },
+        { label: "Sky-View Factor", image: "/docs/screenshots/viz-modes/svf.jpg", alt: "Sky-View Factor (SVF) visualization mode, with its Relief Visualization controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=false&showSvf=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" },
+        { label: "Openness", image: "/docs/screenshots/viz-modes/openness.jpg", alt: "Openness visualization mode, with its Relief Visualization controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=false&showOpenness=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" },
       ],
     },
     {
       category: "Light",
       modes: [
-        { label: "Phong", image: "/docs/screenshots/viz-modes/phong.jpg", alt: "Phong lighting visualization mode, with its Lighting Effects controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showLightingEffects=true&showPhong=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" },
-        { label: "Matcap", image: "/docs/screenshots/viz-modes/matcap.jpg", alt: "Matcap lighting visualization mode, with its Lighting Effects controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showLightingEffects=true&showPhong=false&showMatcap=true&matcapTextureId=metal_carpaint&matcapRenderer=raster&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" },
-        { label: "Hard Shadows", image: "/docs/screenshots/viz-modes/hard-shadows.jpg", alt: "Hard Shadows visualization mode, with its Lighting Effects controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showLightingEffects=true&showPhong=false&showShadows=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" },
+        { label: "Phong", image: "/docs/screenshots/viz-modes/phong.jpg", alt: "Phong lighting visualization mode, with its Lighting Effects controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showRasterBasemap=true&showLightingEffects=true&showPhong=true&hillshadeOpacity=0.2&illuminationDir=165.9&illuminationAlt=59.8&lightTimeOfDay=13&lightUseDatetime=true&rasterBasemapOpacity=0.5&lightDayOfYear=126&phongSpecularStrength=0.6&phongDiffuseStrength=0.5&exaggeration=1" },
+        { label: "Matcap", image: "/docs/screenshots/viz-modes/matcap.jpg", alt: "Matcap lighting visualization mode (Clay Brown material), with its Lighting Effects controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9744&lng=7.6511&zoom=13.1&pitch=0&viewMode=3d&showHillshade=true&showLightingEffects=true&showPhong=false&showMatcap=true&hillshadeOpacity=0.2&matcapLightRelativeToCamera=false&matcapTextureId=clay_brown&matcapRenderer=raster&exaggeration=1" },
+        { label: "Hard Shadows", image: "/docs/screenshots/viz-modes/hard-shadows.jpg", alt: "Hard Shadows visualization mode, with its Lighting Effects controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showLightingEffects=true&showPhong=false&showShadows=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" },
       ],
     },
   ]}
@@ -79,7 +79,7 @@ Color-encoded elevation with a choice of color ramps (including [CPT City](http:
 
 ![Elevation Hypso combined with Hillshade, with the Elevation Color controls panel open](/screenshots/viz-modes/hypso.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">Elevation Hypso + Hillshade, with the Elevation Color controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&showColorRelief=true&showHillshade=true&hillshadeOpacity=0.6&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+<p className="text-sm text-fd-muted-foreground italic">Elevation Hypso + Hillshade, with the Elevation Color controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&showHillshade=true&showColorRelief=true&hillshadeOpacity=0.6&colorRamp=tv-a&hypsoSliderMaxBound=4230&maxElevation=8620&minElevation=1450&colorReliefOpacity=0.9&hypsoSliderMinBound=90&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 ## Contours + Geo Grid
 
@@ -87,7 +87,7 @@ Configurable-interval contour lines via [onthegomap/maplibre-contour](https://gi
 
 ![Contour lines, with the Contours & GeoGrid controls panel open](/screenshots/viz-modes/contours.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">Contours + GeoGrid alone (no Hillshade), top-down, with the Contours & GeoGrid controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=13.2&pitch=0&bearing=0&viewMode=3d&showContoursAndGraticules=true&showContours=true&showHillshade=false&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+<p className="text-sm text-fd-muted-foreground italic">Contours + GeoGrid alone (no Hillshade), top-down, with the Contours & GeoGrid controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.977&lng=7.6512&zoom=13.02&pitch=0&viewMode=3d&showHillshade=false&showContours=true&showContoursAndGraticules=true&contourWeight=2&contourMinor=10&contourMajor=100&showGraticuleLabels=true&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 ## Terrain Analysis
 
@@ -99,7 +99,7 @@ See [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) and [E
 
 ![Slope visualization mode over Hillshade, with the Terrain Analysis controls panel open](/screenshots/viz-modes/slope.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">Terrain Analysis — Slope + Hillshade, with the Terrain Analysis controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showTerrainAnalysis=true&showSlope=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+<p className="text-sm text-fd-muted-foreground italic">Terrain Analysis — Slope + Hillshade, with the Terrain Analysis controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showTerrainAnalysis=true&showSlope=true&hillshadeOpacity=0.5&slopeMaxDegrees=84&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 - **Slope** — magnitude of the gradient
 - **Aspect** — direction of the gradient
@@ -121,7 +121,7 @@ SVF/Openness/Local Dominance share the terrain-analysis pipeline above (just a r
 
 ![LRM (Local Relief Model) over Hillshade, with the Relief Visualization controls panel open](/screenshots/viz-modes/lrm.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">Relief Visualization — LRM + Hillshade, with the Relief Visualization controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+<p className="text-sm text-fd-muted-foreground italic">Relief Visualization — LRM + Hillshade, with the Relief Visualization controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 ## Lighting Effects
 
@@ -133,7 +133,7 @@ See [Lighting Effects](/dev/lighting-effects) for how these differ from the terr
 
 ![Phong lighting over Hillshade, with the Lighting Effects controls panel open](/screenshots/viz-modes/phong.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">Lighting Effects — Phong + Hillshade, with the Lighting Effects controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showLightingEffects=true&showPhong=true&showHillshade=true&hillshadeOpacity=0.2&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+<p className="text-sm text-fd-muted-foreground italic">Lighting Effects — Phong + Hillshade + Raster Basemap, Datetime-driven light direction, with the Lighting Effects controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showRasterBasemap=true&showLightingEffects=true&showPhong=true&hillshadeOpacity=0.2&illuminationDir=165.9&illuminationAlt=59.8&lightTimeOfDay=13&lightUseDatetime=true&rasterBasemapOpacity=0.5&lightDayOfYear=126&phongSpecularStrength=0.6&phongDiffuseStrength=0.5&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 ## Tells (Mound Candidate) Detection — Beta
 

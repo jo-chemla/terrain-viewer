@@ -120,7 +120,17 @@ export const LightingEffectsOptionsSection: React.FC<{
                     items={MATCAP_TEXTURES.map((tex) => ({ value: tex.id, label: tex.name }))}
                   >
                     <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
-                      <SelectValue />
+                      <SelectValue>
+                        {(() => {
+                          const current = MATCAP_TEXTURES.find((tex) => tex.id === state.matcapTextureId)
+                          return (
+                            <div className="flex items-center gap-2">
+                              {current && <img src={current.url} alt="" className="w-5 h-5 rounded-full object-cover border shrink-0" />}
+                              <span>{current?.name ?? state.matcapTextureId}</span>
+                            </div>
+                          )
+                        })()}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {MATCAP_TEXTURES.map((tex) => (
