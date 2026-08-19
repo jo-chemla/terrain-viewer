@@ -88,7 +88,10 @@ export const GdalTabs: React.FC<{
 
         <div className="max-h-64 overflow-auto">
           <TabsContent value="url" className="p-3 pt-2 text-xs font-mono">
-            <Code lang="shell" padding="0" className="sh-theme">
+            {/* No `lang` — this is a bare tile URL template ({z}/{x}/{y}
+                placeholders), not a real shell command; "shell" coloring
+                (quoting/flag highlights meant for bash) read as noise here. */}
+            <Code padding="0" className="sh-theme">
               {tileUrl}
             </Code>
           </TabsContent>

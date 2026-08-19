@@ -1550,9 +1550,9 @@ export function TerrainViewer() {
           // so an explicit URL param always wins.
           const HISTORICAL_HOSTNAME_DEFAULTS: Record<string, unknown> = {
             viewMode: "2d",
-            zoom: 1.95,
-            lat: 21.0692,
-            lng: 10.6095,
+            zoom: 1.46,
+            lat: 28.2176,
+            lng: 11.5101,
             pitch: 0,
             splitStyle: "overlay",
             showRasterBasemap: true,

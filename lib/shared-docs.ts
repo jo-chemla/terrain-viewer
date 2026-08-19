@@ -4,7 +4,10 @@
 // links, and credits: Fumadocs renders them as real docs pages, and this
 // same raw text (minus the frontmatter Fumadocs needs but react-markdown
 // doesn't) is what the Settings dialog renders inline.
-const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n/
+// \r?\n (not a bare \n) — these files have CRLF line endings on disk
+// (Windows checkout); a literal \n-only pattern silently fails to match,
+// leaving the raw "title: ...\ndescription: ..." frontmatter rendered as text.
+const FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n/
 // Strips the "single source of truth" explainer comment each shared file
 // carries for whoever's reading the raw .mdx — meaningless once rendered.
 // MDX only accepts JSX-style comments ({/* ... */}), not HTML's <!-- -->

@@ -57,6 +57,17 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
     },
   },
   {
+    id: "google-3d-area-explorer",
+    label: "Google 3D Area Explorer",
+    // Same permalink already used by the "Google 3D Tiles" terrain source's
+    // own documentation link (lib/terrain-sources.ts's google3dtiles.link,
+    // opened via terrain-source-section.tsx's linkCallback/templateLink) —
+    // a fixed-orbit 3D camera over Google's Photorealistic 3D Tiles at a
+    // given lat/lng, independent of this app's own terrain/basemap sources.
+    buildUrl: ({ lat, lng }) =>
+      `https://goo.gle/3d-area-explorer-admin#camera.orbitType=fixed-orbit&location.coordinates.lat=${lat}&location.coordinates.lng=${lng}`,
+  },
+  {
     id: "esri-wayback",
     label: "ESRI Wayback Machine",
     buildUrl: ({ lat, lng, zoom, latestWaybackRelease }) => {
