@@ -8,6 +8,7 @@ import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
 Matcap, Phong, and Hard Shadows are grouped as "Lighting Effects" in the app's sidebar, but they don't share the [terrain-analysis pipeline](/dev/terrain-analysis-pipeline)'s pseudo-elevation trick — they need an actual shaded RGBA color per pixel, not a scalar smuggled through `raster-dem`. All three still start from the same shared surface normal computation.
 
 ![Phong lighting visualization mode, with its Lighting Effects controls panel open](/screenshots/viz-modes/phong.jpg)
+
 <p className="text-sm text-fd-muted-foreground italic">Phong + Hillshade backdrop — Matterhorn massif</p>
 
 ## Shared foundation: `normals-protocol.ts`
