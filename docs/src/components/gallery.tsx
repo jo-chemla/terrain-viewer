@@ -1,72 +1,79 @@
+'use client';
+
+import type { MouseEvent } from 'react';
+
 export interface GalleryItem {
-  /** Short label shown above the thumbnail, and used as the lightbox title. */
+  /** Short label — used as the lightbox title (and as the filmstrip
+   *  thumbnail's tooltip), not rendered as visible on-page text (that's
+   *  what made the old grid layout's row heights fight each other: some
+   *  labels wrapped to two lines, some didn't, so cards in the same row
+   *  stopped lining up). */
   title: string;
   image: string;
   alt: string;
-  /** Live app URL reproducing this exact screenshot's state — when present,
-   *  the title becomes a link (grid) / the lightbox title becomes clickable. */
+  /** Live app URL reproducing this exact screenshot's state — becomes the
+   *  lightbox title's link when present. */
   href?: string;
 }
 
 export interface GalleryGroup {
-  /** Optional section heading above this group's row — omit for a single
-   *  ungrouped grid. */
+  /** Optional section heading above this group's hero+filmstrip — omit for
+   *  a single ungrouped gallery. */
   category?: string;
   items: GalleryItem[];
 }
 
-/** Compact thumbnail grid, click-to-lightbox via the page's shared
- *  LightboxProvider (see lightbox.tsx) — fumadocs ships no gallery/carousel
- *  primitive of its own, so this is the reusable stand-in: a flat grid
- *  instead of a long vertical run of individual markdown images, for any
- *  page with more than a handful of screenshots (Walkthrough, blend-mode
- *  comparisons, LRM radius variants, …). */
-export function Gallery({
-  groups,
-  cols = 4,
-}: {
-  groups: GalleryGroup[];
-  cols?: 2 | 3 | 4;
-}) {
-  const colsClass = cols === 2 ? 'sm:grid-cols-2' : cols === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-4';
+/** Large first-image "hero" + a filmstrip of every image in the group below
+ *  it, click-to-lightbox (looping left/right through the whole group) via
+ *  the shared LightboxProvider — fumadocs ships no gallery/carousel
+ *  primitive of its own. The hero delegates its click to the filmstrip's
+ *  own first thumbnail (a real click, not a second data-lightbox element)
+ *  so the lightbox's item list has exactly one entry per image, not two. */
+export function Gallery({ groups }: { groups: GalleryGroup[] }) {
+  const openFirst = (e: MouseEvent<HTMLImageElement>) => {
+    const filmstrip = e.currentTarget.parentElement?.querySelector<HTMLElement>('[data-lightbox]');
+    filmstrip?.click();
+  };
+
   return (
     <div className="not-prose flex flex-col gap-8">
-      {groups.map((group, gi) => (
-        <div key={group.category ?? gi} className="flex flex-col gap-3">
-          {group.category && (
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-fd-muted-foreground">
-              {group.category}
-            </h3>
-          )}
-          <div className={`grid grid-cols-2 gap-4 ${colsClass}`}>
-            {group.items.map((item) => (
-              <div key={item.title} className="flex flex-col gap-2">
-                {item.href ? (
-                  <a
-                    href={item.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-medium text-fd-primary hover:underline"
-                  >
-                    {item.title} ↗
-                  </a>
-                ) : (
-                  <div className="text-sm font-medium">{item.title}</div>
-                )}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={item.image}
-                  alt={item.alt}
-                  data-lightbox=""
-                  data-lightbox-title={item.title}
-                  data-lightbox-href={item.href}
-                  className="aspect-video w-full cursor-zoom-in rounded-lg border object-cover transition-opacity hover:opacity-90"
-                />
+      {groups.map((group, gi) => {
+        const [first, ...rest] = group.items;
+        if (!first) return null;
+        return (
+          <div key={group.category ?? gi} className="flex flex-col gap-3">
+            {group.category && (
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-fd-muted-foreground">
+                {group.category}
+              </h3>
+            )}
+            <div className="flex flex-col gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={first.image}
+                alt={first.alt}
+                onClick={openFirst}
+                className="aspect-video w-full cursor-zoom-in rounded-lg border object-cover transition-opacity hover:opacity-90"
+              />
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {group.items.map((item) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={item.title}
+                    src={item.image}
+                    alt={item.alt}
+                    title={item.title}
+                    data-lightbox=""
+                    data-lightbox-title={item.title}
+                    data-lightbox-href={item.href}
+                    className="aspect-video w-24 shrink-0 cursor-zoom-in rounded border object-cover transition-opacity hover:opacity-90 sm:w-32"
+                  />
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

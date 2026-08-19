@@ -50,10 +50,25 @@ type OpenInDestination = {
 export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
   {
     id: "google-earth-web",
-    label: "Google Earth Web",
+    label: "Google Earth Web (2D, Historical)",
+    // The `data=` payload is opaque protobuf, reverse-engineered from a
+    // real Google Earth Web session rather than derived — captured
+    // directly off a live "2D + Historical layer on" URL, tilt (`t`) fixed
+    // at 0 for the top-down 2D framing.
     buildUrl: ({ lat, lng, zoom }) => {
       const altitude = ((38000 * 4096) / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180)
-      return `https://earth.google.com/web/@${lat},${lng},0a,${altitude}d,35y,0h,0t,0r/data=CgwqBggBEgAYAUICCAE6AwoBMEoNCP___________wEQAA`
+      return `https://earth.google.com/web/@${lat},${lng},0a,${altitude}d,35y,0h,0t,0r/data=CgwqBggBEgAYAUICCAE6AwoBMEICCABKDQj___________8BEAA`
+    },
+  },
+  {
+    id: "google-earth-web-3d",
+    label: "Google Earth Web (3D, no Historical)",
+    // Same altitude formula as the 2D destination above; a different
+    // (shorter) `data=` payload — the Historical-layer flag isn't set in
+    // this one — and tilt (`t`) fixed at 60 for a 3D-oblique framing.
+    buildUrl: ({ lat, lng, zoom }) => {
+      const altitude = ((38000 * 4096) / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180)
+      return `https://earth.google.com/web/@${lat},${lng},0a,${altitude}d,35y,0h,60t,0r/data=CgRCAggBOgMKATBCAggASg0I____________ARAA`
     },
   },
   {

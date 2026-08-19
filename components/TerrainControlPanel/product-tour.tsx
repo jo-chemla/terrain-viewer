@@ -374,6 +374,32 @@ const TERRAIN_STEPS: TourStepDef[] = [
     onEnter: prepareHillshadeOnly,
   },
   {
+    key: "hypso-section", domId: "tour-hypso-section", side: "left", align: "start",
+    title: "Color by Elevation (Hypsometric)",
+    description: "Elevation Hypso paints terrain by altitude. Choose from dozens of curated color ramps (Classic, CET, cpt-city, and more) or build a custom one, and check Min/Max below to set a custom elevation range yourself — drag the slider, type exact values, or click the mountain-snow icon to auto-set it from the DEM tiles currently loaded in your viewport.",
+    onEnter: prepareHypsoOnly,
+  },
+  {
+    key: "terrain-analysis-section", domId: "tour-terrain-analysis-section", side: "left", align: "start",
+    title: "Terrain Analysis",
+    description: "Surface derivatives (Slope, Aspect, Curvature), neighborhood statistics (TPI, TRI, Roughness, and more), and Principal Components (Blobness, Eigenvalue Ratio, etc). Each sub-mode has its own checkbox, and checking one reveals its own color ramp and range options directly beneath it. Slope is switched on here as an example.",
+    onEnter: prepareTerrainAnalysisOnly,
+  },
+  {
+    key: "relief-visualization-section", domId: "tour-relief-visualization-section", side: "left", align: "start",
+    title: "Relief Visualization",
+    description: (
+      <>
+        <p className="pb-2">Multi-scale relief and visibility modes:</p>
+        <ul className="list-disc pl-4 space-y-1.5">
+          <li><span className="font-semibold text-foreground">Local Relief Model</span>: relative elevation to neighborhood, computed by subtracting the lower-resolution terrain altitude interpolation.</li>
+          <li><span className="font-semibold text-foreground">Sky View Factor, Openness, and Local Dominance</span>: heavier computations that reveal subtle terrain structure standard hillshading misses. Sky View Factor and the others are ray-marched and noticeably slower but beautiful, worth trying once you're exploring your own data.</li>
+        </ul>
+      </>
+    ),
+    onEnter: prepareReliefVisualizationOnly,
+  },
+  {
     key: "terrain-section", domId: "tour-terrain-section", side: "left", align: "start",
     title: "Terrain Sources",
     description: "Picks the elevation (DEM) data itself — distinct from the raster Basemap imagery next.",
@@ -416,32 +442,6 @@ const TERRAIN_STEPS: TourStepDef[] = [
         <li><span className="font-semibold text-foreground">Side</span>: two panes side by side — compare 2+ terrain or basemap sources directly against each other.</li>
       </ul>
     ),
-  },
-  {
-    key: "hypso-section", domId: "tour-hypso-section", side: "left", align: "start",
-    title: "Color by Elevation (Hypsometric)",
-    description: "Elevation Hypso paints terrain by altitude. Choose from dozens of curated color ramps (Classic, CET, cpt-city, and more) or build a custom one, and check Min/Max below to set a custom elevation range yourself — drag the slider, type exact values, or click the mountain-snow icon to auto-set it from the DEM tiles currently loaded in your viewport.",
-    onEnter: prepareHypsoOnly,
-  },
-  {
-    key: "terrain-analysis-section", domId: "tour-terrain-analysis-section", side: "left", align: "start",
-    title: "Terrain Analysis",
-    description: "Surface derivatives (Slope, Aspect, Curvature), neighborhood statistics (TPI, TRI, Roughness, and more), and Principal Components (Blobness, Eigenvalue Ratio, etc). Each sub-mode has its own checkbox, and checking one reveals its own color ramp and range options directly beneath it. Slope is switched on here as an example.",
-    onEnter: prepareTerrainAnalysisOnly,
-  },
-  {
-    key: "relief-visualization-section", domId: "tour-relief-visualization-section", side: "left", align: "start",
-    title: "Relief Visualization",
-    description: (
-      <>
-        <p className="pb-2">Multi-scale relief and visibility modes:</p>
-        <ul className="list-disc pl-4 space-y-1.5">
-          <li><span className="font-semibold text-foreground">Local Relief Model</span>: relative elevation to neighborhood, computed by subtracting the lower-resolution terrain altitude interpolation.</li>
-          <li><span className="font-semibold text-foreground">Sky View Factor, Openness, and Local Dominance</span>: heavier computations that reveal subtle terrain structure standard hillshading misses. Sky View Factor and the others are ray-marched and noticeably slower but beautiful, worth trying once you're exploring your own data.</li>
-        </ul>
-      </>
-    ),
-    onEnter: prepareReliefVisualizationOnly,
   },
   {
     key: "terrain-tools", domId: "tour-tools-group", side: "left", align: "start",
