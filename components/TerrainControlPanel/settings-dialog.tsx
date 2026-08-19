@@ -971,16 +971,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                     Unlocks Planet Monthly Mosaics as a historical Basemap option — hidden until set.
                   </p>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="google-key">Google Maps API Key</Label>
-                  <PasswordInput
-                    id="google-key"
-                    value={googleKey}
-                    onChange={(e: any) => setGoogleKey(e.target.value)}
-                    className="cursor-text"
-                  />
-                </div>
               </>
             )}
           </CollapsibleSection>

@@ -2,21 +2,20 @@
 
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEffect, useState } from 'react';
 
+/** One run of the title bar — plain text, or a clickable link (its own
+ *  visible text plus an href). A caption can contain more than one link
+ *  (e.g. "see the Walkthrough (docs) or take it yourself in-app ↗") — the
+ *  title bar renders every segment in order rather than picking just one. */
+interface TitleNode {
+  text: string;
+  href?: string;
+}
+
 interface LightboxItem {
   src: string;
   alt: string;
   type: 'image' | 'video';
-  /** Plain text shown before the link (or the whole title, if there's no
-   *  link) — for prose images this is the caption's own text with the link
-   *  portion stripped off the end, so the lightbox title reads identically
-   *  to the caption underneath the thumbnail. For the viz-mode grid (whose
-   *  own link precedes the image, not a following caption) this is empty
-   *  and the mode label becomes the whole linkText instead. */
-  titleText?: string;
-  /** The clickable portion's own text (e.g. "open in app ↗", or "Slope ↗"
-   *  for a grid cell) — rendered as an `<a>` only when linkHref is set. */
-  linkText?: string;
-  linkHref?: string;
+  titleNodes: TitleNode[];
 }
 
 interface LightboxState {
@@ -24,31 +23,39 @@ interface LightboxState {
   index: number;
 }
 
+// Internal doc links are written relative to the docs root ("/features/...")
+// but this app is mounted under the "/docs" basePath — a plain <a> (not
+// Next's <Link>) opened directly at that path 404s. External "open in app"
+// links (full https://terrain-viewer.iconem.com/... URLs) are untouched.
+function resolveHref(raw: string): string {
+  return raw.startsWith('/') && !raw.startsWith('/docs') ? `/docs${raw}` : raw;
+}
+
 /** Prose images render as `<p><img/></p>` (remark's standalone-image
- *  wrapping); the caption `<p className="...italic">...<a href>...</a></p>`
- *  is its next sibling. Whatever anchor the caption itself contains (an
- *  "open in app" reproduction link, or a plain cross-reference like "see
- *  Split & Compare Modes") becomes the lightbox's clickable portion, using
- *  its own text — same link the caption already shows underneath the
- *  thumbnail. The viz-mode grid doesn't use this shape at all (its own
- *  link precedes the image) — it sets data-lightbox-title/-href directly
- *  instead, so this is only ever consulted as a fallback. */
-function readCaption(img: HTMLImageElement): { text: string; linkText?: string; href?: string } {
+ *  wrapping); the caption `<p className="...italic">...</p>` is its next
+ *  sibling. Walks the caption's own child nodes in order, turning each
+ *  anchor into a linked TitleNode and everything else into plain text — so
+ *  the lightbox title reads identically to the caption underneath the
+ *  thumbnail, links and all, regardless of how many links it contains. The
+ *  viz-mode grid doesn't use this shape at all (its own link precedes the
+ *  image) — it sets data-lightbox-title/-href directly instead, so this is
+ *  only ever consulted as a fallback. */
+function readCaptionNodes(img: HTMLImageElement): TitleNode[] {
   const sibling = img.parentElement?.nextElementSibling;
-  if (sibling?.tagName !== 'P') return { text: img.alt };
-  const fullText = sibling.textContent?.trim() ?? '';
-  const linkEl = sibling.querySelector('a[href]');
-  if (!linkEl) return { text: fullText || img.alt };
-  const linkText = linkEl.textContent ?? '';
-  const rawHref = linkEl.getAttribute('href') ?? undefined;
-  // Internal doc links are written relative to the docs root ("/features/...")
-  // but this app is mounted under the "/docs" basePath — a plain <a> (not
-  // Next's <Link>) opened directly at that path 404s. External "open in
-  // app" links (full https://terrain-viewer.iconem.com/... URLs) are
-  // untouched.
-  const href = rawHref?.startsWith('/') && !rawHref.startsWith('/docs') ? `/docs${rawHref}` : rawHref;
-  const text = fullText.endsWith(linkText) ? fullText.slice(0, fullText.length - linkText.length) : fullText;
-  return { text, linkText, href };
+  if (sibling?.tagName !== 'P') return img.alt ? [{ text: img.alt }] : [];
+  const nodes: TitleNode[] = [];
+  for (const node of Array.from(sibling.childNodes)) {
+    if (node instanceof HTMLAnchorElement) {
+      const rawHref = node.getAttribute('href');
+      nodes.push({ text: node.textContent ?? '', href: rawHref ? resolveHref(rawHref) : undefined });
+    } else {
+      const text = node.textContent ?? '';
+      if (text) nodes.push({ text });
+    }
+  }
+  if (nodes.length) return nodes;
+  const fallback = sibling.textContent?.trim() || img.alt;
+  return fallback ? [{ text: fallback }] : [];
 }
 
 function readItem(el: Element): LightboxItem | null {
@@ -60,24 +67,14 @@ function readItem(el: Element): LightboxItem | null {
         src: el.currentSrc || el.src,
         alt: el.alt,
         type: 'image',
-        titleText: '',
-        linkText: dataHref ? `${dataTitle} ↗` : dataTitle,
-        linkHref: dataHref,
+        titleNodes: [{ text: dataHref ? `${dataTitle} ↗` : dataTitle, href: dataHref }],
       };
     }
-    const caption = readCaption(el);
-    return {
-      src: el.currentSrc || el.src,
-      alt: el.alt,
-      type: 'image',
-      titleText: caption.text,
-      linkText: caption.linkText,
-      linkHref: caption.href,
-    };
+    return { src: el.currentSrc || el.src, alt: el.alt, type: 'image', titleNodes: readCaptionNodes(el) };
   }
   if (el instanceof HTMLVideoElement) {
     const dataTitle = el.getAttribute('data-lightbox-title') || undefined;
-    return { src: el.currentSrc || el.src, alt: '', type: 'video', titleText: dataTitle };
+    return { src: el.currentSrc || el.src, alt: '', type: 'video', titleNodes: dataTitle ? [{ text: dataTitle }] : [] };
   }
   return null;
 }
@@ -158,18 +155,22 @@ export function LightboxProvider({ children }: { children: ReactNode }) {
           </button>
 
           <div className="flex h-14 shrink-0 items-center justify-center px-16 pt-2" onClick={stop}>
-            {(current.titleText || current.linkText) && (
+            {current.titleNodes.length > 0 && (
               <div className="max-w-full truncate text-center text-sm text-white/90">
-                {current.titleText}
-                {current.linkHref && (
-                  <a
-                    href={current.linkHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-white/90 hover:text-white hover:underline"
-                  >
-                    {current.linkText}
-                  </a>
+                {current.titleNodes.map((node, i) =>
+                  node.href ? (
+                    <a
+                      key={i}
+                      href={node.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-white/90 hover:text-white hover:underline"
+                    >
+                      {node.text}
+                    </a>
+                  ) : (
+                    <span key={i}>{node.text}</span>
+                  ),
                 )}
               </div>
             )}

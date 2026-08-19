@@ -153,6 +153,7 @@ function prepareTerrainAnalysisOnly(a: TourActions) {
   prepareTerrainBase(a, {
     showHillshade: true, hillshadeOpacity: 0.3, showColorRelief: false, showReliefVisualization: false,
     showTerrainAnalysis: true, terrainAnalysisOpacity: 1, showSlope: true, showCurvature: false,
+    slopeMinDegrees: 0, slopeMaxDegrees: 90,
   })
   a.setSectionOpen((prev) => ({ ...prev, hillshade: false }))
 }

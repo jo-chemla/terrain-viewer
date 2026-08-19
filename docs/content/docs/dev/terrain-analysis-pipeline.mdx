@@ -38,7 +38,9 @@ Each fetched tile's RGBA is decoded to a `Float32Array` using the upstream's enc
 
 $$
 h_{\text{terrarium}} = \left(R \cdot 256 + G + \frac{B}{256}\right) - 32768
-\qquad
+$$
+
+$$
 h_{\text{mapbox}} = -10000 + (R \cdot 256^2 + G \cdot 256 + B) \cdot 0.1
 $$
 

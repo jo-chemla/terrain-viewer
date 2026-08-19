@@ -32,7 +32,7 @@ Click anywhere on the terrain to read off its elevation, sourced from the same a
 
 Fly the camera along a scripted path through the scene — set keyframe camera poses and interpolate between them, exportable as a rendered fly-through. Available in Terrain mode; Historical mode's own Tools group drops it since there's no single continuous elevation surface to fly a smooth camera path over.
 
-{/* Native panel capture is 384 CSS px wide (768px at deviceScaleFactor 2) — capped so it isn't upscaled to the full prose column width. */}
-<img src="/docs/screenshots/tools/animation.jpg" alt="The Animation panel" style={{ maxWidth: 384, width: "100%" }} />
+{/* Native panel capture is 384 CSS px wide (768px at deviceScaleFactor 2) — capped at 75% of that so the panel reads smaller than the prose column without shrinking too far, and centered since it no longer spans the full column width. */}
+<img src="/docs/screenshots/tools/animation.jpg" alt="The Animation panel" style={{ maxWidth: 288, width: "100%", display: "block", marginLeft: "auto", marginRight: "auto" }} />
 
 <p className="text-sm text-fd-muted-foreground italic">Animation — panel only</p>

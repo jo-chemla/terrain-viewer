@@ -1,5 +1,22 @@
+# Changelog — Docs Site Expansion and Open-In Additions
+<!-- released: 2026-08-19 -->
+
+#### TL;DR
+- **Docs site expansion** — dozens of new or re-shot real screenshots across Visualization Modes, the full guided-tour Walkthrough, Split & Compare, and more; new user-facing pages (Walkthrough, Tools, Frescoes & Artifact Scans) in the Features guide; new developer documentation (Lighting Effects, Terrain Analysis Pipeline, ESRI Wayback).
+- New **Open In** destinations (Iconem River-REM, Google Maps 3D, Google Earth Historical/3D), a `?startTour=true` deep link to launch the guided tour directly, plus assorted fixes (lightbox caption links, changelog date-key collisions, KaTeX formula layout).
+
+### Features
+- **Docs site** — Visualization Modes, Walkthrough, Split & Compare, Basemaps & Historical, Sources, Tools, Frescoes & Artifact Scans, and several Dev pages substantially expanded with real app screenshots, reproduction URLs, and clarifying prose.
+- **Open In** — Iconem River-REM, Google Maps 3D, and separate Google Earth Historical (web) / Google Earth 3D (web) destinations; ESRI Wayback Machine moved to the top of the list.
+- `?startTour=true` URL param launches the guided product tour directly, independent of first-visit state.
+
+### Bug Fixes
+- Docs lightbox: a caption link followed by trailing text (e.g. a parenthetical note) no longer gets pushed past the title bar's truncation, hiding the actual clickable link.
+- Changelog: two entries sharing the same release date collided on the same React key — a browser console warning explains it, but see the fix in this entry's own `<!-- released -->` marker for the general pattern.
+- Terrain Source "Google 3D Tiles (via DeckGL only)" removed from Worldwide Defaults — the same experience is reachable via the Google Maps 3D / Google Earth 3D (web) Open-In destinations instead.
+
 # Changelog — Terrain Camera Fixes, Terrain Sources Docs, and Favicon Polish
-<!-- released: 2026-08-16 -->
+<!-- released: 2026-08-16T17:00 -->
 
 #### TL;DR
 - **Camera sync fixes** — DEM tiles arriving after terrain turns on, pane resizes, and the padding `easeTo` all leave the elevation reference stale. Re-anchored on `idle` via `recalculateZoomAndCenter` (holds camera position, solves for the new center/zoom — nothing moves on screen), guarded by a 1 m epsilon so padding changes and mode switches don't nudge the focus point. The view you last touched is authoritative; the others are copied wholesale from it.
@@ -24,7 +41,7 @@
 - Docs: XYPad demo video 404 (`visualization-modes.mdx`'s `<video src>` was missing the `/docs` base-path prefix).
 
 # Changelog — Guided Product Tour
-<!-- released: 2026-08-16 -->
+<!-- released: 2026-08-16T09:00 -->
 
 #### TL;DR
 - New **guided product tour** (Compass icon in Settings, or auto-starts on first visit): a branching walkthrough covering the shared basics, then either the Terrain visualization tools or Historical Satellite imagery mode, chosen at a fork partway through.

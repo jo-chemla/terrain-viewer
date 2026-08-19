@@ -21,7 +21,9 @@ $$
 
 $$
 \frac{\partial z}{\partial x} = \frac{a_0 + 2a_3 + a_6 - a_2 - 2a_5 - a_8}{8 L \cos(\text{lat})}
-\qquad
+$$
+
+$$
 \frac{\partial z}{\partial y} = \frac{a_6 + 2a_7 + a_8 - a_0 - 2a_1 - a_2}{8 L \cos(\text{lat})}
 $$
 
@@ -43,7 +45,9 @@ Compass bearing of the gradient direction, converted from math convention (CCW f
 
 $$
 \theta_{\text{math}} = \operatorname{atan2}\!\left(\tfrac{\partial z}{\partial y},\, -\tfrac{\partial z}{\partial x}\right) \cdot \frac{180}{\pi}
-\qquad
+$$
+
+$$
 \text{aspect}° = (90 - \theta_{\text{math}}) \bmod 360
 $$
 
@@ -82,22 +86,38 @@ $$
 Four sub-modes share one Zevenbergen & Thorne (1987) second-order fit over the 3×3 window ($p, q$ = first partials; $r, t, s$ = second partials; $L$ = ground spacing):
 
 $$
-p = \frac{a_5 - a_3}{2L} \quad r = \frac{a_5 - 2a_4 + a_3}{L^2} \qquad
-q = \frac{a_7 - a_1}{2L} \quad t = \frac{a_7 - 2a_4 + a_1}{L^2} \qquad
+p = \frac{a_5 - a_3}{2L} \qquad r = \frac{a_5 - 2a_4 + a_3}{L^2}
+$$
+
+$$
+q = \frac{a_7 - a_1}{2L} \qquad t = \frac{a_7 - 2a_4 + a_1}{L^2}
+$$
+
+$$
 s = \frac{a_2 - a_0 - a_8 + a_6}{4L^2}
 $$
 
 - **Combined** — discrete Laplacian, ×100 (no single canonical GDAL algorithm to port from, unlike slope/aspect/TRI):
 
   $$
-  \nabla^2 z = \frac{a_1 + a_3 + a_5 + a_7 - 4a_4}{L^2} \qquad \text{combined} = 100 \cdot \nabla^2 z
+  \nabla^2 z = \frac{a_1 + a_3 + a_5 + a_7 - 4a_4}{L^2}
+  $$
+
+  $$
+  \text{combined} = 100 \cdot \nabla^2 z
   $$
 
 - **Profile** (curvature along steepest descent — flow acceleration) / **Plan** (curvature across contours — flow convergence/divergence, $\equiv \operatorname{div}(\nabla z / |\nabla z|)$), both ×100, undefined ($\to 0$) on flat ground:
 
   $$
-  g = p^2 + q^2 \qquad
-  \text{profile} = \frac{100\,(r p^2 + 2spq + tq^2)}{g\,(1+g)^{1.5}} \qquad
+  g = p^2 + q^2
+  $$
+
+  $$
+  \text{profile} = \frac{100\,(r p^2 + 2spq + tq^2)}{g\,(1+g)^{1.5}}
+  $$
+
+  $$
   \text{plan} = \frac{100\,(r q^2 - 2spq + tp^2)}{g^{1.5}}
   $$
 
@@ -110,7 +130,10 @@ $$
 - **Casorati / Shape Index** — both derived from the principal curvatures (eigenvalues of the Hessian $\begin{bmatrix} r & s \\ s & t \end{bmatrix}$), the small-slope approximation:
 
   $$
-  \text{tr} = r + t \qquad \text{disc} = \sqrt{(r-t)^2 + 4s^2} \qquad
+  \text{tr} = r + t \qquad \text{disc} = \sqrt{(r-t)^2 + 4s^2}
+  $$
+
+  $$
   \kappa_1 = \frac{\text{tr} + \text{disc}}{2} \qquad \kappa_2 = \frac{\text{tr} - \text{disc}}{2}
   $$
 
@@ -131,11 +154,18 @@ All modes ×`CURVATURE_ENCODE_SCALE = 1000` at the wire-encoding step only (undo
 A Förstner/Harris-style structure tensor $J = \begin{bmatrix} I_{xx} & I_{xy} \\ I_{xy} & I_{yy} \end{bmatrix}$, where each entry is the 3×3-box average of $g_x^2$, $g_y^2$, $g_x g_y$ — the Horn gradient computed at each of the window's 9 sub-cells (needs a 5×5 halo, since each sub-cell's own gradient needs its own 3×3 neighborhood):
 
 $$
-I_{xx} = \overline{g_x^2} \qquad I_{yy} = \overline{g_y^2} \qquad I_{xy} = \overline{g_x g_y} \qquad \text{tr} = I_{xx} + I_{yy}
+I_{xx} = \overline{g_x^2} \qquad I_{yy} = \overline{g_y^2}
 $$
 
 $$
-\text{disc} = \sqrt{(I_{xx}-I_{yy})^2 + 4I_{xy}^2} \qquad
+I_{xy} = \overline{g_x g_y} \qquad \text{tr} = I_{xx} + I_{yy}
+$$
+
+$$
+\text{disc} = \sqrt{(I_{xx}-I_{yy})^2 + 4I_{xy}^2}
+$$
+
+$$
 \lambda_{\max} = \frac{\text{tr} + \text{disc}}{2} \qquad \lambda_{\min} = \frac{\text{tr} - \text{disc}}{2}
 $$
 
@@ -145,7 +175,9 @@ $$
 
   $$
   \theta_{\text{math}} = \tfrac{1}{2}\operatorname{atan2}(2I_{xy},\, I_{xx}-I_{yy}) \cdot \frac{180}{\pi}
-  \qquad
+  $$
+
+  $$
   \text{orientation}° = \big((90 - \theta_{\text{math}}) \bmod 180 + 180\big) \bmod 180
   $$
 
@@ -189,7 +221,9 @@ Places a virtual observer of eye height $oh = 1.6\text{m}$ at each pixel and ave
 
 $$
 \theta(\text{dir}, d) = \arctan\!\left(\frac{z_{\text{observer}} + oh - z_{\text{terrain}}}{d}\right)
-\qquad
+$$
+
+$$
 \text{localDominance} = \overline{\theta(\text{dir}, d)}
 $$
 
@@ -201,7 +235,9 @@ Not a neighborhood formula — see the dedicated [LRM page](/dev/lrm) for the fu
 
 $$
 \text{LRM} = h_{\text{fine}}(\text{native zoom}) - \operatorname{bilinear}(h_{\text{ancestor}},\ k\text{ levels up})
-\qquad
+$$
+
+$$
 k = \operatorname{clamp}\!\big(\operatorname{round}(\log_2(\text{radiusPx})),\ 1,\ 6\big)
 $$
 
@@ -215,7 +251,9 @@ Standard heightfield-to-normal formula from the Horn gradient, object-space (not
 
 $$
 \ell = \frac{1}{\sqrt{\left(\tfrac{\partial z}{\partial x}\right)^2 + \left(\tfrac{\partial z}{\partial y}\right)^2 + 1}}
-\qquad
+$$
+
+$$
 \vec n = \left(-\tfrac{\partial z}{\partial x}\cdot\ell,\ -\tfrac{\partial z}{\partial y}\cdot\ell,\ \ell\right)
 $$
 
@@ -227,9 +265,13 @@ Rotated normal $(n_x, n_y)$ used directly as a texture UV (orthographic simplifi
 
 $$
 (r_x, r_y) = \operatorname{rotate}(n_x, n_y,\ \theta_{\text{rotation}})
-\qquad
+$$
+
+$$
 \text{uv} = (r_x, r_y) \cdot 0.5 + 0.5
-\qquad
+$$
+
+$$
 \text{color} = \text{matcapTexture}(\text{uv})
 $$
 
@@ -238,19 +280,26 @@ $$
 ### Phong (Blinn-Phong)
 
 $$
-\text{AMBIENT} = 0.35 \qquad \text{SHININESS} = 32 \qquad
+\text{AMBIENT} = 0.35 \qquad \text{SHININESS} = 32
+$$
+
+$$
 \vec H = \operatorname{normalize}(\vec L + \vec V),\ \ \vec V = (0,0,1)
 $$
 
 $$
 \text{diffuse} = k_d \cdot \max(\vec N \cdot \vec L,\ 0)
-\qquad
+$$
+
+$$
 I_{\text{diffuse}} = \operatorname{clamp}(\text{AMBIENT} + \text{diffuse},\ 0,\ 1)
 $$
 
 $$
 \text{specular} = k_s \cdot \max(\vec N \cdot \vec H,\ 0)^{\text{SHININESS}}
-\qquad
+$$
+
+$$
 \text{total} = I_{\text{diffuse}} + \text{specular}
 $$
 
@@ -272,7 +321,9 @@ $$
 
 $$
 \text{horizonAngle} = \max_{r=1}^{\text{radius}} \operatorname{atan2}\!\big(h(r) - h_{\text{center}},\ r \cdot L\big)
-\qquad
+$$
+
+$$
 \text{inShadow} = \text{horizonAngle} > \text{alt}_{\text{rad}}
 $$
 

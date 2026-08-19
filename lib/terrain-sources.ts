@@ -68,15 +68,18 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
   //     encoding: "terrarium",
   //   },
   // },
-  google3dtiles: {
-    name: "Google 3D Tiles (via DeckGL only)",
-    link: "https://goo.gle/3d-area-explorer-admin#camera.orbitType=fixed-orbit&location.coordinates.lat={LAT}&location.coordinates.lng={LNG}",
-    description: "Google 3D Cities not available, 3D-tiles tileset are not compatible with Maplibre GL JS without Deck.gl. See https://mapsplatform.google.com/demos/3d-maps and https://developers.google.com/maps/architecture/3d-area-explorer",
-    encoding: "3dtiles",
-    sourceConfig: {
-      type: "3dtiles",
-      tiles: ["https://tile.googleapis.com/v1/3dtiles/root.json?key={API_KEY}"],
-      encoding: "3dtiles",
-    },
-  },
+  // Removed from Worldwide Defaults — this experience is now reachable via
+  // the "Google Maps 3D" / "Google Earth 3D (web)" Open-In destinations
+  // instead (see open-in-links.tsx), which don't need Deck.gl at all.
+  // google3dtiles: {
+  //   name: "Google 3D Tiles (via DeckGL only)",
+  //   link: "https://goo.gle/3d-area-explorer-admin#camera.orbitType=fixed-orbit&location.coordinates.lat={LAT}&location.coordinates.lng={LNG}",
+  //   description: "Google 3D Cities not available, 3D-tiles tileset are not compatible with Maplibre GL JS without Deck.gl. See https://mapsplatform.google.com/demos/3d-maps and https://developers.google.com/maps/architecture/3d-area-explorer",
+  //   encoding: "3dtiles",
+  //   sourceConfig: {
+  //     type: "3dtiles",
+  //     tiles: ["https://tile.googleapis.com/v1/3dtiles/root.json?key={API_KEY}"],
+  //     encoding: "3dtiles",
+  //   },
+  // },
 }

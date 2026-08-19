@@ -26,7 +26,9 @@ const nx = -dx * invLen, ny = -dy * invLen, nz = invLen
 <Tab value="Formula">
 $$
 \ell = \frac{1}{\sqrt{\left(\tfrac{\partial z}{\partial x}\right)^2 + \left(\tfrac{\partial z}{\partial y}\right)^2 + 1}}
-\qquad
+$$
+
+$$
 \vec n = \left(-\tfrac{\partial z}{\partial x}\cdot\ell,\ -\tfrac{\partial z}{\partial y}\cdot\ell,\ \ell\right)
 $$
 </Tab>
@@ -66,9 +68,13 @@ vec3 matcapColor = texture(u_matcap, uv).rgb;
 <Tab value="Formula">
 $$
 (r_x, r_y) = \operatorname{rotate}(n_x, n_y,\ \theta_{\text{rotation}})
-\qquad
+$$
+
+$$
 \text{uv} = (r_x, r_y) \cdot 0.5 + 0.5
-\qquad
+$$
+
+$$
 \text{color} = \text{matcapTexture}(\text{uv})
 $$
 </Tab>
@@ -91,19 +97,26 @@ const total = diffuseIntensity + specular
 </Tab>
 <Tab value="Formula">
 $$
-\text{AMBIENT} = 0.35 \qquad \text{SHININESS} = 32 \qquad
+\text{AMBIENT} = 0.35 \qquad \text{SHININESS} = 32
+$$
+
+$$
 \vec H = \operatorname{normalize}(\vec L + \vec V),\ \ \vec V = (0,0,1)
 $$
 
 $$
 \text{diffuse} = k_d \cdot \max(\vec N \cdot \vec L,\ 0)
-\qquad
+$$
+
+$$
 I_{\text{diffuse}} = \operatorname{clamp}(\text{AMBIENT} + \text{diffuse},\ 0,\ 1)
 $$
 
 $$
 \text{specular} = k_s \cdot \max(\vec N \cdot \vec H,\ 0)^{\text{SHININESS}}
-\qquad
+$$
+
+$$
 \text{total} = I_{\text{diffuse}} + \text{specular}
 $$
 </Tab>
@@ -147,7 +160,9 @@ $$
 
 $$
 \text{horizonAngle} = \max_{r=1}^{\text{radius}} \operatorname{atan2}\!\big(h(r) - h_{\text{center}},\ r \cdot L\big)
-\qquad
+$$
+
+$$
 \text{inShadow} = \text{horizonAngle} > \text{alt}_{\text{rad}}
 $$
 </Tab>
