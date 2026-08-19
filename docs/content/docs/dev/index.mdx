@@ -1,5 +1,5 @@
 ---
-title: Dev
+title: Setup
 description: Running the app, its structure, and its architecture
 ---
 
@@ -28,6 +28,19 @@ Nearly every sidebar control — viewport (lat/lng/zoom/pitch/bearing), active t
 - [Bookmarks](/features/bookmarks) are really just a saved query string plus a thumbnail.
 - Embedding a specific configuration (e.g. in an iframe) is just linking to the right URL — see `?project=` and `terrainUrl=`/`basemapUrl=` for pointing straight at a custom source without registering it first.
 
+```mermaid
+flowchart LR
+  U["Sidebar control"] -->|"nuqs setState"| Q["URL query string"]
+  Q -->|"nuqs parse on load"| S["React state"]
+  S --> M["MapLibre render"]
+  S -.->|"copy address bar"| L["Bookmark / shared link"]
+  K["API keys, ramps,\nUI collapse state"] -->|"jotai atomWithStorage"| J["localStorage\n(this browser only)"]
+```
+
+Not everything is in the URL — API keys, custom color ramps, and collapsed-section preferences live in `localStorage` via `jotai`, since those are per-browser, not part of "the view" someone else would want when opening your link.
+
+See [Tech Stack](/dev/tech-stack) for the libraries this is built on.
+
 ## Structure
 
 - `components/TerrainViewer.tsx` (~3,200 lines) — central orchestrator, all state wiring
@@ -49,7 +62,7 @@ Each of these is a `maplibregl.addProtocol()` registration in `TerrainViewer.tsx
 - [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) — Slope, Aspect, Curvature, TRI, TPI, Roughness, Blobness, Sky-View Factor, Openness, Local Dominance: the shared "compute a scalar, smuggle it through raster-dem" mechanism
 - [LRM (Local Relief Model)](/dev/lrm) — the one terrain-derivative mode that reads a coarser pyramid ancestor tile instead of a same-zoom neighborhood
 - [Lighting Effects](/dev/lighting-effects) — Matcap, Phong, Hard Shadows: real surface normals, GPU shading, and a live-WebGL fast path
-- [Equations & Formulas](/dev/equations) — every mode's exact math in one place
+- [Equations & Formulas](/features/equations) — every mode's exact math in one place
 - [WMS Float32 DEM Protocol](/dev/wms-float32-protocol) — bridging a plain WMS elevation service into MapLibre's raster-dem pipeline
 
 ## Historical imagery source adapters

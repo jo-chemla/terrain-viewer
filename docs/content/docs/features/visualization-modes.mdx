@@ -6,7 +6,47 @@ description: Hillshade, hypsometric tint, relief and terrain-analysis derivative
 import { VisualizationModesDescription } from "@/components/visualization-modes-description";
 import { VizModeGrid } from "@/components/viz-mode-grid";
 
-Most of these are inspired by `gdaldem` and the [RVT (Relief Visualization Toolbox)](https://github.com/EarthObservation/RVT) QGIS plugin. "Neighborhood" usually means a 3×3 kernel centered on the pixel.
+Most of these are inspired by `gdaldem` and the [RVT (Relief Visualization Toolbox)](https://github.com/EarthObservation/RVT) QGIS plugin. "Neighborhood" usually means a 3×3 kernel centered on the pixel. Every mode stacks over the terrain/basemap and over each other — for the terrain-analysis, relief, and light rows below, all share the same viewport (Matterhorn massif, Switzerland/Italy) and a 20% Hillshade backdrop (except where Hillshade would be redundant), so the underlying terrain is directly comparable mode to mode:
+
+<VizModeGrid
+  groups={[
+    {
+      category: "Base Layers",
+      modes: [
+        { label: "Hillshade", image: "/docs/screenshots/viz-modes/hillshade.jpg", alt: "Hillshade visualization mode, with its Hillshade controls panel open — Matterhorn massif" },
+        { label: "Elevation Hypso", image: "/docs/screenshots/viz-modes/hypso.jpg", alt: "Elevation Hypso combined with Hillshade, with its Elevation Color controls panel open — Matterhorn massif" },
+        { label: "Contours + GeoGrid", image: "/docs/screenshots/viz-modes/contours.jpg", alt: "Contour lines, with the Contours & GeoGrid controls panel open — Matterhorn massif" },
+      ],
+    },
+    {
+      category: "Terrain Analysis",
+      modes: [
+        { label: "Slope", image: "/docs/screenshots/viz-modes/slope.jpg", alt: "Slope visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif" },
+        { label: "Curvature", image: "/docs/screenshots/viz-modes/curvature.jpg", alt: "Curvature visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif" },
+        { label: "TPI", image: "/docs/screenshots/viz-modes/tpi.jpg", alt: "Topographic Position Index (TPI) visualization mode, with its Terrain Analysis controls panel open — Matterhorn massif" },
+      ],
+    },
+    {
+      category: "Relief Visualization",
+      modes: [
+        { label: "LRM", image: "/docs/screenshots/viz-modes/lrm.jpg", alt: "Local Relief Model (LRM) visualization mode, with its Relief Visualization controls panel open — Matterhorn massif" },
+        { label: "Sky-View Factor", image: "/docs/screenshots/viz-modes/svf.jpg", alt: "Sky-View Factor (SVF) visualization mode, with its Relief Visualization controls panel open — Matterhorn massif" },
+        { label: "Openness", image: "/docs/screenshots/viz-modes/openness.jpg", alt: "Openness visualization mode, with its Relief Visualization controls panel open — Matterhorn massif" },
+      ],
+    },
+    {
+      category: "Light",
+      modes: [
+        { label: "Phong", image: "/docs/screenshots/viz-modes/phong.jpg", alt: "Phong lighting visualization mode, with its Lighting Effects controls panel open — Matterhorn massif" },
+        { label: "Matcap", image: "/docs/screenshots/viz-modes/matcap.jpg", alt: "Matcap lighting visualization mode, with its Lighting Effects controls panel open — Matterhorn massif" },
+        { label: "Hard Shadows", image: "/docs/screenshots/viz-modes/hard-shadows.jpg", alt: "Hard Shadows visualization mode, with its Lighting Effects controls panel open — Matterhorn massif" },
+      ],
+    },
+  ]}
+/>
+
+![Contours + Hillshade + Elevation Hypso + Raster Basemap, all stacked at once — Karakoram/Himalaya](/screenshots/viz-modes/combined.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Combined mode — Contours + Hillshade + Elevation Hypso + Raster Basemap stacked together, Karakoram/Himalaya</p>
 
 ## Hillshade
 
@@ -21,19 +61,31 @@ Native MapLibre hillshade with multiple illumination methods (Standard, Combined
     (see (home)/page.tsx's own comment on this). Without it this 404s in dev
     and prod alike, since docs is a standalone Next app mounted under /docs. */}
 <video src="/docs/screenshots/hillshade-direction.mp4" autoPlay loop muted playsInline className="rounded-lg border" />
-<p className="text-sm text-fd-muted-foreground italic">Dragging the XYPad to set light azimuth/elevation</p>
+<p className="text-sm text-fd-muted-foreground italic">Hillshade — dragging the XYPad to set light azimuth/elevation</p>
+
+![Hillshade Method set to Aspect (Multidir Colors) — the colored/aspect-tinted variant, split against a Combined grayscale hillshade](/screenshots/viz-modes/aspect-multidir.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Hillshade — Aspect (Multidir Colors) method, split against Combined grayscale, Andes/Patagonia</p>
 
 ## Elevation Hypso (Hypsometric Tint)
 
 Color-encoded elevation with a choice of color ramps (including [CPT City](http://seaviewsensing.com/pub/cpt-city/) ramps) — see [MapLibre PR #5913](https://github.com/maplibre/maplibre-gl-js/pull/5913).
 
+![Elevation Hypso combined with Hillshade, with the Elevation Color controls panel open](/screenshots/viz-modes/hypso.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Elevation Hypso + Hillshade, with the Elevation Color controls panel open — Matterhorn massif</p>
+
 ## Contours + Geo Grid
 
 Configurable-interval contour lines via [onthegomap/maplibre-contour](https://github.com/onthegomap/maplibre-contour), plus a lat/lng graticule overlay.
 
+![Contour lines, with the Contours & GeoGrid controls panel open](/screenshots/viz-modes/contours.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Contours + GeoGrid alone (no Hillshade), with the Contours & GeoGrid controls panel open — Matterhorn massif</p>
+
 ## Terrain Analysis
 
-See [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) and [Equations & Formulas](/dev/equations) for how these are computed client-side from the raster-dem source.
+See [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) and [Equations & Formulas](/features/equations) for how these are computed client-side from the raster-dem source.
+
+![Slope visualization mode over Hillshade, with the Terrain Analysis controls panel open](/screenshots/viz-modes/slope.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Terrain Analysis — Slope + Hillshade, with the Terrain Analysis controls panel open — Matterhorn massif</p>
 
 - **Slope** — magnitude of the gradient
 - **Aspect** — direction of the gradient
@@ -53,12 +105,19 @@ SVF/Openness/Local Dominance share the terrain-analysis pipeline above (just a r
 - **Openness** — mean angular distance from zenith to the horizon across the same 8 directions; **Positive** highlights ridges/summits, **Negative** highlights valleys/pits
 - **Local Dominance** — local visibility-weighted elevation contrast
 
+![LRM (Local Relief Model) over Hillshade, with the Relief Visualization controls panel open](/screenshots/viz-modes/lrm.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Relief Visualization — LRM + Hillshade, with the Relief Visualization controls panel open — Matterhorn massif</p>
+
 ## Lighting Effects
 
 See [Lighting Effects](/dev/lighting-effects) for how these differ from the terrain-analysis pipeline above (real surface normals, GPU shading, a live-WebGL fast path), and [Sun Position](/features/sun-position) for the astronomy behind driving Phong's light from real solar position.
 
 - **Matcap** — material-capture-style shading looked up by surface normal, independent of any real light direction
 - **Phong** — ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light, sharing the "hold L, drag" on-map light control
+- **Hard Shadows** — cast shadows from a single ray marched toward the sun's actual azimuth/altitude
+
+![Phong lighting over Hillshade, with the Lighting Effects controls panel open](/screenshots/viz-modes/phong.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Lighting Effects — Phong + Hillshade, with the Lighting Effects controls panel open — Matterhorn massif</p>
 
 ## Tells (Mound Candidate) Detection — Beta
 
@@ -73,29 +132,3 @@ COG-streamed sources fetch ancestor (low-pass) tiles with nearest-neighbor resam
 The same description shown in the app's own Settings → Visualization Modes:
 
 <VisualizationModesDescription />
-
-
-<VizModeGrid
-  groups={[
-    {
-      category: "Terrain Analysis",
-      modes: [
-        { label: "Slope", image: "/docs/screenshots/viz-modes/slope.jpg", alt: "Slope visualization mode, with its Terrain Analysis controls panel open" },
-        { label: "Curvature", image: "/docs/screenshots/viz-modes/curvature.jpg", alt: "Curvature visualization mode, with its Terrain Analysis controls panel open" },
-      ],
-    },
-    {
-      category: "Relief Visualization",
-      modes: [
-        { label: "LRM", image: "/docs/screenshots/viz-modes/lrm.jpg", alt: "Local Relief Model (LRM) visualization mode, with its Relief Visualization controls panel open" },
-        { label: "Sky-View Factor", image: "/docs/screenshots/viz-modes/svf.jpg", alt: "Sky-View Factor (SVF) visualization mode, with its Relief Visualization controls panel open" },
-      ],
-    },
-    {
-      category: "Light",
-      modes: [
-        { label: "Phong", image: "/docs/screenshots/viz-modes/phong.jpg", alt: "Phong lighting visualization mode, with its Lighting Effects controls panel open" },
-      ],
-    },
-  ]}
-/>

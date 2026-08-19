@@ -9,7 +9,10 @@ import remarkGfm from "remark-gfm";
 // via fs rather than a normal MDX import so both surfaces render the exact
 // same source text through their own markdown pipeline instead of two
 // independently-compiled copies drifting apart.
-const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n/;
+// \r?\n (not a bare \n) — this file has CRLF line endings on disk (Windows
+// checkout), and a literal \n-only pattern silently fails to match, leaving
+// the raw "title: ...\ndescription: ..." frontmatter block rendered as text.
+const FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n/;
 const MDX_COMMENT_RE = /\{\/\*[\s\S]*?\*\/\}/g;
 
 const markdownComponents = {

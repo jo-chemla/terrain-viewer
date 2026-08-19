@@ -3,9 +3,29 @@ title: Terrain Analysis Rendering Pipeline
 description: How Slope, Aspect, Curvature and friends turn a raster-dem source into a colored layer
 ---
 
-This page covers the mechanism — how a `*-protocol.ts` file gets from an upstream raster-dem tile to a rendered layer. For what each mode *means* geomorphologically, see [Terrain Visualization Modes](/features/visualization-modes); for the exact formulas, see [Equations & Formulas](/dev/equations).
+This page covers the mechanism — how a `*-protocol.ts` file gets from an upstream raster-dem tile to a rendered layer. For what each mode *means* geomorphologically, see [Terrain Visualization Modes](/features/visualization-modes); for the exact formulas, see [Equations & Formulas](/features/equations).
 
 Slope is the reference implementation, but the same pipeline shape covers Aspect, Curvature (and its Profile/Plan/Det-Hessian/Casorati/Shape-Index sub-modes), TRI, TPI, Roughness, Blobness (and its Eigen-Ratio/Orientation sub-modes), Sky-View Factor, Openness, and Local Dominance — eleven modes, three files' worth of shared plumbing, one formula each. LRM and the Lighting Effects modes (Matcap/Phong/Hard Shadows) genuinely diverge — see [LRM](/dev/lrm) and [Lighting Effects](/dev/lighting-effects).
+
+![Slope visualization mode, with its Terrain Analysis controls panel open](/screenshots/viz-modes/slope.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Slope + Hillshade backdrop — Matterhorn massif</p>
+
+```mermaid
+flowchart TD
+  subgraph s1[" "]
+    direction LR
+    A["MapLibre asks for\nslope://z/x/y"] --> B["Fetch center tile\n+ 8 same-zoom neighbors\n(shared LRU cache)"]
+    B --> C["Decode RGBA → elevation\n(Terrarium or Mapbox)"]
+    C --> D["Stitch padded window\n(3×3, or 5×5 for Blobness)"]
+  end
+  subgraph s2[" "]
+    direction LR
+    E["Per-mode kernel\n(Horn gradient, tensor,\nor ray-marched horizon)"] --> F["Re-encode result as\npseudo-elevation\n(Terrarium/Terrain-RGB)"]
+    F --> G["type: raster-dem\nSource"]
+    G --> H["type: color-relief\nLayer + ramp"]
+  end
+  D --> E
+```
 
 ## 1. Source fetch
 
@@ -15,10 +35,11 @@ Each mode is a MapLibre [custom protocol](https://maplibre.org/maplibre-gl-js/do
 
 Each fetched tile's RGBA is decoded to a `Float32Array` using the upstream's encoding — either [Terrarium](https://www.mapzen.com/blog/elevation/) or Mapbox Terrain-RGB (`lib/elevation-encoding.ts`):
 
-```ts
-// terrarium: height = (R*256 + G + B/256) - 32768
-// mapbox:    height = -10000 + (R*256*256 + G*256 + B) * 0.1
-```
+$$
+h_{\text{terrarium}} = \left(R \cdot 256 + G + \frac{B}{256}\right) - 32768
+\qquad
+h_{\text{mapbox}} = -10000 + (R \cdot 256^2 + G \cdot 256 + B) \cdot 0.1
+$$
 
 ## 3. Stitching a padded neighborhood grid
 
@@ -30,7 +51,7 @@ The 9 decoded tiles are stitched into one padded `(n + 2·halo) × (n + 2·halo)
 - **Blobness / Eigen-Ratio / Orientation** build a Förstner/Harris structure tensor from 9 Horn gradients (one per sub-cell of the 3×3 window) and read off `det/trace`, the eigenvalue ratio, or the principal eigenvector's axis.
 - **SVF / Openness / Local Dominance** march outward in 8 compass directions (`lib/horizon-angle.ts`) rather than sampling a fixed-size window — see that file's own precision/performance tradeoffs (fixed 8 directions, integer-pixel steps, an optional "fast" power-of-two-radius approximation).
 
-The exact per-mode formulas are on the [Equations page](/dev/equations); this page is about what happens to the result once it's computed.
+The exact per-mode formulas are on the [Equations page](/features/equations); this page is about what happens to the result once it's computed.
 
 ## 5. Output encoding — the key architectural trick
 

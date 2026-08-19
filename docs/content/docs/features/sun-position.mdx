@@ -5,6 +5,9 @@ description: The astronomy behind the app's light direction, shadow calculator, 
 
 The app's [Phong lighting mode](/features/visualization-modes#lighting-effects) can be driven by real solar position instead of a manually-dragged light control, and the sidebar's shadow-length calculator inverts the same astronomy the other direction (given a shadow's length and bearing, find when it was cast). Both are powered by `lib/solar-position.ts`. A more complete, interactive version of this same math — with day/night boundary, analemma, sun-path, and full-year-coverage charts — is available as a standalone page at [terrain-viewer.iconem.com/sun-position-estimator.html](https://terrain-viewer.iconem.com/sun-position-estimator.html).
 
+![The Hillshade light-direction control in Datetime mode: date/time sliders bound to the XY pad](/screenshots/sun-datetime-control.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Hillshade light-direction control, Datetime mode — top-down view, Monument Valley, USA</p>
+
 <Callout title="Deliberately simple, not an ephemeris" type="info">
 Both the app's `solar-position.ts` and the standalone estimator use the same closed-form spherical-astronomy approximations (Cooper's declination, standard elevation/azimuth identities) rather than a precise NOAA-style algorithm. `solar-position.ts` additionally works entirely in **local solar time** (solar noon = 12:00) and skips longitude/timezone and the equation-of-time correction — accurate enough to place a light and show a believable day-length range on a slider, not to replace an ephemeris.
 </Callout>

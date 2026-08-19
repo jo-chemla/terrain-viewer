@@ -6,8 +6,15 @@ description: The libraries and services this app is built on
 - [MapLibre GL v5](https://maplibre.org/maplibre-gl-js/docs/) via [React Map GL](https://visgl.github.io/react-map-gl/) — the map renderer everything else layers on top of
 - [nuqs](https://nuqs.dev/docs/basic-usage) — shareable URL query-string state (viewport, viz toggles, sources)
 - [jotai](https://jotai.org/docs/utilities/storage) — local persistence (`atomWithStorage`) for API keys and UI collapse state
-- [shadcn/ui](https://ui.shadcn.com/docs/components) + [Tailwind CSS v4](https://tailwindcss.com/docs/styling-with-utility-classes) — components and styling
+- [shadcn/ui](https://ui.shadcn.com/docs/components) on [Base UI](https://base-ui.com/react/overview/quick-start) — component primitives (dialogs, dropdowns, tooltips, tabs) and styling, plus [Tailwind CSS v4](https://tailwindcss.com/docs/styling-with-utility-classes)
 - [onthegomap/maplibre-contour](https://github.com/onthegomap/maplibre-contour) — contour lines
 - [geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol/) — direct in-browser Cloud-Optimized GeoTIFF streaming
+- [geotiff.js](https://geotiffjs.github.io/) — parses GeoTIFF responses client-side (WMS float32 DEM bridge, COG metadata)
+- [Turf.js](https://turfjs.org/) — geospatial calculations (bounds, truncation, geometry helpers)
+- [chroma.js](https://gka.github.io/chroma.js/) — color-ramp interpolation behind every hypsometric/derivative-mode color ramp
+- [Terra Draw](https://terradraw.io/) — the Drawing tool's sketch/measure primitives, via its own MapLibre GL adapter
+- [@esri/wayback-core](https://github.com/Esri/wayback-core) — the SDK behind [ESRI Wayback](/dev/esri-wayback)'s release catalog and per-tile capture dates
+- [Coachmark](https://www.npmjs.com/package/coachmark) — the guided product tour (spotlight, step popovers, branching paths)
+- [Sugar High](https://github.com/huozhi/sugar-high) — lightweight syntax highlighting (Settings dialog code snippets, GDAL export commands)
 
-See [Dev](/dev) for how these fit together (state architecture, custom MapLibre protocols, no-backend design).
+See [Setup](/dev) for how these fit together (state architecture, custom MapLibre protocols, no-backend design).

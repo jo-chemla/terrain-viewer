@@ -10,6 +10,7 @@ The **Basemap** section under Sources offers several satellite/hybrid basemaps (
 In **split view** (grid layouts up to 4×2 / 8 views, labeled A–H), each basemap row shows an A–H button grid so a different source can be assigned per view. Clicking a row's **label** (not just its A–H buttons) sets *every* active view in the current grid layout to that source in one click — handy for putting a whole 4×2 comparison grid onto Historical Imagery without clicking each pane individually.
 
 ![Comparing basemap sources side-by-side in grid mode](/screenshots/n-grid.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Basemap comparison, Side grid mode</p>
 
 ## Historical Imagery mode
 
@@ -20,17 +21,30 @@ In **split view** (grid layouts up to 4×2 / 8 views, labeled A–H), each basem
 - **[Google Earth Historical](https://github.com/Iconem/GE_TimeMachine)** — occasional very old outlier captures for well-covered areas, via a reverse-engineered `gehist://` protocol scaffolded from Iconem's own GE_TimeMachine (see the [protocol deep dive](/dev/ge-historical) for how it actually works)
 - **[Planet Monthly Mosaic](https://www.planet.com/products/basemap/)** — requires an API key
 
-Which one actually renders for a given view/date is chosen via the timeline panel at the bottom of the map, not the sidebar.
+Which one actually renders for a given view/date is chosen via the timeline panel at the bottom of the map, not the sidebar. Each provider gets there differently — see the [dev pages](/dev/ge-historical) for the two most involved.
 
 ### The timeline panel
 
 ![Scrubbing the historical timeline across capture dates](/screenshots/historical-timeline.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Historical timeline panel — scrubbing capture dates across providers</p>
 
 - Each active view gets a draggable handle on the timeline, positioned at its currently selected capture date.
 - Source pills toggle which providers contribute ticks to the shared timeline; resolution-class filters (VHR vs. medium) narrow it further.
 - **Zoom**: mouse wheel zooms the timeline in/out around the cursor; a trackpad two-finger swipe pans. The zoom-out limit extends slightly (10% per side) past the oldest/newest real tick, so those extreme marks always have breathing room instead of sitting flush against the track's edge.
 - **Pan gutter**: when zoomed in, a small gutter below the track shows where the current window sits within the full range — drag it, or click it, to jump.
 - An off-screen handle shows a chevron; clicking it nudges the relevant edge of the view window out to reveal it.
+
+Wayback and Google Earth Historical are the two genuinely different architectures behind that timeline (release-chained catalog vs. self-contained-per-tile protocol); HLS and Planet are both simple monthly-mosaic lookups:
+
+```mermaid
+flowchart LR
+  D["Pick a date on\nthe timeline"] --> W["ESRI Wayback:\nsnap to nearest\nreal-capture RELEASE"]
+  D --> G["Google Earth Historical:\nwalk the tile's own\nquadtree packet"]
+  D --> H["HLS / Planet:\ndirect date → monthly\nmosaic URL"]
+  W --> T["Tile rendered"]
+  G --> T
+  H --> T
+```
 
 ## Dedicated historical-imagery entry point
 

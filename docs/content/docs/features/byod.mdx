@@ -5,8 +5,13 @@ description: Adding your own terrain/basemap sources, including local files
 
 Add your own terrain or basemap source from the "Add New Terrain Dataset" dialog (Sources → Terrain/Basemap). Supported shapes:
 
+![The Add New Terrain Dataset dialog, with the full built-in terrain source list behind it](/screenshots/byod-add-dataset.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Add New Terrain Dataset dialog — Hillshade (Aspect Multidir Colors), wide Western Europe view</p>
+
 - **XYZ Terrarium or Terrain-RGB** tiles (a raw tile URL template) — the same encoding used by [Mapterhorn](https://mapterhorn.com/), [Mapbox](https://www.mapbox.com/), [MapTiler](https://www.maptiler.com/), and [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/), this app's built-in terrain sources
 - **COG** (Cloud-Optimized GeoTIFF), via [Titiler](https://developmentseed.org/titiler/) or read directly in-browser via [@geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol/)
+
+A heavily-loaded Terrain source list — several custom BYOD sources (national LiDAR DSMs, a Copernicus GLO-30 export) alongside the built-in defaults — comparing two of them side by side is exactly what [Split Modes](/features/split-modes) covers.
 
 ## Local (offline) COG terrain sources
 
@@ -33,4 +38,4 @@ Then add it as a normal **COG** source with URL `http://localhost:8080/your-file
 
 ## Non-geo relief visualization
 
-For non-georeferenced data (e.g. frescoes, artifact scans), see the dedicated [Non-Geo Relief Visualization guide](/features/non-geo-relief-visualization) for the COG parameters needed to avoid artifacts.
+For non-georeferenced data (e.g. frescoes, artifact scans), see [Frescoes & Artifact Scans](/features/frescoes-and-artifacts) for the workflow (including a real built-in sample), or the [Non-Geo Relief Visualization guide](/dev/non-geo-relief-visualization) directly for the COG parameters needed to avoid artifacts.

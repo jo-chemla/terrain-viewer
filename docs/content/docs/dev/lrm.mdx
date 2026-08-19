@@ -5,6 +5,9 @@ description: Why LRM needs a genuinely different pipeline than slope/curvature/e
 
 LRM ("raw elevation minus a low-pass-filtered version," per [Terrain Visualization Modes](/features/visualization-modes)) is the one terrain-analysis-family mode that isn't a per-pixel function of a single same-zoom neighborhood — see [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) for what every other mode (Slope, Curvature, TRI, SVF, …) has in common. A low-pass "regional trend" surface normally means averaging over tens of pixels, which is expensive as a literal box/Gaussian blur computed fresh per tile. `lib/lrm-protocol.ts` avoids that entirely by exploiting the tile pyramid itself.
 
+![Local Relief Model (LRM) visualization mode, with its Relief Visualization controls panel open](/screenshots/viz-modes/lrm.jpg)
+<p className="text-sm text-fd-muted-foreground italic">LRM + Hillshade backdrop — Matterhorn massif</p>
+
 ## The ancestor-tile trick
 
 An ancestor tile $k$ zoom levels up is already a downsampled, low-pass version of the same ground area at $2^k\times$ coarser resolution — for free, since the tile server (or a COG's baked-in overview level) already did that averaging to produce it. So:

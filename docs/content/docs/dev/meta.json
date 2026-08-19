@@ -3,12 +3,13 @@
   "defaultOpen": true,
   "pages": [
     "index",
+    "tech-stack",
     "terrain-analysis-pipeline",
     "lrm",
     "lighting-effects",
-    "equations",
     "ge-historical",
     "esri-wayback",
-    "wms-float32-protocol"
+    "wms-float32-protocol",
+    "non-geo-relief-visualization"
   ]
 }

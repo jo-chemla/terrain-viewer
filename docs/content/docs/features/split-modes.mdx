@@ -1,0 +1,37 @@
+---
+title: Split & Compare Modes
+description: Off, Overlay, and Side — comparing terrain/basemap sources against each other
+---
+
+**Split Mode** (General Settings) controls how many "views" of the map are on screen and how they relate to each other. It's the same three-way choice in both Terrain and Historical Imagery mode, but Side behaves differently between them: a fixed 2×1 pane pair in Terrain mode, or any grid up to 4×2 (8 views, labeled A–H) in Historical mode.
+
+## Off
+
+A single map view — the default.
+
+![A single pane: Elevation Hypso + Hillshade, Split Mode Off](/screenshots/split-modes/off.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Split Mode: Off — Elevation Hypso + Hillshade, single pane — Matterhorn massif</p>
+
+## Overlay
+
+Two sources blended in place, with a draggable gutter (clip position) and a circular handle (blend opacity) directly on the map — see [Bring Your Own Data](/features/byod) and [Terrain Sources](/features/terrain-sources) for what `sourceA`/`sourceB` can be.
+
+![Two terrain sources (Mapterhorn / AWS Terrarium) blended in Overlay mode, with a visible clip gutter](/screenshots/split-modes/overlay.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Split Mode: Overlay — Mapterhorn vs. AWS Terrarium terrain, 50% blend — Matterhorn massif</p>
+
+## Side
+
+**Terrain mode** is always a fixed 2×1 pane pair — compare two terrain or basemap sources directly:
+
+![Two terrain sources compared side by side, each with its own Curvature + Contours combination](/screenshots/byod-heavy-sources.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Split Mode: Side (terrain, 2×1) — Curvature + Contours on two custom BYOD terrain sources — European Alps</p>
+
+**Historical Imagery mode** can grow to any grid up to 4×2 (8 views) — see [Basemaps & Historical Imagery](/features/basemaps-and-historical) for the grid picker and timeline. Each view gets its own basemap source, capture date, and a colored border matching its handle on the timeline:
+
+![A 4x2 historical imagery grid — 8 views, each with a different provider (ESRI Wayback, HLS, Google Earth Historical) and capture date](/screenshots/split-modes/historical-grid-4x2.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Split Mode: Side (historical, 4×2) — 8 views mixing ESRI Wayback, NASA HLS, and Google Earth Historical across different capture dates — Grand Canyon, USA</p>
+
+A smaller, 2×2 example comparing basemap sources:
+
+![Comparing basemap sources side-by-side in grid mode](/screenshots/n-grid.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Split Mode: Side (historical grid) — comparing basemap sources</p>

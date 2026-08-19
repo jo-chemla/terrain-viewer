@@ -5,10 +5,13 @@
     "index",
     "visualization-modes",
     "terrain-sources",
+    "split-modes",
     "basemaps-and-historical",
     "sun-position",
     "bookmarks",
     "byod",
-    "non-geo-relief-visualization"
+    "frescoes-and-artifacts",
+    "equations",
+    "keyboard-shortcuts"
   ]
 }

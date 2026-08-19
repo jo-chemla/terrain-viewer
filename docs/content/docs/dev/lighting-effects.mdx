@@ -3,17 +3,33 @@ title: Lighting Effects (Matcap / Phong / Hard Shadows)
 description: Why these use a real surface normal and a live-GL fast path instead of the pseudo-elevation trick
 ---
 
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
 Matcap, Phong, and Hard Shadows are grouped as "Lighting Effects" in the app's sidebar, but they don't share the [terrain-analysis pipeline](/dev/terrain-analysis-pipeline)'s pseudo-elevation trick — they need an actual shaded RGBA color per pixel, not a scalar smuggled through `raster-dem`. All three still start from the same shared surface normal computation.
+
+![Phong lighting visualization mode, with its Lighting Effects controls panel open](/screenshots/viz-modes/phong.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Phong + Hillshade backdrop — Matterhorn massif</p>
 
 ## Shared foundation: `normals-protocol.ts`
 
 `lib/normals-protocol.ts` computes a per-pixel surface normal from the same Horn gradient (`hornGradient()`) every terrain-analysis mode uses, via the standard heightfield-to-normal formula — a surface `z = f(col, row)` has unnormalized normal `(-dz/dcol, -dz/drow, 1)`:
 
+<Tabs items={['Code', 'Formula']}>
+<Tab value="Code">
 ```ts
 const { dx, dy } = hornGradient(window)
 const invLen = 1 / Math.sqrt(dx * dx + dy * dy + 1)
 const nx = -dx * invLen, ny = -dy * invLen, nz = invLen
 ```
+</Tab>
+<Tab value="Formula">
+$$
+\ell = \frac{1}{\sqrt{\left(\tfrac{\partial z}{\partial x}\right)^2 + \left(\tfrac{\partial z}{\partial y}\right)^2 + 1}}
+\qquad
+\vec n = \left(-\tfrac{\partial z}{\partial x}\cdot\ell,\ -\tfrac{\partial z}{\partial y}\cdot\ell,\ \ell\right)
+$$
+</Tab>
+</Tabs>
 
 This is an **object-space** normal map (not tangent-space — a heightfield has no per-vertex tangent-basis ambiguity): `R/G/B = (nx, ny, nz) * 0.5 + 0.5`, with `nx` along the tile's column axis (east), `ny` along the row axis (south), `nz` up. It does **not** go through `runNormalDerivedProtocol` (which always re-packs as Terrarium pseudo-elevation) — Matcap and Phong both need the raw normal vector, not an elevation-shaped scalar.
 
@@ -34,16 +50,31 @@ Both raster protocols also carry a hand-rolled staleness guard (`__currentParams
 
 The rotated normal's `(x, y)` is used directly as a UV into a curated matcap material image (`lib/matcap-textures.ts`, a Potree/Blender-style set) — an orthographic simplification in the protocol/GPU-compute path:
 
+<Tabs items={['Code', 'Formula']}>
+<Tab value="Code">
 ```glsl
 vec2 nxy = vec2(n.x * cb + n.y * sb, -n.x * sb + n.y * cb);  // rotate by u_rotationRad
 vec2 uv = nxy * 0.5 + 0.5;
 vec3 matcapColor = texture(u_matcap, uv).rgb;
 ```
+</Tab>
+<Tab value="Formula">
+$$
+(r_x, r_y) = \operatorname{rotate}(n_x, n_y,\ \theta_{\text{rotation}})
+\qquad
+\text{uv} = (r_x, r_y) \cdot 0.5 + 0.5
+\qquad
+\text{color} = \text{matcapTexture}(\text{uv})
+$$
+</Tab>
+</Tabs>
 
 The live-GL-layer version instead reconstructs a real per-fragment view ray from `gl_FragCoord` + FOV, reflects it off the (rotated) normal, and uses the reflection's `xy * 0.5 + 0.5` — a perspective-correct matcap, with an optional "light relative to camera" mode that unprojects through the inverse per-tile projection matrix.
 
 ## Phong: ambient + diffuse + specular
 
+<Tabs items={['Code', 'Formula']}>
+<Tab value="Code">
 ```ts
 const AMBIENT = 0.35, SHININESS = 32
 const diffuse = diffuseStrength * Math.max(nx*lx + ny*ly + nz*lz, 0)
@@ -52,6 +83,26 @@ const specDot = Math.max(nx*hx + ny*hy + nz*hz, 0)           // H = normalize(L 
 const specular = specularStrength * Math.pow(specDot, SHININESS)
 const total = diffuseIntensity + specular
 ```
+</Tab>
+<Tab value="Formula">
+$$
+\text{AMBIENT} = 0.35 \qquad \text{SHININESS} = 32 \qquad
+\vec H = \operatorname{normalize}(\vec L + \vec V),\ \ \vec V = (0,0,1)
+$$
+
+$$
+\text{diffuse} = k_d \cdot \max(\vec N \cdot \vec L,\ 0)
+\qquad
+I_{\text{diffuse}} = \operatorname{clamp}(\text{AMBIENT} + \text{diffuse},\ 0,\ 1)
+$$
+
+$$
+\text{specular} = k_s \cdot \max(\vec N \cdot \vec H,\ 0)^{\text{SHININESS}}
+\qquad
+\text{total} = I_{\text{diffuse}} + \text{specular}
+$$
+</Tab>
+</Tabs>
 
 Light direction is **compass-fixed** by default (`state.illuminationDir`/`illuminationAlt` — the same fields the on-map "hold L, drag" light control and MapLibre's own hillshade illumination direction use), not camera-relative — panning/rotating the map must not spin the light, unlike Matcap's material which is deliberately camera/rotation-relative. `phong-live-gl-layer.ts` adds an opt-in "headlamp" mode reinterpreting azimuth/altitude as an offset from the camera's live bearing+pitch instead.
 
@@ -68,6 +119,8 @@ The az/alt → `(x, y, z)` light-vector signs were pinned by empirical measureme
 
 `lib/shadow-protocol.ts` does **not** call into `horizon-angle.ts`'s SVF/Openness functions — it's a hand-written single-ray variant of the same idea, explicitly framed that way in its header comment. SVF/Openness check 8 fixed compass directions and aggregate; a cast shadow only cares about **one** direction — straight toward the sun's actual azimuth (not snapped to a 45° tick):
 
+<Tabs items={['Code', 'Formula']}>
+<Tab value="Code">
 ```ts
 const dCol = Math.sin(azimuthRad), dRow = -Math.cos(azimuthRad)
 for (let r = 1; r <= radiusPx; r++) {
@@ -77,6 +130,19 @@ for (let r = 1; r <= radiusPx; r++) {
 }
 const inShadow = maxAngle > altitudeRad
 ```
+</Tab>
+<Tab value="Formula">
+$$
+\vec d = (\sin(\text{az}),\ -\cos(\text{az})) \qquad \text{(dCol, dRow)}
+$$
+
+$$
+\text{horizonAngle} = \max_{r=1}^{\text{radius}} \operatorname{atan2}\!\big(h(r) - h_{\text{center}},\ r \cdot L\big)
+\qquad
+\text{inShadow} = \text{horizonAngle} > \text{alt}_{\text{rad}}
+$$
+</Tab>
+</Tabs>
 
 If anything between the pixel and the sun rises above the sun's own altitude angle, the pixel is in shadow. Output is plain opaque black where `inShadow`, fully transparent otherwise — the raster layer's own paint opacity (`state.shadowOpacity`) controls how dark shadows actually read on screen, the same convention every other derived-mode layer uses. Computation is synchronous CPU/JS, yielding periodically like the terrain-analysis protocols, with no GPU path and no live-GL layer.
 

@@ -1,0 +1,34 @@
+---
+title: Frescoes & Artifact Scans
+description: Using the relief-visualization toolkit on non-georeferenced photogrammetry — wall paintings, reliefs, small finds
+---
+
+Every visualization mode here — Hillshade, Slope, Curvature, Sky-View Factor, and the rest — is really just "reveal micro-relief in a height field." Nothing about that math requires the height field to be a mountain: a photogrammetry or laser scan of a fresco, a carved relief, or a small artifact is the same kind of data (a DSM), just at millimeter scale instead of kilometer scale. This app treats them identically once the data is packaged as a georeferenced COG — see [Non-Geo Relief Visualization](/dev/non-geo-relief-visualization) for exactly how to package your own scan (the "fake-geo" GDAL trick that lets a real-world millimeter grid pass as a normal terrain source).
+
+## Relief + color, linked together
+
+A flat scan is really two layers you want side by side: the **DSM** (height, for Hillshade/Slope/SVF/etc — where the toolkit reveals brush strokes, tool marks, or surface damage invisible in a plain photo) and the **RGB orthophoto** (true color, for actually seeing the painting or carving). Loading them as two independent, unrelated sources means re-picking the matching one by hand every time you switch.
+
+`CustomTerrainSource.linkedBasemapId` / `CustomBasemapSource.linkedTerrainId` (`lib/linked-sources.ts`) fix that: pick either half of a linked pair — the DSM from Sources → Terrain, or the RGB from Sources → Basemap — and the app resolves and selects its counterpart on the other axis in the same click. Switching between "inspect the relief" and "look at the actual colors" is one click each way, not a re-pick.
+
+## Try it: the Dura-Europos sample
+
+Sources → Terrain → **Sample** loads a small built-in set of ready-made sources, including a real one: the **Dura-Europos Synagogue** (Syria), famous for its well-preserved 3rd-century AD wall paintings — one of the most extensive surviving cycles of ancient figurative art. Two resolutions ship linked DSM+RGB pairs out of the box (`dura-w-05mm`, `dura-grid-2mm` — the ids match on purpose, since equal ids are exactly what the link-resolution fallback matches on).
+
+Once loaded:
+
+- **Hillshade** or **Sky-View Factor** on the DSM reveals brush texture, plaster relief, and surface damage that's nearly invisible in flat lighting.
+- **Curvature** or **Slope** picks out fine tool marks and cracks as high-contrast edges.
+- Switch the active source to the RGB counterpart (same row, linked automatically) to see the actual painted color for context.
+
+## Preparing your own scan
+
+See [Non-Geo Relief Visualization](/dev/non-geo-relief-visualization) for the full GDAL command reference — the short version:
+
+1. Pick a "fake-geo" pixel size (e.g. 2m) and compute a z-scale factor from your scan's real ground sample distance (e.g. 0.5mm) so elevation doesn't get compressed into an unusable range once the xy grid is reprojected.
+2. `gdal_translate` both your DSM and RGB orthophoto into COGs sharing that same fake-geo grid, so they stay pixel-aligned.
+3. Add both as **Local COG file** or **COG** sources (see [Bring Your Own Data](/features/byod)) — optionally set `linkedBasemapId`/`linkedTerrainId` on a batch-edited custom source entry (Sources → Terrain → **Batch**) to get the same one-click linked switching the built-in sample has.
+
+<Callout title="Don't measure real elevation off a fake-geo COG" type="warn">
+The whole point of the z-scale factor is to keep relief visually legible after the xy grid gets reprojected to a much coarser nominal pixel size — it means pixel values are no longer true altitude. See [Non-Geo Relief Visualization](/dev/non-geo-relief-visualization#dsm-command-raw-altitude-no-fake-geo-z-rescale) for a variant command that preserves real altitude instead, if you need to measure something (e.g. relief depth) rather than just visualize it.
+</Callout>
