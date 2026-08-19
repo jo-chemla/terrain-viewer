@@ -122,6 +122,80 @@ don't deviate without a reason.
   Verify with a real headless-browser console-error sweep, not `curl` (curl
   never executes JS, so it can never detect a hydration error).
 
+- **Local-only code changes (new `id`s, reordered tour steps, new URL params)
+  must be captured from `http://localhost:5173/` (the Vite dev server), not
+  prod** — prod only reflects what's actually deployed. Screenshots look
+  pixel-identical either way (Playwright captures only the page viewport, not
+  browser chrome/URL bar), so this is easy to forget. The dev server is
+  noticeably slower to compile/hydrate on first navigation than prod's static
+  build — give it a longer initial settle wait (~8s vs ~3.5s) before the
+  first `waitForStep`-style assertion.
+- **The Coachmark's "Next" button (`[data-tour-nav="next"]`) hangs Playwright
+  on `.click()` with "waiting for scheduled navigations to finish"** — the
+  click itself completes, but Playwright's post-click auto-wait never
+  resolves, so every `.click()` call eventually times out (30s+) even though
+  the tour visibly advances. **Fix: `.click({ noWaitAfter: true })`.** Do NOT
+  paper over this with a retry loop — retrying a "failed" click here means
+  the underlying click actually succeeded and a retry double/triple-fires it,
+  silently skipping tour steps (confirmed: a 3x-retried click at step 8 left
+  the app on step 11, having blown through 9 and 10 with no time for their
+  viz modes to render). `force: true` alone does NOT fix this — the hang is
+  after the click dispatches, not in the pre-click actionability checks.
+- **Screenshots of tour steps that toggle a viz mode via the tour's own
+  `onEnter` handler (Hypsometric, Terrain Analysis, Relief Visualization —
+  see `prepareHypsoOnly`/`prepareTerrainAnalysisOnly`/
+  `prepareReliefVisualizationOnly` in `product-tour.tsx`) render as a blank
+  grayscale hillshade with none of the new layer's color if you screenshot
+  right after the step-change assertion resolves.** Root cause: each of
+  these `onEnter` handlers unconditionally re-sets the relevant `show*`
+  fields fresh every time the step is entered — **pre-setting the equivalent
+  URL param before `page.goto` does NOT help**, the handler stomps it anyway
+  the moment the step is reached, so the render always starts from a cold
+  toggle no matter what. The fix that actually works is a generous plain
+  wait after the step is reached — 8-13s was enough in every case tried;
+  a mouse-wheel nudge (`page.mouse.wheel(0,-3)` then `(0,3)`) sometimes helped
+  but was not reliable on its own and is not required if the wait is long
+  enough. GPU/WebGL launch flags (`--use-gl=angle`, `--enable-unsafe-swiftshader`,
+  etc.) made no difference — this is a render-timing race, not a headless-GPU
+  capability gap.
+- **~50 orphaned `chrome.exe` processes accumulated over one session** from
+  Playwright scripts that crashed via uncaught exception (every crash skips
+  the script's own `browser.close()`). These don't show in the Bash tool's
+  `ps aux` (msys-only process view) — check via PowerShell
+  `Get-Process chrome`. Left unchecked they degrade every subsequent
+  Playwright run (multi-minute stdout-flush delays, click timeouts) even
+  though `Get-CimInstance Win32_Processor | Select LoadPercentage` reads 0%,
+  so CPU-load monitoring alone won't catch this. **Clean up periodically**
+  with `Stop-Process` filtered to `StartTime` after the session started —
+  identify the user's real browser cluster first (its processes all share
+  one much-earlier `StartTime`) and exclude it explicitly; never mass-kill
+  `chrome.exe` without that check.
+- **A backgrounded `node script.mjs > log.txt 2>&1 &` can fully buffer stdout
+  for minutes** on this Windows/git-bash setup — lines only appear in bursts,
+  not in real time, sometimes with 5+ minutes between flushes even though the
+  script is actively progressing. Don't conclude a background run is stuck
+  from a stale log alone; check `ps aux` for the process still being alive,
+  and if you need real per-line diagnosis, run the script in the foreground
+  through the Bash tool instead (which captures output live without the
+  buffering) rather than continuing to poll a redirected file.
+
+## Gallery component (hero + filmstrip)
+
+`docs/src/components/gallery.tsx` shows a single large "hero" image (the
+first item in each group) with a horizontally-scrollable filmstrip of every
+item below it — not a grid of cards. The hero is deliberately **not** marked
+`data-lightbox` itself; its `onClick` finds the filmstrip's own first
+`[data-lightbox]` element and calls `.click()` on it directly. This avoids
+creating two DOM entries for the same image in the shared lightbox's
+`document.querySelectorAll('[data-lightbox]')` item list (which would break
+clean prev/next counting) — only the filmstrip thumbnails carry the
+`data-lightbox`/`data-lightbox-title`/`data-lightbox-href` attributes. Visible
+on-page text labels were removed entirely (title lives only in the `title`
+tooltip attr / lightbox title bar) — this was a deliberate fix for an earlier
+grid-of-cards version where inconsistent 1-line vs 2-line label wrapping
+broke row alignment. The component takes no `cols` prop (that was a
+grid-only concept) — remove `cols={N}` from any `<Gallery>` call site.
+
 ## URL / nuqs conventions for reproducible screenshots
 
 Every screenshot I (an agent) produce should be reproducible by URL — see
@@ -172,6 +246,17 @@ the link.
    `viz-mode-grid.tsx` (resolved keeping both the `href` label-link feature
    and the new `data-lightbox` mechanism).
 5. Hydration fix (`dbe438d`) — see gotcha above.
+6. Gallery redesign + tour reorder + screenshot fixes (`004cfbe`) — Gallery
+   rewritten from grid-of-cards to hero+filmstrip (see dedicated section
+   above); Coachmark Terrain Tools steps reordered (Hillshade → Hypso →
+   Terrain Analysis → Relief Viz → Terrain Sources → Basemap → BYOD); new
+   `?startTour=true` one-shot URL param; walkthrough screenshot set
+   recaptured against the new order from `localhost:5173` (see the
+   local-only-code-changes and onEnter-viz-toggle gotchas above — both
+   discovered this pass after several failed attempts); historical 4×2 grid
+   redone with source+date pills (`isComparisonMixAdvancedOpen` localStorage
+   key + `showCaptureDatePill=source-date` URL param); Google Earth Web
+   "Open in" destinations fixed against real user-captured URLs.
 
 If you're reading this expecting exact current URLs/params per screenshot,
 don't trust anything beyond point 3 above as still-current — check the actual
