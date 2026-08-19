@@ -1,5 +1,5 @@
 ---
-title: Tools
+title: "Tools (Drawing, Elevation Picker, Anim)"
 description: Drawing, Elevation Picker, and Animation — map-based utilities independent of any visualization mode
 ---
 
@@ -7,12 +7,31 @@ A grab bag of map-based utilities in the sidebar's Tools group, independent of w
 
 ## Drawing
 
-Sketch points, lines, and polygons directly on the map — a TerraDraw-based sketch/measure layer for annotating or roughly measuring distances and areas over the terrain, independent of any export pipeline.
+Sketch points, lines, and polygons directly on the map — a TerraDraw-based sketch/measure layer for annotating or roughly measuring distances and areas over the terrain, independent of any export pipeline. Multiple named layers are supported (each with its own visibility/style), and a layer's contents can be imported from GeoJSON/KML or exported back out.
+
+![The Drawing tools panel, with an imported GeoJSON layer of polygons plus a second hand-drawn layer of points](/screenshots/tools/draw.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Drawing — an imported GeoJSON layer (world heritage site boundaries) alongside a second, hand-drawn point layer</p>
 
 ## Elevation Picker
 
-Click anywhere on the terrain to read off its elevation, sourced from the same active DEM driving the rest of the app (Mapterhorn, Mapbox, MapTiler, AWS, or a custom BYOD source) — useful for a quick spot-check without switching on Elevation Hypso or exporting a GeoTIFF.
+Click anywhere on the terrain to read off its elevation, sourced from the same active DEM driving the rest of the app (Mapterhorn, Mapbox, MapTiler, AWS, or a custom BYOD source) — useful for a quick spot-check without switching on Elevation Hypso or exporting a GeoTIFF. Several distinct modes live under this one toggle:
+
+- **Single-point altitude** — one click samples the elevation right there.
+- **Altitude delta** — a second click measures the straight-line distance and elevation difference (Δ Elevation) against the first.
+- **Line profile / line of sight** — switches to a full elevation profile chart sampled along the path between two points, plus a mast-height field for a simple line-of-sight check.
+- **Straight line vs. routed path** — the profile can sample a direct great-circle line, or a real routed trail/road (BRouter or Valhalla, with a hiking/bike/vehicle profile) between the two points instead.
+- **Sample Reference: Absolute vs. LRM** — sample real elevation, or height relative to the local neighborhood mean (same reference the Local Relief Model / Plane Slicer use).
+- **Plane Slicer** — an elevation-threshold plane that paints the terrain above or below a chosen altitude (or LRM height), independent of the point/line picker above.
+
+![The Elevation Picker panel, showing the mode toggles: sample reference, line profile / line of sight, straight-line vs. routed path, and the Plane Slicer](/screenshots/tools/elevation-picker.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Elevation Picker — panel only</p>
 
 ## Animation
 
 Fly the camera along a scripted path through the scene — set keyframe camera poses and interpolate between them, exportable as a rendered fly-through. Available in Terrain mode; Historical mode's own Tools group drops it since there's no single continuous elevation surface to fly a smooth camera path over.
+
+![The Animation panel](/screenshots/tools/animation.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Animation — panel only</p>
