@@ -1,4 +1,5 @@
 {
   "title": "Resources and Inspiration",
+  "defaultOpen": true,
   "pages": ["maplibre", "geomorphometry", "credits"]
 }

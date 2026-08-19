@@ -10,6 +10,9 @@ export interface VizModeExample {
    *  see docs task "Visualization Modes docs page: add 3x3 screenshot table". */
   image: string;
   alt: string;
+  /** Live app URL reproducing this exact screenshot's view/mode state
+   *  (nuqs query string) — when present, the label links out to it. */
+  href?: string;
 }
 
 export interface VizModeGroup {
@@ -45,7 +48,18 @@ export function VizModeGrid({ groups }: { groups: VizModeGroup[] }) {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {group.modes.map((mode) => (
                 <div key={mode.label} className="flex flex-col gap-2">
-                  <div className="text-sm font-medium">{mode.label}</div>
+                  {mode.href ? (
+                    <a
+                      href={mode.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-fd-primary hover:underline"
+                    >
+                      {mode.label} ↗
+                    </a>
+                  ) : (
+                    <div className="text-sm font-medium">{mode.label}</div>
+                  )}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={mode.image}

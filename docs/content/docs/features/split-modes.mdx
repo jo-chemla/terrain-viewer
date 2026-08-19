@@ -7,17 +7,17 @@ description: Off, Overlay, and Side — comparing terrain/basemap sources agains
 
 ## Off
 
-A single map view — the default.
+A single map view — the default. A plain tilted Hillshade on Mapterhorn's LiDAR-grade DEM over the Matterhorn massif, showing off the source's real resolution (ridgelines and rockfall texture that a coarser global DEM would smear away):
 
-![A single pane: Elevation Hypso + Hillshade, Split Mode Off](/screenshots/split-modes/off.jpg)
-<p className="text-sm text-fd-muted-foreground italic">Split Mode: Off — Elevation Hypso + Hillshade, single pane — Matterhorn massif</p>
+![A single pane: pure Hillshade, tilted, Split Mode Off](/screenshots/split-modes/off.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Split Mode: Off — pure Hillshade, tilted — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&splitStyle=off&showHillshade=true&hillshadeOpacity=1&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 ## Overlay
 
-Two sources blended in place, with a draggable gutter (clip position) and a circular handle (blend opacity) directly on the map — see [Bring Your Own Data](/features/byod) and [Terrain Sources](/features/terrain-sources) for what `sourceA`/`sourceB` can be.
+Two sources blended in place, with a draggable gutter (clip position) and a circular handle (blend opacity) directly on the map — see [Bring Your Own Data](/features/byod) and [Terrain Sources](/features/terrain-sources) for what `sourceA`/`sourceB` can be. The gutter itself is centered on the space actually available left of the sidebar, not 50% of the full screen:
 
 ![Two terrain sources (Mapterhorn / AWS Terrarium) blended in Overlay mode, with a visible clip gutter](/screenshots/split-modes/overlay.jpg)
-<p className="text-sm text-fd-muted-foreground italic">Split Mode: Overlay — Mapterhorn vs. AWS Terrarium terrain, 50% blend — Matterhorn massif</p>
+<p className="text-sm text-fd-muted-foreground italic">Split Mode: Overlay — Mapterhorn vs. AWS Terrarium terrain, 50% blend — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&splitStyle=overlay&overlayOpacity=0.5&sourceA=mapterhorn&sourceB=aws&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 ## Side
 
@@ -26,12 +26,28 @@ Two sources blended in place, with a draggable gutter (clip position) and a circ
 ![Two terrain sources compared side by side, each with its own Curvature + Contours combination](/screenshots/byod-heavy-sources.jpg)
 <p className="text-sm text-fd-muted-foreground italic">Split Mode: Side (terrain, 2×1) — Curvature + Contours on two custom BYOD terrain sources — European Alps</p>
 
-**Historical Imagery mode** can grow to any grid up to 4×2 (8 views) — see [Basemaps & Historical Imagery](/features/basemaps-and-historical) for the grid picker and timeline. Each view gets its own basemap source, capture date, and a colored border matching its handle on the timeline:
+**Historical Imagery mode** can grow to any grid up to 4×2 (8 views) — see [Basemaps & Historical Imagery](/features/basemaps-and-historical) for the grid picker and timeline. Each view gets its own basemap source, capture date, and a colored border matching its handle on the timeline. Zoomed in tight on Île de la Cité and the Seine, the difference between providers is obvious: Wayback and HLS panes stay crisp, while the Google Earth Historical panes fall back to a much coarser, irregularly-resampled capture (visible as flat color blocks rather than actual imagery) for that date/location:
 
 ![A 4x2 historical imagery grid — 8 views, each with a different provider (ESRI Wayback, HLS, Google Earth Historical) and capture date](/screenshots/split-modes/historical-grid-4x2.jpg)
-<p className="text-sm text-fd-muted-foreground italic">Split Mode: Side (historical, 4×2) — 8 views mixing ESRI Wayback, NASA HLS, and Google Earth Historical across different capture dates — Grand Canyon, USA</p>
+<p className="text-sm text-fd-muted-foreground italic">Split Mode: Side (historical, 4×2) — 8 views mixing ESRI Wayback, NASA HLS, and Google Earth Historical across different capture dates — Île de la Cité, Paris, France — <a href="https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=side-by-side&gridLayout=4x2&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1577836800000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1420070400000&basemapSourceC=historical&historicalActiveSourceC=hls&dateC=1483228800000&basemapSourceD=historical&historicalActiveSourceD=ge-historical&dateD=1293840000000&basemapSourceE=historical&historicalActiveSourceE=wayback&dateE=1356998400000&basemapSourceF=historical&historicalActiveSourceF=ge-historical&dateF=1199145600000&basemapSourceG=historical&historicalActiveSourceG=hls&dateG=1514764800000&basemapSourceH=historical&historicalActiveSourceH=wayback&dateH=1546300800000&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 A smaller, 2×2 example comparing basemap sources:
 
 ![Comparing basemap sources side-by-side in grid mode](/screenshots/n-grid.jpg)
 <p className="text-sm text-fd-muted-foreground italic">Split Mode: Side (historical grid) — comparing basemap sources</p>
+
+## Historical Split & Compare Blend Modes
+
+Overlay mode's Blend Mode dropdown controls how source A composites over source B — beyond the default Normal (opacity-only cross-fade), Multiply and Difference make change between two dates easier to spot at a glance. All four below compare the same two ESRI Wayback captures of Île de la Cité (2021 vs. 2008):
+
+![Normal blend mode, 100% opacity — source A fully replaces source B](/screenshots/split-modes/blend-normal-100.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Blend Mode: Normal, 100% opacity — Île de la Cité, Paris — <a href="https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=1&splitBlendMode=normal&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1199145600000&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+
+![Normal blend mode, 50% opacity — a straight cross-fade between the two dates](/screenshots/split-modes/blend-normal-50.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Blend Mode: Normal, 50% opacity — Île de la Cité, Paris — <a href="https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=0.5&splitBlendMode=normal&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1199145600000&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+
+![Multiply blend mode, 100% opacity — darkens where the two dates disagree](/screenshots/split-modes/blend-multiply-100.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Blend Mode: Multiply, 100% opacity — Île de la Cité, Paris — <a href="https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=1&splitBlendMode=multiply&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1199145600000&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+
+![Difference blend mode, 100% opacity — highlights exactly what changed between the two dates](/screenshots/split-modes/blend-difference-100.jpg)
+<p className="text-sm text-fd-muted-foreground italic">Blend Mode: Difference, 100% opacity — Île de la Cité, Paris — <a href="https://terrain-viewer.iconem.com/?appMode=historical&viewMode=2d&zoom=16.5&lat=48.8566&lng=2.3488&pitch=0&splitStyle=overlay&overlayOpacity=1&splitBlendMode=difference&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA=1609459200000&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1199145600000&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
