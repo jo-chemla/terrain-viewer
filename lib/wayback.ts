@@ -5,7 +5,7 @@
 // catalog and per-location "real change" dates as React hooks, plus the one
 // URL-template fixup MapLibre needs.
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { getWaybackItems, getWaybackItemsWithLocalChanges, getMetadata, type WaybackItem, type WaybackMetadata } from "@esri/wayback-core"
 
 export type { WaybackItem }
@@ -295,8 +295,28 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
   const { items, loading: itemsLoading } = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
   const { resolved, loading: datesLoading } = useWaybackRealCaptureDates(items, latitude, longitude, zoom)
 
+  // The last pick, held STABLE while the real capture dates are still
+  // streaming in: useWaybackRealCaptureDates resolves each release's real
+  // per-tile date progressively, so mid-resolution the pool below is a mix
+  // of real dates and catalog-wide releaseDatetime fallbacks — and every
+  // newly-arrived date can flip which release is "nearest" to the target,
+  // each flip unmounting/remounting the raster source (a visible imagery
+  // swap the user never asked for, source A/B hopping releases while
+  // metadata loads). The held pick is only abandoned mid-resolution when
+  // it can't stand at all: no pick yet (first paint — a provisional pick
+  // beats a blank basemap until the batch settles), the held release no
+  // longer in the fresh candidate set (view moved somewhere new), or the
+  // target date itself changed (a user scrub must respond immediately).
+  // Once datesLoading settles, the definitive nearest-match wins.
+  const heldRef = useRef<{ item: WaybackItem; targetDateMs: number } | null>(null)
+
   const item = useMemo(() => {
     if (!targetDateMs || !items.length) return null
+    const held = heldRef.current
+    if (
+      datesLoading && held && held.targetDateMs === targetDateMs &&
+      items.some((it) => it.releaseNum === held.item.releaseNum)
+    ) return held.item
     let best: WaybackItem | null = null
     let bestDist = Infinity
     for (const it of items) {
@@ -304,8 +324,9 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
       const dist = Math.abs(realDateMs - targetDateMs)
       if (dist < bestDist) { bestDist = dist; best = it }
     }
+    heldRef.current = best ? { item: best, targetDateMs } : null
     return best
-  }, [items, resolved, targetDateMs])
+  }, [items, resolved, targetDateMs, datesLoading])
 
   return { item, loading: itemsLoading || datesLoading }
 }
