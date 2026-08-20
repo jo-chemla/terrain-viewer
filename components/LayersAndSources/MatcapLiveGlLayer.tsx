@@ -80,7 +80,9 @@ export function MatcapLiveGlLayer({
       if (rafHandle !== null) cancelAnimationFrame(rafHandle)
       map.off("styledata", onStyleData)
       layerRef.current = null
-      if (map.getLayer(LIVE_LAYER_ID)) map.removeLayer(LIVE_LAYER_ID)
+      // Same map-teardown guard as PhongLiveGlLayer.tsx: after map.remove()
+      // the style is gone and getLayer() itself throws.
+      if (map.style && map.getLayer(LIVE_LAYER_ID)) map.removeLayer(LIVE_LAYER_ID)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, clientUpstream?.template, clientUpstream?.encoding, clientUpstream?.tileSize, clientUpstream?.minzoom, clientUpstream?.maxzoom, mapRef])

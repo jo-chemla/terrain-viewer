@@ -523,6 +523,15 @@ export class PhongLiveLayer implements CustomLayerInterface {
     const overflow = byAge.length - MAX_CACHED_TEXTURES
     for (let i = 0; i < overflow; i++) {
       const [key, entry] = byAge[i]
+      // Never evict a tile drawn THIS frame: a viewport that genuinely
+      // needs more than MAX_CACHED_TEXTURES tiles at once (large window +
+      // high DPR — coveringTiles is asked for 1-2 extra zoom levels, see
+      // render()) would otherwise evict its own visible tiles every frame,
+      // refetch, repaint, and evict again — an endless unload/reload churn.
+      // Sorted ascending by lastUsed, so the first current-frame entry
+      // means everything after it is current too: stop there and let the
+      // cache temporarily exceed the cap by the visible overflow instead.
+      if (entry.lastUsed >= this.frameCounter) break
       this.gl?.deleteTexture(entry.texture)
       this.textures.delete(key)
     }

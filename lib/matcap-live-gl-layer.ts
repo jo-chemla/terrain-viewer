@@ -432,6 +432,12 @@ export class MatcapLiveLayer implements CustomLayerInterface {
     const overflow = byAge.length - MAX_CACHED_TEXTURES
     for (let i = 0; i < overflow; i++) {
       const [key, entry] = byAge[i]
+      // Never evict a tile drawn THIS frame — same endless unload/reload
+      // churn guard as phong-live-gl-layer.ts's pruneTextures (a visible
+      // set larger than the cap would otherwise evict/refetch its own
+      // tiles every frame). Ascending lastUsed sort ⇒ safe to stop at the
+      // first current-frame entry.
+      if (entry.lastUsed >= this.frameCounter) break
       this.gl?.deleteTexture(entry.texture)
       this.textures.delete(key)
     }

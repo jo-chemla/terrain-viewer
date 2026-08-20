@@ -88,7 +88,12 @@ export function PhongLiveGlLayer({
       if (rafHandle !== null) cancelAnimationFrame(rafHandle)
       map.off("styledata", onStyleData)
       layerRef.current = null
-      if (map.getLayer(LIVE_LAYER_ID)) map.removeLayer(LIVE_LAYER_ID)
+      // The whole <Map> may be tearing down in this same commit (e.g.
+      // turning split mode off unmounts pane B's map entirely) — after
+      // map.remove() the style object is gone and even getLayer() throws
+      // ("Cannot read properties of undefined (reading 'getLayer')"), so
+      // only clean up layers on a map that still has a live style.
+      if (map.style && map.getLayer(LIVE_LAYER_ID)) map.removeLayer(LIVE_LAYER_ID)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, clientUpstream?.template, clientUpstream?.encoding, clientUpstream?.tileSize, clientUpstream?.minzoom, clientUpstream?.maxzoom, mapRef])
