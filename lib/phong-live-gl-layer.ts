@@ -524,9 +524,9 @@ export class PhongLiveLayer implements CustomLayerInterface {
     for (let i = 0; i < overflow; i++) {
       const [key, entry] = byAge[i]
       // Never evict a tile drawn THIS frame: a viewport that genuinely
-      // needs more than MAX_CACHED_TEXTURES tiles at once (large window +
-      // high DPR — coveringTiles is asked for 1-2 extra zoom levels, see
-      // render()) would otherwise evict its own visible tiles every frame,
+      // needs more than MAX_CACHED_TEXTURES tiles at once (a very large
+      // window, or if render()'s tile selection ever over-requests zoom
+      // levels again) would otherwise evict its own visible tiles every frame,
       // refetch, repaint, and evict again — an endless unload/reload churn.
       // Sorted ascending by lastUsed, so the first current-frame entry
       // means everything after it is current too: stop there and let the
@@ -564,17 +564,18 @@ export class PhongLiveLayer implements CustomLayerInterface {
       const bundle = this.getProgram(gl, args.shaderData)
       this.frameCounter++
 
-      // Divide the covering tileSize by devicePixelRatio so a retina screen
-      // pulls a higher zoom level (more, sharper tiles) — matching what
-      // MapLibre's own native raster pipeline (3D Slow) does automatically, so
-      // 2D Fast is no longer visibly softer than 3D Slow on hi-dpi displays.
-      // An extra /2 on top of that pulls one more zoom level still — confirmed
-      // (2026-07-28, once terrain-drape was live) visibly softer/lower-res
-      // than the native `hillshade` layer at the same viewport otherwise, even
-      // though both read the exact same upstream DEM tiles.
-      const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1
+      // NATIVE viewport-zoom tile selection — the same zoom level MapLibre
+      // would pick for a raster source of this tileSize, no extra levels.
+      // The previous `tileSize / devicePixelRatio / 2` (added 2026-07-28 to
+      // match the native hillshade layer's sharpness on hi-dpi screens)
+      // pulled 1-2 extra zoom levels, which quadrupled-to-16x the visible
+      // tile count — the direct source of the cache-thrash/reload churn on
+      // large windows (see pruneTextures), and a lot of extra normal-tile
+      // compute per pan. Retrying at native resolution per the user's
+      // 2026-08-20 request; if this reads too soft on retina, the halfway
+      // step is `this.options.tileSize / dpr` (one extra level, dpr only).
       const tileIDs = map.coveringTiles({
-        tileSize: Math.max(1, Math.round(this.options.tileSize / dpr / 2)),
+        tileSize: this.options.tileSize,
         minzoom: this.options.minzoom,
         maxzoom: this.options.maxzoom,
       })
