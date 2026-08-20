@@ -1,6 +1,6 @@
 ---
 title: Export & Share
-description: Snapshots, DEM GeoTIFF and contour exports, historical batch export, social sharing, and Open In destinations
+description: Snapshots, DEM GeoTIFF and contour exports, historical batch export, and social sharing
 ---
 
 Everything here lives in the sidebar's **Download and Snapshot** section. In historical mode (no terrain source, no contour layer) the section shrinks to just Snapshot / Copy / Share plus the historical batch export — the DEM and Contours buttons only make sense with a terrain source loaded.
@@ -39,6 +39,4 @@ The **Max Download Resolution (px)** field right below the buttons caps the outp
 - **Native Share** (shown when the browser supports the Web Share API) — hands the URL, text, and the screenshot as an attached PNG to the OS share sheet, for apps like WhatsApp or Slack.
 - **Copy screenshot to clipboard** and **Copy URL to clipboard** — the same two pieces, for doing it manually.
 
-## Open In destinations
-
-The **Open in …** split button (bottom of the General section; also in the historical timeline footer) opens the current viewport in another web viewer: **Iconem [River-REM](/features/river-rem)**, **Iconem Search-EO**, **ESRI Wayback Machine**, **Google Maps 3D**, **Google Earth Historical (web)**, **Google Earth 3D (web)**, and **BBBike MapCompare**. Picking one from the dropdown opens it immediately and remembers it as the default for the main button. **Add custom…** accepts your own URL template using `{lat}`/`{lng}`/`{zoom}` or slippy-tile `{z}`/`{x}`/`{y}` placeholders.
+Related: the [Open In](/features/open-in) launcher hands the current viewport off to other web viewers (River-REM, ESRI Wayback, Google Earth, …) instead of exporting anything.

@@ -34,13 +34,13 @@ Detrending needs a water surface elevation value at *every* DEM cell, but WSE is
 
 ## Centerline extraction and river selection
 
-The centerline comes from OpenStreetMap `waterway` data covering the current view, fetched from a configurable source:
+The centerline doesn't have to come from OSM at all: you can **draw it by hand** directly on the map, or **import your own** (GeoJSON or shapefile) — useful for paleochannels or historical courses OSM has no notion of. The default path, though, extracts it from OpenStreetMap `waterway` data covering the current view, fetched from a configurable source:
 
-- **QLever OSM** endpoint — the fast SPARQL-backed option
-- **Overpass API** remotes — overpass.de, Kumi Systems, Private Coffee, or osm.ch
-- **OSM vector tiles**, decoded client-side — Shortbread MVT, OpenFreeMap MVT, or Protomaps PMTiles
+- **[QLever](https://qlever.cs.uni-freiburg.de/osm-planet)** OSM endpoint — the fast SPARQL-backed option
+- **Overpass API** remotes — [overpass.de](https://overpass-api.de/), [Kumi Systems](https://overpass.kumi.systems/), [Private Coffee](https://overpass.private.coffee/), or [osm.ch](https://overpass.osm.ch/)
+- **OSM vector tiles**, decoded client-side — [Shortbread](https://shortbread-tiles.org/) MVT, [OpenFreeMap](https://openfreemap.org/) MVT, or [Protomaps](https://protomaps.com/) PMTiles
 
-Which waterways make it into the centerline is a separate choice, with three selection modes: the **longest named river** (the default — one clean trunk), **all named rivers**, or **all waterways including unnamed** ones (side channels, canals, streams). You can also bypass OSM entirely and draw a centerline by hand or import your own (GeoJSON or shapefile).
+Which waterways make it into the centerline is a separate choice, with three selection modes: the **longest named river** (the default — one clean trunk), **all named rivers**, or **all waterways including unnamed** ones (side channels, canals, streams).
 
 ## How it connects to this app
 
