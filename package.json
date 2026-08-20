@@ -4,7 +4,8 @@
   "author": "jochemla",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n app,docs -c cyan,magenta \"pnpm run dev:app\" \"pnpm run docs:dev\"",
+    "dev:app": "vite",
     "build": "vite build",
     "zip": "del dist.zip && vite build && \"C:\\Program Files\\7-Zip\\7z.exe\" a dist.zip dist",
     "preview": "vite preview",
@@ -88,6 +89,7 @@
     "@types/tinycolor2": "^1.4.6",
     "@types/tz-lookup": "^6.1.2",
     "@types/vt-pbf": "^3.1.1",
+    "concurrently": "^10.0.5",
     "ffmpeg-static": "^5.3.0",
     "knip": "^6.29.0",
     "react-scan": "^0.5.7",

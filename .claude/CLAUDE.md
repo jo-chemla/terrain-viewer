@@ -7,17 +7,24 @@ Live: https://jo-chemla.github.io/terrain-viewer (prod, blue favicon)
 Also deployed at: https://historical-satellite.iconem.com (Iconem, historical mode default)
 
 Two co-located apps share this repo:
-- **Main app** — Vite SPA, root. `pnpm dev` → port 5173 (or 5174 in a worktree).
+- **Main app** — Vite SPA, root. `pnpm dev:app` → port 5173 (or 5174 in a worktree).
 - **Docs** — Next.js 16 (Fumadocs), `docs/`. `pnpm run docs:dev` → port 3100, proxied at `/docs` by the Vite dev server.
 
 ## Dev servers
 
 ```bash
-# In a git worktree alongside the main checkout, avoid EADDRINUSE on the
-# TanStack devtools event-bus port (fixed 42169 by default):
-DEVTOOLS_EVENT_BUS_PORT=42170 pnpm dev --port 5174
+pnpm dev            # BOTH servers at once (concurrently; no extra args — they'd go to concurrently, not vite)
+pnpm dev:app        # app only (vite; accepts vite flags like --port)
+pnpm run docs:dev   # docs only, port 3100 (proxied at /docs)
+```
 
-pnpm run docs:dev   # Next.js docs, port 3100 (proxied at /docs)
+```bash
+# In a git worktree alongside the main checkout, every fixed port is already
+# taken by the main checkout's servers — override all three (TanStack
+# devtools event-bus 42169, app 5173, docs 3100; DOCS_PORT retargets
+# vite.config.ts's /docs proxy):
+DEVTOOLS_EVENT_BUS_PORT=42170 DOCS_PORT=3101 pnpm dev:app --port 5174
+cd docs && pnpm exec next dev -p 3101
 ```
 
 The preview browser available to agents does NOT fire `requestAnimationFrame` — MapLibre never loads a style there. Do not try to verify map behavior in the agent browser; ask the user to test in a real browser.
