@@ -1,5 +1,5 @@
 import type React from "react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert } from "lucide-react"
@@ -1573,11 +1573,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
           ))}
         </div>
 
-        {/* The A/B date-caption row only ever fits 2 sides side by side — for
-            any grid layout with more than 2 active views (3x1, 2x2, 3x2,
-            4x1) there's nothing to show here at all (the per-handle tooltips
-            above already carry each side's own date/source regardless), so
-            the panel is simply shorter by this row's height instead.
+        {/* The A/B date-caption row only ever fits 2 sides side by side — so
+            it's strictly a 2x1-dual-mode row (for any bigger grid — 3x1,
+            2x2, 3x2, 4x1 — the per-handle tooltips above already carry each
+            side's own date/source, and the panel is simply shorter by this
+            row's height instead). Within 2x1, each side's caption shows
+            independently: A only if A is actually on a historical source, B
+            only if B is — a non-historical side keeps an empty span
+            placeholder so justify-between doesn't drift the other caption
+            (or the centered launcher below) sideways. Gating on
+            showingViews.length === 2 (the previous version) got both halves
+            wrong: a 2x2 with exactly two historical views showed the row
+            (mislabeled as if A/B), and a 2x1 with only one historical side
+            hid a perfectly good caption.
             Terrain mode's own "Open in..." launcher is ALSO centered between
             the two captions here, since terrain mode is always forced to
             the 2x1 grid this row needs anyway — a second copy alongside the
@@ -1586,17 +1594,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             shows once a historical basemap is actually active and expanded.
             Historical mode keeps its own copy in Compare and Blend
             (comparison-mix-section.tsx), unrelated to this row. */}
-        {showingViews.length === 2 && (
+        {dualMode && gridLayoutForTimeline === "2x1" && (
           <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums mx-2">
-            <span style={{ color: colorFor(showingViews[0]) }}>
-              {`${showingViews[0]}: ${tickBySide[showingViews[0]] ? `${SOURCE_CONFIG[tickBySide[showingViews[0]]!.source]?.label} ${captionBySide[showingViews[0]]}` : "—"}`}
-            </span>
-            {state.appMode !== "historical" && (
-              <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="shrink-0 h-6 px-2 text-[10px]" />
-            )}
-            <span style={{ color: colorFor(showingViews[1]) }}>
-              {`${showingViews[1]}: ${tickBySide[showingViews[1]] ? `${SOURCE_CONFIG[tickBySide[showingViews[1]]!.source]?.label} ${captionBySide[showingViews[1]]}` : "—"}`}
-            </span>
+            {(["A", "B"] as const).map((side, idx) => (
+              <Fragment key={side}>
+                {idx === 1 && state.appMode !== "historical" && (
+                  <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="shrink-0 h-6 px-2 text-[10px]" />
+                )}
+                {isHistoricalFor(side) ? (
+                  <span style={{ color: colorFor(side) }}>
+                    {`${side}: ${tickBySide[side] ? `${SOURCE_CONFIG[tickBySide[side]!.source]?.label} ${captionBySide[side]}` : "—"}`}
+                  </span>
+                ) : (
+                  <span />
+                )}
+              </Fragment>
+            ))}
           </div>
         )}
       </div>
