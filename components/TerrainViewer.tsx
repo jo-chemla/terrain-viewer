@@ -388,18 +388,19 @@ export const QUERY_STATE_PARSERS = {
     phongOpacity: parseAsFloat.withDefault(1.0),
     phongDiffuseStrength: parseAsFloat.withDefault(0.8),
     phongSpecularStrength: parseAsFloat.withDefault(0.2),
-    // Off (default): illuminationDir is a compass azimuth, fixed to the
-    // world, matching maplibre's own hillshade illumination-direction — the
-    // light doesn't move when you rotate the map. On: the light is fixed
-    // relative to the CAMERA instead — illuminationDir + the map's own
-    // bearing is baked into the phong:// tile as its effective azimuth (see
-    // the PhongSource lightDir prop below), so the light appears to stay
-    // "over your shoulder" as you spin the view. state.bearing only settles
-    // 500ms after a rotate gesture ends (see commitViewState) rather than
-    // updating continuously mid-drag, so this doesn't turn map rotation into
-    // a rapid-fire tile-recompute trigger the way it would if bearing were
-    // live-tracked.
-    phongLightRelativeToCamera: parseAsBoolean.withDefault(false),
+    // On (default, matching Matcap's own anchor per the user's 2026-08-20
+    // request): the light is fixed relative to the CAMERA ("headlamp") —
+    // illuminationDir + the map's own bearing is baked into the phong://
+    // tile as its effective azimuth (see the PhongSource lightDir prop
+    // below), so the light appears to stay "over your shoulder" as you
+    // spin the view. state.bearing only settles 500ms after a rotate
+    // gesture ends (see commitViewState) rather than updating continuously
+    // mid-drag, so this doesn't turn map rotation into a rapid-fire
+    // tile-recompute trigger the way it would if bearing were live-tracked.
+    // Off: a compass azimuth fixed to the world, matching maplibre's own
+    // hillshade illumination-direction. Note the "raster" (3D Slow)
+    // renderer still forces Absolute (see lighting-effects-options-section).
+    phongLightRelativeToCamera: parseAsBoolean.withDefault(true),
     // "raster" (default): lib/phong-protocol.ts's plain raster-tile pipeline —
     // drapes correctly over 3D terrain exaggeration AND globe, but every
     // light/strength/exaggeration change costs a real tile refetch (~150ms
@@ -2313,7 +2314,13 @@ export function TerrainViewer() {
   // Drives the minimap's bottom offset below — the timeline panel docks to
   // the same bottom-left area the minimap (a MapLibre IControl, only ever
   // mounted on the primary/map-a pane) would otherwise occupy.
+  // In TERRAIN mode the timeline additionally requires the Raster Basemap
+  // viz mode to actually be on — with it off, no historical imagery is
+  // rendered at all, so a timeline scrubbing an invisible layer is noise.
+  // (Historical mode always shows the basemap; see the opacity forcing in
+  // the per-view render below.) The panel mirrors this same gate itself.
   const historicalTimelineActive = state.historicalBeta && isHistoricalSourceActive(state)
+    && (isHistoricalMode || state.showRasterBasemap)
   const historicalTimelineVisible = historicalTimelineActive && !state.historicalTimelineCollapsed
   const isBasemapCustom = customBasemapSources.some(s => s.id === activeBasemapSourceA)
 
@@ -3123,12 +3130,18 @@ export function TerrainViewer() {
           {state.backgroundLayerActive && !isHistoricalMode && (
             <BackgroundLayer theme={theme as any} mapRef={mapRefs[side] as any} />
           )}
+          {/* Historical mode forces the basemap viz-layer opacity to 100% —
+              the imagery IS the content there, and a leftover sub-100%
+              terrain-mode slider value would just dim every pane against
+              the blank background. Compare/blend cross-fading has its own
+              overlayOpacity; the per-source basemapSourceOpacity is a
+              source-calibration knob and stays honored. */}
           <RasterLayer
             showRasterBasemap={state.showRasterBasemap}
-            rasterBasemapOpacity={state.rasterBasemapOpacity * state.basemapSourceOpacity}
+            rasterBasemapOpacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.basemapSourceOpacity}
           />
           {state.basemapPerView && state.showRasterBasemap && (
-            <OverlayBasemapLayers overlayIds={state.overlayBasemapIds} opacity={state.rasterBasemapOpacity} customBasemapSources={customBasemapSources} />
+            <OverlayBasemapLayers overlayIds={state.overlayBasemapIds} opacity={isHistoricalMode ? 1 : state.rasterBasemapOpacity} customBasemapSources={customBasemapSources} />
           )}
           <ColorReliefLayer
             showColorRelief={state.showColorRelief && !isHistoricalMode}

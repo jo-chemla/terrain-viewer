@@ -459,11 +459,12 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       const bundle = this.getProgram(gl, args.shaderData)
       this.frameCounter++
 
-      // Native viewport-zoom tile selection — same reasoning as
-      // phong-live-gl-layer.ts's render() comment (the old /dpr/2 sharpness
-      // bump quadrupled+ the visible tile count and drove the reload churn).
+      // Dpr-only tile-selection bump — same reasoning as
+      // phong-live-gl-layer.ts's render() comment (texels ≈ device pixels
+      // on retina, without the old fixed /2 that drove the reload churn).
+      const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1
       const tileIDs = map.coveringTiles({
-        tileSize: this.options.tileSize,
+        tileSize: Math.max(1, Math.round(this.options.tileSize / dpr)),
         minzoom: this.options.minzoom,
         maxzoom: this.options.maxzoom,
       })

@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Hourglass } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -46,6 +46,11 @@ export const LightingEffectsOptionsSection: React.FC<{
 }) => {
   const [isLightDirOpen, setIsLightDirOpen] = useState(true)
   const [isIntensitiesOpen, setIsIntensitiesOpen] = useState(true)
+  // Shadows' own copy of the Light Direction fold — the pad edits the SAME
+  // shared illuminationDir/illuminationAlt as Phong/Hillshade, it's just
+  // surfaced here too so turning Shadows on alone doesn't require opening
+  // Phong to move the light. Default closed (Phong's stays the primary).
+  const [isShadowLightDirOpen, setIsShadowLightDirOpen] = useState(false)
 
   // When ANY slider (a MobileSlider/SphericalXYPad) is actively being dragged,
   // everything that isn't the active control dims (the transparent-UI "silence
@@ -270,8 +275,15 @@ export const LightingEffectsOptionsSection: React.FC<{
         <div className="space-y-2">
           <CheckboxWithSlider
             id="lighting-shadows"
-            label="Shadows"
-            tooltip="Hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light. Shares Phong/Hillshade's light direction, no separate control here."
+            label={
+              // Hourglass = "slow to compute" hint, same monochrome inline-icon
+              // convention as Relief Visualization's SlowModeLabel.
+              <span className="inline-flex items-center gap-1">
+                Shadows
+                <Hourglass className="h-3 w-3 shrink-0" />
+              </span>
+            }
+            tooltip="Hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light. The heaviest lighting mode: every light/radius change recomputes visible tiles. Shares Phong/Hillshade's light direction (same pad below)."
             checked={state.showShadows}
             onCheckedChange={(checked) => setState({ showShadows: checked })}
             sliderValue={state.shadowOpacity}
@@ -286,9 +298,23 @@ export const LightingEffectsOptionsSection: React.FC<{
                 min={2} max={64} step={1}
                 sliderId="shadow-radius"
               />
-              <p className="text-xs text-muted-foreground">
-                Uses the same light direction as Phong/Hillshade above — open Phong's Light Direction to change it.
-              </p>
+              {/* Same shared illuminationDir/illuminationAlt pad Phong shows
+                  — surfaced here too (was a "go open Phong" helper note) so
+                  Shadows is usable standalone. Raster-recompute per change,
+                  hence the 150ms debounce regardless of Phong's renderer. */}
+              <Collapsible open={isShadowLightDirOpen} onOpenChange={setIsShadowLightDirOpen}>
+                <CollapsibleTrigger className={cn("flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer", dimWhenSliding)}>
+                  Light Direction (shared with Phong/Hillshade)<ChevronDown className={`h-4 w-4 transition-transform ${isShadowLightDirOpen ? "rotate-180" : ""}`} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-1 overflow-visible">
+                  <LightDirectionControl
+                    state={state}
+                    setState={setState}
+                    sliderId="shadow-light"
+                    debounceMs={150}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           )}
         </div>

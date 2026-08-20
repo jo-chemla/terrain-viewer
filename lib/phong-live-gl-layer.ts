@@ -564,18 +564,22 @@ export class PhongLiveLayer implements CustomLayerInterface {
       const bundle = this.getProgram(gl, args.shaderData)
       this.frameCounter++
 
-      // NATIVE viewport-zoom tile selection — the same zoom level MapLibre
-      // would pick for a raster source of this tileSize, no extra levels.
-      // The previous `tileSize / devicePixelRatio / 2` (added 2026-07-28 to
-      // match the native hillshade layer's sharpness on hi-dpi screens)
-      // pulled 1-2 extra zoom levels, which quadrupled-to-16x the visible
-      // tile count — the direct source of the cache-thrash/reload churn on
-      // large windows (see pruneTextures), and a lot of extra normal-tile
-      // compute per pan. Retrying at native resolution per the user's
-      // 2026-08-20 request; if this reads too soft on retina, the halfway
-      // step is `this.options.tileSize / dpr` (one extra level, dpr only).
+      // Tile selection at `tileSize / devicePixelRatio` — the dpr-only
+      // middle ground (user-approved 2026-08-20). Why the discrepancy vs
+      // the native hillshade layer exists at all: our normal tiles are
+      // rasterized at a fixed tileSize×tileSize texel grid, but the screen
+      // draws that tile across tileSize×dpr device pixels — on a retina
+      // screen the shading is effectively 2x-upsampled, while MapLibre's
+      // native raster-dem/hillshade pipeline works per device pixel from
+      // the DEM texture. Dividing by dpr pulls one extra zoom level on
+      // hi-dpi so texels ≈ device pixels; dpr-1 screens stay at native.
+      // The OLD version additionally divided by a fixed 2 (a second extra
+      // level for everyone) — that inflated the visible tile set 4-16x and
+      // drove the cache-thrash/reload churn (see pruneTextures), so it
+      // stays gone.
+      const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1
       const tileIDs = map.coveringTiles({
-        tileSize: this.options.tileSize,
+        tileSize: Math.max(1, Math.round(this.options.tileSize / dpr)),
         minzoom: this.options.minzoom,
         maxzoom: this.options.maxzoom,
       })

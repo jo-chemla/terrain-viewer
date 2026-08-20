@@ -427,7 +427,6 @@ const makeDocsStep = (key: string): TourStepDef => ({
       <ul className="list-disc pl-4 space-y-1">
         <li><a href="docs/features" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Features</a> — every visualization mode, split/compare, export &amp; share, bring-your-own-data</li>
         <li><a href="docs/features/walkthrough" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Walkthrough</a> — this same tour as a screenshot gallery, for later reference</li>
-        <li><a href="docs/dev" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Developer notes</a> — how the terrain-analysis pipeline and protocols actually work</li>
         <li><a href="docs/changelog" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Changelog</a> — what's new (also in Settings → What's New)</li>
       </ul>
     </>

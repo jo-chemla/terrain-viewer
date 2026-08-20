@@ -6,8 +6,8 @@ import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainContr
 import { useIsMobile } from "@/hooks/use-mobile"
 import { getSidebarFootprintPx } from "@/lib/layout-constants"
 
-// Visual diameter of the light dome overlay, centered in the available
-// viewport space — the drag itself isn't bounded to this circle (see
+// Visual diameter of the light dome overlay, anchored on the gesture's own
+// mousedown point — the drag itself isn't bounded to this circle (see
 // applyFromPointer below), it's just where the indicator is drawn.
 const PAD_SIZE = 300
 const RADIUS = PAD_SIZE / 2
@@ -45,8 +45,8 @@ function lightToXY(azimuthDeg: number, elevationDeg: number) {
 // RTI-viewer ("open-lime") style light control: hold L, then mousedown+drag
 // anywhere in the viewport sets the Hillshade illumination direction/altitude
 // instead of panning the map, with a translucent light-dome indicator
-// centered in whatever viewport space is left of the sidebar (matching the
-// Hillshade sidebar's own XY pad, just overlaid full-screen). Releasing
+// anchored right where the mousedown landed (matching the Hillshade
+// sidebar's own XY pad, just overlaid under your hand). Releasing
 // either L or the mouse ends the gesture and hands drag/rotate back to the
 // map. Experimental — only wired to the primary map (mapRef), not
 // split-screen's second view.
@@ -59,15 +59,25 @@ export const LightControlOverlay: React.FC<{
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
   const isMobile = useIsMobile()
   // Always-mounted (not conditional on `active`) so its bounds are available
-  // the instant a gesture starts — sized to the space left of the sidebar, so
-  // its rect IS "center of available space" with no extra math needed.
+  // the instant a gesture starts.
   const containerRef = useRef<HTMLDivElement>(null)
+  // The dome is centered on wherever the gesture's own mousedown landed
+  // (container coordinates), not the middle of the available space — so the
+  // control appears under your hand, RTI-viewer style. Ref for the pointer
+  // math (no re-render needed mid-drag), state for positioning the rendered
+  // pad. Because the press point IS the center (x=y=0 ⇒ 90° overhead), the
+  // press itself deliberately doesn't apply a light value — only the drag
+  // does — otherwise every mousedown would snap the light straight overhead
+  // before the first move.
+  const gestureCenterRef = useRef<{ x: number; y: number } | null>(null)
+  const [padCenter, setPadCenter] = useState<{ x: number; y: number } | null>(null)
 
   const applyFromPointer = useCallback((clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
-    const cx = rect.left + rect.width / 2
-    const cy = rect.top + rect.height / 2
+    const center = gestureCenterRef.current
+    const cx = rect.left + (center ? center.x : rect.width / 2)
+    const cy = rect.top + (center ? center.y : rect.height / 2)
     let x = (clientX - cx) / RADIUS
     let y = (clientY - cy) / RADIUS
     const mag = Math.sqrt(x * x + y * y)
@@ -108,8 +118,13 @@ export const LightControlOverlay: React.FC<{
       if (!lHeld || isEditableTarget(e.target)) return
       e.preventDefault()
       dragging = true
+      // Anchor the dome at the press point (container coords). No
+      // applyFromPointer here — see gestureCenterRef's comment.
+      const rect = containerRef.current?.getBoundingClientRect()
+      const center = { x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) }
+      gestureCenterRef.current = center
+      setPadCenter(center)
       setActive(true)
-      applyFromPointer(e.clientX, e.clientY)
     }
     const onPointerMove = (e: PointerEvent) => {
       if (!dragging) return
@@ -169,7 +184,13 @@ export const LightControlOverlay: React.FC<{
       {active && (
         <div
           className="relative rounded-full border border-white/40 bg-black/10"
-          style={{ width: PAD_SIZE, height: PAD_SIZE }}
+          style={{
+            width: PAD_SIZE, height: PAD_SIZE,
+            // Anchored on the gesture's own mousedown point (same size as
+            // before) — falls back to the flex-centered position if a
+            // gesture somehow activates without one.
+            ...(padCenter ? { position: "absolute" as const, left: padCenter.x - RADIUS, top: padCenter.y - RADIUS } : {}),
+          }}
         >
           <div className="absolute text-xs text-white/70 font-medium" style={{ left: "50%", top: 6, transform: "translateX(-50%)" }}>N</div>
           <div className="absolute rounded-full bg-white/70" style={{ width: 6, height: 6, left: RADIUS - 3, top: RADIUS - 3 }} />
