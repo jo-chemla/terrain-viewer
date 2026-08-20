@@ -4,8 +4,9 @@
   "author": "jochemla",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n app,docs -c cyan,magenta \"pnpm run dev:app\" \"pnpm run docs:dev\"",
-    "dev:app": "vite",
+    "dev": "concurrently -k -n app,docs -c cyan,magenta \"pnpm run app\" \"pnpm run docs\"",
+    "app": "vite",
+    "docs": "pnpm --dir docs dev",
     "build": "vite build",
     "zip": "del dist.zip && vite build && \"C:\\Program Files\\7-Zip\\7z.exe\" a dist.zip dist",
     "preview": "vite preview",
