@@ -185,6 +185,12 @@ export const bookmarksListHeightAtom = atomWithStorage<number | null>("bookmarks
 // expanded (matches the pre-existing always-expanded behavior for anyone
 // upgrading with bookmarks already saved).
 export const collapsedBookmarkGroupsAtom = atomWithStorage<string[]>("collapsedBookmarkGroups", [])
+// Sidebar bookmarks list presentation — "list" (default: the original tree of
+// project rows with children indented beneath) or "grid" (flattened thumbnail
+// tiles, a compact in-panel cousin of the gallery modal's cards). Same
+// list/gallery icon-toggle idea as RiverREM_UI's runsView selector, which this
+// whole Bookmarks UI is modeled on.
+export const bookmarksViewModeAtom = atomWithStorage<"list" | "grid">("bookmarksViewMode", "list")
 // Pins Visualization Modes open through "Fold all sections" (TerrainControlPanel.tsx)
 // — that's the master on/off switchboard for every viz layer, so folding it away
 // along with everything else hides the controls someone's most likely to want

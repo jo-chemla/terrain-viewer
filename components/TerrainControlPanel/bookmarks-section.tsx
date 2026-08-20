@@ -4,7 +4,7 @@ import { useAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
 import {
   Bookmark as BookmarkIcon, Trash2, Pencil, Maximize2, Upload, Download as DownloadIcon, ImageOff, Plus, ChevronDown,
-  ChevronsDownUp, ChevronsUpDown, Edit,
+  ChevronsDownUp, ChevronsUpDown, Edit, List, LayoutGrid,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +19,7 @@ import {
   bookmarksAtom, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, restoreBookmark, exportBookmarksJson,
   mergeImportedBookmarks, summarizeActiveVizModes, type Bookmark,
 } from "@/lib/bookmarks"
-import { bookmarksListHeightAtom, collapsedBookmarkGroupsAtom } from "@/lib/settings-atoms"
+import { bookmarksListHeightAtom, collapsedBookmarkGroupsAtom, bookmarksViewModeAtom } from "@/lib/settings-atoms"
 import { reverseGeocodeLabel } from "@/lib/geocode"
 import { captureBookmarkThumbnail } from "@/lib/controls-utils"
 import { BookmarksGalleryModal } from "./bookmarks-gallery-modal"
@@ -39,6 +39,44 @@ const PresetBookmarkRow: React.FC<{ preset: Bookmark; onRestore: (b: Bookmark) =
       {preset.thumb ? <img src={preset.thumb} alt="" className="h-full w-full object-cover" /> : <ImageOff className="h-3.5 w-3.5" />}
     </span>
     <span className="flex-1 min-w-0 truncate text-sm">{preset.name}</span>
+  </button>
+)
+
+// One tile of the sidebar's GRID view (bookmarksViewModeAtom = "grid") — the
+// same thumbnail-on-top/name-below card shape as the gallery modal's
+// BookmarkCard, shrunk to sidebar width and stripped of every editing
+// affordance (rename/delete/drag stay list-view/gallery concerns). Clicking
+// anywhere restores, via the exact same handleRestore the list rows use.
+const BookmarkGridTile: React.FC<{
+  bookmark: Bookmark
+  /** Name of the project this view belongs to — display-only, shown as a
+   *  smaller muted line above the view's own name (same as the gallery
+   *  modal's flattened cards). */
+  parentName?: string
+  isActive: boolean
+  onRestore: (b: Bookmark) => void
+}> = ({ bookmark: b, parentName, isActive, onRestore }) => (
+  <button
+    onClick={() => onRestore(b)}
+    title={`Load "${parentName ? `${parentName} — ${b.name}` : b.name}"`}
+    className={cn(
+      "overflow-hidden rounded-md border text-left cursor-pointer transition-colors hover:border-foreground/40",
+      isActive && "border-2 border-primary",
+    )}
+  >
+    <div className="aspect-[16/10] w-full bg-muted">
+      {b.thumb ? (
+        <img src={b.thumb} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+          <ImageOff className="h-4 w-4" />
+        </div>
+      )}
+    </div>
+    <div className="px-1.5 py-1">
+      {parentName && <div className="truncate text-[10px] leading-tight text-muted-foreground">{parentName}</div>}
+      <div className="truncate text-xs leading-tight">{b.name}</div>
+    </div>
   </button>
 )
 
@@ -358,6 +396,9 @@ export const BookmarksSection: React.FC<{
     setCollapsedGroups((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }, [setCollapsedGroups])
 
+  // List rows vs thumbnail grid — see bookmarksViewModeAtom / BookmarkGridTile.
+  const [viewMode, setViewMode] = useAtom(bookmarksViewModeAtom)
+
   // Plain HTML5 drag-and-drop, no library: a project dropped on another
   // project reorders the roots; a child dropped on a sibling reorders within
   // its own parent. Deliberately NOT cross-project (a child dropped on a
@@ -439,6 +480,20 @@ export const BookmarksSection: React.FC<{
   const childrenOf = useCallback(
     (id: string) => bookmarks.filter((b) => b.parentId === id),
     [bookmarks],
+  )
+
+  // Grid view flattens the tree the same way the gallery modal's "Flatten"
+  // mode does: every project's children as tiles (labeled with the project's
+  // name), a childless project (or orphan) as a tile of its own — so the
+  // grid never wastes cells on organizational-only parent rows.
+  const gridItems = useMemo(
+    () => roots.flatMap((root) => {
+      const children = childrenOf(root.id)
+      return children.length > 0
+        ? children.map((c) => ({ bookmark: c, parentName: root.name }))
+        : [{ bookmark: root, parentName: undefined as string | undefined }]
+    }),
+    [roots, childrenOf],
   )
 
   // "Fold all" toggles based on whether every group with at least one child
@@ -563,12 +618,41 @@ export const BookmarksSection: React.FC<{
             disabled={bookmarks.length === 0}
             className="flex-1"
           />
+          {/* List/grid presentation toggle — same icon-button-group pattern
+              as RiverREM_UI's runsView selector (List/LayoutGrid pair in one
+              bordered group, active segment inverted). h-9 matches the
+              size="icon" buttons sharing this row. */}
+          <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-md border">
+            {([
+              ["list", List, "List view — projects with their views indented beneath"],
+              ["grid", LayoutGrid, "Grid view — every saved view as a thumbnail tile"],
+            ] as const).map(([v, Icon, tip]) => (
+              <Tooltip key={v}>
+                <TooltipTrigger
+                  delay={0}
+                  render={
+                    <button
+                      onClick={() => setViewMode(v)}
+                      aria-label={tip}
+                      className={cn(
+                        "px-2 cursor-pointer transition-colors",
+                        viewMode === v ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent",
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </button>
+                  }
+                />
+                <TooltipContent><p>{tip}</p></TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
           <TooltipIconButton
             icon={allGroupsCollapsed ? ChevronsUpDown : ChevronsDownUp}
             tooltip={allGroupsCollapsed ? "Expand all projects" : "Fold all projects"}
             onClick={handleToggleFoldAll}
             variant="outline"
-            disabled={foldableRootIds.length === 0}
+            disabled={foldableRootIds.length === 0 || viewMode === "grid"}
           />
           <Tooltip>
             <TooltipTrigger
@@ -614,7 +698,19 @@ export const BookmarksSection: React.FC<{
               className="space-y-1 overflow-y-auto"
               style={{ height: listHeight ?? 256 }}
             >
-              {roots.map((project) => {
+              {viewMode === "grid" ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {gridItems.map(({ bookmark: b, parentName }) => (
+                    <BookmarkGridTile
+                      key={b.id}
+                      bookmark={b}
+                      parentName={parentName}
+                      isActive={activeBookmarkId === b.id}
+                      onRestore={handleRestore}
+                    />
+                  ))}
+                </div>
+              ) : roots.map((project) => {
                 const children = childrenOf(project.id)
                 const isCollapsed = collapsedGroups.includes(project.id)
                 const isDragOverProject = dragOverProjectId === project.id
