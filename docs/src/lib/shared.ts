@@ -10,6 +10,16 @@ export const appName = 'Terrain Viewer';
 export const docsRoute = '/';
 export const docsImageRoute = '/og/docs';
 export const docsContentRoute = '/llms.mdx/docs';
+// The Next basePath this whole app is mounted under (next.config.mjs) —
+// needed wherever a URL leaves the Next router's own <Link>/redirect
+// machinery (which prefixes it automatically) and gets handed to the
+// outside world as a plain string instead: the page-actions "Open in
+// ChatGPT/Claude" prompt URLs and the raw content.md links (see
+// src/components/page-actions.tsx). fumadocs-ui's own ViewOptionsPopover
+// builds those from usePathname(), which EXCLUDES basePath in Next — that
+// shipped "Open in X" prompts pointing at terrain-viewer.iconem.com/changelog
+// instead of /docs/changelog.
+export const docsBasePath = '/docs';
 
 export const gitConfig = {
   user: 'Iconem',
