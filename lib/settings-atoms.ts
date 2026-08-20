@@ -191,6 +191,13 @@ export const collapsedBookmarkGroupsAtom = atomWithStorage<string[]>("collapsedB
 // list/gallery icon-toggle idea as RiverREM_UI's runsView selector, which this
 // whole Bookmarks UI is modeled on.
 export const bookmarksViewModeAtom = atomWithStorage<"list" | "grid">("bookmarksViewMode", "list")
+// Gallery MODAL presentation — "grid" (default: the original thumbnail cards)
+// or "list" (compact rows: small thumbnail left, project + view name right).
+// Deliberately its own atom rather than sharing bookmarksViewModeAtom above:
+// the sidebar and the fullscreen modal are different reading contexts (a
+// narrow always-on panel vs. a wide overlay), so one's preferred density
+// shouldn't drag the other's along with it.
+export const bookmarksGalleryViewModeAtom = atomWithStorage<"grid" | "list">("bookmarksGalleryViewMode", "grid")
 // Pins Visualization Modes open through "Fold all sections" (TerrainControlPanel.tsx)
 // — that's the master on/off switchboard for every viz layer, so folding it away
 // along with everything else hides the controls someone's most likely to want

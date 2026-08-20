@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { useAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
 import {
-  Bookmark as BookmarkIcon, Trash2, Pencil, Maximize2, Upload, Download as DownloadIcon, ImageOff, Plus, ChevronDown,
+  Bookmark as BookmarkIcon, Trash2, Pencil, GalleryThumbnails, Upload, Download as DownloadIcon, ImageOff, Plus, ChevronDown,
   ChevronsDownUp, ChevronsUpDown, Edit, List, LayoutGrid,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -643,22 +643,26 @@ export const BookmarksSection: React.FC<{
   return (
     <Section title="Bookmarks" isOpen={isOpen} onOpenChange={onOpenChange}>
       <div className="space-y-2">
-        <div className="flex gap-2">
+        {/* One non-wrapping toolbar row. Only the Save View button is
+            flexible (flex-1 min-w-0 — its label truncates before anything
+            overflows); every icon-sized control is shrink-0, so at narrow
+            sidebar widths the text button absorbs all the squeeze. */}
+        <div className="flex min-w-0 items-center gap-2">
           <TooltipButton
             icon={BookmarkIcon}
             label={isSaving ? "Saving…" : "Save View"}
             tooltip="Save the current viewport and every visualization setting as a new project bookmark"
             onClick={() => saveBookmark()}
             disabled={isSaving}
-            className="flex-1"
+            className="flex-1 min-w-0"
           />
-          <TooltipButton
-            icon={Maximize2}
-            label="Gallery"
-            tooltip="Open full gallery"
+          <TooltipIconButton
+            icon={GalleryThumbnails}
+            tooltip="Gallery — every saved view fullscreen"
             onClick={() => setIsGalleryOpen(true)}
             disabled={bookmarks.length === 0}
-            className="flex-1"
+            variant="outline"
+            className="shrink-0"
           />
           {/* List/grid presentation toggle — same icon-button-group pattern
               as RiverREM_UI's runsView selector (List/LayoutGrid pair in one
@@ -695,12 +699,13 @@ export const BookmarksSection: React.FC<{
             onClick={handleToggleFoldAll}
             variant="outline"
             disabled={foldableRootIds.length === 0 || viewMode === "grid"}
+            className="shrink-0"
           />
           <Tooltip>
             <TooltipTrigger
               delay={0}
               render={
-                <span>
+                <span className="shrink-0">
                   <Toggle
                     pressed={editMode}
                     onPressedChange={setEditMode}

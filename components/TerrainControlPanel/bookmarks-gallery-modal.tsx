@@ -1,7 +1,7 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom } from "jotai"
-import { Trash2, ImageOff, Pencil, Check } from "lucide-react"
+import { Trash2, ImageOff, Pencil, Check, List, LayoutGrid } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
@@ -13,7 +13,7 @@ import { useIsTruncated } from "@/hooks/use-is-truncated"
 import { cn } from "@/lib/utils"
 import { restoreBookmark, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, type Bookmark } from "@/lib/bookmarks"
 import { PRESET_BOOKMARKS, restorePreset } from "@/lib/preset-bookmarks"
-import { galleryFlattenGroupsAtom, galleryShowFeaturedAtom } from "@/lib/settings-atoms"
+import { galleryFlattenGroupsAtom, galleryShowFeaturedAtom, bookmarksGalleryViewModeAtom } from "@/lib/settings-atoms"
 
 // Fullscreen gallery — the other half of bookmarks-section.tsx's sidebar
 // list. Built on the same Dialog primitives as settings-dialog.tsx (rather
@@ -21,7 +21,10 @@ import { galleryFlattenGroupsAtom, galleryShowFeaturedAtom } from "@/lib/setting
 // modal chrome: dialog surface, DialogClose ✕, header/description pattern.
 type Sort = "recent-desc" | "recent-asc" | "name"
 
-const BookmarkCard: React.FC<{
+// Shared by BookmarkCard (grid view) and BookmarkListRow (list view) — the
+// two are interchangeable render targets for the exact same item data, so the
+// caller can swap components without reshaping any props.
+interface BookmarkItemProps {
   bookmark: Bookmark
   /** Flattened view only — the project this bookmark belongs to, display-only
    *  and never fed into rename (which always edits the bookmark's own real
@@ -40,7 +43,9 @@ const BookmarkCard: React.FC<{
   onCancelEdit: () => void
   onDelete?: (id: string) => void
   onRename?: (id: string, name: string) => void
-}> = ({
+}
+
+const BookmarkCard: React.FC<BookmarkItemProps> = ({
   bookmark: b, parentName, isReferenceProject, isActive, editId, editName,
   onRestore, onEditNameChange, onCommitRename, onStartEdit, onCancelEdit, onDelete, onRename,
 }) => {
@@ -113,6 +118,84 @@ const BookmarkCard: React.FC<{
   )
 }
 
+// List-view counterpart of BookmarkCard — the same compact row shape as the
+// sidebar's BookmarkRow (small thumbnail left, project + view name right),
+// with the card's own rename/delete affordances kept inline at the row's end.
+// Since children are named by summarizeActiveVizModes at save time, the name
+// line doubles as the viz-mode summary.
+const BookmarkListRow: React.FC<BookmarkItemProps> = ({
+  bookmark: b, parentName, isReferenceProject, isActive, editId, editName,
+  onRestore, onEditNameChange, onCommitRename, onStartEdit, onCancelEdit, onDelete, onRename,
+}) => {
+  const [nameRef, isNameTruncated] = useIsTruncated<HTMLDivElement>()
+  const [parentNameRef, isParentNameTruncated] = useIsTruncated<HTMLDivElement>()
+  const isTruncated = isNameTruncated || isParentNameTruncated
+  const label = parentName ? `${parentName} — ${b.name}` : b.name
+
+  const nameButton = (
+    <button className="min-w-0 flex-1 text-left cursor-pointer" onClick={() => onRestore(b)}>
+      {parentName && (
+        <div ref={parentNameRef} className="truncate text-[10px] leading-tight text-muted-foreground">{parentName}</div>
+      )}
+      <div ref={nameRef} className="truncate text-sm leading-tight">{b.name}</div>
+    </button>
+  )
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 min-w-0 rounded-md border-2 border-transparent p-0.5 transition-colors hover:bg-muted/50",
+        isReferenceProject && "ring-1 ring-primary/50",
+        isActive && "border-primary p-1.5",
+      )}
+    >
+      <button
+        className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
+        onClick={() => onRestore(b)}
+        aria-label="Load this view"
+      >
+        {b.thumb ? (
+          <img src={b.thumb} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+            <ImageOff className="h-3.5 w-3.5" />
+          </div>
+        )}
+      </button>
+      {editId === b.id ? (
+        <Input
+          autoFocus
+          value={editName}
+          onChange={(e) => onEditNameChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { onCommitRename(b.id, editName) } if (e.key === "Escape") onCancelEdit() }}
+          className="h-7 flex-1 min-w-0 text-sm"
+        />
+      ) : isTruncated ? (
+        <Tooltip>
+          <TooltipTrigger render={nameButton} />
+          <TooltipContent><p>{label}</p></TooltipContent>
+        </Tooltip>
+      ) : nameButton}
+      {editId === b.id ? (
+        <button onClick={() => onCommitRename(b.id, editName)} className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
+          <Check className="h-3.5 w-3.5" />
+        </button>
+      ) : (
+        onRename && (
+          <button onClick={() => onStartEdit(b)} className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
+            <Pencil className="h-3 w-3" />
+          </button>
+        )
+      )}
+      {onDelete && (
+        <button onClick={() => onDelete(b.id)} className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  )
+}
+
 export const BookmarksGalleryModal: React.FC<{
   open: boolean
   onClose: () => void
@@ -129,6 +212,15 @@ export const BookmarksGalleryModal: React.FC<{
   const [activeBookmarkId, setActiveBookmarkId] = useAtom(activeBookmarkIdAtom)
   const [flattenGroups, setFlattenGroups] = useAtom(galleryFlattenGroupsAtom)
   const [showFeatured, setShowFeatured] = useAtom(galleryShowFeaturedAtom)
+  // Card grid vs compact rows — deliberately its OWN atom, not the sidebar's
+  // bookmarksViewModeAtom (see settings-atoms.ts): different contexts,
+  // independently remembered preferences.
+  const [galleryView, setGalleryView] = useAtom(bookmarksGalleryViewModeAtom)
+  // BookmarkCard and BookmarkListRow take the exact same props — the whole
+  // grid/list switch is just which component each section maps items through,
+  // plus the container class (3-col grid of cards vs a single stack of rows).
+  const ItemComp = galleryView === "grid" ? BookmarkCard : BookmarkListRow
+  const itemsContainerCls = galleryView === "grid" ? "grid grid-cols-2 gap-3 sm:grid-cols-3" : "space-y-1"
 
   // Scroll-fade (same pattern as TerrainControlPanel.tsx's sidebar panel):
   // soften the top/bottom edges of the card grid with a mask gradient, only
@@ -151,7 +243,7 @@ export const BookmarksGalleryModal: React.FC<{
     ro.observe(el)
     for (const child of Array.from(el.children)) ro.observe(child)
     return () => ro.disconnect()
-  }, [updateFade, open, bookmarks, flattenGroups, showFeatured])
+  }, [updateFade, open, bookmarks, flattenGroups, showFeatured, galleryView])
   const scrollMask = `linear-gradient(to bottom, ${fade.top ? "transparent" : "#000"} 0, #000 ${FADE_PX}px, #000 calc(100% - ${FADE_PX}px), ${fade.bottom ? "transparent" : "#000"} 100%)`
 
   const handleRestorePreset = (preset: Bookmark) => {
@@ -275,6 +367,34 @@ export const BookmarksGalleryModal: React.FC<{
                     : "Grouped by project, one grid per group"}</p>
                 </TooltipContent>
               </Tooltip>
+              {/* Same icon-button-group pattern as the sidebar's list/grid
+                  selector (bookmarks-section.tsx) — h-8 to sit flush with the
+                  size="sm" SelectTrigger next to it. */}
+              <div className="inline-flex h-8 shrink-0 overflow-hidden rounded-md border">
+                {([
+                  ["list", List, "List view — compact rows, thumbnail beside each name"],
+                  ["grid", LayoutGrid, "Grid view — thumbnail cards"],
+                ] as const).map(([v, Icon, tip]) => (
+                  <Tooltip key={v}>
+                    <TooltipTrigger
+                      delay={0}
+                      render={
+                        <button
+                          onClick={() => setGalleryView(v)}
+                          aria-label={tip}
+                          className={cn(
+                            "px-2 cursor-pointer transition-colors",
+                            galleryView === v ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent",
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </button>
+                      }
+                    />
+                    <TooltipContent><p>{tip}</p></TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
               <Select
                 value={sort}
                 onValueChange={(v) => setSort(v as Sort)}
@@ -306,9 +426,9 @@ export const BookmarksGalleryModal: React.FC<{
             <h3 className="mb-1.5 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Featured
             </h3>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className={itemsContainerCls}>
               {PRESET_BOOKMARKS.map((preset) => (
-                <BookmarkCard
+                <ItemComp
                   key={preset.id}
                   bookmark={preset}
                   isReferenceProject={false}
@@ -328,9 +448,9 @@ export const BookmarksGalleryModal: React.FC<{
         {groups.length === 0 ? (
           <p className="text-sm text-muted-foreground">No bookmarks yet — save your current view from the Bookmarks panel.</p>
         ) : flattenGroups ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className={itemsContainerCls}>
             {flatItems.map(({ bookmark: b, parentName }) => (
-              <BookmarkCard
+              <ItemComp
                 key={b.id}
                 bookmark={b}
                 parentName={parentName}
@@ -357,9 +477,9 @@ export const BookmarksGalleryModal: React.FC<{
                     {group.parent.name}
                   </h3>
                 )}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className={itemsContainerCls}>
                   {group.items.map((b) => (
-                    <BookmarkCard
+                    <ItemComp
                       key={b.id}
                       bookmark={b}
                       isReferenceProject={!b.parentId && activeProjectId === b.id}
