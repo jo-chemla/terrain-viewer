@@ -3,23 +3,34 @@
 // lib/phong-live-gl-layer.ts's architecture closely (same per-tile normal
 // texture, same terrain-drape scaffolding via map.terrain.getTerrainData() —
 // see that file's header comment for the full derivation/history of both).
-// The one genuinely different piece is the shading math itself: a plain
-// matcap lookup samples the material image at UV = N.xy*0.5+0.5, which is
-// really an ORTHOGRAPHIC simplification (implicitly assumes the view
-// direction is a constant straight-down (0,0,1) everywhere on screen — exact
-// at dead center, quietly wrong everywhere else once there's real
-// perspective). This layer instead reconstructs a real per-fragment view
-// ray from the fragment's screen position + the camera's actual field of
-// view (both already exposed to a custom layer — screen position via
-// gl_FragCoord/viewport size, FOV via CustomRenderMethodInput.fov) and
-// reflects THAT off the surface normal, so a ray away from the optical axis
-// (near a screen edge, or at a wide FOV) diverges accordingly and samples a
-// different point on the matcap sphere than it would at screen center —
-// the effect requested: "rays less centered in the camera frame get more
-// reflected away by the same normal."
+// The one genuinely different piece is the shading math itself: a matcap
+// samples the material image by the surface normal, in one of two frames:
+//  - "Camera" (default): the CLASSIC matcap lookup — the normal projected
+//    onto the camera's own right/up basis (view-space normal), so the
+//    material reads like a sphere held up to the current camera and tracks
+//    live through rotate/tilt gestures. The basis comes from the same
+//    computeCameraBasis (phong-live-gl-layer.ts) unprojection technique the
+//    Phong headlamp uses — real per-tile matrix data, no hand-derived trig.
+//  - "Absolute": the tile-space orthographic lookup, UV = N.xy*0.5+0.5 —
+//    identical to the raster pipeline (gpu-matcap-compute.ts /
+//    matcap-protocol.ts), pinned to compass directions and unaffected by
+//    camera orientation. The two conventions coincide exactly at a
+//    top-down, north-up camera.
+// A previous iteration instead built a per-fragment view ray (gl_FragCoord
+// + FOV, or an inverse-projection unproject) and sampled by
+// reflect(viewRay, N) — deliberately, chasing perspective ray divergence
+// away from the optical axis. That construction is wrong for a matcap on
+// two counts: reflect() doubles the angular response (the whole material
+// compresses into the ±45° slope band, everything steeper clamps to the
+// texture rim), and on flat/low-relief terrain reflect(I, +Z).xy == I.xy —
+// the ray's own screen position — which painted a screen-locked radial
+// blob of the matcap's center (its brightest region on most materials)
+// glued to the middle of the viewport, sliding with the camera instead of
+// the ground. That's the "weird fade-in at the center of the screen".
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap, OverscaledTileID } from "maplibre-gl"
 import { createTileMesh } from "maplibre-gl"
 import { computeNormalPixels } from "./normals-protocol"
+import { computeCameraBasis, type Vec3 } from "./phong-live-gl-layer"
 import type { UpstreamEncoding } from "./normal-derived-protocol"
 
 /** Shape of the real (but publicly untyped) `map.terrain` property — mirrors
@@ -86,16 +97,15 @@ export type MatcapLiveOptions = {
   exaggeration: number
   opacity: number
   /** "Light Anchor", ported from phong-live-gl-layer.ts's own
-   *  lightRelativeToCamera: false ("Absolute") keeps the existing
-   *  screen-position-only divergence (the ray's direction depends on where
-   *  a fragment sits on screen + the FOV, but not on how the camera itself
-   *  is actually tilted/rotated in 3D) — camera-orientation-agnostic, the
-   *  original behavior. true ("Camera" / attached to camera, the default)
-   *  instead unprojects this fragment through the inverse of the SAME
-   *  per-tile projection matrix used to place the tile itself (see the
-   *  fragment shader) — the real camera's pitch/bearing/FOV are all already
-   *  baked into that one matrix, so this reacts to real 3D orientation with
-   *  no separately hand-derived trig (and its signs) to get wrong. */
+   *  lightRelativeToCamera: true ("Camera" / attached to camera, the
+   *  default) samples the matcap by the VIEW-SPACE normal — the normal
+   *  projected onto the camera's live right/up basis (computeCameraBasis,
+   *  same technique as Phong's headlamp mode) — the classic matcap look,
+   *  tracking rotate/tilt gestures. false ("Absolute") samples by the
+   *  tile-space normal directly (UV = N.xy*0.5+0.5), identical to the
+   *  raster pipeline: pinned to compass directions,
+   *  camera-orientation-agnostic. See the header comment for why the older
+   *  per-fragment reflect() construction was scrapped. */
   lightRelativeToCamera: boolean
 }
 
@@ -125,15 +135,14 @@ uniform sampler2D u_matcap;
 uniform float u_rotationRad;
 uniform float u_exaggeration;
 uniform float u_opacity;
-uniform float u_fov;
-uniform vec2 u_viewportSize;
 uniform bool u_lightRelativeToCamera;
-// Same name/type as the vertex shader's own uniform (declared in the
-// projection prelude spliced into buildVertexShader) — WebGL links same-
-// name uniforms across stages as one shared value, so this picks up
-// whatever gl.uniformMatrix4fv(bundle.uProjectionMatrix, ...) already sets
-// per-tile in render(), no separate binding needed.
-uniform mat4 u_projection_matrix;
+// Camera basis in the same tile-local (x=east, y=south, z=up) frame the
+// normals live in — computed once per frame CPU-side (computeCameraBasis)
+// and constant across fragments; NOT per-fragment. A matcap is defined by
+// the normal's orientation relative to the camera, not by which pixel the
+// fragment lands on.
+uniform vec3 u_cameraRight;
+uniform vec3 u_cameraUp;
 out vec4 fragColor;
 
 void main() {
@@ -151,45 +160,22 @@ void main() {
   float sb = sin(u_rotationRad);
   vec3 rotatedN = vec3(n.x * cb + n.y * sb, -n.x * sb + n.y * cb, n.z);
 
-  // This fragment's NDC position from gl_FragCoord + the actual viewport
-  // size, scaled by the camera's own half-vertical-FOV tangent (aspect-
-  // corrected for X) — how far a "local" ray cants away from the optical
-  // axis at this screen position.
-  vec2 ndc = (gl_FragCoord.xy / u_viewportSize) * 2.0 - 1.0;
-  float halfFovTan = tan(u_fov * 0.5);
-  float aspect = u_viewportSize.x / u_viewportSize.y;
-  vec3 localRay = vec3(ndc.x * halfFovTan * aspect, ndc.y * halfFovTan, -1.0);
-
-  vec3 viewDir;
+  vec2 uv;
   if (u_lightRelativeToCamera) {
-    // "Camera" (attached to camera): rather than hand-deriving a
-    // pitch/bearing rotation (error-prone to get every sign right blind —
-    // an earlier version of this did and had them backwards), unproject
-    // THIS fragment's NDC position through the inverse of the SAME per-tile
-    // projection matrix (u_projection_matrix) the vertex shader used to
-    // place this tile — two points along the ray at different clip-space
-    // depths, in tile-local (x=east, y=south, elevation=up) space, the same
-    // frame the surface normal is already in. Their difference is the ray
-    // MapLibre's own real camera (pitch, bearing, fov all baked into that
-    // one matrix already) actually casts through this pixel — mathematically
-    // guaranteed self-consistent with how the tile itself was placed, no
-    // separately-derived trig to get wrong.
-    mat4 invProjection = inverse(u_projection_matrix);
-    vec4 nearH = invProjection * vec4(ndc, -1.0, 1.0);
-    vec4 farH  = invProjection * vec4(ndc,  1.0, 1.0);
-    vec3 nearP = nearH.xyz / nearH.w;
-    vec3 farP  = farH.xyz / farH.w;
-    viewDir = normalize(farP - nearP);
+    // "Camera": classic view-space matcap — the normal projected onto the
+    // camera's live right/up axes. Screen-right-facing slopes sample the
+    // material sphere's right, screen-up-facing its top (v flipped: image
+    // v grows downward). Reduces exactly to the Absolute branch at a
+    // top-down, north-up camera (right=east=+x, up=north=-y).
+    uv = vec2(0.5 + 0.5 * dot(rotatedN, u_cameraRight),
+              0.5 - 0.5 * dot(rotatedN, u_cameraUp));
   } else {
-    // "Absolute": the ray's direction still depends on screen position +
-    // FOV (unlike the orthographic-matcap simplification's constant
-    // (0,0,1)), but NOT on how the camera is actually tilted/rotated —
-    // camera-orientation-agnostic, matching this layer's original behavior.
-    viewDir = normalize(localRay);
+    // "Absolute": tile-space orthographic lookup, byte-identical in
+    // convention to gpu-matcap-compute.ts / matcap-protocol.ts — pinned to
+    // compass directions (east slopes sample the sphere's right, south its
+    // bottom), unaffected by camera orientation.
+    uv = rotatedN.xy * 0.5 + 0.5;
   }
-
-  vec3 r = reflect(viewDir, rotatedN);
-  vec2 uv = r.xy * 0.5 + 0.5;
   vec3 matcapColor = texture(u_matcap, uv).rgb;
 
   // Premultiplied — CustomLayerInterface.render's default blend func is
@@ -236,8 +222,8 @@ interface ProgramBundle {
   uRotationRad: WebGLUniformLocation | null
   uExaggeration: WebGLUniformLocation | null
   uOpacity: WebGLUniformLocation | null
-  uFov: WebGLUniformLocation | null
-  uViewportSize: WebGLUniformLocation | null
+  uCameraRight: WebGLUniformLocation | null
+  uCameraUp: WebGLUniformLocation | null
   uLightRelativeToCamera: WebGLUniformLocation | null
   uTerrain: WebGLUniformLocation | null
   uTerrainDim: WebGLUniformLocation | null
@@ -280,6 +266,11 @@ export class MatcapLiveLayer implements CustomLayerInterface {
   private matcapTextureUrl: string | null = null
   private matcapTextureLoading = false
   private loggedMatcapError = false
+  // Last-known-good camera basis for the "Camera" (view-space) lookup —
+  // same rationale as phong-live-gl-layer.ts's lastCameraBasis: a rare
+  // degenerate/non-invertible per-tile matrix reuses the previous frame's
+  // orientation instead of snapping to garbage for one frame.
+  private lastCameraBasis: { right: Vec3; up: Vec3; forward: Vec3 } | null = null
 
   constructor(id: string, options: MatcapLiveOptions) {
     this.id = id
@@ -356,8 +347,8 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       uRotationRad: gl.getUniformLocation(program, "u_rotationRad"),
       uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
       uOpacity: gl.getUniformLocation(program, "u_opacity"),
-      uFov: gl.getUniformLocation(program, "u_fov"),
-      uViewportSize: gl.getUniformLocation(program, "u_viewportSize"),
+      uCameraRight: gl.getUniformLocation(program, "u_cameraRight"),
+      uCameraUp: gl.getUniformLocation(program, "u_cameraUp"),
       uLightRelativeToCamera: gl.getUniformLocation(program, "u_lightRelativeToCamera"),
       uTerrain: gl.getUniformLocation(program, "u_terrain"),
       uTerrainDim: gl.getUniformLocation(program, "u_terrain_dim"),
@@ -478,9 +469,22 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       gl.uniform1f(bundle.uRotationRad, (this.options.rotationDeg * Math.PI) / 180)
       gl.uniform1f(bundle.uExaggeration, this.options.exaggeration)
       gl.uniform1f(bundle.uOpacity, this.options.opacity)
-      gl.uniform1f(bundle.uFov, args.fov)
-      gl.uniform2f(bundle.uViewportSize, gl.drawingBufferWidth, gl.drawingBufferHeight)
       gl.uniform1i(bundle.uLightRelativeToCamera, this.options.lightRelativeToCamera ? 1 : 0)
+
+      // Camera basis for the view-space ("Camera") lookup — once per frame
+      // from the first visible tile's real projection matrix, exactly like
+      // phong-live-gl-layer.ts's headlamp mode (the basis directions are
+      // tile-independent under mercator; only this one matrix is needed).
+      if (this.options.lightRelativeToCamera && tileIDs.length > 0) {
+        const p0 = map.transform.getProjectionData({ overscaledTileID: tileIDs[0], applyGlobeMatrix: true })
+        const basis = computeCameraBasis(p0.mainMatrix)
+        if (basis) this.lastCameraBasis = basis
+      }
+      const basis = this.lastCameraBasis
+      gl.uniform3f(bundle.uCameraRight, basis?.right[0] ?? 1, basis?.right[1] ?? 0, basis?.right[2] ?? 0)
+      // Fallback (no basis yet): north-up top-down camera, where the two
+      // lookup conventions coincide — right=east=(1,0,0), up=north=(0,-1,0).
+      gl.uniform3f(bundle.uCameraUp, basis?.up[0] ?? 0, basis?.up[1] ?? -1, basis?.up[2] ?? 0)
 
       gl.activeTexture(gl.TEXTURE2)
       gl.bindTexture(gl.TEXTURE_2D, this.matcapTexture)

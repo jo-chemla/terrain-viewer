@@ -80,7 +80,7 @@ $$
 </Tab>
 </Tabs>
 
-The live-GL-layer version instead reconstructs a real per-fragment view ray from `gl_FragCoord` + FOV, reflects it off the (rotated) normal, and uses the reflection's `xy * 0.5 + 0.5` — a perspective-correct matcap, with an optional "light relative to camera" mode that unprojects through the inverse per-tile projection matrix.
+The live-GL-layer version uses the same lookup, with a choice of frame via its **Light Anchor** toggle: *Absolute* samples by the tile-space normal exactly as above (pinned to compass directions, matching the raster pipeline), while *Camera* (the default) projects the normal onto the camera's live right/up basis first — the classic view-space matcap, so the material tracks pitch/bearing like a sphere held up to the current view. (An earlier build instead reflected a per-fragment view ray off the normal; that doubled the angular response and painted a screen-locked blob of the matcap's center over flat terrain, and was scrapped.)
 
 ## Phong: ambient + diffuse + specular
 

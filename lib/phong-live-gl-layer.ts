@@ -56,7 +56,7 @@ import type { UpstreamEncoding } from "./normal-derived-protocol"
 // --- Minimal vec3/mat4 helpers for the camera-relative light fix below ---
 // (self-contained rather than pulling in a matrix library for six calls/frame).
 
-type Vec3 = [number, number, number]
+export type Vec3 = [number, number, number]
 const vSub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 const vDot = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 const vScale = (a: Vec3, s: number): Vec3 => [a[0] * s, a[1] * s, a[2] * s]
@@ -125,7 +125,7 @@ function transformMat4(m: ArrayLike<number>, v: [number, number, number, number]
  *  construction, no separate sign choice to get wrong. Returns null if the
  *  matrix isn't invertible (degenerate frame — caller should keep whatever
  *  basis it last had rather than update to garbage). */
-function computeCameraBasis(mainMatrix: ArrayLike<number>): { right: Vec3; up: Vec3; forward: Vec3 } | null {
+export function computeCameraBasis(mainMatrix: ArrayLike<number>): { right: Vec3; up: Vec3; forward: Vec3 } | null {
   const inv = invertMat4(mainMatrix)
   if (!inv) return null
   const unproject = (ndcX: number, ndcY: number, ndcZ: number): Vec3 => {

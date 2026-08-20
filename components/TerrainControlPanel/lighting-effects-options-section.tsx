@@ -160,12 +160,15 @@ export const LightingEffectsOptionsSection: React.FC<{
                 min={0} max={360} step={1} suffix="°"
                 sliderId="matcap-rotation"
               />
-              {/* Light Anchor: Absolute keeps the reflected ray's divergence
-                  tied to screen position + FOV only; Camera additionally
-                  rotates it by the camera's real pitch/bearing, reacting to
-                  viewport altitude/rotation like a real lens. Only 2D Fast
-                  (live) can do this — disabled + forced Absolute in 3D Slow
-                  (raster), same convention as Phong's own toggle below. */}
+              {/* Light Anchor: Absolute samples the material by the
+                  tile-space normal (pinned to compass directions, identical
+                  convention to the 3D Slow raster pipeline); Camera samples
+                  by the view-space normal — the classic matcap look,
+                  tracking the camera's real pitch/bearing live. Only 2D Fast
+                  (live) can do the latter — disabled + forced Absolute in 3D
+                  Slow (raster), same convention as Phong's toggle below.
+                  See lib/matcap-live-gl-layer.ts's header for why the older
+                  per-fragment reflected-ray construction was scrapped. */}
               <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
                 <Label className="text-sm font-medium">Light Anchor</Label>
                 <SegmentedToggle
@@ -174,8 +177,8 @@ export const LightingEffectsOptionsSection: React.FC<{
                   value={state.matcapRenderer === "raster" ? "absolute" : (state.matcapLightRelativeToCamera ? "relative" : "absolute")}
                   onChange={(value) => setState({ matcapLightRelativeToCamera: value === "relative" })}
                   options={[
-                    { value: "absolute", label: "Absolute", tooltip: "The reflected ray's divergence depends on screen position and FOV only — ignores how the camera is actually tilted or rotated." },
-                    { value: "relative", label: "Camera", tooltip: state.matcapRenderer === "raster" ? "Camera-relative reflection is only available in 2D Fast." : "The reflected ray also rotates with the camera's real pitch and bearing — reacts to viewport tilt/rotation like a real lens." },
+                    { value: "absolute", label: "Absolute", tooltip: "Material pinned to compass directions — an east-facing slope always samples the same spot on the sphere, whatever the camera does." },
+                    { value: "relative", label: "Camera", tooltip: state.matcapRenderer === "raster" ? "Camera-relative material is only available in 2D Fast." : "Classic matcap: the material follows the camera's real pitch and bearing, like a sphere held up to the current view." },
                   ]}
                 />
               </div>

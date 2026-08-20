@@ -368,15 +368,15 @@ export const QUERY_STATE_PARSERS = {
     // globe; see lighting-effects-options-section.tsx for the UI toggle.
     matcapRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("live"),
     // "Light Anchor", ported from Phong's phongLightRelativeToCamera — only
-    // meaningful in "live" (2D Fast): off (Absolute) keeps the reflected
-    // ray's divergence tied to screen position + FOV only, ignoring how the
-    // camera itself is actually tilted/rotated; on (Camera, the default per
-    // the user's 2026-07-28 request — an earlier hand-derived-trig version
-    // "looked mostly correct" but was suspected inverted on pitch/bearing,
-    // since replaced with an unprojection through the real per-tile
-    // projection matrix instead — not yet re-verified) reacts to viewport
-    // altitude/rotation like a real lens would (see
-    // lib/matcap-live-gl-layer.ts's fragment shader).
+    // meaningful in "live" (2D Fast): off (Absolute) samples the material
+    // by the tile-space normal, pinned to compass directions and identical
+    // in convention to the raster pipeline; on (Camera, the default per the
+    // user's 2026-07-28 request) samples by the view-space normal — the
+    // classic matcap lookup, following the camera's real pitch/bearing via
+    // computeCameraBasis. The earlier per-fragment reflected-ray versions
+    // (hand-derived trig, then inverse-projection unprojection) painted a
+    // screen-locked blob of the matcap's center over flat terrain and are
+    // gone — see lib/matcap-live-gl-layer.ts's header comment.
     matcapLightRelativeToCamera: parseAsBoolean.withDefault(true),
     // "Phong" sub-mode (lib/phong-protocol.ts) — a plain raster overlay doing
     // real ambient+diffuse+specular shading from a compass-fixed light
