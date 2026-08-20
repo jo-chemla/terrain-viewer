@@ -1,3 +1,13 @@
+# Changelog — Historical Fixes, Matcap Rework, Docs Restructure
+<!-- released: 2026-08-20 -->
+
+#### TL;DR
+- **Historical-satellite fixes** — the whole-earth default camera now actually applies (it was written to the URL but never commanded on the already-mounted map); capture-date pills default to Source + Date in compare/blend; timeline captions are strictly per-side A/B in 2×1; historical mode forces basemap opacity to 100%; in terrain mode the timeline only shows while the Raster Basemap viz mode is on.
+- **Matcap rework** — the live renderer's screen-locked bright blob over flat terrain is gone: "Camera" mode is now a classic view-space matcap (material follows the camera), "Absolute" matches the raster pipeline's compass-pinned lookup exactly. Phong/Matcap live layers also stopped endlessly re-fetching tiles on large hi-dpi viewports, and both pick tiles at native-zoom ÷ devicePixelRatio.
+- **Lighting polish** — Phong section above Matcap; Shadows gains a slow-hint hourglass and its own copy of the shared light-direction pad; the hold-L light control anchors under your mousedown; Match Colors re-applies instantly in RGB.
+- **UI/UX** — native `title` tooltips replaced by styled Base UI tooltips across the control panel (plus a `PopoverTrigger` ref fix that had them silently broken on swatches); Bookmarks gets list/grid toggles in both the sidebar and the gallery modal; drawing Feature Iterator adds `P` for previous; both tour branches end with Keyboard Shortcuts + a "Dive Deeper in the Docs" step.
+- **Docs** — new Export & Share, Projects, Open In, Streaming & Storage Settings, and River-REM pages (with a two-engines deep dive, WSE interpolation modes, and centerline sources); nav regrouped (Features vs Advanced Features; Dev gets Custom Protocols + Historical groups, Equations moved there); fumadocs "Open in ChatGPT/Claude" links no longer drop the `/docs` base path; `pnpm dev` / `pnpm app` / `pnpm docs` scripts.
+
 # Changelog — Docs Site Expansion and Open-In Additions
 <!-- released: 2026-08-19 -->
 
