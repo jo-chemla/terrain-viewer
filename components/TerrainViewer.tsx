@@ -934,6 +934,11 @@ export function TerrainViewer() {
       : (isProdHostname(window.location.hostname) ? "/favicon.svg" : "/favicon-dev.svg")
     const link = document.querySelector('link[rel="icon"]')
     if (link) link.setAttribute("href", href)
+    // Tab TITLE follows the live app mode too, same reasoning as the favicon
+    // shape — index.html ships the static "Terrain Viewer" default, which is
+    // wrong the moment historical mode is active (by hostname default or a
+    // mid-session switch).
+    document.title = isHistoricalMode ? "Historical Satellite" : "Terrain Viewer"
   }, [isHistoricalMode])
   // Snapshot taken the instant tellsFrozen flips to true — the currently
   // rendered candidates, querySourceFeatures'd off the live "tellsSource"
