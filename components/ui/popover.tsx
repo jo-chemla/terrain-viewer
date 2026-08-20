@@ -11,11 +11,19 @@ function Popover({
   return <PopoverPrimitive.Root data-slot="popover" {...props} />
 }
 
-function PopoverTrigger({
-  ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
-  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
-}
+// forwardRef (not a plain function component): several call sites compose
+// `TooltipTrigger render={<PopoverTrigger render={<button/>}/>}` (color
+// swatches, date/time pickers, export options, …). Base UI's Tooltip anchors
+// its popup via a ref it injects into whatever its render element is — a
+// plain function component silently drops that ref in React 18, leaving the
+// tooltip with no anchor and therefore never showing at all.
+const PopoverTrigger = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<typeof PopoverPrimitive.Trigger>
+>((props, ref) => {
+  return <PopoverPrimitive.Trigger ref={ref} data-slot="popover-trigger" {...props} />
+})
+PopoverTrigger.displayName = 'PopoverTrigger'
 
 // Base UI has no Anchor part (Positioner takes an `anchor` prop instead, and
 // defaults to the trigger). Unused in this project; kept as an inert
