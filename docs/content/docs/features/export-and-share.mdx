@@ -1,0 +1,44 @@
+---
+title: Export & Share
+description: Snapshots, DEM GeoTIFF and contour exports, historical batch export, social sharing, and Open In destinations
+---
+
+Everything here lives in the sidebar's **Download and Snapshot** section. In historical mode (no terrain source, no contour layer) the section shrinks to just Snapshot / Copy / Share plus the historical batch export — the DEM and Contours buttons only make sense with a terrain source loaded.
+
+## Snapshot & Copy
+
+- **Snapshot** — saves the composited map view to disk as a JPEG. In **2D view mode**, a matching `.jgw` world file is saved alongside it (and the filename is tagged `-epsg4326`), so the image drops into GIS software already georeferenced. 3D and globe views get the plain image only — a perspective render has no single affine georeferencing.
+- **Copy** — the same capture, copied straight to the clipboard for pasting into chats, slides, or issues.
+
+## DEM GeoTIFF export
+
+**DEM GeoTiff** exports the current viewport's elevation data as a single-band 32-bit-float GeoTIFF (WGS 84) — real elevations in meters, not the RGB-packed tiles the renderer consumes. Two export engines, chosen by the **DTM Export without Titiler** toggle in [Streaming & Storage Settings](/features/streaming-settings):
+
+- **Client-side** (toggle on) — the browser range-reads and mosaics the source's tiles/COG directly, bypassing Titiler's server-side size cap. Supports **COG, Terrain-RGB, and Terrarium** sources — including a [local COG file](/features/byod#local-offline-cog-terrain-sources) no server could reach. Shows a live progress bar, and a **Cancel** affordance appears (hover the exporting button) once an export has run long enough to be worth cancelling.
+- **Titiler** (toggle off) — the source's tile URL is wrapped in a GDAL WMS descriptor and handed to the Titiler endpoint's `/cog/bbox` route, which mosaics it server-side; the app then decodes the RGB packing back into real elevations before saving.
+
+The **Max Download Resolution (px)** field right below the buttons caps the output width/height for both paths. If the source's tile pyramid runs out of zoom over the selected area, the export still saves — at the best resolution available — with a warning explaining the shortfall.
+
+## Contour export
+
+**Contours** exports the contour lines **currently rendered in the viewport** as a GeoJSON file. Segments that were only cut apart by tile boundaries are stitched back into continuous lines before download. Because it reads rendered features, the [Contours & GeoGrid visualization mode](/features/visualization-modes) (with the contour-lines checkbox on) must be active — the button is disabled otherwise. It's viewport-only by design: pan/zoom to frame the area you want, then export.
+
+## Export Multi (Historical)
+
+**Export Historical GeoTiffs** opens a batch-export dialog: one RGB GeoTIFF per **export target × historical source × capture date** in a picked range, each cropped to its target's own extent, bundled into a single `.zip`.
+
+- **Export target** — either the current **viewport** (one extent, nothing needs drawing) or **Per-Feature**: one target per drawn feature, optionally filtered to a single [Drawing](/features/tools#drawing) layer. Per-feature targets get configurable padding — meters around points, percent around lines/polygons.
+- **Sources** — ESRI Wayback, NASA HLS (Harmonized Landsat Sentinel-2), Google Earth Historical, EOX Sentinel-2 Cloudless, Bing, and Planet Monthly (only listed once a Planet API key is set). Each contributes its **real capture dates** at the target's location within the chosen date range; Bing has no date archive, so it contributes exactly one current capture regardless of range. Targets/sources with no capture in range are reported as skipped, not failed.
+- **Target resolution** sets the pixel size per exported extent (the source's own pyramid may cap it lower).
+- **Include gdal_translate script** — adds one `.bat` per target with a `gdal_translate` command per capture, so the same extents can be re-fetched outside the browser at full native resolution. Google Earth Historical has no public tile URL (the app resolves it internally), so its entries are REM-commented rather than included.
+
+## Share
+
+**Share** opens a modal that shares the **current page URL** — since every viz mode, source, and camera setting lives in the URL, the link alone reproduces your exact view. A preset blurb introducing the app is prepended as the post text. Platform tiles open each network's composer: **X/Twitter, Bluesky, Mastodon** (via a share page that lets you pick your instance), **LinkedIn, Threads, Reddit**. Clicking a tile also captures a screenshot and copies it to your clipboard automatically, so you can paste it (`Ctrl+V` / `⌘V`) into the composer before publishing. Below the grid:
+
+- **Native Share** (shown when the browser supports the Web Share API) — hands the URL, text, and the screenshot as an attached PNG to the OS share sheet, for apps like WhatsApp or Slack.
+- **Copy screenshot to clipboard** and **Copy URL to clipboard** — the same two pieces, for doing it manually.
+
+## Open In destinations
+
+The **Open in …** split button (bottom of the General section; also in the historical timeline footer) opens the current viewport in another web viewer: **Iconem [River-REM](/features/river-rem)**, **Iconem Search-EO**, **ESRI Wayback Machine**, **Google Maps 3D**, **Google Earth Historical (web)**, **Google Earth 3D (web)**, and **BBBike MapCompare**. Picking one from the dropdown opens it immediately and remembers it as the default for the main button. **Add custom…** accepts your own URL template using `{lat}`/`{lng}`/`{zoom}` or slippy-tile `{z}`/`{x}`/`{y}` placeholders.

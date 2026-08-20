@@ -1,0 +1,45 @@
+---
+title: Projects (Import / Export)
+description: Bundling sources, bookmarks, drawings, settings, and view state into a portable file — plus ?project= URL presets
+---
+
+A **project** is a portable bundle of everything you'd want to carry to another browser or machine — or hand to a colleague. The **Project → Import / Export** row lives at the bottom of the sidebar's General section.
+
+## What a project bundle contains
+
+Export opens a dialog with one checkbox per category (defaults in parentheses):
+
+- **View & Viz State** (on) — the current viewport and every visualization toggle, captured as the URL's query string. It's the same state a [bookmark](/features/bookmarks) records — but for "what's on screen right now" rather than a saved point.
+- **Sources** (on) — your custom [BYOD](/features/byod) terrain and basemap sources.
+- **Bookmarks** (on) — saved bookmarks, thumbnails included.
+- **Drawings** (off) — [Drawing](/features/tools#drawing) layers and their features.
+- **Settings** (off) — a curated set of preferences (see [What settings travel](#what-settings-travel-and-what-deliberately-doesnt) below).
+
+With only these checked, the export is a single readable JSON file (`project.json`'s schema, bookmark thumbnails inlined as base64).
+
+## The .zip form: local COGs and thumbnails
+
+Two nested options upgrade the export to a `.zip` archive:
+
+- **Include local COG files** — appears under Sources when any source is a [locally-picked COG file](/features/byod#local-cog-file-built-into-the-app). A plain JSON export can only carry that source's *settings*; this bundles the file's actual bytes into a `local-cogs/` folder, so the import side doesn't have to re-select the file. Files that were never persisted (or were evicted from [browser storage](/features/streaming-settings#browser-local-storage-persistence)) can't be bundled — their settings still travel, with a re-select needed on the other side.
+- **Bookmark thumbnails as a .zip** — appears under Bookmarks. Externalizes thumbnails into a `bookmarks_thumbs/` folder as real `.jpg` files instead of inlined base64 (smaller, and browsable inside the archive).
+
+## Importing
+
+**Import** accepts either form (`.json` or `.zip`) and merges it *on top of* what's already there: sources, bookmarks, and drawing layers upsert by id — re-importing a previously-exported project updates entries in place rather than duplicating them — while settings values simply overwrite. Bundled local-COG bytes are persisted into the browser's private storage so the sources work immediately.
+
+After applying everything, **the page reloads automatically** (imported values are written to storage directly, and already-mounted components only pick them up on a fresh load). If a bundled local file couldn't be persisted here — typically a large DEM exceeding this browser's storage quota — the status message says so, and that source will need its file re-selected.
+
+## What settings travel, and what deliberately doesn't
+
+The Settings category is an explicit allowlist, not a dump of everything stored: API keys (Mapbox, Google, Mapzen, MapTiler), the Titiler endpoint and max download resolution, color-ramp type and custom themes, license filter, the [streaming-engine, quantization, client-export, and viz-tile-cache choices](/features/streaming-settings), advanced-mode toggles, UI transparency, the storage-persistence switches, and animation-export preferences.
+
+Deliberately excluded: pure UI state (which sections are collapsed, sidebar scroll position, pinned panels) — noise on a new machine — and anything the other checkboxes already cover (sources, bookmarks, drawings each travel under their own category, not as "settings").
+
+## `?project=` URL presets
+
+Separate from user-made bundles, the app ships named project presets for embedding — loading `?project=<id>` applies a curated configuration without hand-assembling dozens of query params: an initial camera and visualization state, which sidebar sections are visible or open, which view modes (2D/globe/3D) are selectable, which map controls appear, whether the sidebar starts open, and any custom sources the preset depends on (merged into your source list by id). Explicit URL params still win over the preset's initial state, so a preset link can be further customized. Presets are defined in the app build (`lib/projects.json`) — e.g. `example-embed`, `mapterhorn-globe`, and the `dura` [frescoes viewer](/features/frescoes-and-artifacts).
+
+## What persists in-browser regardless
+
+Projects are for carrying state *across* machines. What your own browser remembers *between sessions* — persisted local COG files, drawn vector layers, and their storage-quota readouts — is controlled separately in [Streaming & Storage Settings](/features/streaming-settings#browser-local-storage-persistence).

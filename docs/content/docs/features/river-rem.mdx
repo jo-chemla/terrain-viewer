@@ -13,10 +13,34 @@ A **Relative Elevation Model (REM)** re-references a DEM to the local river wate
 
 ## Two engines, same styling
 
-- **Server engine** — FastAPI + GDAL + the RiverREM package; k-NN IDW interpolation, full-fidelity Float32 Cloud-Optimized GeoTIFF output, exportable (COG, DEM, GeoJSON centerline, JPG composite).
-- **Client engine** — pure JavaScript/WebGL, no backend required; generates Terrarium tiles per-tile with a choice of interpolation modes: classic **IDW** (smooth, but radial halos around sample points), **Nearest** (project each cell onto the nearest river segment — clean cross-channel bands, physically the most hydrological), and **EDT** (Euclidean distance transform, `O(cells)` — fastest at high resolution).
+![River-REM over a meandering floodplain — REM color-relief styling with the run controls sidebar](/screenshots/river-rem.jpg)
 
-On top of either engine: 15+ cpt-style color ramps with custom import, independent min/max bounds, transparency fading, REM vs. DEM layer toggling, basemap selection, a localStorage run history with rename/delete/duplicate, and URL-based state persistence via nuqs. Terrain comes from [Mapterhorn](https://mapterhorn.com/) tiles by default, with custom elevation COG ingest supported.
+<p className="text-sm text-fd-muted-foreground italic">The River-REM app: a detrended relative elevation model styled with a color ramp, meander scrolls and paleochannels visible across the floodplain</p>
+
+The REM itself can be computed by either of two engines. The **Server engine was the original implementation**; the **Client engine was added in a second iteration** to make the whole pipeline run without a backend.
+
+- **Server engine** (default) — FastAPI + GDAL running the [OpenTopography RiverREM](https://github.com/OpenTopography/RiverREM) package. It mosaics Mapterhorn tiles into a UTM DEM, samples WSE along the centerline, and interpolates with k-NN IDW (power 1, KD-tree, with `k` derived from river sinuosity). Output is a full-fidelity single-band Float32 Cloud-Optimized GeoTIFF in EPSG:3857 — reusable across sessions and exportable (COG, DEM, GeoJSON centerline, JPG composite). Strengths: fidelity, full resolution, exports.
+- **Client engine** (beta) — pure JavaScript/WebGL, no backend required. A custom MapLibre `rem://{z}/{x}/{y}` protocol fetches Mapterhorn terrain tiles on demand, detrends each one live, and re-encodes the result as Terrarium tiles — with the deepest available Mapterhorn zoom probed per viewport so tiles are never over-requested. Its IDW weights all sampled points with a configurable power (QGIS-style), and two faster interpolation modes are available (see below). Strengths: no backend, live recompute, speed.
+
+Both engines feed the exact same MapLibre `color-relief` layer, so the styling controls are identical either way: 15+ cpt-style color ramps with custom import, independent min/max bounds, transparency fading, REM vs. DEM layer toggling, basemap selection, a localStorage run history with rename/delete/duplicate, and URL-based state persistence via nuqs. Terrain comes from [Mapterhorn](https://mapterhorn.com/) tiles by default, with custom elevation COG ingest supported.
+
+## WSE interpolation modes
+
+Detrending needs a water surface elevation value at *every* DEM cell, but WSE is only sampled *along the centerline* — so the core algorithmic choice is how to spread those sparse samples across the grid. The client engine offers three modes, all flagged experimental in the UI ("REM built live in the browser, no server compute"), all reading the Mapterhorn DEM directly:
+
+- **IDW — inverse-distance weighting.** The classic approach (and what the server engine uses): each cell's WSE is a power-weighted mean of the sampled river points — in-app defaults are power 2 with 150 river samples. Smooth and well-known, but `O(cells × samples)` per query, and it produces radial "bull's-eye" halos around sample points where sample density is low. The app itself warns *IDW is slow — prefer JFA or EDT*.
+- **JFA — nearest-polyline.** Each cell takes the WSE of the nearest point on the river polyline: project the cell onto the nearest river segment and linearly interpolate WSE between the segment's endpoint elevations. Geometrically this is a labeled Voronoi allocation of the continuous polyline — the assignment a jump-flooding algorithm computes — and it's physically the most hydrological model (WSE at a floodplain point equals the elevation of the nearest centerline point). Cross-channel bands are perfectly clean, with no bull's-eyes by construction. One caveat: nearest is *Euclidean* nearest, so in a tight meander neck a cell can attach to the wrong reach across the neck.
+- **EDT — Euclidean distance transform.** A rasterized labeled distance transform: burn the centerline into the grid (Bresenham, writing linearly-interpolated WSE at each covered cell), then resolve nearest-seed labels with a column-wise two-pass scan followed by a row-wise Felzenszwalb–Huttenlocher parabola lower envelope. Total cost is `O(cells)` after the burn — versus `O(cells × segments)` for nearest-polyline — making it the fastest mode at high grid resolutions. The only trade-off is slight rasterization aliasing of band edges at coarse grids (imperceptible from 512² up).
+
+## Centerline extraction and river selection
+
+The centerline comes from OpenStreetMap `waterway` data covering the current view, fetched from a configurable source:
+
+- **QLever OSM** endpoint — the fast SPARQL-backed option
+- **Overpass API** remotes — overpass.de, Kumi Systems, Private Coffee, or osm.ch
+- **OSM vector tiles**, decoded client-side — Shortbread MVT, OpenFreeMap MVT, or Protomaps PMTiles
+
+Which waterways make it into the centerline is a separate choice, with three selection modes: the **longest named river** (the default — one clean trunk), **all named rivers**, or **all waterways including unnamed** ones (side channels, canals, streams). You can also bypass OSM entirely and draw a centerline by hand or import your own (GeoJSON or shapefile).
 
 ## How it connects to this app
 

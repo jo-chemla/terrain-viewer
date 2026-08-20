@@ -1,5 +1,5 @@
 ---
-title: Bring Your Own Data
+title: Bring Your Own Data (BYOD)
 description: Adding your own terrain/basemap sources, including local files
 ---
 
@@ -10,7 +10,7 @@ Add your own terrain or basemap source from the "Add New Terrain Dataset" dialog
 <p className="text-sm text-fd-muted-foreground italic">Add New Terrain Dataset dialog, with the Sample datasets already loaded behind it — Hillshade (Aspect Multidir Colors), wide Western Europe view</p>
 
 - **XYZ Terrarium or Terrain-RGB** tiles (a raw tile URL template) — the same encoding used by [Mapterhorn](https://mapterhorn.com/), [Mapbox](https://www.mapbox.com/), [MapTiler](https://www.maptiler.com/), and [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/), this app's built-in terrain sources
-- **COG** (Cloud-Optimized GeoTIFF), via [Titiler](https://developmentseed.org/titiler/) or read directly in-browser via [@geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol/)
+- **COG** (Cloud-Optimized GeoTIFF), via [Titiler](https://developmentseed.org/titiler/) or read directly in-browser via [@geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol/). On the geomatico path (the default — see [Streaming & Storage Settings](/features/streaming-settings)), a DSM/DEM GeoTIFF must be **both** a genuine COG — internally tiled *and* pyramided with overviews — **and** in Web Mercator (**EPSG:3857**); anything else, route it through Titiler (which reprojects server-side) or fix it up first: `gdalwarp -t_srs EPSG:3857 -of COG src.tif out.tif`.
 
 A heavily-loaded Terrain source list — several custom BYOD sources (national LiDAR DSMs, a Copernicus GLO-30 export) alongside the built-in defaults — comparing two of them side by side is exactly what [Split Modes](/features/split-modes) covers.
 
