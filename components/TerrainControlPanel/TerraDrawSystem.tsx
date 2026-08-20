@@ -991,8 +991,8 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
         }
     }
 
-    // D or Delete deletes the currently-framed feature; Left/Right (or N for
-    // next) steps to the previous/next one — active only while the iterator
+    // D or Delete deletes the currently-framed feature; Right/N step to the
+    // next one, Left/P to the previous — active only while the iterator
     // is open, and only when focus isn't in a text field (so typing a layer
     // name or a "go to index" value doesn't get eaten). Capture phase +
     // stopPropagation so Left/Right win over MapLibre's own arrow-key camera
@@ -1004,7 +1004,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
             const target = e.target as HTMLElement | null
             if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
             if (e.key === 'ArrowRight' || e.key === 'n' || e.key === 'N') { e.preventDefault(); e.stopPropagation(); goToIteratorIndex(iteratorIndex + 1) }
-            else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); goToIteratorIndex(iteratorIndex - 1) }
+            else if (e.key === 'ArrowLeft' || e.key === 'p' || e.key === 'P') { e.preventDefault(); e.stopPropagation(); goToIteratorIndex(iteratorIndex - 1) }
             else if (e.key === 'd' || e.key === 'D' || e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); deleteIteratorFeature() }
         }
         window.addEventListener('keydown', handler, true)

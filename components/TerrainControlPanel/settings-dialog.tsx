@@ -663,21 +663,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </div>
           </CollapsibleSection>
           <Separator />
-          <CollapsibleSection
-            title="Keyboard Shortcuts"
-            openAtom={isSettingsKeyboardShortcutsOpenAtom}
-            contentClassName="space-y-2 pt-2"
-            headerExtra={
-              <TooltipIconButton
-                icon={BookOpen}
-                tooltip="Open in the docs"
-                // Same relative-URL reasoning as the "Open Documentation"
-                // button above — this one deep-links the identical shared
-                // content as a real docs page.
-                onClick={() => window.open("docs/features/keyboard-shortcuts", "_blank", "noopener,noreferrer")}
-              />
-            }
-          >
+          <CollapsibleSection title="Keyboard Shortcuts" openAtom={isSettingsKeyboardShortcutsOpenAtom} contentClassName="space-y-2 pt-2">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={KEYBOARD_SHORTCUTS_MARKDOWN_COMPONENTS}>
               {KEYBOARD_SHORTCUTS_MARKDOWN}
             </ReactMarkdown>

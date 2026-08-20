@@ -15,14 +15,17 @@ import { useState, useRef, useEffect, useCallback } from "react"
 // on a fixed timer and not via an unconditional "resync from props" effect,
 // which risks a render loop if the round-tripped prop is ever a fraction off
 // from what was sent — e.g. float precision through a URL-backed store).
-export function useDebouncedState(value: number, setValue: (v: number) => void, delayMs = 150) {
-  const [pending, setPending] = useState<number | null>(null)
+// Generic over the value type (numbers for sliders, strings for e.g. the
+// matcap material id) — `null` doubles as the no-pending sentinel, so null
+// itself isn't a usable T (no current call site needs it).
+export function useDebouncedState<T extends number | string>(value: T, setValue: (v: T) => void, delayMs = 150) {
+  const [pending, setPending] = useState<T | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (pending !== null && value === pending) setPending(null)
   }, [value, pending])
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
-  const onChange = useCallback((v: number) => {
+  const onChange = useCallback((v: T) => {
     setPending(v)
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => setValue(v), delayMs)

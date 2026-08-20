@@ -3472,6 +3472,9 @@ export function TerrainViewer() {
       : null
     const sourceShortLabel = SOURCE_CONFIG[resolved.basemapSource]?.shortLabel
       ?? BASEMAP_SHORT_LABELS[resolved.basemapSource]
+      // A custom/BYOD basemap has no entry in either table — show its
+      // human-facing name, not its raw id slug.
+      ?? customBasemapSources.find((s) => s.id === resolved.basemapSource)?.name
       ?? resolved.basemapSource
     const label = !hasKnownDate ? sourceShortLabel
       : effectiveCaptureDatePill === "source-date" ? `${sourceShortLabel} · ${dateLabel}`

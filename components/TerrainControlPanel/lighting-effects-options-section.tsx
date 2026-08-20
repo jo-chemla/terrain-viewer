@@ -57,12 +57,6 @@ export const LightingEffectsOptionsSection: React.FC<{
   const [activeSlider] = useAtom(activeSliderAtom)
   const dimWhenSliding = cn("transition-opacity duration-150", activeSlider !== null && "opacity-20")
 
-  const cycleMatcap = useCallback((direction: number) => {
-    const currentIndex = MATCAP_IDS.indexOf(state.matcapTextureId)
-    const newIndex = (currentIndex + direction + MATCAP_IDS.length) % MATCAP_IDS.length
-    setState({ matcapTextureId: MATCAP_IDS[newIndex] })
-  }, [state.matcapTextureId, setState])
-
   // Same live-vs-raster debounce split as Phong below — "live" is a GPU
   // uniform with zero tile refetch (0ms), "raster" re-fetches a tile per
   // change (the gentler 150ms default).
@@ -70,6 +64,20 @@ export const LightingEffectsOptionsSection: React.FC<{
   const [matcapRotationDeg, setMatcapRotationDeg] = useDebouncedState(
     state.matcapRotationDeg, useCallback((v: number) => setState({ matcapRotationDeg: v }), [setState]), matcapDebounceMs,
   )
+  // The material picker gets a debounce in BOTH renderers (rotation only
+  // needs one for raster): a texture change is never free — raster
+  // re-fetches every visible tile, and even live fetches + uploads a new
+  // material image — so rapid chevron-cycling through the list should only
+  // commit the one the user lands on. The local value keeps the Select and
+  // cycle buttons instantly responsive meanwhile.
+  const [matcapTextureId, setMatcapTextureId] = useDebouncedState(
+    state.matcapTextureId, useCallback((v: string) => setState({ matcapTextureId: v }), [setState]), 250,
+  )
+  const cycleMatcap = useCallback((direction: number) => {
+    const currentIndex = MATCAP_IDS.indexOf(matcapTextureId)
+    const newIndex = (currentIndex + direction + MATCAP_IDS.length) % MATCAP_IDS.length
+    setMatcapTextureId(MATCAP_IDS[newIndex])
+  }, [matcapTextureId, setMatcapTextureId])
   // The "live" (2D Fast) renderer updates via GPU uniforms with zero tile
   // refetch, so it isn't debounced at all (0ms — every drag frame applies
   // immediately); "raster" (3D Slow) re-fetches every visible tile per change,
@@ -86,106 +94,6 @@ export const LightingEffectsOptionsSection: React.FC<{
   return (
     <Section id="tour-lighting-effects-section" title="Lighting Effects" isOpen={isOpen} onOpenChange={onOpenChange} pulseKey="showLightingEffects">
       <div className="space-y-4">
-        {/* ─── Matcap sub-mode ─── */}
-        <div className="space-y-2">
-          <CheckboxWithSlider
-            id="lighting-matcap"
-            label="Matcap"
-            tooltip="Shades the terrain surface from a material-capture image (like a 3D sculpting tool) instead of a directional light."
-            checked={state.showMatcap}
-            onCheckedChange={(checked) => setState({ showMatcap: checked })}
-            sliderValue={state.matcapOpacity}
-            onSliderChange={(value) => setState({ matcapOpacity: value })}
-          />
-          {state.showMatcap && (
-            <div className="space-y-3 pl-1">
-              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
-                <Label className="text-sm font-medium">Renderer</Label>
-                <SegmentedToggle
-                  className={SEG_WIDTH}
-                  value={state.matcapRenderer}
-                  onChange={(value) => setState({ matcapRenderer: value })}
-                  options={[
-                    { value: "raster", label: "3D Slow", tooltip: "Drapes correctly over 3D terrain exaggeration and globe, but every rotation/exaggeration change re-fetches a tile (~150ms debounced)." },
-                    { value: "live", label: "2D Fast", tooltip: "A live GPU shader with a perspective-correct reflection (rays diverge from the optical axis, like a real camera) — instant updates, zero tile refetch, drapes onto 3D terrain, but no globe." },
-                  ]}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Material</Label>
-                <div className="flex gap-2">
-                  <Select
-                    value={state.matcapTextureId}
-                    onValueChange={(value) => setState({ matcapTextureId: value })}
-                    items={MATCAP_TEXTURES.map((tex) => ({ value: tex.id, label: tex.name }))}
-                  >
-                    <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
-                      <SelectValue>
-                        {(() => {
-                          const current = MATCAP_TEXTURES.find((tex) => tex.id === state.matcapTextureId)
-                          return (
-                            <div className="flex items-center gap-2">
-                              {current && <img src={current.url} alt="" className="w-5 h-5 rounded-full object-cover border shrink-0" />}
-                              <span>{current?.name ?? state.matcapTextureId}</span>
-                            </div>
-                          )
-                        })()}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MATCAP_TEXTURES.map((tex) => (
-                        <SelectItem key={tex.id} value={tex.id}>
-                          <div className="flex items-center gap-2">
-                            <img src={tex.url} alt="" className="w-6 h-6 rounded-full object-cover border shrink-0" />
-                            <span>{tex.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="flex border rounded-md shrink-0">
-                    <Button variant="ghost" size="icon" onClick={() => cycleMatcap(-1)} className="rounded-r-none border-r cursor-pointer">
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => cycleMatcap(1)} className="rounded-l-none cursor-pointer">
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              <SliderControl
-                label="Sphere Rotation"
-                value={matcapRotationDeg}
-                onChange={setMatcapRotationDeg}
-                min={0} max={360} step={1} suffix="°"
-                sliderId="matcap-rotation"
-              />
-              {/* Light Anchor: Absolute samples the material by the
-                  tile-space normal (pinned to compass directions, identical
-                  convention to the 3D Slow raster pipeline); Camera samples
-                  by the view-space normal — the classic matcap look,
-                  tracking the camera's real pitch/bearing live. Only 2D Fast
-                  (live) can do the latter — disabled + forced Absolute in 3D
-                  Slow (raster), same convention as Phong's toggle below.
-                  See lib/matcap-live-gl-layer.ts's header for why the older
-                  per-fragment reflected-ray construction was scrapped. */}
-              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
-                <Label className="text-sm font-medium">Light Anchor</Label>
-                <SegmentedToggle
-                  className={SEG_WIDTH}
-                  disabled={state.matcapRenderer === "raster"}
-                  value={state.matcapRenderer === "raster" ? "absolute" : (state.matcapLightRelativeToCamera ? "relative" : "absolute")}
-                  onChange={(value) => setState({ matcapLightRelativeToCamera: value === "relative" })}
-                  options={[
-                    { value: "absolute", label: "Absolute", tooltip: "Material pinned to compass directions — an east-facing slope always samples the same spot on the sphere, whatever the camera does." },
-                    { value: "relative", label: "Camera", tooltip: state.matcapRenderer === "raster" ? "Camera-relative material is only available in 2D Fast." : "Classic matcap: the material follows the camera's real pitch and bearing, like a sphere held up to the current view." },
-                  ]}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* ─── Phong sub-mode ─── */}
         <div className="space-y-2">
           <CheckboxWithSlider
@@ -257,6 +165,107 @@ export const LightingEffectsOptionsSection: React.FC<{
           )}
         </div>
 
+        {/* ─── Matcap sub-mode ─── */}
+        <div className="space-y-2">
+          <CheckboxWithSlider
+            id="lighting-matcap"
+            label="Matcap"
+            tooltip="Shades the terrain surface from a material-capture image (like a 3D sculpting tool) instead of a directional light."
+            checked={state.showMatcap}
+            onCheckedChange={(checked) => setState({ showMatcap: checked })}
+            sliderValue={state.matcapOpacity}
+            onSliderChange={(value) => setState({ matcapOpacity: value })}
+          />
+          {state.showMatcap && (
+            <div className="space-y-3 pl-1">
+              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+                <Label className="text-sm font-medium">Renderer</Label>
+                <SegmentedToggle
+                  className={SEG_WIDTH}
+                  value={state.matcapRenderer}
+                  onChange={(value) => setState({ matcapRenderer: value })}
+                  options={[
+                    { value: "raster", label: "3D Slow", tooltip: "Drapes correctly over 3D terrain exaggeration and globe, but every rotation/exaggeration change re-fetches a tile (~150ms debounced)." },
+                    { value: "live", label: "2D Fast", tooltip: "A live GPU shader — instant updates, zero tile refetch, drapes onto 3D terrain, and can anchor the material to the camera (classic matcap) — but no globe." },
+                  ]}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Material</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={matcapTextureId}
+                    onValueChange={(value) => value && setMatcapTextureId(value)}
+                    items={MATCAP_TEXTURES.map((tex) => ({ value: tex.id, label: tex.name }))}
+                  >
+                    <SelectTrigger className="flex-1 min-w-0 w-full cursor-pointer">
+                      <SelectValue>
+                        {(() => {
+                          const current = MATCAP_TEXTURES.find((tex) => tex.id === matcapTextureId)
+                          return (
+                            <div className="flex items-center gap-2">
+                              {current && <img src={current.url} alt="" className="w-5 h-5 rounded-full object-cover border shrink-0" />}
+                              <span>{current?.name ?? matcapTextureId}</span>
+                            </div>
+                          )
+                        })()}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MATCAP_TEXTURES.map((tex) => (
+                        <SelectItem key={tex.id} value={tex.id}>
+                          <div className="flex items-center gap-2">
+                            <img src={tex.url} alt="" className="w-6 h-6 rounded-full object-cover border shrink-0" />
+                            <span>{tex.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex border rounded-md shrink-0">
+                    <Button variant="ghost" size="icon" onClick={() => cycleMatcap(-1)} className="rounded-r-none border-r cursor-pointer">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => cycleMatcap(1)} className="rounded-l-none cursor-pointer">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <SliderControl
+                label="Sphere Rotation"
+                value={matcapRotationDeg}
+                onChange={setMatcapRotationDeg}
+                min={0} max={360} step={1} suffix="°"
+                sliderId="matcap-rotation"
+              />
+              {/* Light Anchor: Absolute samples the material by the
+                  tile-space normal (pinned to compass directions, identical
+                  convention to the 3D Slow raster pipeline); Camera samples
+                  by the view-space normal — the classic matcap look,
+                  tracking the camera's real pitch/bearing live. Only 2D Fast
+                  (live) can do the latter — disabled + forced Absolute in 3D
+                  Slow (raster), same convention as Phong's toggle below.
+                  Same convention as Phong's toggle above. See
+                  lib/matcap-live-gl-layer.ts's header for why the older
+                  per-fragment reflected-ray construction was scrapped. */}
+              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+                <Label className="text-sm font-medium">Light Anchor</Label>
+                <SegmentedToggle
+                  className={SEG_WIDTH}
+                  disabled={state.matcapRenderer === "raster"}
+                  value={state.matcapRenderer === "raster" ? "absolute" : (state.matcapLightRelativeToCamera ? "relative" : "absolute")}
+                  onChange={(value) => setState({ matcapLightRelativeToCamera: value === "relative" })}
+                  options={[
+                    { value: "absolute", label: "Absolute", tooltip: "Material pinned to compass directions — an east-facing slope always samples the same spot on the sphere, whatever the camera does." },
+                    { value: "relative", label: "Camera", tooltip: state.matcapRenderer === "raster" ? "Camera-relative material is only available in 2D Fast." : "Classic matcap: the material follows the camera's real pitch and bearing, like a sphere held up to the current view." },
+                  ]}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* ─── Shadows sub-mode ─── */}
         <div className="space-y-2">
           <CheckboxWithSlider
@@ -278,7 +287,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                 sliderId="shadow-radius"
               />
               <p className="text-xs text-muted-foreground">
-                Uses the same light direction as Phong/Hillshade below — open Phong's Light Direction to change it.
+                Uses the same light direction as Phong/Hillshade above — open Phong's Light Direction to change it.
               </p>
             </div>
           )}

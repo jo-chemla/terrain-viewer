@@ -280,9 +280,10 @@ interface TourStepDef {
 //
 // The tour runs GENERAL_STEPS, then BRANCH_STEP (a fork, not a plain step),
 // then whichever of TERRAIN_STEPS/HISTORICAL_STEPS the visitor picks — see
-// getStepsForBranch. Only the terrain branch ends with a Keyboard Shortcuts
-// wrap-up (KEYBOARD_SHORTCUTS_STEP) — those shortcuts are Terrain-mode
-// specific, so the Historical branch just ends at its own last step instead.
+// getStepsForBranch. Each branch ends with its own Keyboard Shortcuts
+// wrap-up (KEYBOARD_SHORTCUTS_STEP / HISTORICAL_KEYBOARD_SHORTCUTS_STEP) —
+// the lists differ because the viz-mode shortcuts (Shift/Ctrl/L) are
+// Terrain-only and deliberately disabled in Historical mode.
 
 const GENERAL_STEPS: TourStepDef[] = [
   {
@@ -360,6 +361,36 @@ const KEYBOARD_SHORTCUTS_STEP: TourStepDef = {
             than a plain "go open Settings" instruction that can't be
             clicked. Relative href, same subpath reasoning as
             settings-dialog.tsx's Open Documentation button. */}
+        <li>
+          Full list:{" "}
+          <a href="docs/features/keyboard-shortcuts" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+            Keyboard Shortcuts docs
+          </a>{" "}
+          (also in Settings → Keyboard Shortcuts)
+        </li>
+      </ul>
+    </>
+  ),
+}
+
+// Historical-branch wrap-up — same shape as the Terrain one above, but only
+// the shortcuts that actually work in Historical mode (the viz-mode set —
+// Shift/Ctrl/L — is deliberately disabled there, see TerrainControlPanel's
+// useShiftTapToggle/useCtrlTapToggle `!historicalMode` gates and
+// LightControlOverlay's own appMode check).
+const HISTORICAL_KEYBOARD_SHORTCUTS_STEP: TourStepDef = {
+  key: "historical-settings-shortcuts", domId: MAP_ANCHOR_ID, side: "bottom", align: "center",
+  fullScreenSpotlight: true, spotlightRadius: 24,
+  offerOtherBranch: true,
+  title: "Keyboard Shortcuts",
+  description: (
+    <>
+      <p className="pb-2">A few handy ones for scrubbing and comparing imagery:</p>
+      <ul className="list-disc pl-4 space-y-1">
+        <li>←/→ after picking a timeline date — step it one mark at a time</li>
+        <li>Ctrl + drag a timeline handle — sweep every other handle on that side with it</li>
+        <li>Ctrl+K — jump to the search box from anywhere</li>
+        <li>Esc — cancel the active drawing tool; ←/→/N/P step the drawing Feature Iterator</li>
         <li>
           Full list:{" "}
           <a href="docs/features/keyboard-shortcuts" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
@@ -546,7 +577,6 @@ const HISTORICAL_STEPS: TourStepDef[] = [
   },
   {
     key: "historical-tools", domId: "tour-tools-group", side: "left", align: "start",
-    offerOtherBranch: true,
     title: "Tools",
     description: (
       <>
@@ -560,6 +590,7 @@ const HISTORICAL_STEPS: TourStepDef[] = [
     ),
     onEnter: prepareHistoricalTools,
   },
+  HISTORICAL_KEYBOARD_SHORTCUTS_STEP,
 ]
 
 // The full union, for building/resolving target refs — every possible step's
