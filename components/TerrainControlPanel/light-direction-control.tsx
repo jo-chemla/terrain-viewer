@@ -269,14 +269,21 @@ export const LightDirectionControl: React.FC<{
             displayValue={formatDayOfYear(dayOfYear)}
             displayNode={
               <Popover>
-                <PopoverTrigger
-                  render={
-                    <button type="button" className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground" title="Pick a date">
-                      {formatDayOfYear(dayOfYear)}
-                      <CalendarDays className="h-3.5 w-3.5" />
-                    </button>
-                  }
-                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <PopoverTrigger
+                        render={
+                          <button type="button" className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground">
+                            {formatDayOfYear(dayOfYear)}
+                            <CalendarDays className="h-3.5 w-3.5" />
+                          </button>
+                        }
+                      />
+                    }
+                  />
+                  <TooltipContent><p>Pick a date</p></TooltipContent>
+                </Tooltip>
                 <PopoverContent align="end" className="w-auto p-0">
                   <Calendar
                     mode="single"
@@ -308,14 +315,21 @@ export const LightDirectionControl: React.FC<{
             displayValue={formatHour(timeOfDay)}
             displayNode={
               <Popover>
-                <PopoverTrigger
-                  render={
-                    <button type="button" className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground" title="Pick a time">
-                      {formatHour(timeOfDay)}
-                      <Clock className="h-3.5 w-3.5" />
-                    </button>
-                  }
-                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <PopoverTrigger
+                        render={
+                          <button type="button" className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground">
+                            {formatHour(timeOfDay)}
+                            <Clock className="h-3.5 w-3.5" />
+                          </button>
+                        }
+                      />
+                    }
+                  />
+                  <TooltipContent><p>Pick a time</p></TooltipContent>
+                </Tooltip>
                 <PopoverContent align="end" className="w-auto p-2">
                   <div className="flex items-center gap-1">
                     <Select

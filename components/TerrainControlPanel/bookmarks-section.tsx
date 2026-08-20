@@ -30,16 +30,23 @@ import { PRESET_BOOKMARKS, restorePreset } from "@/lib/preset-bookmarks"
 // editing/dragging affordance, since these aren't part of the user's own
 // bookmarksAtom list.
 const PresetBookmarkRow: React.FC<{ preset: Bookmark; onRestore: (b: Bookmark) => void }> = ({ preset, onRestore }) => (
-  <button
-    onClick={() => onRestore(preset)}
-    title={`Load "${preset.name}"`}
-    className="flex w-full items-center gap-2 min-w-0 rounded-md p-0.5 text-left cursor-pointer hover:bg-muted/50"
-  >
-    <span className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center text-muted-foreground">
-      {preset.thumb ? <img src={preset.thumb} alt="" className="h-full w-full object-cover" /> : <ImageOff className="h-3.5 w-3.5" />}
-    </span>
-    <span className="flex-1 min-w-0 truncate text-sm">{preset.name}</span>
-  </button>
+  <Tooltip>
+    <TooltipTrigger
+      delay={0}
+      render={
+        <button
+          onClick={() => onRestore(preset)}
+          className="flex w-full items-center gap-2 min-w-0 rounded-md p-0.5 text-left cursor-pointer hover:bg-muted/50"
+        >
+          <span className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center text-muted-foreground">
+            {preset.thumb ? <img src={preset.thumb} alt="" className="h-full w-full object-cover" /> : <ImageOff className="h-3.5 w-3.5" />}
+          </span>
+          <span className="flex-1 min-w-0 truncate text-sm">{preset.name}</span>
+        </button>
+      }
+    />
+    <TooltipContent><p>{`Load "${preset.name}"`}</p></TooltipContent>
+  </Tooltip>
 )
 
 // One tile of the sidebar's GRID view (bookmarksViewModeAtom = "grid") — the
@@ -56,28 +63,35 @@ const BookmarkGridTile: React.FC<{
   isActive: boolean
   onRestore: (b: Bookmark) => void
 }> = ({ bookmark: b, parentName, isActive, onRestore }) => (
-  <button
-    onClick={() => onRestore(b)}
-    title={`Load "${parentName ? `${parentName} — ${b.name}` : b.name}"`}
-    className={cn(
-      "overflow-hidden rounded-md border text-left cursor-pointer transition-colors hover:border-foreground/40",
-      isActive && "border-2 border-primary",
-    )}
-  >
-    <div className="aspect-[16/10] w-full bg-muted">
-      {b.thumb ? (
-        <img src={b.thumb} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-          <ImageOff className="h-4 w-4" />
-        </div>
-      )}
-    </div>
-    <div className="px-1.5 py-1">
-      {parentName && <div className="truncate text-[10px] leading-tight text-muted-foreground">{parentName}</div>}
-      <div className="truncate text-xs leading-tight">{b.name}</div>
-    </div>
-  </button>
+  <Tooltip>
+    <TooltipTrigger
+      delay={0}
+      render={
+        <button
+          onClick={() => onRestore(b)}
+          className={cn(
+            "overflow-hidden rounded-md border text-left cursor-pointer transition-colors hover:border-foreground/40",
+            isActive && "border-2 border-primary",
+          )}
+        >
+          <div className="aspect-[16/10] w-full bg-muted">
+            {b.thumb ? (
+              <img src={b.thumb} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                <ImageOff className="h-4 w-4" />
+              </div>
+            )}
+          </div>
+          <div className="px-1.5 py-1">
+            {parentName && <div className="truncate text-[10px] leading-tight text-muted-foreground">{parentName}</div>}
+            <div className="truncate text-xs leading-tight">{b.name}</div>
+          </div>
+        </button>
+      }
+    />
+    <TooltipContent><p>{`Load "${parentName ? `${parentName} — ${b.name}` : b.name}"`}</p></TooltipContent>
+  </Tooltip>
 )
 
 const BookmarkRow: React.FC<{
@@ -134,19 +148,27 @@ const BookmarkRow: React.FC<{
           row's own gap-1) so a child's thumbnail lines up directly under its
           project's thumbnail instead of sitting further right or left of it. */}
       {isChild && <span className="h-8 w-6 shrink-0" />}
-      <button
-        className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
-        onClick={() => onRestore(b)}
-        title="Load this view"
-      >
-        {b.thumb ? (
-          <img src={b.thumb} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <ImageOff className="h-3.5 w-3.5" />
-          </div>
-        )}
-      </button>
+      <Tooltip>
+        <TooltipTrigger
+          delay={0}
+          render={
+            <button
+              className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
+              onClick={() => onRestore(b)}
+              aria-label="Load this view"
+            >
+              {b.thumb ? (
+                <img src={b.thumb} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                  <ImageOff className="h-3.5 w-3.5" />
+                </div>
+              )}
+            </button>
+          }
+        />
+        <TooltipContent><p>Load this view</p></TooltipContent>
+      </Tooltip>
       {editId === b.id ? (
         <Input
           autoFocus
@@ -260,28 +282,48 @@ const BookmarkGroupHeader: React.FC<{
         isActive && "border-primary p-1.5",
       )}
     >
-      <button
-        onClick={onToggleCollapse}
-        disabled={childCount === 0}
-        className="flex h-8 w-6 shrink-0 items-center justify-center text-muted-foreground disabled:opacity-30 cursor-pointer"
-        title={childCount === 0 ? "No child views yet" : isCollapsed ? "Expand" : "Collapse"}
-      >
-        <ChevronDown className={cn("h-4 w-4 transition-transform", isCollapsed && "-rotate-90")} />
-      </button>
+      <Tooltip>
+        {/* Span wrapper keeps the tooltip working when the button is disabled
+            (no child views) — that's exactly when the "No child views yet"
+            explanation matters. */}
+        <TooltipTrigger
+          delay={0}
+          render={
+            <span className="shrink-0">
+              <button
+                onClick={onToggleCollapse}
+                disabled={childCount === 0}
+                className="flex h-8 w-6 items-center justify-center text-muted-foreground disabled:opacity-30 cursor-pointer"
+              >
+                <ChevronDown className={cn("h-4 w-4 transition-transform", isCollapsed && "-rotate-90")} />
+              </button>
+            </span>
+          }
+        />
+        <TooltipContent><p>{childCount === 0 ? "No child views yet" : isCollapsed ? "Expand" : "Collapse"}</p></TooltipContent>
+      </Tooltip>
       {showThumbnail && (
-        <button
-          className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
-          onClick={() => onRestore(b)}
-          title="Load this view"
-        >
-          {thumb ? (
-            <img src={thumb} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-              <ImageOff className="h-3.5 w-3.5" />
-            </div>
-          )}
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            delay={0}
+            render={
+              <button
+                className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
+                onClick={() => onRestore(b)}
+                aria-label="Load this view"
+              >
+                {thumb ? (
+                  <img src={thumb} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                    <ImageOff className="h-3.5 w-3.5" />
+                  </div>
+                )}
+              </button>
+            }
+          />
+          <TooltipContent><p>Load this view</p></TooltipContent>
+        </Tooltip>
       )}
       {editId === b.id ? (
         <Input
@@ -786,11 +828,19 @@ export const BookmarksSection: React.FC<{
                 )
               })}
             </div>
-            <div
-              className="mx-auto mt-1 h-2 w-10 cursor-ns-resize touch-none rounded-full bg-border hover:bg-muted-foreground/50"
-              onPointerDown={startResize}
-              title="Drag to resize"
-            />
+            {/* render={<div/>} merges the tooltip's hover handlers onto the
+                handle itself — onPointerDown (startResize) stays untouched. */}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <div
+                    className="mx-auto mt-1 h-2 w-10 cursor-ns-resize touch-none rounded-full bg-border hover:bg-muted-foreground/50"
+                    onPointerDown={startResize}
+                  />
+                }
+              />
+              <TooltipContent><p>Drag to resize</p></TooltipContent>
+            </Tooltip>
           </div>
         )}
 

@@ -523,28 +523,36 @@ const ShareModal: React.FC<{
           {PLATFORMS.map((platform) => {
             const Icon = platform.icon
             return (
-              <a
-                key={platform.id}
-                href={platformUrls[platform.id]}
-                target="_blank"
-                rel="noopener noreferrer"
-                onMouseDown={handlePlatformMouseDown}
-                title={platform.hint ? `${platform.name} — ${platform.hint}` : platform.name}
-                className="
-                  group flex flex-col items-center justify-center gap-1.5
-                  rounded-md px-2 py-3
-                  border border-border hover:border-border/60
-                  bg-background hover:bg-muted/40
-                  transition-all duration-150 cursor-pointer no-underline
-                "
-              >
-                <span className="flex h-8 w-8 items-center justify-center rounded-md transition-transform group-hover:scale-110">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors leading-tight text-center">
-                  {platform.name}
-                </span>
-              </a>
+              // render={<a/>} merges the tooltip's hover/focus handlers onto
+              // the anchor itself, so onMouseDown (fresh-URL capture) still
+              // fires on the same element — no wrapper swallows it.
+              <Tooltip key={platform.id}>
+                <TooltipTrigger
+                  render={
+                    <a
+                      href={platformUrls[platform.id]}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onMouseDown={handlePlatformMouseDown}
+                      className="
+                        group flex flex-col items-center justify-center gap-1.5
+                        rounded-md px-2 py-3
+                        border border-border hover:border-border/60
+                        bg-background hover:bg-muted/40
+                        transition-all duration-150 cursor-pointer no-underline
+                      "
+                    >
+                      <span className="flex h-8 w-8 items-center justify-center rounded-md transition-transform group-hover:scale-110">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors leading-tight text-center">
+                        {platform.name}
+                      </span>
+                    </a>
+                  }
+                />
+                <TooltipContent><p>{platform.hint ? `${platform.name} — ${platform.hint}` : platform.name}</p></TooltipContent>
+              </Tooltip>
             )
           })}
         </div>

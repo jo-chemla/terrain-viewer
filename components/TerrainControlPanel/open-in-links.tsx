@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { MapRef } from "react-map-gl/maplibre"
 
 type OpenInContext = {
@@ -296,15 +297,21 @@ export const OpenInLinksButton: React.FC<{
 
   return (
     <div className={cn("flex items-stretch rounded-md border border-border/60 overflow-hidden shrink-0", className)}>
-      <button
-        type="button"
-        onClick={handleOpen}
-        className="cursor-pointer flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-        title={`Open in ${buttonLabel}`}
-      >
-        <SquareArrowOutUpRight className="h-3 w-3 shrink-0" />
-        <span>Open in {buttonLabel}</span>
-      </button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              onClick={handleOpen}
+              className="cursor-pointer flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              <SquareArrowOutUpRight className="h-3 w-3 shrink-0" />
+              <span>Open in {buttonLabel}</span>
+            </button>
+          }
+        />
+        <TooltipContent><p>Open in {buttonLabel}</p></TooltipContent>
+      </Tooltip>
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger
           render={
@@ -335,16 +342,22 @@ export const OpenInLinksButton: React.FC<{
               <DropdownMenuRadioItem key={dest.id} value={dest.id}>
                 <span className="flex-1 truncate">{dest.label}</span>
                 {dest.isCustom && (
-                  <button
-                    type="button"
-                    aria-label={`Remove ${dest.label}`}
-                    title={`Remove ${dest.label}`}
-                    onClick={(e) => { e.stopPropagation(); removeCustomDestination(dest.id) }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    className="cursor-pointer shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          aria-label={`Remove ${dest.label}`}
+                          onClick={(e) => { e.stopPropagation(); removeCustomDestination(dest.id) }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          className="cursor-pointer shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      }
+                    />
+                    <TooltipContent><p>Remove {dest.label}</p></TooltipContent>
+                  </Tooltip>
                 )}
               </DropdownMenuRadioItem>
             ))}

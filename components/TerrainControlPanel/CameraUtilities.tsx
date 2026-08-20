@@ -1006,15 +1006,27 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
             ? <><Pause className="h-4 w-4 mr-1" />Stop</>
             : <><Play className="h-4 w-4 mr-1" />Play</>}
         </Button>
-        <Button
-          variant={pose2 ? "secondary" : "outline"}
-          className="flex-[3] bg-transparent cursor-pointer"
-          disabled={!pose1}
-          title={!pose1 ? "Set Pose 1 first — Pose 2 is stored as a delta from it" : undefined}
-          onClick={() => { const s = captureSnapshot(); if (s) setPose2(s) }}
-        >
-          {pose2 ? <span className="flex items-center gap-1.5">Pose 2 <Check className="h-4 w-4" /></span> : "Set Pose 2"}
-        </Button>
+        <Tooltip>
+          {/* Span wrapper keeps the tooltip working while the button is
+              disabled (no Pose 1 yet) — exactly when the explanation matters.
+              The content is only rendered in that state, so an enabled button
+              shows no tooltip (matching the old conditional title). */}
+          <TooltipTrigger
+            render={
+              <span className="flex-[3]">
+                <Button
+                  variant={pose2 ? "secondary" : "outline"}
+                  className="w-full bg-transparent cursor-pointer"
+                  disabled={!pose1}
+                  onClick={() => { const s = captureSnapshot(); if (s) setPose2(s) }}
+                >
+                  {pose2 ? <span className="flex items-center gap-1.5">Pose 2 <Check className="h-4 w-4" /></span> : "Set Pose 2"}
+                </Button>
+              </span>
+            }
+          />
+          {!pose1 && <TooltipContent><p>Set Pose 1 first — Pose 2 is stored as a delta from it</p></TooltipContent>}
+        </Tooltip>
       </div>
 
       {/* Pose debug */}
@@ -1108,15 +1120,25 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
         </div>
       </div>
 
-      <Button variant="outline" className="w-full cursor-pointer mt-2"
-        disabled={!canPlay || exporting} onClick={handleExportVideo}
-        title={!canPlay ? "Capture both poses first" : undefined}>
-        {exporting ? (
-          <><Download className="h-4 w-4 mr-2 animate-pulse" />{exportCodec || "Exporting…"}{exportCodec && ` ${Math.round(exportProgress * 100)}%`}</>
-        ) : (
-          <><Video className="h-4 w-4 mr-2" />Export Video</>
-        )}
-      </Button>
+      <Tooltip>
+        {/* Same disabled-button span-wrapper pattern as Pose 2 above; content
+            only rendered while the poses are missing. */}
+        <TooltipTrigger
+          render={
+            <span className="block mt-2">
+              <Button variant="outline" className="w-full cursor-pointer"
+                disabled={!canPlay || exporting} onClick={handleExportVideo}>
+                {exporting ? (
+                  <><Download className="h-4 w-4 mr-2 animate-pulse" />{exportCodec || "Exporting…"}{exportCodec && ` ${Math.round(exportProgress * 100)}%`}</>
+                ) : (
+                  <><Video className="h-4 w-4 mr-2" />Export Video</>
+                )}
+              </Button>
+            </span>
+          }
+        />
+        {!canPlay && <TooltipContent><p>Capture both poses first</p></TooltipContent>}
+      </Tooltip>
     </>
   )
 }

@@ -3,6 +3,7 @@
 
 import { HexAlphaColorPicker, HexColorInput } from "react-colorful";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "@/lib/utils";
 
 // A color swatch that opens a popover with an alpha-aware picker. Native
@@ -22,23 +23,34 @@ export function ColorAlphaSwatch({
 }) {
     return (
         <Popover>
-            <PopoverTrigger
-                render={
-                    <button
-                        type="button"
-                        title={title}
-                        className={cn(size, "shrink-0 p-0 m-0 border cursor-pointer", className)}
-                        style={{
-                            // Two stacked background layers: the layer's own (possibly
-                            // semi-transparent) color on top of a checkerboard, so partial
-                            // alpha is visible on the swatch itself rather than just
-                            // blending invisibly into the sidebar background.
-                            backgroundImage: `linear-gradient(${color}, ${color}), repeating-conic-gradient(#80808080 0% 25%, transparent 0% 50%)`,
-                            backgroundSize: 'auto, 8px 8px',
-                        }}
-                    />
-                }
-            />
+            {/* Tooltip trigger composes onto the popover trigger via nested
+                `render` props, so the swatch stays a single <button> that both
+                opens the popover and shows the styled tooltip (replacing the
+                old native title="..." attribute). */}
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <PopoverTrigger
+                            render={
+                                <button
+                                    type="button"
+                                    aria-label={title}
+                                    className={cn(size, "shrink-0 p-0 m-0 border cursor-pointer", className)}
+                                    style={{
+                                        // Two stacked background layers: the layer's own (possibly
+                                        // semi-transparent) color on top of a checkerboard, so partial
+                                        // alpha is visible on the swatch itself rather than just
+                                        // blending invisibly into the sidebar background.
+                                        backgroundImage: `linear-gradient(${color}, ${color}), repeating-conic-gradient(#80808080 0% 25%, transparent 0% 50%)`,
+                                        backgroundSize: 'auto, 8px 8px',
+                                    }}
+                                />
+                            }
+                        />
+                    }
+                />
+                <TooltipContent><p>{title}</p></TooltipContent>
+            </Tooltip>
             <PopoverContent className="w-auto p-3 space-y-2">
                 <HexAlphaColorPicker color={color} onChange={onChange} />
                 <HexColorInput

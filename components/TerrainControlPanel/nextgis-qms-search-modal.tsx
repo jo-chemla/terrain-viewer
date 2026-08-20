@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import { Search, Plus, Loader2, ExternalLink } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type CustomBasemapSource } from "@/lib/settings-atoms"
 
 const QMS_API = "https://qms.nextgis.com/api/v1/geoservices/"
@@ -132,15 +133,22 @@ export const NextGisQmsSearchPanel: React.FC<{
                 {r.type.toUpperCase()} {r.desc && `— ${r.desc}`}
               </p>
             </div>
-            <a
-              href={`https://qms.nextgis.com/geoservices/${r.id}/`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-              title="View on qms.nextgis.com"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </a>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <a
+                    href={`https://qms.nextgis.com/geoservices/${r.id}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                    aria-label="View on qms.nextgis.com"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                }
+              />
+              <TooltipContent><p>View on qms.nextgis.com</p></TooltipContent>
+            </Tooltip>
             <Button
               size="sm"
               variant="outline"

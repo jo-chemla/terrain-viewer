@@ -115,12 +115,16 @@ export const PlaneSlicerFields: React.FC<{
               onValueChange={([value]) => value && setState({ planeSlicerSide: value })}
               className="border rounded-md w-[180px]"
             >
-              <ToggleGroupItem value="below" className={TOGGLE_ITEM_CLASS} title="Paint the region below the plane.">
-                Below
-              </ToggleGroupItem>
-              <ToggleGroupItem value="above" className={TOGGLE_ITEM_CLASS} title="Paint the region above the plane.">
-                Above
-              </ToggleGroupItem>
+              {/* render={<ToggleGroupItem/>} keeps the items direct children
+                  of the ToggleGroup (a wrapper element would break the group). */}
+              <Tooltip>
+                <TooltipTrigger render={<ToggleGroupItem value="below" className={TOGGLE_ITEM_CLASS}>Below</ToggleGroupItem>} />
+                <TooltipContent><p>Paint the region below the plane.</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger render={<ToggleGroupItem value="above" className={TOGGLE_ITEM_CLASS}>Above</ToggleGroupItem>} />
+                <TooltipContent><p>Paint the region above the plane.</p></TooltipContent>
+              </Tooltip>
             </ToggleGroup>
           </div>
 

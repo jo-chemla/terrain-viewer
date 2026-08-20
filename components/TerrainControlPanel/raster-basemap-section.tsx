@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, planetKeyAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, CycleButtonGroup, SliderControl, SourceGridToggle, GroupHeading } from "./controls-components"
@@ -171,19 +172,25 @@ export const RasterBasemapSection: React.FC<{
                         isActive={(side: ViewId) => state[viewFieldName(side, "basemapSource", true)] === value}
                         onSelect={(side: ViewId) => setState({ [viewFieldName(side, "basemapSource", true)]: value })}
                       />
-                      <Label
-                        className="flex-1 text-sm truncate min-w-0 cursor-pointer"
-                        title={`Set all views to ${label}`}
-                        onClick={setAllViewsToThisSource}
-                      >
-                        {label}
-                        {value === "bing" && bingCaptureLabel && (
-                          <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
-                        )}
-                        {value === "esri" && esriCaptureLabel && (
-                          <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
-                        )}
-                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Label
+                              className="flex-1 text-sm truncate min-w-0 cursor-pointer"
+                              onClick={setAllViewsToThisSource}
+                            >
+                              {label}
+                              {value === "bing" && bingCaptureLabel && (
+                                <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({bingCaptureLabel})</span>
+                              )}
+                              {value === "esri" && esriCaptureLabel && (
+                                <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
+                              )}
+                            </Label>
+                          }
+                        />
+                        <TooltipContent><p>Set all views to {label}</p></TooltipContent>
+                      </Tooltip>
                     </div>
                   )
                 })}

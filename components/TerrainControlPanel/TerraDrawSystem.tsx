@@ -1110,15 +1110,21 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                 )}
 
                                 {editMode && (
-                                    <Slider
-                                        value={layer.strokeWidth}
-                                        onValueChange={(v) => setLayerStrokeWidth(layer.id, v as number)}
-                                        min={0.5}
-                                        max={5}
-                                        step={0.5}
-                                        title={`Stroke width: ${layer.strokeWidth}px`}
-                                        className="w-12 shrink-0"
-                                    />
+                                    <Tooltip>
+                                        <TooltipTrigger
+                                            render={
+                                                <Slider
+                                                    value={layer.strokeWidth}
+                                                    onValueChange={(v) => setLayerStrokeWidth(layer.id, v as number)}
+                                                    min={0.5}
+                                                    max={5}
+                                                    step={0.5}
+                                                    className="w-12 shrink-0"
+                                                />
+                                            }
+                                        />
+                                        <TooltipContent><p>Stroke width: {layer.strokeWidth}px</p></TooltipContent>
+                                    </Tooltip>
                                 )}
 
                                 {!editMode && (
@@ -1723,34 +1729,54 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
             </div>
 
             <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer flex-[2] min-w-0" title="Import GeoJSON, KML, or GeoPackage">
-                    <Upload className="h-4 w-4 mr-1 shrink-0" /> <span className="truncate">Import</span>
-                </Button>
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer flex-[2] min-w-0">
+                                <Upload className="h-4 w-4 mr-1 shrink-0" /> <span className="truncate">Import</span>
+                            </Button>
+                        }
+                    />
+                    <TooltipContent><p>Import GeoJSON, KML, or GeoPackage</p></TooltipContent>
+                </Tooltip>
                 <div className="flex flex-[3] min-w-0">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={exportGeoJSON}
-                        disabled={features.length === 0}
-                        className="cursor-pointer flex-1 min-w-0 rounded-r-none border-r-0"
-                        title={exportPerLayer ? "Export — one .geojson per layer, bundled into a .zip" : "Export — every layer flattened into one .geojson"}
-                    >
-                        <Download className="h-4 w-4 mr-1 shrink-0" /> <span className="truncate">Export</span>
-                    </Button>
-                    <Popover>
-                        <PopoverTrigger
+                    <Tooltip>
+                        <TooltipTrigger
                             render={
                                 <Button
                                     variant="outline"
                                     size="sm"
+                                    onClick={exportGeoJSON}
                                     disabled={features.length === 0}
-                                    className="cursor-pointer rounded-l-none px-1.5 shrink-0"
-                                    title="Export options"
+                                    className="cursor-pointer flex-1 min-w-0 rounded-r-none border-r-0"
                                 >
-                                    <ChevronDown className="h-4 w-4" />
+                                    <Download className="h-4 w-4 mr-1 shrink-0" /> <span className="truncate">Export</span>
                                 </Button>
                             }
                         />
+                        <TooltipContent><p>{exportPerLayer ? "Export — one .geojson per layer, bundled into a .zip" : "Export — every layer flattened into one .geojson"}</p></TooltipContent>
+                    </Tooltip>
+                    <Popover>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <PopoverTrigger
+                                        render={
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={features.length === 0}
+                                                className="cursor-pointer rounded-l-none px-1.5 shrink-0"
+                                                aria-label="Export options"
+                                            >
+                                                <ChevronDown className="h-4 w-4" />
+                                            </Button>
+                                        }
+                                    />
+                                }
+                            />
+                            <TooltipContent><p>Export options</p></TooltipContent>
+                        </Tooltip>
                         <PopoverContent className="w-64 space-y-1.5">
                             <div className="flex items-center justify-between gap-2">
                                 <Label htmlFor="td-export-per-layer" className="text-xs font-medium cursor-pointer">Split export by layer</Label>

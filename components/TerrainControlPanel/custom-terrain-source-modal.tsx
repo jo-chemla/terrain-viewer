@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
@@ -277,18 +278,25 @@ export const CustomTerrainSourceModal: React.FC<{
                     URL * {helper_text && (
                       <span className="select-text inline-flex items-center">
                         (hint: {helper_text}
-                        <button
-                          type="button"
-                          onClick={() => handleCopyTemplate(helper_text)}
-                          className="ml-1.5 cursor-pointer hover:opacity-70"
-                          title={templateCopied ? "Copied!" : "Copy template"}
-                        >
-                          {templateCopied ? (
-                            <Check className="h-3 w-3" />
-                          ) : (
-                            <Copy className="h-3 w-3" />
-                          )}
-                        </button>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <button
+                                type="button"
+                                onClick={() => handleCopyTemplate(helper_text)}
+                                className="ml-1.5 cursor-pointer hover:opacity-70"
+                                aria-label="Copy template"
+                              >
+                                {templateCopied ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </button>
+                            }
+                          />
+                          <TooltipContent><p>{templateCopied ? "Copied!" : "Copy template"}</p></TooltipContent>
+                        </Tooltip>
                         )
                       </span>
                     )}
@@ -361,24 +369,35 @@ export const CustomTerrainSourceModal: React.FC<{
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm">Source Bounds (optional)</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 cursor-pointer"
-                        disabled={!mapRef}
-                        onClick={() => {
-                          const bounds = mapRef?.current?.getMap()?.getBounds()
-                          if (!bounds) return
-                          setBoundsWest(bounds.getWest().toFixed(6))
-                          setBoundsSouth(bounds.getSouth().toFixed(6))
-                          setBoundsEast(bounds.getEast().toFixed(6))
-                          setBoundsNorth(bounds.getNorth().toFixed(6))
-                        }}
-                        title="Set to the map's current bounds"
-                      >
-                        <Expand className="h-3.5 w-3.5" />
-                      </Button>
+                      <Tooltip>
+                        {/* Span wrapper keeps the tooltip working when the
+                            button is disabled (no mapRef) — a disabled button
+                            doesn't dispatch hover events. */}
+                        <TooltipTrigger
+                          render={
+                            <span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 cursor-pointer"
+                                disabled={!mapRef}
+                                onClick={() => {
+                                  const bounds = mapRef?.current?.getMap()?.getBounds()
+                                  if (!bounds) return
+                                  setBoundsWest(bounds.getWest().toFixed(6))
+                                  setBoundsSouth(bounds.getSouth().toFixed(6))
+                                  setBoundsEast(bounds.getEast().toFixed(6))
+                                  setBoundsNorth(bounds.getNorth().toFixed(6))
+                                }}
+                              >
+                                <Expand className="h-3.5 w-3.5" />
+                              </Button>
+                            </span>
+                          }
+                        />
+                        <TooltipContent><p>Set to the map&apos;s current bounds</p></TooltipContent>
+                      </Tooltip>
                     </div>
                     <div className="grid grid-cols-4 gap-1.5">
                       <Input type="text" inputMode="decimal" placeholder="West" value={boundsWest} onChange={(e) => setBoundsWest(e.target.value)} className="cursor-text text-xs" />

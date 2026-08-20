@@ -1332,18 +1332,24 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               </div>
             )}
             {dualMode && (
-              <button
-                type="button"
-                onClick={toggleSync}
-                className={cn(
-                  "cursor-pointer p-1 rounded shrink-0",
-                  syncEnabled ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
-                )}
-                aria-label={syncEnabled ? "Unsync per-view source & resolution pills" : "Sync per-view source & resolution pills"}
-                title={syncEnabled ? "Source/resolution pills shared between every view — the scrubbed date is always independent per side" : "Source/resolution pills set independently per side (use the letters above to pick which)"}
-              >
-                <Link2 className="h-4 w-4" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={toggleSync}
+                      className={cn(
+                        "cursor-pointer p-1 rounded shrink-0",
+                        syncEnabled ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+                      )}
+                      aria-label={syncEnabled ? "Unsync per-view source & resolution pills" : "Sync per-view source & resolution pills"}
+                    >
+                      <Link2 className="h-4 w-4" />
+                    </button>
+                  }
+                />
+                <TooltipContent>{syncEnabled ? "Source/resolution pills shared between every view — the scrubbed date is always independent per side" : "Source/resolution pills set independently per side (use the letters above to pick which)"}</TooltipContent>
+              </Tooltip>
             )}
             {rasterBasemapOff && (
               <Tooltip>
@@ -1353,18 +1359,24 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 <TooltipContent>Raster Basemap is off (Visualization Modes) — historical imagery won't be visible on the map</TooltipContent>
               </Tooltip>
             )}
-            <button
-              type="button"
-              onClick={() => setControlsExpanded((v) => !v)}
-              className={cn(
-                "cursor-pointer p-1 rounded shrink-0",
-                controlsExpanded ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
-              aria-label={controlsExpanded ? "Hide source/resolution controls" : "Show source/resolution controls"}
-              title="Sources & resolution"
-            >
-              <Settings2 className="h-4 w-4" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={() => setControlsExpanded((v) => !v)}
+                    className={cn(
+                      "cursor-pointer p-1 rounded shrink-0",
+                      controlsExpanded ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+                    )}
+                    aria-label={controlsExpanded ? "Hide source/resolution controls" : "Show source/resolution controls"}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </button>
+                }
+              />
+              <TooltipContent>Sources & resolution</TooltipContent>
+            </Tooltip>
             <button
               type="button"
               onClick={() => setCollapsed(true)}
@@ -1388,15 +1400,21 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               <TooltipContent>Raster Basemap is off (Visualization Modes) — historical imagery won't be visible on the map</TooltipContent>
             </Tooltip>
           )}
-          <button
-            type="button"
-            onClick={() => setControlsExpanded((v) => !v)}
-            className="cursor-pointer p-1 rounded text-muted-foreground hover:text-foreground shrink-0"
-            aria-label="Show source/resolution controls"
-            title="Sources & resolution"
-          >
-            <Settings2 className="h-4 w-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={() => setControlsExpanded((v) => !v)}
+                  className="cursor-pointer p-1 rounded text-muted-foreground hover:text-foreground shrink-0"
+                  aria-label="Show source/resolution controls"
+                >
+                  <Settings2 className="h-4 w-4" />
+                </button>
+              }
+            />
+            <TooltipContent>Sources & resolution</TooltipContent>
+          </Tooltip>
           <button
             type="button"
             onClick={() => setCollapsed(true)}

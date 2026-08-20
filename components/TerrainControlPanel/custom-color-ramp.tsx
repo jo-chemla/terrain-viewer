@@ -148,12 +148,17 @@ const QuickRampBuilder: React.FC<{
         onValueChange={([value]) => value && setShape(value as QuickRampShape)}
         className="border rounded-md w-full"
       >
-        <ToggleGroupItem value="sequential" className={TOGGLE_ITEM_CLASS} title="One color, fading in from transparent (flip direction with Invert Ramp below).">
-          1D
-        </ToggleGroupItem>
-        <ToggleGroupItem value="diverging" className={TOGGLE_ITEM_CLASS} title="Two colors, one on each side of the middle.">
-          Diverging
-        </ToggleGroupItem>
+        {/* Tooltip via render={<ToggleGroupItem/>} merges the trigger props
+            onto the item itself, so the ToggleGroup still sees its items as
+            direct children (a wrapper element would break the group). */}
+        <Tooltip>
+          <TooltipTrigger render={<ToggleGroupItem value="sequential" className={TOGGLE_ITEM_CLASS}>1D</ToggleGroupItem>} />
+          <TooltipContent><p>One color, fading in from transparent (flip direction with Invert Ramp below).</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<ToggleGroupItem value="diverging" className={TOGGLE_ITEM_CLASS}>Diverging</ToggleGroupItem>} />
+          <TooltipContent><p>Two colors, one on each side of the middle.</p></TooltipContent>
+        </Tooltip>
       </ToggleGroup>
       {shape === "diverging" && (
         <ToggleGroup
@@ -161,12 +166,14 @@ const QuickRampBuilder: React.FC<{
           onValueChange={([value]) => value && setFade(value as QuickRampFade)}
           className="border rounded-md w-full"
         >
-          <ToggleGroupItem value="center" className={TOGGLE_ITEM_CLASS} title="Color at both edges, transparent in the middle (e.g. a diverging curvature ramp).">
-            Transparent Center
-          </ToggleGroupItem>
-          <ToggleGroupItem value="edges" className={TOGGLE_ITEM_CLASS} title="Color in the middle, transparent at both edges (e.g. highlighting values near zero).">
-            Transparent Edges
-          </ToggleGroupItem>
+          <Tooltip>
+            <TooltipTrigger render={<ToggleGroupItem value="center" className={TOGGLE_ITEM_CLASS}>Transparent Center</ToggleGroupItem>} />
+            <TooltipContent><p>Color at both edges, transparent in the middle (e.g. a diverging curvature ramp).</p></TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger render={<ToggleGroupItem value="edges" className={TOGGLE_ITEM_CLASS}>Transparent Edges</ToggleGroupItem>} />
+            <TooltipContent><p>Color in the middle, transparent at both edges (e.g. highlighting values near zero).</p></TooltipContent>
+          </Tooltip>
         </ToggleGroup>
       )}
       <div className="flex items-center gap-2">
@@ -239,12 +246,16 @@ export const CustomRampStopsEditor: React.FC<{
           onValueChange={([value]) => value && onDiscreteChange(value === "discrete")}
           className="border rounded-md w-[170px]"
         >
-          <ToggleGroupItem value="continuous" className={TOGGLE_ITEM_CLASS} title="Smoothly interpolate colors between stops.">
-            Continuous
-          </ToggleGroupItem>
-          <ToggleGroupItem value="discrete" className={TOGGLE_ITEM_CLASS} title="Hard bands — each color holds until the next stop's value.">
-            Discrete
-          </ToggleGroupItem>
+          {/* render={<ToggleGroupItem/>} keeps the items direct children of the
+              ToggleGroup (a wrapper element would break the group). */}
+          <Tooltip>
+            <TooltipTrigger render={<ToggleGroupItem value="continuous" className={TOGGLE_ITEM_CLASS}>Continuous</ToggleGroupItem>} />
+            <TooltipContent><p>Smoothly interpolate colors between stops.</p></TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger render={<ToggleGroupItem value="discrete" className={TOGGLE_ITEM_CLASS}>Discrete</ToggleGroupItem>} />
+            <TooltipContent><p>Hard bands — each color holds until the next stop's value.</p></TooltipContent>
+          </Tooltip>
         </ToggleGroup>
       </div>
       {/* space-y-0 + borderless, square, zero-padding swatches make them abut
@@ -341,18 +352,25 @@ const RampSessionEditButton: React.FC<{
         <TooltipContent><p>Make this ramp's (near-)black or white stop transparent — this session only (no-op if it has neither)</p></TooltipContent>
       </Tooltip>
       <Popover>
-        <PopoverTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 cursor-pointer"
-              title="Live-edit this ramp's stops for the current session (not saved)"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          }
-        />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 cursor-pointer"
+                    aria-label="Live-edit this ramp's stops"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                }
+              />
+            }
+          />
+          <TooltipContent><p>Live-edit this ramp's stops for the current session (not saved)</p></TooltipContent>
+        </Tooltip>
         <PopoverContent className="w-72 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs font-medium text-muted-foreground">Session-only edit</Label>

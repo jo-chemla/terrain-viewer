@@ -51,15 +51,22 @@ export const ContourOptionsSection: React.FC<{
       <Label className="text-sm">{label}</Label>
       <div className="flex items-center gap-1">
         {state[stateKey] && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 cursor-pointer"
-            title="Reset to theme default"
-            onClick={() => setState({ [stateKey]: "" })}
-          >
-            <RotateCcw className="h-3 w-3" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 cursor-pointer"
+                  aria-label="Reset to theme default"
+                  onClick={() => setState({ [stateKey]: "" })}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                </Button>
+              }
+            />
+            <TooltipContent><p>Reset to theme default</p></TooltipContent>
+          </Tooltip>
         )}
         <ColorAlphaSwatch
           title={label}
