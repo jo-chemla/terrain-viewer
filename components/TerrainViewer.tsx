@@ -388,8 +388,11 @@ export const QUERY_STATE_PARSERS = {
     phongOpacity: parseAsFloat.withDefault(1.0),
     phongDiffuseStrength: parseAsFloat.withDefault(0.8),
     phongSpecularStrength: parseAsFloat.withDefault(0.2),
-    // On (default, matching Matcap's own anchor per the user's 2026-08-20
-    // request): the light is fixed relative to the CAMERA ("headlamp") —
+    // Off (default — briefly flipped to Camera on 2026-08-20, reverted the
+    // same day on the user's follow-up): illuminationDir is a compass
+    // azimuth, fixed to the world, matching maplibre's own hillshade
+    // illumination-direction — the light doesn't move when you rotate the
+    // map. On: the light is fixed relative to the CAMERA instead —
     // illuminationDir + the map's own bearing is baked into the phong://
     // tile as its effective azimuth (see the PhongSource lightDir prop
     // below), so the light appears to stay "over your shoulder" as you
@@ -397,10 +400,9 @@ export const QUERY_STATE_PARSERS = {
     // gesture ends (see commitViewState) rather than updating continuously
     // mid-drag, so this doesn't turn map rotation into a rapid-fire
     // tile-recompute trigger the way it would if bearing were live-tracked.
-    // Off: a compass azimuth fixed to the world, matching maplibre's own
-    // hillshade illumination-direction. Note the "raster" (3D Slow)
-    // renderer still forces Absolute (see lighting-effects-options-section).
-    phongLightRelativeToCamera: parseAsBoolean.withDefault(true),
+    // (Matcap's own anchor keeps Camera as ITS default — the material
+    // lookup is what a camera-held sphere means — unlike a scene light.)
+    phongLightRelativeToCamera: parseAsBoolean.withDefault(false),
     // "raster" (default): lib/phong-protocol.ts's plain raster-tile pipeline —
     // drapes correctly over 3D terrain exaggeration AND globe, but every
     // light/strength/exaggeration change costs a real tile refetch (~150ms
