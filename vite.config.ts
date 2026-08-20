@@ -64,8 +64,13 @@ export default defineConfig({
       // component stayed inert (theme toggle, search, sidebar sections all
       // no-op with zero DOM change and no thrown error) since Next's dev
       // client apparently gates finishing its own setup on that socket.
+      // DOCS_PORT env override mirrors DEVTOOLS_EVENT_BUS_PORT's purpose: in
+      // a git worktree running alongside the main checkout, 3100 is already
+      // taken by the main checkout's docs server — which would silently serve
+      // ITS content here. Run e.g. `pnpm --dir docs exec next dev -p 3101`
+      // and `DOCS_PORT=3101 pnpm dev --port 5174` instead.
       "/docs": {
-        target: "http://localhost:3100",
+        target: `http://localhost:${process.env.DOCS_PORT ?? 3100}`,
         changeOrigin: true,
         ws: true,
         // docs/content/docs/*.mdx files are also imported here (via `?raw`)
