@@ -255,9 +255,14 @@ export const ComparisonMixSection: React.FC<{
           <CollapsibleContent className="space-y-2 pt-1">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-sm font-medium">Capture Date</Label>
+              {/* "auto" (the URL default) resolves to "source-date" whenever
+                  split is on — and this whole Advanced block is gated on
+                  isSplit, so displaying it as Source keeps the toggle at
+                  three buttons. Clicking any button writes the explicit
+                  value, so a deliberate Off sticks across split toggles. */}
               <SegmentedToggle
                 className="w-[220px]"
-                value={state.showCaptureDatePill}
+                value={state.showCaptureDatePill === "auto" ? "source-date" : state.showCaptureDatePill}
                 onChange={(value) => setState({ showCaptureDatePill: value })}
                 options={[
                   { value: "off", label: "Off" },

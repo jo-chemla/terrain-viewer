@@ -227,7 +227,12 @@ export const QUERY_STATE_PARSERS = {
     // SOURCE_CONFIG[...].shortLabel, e.g. "ESRI", "Google"). See the per-pane
     // render below for placement (bottom-left / bottom-center / top-center
     // depending on grid shape and whether the timeline panel is docked below it).
-    showCaptureDatePill: parseAsStringLiteral(["off", "date", "source-date"] as const).withDefault("off"),
+    // "auto" (the default) resolves to "source-date" while split/blend is
+    // active and "off" otherwise — kept as a distinct literal (rather than
+    // flipping the default) so an explicit "off" chosen by the user is never
+    // resurrected by turning split back on. The sidebar toggle only ever
+    // shows/writes the three explicit values (see comparison-mix-section.tsx).
+    showCaptureDatePill: parseAsStringLiteral(["auto", "off", "date", "source-date"] as const).withDefault("auto"),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("aws"),   // aws needs no API key, unlike maptiler/mapbox — safe default for a fresh visitor's first split view
     // C-H only ever matter for gridLayout "2x2"/"3x1"/"3x2"/"4x1"/"4x2" — same
@@ -1567,10 +1572,6 @@ export function TerrainViewer() {
     if (effectiveAppMode === "historical" && isHistoricalHostname(window.location.hostname)) {
       const HISTORICAL_HOSTNAME_DEFAULTS: Record<string, unknown> = {
         viewMode: "2d",
-        zoom: 1.46,
-        lat: 28.2176,
-        lng: 11.5101,
-        pitch: 0,
         splitStyle: "overlay",
         showRasterBasemap: true,
         basemapSourceA: "historical",
@@ -1581,6 +1582,30 @@ export function TerrainViewer() {
       }
       for (const [key, value] of Object.entries(HISTORICAL_HOSTNAME_DEFAULTS)) {
         if (!searchParams.has(key)) stateOverrides[key] = value
+      }
+      // The whole-earth default camera CANNOT go through stateOverrides/
+      // setState like the fields above: the <Map>'s `initialViewState` has
+      // already consumed the plain nuqs defaults (Mont Blanc) by the time
+      // this effect runs, and it's uncontrolled after mount — a setState
+      // would only rewrite the URL, then get stomped right back by the next
+      // debounced commitViewState carrying the (unmoved) actual camera.
+      // Same trap and same cure as TerrainControlPanel.tsx's handleGoHome
+      // and lib/bookmarks.ts's applyBookmark: command the map directly.
+      // Per-key URL overrides still win — a shared link with e.g. lat/lng
+      // but no zoom keeps its own values for what it does carry.
+      const HISTORICAL_CAMERA_DEFAULTS = { lat: 28.2176, lng: 11.5101, zoom: 1.46, pitch: 0 } as const
+      if (Object.keys(HISTORICAL_CAMERA_DEFAULTS).some((key) => !searchParams.has(key))) {
+        const jumpToHistoricalHome = () => mapRefs.A.current?.getMap()?.jumpTo({
+          center: [
+            searchParams.has("lng") ? state.lng : HISTORICAL_CAMERA_DEFAULTS.lng,
+            searchParams.has("lat") ? state.lat : HISTORICAL_CAMERA_DEFAULTS.lat,
+          ],
+          zoom: searchParams.has("zoom") ? state.zoom : HISTORICAL_CAMERA_DEFAULTS.zoom,
+          pitch: searchParams.has("pitch") ? state.pitch : HISTORICAL_CAMERA_DEFAULTS.pitch,
+        })
+        const mapA = mapRefs.A.current?.getMap()
+        if (mapA?.isStyleLoaded()) jumpToHistoricalHome()
+        else mapA?.once("load", jumpToHistoricalHome)
       }
       // Open Compare-and-Blend + Basemaps panels on first-ever visit (no
       // stored sectionOpen). Returning visitors who closed them keep their
@@ -3420,8 +3445,13 @@ export function TerrainViewer() {
   // geometry, specifically so it's never subject to an overlay pane's own
   // clip-path/opacity/blend (a UI label, unlike the border below, has no
   // reason to fade out or get clipped along with the underlying imagery).
+  // "auto" resolves here, not in the nuqs default — split/blend views get the
+  // full source + date pill out of the box, the single-map view stays clean.
+  const effectiveCaptureDatePill = state.showCaptureDatePill === "auto"
+    ? (isSplit ? "source-date" : "off")
+    : state.showCaptureDatePill
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
-    if (state.showCaptureDatePill === "off") return null
+    if (effectiveCaptureDatePill === "off") return null
     const resolved = perViewResolved[pane.side]
     if (!resolved || !resolved.basemapSource) return null
     // A non-historical basemap (Mapbox/HERE/Google Sat/OSM/plain Bing) has no
@@ -3444,7 +3474,7 @@ export function TerrainViewer() {
       ?? BASEMAP_SHORT_LABELS[resolved.basemapSource]
       ?? resolved.basemapSource
     const label = !hasKnownDate ? sourceShortLabel
-      : state.showCaptureDatePill === "source-date" ? `${sourceShortLabel} · ${dateLabel}`
+      : effectiveCaptureDatePill === "source-date" ? `${sourceShortLabel} · ${dateLabel}`
       : dateLabel
     const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : "0.5rem"
     // The rightmost column's own pane DOM box intentionally extends under the
