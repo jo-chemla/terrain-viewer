@@ -334,3 +334,99 @@ don't trust anything beyond point 3 above as still-current — check the actual
 `.mdx` files' `href`/`data-lightbox-href` values and `git log` instead; this
 file documents technique and gotchas, not a live snapshot of every screenshot's
 exact state.
+
+9. Viz-modes recapture pass, ROOT-CAUSE of the recurring "hrefs match but
+   captured file looks totally different" mystery, several new Playwright
+   gotchas — **`https://terrain-viewer.iconem.com/` (the URL these captures
+   use) is NOT built from `main`, it's a separate deploy that can lag the
+   `docs-update` branch by several commits.** Confirmed directly: `git
+   merge-base --is-ancestor <commit> origin/main` showed the commit that added
+   `id="tour-lighting-effects-section"` (`e670cd0`, a docs-update-only commit)
+   is **not** an ancestor of `origin/main`, while the commit that added
+   `id="tour-hypso-section"` (`803c224`) **is**. Real-world effect: a
+   `scrollIntoView`-by-id script silently no-ops when the id isn't in prod's
+   DOM yet (my `page.evaluate` returned `null` for `querySelector`, and I'd
+   forgotten to wire up `page.on('console')` so the in-browser `console.warn`
+   was invisible in the Node terminal — always pipe browser console to Node
+   when debugging a silent scroll/click failure). **Fix used: scroll by the
+   Section's own title `<span>` exact-text match, walking up to the nearest
+   ancestor whose className contains `scroll-mt-` (see `Section` in
+   `controls-components.tsx`), instead of the `id`** — this works regardless
+   of whether prod has the id yet. This is almost certainly why past rounds'
+   "I used the same URL, I swear" captures kept coming back showing the wrong
+   sidebar section/scroll position — not a camera problem at all, a silent
+   scroll-target-not-found problem that happened to *also* correlate with
+   camera-looking-wrong reports.
+   - **This same prod/branch-lag issue also breaks the guided-tour step
+     count/order**, independent of the DOM-id issue above: walking the tour
+     step-by-step on prod (via `startTour=true` + repeated `ArrowRight`)
+     landed on completely different step content than the local
+     `product-tour.tsx` source predicts (e.g. local source says step 9 of the
+     terrain branch is "Color by Elevation", but prod's actual step 9 was
+     "Terrain Sources", step 11 was "Bring Your Own Data" — a totally
+     different, shorter/reordered step list). **Do not trust local
+     `product-tour.tsx` array order to predict prod step numbers.** If you
+     need a specific tour step from prod, walk it empirically (advance one
+     step at a time, read the actual title each time) rather than
+     precomputing "N general steps + branch + M terrain steps".
+   - **Seeding `localStorage.hasSeenTour = true` also silently blocks the
+     `?startTour=true` deep link**, even though `product-tour.tsx`'s own code
+     comment says the deep-link effect "fires regardless of `hasSeenTour`".
+     Confirmed empirically (isolated A/B test: identical page+URL, only
+     difference was this one localStorage key, tour opened with it unset/false
+     and never opened with it seeded true) — this looks like a real app bug
+     worth a from-scratch fix, not a capture-script problem. **Workaround:
+     don't seed `hasSeenTour` at all (or seed it explicitly `false`) for any
+     tour-driven capture.**
+   - **Coachmark's `ArrowRight` tour-advance keyboard shortcut occasionally
+     drops or double-fires a press** — confirmed via a press-by-press log
+     (6 sequential `ArrowRight` presses with 1.8-2s gaps only advanced the
+     step counter 4 times in one run). A fixed "press N times" script is not
+     reliable. **Fix: loop pressing one at a time, checking the actual
+     visible step/title text after each press, until the target is reached
+     (cap the loop, don't spin forever).**
+   - **Phong's raster-basemap-blended render can get stuck with several
+     tile-sized patches showing a lighter/less-shaded, not-fully-composited
+     appearance**, similar in spirit to the SVF stuck-compute gotcha above
+     but for the Phong "2D Fast" shader path specifically — confirmed it is a
+     genuine timing race, not permanent basemap-mosaic seams: two separate
+     long-plain-wait attempts (70s, then 90s+45s=135s) reproduced very
+     similar-but-not-identical patch layouts, and neither wait length alone
+     resolved it. **What actually fixed it: a `page.mouse.wheel` zoom-out
+     then zoom-in "nudge" partway through the wait** (45s wait → nudge → 45s
+     wait → nudge → 45s wait → screenshot) — after that the render was fully,
+     evenly shaded with zero patches. Same nudge trick as the stuck-tour-step
+     gotcha elsewhere in this file, now confirmed useful for a non-tour,
+     plain-URL capture too.
+   - **Don't assume a "quilted"/non-uniform raster-basemap appearance is
+     real source-mosaic data without testing in isolation** — I initially
+     misdiagnosed the Phong patches above as genuine ESRI-style mosaic
+     seams because they looked visually plausible and didn't obviously
+     change between two wait lengths; a wheel-nudge later proved that wrong.
+     Conversely, for **AWS Terrarium** specifically, a fine uniform
+     scanline/moiré hillshade texture (looks like a subtle grid hatching
+     across the whole terrain) reproduced **pixel-identically** across two
+     very different capture treatments (plain 90s wait vs. 55s+nudge+55s+
+     nudge+drag) AND in a totally isolated single-source (no split, no
+     overlay) capture — that level of exact reproducibility across different
+     code paths is what actually confirms "real source data", not just "it
+     looked stable once". When in doubt, isolate the suspect layer alone
+     (drop every other layer/source) and compare.
+   - Session ended with **three item groups (walkthrough screenshots,
+     split-modes screenshots, elevation-picker screenshot) explicitly taken
+     back over by the user mid-session** to redo manually. The controlling
+     agent was told to stop touching those files, but its background task was
+     killed (`TaskStop`) before it finished acting on that — it had NOT
+     actually reverted anything via `git checkout --` (despite an earlier,
+     inaccurate draft of this note claiming it had); `git status` right after
+     the kill still showed all of those files as modified. The user then
+     personally reviewed the final on-disk state of every affected file
+     (both their own manual recaptures and whatever the agent had last
+     written) and confirmed it was correct before committing — so the
+     committed result is user-verified, but be aware the "taken back over"
+     files may be a mix of user and agent output rather than purely one or
+     the other. See `handoff-docs-update.md` for the exact current
+     disposition. **Lesson: a background agent's own claim of having cleaned
+     up/reverted something is not reliable if the task was killed
+     mid-sentence — verify against `git status`/mtimes rather than trusting
+     the agent's last written note.**

@@ -154,9 +154,9 @@ export function LightboxProvider({ children }: { children: ReactNode }) {
             ✕
           </button>
 
-          <div className="flex h-14 shrink-0 items-center justify-center px-16 pt-2" onClick={stop}>
+          <div className="flex min-h-14 shrink-0 items-center justify-center px-16 py-2" onClick={stop}>
             {current.titleNodes.length > 0 && (
-              <div className="max-w-full truncate text-center text-sm text-white/90">
+              <div className="max-w-full text-center text-sm text-white/90">
                 {current.titleNodes.map((node, i) =>
                   node.href ? (
                     <a
