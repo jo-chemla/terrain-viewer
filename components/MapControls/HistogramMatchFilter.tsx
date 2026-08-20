@@ -47,6 +47,13 @@ export const HistogramMatchFilter: React.FC<{
   const funcRRef = useRef<SVGFEFuncRElement>(null)
   const funcGRef = useRef<SVGFEFuncGElement>(null)
   const funcBRef = useRef<SVGFEFuncBElement>(null)
+  // Last computed RGB LUT (as the serialized tableValues strings), kept
+  // across the effect teardown a disable triggers — so re-enabling the
+  // checkbox re-applies the CSS filter synchronously instead of leaving the
+  // target uncorrected through the 1s idle debounce below. RGB only: the
+  // filter is free to re-attach (no pixels touched), whereas the non-RGB
+  // overlay would still need its expensive native-res redraw anyway.
+  const lastRgbLutRef = useRef<{ r: string; g: string; b: string } | null>(null)
   const sampleCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const filterId = `histogram-match-to-reference-${id}`
@@ -119,9 +126,10 @@ export const HistogramMatchFilter: React.FC<{
         overlayCanvasRef.current?.remove()
         overlayCanvasRef.current = null
         const lut = computeRgbLut(targetSampleData, referenceData)
-        if (funcRRef.current) funcRRef.current.setAttribute("tableValues", toTableValues(lut.r))
-        if (funcGRef.current) funcGRef.current.setAttribute("tableValues", toTableValues(lut.g))
-        if (funcBRef.current) funcBRef.current.setAttribute("tableValues", toTableValues(lut.b))
+        lastRgbLutRef.current = { r: toTableValues(lut.r), g: toTableValues(lut.g), b: toTableValues(lut.b) }
+        if (funcRRef.current) funcRRef.current.setAttribute("tableValues", lastRgbLutRef.current.r)
+        if (funcGRef.current) funcGRef.current.setAttribute("tableValues", lastRgbLutRef.current.g)
+        if (funcBRef.current) funcBRef.current.setAttribute("tableValues", lastRgbLutRef.current.b)
         targetCanvas.style.filter = `url(#${filterId})`
         return
       }
@@ -154,7 +162,24 @@ export const HistogramMatchFilter: React.FC<{
       timer = setTimeout(() => { raf = requestAnimationFrame(recompute) }, RECOMPUTE_INTERVAL_MS)
     }
 
-    scheduleRecompute()
+    if (colorSpace === "rgb") {
+      // Instant toggle path: re-attach the cached LUT filter synchronously
+      // (stale by at most one recompute interval — same staleness the live
+      // filter already tolerates between idle recomputes), then refresh on
+      // the very next frame instead of after the debounce. Without this,
+      // every enable — including the first — sat visually uncorrected for a
+      // full RECOMPUTE_INTERVAL_MS despite the RGB LUT costing well under a
+      // millisecond to build.
+      if (lastRgbLutRef.current) {
+        if (funcRRef.current) funcRRef.current.setAttribute("tableValues", lastRgbLutRef.current.r)
+        if (funcGRef.current) funcGRef.current.setAttribute("tableValues", lastRgbLutRef.current.g)
+        if (funcBRef.current) funcBRef.current.setAttribute("tableValues", lastRgbLutRef.current.b)
+        targetMap.getCanvas().style.filter = `url(#${filterId})`
+      }
+      raf = requestAnimationFrame(recompute)
+    } else {
+      scheduleRecompute()
+    }
     referenceMap.on("idle", scheduleRecompute)
     targetMap.on("idle", scheduleRecompute)
     // Either map moving invalidates the overlay: the reference moving means
