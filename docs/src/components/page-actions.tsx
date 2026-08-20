@@ -82,8 +82,8 @@ export function DocsViewOptions({
         : String(new URL(prefixed, window.location.origin));
     const q = `Read ${pageUrl}, I want to ask questions about it.`;
 
-    const entries: (ViewOptionsItem | false | undefined)[] = [
-      githubUrl && { title: 'Open in GitHub', href: githubUrl, icon: GITHUB_ICON },
+    const entries: (ViewOptionsItem | undefined)[] = [
+      githubUrl ? { title: 'Open in GitHub', href: githubUrl, icon: GITHUB_ICON } : undefined,
       {
         title: 'View as Markdown',
         href: markdownUrl,
