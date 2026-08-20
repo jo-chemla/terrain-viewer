@@ -1,0 +1,27 @@
+---
+title: River-REM
+description: Iconem's companion app for river-relative elevation models, and how this app hands off to it
+---
+
+<Callout title="Canonical source" type="info">
+River-REM is a separate, complete app with its own repo — this page is only a summary. The source of truth is the [RiverREM_UI README](https://github.com/Iconem/RiverREM_UI) and the live app at [rem.prod.heritagewatch.ai](https://rem.prod.heritagewatch.ai/).
+</Callout>
+
+A **Relative Elevation Model (REM)** re-references a DEM to the local river water surface instead of sea level: sample the water surface elevation (WSE) along the river centerline, interpolate it across the terrain, then detrend with `REM = DEM − WSE`. The floodplain reads as flat, and paleochannels, terraces, bars, and meander scrolls pop out at meter scale — the technique popularized by Dan Coe and automated by the [OpenTopography RiverREM](https://github.com/OpenTopography/RiverREM) Python package.
+
+[River-REM](https://rem.prod.heritagewatch.ai/) wraps that workflow in a browser app: pan to a river, and it extracts the centerline from OpenStreetMap waterway data, samples WSE from the DEM, interpolates, detrends, and styles the result live in a MapLibre `color-relief` layer. The REM is served as a single float band, so all color logic stays client-side and recolors instantly with no recompute.
+
+## Two engines, same styling
+
+- **Server engine** — FastAPI + GDAL + the RiverREM package; k-NN IDW interpolation, full-fidelity Float32 Cloud-Optimized GeoTIFF output, exportable (COG, DEM, GeoJSON centerline, JPG composite).
+- **Client engine** — pure JavaScript/WebGL, no backend required; generates Terrarium tiles per-tile with a choice of interpolation modes: classic **IDW** (smooth, but radial halos around sample points), **Nearest** (project each cell onto the nearest river segment — clean cross-channel bands, physically the most hydrological), and **EDT** (Euclidean distance transform, `O(cells)` — fastest at high resolution).
+
+On top of either engine: 15+ cpt-style color ramps with custom import, independent min/max bounds, transparency fading, REM vs. DEM layer toggling, basemap selection, a localStorage run history with rename/delete/duplicate, and URL-based state persistence via nuqs. Terrain comes from [Mapterhorn](https://mapterhorn.com/) tiles by default, with custom elevation COG ingest supported.
+
+## How it connects to this app
+
+**Open In → Iconem River-REM.** The sidebar's Open In launcher hands off the current viewport directly — it builds `https://rem.prod.heritagewatch.ai/?lng=…&lat=…&zoom=…`, so the spot you're inspecting here opens at the same camera there. Typical flow: scout a floodplain in this app (hillshade, [LRM](/features/visualization-modes), historical imagery), then jump to River-REM for the river-referenced detrend and its COG/centerline exports.
+
+**LRM is the generic cousin.** This app's [Local Relief Model](/dev/lrm) viz mode also subtracts a trend surface from the DEM — but its trend is an isotropic low-pass blur (an ancestor tile of the pyramid), with no notion of a river. A REM's trend is the interpolated water surface itself, which is what makes "meters above river level" physically meaningful in a floodplain where LRM only shows "higher/lower than the neighborhood mean." Same idea applies to the [Elevation Picker](/features/tools#elevation-picker)'s **Sample Reference: Absolute vs. LRM** option — a per-point version of the same detrending trade-off.
+
+**Shared lineage.** The two apps share an author (Iconem / jo-chemla) and a stack (React + Vite, MapLibre GL, nuqs URL state, Mapterhorn terrain) — this app's [Bookmarks](/features/bookmarks) Runs/Gallery UI was directly modeled on RiverREM_UI's runs list and gallery modal (see the header comment in `lib/bookmarks.ts`).

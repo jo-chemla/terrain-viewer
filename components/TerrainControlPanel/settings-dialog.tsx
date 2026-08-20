@@ -63,6 +63,25 @@ const KEYBOARD_SHORTCUTS_MARKDOWN_COMPONENTS = {
   ul: ({ children }: any) => <div className="space-y-1.5 text-xs text-muted-foreground">{children}</div>,
   li: ({ children }: any) => <div>{children}</div>,
   code: ({ children }: any) => <kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-foreground">{children}</kbd>,
+  // The shared file groups shortcuts under ### headings and carries the odd
+  // connecting sentence — render both at modal scale rather than the
+  // browser-default heading/paragraph sizes.
+  h3: ({ children }: any) => <p className="pt-2 text-xs font-semibold text-foreground">{children}</p>,
+  p: ({ children }: any) => <p className="text-xs text-muted-foreground">{children}</p>,
+  // Docs-root-relative links (e.g. /features/tools) point at the co-deployed
+  // docs site — prefix with "docs" and keep it relative so it resolves under
+  // whatever domain/subpath the app is served from (same reasoning as the
+  // BookOpen "Open Documentation" button below).
+  a: ({ href, children }: any) => (
+    <a
+      href={typeof href === "string" && href.startsWith("/") ? `docs${href}` : href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline underline-offset-2 hover:text-foreground"
+    >
+      {children}
+    </a>
+  ),
 }
 
 // Renders each link as a full-width row with a trailing external-link icon —
@@ -644,7 +663,21 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             </div>
           </CollapsibleSection>
           <Separator />
-          <CollapsibleSection title="Keyboard Shortcuts" openAtom={isSettingsKeyboardShortcutsOpenAtom} contentClassName="space-y-2 pt-2">
+          <CollapsibleSection
+            title="Keyboard Shortcuts"
+            openAtom={isSettingsKeyboardShortcutsOpenAtom}
+            contentClassName="space-y-2 pt-2"
+            headerExtra={
+              <TooltipIconButton
+                icon={BookOpen}
+                tooltip="Open in the docs"
+                // Same relative-URL reasoning as the "Open Documentation"
+                // button above — this one deep-links the identical shared
+                // content as a real docs page.
+                onClick={() => window.open("docs/features/keyboard-shortcuts", "_blank", "noopener,noreferrer")}
+              />
+            }
+          >
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={KEYBOARD_SHORTCUTS_MARKDOWN_COMPONENTS}>
               {KEYBOARD_SHORTCUTS_MARKDOWN}
             </ReactMarkdown>

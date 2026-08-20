@@ -355,7 +355,18 @@ const KEYBOARD_SHORTCUTS_STEP: TourStepDef = {
         <li>Space — re-toggle whichever mode you last clicked</li>
         <li>L + drag on the map — set the hillshade light direction</li>
         <li>←/→ — step through this tour itself, or loop through any select options</li>
-        <li>Open Settings → Keyboard Shortcuts for the complete list</li>
+        {/* Deep-links the always-up-to-date docs page (the same shared
+            content Settings → Keyboard Shortcuts renders inline) rather
+            than a plain "go open Settings" instruction that can't be
+            clicked. Relative href, same subpath reasoning as
+            settings-dialog.tsx's Open Documentation button. */}
+        <li>
+          Full list:{" "}
+          <a href="docs/features/keyboard-shortcuts" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+            Keyboard Shortcuts docs
+          </a>{" "}
+          (also in Settings → Keyboard Shortcuts)
+        </li>
       </ul>
     </>
   ),

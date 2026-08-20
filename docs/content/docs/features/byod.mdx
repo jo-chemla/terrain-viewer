@@ -22,7 +22,7 @@ Two ways to use a COG that lives on your own disk, without uploading it anywhere
 
 Pick a `.tif`/`.tiff` with the **Local COG file (this browser only)** type — the app streams it straight off disk via a `blob:` URL through the same `cog://` reader used for remote COGs.
 
-- Never uploaded, but also never persisted — after a reload, re-select the same file to resume.
+- Never uploaded. Not persisted by default — after a reload, re-select the same file to resume — unless you enable **Settings → Browser Local Storage Persistence → Local COG Files**, which copies picked files into the browser's private storage (OPFS) so they survive reloads; that panel also shows per-category storage usage against the site's quota, with a Clear button to free it. Local COGs can also travel inside a **Project export** (Settings → Project) as part of its `.zip` bundle.
 - Works for the primary terrain source and its derivative visualizations, the Elevation Picker, and client-side GeoTIFF export. Contour Lines still needs Titiler (it can't reach a local file).
 - **Must be a genuinely tiled COG** (e.g. `gdal_translate -of COG src.tif out_cog.tif`), not a plain strip-organized GeoTIFF — an untiled file forces large repeated decodes and can crash the tab.
 - **Must already be in Web Mercator (EPSG:3857)** — reproject first with `gdalwarp -t_srs EPSG:3857 -of COG src.tif out_3857.tif` if it isn't, or use the remote **COG** type in Titiler mode instead (which reprojects server-side).

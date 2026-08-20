@@ -1,0 +1,40 @@
+---
+title: Streaming & Storage Settings
+description: COG streaming engine, elevation quantization precision, client-side export, tile caching, and browser storage persistence
+---
+
+Two Settings-dialog panels control how elevation data gets from a COG into the renderer, and what the browser keeps between sessions. Neither affects *what* is computed — only how it's fetched, how precisely it's encoded, and whether it survives a reload.
+
+## Streaming Settings
+
+### COG Streaming: MapLibre vs Titiler
+
+Two engines can turn a Cloud-Optimized GeoTIFF into map tiles:
+
+- **MapLibre** (default) — [@geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol) reads the COG directly in the browser via HTTP range requests: no middleware, faster, and no shared-server load. The COG must be reachable with CORS enabled and already in Web Mercator (see [BYOD](/features/byod) for the `gdalwarp`/`gdal_translate` fix-ups) — a CORS-blocked file is the usual reason to flip this switch.
+- **Titiler** — a [Titiler](https://developmentseed.org/titiler/) middleware instance fetches the remote COG server-side and streams standard TMS tiles back. More tolerant (it reprojects and proxies CORS-less files), at the cost of an extra hop and server load. [Contour Lines](/features/visualization-modes) always use this path — they can't read a local file or raw COG directly.
+
+The **Titiler Endpoint** field at the bottom of the panel points both the streaming fallback and the export path at your own instance (default `https://titiler.xyz`); it travels with a [Project export](/features/index) so a shared project keeps working against the same server.
+
+### High-Precision Elevation Quantization
+
+Visible only on the MapLibre/COG-protocol path. Elevation tiles are quantized into an RGB packing — [Mapbox Terrain-RGB](https://docs.mapbox.com/data/tilesets/reference/mapbox-terrain-rgb-v1/) steps at **10 cm**, [Terrarium](https://github.com/tilezen/joerd/blob/master/docs/formats.md#terrarium) at **~3.9 mm**. This switch re-encodes streamed COGs as Terrarium instead of Terrain-RGB: slower streaming, but flat or gently-sloped surfaces stop banding in the derivative modes (slope, curvature, hillshade on near-flat terrain make 10 cm steps very visible). The [terrain-analysis pipeline](/dev/terrain-analysis-pipeline) page covers why each visualization mode picks the packing it does.
+
+### DTM Export without Titiler
+
+Client-side GeoTIFF export: the browser range-reads and mosaics tiles/COGs directly, bypassing Titiler's server-side size cap. Works for COG, Terrain-RGB, and Terrarium sources — including a [local COG file](/features/byod#local-offline-cog-terrain-sources) that no server could reach.
+
+### Cache Computed Viz-Mode Tiles
+
+Keeps finished computed tiles (Terrain Analysis, detectors, …) in an in-memory cache of up to ~96 MB, so toggling a mode off and back on redisplays instantly instead of recomputing every visible tile. Costs memory, saves recompute — turn it off on low-RAM machines.
+
+## Browser Local Storage Persistence
+
+The app never uploads your local data anywhere; this panel controls what the *browser itself* remembers, backed by [OPFS](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system) (private per-site storage):
+
+- **Local COG Files** — copies files picked via the [Local COG source type](/features/byod#local-cog-file-built-into-the-app) into OPFS so they don't need re-picking after a reload.
+- **Vector Layers (TerraDraw)** — keeps drawn/imported [Drawing](/features/tools#drawing) layers across reloads.
+
+Each category shows a live readout — file/layer count, bytes used, and the site's total browser storage quota — with a **Clear** button to free the space. Everything persisted here (plus bookmarks, custom sources, and settings) can also be bundled into a portable [Project export](/features/index) `.zip`.
+
+Separately from OPFS, plain `localStorage` holds the small stuff — API keys, custom color ramps, collapsed-section state, beta flags — as described in the [architecture overview](/dev).
