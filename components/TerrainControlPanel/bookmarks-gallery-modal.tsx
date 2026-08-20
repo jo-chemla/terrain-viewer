@@ -1,5 +1,5 @@
 import type React from "react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom } from "jotai"
 import { Trash2, ImageOff, Pencil, Check } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -130,6 +130,30 @@ export const BookmarksGalleryModal: React.FC<{
   const [flattenGroups, setFlattenGroups] = useAtom(galleryFlattenGroupsAtom)
   const [showFeatured, setShowFeatured] = useAtom(galleryShowFeaturedAtom)
 
+  // Scroll-fade (same pattern as TerrainControlPanel.tsx's sidebar panel):
+  // soften the top/bottom edges of the card grid with a mask gradient, only
+  // on the edge that actually has more content past it.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [fade, setFade] = useState({ top: false, bottom: false })
+  const FADE_PX = 40
+  const updateFade = useCallback((el: HTMLElement | null) => {
+    if (!el) return
+    const top = el.scrollTop > 4
+    const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 4
+    setFade((f) => (f.top === top && f.bottom === bottom ? f : { top, bottom }))
+  }, [])
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => updateFade(e.currentTarget), [updateFade])
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || !open) return
+    updateFade(el)
+    const ro = new ResizeObserver(() => updateFade(el))
+    ro.observe(el)
+    for (const child of Array.from(el.children)) ro.observe(child)
+    return () => ro.disconnect()
+  }, [updateFade, open, bookmarks, flattenGroups, showFeatured])
+  const scrollMask = `linear-gradient(to bottom, ${fade.top ? "transparent" : "#000"} 0, #000 ${FADE_PX}px, #000 calc(100% - ${FADE_PX}px), ${fade.bottom ? "transparent" : "#000"} 100%)`
+
   const handleRestorePreset = (preset: Bookmark) => {
     restorePreset(preset, setState, mapRef)
     setActiveBookmarkId(null)
@@ -195,60 +219,87 @@ export const BookmarksGalleryModal: React.FC<{
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="sm:max-w-5xl max-h-[85vh] overflow-y-auto" showCloseButton={false}>
-        <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
-        <DialogHeader>
-          <DialogTitle>Bookmarks</DialogTitle>
-          <DialogDescription>Every saved view — click a thumbnail to load it.</DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        className="sm:max-w-5xl max-h-[85vh] flex flex-col gap-0 overflow-hidden p-0"
+        showCloseButton={false}
+      >
+        {/* Non-scrolling header block, a plain flex sibling above the
+         *  independently-scrolling card grid below — deliberately NOT
+         *  `position: sticky` inside the scroll container: that approach
+         *  (tried first) put the header inside the same CSS Grid as the
+         *  scrollable content, and negative margins used to bleed it to the
+         *  container's padding edges don't interact cleanly with grid track
+         *  sizing — the header ended up short of the true scroll top, so a
+         *  sliver of the card grid stayed visible above it while scrolling.
+         *  A separate fixed-height flex child sidesteps that entirely. */}
+        <div className="shrink-0 border-b px-6 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <DialogHeader className="gap-0.5">
+              <DialogTitle>Bookmarks</DialogTitle>
+              <DialogDescription>Every saved view — click a thumbnail to load it.</DialogDescription>
+            </DialogHeader>
 
-        <div className="flex items-center justify-end gap-3 -mt-2">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor="gallery-show-featured" className="text-xs text-muted-foreground cursor-pointer">Featured</Label>
-                  <Switch id="gallery-show-featured" checked={showFeatured} onCheckedChange={setShowFeatured} className="cursor-pointer" />
-                </div>
-              }
-            />
-            <TooltipContent>
-              <p>{showFeatured
-                ? "Curated example viewpoints shown at the top, above your own bookmarks"
-                : "Hide the curated examples — only your own bookmarks"}</p>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor="gallery-flatten" className="text-xs text-muted-foreground cursor-pointer">Flatten</Label>
-                  <Switch id="gallery-flatten" checked={flattenGroups} onCheckedChange={setFlattenGroups} className="cursor-pointer" />
-                </div>
-              }
-            />
-            <TooltipContent>
-              <p>{flattenGroups
-                ? "One continuous grid — no per-project row breaks or leftover empty slots"
-                : "Grouped by project, one grid per group"}</p>
-            </TooltipContent>
-          </Tooltip>
-          <Select
-            value={sort}
-            onValueChange={(v) => setSort(v as Sort)}
-            items={{ "recent-desc": "Most recent", "recent-asc": "Oldest first", name: "Name (A-Z)" }}
-          >
-            <SelectTrigger size="sm" className="w-[140px] cursor-pointer text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recent-desc">Most recent</SelectItem>
-              <SelectItem value="recent-asc">Oldest first</SelectItem>
-              <SelectItem value="name">Name (A-Z)</SelectItem>
-            </SelectContent>
-          </Select>
+            {/* DialogClose lives IN this row (not absolutely positioned
+             *  outside it) so it shares the row's single `items-center` rule
+             *  with the controls next to it — two independent alignment
+             *  mechanisms (absolute top-4 vs. flex items-center against a
+             *  taller title block) only approximately lined up in practice. */}
+            <div className="flex shrink-0 items-center gap-3">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor="gallery-show-featured" className="text-xs text-muted-foreground cursor-pointer">Featured</Label>
+                      <Switch id="gallery-show-featured" checked={showFeatured} onCheckedChange={setShowFeatured} className="cursor-pointer" />
+                    </div>
+                  }
+                />
+                <TooltipContent>
+                  <p>{showFeatured
+                    ? "Curated example viewpoints shown at the top, above your own bookmarks"
+                    : "Hide the curated examples — only your own bookmarks"}</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor="gallery-flatten" className="text-xs text-muted-foreground cursor-pointer">Flatten</Label>
+                      <Switch id="gallery-flatten" checked={flattenGroups} onCheckedChange={setFlattenGroups} className="cursor-pointer" />
+                    </div>
+                  }
+                />
+                <TooltipContent>
+                  <p>{flattenGroups
+                    ? "One continuous grid — no per-project row breaks or leftover empty slots"
+                    : "Grouped by project, one grid per group"}</p>
+                </TooltipContent>
+              </Tooltip>
+              <Select
+                value={sort}
+                onValueChange={(v) => setSort(v as Sort)}
+                items={{ "recent-desc": "Most recent", "recent-asc": "Oldest first", name: "Name (A-Z)" }}
+              >
+                <SelectTrigger size="sm" className="w-[140px] cursor-pointer text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent-desc">Most recent</SelectItem>
+                  <SelectItem value="recent-asc">Oldest first</SelectItem>
+                  <SelectItem value="name">Name (A-Z)</SelectItem>
+                </SelectContent>
+              </Select>
+              <DialogClose className="ml-1 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
+            </div>
+          </div>
         </div>
 
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="min-h-0 flex-1 overflow-y-auto px-6 py-4"
+          style={{ maskImage: scrollMask, WebkitMaskImage: scrollMask }}
+        >
         <div className="space-y-4">
         {showFeatured && (
           <div>
@@ -329,6 +380,7 @@ export const BookmarksGalleryModal: React.FC<{
             ))}
           </div>
         )}
+        </div>
         </div>
       </DialogContent>
     </Dialog>

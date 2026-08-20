@@ -63,18 +63,19 @@ export const PRESET_BOOKMARKS: Bookmark[] = [
       historicalBeta: true, historicalActiveSourceA: "ge-historical",
     }),
   },
-  {
-    id: "preset-iceland-overlay",
-    name: "Iceland — Bing vs. AWS Overlay Compare",
-    ts: 0,
-    thumb: "/bookmark-thumbs/iceland-overlay.jpg",
-    search: presetSearch({
-      viewMode: "2d", zoom: 6.1, lat: 63.7946, lng: -18.2345, pitch: 50,
-      splitStyle: "overlay", sourceB: "aws", showRasterBasemap: true, basemapSourceA: "bing",
-      dateA: 1072825200000, tellsBeta: true, tellsFrozen: true,
-      overlayOpacity: 0.8834786817944542, rasterBasemapOpacity: 0.8,
-    }),
-  },
+  // Temporarily disabled — may reuse later.
+  // {
+  //   id: "preset-iceland-overlay",
+  //   name: "Iceland — Bing vs. AWS Overlay Compare",
+  //   ts: 0,
+  //   thumb: "/bookmark-thumbs/iceland-overlay.jpg",
+  //   search: presetSearch({
+  //     viewMode: "2d", zoom: 6.1, lat: 63.7946, lng: -18.2345, pitch: 50,
+  //     splitStyle: "overlay", sourceB: "aws", showRasterBasemap: true, basemapSourceA: "bing",
+  //     dateA: 1072825200000, tellsBeta: true, tellsFrozen: true,
+  //     overlayOpacity: 0.8834786817944542, rasterBasemapOpacity: 0.8,
+  //   }),
+  // },
 ]
 
 /** Restores a preset unconditionally (no "same family, skip the viewport"
