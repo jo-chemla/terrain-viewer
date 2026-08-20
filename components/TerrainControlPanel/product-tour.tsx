@@ -281,9 +281,10 @@ interface TourStepDef {
 // The tour runs GENERAL_STEPS, then BRANCH_STEP (a fork, not a plain step),
 // then whichever of TERRAIN_STEPS/HISTORICAL_STEPS the visitor picks — see
 // getStepsForBranch. Each branch ends with its own Keyboard Shortcuts
-// wrap-up (KEYBOARD_SHORTCUTS_STEP / HISTORICAL_KEYBOARD_SHORTCUTS_STEP) —
+// wrap-up (KEYBOARD_SHORTCUTS_STEP / HISTORICAL_KEYBOARD_SHORTCUTS_STEP —
 // the lists differ because the viz-mode shortcuts (Shift/Ctrl/L) are
-// Terrain-only and deliberately disabled in Historical mode.
+// Terrain-only and deliberately disabled in Historical mode) followed by a
+// shared "Dive Deeper in the Docs" pointer step (makeDocsStep).
 
 const GENERAL_STEPS: TourStepDef[] = [
   {
@@ -345,7 +346,6 @@ const BRANCH_STEP: TourStepDef = {
 const KEYBOARD_SHORTCUTS_STEP: TourStepDef = {
   key: "settings-shortcuts", domId: MAP_ANCHOR_ID, side: "bottom", align: "center",
   fullScreenSpotlight: true, spotlightRadius: 24,
-  offerOtherBranch: true,
   title: "Keyboard Shortcuts",
   description: (
     <>
@@ -381,7 +381,6 @@ const KEYBOARD_SHORTCUTS_STEP: TourStepDef = {
 const HISTORICAL_KEYBOARD_SHORTCUTS_STEP: TourStepDef = {
   key: "historical-settings-shortcuts", domId: MAP_ANCHOR_ID, side: "bottom", align: "center",
   fullScreenSpotlight: true, spotlightRadius: 24,
-  offerOtherBranch: true,
   title: "Keyboard Shortcuts",
   description: (
     <>
@@ -402,6 +401,40 @@ const HISTORICAL_KEYBOARD_SHORTCUTS_STEP: TourStepDef = {
     </>
   ),
 }
+
+// Shared final step for BOTH branches — a pointer to the full docs site for
+// everything the tour only skims. Built via a factory (not one shared object)
+// so each branch's instance gets a unique `key`: the same object appearing in
+// both TERRAIN_STEPS and HISTORICAL_STEPS would land twice in ALL_STEPS,
+// breaking key-based step lookups. offerOtherBranch lives here (moved off the
+// Keyboard Shortcuts steps) since this is now each branch's true last step.
+// Relative "docs/" hrefs — same subpath reasoning as settings-dialog.tsx's
+// Open Documentation button.
+const makeDocsStep = (key: string): TourStepDef => ({
+  key, domId: MAP_ANCHOR_ID, side: "bottom", align: "center",
+  fullScreenSpotlight: true, spotlightRadius: 24,
+  offerOtherBranch: true,
+  title: "Dive Deeper in the Docs",
+  description: (
+    <>
+      <p className="pb-2">
+        This tour only skims the surface — the{" "}
+        <a href="docs/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+          documentation site
+        </a>{" "}
+        covers every feature in detail:
+      </p>
+      <ul className="list-disc pl-4 space-y-1">
+        <li><a href="docs/features" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Features</a> — every visualization mode, split/compare, export &amp; share, bring-your-own-data</li>
+        <li><a href="docs/features/walkthrough" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Walkthrough</a> — this same tour as a screenshot gallery, for later reference</li>
+        <li><a href="docs/dev" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Developer notes</a> — how the terrain-analysis pipeline and protocols actually work</li>
+        <li><a href="docs/changelog" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Changelog</a> — what's new (also in Settings → What's New)</li>
+      </ul>
+    </>
+  ),
+})
+const TERRAIN_DOCS_STEP = makeDocsStep("terrain-docs")
+const HISTORICAL_DOCS_STEP = makeDocsStep("historical-docs")
 
 const TERRAIN_STEPS: TourStepDef[] = [
   {
@@ -509,6 +542,7 @@ const TERRAIN_STEPS: TourStepDef[] = [
     onEnter: prepareTerrainTools,
   },
   KEYBOARD_SHORTCUTS_STEP,
+  TERRAIN_DOCS_STEP,
 ]
 
 const HISTORICAL_STEPS: TourStepDef[] = [
@@ -591,6 +625,7 @@ const HISTORICAL_STEPS: TourStepDef[] = [
     onEnter: prepareHistoricalTools,
   },
   HISTORICAL_KEYBOARD_SHORTCUTS_STEP,
+  HISTORICAL_DOCS_STEP,
 ]
 
 // The full union, for building/resolving target refs — every possible step's
