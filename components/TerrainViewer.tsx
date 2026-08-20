@@ -1545,33 +1545,48 @@ export function TerrainViewer() {
         // `!searchParams.has("appMode")` guard above.
         if (isHistoricalHostname(window.location.hostname)) {
           stateOverrides.appMode = "historical"
-          // Default camera, layout, and basemap so a fresh visitor lands on a
-          // meaningful world view in overlay-compare mode. Each field is guarded
-          // so an explicit URL param always wins.
-          const HISTORICAL_HOSTNAME_DEFAULTS: Record<string, unknown> = {
-            viewMode: "2d",
-            zoom: 1.46,
-            lat: 28.2176,
-            lng: 11.5101,
-            pitch: 0,
-            splitStyle: "overlay",
-            showRasterBasemap: true,
-            basemapSourceA: "historical",
-            dateA: 1514678400000,
-            basemapSourceB: "historical",
-            dateB: 1295049600000,
-            historicalActiveSourceA: "ge-historical",
-          }
-          for (const [key, value] of Object.entries(HISTORICAL_HOSTNAME_DEFAULTS)) {
-            if (!searchParams.has(key)) stateOverrides[key] = value
-          }
-          // Open Compare-and-Blend + Basemaps panels on first-ever visit (no
-          // stored sectionOpen). Returning visitors who closed them keep their
-          // preference.
-          if (!hadStoredSectionAtMount.current) {
-            setSectionOpen(prev => ({ ...prev, comparisonMix: true, rasterBasemap: true }))
-          }
         }
+      }
+    }
+
+    // Historical-satellite default camera/layout/basemap — applied whenever
+    // this resolves to historical mode on that hostname with no explicit URL
+    // override for a given field, NOT just a visitor's first-ever load.
+    // Previously this block lived nested inside the "fresh visitor" branch
+    // above (gated on `appModeEnabled !== "terrain"` being false), so ANY
+    // returning visitor — meaning anyone with literally any appMode value
+    // already in this origin's localStorage, which is everyone after their
+    // very first visit, since the mirroring effect a few lines up persists
+    // whatever appMode ends up active — silently skipped the entire default
+    // forever: not just lat/lng, but zoom/pitch/splitStyle/basemap dates too.
+    // Gated on the RESOLVED appMode (computed below, after the restore-from-
+    // storage logic above) rather than on "is this a fresh visit", so a
+    // visitor who explicitly parked this origin in terrain mode (via
+    // `?appMode=terrain`) still doesn't get yanked into a historical camera.
+    const effectiveAppMode = (stateOverrides.appMode as AppMode | undefined) ?? state.appMode
+    if (effectiveAppMode === "historical" && isHistoricalHostname(window.location.hostname)) {
+      const HISTORICAL_HOSTNAME_DEFAULTS: Record<string, unknown> = {
+        viewMode: "2d",
+        zoom: 1.46,
+        lat: 28.2176,
+        lng: 11.5101,
+        pitch: 0,
+        splitStyle: "overlay",
+        showRasterBasemap: true,
+        basemapSourceA: "historical",
+        dateA: 1514678400000,
+        basemapSourceB: "historical",
+        dateB: 1295049600000,
+        historicalActiveSourceA: "ge-historical",
+      }
+      for (const [key, value] of Object.entries(HISTORICAL_HOSTNAME_DEFAULTS)) {
+        if (!searchParams.has(key)) stateOverrides[key] = value
+      }
+      // Open Compare-and-Blend + Basemaps panels on first-ever visit (no
+      // stored sectionOpen). Returning visitors who closed them keep their
+      // preference.
+      if (!hadStoredSectionAtMount.current) {
+        setSectionOpen(prev => ({ ...prev, comparisonMix: true, rasterBasemap: true }))
       }
     }
 
@@ -1586,7 +1601,6 @@ export function TerrainViewer() {
     // covers the same nudge for an in-session mode switch (there every one of
     // these is forced off unconditionally, since a visitor could have turned
     // any of them on while still in Terrain mode — no default to rely on).
-    const effectiveAppMode = (stateOverrides.appMode as AppMode | undefined) ?? state.appMode
     if (effectiveAppMode === "historical") {
       const HISTORICAL_MODE_OFF_FIELDS = [
         "showHillshade", "showLightingEffects", "showShadows", "showColorRelief",
