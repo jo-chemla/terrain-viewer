@@ -261,6 +261,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // (see TerrainViewer.tsx), so extra handles would just shadow the first.
   const dualMode = !!state.basemapPerView && state.splitStyle !== "off"
   const activeViews: ViewId[] = dualMode ? GRID_LAYOUTS[gridLayoutForTimeline].grid.flat() : ["A"]
+  // Handle letters show whenever views are independent (dual mode) — even
+  // with a single showing handle: with A on plain Google and B on Google
+  // Historical, the lone handle MUST say "B" or there's no telling which
+  // pane it scrubs. Split off = one anonymous view: no letter, and the
+  // handle renders pure black instead of a per-view hue (handleBackground).
+  const showHandleLetters = dualMode
 
   const activeBasemapSourceFor = useCallback((side: ViewId) => resolveActiveHistoricalSource(
     state[viewFieldName(side, "basemapSource", state.basemapPerView)],
@@ -1051,6 +1057,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // CSS classes instead" — every caller applies those as a className
   // fallback rather than trying to render an undefined inline background.
   const handleBackground = (side: ViewId): string | undefined => {
+    // Split off → one anonymous handle: pure black, regardless of the
+    // colorize-borders setting (see showHandleLetters' comment).
+    if (!dualMode) return "#000000"
     if (!colorizeMapBorders) return undefined
     const group = coincidentGroup(side)
     if (group.length <= 1) return colorFor(side)
@@ -1104,7 +1113,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 style={bg ? { background: bg } : undefined}
               >
                 {dir === "left" && <ChevronLeft className="h-3 w-3" />}
-                {showingViews.length > 1 && side}
+                {showHandleLetters && side}
                 {dir === "right" && <ChevronRight className="h-3 w-3" />}
               </button>
             }
@@ -1204,9 +1213,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               )}
               style={{ left: `${handleLeftPctBySide[side]}%`, ...(bg ? { background: bg } : {}) }}
             >
-              {/* A single showing view has nothing to disambiguate — the
-                  letter is pure clutter on an otherwise plain dot then. */}
-              {showingViews.length > 1 && (
+              {/* Letter whenever views are independent — even a LONE showing
+                  handle needs it then (A on a plain basemap + B historical:
+                  the single handle scrubs B, not "the" view). Split off is
+                  the only truly anonymous case (see showHandleLetters). */}
+              {showHandleLetters && (
                 <span className={cn("absolute inset-0 flex items-center justify-center text-[8px] font-bold leading-none pointer-events-none select-none", bg ? "text-white" : "text-primary-foreground")}>{side}</span>
               )}
             </div>
