@@ -870,6 +870,14 @@ export function TerrainViewer() {
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
   const [, setSectionOpen] = useAtom(sectionOpenAtom)
   const hasAppliedEmbedConfig = useRef(false)
+  // Camera command computed by the once-only embed-config effect below but
+  // stashed for later: that effect runs on FIRST mount, while mapLibreReady
+  // is still false and the whole return is `null` — no <Map> exists yet, so
+  // mapRefs.A.current is null and a direct jumpTo would silently no-op
+  // (exactly what shipped: historical-satellite kept its Mont Blanc
+  // initialViewState because the whole-earth jump had no map to land on).
+  // Applied by the mapLoaded.A effect below the embed-config effect.
+  const pendingCameraJumpRef = useRef<(() => void) | null>(null)
   // Snapshotted during render — BEFORE any effect runs — not read live inside
   // the hasAppliedEmbedConfig effect below: the sibling effect that mirrors
   // state.appMode into appModeAtom (a few lines down) fires first on mount
@@ -1606,9 +1614,14 @@ export function TerrainViewer() {
           zoom: searchParams.has("zoom") ? state.zoom : HISTORICAL_CAMERA_DEFAULTS.zoom,
           pitch: searchParams.has("pitch") ? state.pitch : HISTORICAL_CAMERA_DEFAULTS.pitch,
         })
-        const mapA = mapRefs.A.current?.getMap()
-        if (mapA?.isStyleLoaded()) jumpToHistoricalHome()
-        else mapA?.once("load", jumpToHistoricalHome)
+        // A camera command needs no style — jump the moment a map exists.
+        // But this effect runs before mapLibreReady flips (the entire tree
+        // is still `return null`), so normally NO map exists yet: stash the
+        // jump for the mapLoaded.A effect instead. (The earlier
+        // isStyleLoaded()/once("load") version chained off a null map and
+        // never fired — the shipped whole-earth-default bug.)
+        if (mapRefs.A.current?.getMap()) jumpToHistoricalHome()
+        else pendingCameraJumpRef.current = jumpToHistoricalHome
       }
       // Open Compare-and-Blend + Basemaps panels on first-ever visit (no
       // stored sectionOpen). Returning visitors who closed them keep their
@@ -1743,6 +1756,15 @@ export function TerrainViewer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Applies whatever camera command the once-only effect above stashed (see
+  // pendingCameraJumpRef) as soon as view A's map reports loaded — the
+  // earliest moment a jump is guaranteed to land on a real map instance.
+  useEffect(() => {
+    if (mapLoaded.A && pendingCameraJumpRef.current) {
+      pendingCameraJumpRef.current()
+      pendingCameraJumpRef.current = null
+    }
+  }, [mapLoaded.A])
 
   // Handle dynamic viewport height for mobile browsers
   useEffect(() => {

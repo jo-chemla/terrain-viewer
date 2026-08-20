@@ -38,6 +38,26 @@ export function useWaybackItems(): { items: WaybackItem[]; loading: boolean } {
 // intermediate frame of a pan/zoom, only once the view has actually settled.
 const LOCAL_CHANGES_DEBOUNCE_MS = 400
 
+/** Zoom-relative location quantization for every per-location hook in this
+ *  file (and bing.ts/ge-historical.ts): imagery metadata at the view center
+ *  can't change within a fraction of the tile that covers it, so snap the
+ *  hook INPUTS to a quarter-tile grid before they ever reach an effect
+ *  dependency array. At z15 that's ~0.003° (~300 m — comparable to the
+ *  fixed 3-decimal rounding the caches already used); at z3 it's ~11°.
+ *  Previously only the CACHES were coarse — the effects themselves depended
+ *  on the raw continuous lat/lng, so every map settle re-ran them, and any
+ *  pan bigger than ~110 m minted a fresh cache key and a fresh network scan
+ *  even at world-view zooms where the imagery couldn't possibly differ. */
+export function quantizeLocation(latitude: number, longitude: number, zoom: number): { latitude: number; longitude: number; zoom: number } {
+  const qZoom = Math.round(zoom)
+  const step = 360 / Math.pow(2, qZoom) / 4
+  return {
+    latitude: Math.round(latitude / step) * step,
+    longitude: Math.round(longitude / step) * step,
+    zoom: qZoom,
+  }
+}
+
 // Local-changes detection is per-(lat,lng,zoom) and genuinely expensive (it
 // compares candidate tiles across the whole release catalog at this exact
 // spot) — shared across every caller at the same rounded location/zoom via a
@@ -75,7 +95,8 @@ function getCachedLocalChanges(latitude: number, longitude: number, zoom: number
  * imagery as their neighbor at any given spot. This is what the timeline's
  * ticks are built from (real imagery dates, not "the layer exists" dates).
  */
-export function useWaybackItemsWithLocalChanges(latitude: number, longitude: number, zoom: number): { items: WaybackItem[]; loading: boolean } {
+export function useWaybackItemsWithLocalChanges(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { items: WaybackItem[]; loading: boolean } {
+  const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const [items, setItems] = useState<WaybackItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -161,7 +182,8 @@ export async function fetchWaybackCaptureLabel(latitude: number, longitude: numb
  * "zoom out to the world, zoom back into a location" never actually STARTS
  * a batch of requests for the transient in-between viewport.
  */
-export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: number, longitude: number, zoom: number): { resolved: Record<number, { dateMs: number; label: string }>; loading: boolean } {
+export function useWaybackRealCaptureDates(items: WaybackItem[], latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { resolved: Record<number, { dateMs: number; label: string }>; loading: boolean } {
+  const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const [resolved, setResolved] = useState<Record<number, { dateMs: number; label: string }>>({})
   const [loading, setLoading] = useState(false)
   // Same coarse "has the view actually moved somewhere new" granularity as
@@ -235,7 +257,8 @@ export function useWaybackRealCaptureDates(items: WaybackItem[], latitude: numbe
  * in bulk), same "tile center, not per-pixel" constraint as the historical-
  * satellite repo's own getEsriViewportDate.
  */
-export function useWaybackCaptureDate(latitude: number, longitude: number, zoom: number, releaseNumber: number): { label: string | null } {
+export function useWaybackCaptureDate(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, releaseNumber: number): { label: string | null } {
+  const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const [label, setLabel] = useState<string | null>(null)
 
   useEffect(() => {
@@ -300,7 +323,8 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
  * Wayback tick already does, just always pinned to the newest one rather
  * than a user-picked date.
  */
-export function useEsriLiveCaptureDate(latitude: number, longitude: number, zoom: number): { dateMs: number | null; label: string | null } {
+export function useEsriLiveCaptureDate(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { dateMs: number | null; label: string | null } {
+  const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const { items } = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
   const [result, setResult] = useState<{ dateMs: number | null; label: string | null }>({ dateMs: null, label: null })
 
@@ -336,7 +360,8 @@ const WAYBACK_ATTRIBUTION_FALLBACK = { srcDesc: "Esri, Maxar, Earthstar Geograph
  * covers the region TODAY (e.g. "Vantor") regardless of which historical
  * date was actually picked.
  */
-export function useWaybackDynamicAttribution(latitude: number, longitude: number, zoom: number, targetDateMs: number): { srcDesc: string; niceDesc: string } {
+export function useWaybackDynamicAttribution(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, targetDateMs: number): { srcDesc: string; niceDesc: string } {
+  const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const { item } = useResolvedWaybackRelease(latitude, longitude, zoom, targetDateMs)
   const [attribution, setAttribution] = useState(WAYBACK_ATTRIBUTION_FALLBACK)
 

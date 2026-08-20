@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react"
 import maplibregl from "maplibre-gl"
 import { registerGEHistorical } from "./ge-timemachine/ge-historical.js"
+import { quantizeLocation } from "./wayback"
 
 let geInstance: ReturnType<typeof registerGEHistorical> | null = null
 
@@ -49,7 +50,11 @@ const LOCAL_DATES_DEBOUNCE_MS = 400
 /** Real per-location capture dates from Google's own IMAGERY_HISTORY layer
  *  for the Keyhole tile at (latitude, longitude, zoom) — not synthetic,
  *  unlike lib/hls.ts's placeholder ticks. */
-export function useGeHistoricalDates(latitude: number, longitude: number, zoom: number): { items: { dateMs: number; label: string }[]; loading: boolean } {
+export function useGeHistoricalDates(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { items: { dateMs: number; label: string }[]; loading: boolean } {
+  // Quarter-tile input quantization — same "don't re-query center metadata
+  // for a move too small to change it" reasoning as lib/wayback.ts's
+  // quantizeLocation (see its comment).
+  const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const [items, setItems] = useState<{ dateMs: number; label: string }[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -124,7 +129,8 @@ const GE_FALLBACK_ATTRIBUTION = "Imagery © Google"
  *  string while loading, on any failure, or if this particular tile/date
  *  has no provider info (dbRoot doesn't cover every provider it lists a
  *  historical tile for). */
-export function useGeHistoricalDynamicAttribution(latitude: number, longitude: number, zoom: number, dateMs: number): string {
+export function useGeHistoricalDynamicAttribution(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, dateMs: number): string {
+  const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const [attribution, setAttribution] = useState(GE_FALLBACK_ATTRIBUTION)
 
   useEffect(() => {

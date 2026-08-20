@@ -7,6 +7,7 @@
 // constraint as lib/wayback.ts's useWaybackCaptureDate.
 import { useEffect, useState } from "react"
 import { STATIC_BASEMAP_ATTRIBUTIONS } from "./basemap-attribution"
+import { quantizeLocation } from "./wayback"
 
 /** Exported so lib/historical-export-sources.ts can build a per-tile Bing
  *  URL directly (its tile scheme isn't a plain {z}/{x}/{y} template — see
@@ -56,7 +57,11 @@ export async function fetchBingCaptureDate(latitude: number, longitude: number, 
   }
 }
 
-export function useBingCaptureDate(latitude: number, longitude: number, zoom: number): { label: string | null; dateMs: number | null; loading: boolean } {
+export function useBingCaptureDate(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { label: string | null; dateMs: number | null; loading: boolean } {
+  // Quarter-tile input quantization — same "don't re-fetch center metadata
+  // for a move too small to change it" reasoning as lib/wayback.ts's
+  // quantizeLocation (see its comment).
+  const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const [label, setLabel] = useState<string | null>(null)
   const [dateMs, setDateMs] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
