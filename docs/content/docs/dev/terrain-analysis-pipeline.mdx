@@ -3,7 +3,7 @@ title: Terrain Analysis Rendering Pipeline
 description: How Slope, Aspect, Curvature and friends turn a raster-dem source into a colored layer
 ---
 
-This page covers the mechanism — how a `*-protocol.ts` file gets from an upstream raster-dem tile to a rendered layer. For what each mode *means* geomorphologically, see [Terrain Visualization Modes](/features/visualization-modes); for the exact formulas, see [Equations & Formulas](/features/equations).
+This page covers the mechanism — how a `*-protocol.ts` file gets from an upstream raster-dem tile to a rendered layer. For what each mode *means* geomorphologically, see [Terrain Visualization Modes](/features/visualization-modes); for the exact formulas, see [Equations & Formulas](/dev/equations).
 
 Slope is the reference implementation, but the same pipeline shape covers Aspect, Curvature (and its Profile/Plan/Det-Hessian/Casorati/Shape-Index sub-modes), TRI, TPI, Roughness, Blobness (and its Eigen-Ratio/Orientation sub-modes), Sky-View Factor, Openness, and Local Dominance — eleven modes, three files' worth of shared plumbing, one formula each. LRM and the Lighting Effects modes (Matcap/Phong/Hard Shadows) genuinely diverge — see [LRM](/dev/lrm) and [Lighting Effects](/dev/lighting-effects).
 
@@ -54,7 +54,7 @@ The 9 decoded tiles are stitched into one padded `(n + 2·halo) × (n + 2·halo)
 - **Blobness / Eigen-Ratio / Orientation** build a Förstner/Harris structure tensor from 9 Horn gradients (one per sub-cell of the 3×3 window) and read off `det/trace`, the eigenvalue ratio, or the principal eigenvector's axis.
 - **SVF / Openness / Local Dominance** march outward in 8 compass directions (`lib/horizon-angle.ts`) rather than sampling a fixed-size window — see that file's own precision/performance tradeoffs (fixed 8 directions, integer-pixel steps, an optional "fast" power-of-two-radius approximation).
 
-The exact per-mode formulas are on the [Equations page](/features/equations); this page is about what happens to the result once it's computed.
+The exact per-mode formulas are on the [Equations page](/dev/equations); this page is about what happens to the result once it's computed.
 
 ## 5. Output encoding — the key architectural trick
 

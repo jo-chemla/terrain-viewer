@@ -10,15 +10,15 @@
     "terrain-sources",
     "tools",
     "export-and-share",
-    "open-in",
-    "projects",
-    "bookmarks",
-    "byod",
-    "streaming-settings",
     "keyboard-shortcuts",
-    "sun-position",
-    "frescoes-and-artifacts",
+    "byod",
     "river-rem",
-    "equations"
+    "---Advanced Features---",
+    "sun-position",
+    "projects",
+    "open-in",
+    "bookmarks",
+    "frescoes-and-artifacts",
+    "streaming-settings"
   ]
 }

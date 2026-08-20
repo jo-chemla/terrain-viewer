@@ -4,12 +4,15 @@
   "pages": [
     "index",
     "tech-stack",
+    "non-geo-relief-visualization",
+    "---Custom Protocols---",
+    "equations",
     "terrain-analysis-pipeline",
     "lrm",
     "lighting-effects",
     "wms-float32-protocol",
+    "---Historical---",
     "esri-wayback",
-    "ge-historical",
-    "non-geo-relief-visualization"
+    "ge-historical"
   ]
 }
