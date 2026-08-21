@@ -434,7 +434,11 @@ interface TextureEntry {
 export class PhongLiveLayer implements CustomLayerInterface {
   id: string
   type: "custom" = "custom"
-  renderingMode: "2d" = "2d"
+  // "3d" (not "2d") since the hidden-surface fix: render() runs a depth
+  // prepass so occluded back-side terrain can't bleed into the multiply/
+  // specular blend passes, and only "3d" custom layers get the shared
+  // depth buffer.
+  renderingMode: "3d" = "3d"
   options: PhongLiveOptions
 
   private map: MapLibreMap | null = null
@@ -847,11 +851,29 @@ export class PhongLiveLayer implements CustomLayerInterface {
       // ZERO): result = dst × src), PASS 1 adds the specular highlight on
       // top (blendFunc(ONE, ONE)). Together: albedo × (ambient + diffuse)
       // + specular — the exact Blinn-Phong composition the raster path's
-      // two-regime alpha overlay only approximates. Both passes are
-      // order-independent (multiply and add commute across overlapping
-      // fragments), so no depth sorting is needed.
-      gl.blendFunc(gl.DST_COLOR, gl.ZERO)
+      // two-regime alpha overlay only approximates.
+      //
+      // DEPTH PREPASS first: multiply/add commute between overlapping
+      // VISIBLE fragments, but with no depth test at all, HIDDEN back-side
+      // geometry (a ridge's far slope, terrain behind a peak) blended in
+      // too — its shadow multiplied through the surface in front of it
+      // (user-reported ghost darkening, 2026-08-21). So write this layer's
+      // own mesh depth with colors masked (renderingMode "3d" provides the
+      // shared depth buffer), then draw the color passes with depth-test
+      // LEQUAL and writes off — only the front-most surface of our mesh
+      // contributes. The color passes redraw the IDENTICAL geometry (same
+      // shader, same uniforms), so their depths reproduce the prepass
+      // values exactly and LEQUAL passes precisely on the front surface.
+      gl.enable(gl.DEPTH_TEST)
+      gl.depthFunc(gl.LEQUAL)
+      gl.depthMask(true)
+      gl.colorMask(false, false, false, false)
       gl.uniform1i(bundle.uPass, 0)
+      drawTiles()
+
+      gl.colorMask(true, true, true, true)
+      gl.depthMask(false)
+      gl.blendFunc(gl.DST_COLOR, gl.ZERO)
       drawTiles()
       if (this.options.specularStrength > 0) {
         gl.blendFunc(gl.ONE, gl.ONE)
@@ -868,9 +890,12 @@ export class PhongLiveLayer implements CustomLayerInterface {
     } finally {
       gl.bindVertexArray(null)
       gl.useProgram(null)
-      // Restore the premultiplied-alpha blend MapLibre's own layers (and
-      // other custom layers, e.g. matcap) expect — this layer changed it.
+      // Restore every piece of GL state this layer changed — the
+      // premultiplied blend MapLibre's own layers (and matcap) expect, plus
+      // the mask/depth state the prepass touched.
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+      gl.colorMask(true, true, true, true)
+      gl.depthMask(true)
     }
   }
 }

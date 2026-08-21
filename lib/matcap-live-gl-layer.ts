@@ -8,9 +8,11 @@
 //  - "Camera" (default): the CLASSIC matcap lookup — the normal projected
 //    onto the camera's own right/up basis (view-space normal), so the
 //    material reads like a sphere held up to the current camera and tracks
-//    live through rotate/tilt gestures. The basis comes from the same
-//    computeCameraBasis (phong-live-gl-layer.ts) unprojection technique the
-//    Phong headlamp uses — real per-tile matrix data, no hand-derived trig.
+//    live through rotate/tilt gestures. The right/up basis is derived
+//    ANALYTICALLY from bearing/pitch (see render()) — an earlier
+//    unprojection-based basis had a bearing-handedness flip in the
+//    left-handed tile frame that mirrored the matcap's U axis facing
+//    east/west.
 //  - "Absolute": the tile-space orthographic lookup, UV = N.xy*0.5+0.5 —
 //    identical to the raster pipeline (gpu-matcap-compute.ts /
 //    matcap-protocol.ts), pinned to compass directions and unaffected by
@@ -30,7 +32,7 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap, OverscaledTileID } from "maplibre-gl"
 import { createTileMesh } from "maplibre-gl"
 import { computeNormalPixels } from "./normals-protocol"
-import { computeCameraBasis, DEM_NORMAL_GLSL, type Vec3 } from "./phong-live-gl-layer"
+import { DEM_NORMAL_GLSL } from "./phong-live-gl-layer"
 import { groundResolutionM, tileRowToLatRad, RAD_TO_DEG, type UpstreamEncoding } from "./normal-derived-protocol"
 
 /** Shape of the real (but publicly untyped) `map.terrain` property — mirrors
@@ -99,8 +101,8 @@ export type MatcapLiveOptions = {
   /** "Light Anchor", ported from phong-live-gl-layer.ts's own
    *  lightRelativeToCamera: true ("Camera" / attached to camera, the
    *  default) samples the matcap by the VIEW-SPACE normal — the normal
-   *  projected onto the camera's live right/up basis (computeCameraBasis,
-   *  same technique as Phong's headlamp mode) — the classic matcap look,
+   *  projected onto the camera's live right/up basis (analytic from
+   *  bearing/pitch — see render()) — the classic matcap look,
    *  tracking rotate/tilt gestures. false ("Absolute") samples by the
    *  tile-space normal directly (UV = N.xy*0.5+0.5), identical to the
    *  raster pipeline: pinned to compass directions,
@@ -136,10 +138,10 @@ uniform float u_exaggeration;
 uniform float u_opacity;
 uniform bool u_lightRelativeToCamera;
 // Camera basis in the same tile-local (x=east, y=south, z=up) frame the
-// normals live in — computed once per frame CPU-side (computeCameraBasis)
-// and constant across fragments; NOT per-fragment. A matcap is defined by
-// the normal's orientation relative to the camera, not by which pixel the
-// fragment lands on.
+// normals live in — computed once per frame CPU-side from bearing/pitch
+// (see render()) and constant across fragments; NOT per-fragment. A matcap
+// is defined by the normal's orientation relative to the camera, not by
+// which pixel the fragment lands on.
 uniform vec3 u_cameraRight;
 uniform vec3 u_cameraUp;
 out vec4 fragColor;
@@ -268,11 +270,6 @@ export class MatcapLiveLayer implements CustomLayerInterface {
   private matcapTextureUrl: string | null = null
   private matcapTextureLoading = false
   private loggedMatcapError = false
-  // Last-known-good camera basis for the "Camera" (view-space) lookup —
-  // same rationale as phong-live-gl-layer.ts's lastCameraBasis: a rare
-  // degenerate/non-invertible per-tile matrix reuses the previous frame's
-  // orientation instead of snapping to garbage for one frame.
-  private lastCameraBasis: { right: Vec3; up: Vec3; forward: Vec3 } | null = null
 
   constructor(id: string, options: MatcapLiveOptions) {
     this.id = id
@@ -500,20 +497,33 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       gl.uniform1f(bundle.uOpacity, this.options.opacity)
       gl.uniform1i(bundle.uLightRelativeToCamera, this.options.lightRelativeToCamera ? 1 : 0)
 
-      // Camera basis for the view-space ("Camera") lookup — once per frame
-      // from the first visible tile's real projection matrix, exactly like
-      // phong-live-gl-layer.ts's headlamp mode (the basis directions are
-      // tile-independent under mercator; only this one matrix is needed).
-      if (this.options.lightRelativeToCamera && tileIDs.length > 0) {
-        const p0 = map.transform.getProjectionData({ overscaledTileID: tileIDs[0], applyGlobeMatrix: true })
-        const basis = computeCameraBasis(p0.mainMatrix)
-        if (basis) this.lastCameraBasis = basis
+      // Camera basis for the view-space ("Camera") lookup — ANALYTIC from
+      // bearing/pitch, not unprojected from the tile matrix. The previous
+      // computeCameraBasis-derived right vector had a bearing-handedness
+      // flip (tile-local x=east/y=south/z=up is a LEFT-handed frame, which
+      // the Gram-Schmidt unprojection didn't account for): correct facing
+      // north/south (sin β = 0) but U-mirrored facing east/west — a clay
+      // matcap's under-sphere shadow landed on the up-facing slopes there
+      // (user-reported 2026-08-21). Derivation in right-handed ENU
+      // (x=east, y=north, z=up), then converted to tile coords (negate y):
+      //   screen-right = (cos β, −sin β, 0)_ENU   → (cos β, sin β, 0)_tile
+      //   screen-up    = (sin β·cos p, cos β·cos p, sin p)_ENU
+      //                → (sin β·cos p, −cos β·cos p, sin p)_tile
+      // Verified against the user-confirmed cases: β=0 reduces to
+      // right=east/up=north(+zenith with pitch) — the Absolute-coincident
+      // orientation that already looked correct — and β=90 now yields
+      // right=south (tile +y), un-mirroring east/west. Roll is ignored
+      // (the app never sets one).
+      if (this.options.lightRelativeToCamera) {
+        const bRad = (map.getBearing() * Math.PI) / 180
+        const pRad = (map.getPitch() * Math.PI) / 180
+        gl.uniform3f(bundle.uCameraRight, Math.cos(bRad), Math.sin(bRad), 0)
+        gl.uniform3f(bundle.uCameraUp, Math.sin(bRad) * Math.cos(pRad), -Math.cos(bRad) * Math.cos(pRad), Math.sin(pRad))
+      } else {
+        // Unused by the Absolute branch — keep well-defined values anyway.
+        gl.uniform3f(bundle.uCameraRight, 1, 0, 0)
+        gl.uniform3f(bundle.uCameraUp, 0, -1, 0)
       }
-      const basis = this.lastCameraBasis
-      gl.uniform3f(bundle.uCameraRight, basis?.right[0] ?? 1, basis?.right[1] ?? 0, basis?.right[2] ?? 0)
-      // Fallback (no basis yet): north-up top-down camera, where the two
-      // lookup conventions coincide — right=east=(1,0,0), up=north=(0,-1,0).
-      gl.uniform3f(bundle.uCameraUp, basis?.up[0] ?? 0, basis?.up[1] ?? -1, basis?.up[2] ?? 0)
 
       gl.activeTexture(gl.TEXTURE2)
       gl.bindTexture(gl.TEXTURE_2D, this.matcapTexture)
