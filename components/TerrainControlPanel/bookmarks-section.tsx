@@ -742,6 +742,12 @@ export const BookmarksSection: React.FC<{
 
         {roots.length > 0 && (
           <div>
+            {/* Same label styling as the Featured header above (Bookmark
+                icon instead of the star) — without it, a folded Featured
+                section made the user's own rows read as its content. */}
+            <div className="pb-1 pt-0.5">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide"><BookmarkIcon className="h-3 w-3 shrink-0" />Your Bookmarks</span>
+            </div>
             <div
               ref={listRef}
               className="space-y-1 overflow-y-auto"
