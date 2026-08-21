@@ -2,9 +2,7 @@
 <!-- released: 2026-08-21 -->
 
 #### TL;DR
-- **Live Phong/Matcap rework** (renderers renamed **Live** vs **Legacy**, both drape 3D now) — normals derived per fragment straight from the full-precision float DEM (no more baked 8-bit normal tiles), drape mesh matching MapLibre's own 128×128 terrain mesh: native-hillshade sharpness on the exact surface MapLibre draws.
-- **Phong composites true albedo** — each layer renders opaquely into its own offscreen buffer (hidden back-side terrain can no longer bleed through front surfaces) and multiplies/adds onto the draped stack: basemap/hypso show through exactly, diffuse normalized so a specular-only setup adds highlights without dimming the map. Camera ("headlamp") anchor swaps the light pad's compass ring for screen-relative arrows.
-- **Matcap fixes** — camera-anchored material no longer mirrors east/west (a sign-convention flip in the shared gradient's x axis), and per-fragment depth replaces the old per-tile sort (no more summits flickering behind neighboring tiles). Plus: tile-seam streaks removed and high-pitch near-camera tile dropouts fixed (terrain-aware covering-tile culling).
+- **Live Phong/Matcap rework** (renderers now labeled **Live** vs **Legacy**): per-fragment normals straight from the float DEM on MapLibre's own 128×128 drape mesh — native-hillshade sharpness. Phong composites true albedo over the basemap/hypso stack (hidden surfaces handled, specular-only no longer dims the map) with a camera-headlamp light anchor; Matcap gets correct camera anchoring at every bearing and per-fragment depth (no more summits flickering behind neighboring tiles). Also fixed: tile-seam streaks, high-pitch near-camera tile dropouts, endless tile refetch on hi-dpi. New featured bookmarks (Amazon Rivers, Willamette River) with fresh thumbnails.
 
 # Changelog — Historical Fixes, Matcap Rework, Docs Restructure
 <!-- released: 2026-08-20 -->
