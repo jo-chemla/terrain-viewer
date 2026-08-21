@@ -108,6 +108,10 @@ export const LightDirectionControl: React.FC<{
   // the Date/Time sliders are the whole point (Sun Shadow Calculator) and
   // the pad is just a secondary visualization of the result.
   padFoldable?: boolean
+  /** When true (Phong's Camera light anchor), azimuth is an offset from the
+   *  camera heading rather than a compass direction — the pad ring shows
+   *  screen-relative arrows instead of N/E/S/W. */
+  cameraRelative?: boolean
 }> = ({
   state, setState, sliderId,
   debounceMs = 150,
@@ -116,6 +120,7 @@ export const LightDirectionControl: React.FC<{
   fixedAzimuth = null, fixedElevation = null,
   timeStepMinutes = 15,
   padFoldable = false,
+  cameraRelative = false,
 }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   // Expanded by default even when foldable — padFoldable only controls
@@ -427,6 +432,9 @@ export const LightDirectionControl: React.FC<{
             fixedAzimuth={fixedAzimuth}
             fixedElevation={fixedElevation}
             sunEnvelopeLat={state.lightUseDatetime ? state.lat : undefined}
+            // Headlamp mode: azimuth 0 = light from straight ahead (screen
+            // top), 90 = from the right, etc. — arrows, not compass points.
+            cardinalLabels={cameraRelative ? ["↑", "→", "↓", "←"] : undefined}
           />
         </div>
       )}

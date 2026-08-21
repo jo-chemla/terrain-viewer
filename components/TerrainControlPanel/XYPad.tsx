@@ -18,6 +18,11 @@ interface SphericalXYPadProps {
   value?: { azimuthDeg: number; elevationDeg: number }; // degrees
   onChange?: (val: { azimuthDeg: number; elevationDeg: number }) => void;
   showCardinalDirections?: boolean;
+  /** Ring labels as [top, right, bottom, left] — defaults to compass
+   *  N/E/S/W. Phong's camera-relative ("headlamp") anchor swaps in
+   *  screen-relative arrows, since azimuth there is an offset from the
+   *  camera heading, not a compass direction. */
+  cardinalLabels?: [string, string, string, string];
   azimuthRange?: [number, number]; // e.g., [-180, 180] or [0, 360]
   elevationRange?: [number, number]; // e.g., [1, 90] in degrees
   sliderId?: string;
@@ -43,6 +48,7 @@ export function SphericalXYPad({
   value = { azimuthDeg: 0, elevationDeg: 45 },
   onChange,
   showCardinalDirections = true,
+  cardinalLabels = ["N", "E", "S", "W"],
   azimuthRange = [0, 360],
   elevationRange = [0, 90],
   sliderId = "xypad",
@@ -366,13 +372,13 @@ export function SphericalXYPad({
       {showCardinalDirections && (
         <>
           <div className="absolute text-xs text-muted-foreground font-medium pointer-events-none"
-            style={{ left: centerX, top: 4, transform: 'translateX(-50%)' }}>N</div>
+            style={{ left: centerX, top: 4, transform: 'translateX(-50%)' }}>{cardinalLabels[0]}</div>
           <div className="absolute text-xs text-muted-foreground font-medium pointer-events-none"
-            style={{ right: 4, top: centerY, transform: 'translateY(-50%)' }}>E</div>
+            style={{ right: 4, top: centerY, transform: 'translateY(-50%)' }}>{cardinalLabels[1]}</div>
           <div className="absolute text-xs text-muted-foreground font-medium pointer-events-none"
-            style={{ left: centerX, bottom: 4, transform: 'translateX(-50%)' }}>S</div>
+            style={{ left: centerX, bottom: 4, transform: 'translateX(-50%)' }}>{cardinalLabels[2]}</div>
           <div className="absolute text-xs text-muted-foreground font-medium pointer-events-none"
-            style={{ left: 4, top: centerY, transform: 'translateY(-50%)' }}>W</div>
+            style={{ left: 4, top: centerY, transform: 'translateY(-50%)' }}>{cardinalLabels[3]}</div>
         </>
       )}
 

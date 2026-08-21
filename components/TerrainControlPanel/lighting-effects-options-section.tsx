@@ -114,13 +114,18 @@ export const LightingEffectsOptionsSection: React.FC<{
             <div className="space-y-3 pl-1">
               <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
                 <Label className="text-sm font-medium">Renderer</Label>
+                {/* Values ("live"/"raster") are URL params — labels only.
+                    Both renderers drape onto 3D terrain now, so the old
+                    "3D Slow / 2D Fast" framing was stale: Live is the
+                    modern per-fragment path, Legacy the raster-tile
+                    pipeline (still the only globe-capable one). */}
                 <SegmentedToggle
                   className={SEG_WIDTH}
                   value={state.phongRenderer}
                   onChange={(value) => setState({ phongRenderer: value })}
                   options={[
-                    { value: "raster", label: "3D Slow", tooltip: "Drapes correctly over 3D terrain exaggeration and globe, but every light/strength change re-fetches a tile (~150ms debounced)." },
-                    { value: "live", label: "2D Fast", tooltip: "A live GPU shader, instant light/strength updates, zero tile refetch — projects correctly under mercator and globe, but custom draping onto 3D terrain" },
+                    { value: "live", label: "Live", tooltip: "Live GPU shader draped on the same terrain mesh MapLibre draws — per-fragment sharpness, true albedo compositing, instant light/strength updates, zero tile refetch. Not available on globe." },
+                    { value: "raster", label: "Legacy", tooltip: "Raster-tile pipeline — also correct on globe, but softer (baked 8-bit normals) and every light/strength change re-fetches tiles (~150ms debounced)." },
                   ]}
                 />
               </div>
@@ -149,7 +154,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   onChange={(value) => setState({ phongLightRelativeToCamera: value === "relative" })}
                   options={[
                     { value: "absolute", label: "Absolute", tooltip: "Light stays fixed to compass directions as you rotate the map — matches maplibre's own hillshade illumination direction." },
-                    { value: "relative", label: "Camera", tooltip: state.phongRenderer === "raster" ? "Camera-relative light is only available in 2D Fast." : "Light stays fixed relative to the camera — it appears to follow you as you rotate the map, like a headlamp." },
+                    { value: "relative", label: "Camera", tooltip: state.phongRenderer === "raster" ? "Camera-relative light is only available in the Live renderer." : "Light stays fixed relative to the camera — it appears to follow you as you rotate the map, like a headlamp." },
                   ]}
                 />
               </div>
@@ -163,6 +168,12 @@ export const LightingEffectsOptionsSection: React.FC<{
                     setState={setState}
                     sliderId="phong-light"
                     debounceMs={phongDebounceMs}
+                    // Camera ("headlamp") anchor reinterprets azimuth as an
+                    // offset from the camera heading — show screen-relative
+                    // arrows on the pad instead of compass N/E/S/W. Only the
+                    // Live renderer honors the Camera anchor (raster forces
+                    // Absolute), hence the renderer check too.
+                    cameraRelative={state.phongRenderer === "live" && state.phongLightRelativeToCamera}
                   />
                 </CollapsibleContent>
               </Collapsible>
@@ -185,13 +196,15 @@ export const LightingEffectsOptionsSection: React.FC<{
             <div className="space-y-3 pl-1">
               <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
                 <Label className="text-sm font-medium">Renderer</Label>
+                {/* Same Live/Legacy framing as Phong's toggle — see its
+                    comment; values stay "live"/"raster" (URL params). */}
                 <SegmentedToggle
                   className={SEG_WIDTH}
                   value={state.matcapRenderer}
                   onChange={(value) => setState({ matcapRenderer: value })}
                   options={[
-                    { value: "raster", label: "3D Slow", tooltip: "Drapes correctly over 3D terrain exaggeration and globe, but every rotation/exaggeration change re-fetches a tile (~150ms debounced)." },
-                    { value: "live", label: "2D Fast", tooltip: "A live GPU shader — instant updates, zero tile refetch, drapes onto 3D terrain, and can anchor the material to the camera (classic matcap) — but no globe." },
+                    { value: "live", label: "Live", tooltip: "Live GPU shader draped on the same terrain mesh MapLibre draws — per-fragment sharpness, instant updates, zero tile refetch, and can anchor the material to the camera (classic matcap). Not available on globe." },
+                    { value: "raster", label: "Legacy", tooltip: "Raster-tile pipeline — also correct on globe, but softer (baked 8-bit normals) and every rotation/exaggeration change re-fetches tiles (~150ms debounced)." },
                   ]}
                 />
               </div>
@@ -263,7 +276,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   onChange={(value) => setState({ matcapLightRelativeToCamera: value === "relative" })}
                   options={[
                     { value: "absolute", label: "Absolute", tooltip: "Material pinned to compass directions — an east-facing slope always samples the same spot on the sphere, whatever the camera does." },
-                    { value: "relative", label: "Camera", tooltip: state.matcapRenderer === "raster" ? "Camera-relative material is only available in 2D Fast." : "Classic matcap: the material follows the camera's real pitch and bearing, like a sphere held up to the current view." },
+                    { value: "relative", label: "Camera", tooltip: state.matcapRenderer === "raster" ? "Camera-relative material is only available in the Live renderer." : "Classic matcap: the material follows the camera's real pitch and bearing, like a sphere held up to the current view." },
                   ]}
                 />
               </div>

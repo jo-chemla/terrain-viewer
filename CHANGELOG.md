@@ -2,9 +2,9 @@
 <!-- released: 2026-08-21 -->
 
 #### TL;DR
-- **2D Fast Phong/Matcap rework** — normals now derived per fragment straight from the full-precision float DEM (no more baked 8-bit normal tiles), and the drape mesh matches MapLibre's own 128×128 terrain mesh: native-hillshade sharpness on the exact surface MapLibre draws.
-- **Phong composites true albedo** via blend passes (framebuffer × diffuse, + specular) — the raster basemap, hypso, and background show through correctly instead of reading washed-out/transparent; the opacity slider fades the whole effect.
-- Fixed tile-seam streaks (border aprons removed) and high-pitch dropouts of tiles close to the camera (terrain-aware covering-tile culling).
+- **Live Phong/Matcap rework** (renderers renamed **Live** vs **Legacy**, both drape 3D now) — normals derived per fragment straight from the full-precision float DEM (no more baked 8-bit normal tiles), drape mesh matching MapLibre's own 128×128 terrain mesh: native-hillshade sharpness on the exact surface MapLibre draws.
+- **Phong composites true albedo** — each layer renders opaquely into its own offscreen buffer (hidden back-side terrain can no longer bleed through front surfaces) and multiplies/adds onto the draped stack: basemap/hypso show through exactly, diffuse normalized so a specular-only setup adds highlights without dimming the map. Camera ("headlamp") anchor swaps the light pad's compass ring for screen-relative arrows.
+- **Matcap fixes** — camera-anchored material no longer mirrors east/west (a sign-convention flip in the shared gradient's x axis), and per-fragment depth replaces the old per-tile sort (no more summits flickering behind neighboring tiles). Plus: tile-seam streaks removed and high-pitch near-camera tile dropouts fixed (terrain-aware covering-tile culling).
 
 # Changelog — Historical Fixes, Matcap Rework, Docs Restructure
 <!-- released: 2026-08-20 -->

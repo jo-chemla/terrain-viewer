@@ -63,19 +63,48 @@ export const PRESET_BOOKMARKS: Bookmark[] = [
       historicalBeta: true, historicalActiveSourceA: "ge-historical",
     }),
   },
-  // Temporarily disabled — may reuse later.
-  // {
-  //   id: "preset-iceland-overlay",
-  //   name: "Iceland — Bing vs. AWS Overlay Compare",
-  //   ts: 0,
-  //   thumb: "/bookmark-thumbs/iceland-overlay.jpg",
-  //   search: presetSearch({
-  //     viewMode: "2d", zoom: 6.1, lat: 63.7946, lng: -18.2345, pitch: 50,
-  //     splitStyle: "overlay", sourceB: "aws", showRasterBasemap: true, basemapSourceA: "bing",
-  //     dateA: 1072825200000, tellsBeta: true, tellsFrozen: true,
-  //     overlayOpacity: 0.8834786817944542, rasterBasemapOpacity: 0.8,
-  //   }),
-  // },
+  {
+    id: "preset-amazon-rivers-contours",
+    name: "Amazon Rivers, Brazil — Deep Hypso + Contours",
+    ts: 0,
+    // No captured thumbnail yet — the row falls back to its ImageOff
+    // placeholder (see bookmarks-section.tsx) until one lands in
+    // public/bookmark-thumbs/.
+    thumb: null,
+    search: presetSearch({
+      zoom: 10.11, lat: -5.6075, lng: -63.92, pitch: 0,
+      showColorRelief: true, customHypsoMinMax: true,
+      minElevation: 32.3, maxElevation: 70,
+      hypsoSliderMinBound: 30, hypsoSliderMaxBound: 70,
+      colorRamp: "deep", rasterBasemapOpacity: 0.2, hillshadeOpacity: 0.2, colorReliefOpacity: 1,
+      showContoursAndGraticules: true, contourMinor: 2, contourMajor: 10,
+    }),
+  },
+  {
+    id: "preset-amazon-rivers",
+    name: "Amazon Rivers, Brazil — Deep Hypso",
+    ts: 0,
+    thumb: null,
+    search: presetSearch({
+      zoom: 10.11, lat: -5.6075, lng: -63.92, pitch: 0,
+      showColorRelief: true, customHypsoMinMax: true,
+      minElevation: 32.3, maxElevation: 70,
+      hypsoSliderMinBound: 30, hypsoSliderMaxBound: 70,
+      colorRamp: "deep", rasterBasemapOpacity: 0.2, hillshadeOpacity: 0.2, colorReliefOpacity: 1,
+    }),
+  },
+  {
+    id: "preset-iceland-overlay",
+    name: "Iceland — Bing vs. AWS Overlay Compare",
+    ts: 0,
+    thumb: "/bookmark-thumbs/iceland-overlay.jpg",
+    search: presetSearch({
+      viewMode: "2d", zoom: 6.1, lat: 63.7946, lng: -18.2345, pitch: 50,
+      splitStyle: "overlay", sourceB: "aws", showRasterBasemap: true, basemapSourceA: "bing",
+      dateA: 1072825200000, tellsBeta: true, tellsFrozen: true,
+      overlayOpacity: 0.8834786817944542, rasterBasemapOpacity: 0.8,
+    }),
+  },
 ]
 
 /** Restores a preset unconditionally (no "same family, skip the viewport"
