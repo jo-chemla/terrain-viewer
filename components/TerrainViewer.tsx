@@ -1732,28 +1732,39 @@ export function TerrainViewer() {
     // (Plain arrays + Set — `Map` is shadowed by react-map-gl's component
     // import in this file.)
     {
+      // `?addSources=id1,id2` — prepopulate the BYOD lists with several
+      // sample-library sources at once WITHOUT selecting any of them as a
+      // view's active source (a shared link can hand a colleague e.g. both
+      // the IGN DSM and DTM ready to toggle between). One-shot at load,
+      // deliberately NOT a nuqs field: nothing re-reads it after this
+      // effect, and it stays in the URL so the link remains shareable. Ids
+      // are matched against both sample libraries (terrain and basemap).
+      const addSourceIds = (searchParams.get("addSources") ?? "").split(",").map((s) => s.trim()).filter(Boolean)
+
       const missingTerrainIds = new Set<string>()
       const missingTerrain: CustomTerrainSource[] = []
-      for (const side of VIEW_IDS) {
-        const value = searchParams.get(`source${side}`)
-        if (!value || missingTerrainIds.has(value)) continue
-        if (value in ((terrainSources as any) ?? {}) || customTerrainSources.some((s) => s.id === value)) continue
+      const considerTerrain = (value: string | null) => {
+        if (!value || missingTerrainIds.has(value)) return
+        if (value in ((terrainSources as any) ?? {}) || customTerrainSources.some((s) => s.id === value)) return
         const sample = SAMPLE_TERRAIN_SOURCES.find((s) => s.id === value)
         if (sample) { missingTerrainIds.add(sample.id); missingTerrain.push(sample) }
       }
+      for (const side of VIEW_IDS) considerTerrain(searchParams.get(`source${side}`))
+      for (const id of addSourceIds) considerTerrain(id)
       if (missingTerrain.length) {
         setCustomTerrainSources((prev) => [...prev.filter((s) => !missingTerrainIds.has(s.id)), ...missingTerrain])
       }
       // Same for the basemap side of a shared link — identical failure class.
       const missingBasemapIds = new Set<string>()
       const missingBasemap: CustomBasemapSource[] = []
-      for (const field of ["basemapSource", ...VIEW_IDS.map((side) => `basemapSource${side}`)]) {
-        const value = searchParams.get(field)
-        if (!value || missingBasemapIds.has(value)) continue
-        if (BUILTIN_BASEMAP_OPTIONS.some((o) => o.value === value) || customBasemapSources.some((s) => s.id === value)) continue
+      const considerBasemap = (value: string | null) => {
+        if (!value || missingBasemapIds.has(value)) return
+        if (BUILTIN_BASEMAP_OPTIONS.some((o) => o.value === value) || customBasemapSources.some((s) => s.id === value)) return
         const sample = SAMPLE_BASEMAP_SOURCES.find((s) => s.id === value)
         if (sample) { missingBasemapIds.add(sample.id); missingBasemap.push(sample) }
       }
+      for (const field of ["basemapSource", ...VIEW_IDS.map((side) => `basemapSource${side}`)]) considerBasemap(searchParams.get(field))
+      for (const id of addSourceIds) considerBasemap(id)
       if (missingBasemap.length) {
         setCustomBasemapSources((prev) => [...prev.filter((s) => !missingBasemapIds.has(s.id)), ...missingBasemap])
       }
