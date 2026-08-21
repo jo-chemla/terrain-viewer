@@ -36,7 +36,11 @@ export default async function Page(props: PageProps<'/[...slug]'>) {
         <MarkdownCopyButton markdownUrl={markdownUrl} />
         <DocsViewOptions
           markdownUrl={markdownUrl}
-          githubUrl={`https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/content/docs/${page.path}`}
+          // The docs app lives in the repo's docs/ SUBDIRECTORY — page.path
+          // is relative to content/docs inside it, so the blob URL needs the
+          // docs/ prefix (this isn't a fumadocs setting: fumadocs never sees
+          // the repo layout, the URL is assembled right here).
+          githubUrl={`https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/docs/content/docs/${page.path}`}
         />
       </div>
       <DocsBody>
