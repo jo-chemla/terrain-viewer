@@ -135,7 +135,6 @@ in vec2 v_uv;
 uniform sampler2D u_matcap;
 uniform float u_rotationRad;
 uniform float u_exaggeration;
-uniform float u_opacity;
 uniform bool u_lightRelativeToCamera;
 // Camera basis in the same tile-local (x=east, y=south, z=up) frame the
 // normals live in — computed once per frame CPU-side from bearing/pitch
@@ -190,9 +189,31 @@ void main() {
   }
   vec3 matcapColor = texture(u_matcap, uv).rgb;
 
-  // Premultiplied — CustomLayerInterface.render's default blend func is
-  // gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA), which expects that.
-  fragColor = vec4(matcapColor * u_opacity, u_opacity);
+  // Written OPAQUELY into the layer's own offscreen shade buffer (alpha 1
+  // = coverage; the buffer clears to alpha 0) — depth is resolved there,
+  // and opacity is applied by the fullscreen composite, not here.
+  fragColor = vec4(matcapColor, 1.0);
+}
+`
+
+// Fullscreen composite — draws the shade buffer onto the map with the
+// layer opacity, premultiplied (MapLibre's expected blend). Attribute-less
+// clip-space triangle + texelFetch, same as phong-live-gl-layer.ts's pair.
+const COMPOSITE_VERT = `#version 300 es
+void main() {
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}
+`
+const COMPOSITE_FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D u_shade;
+uniform float u_opacity;
+out vec4 fragColor;
+void main() {
+  vec4 s = texelFetch(u_shade, ivec2(gl_FragCoord.xy), 0);
+  float a = s.a * u_opacity; // s.a is the coverage flag (0 where no tile drew)
+  fragColor = vec4(s.rgb * a, a);
 }
 `
 
@@ -235,7 +256,6 @@ interface ProgramBundle {
   uMatcap: WebGLUniformLocation | null
   uRotationRad: WebGLUniformLocation | null
   uExaggeration: WebGLUniformLocation | null
-  uOpacity: WebGLUniformLocation | null
   uCameraRight: WebGLUniformLocation | null
   uCameraUp: WebGLUniformLocation | null
   uLightRelativeToCamera: WebGLUniformLocation | null
@@ -283,6 +303,21 @@ export class MatcapLiveLayer implements CustomLayerInterface {
   private matcapTextureUrl: string | null = null
   private matcapTextureLoading = false
   private loggedMatcapError = false
+  // Offscreen shade buffer + fullscreen composite — same architecture as
+  // phong-live-gl-layer.ts (see its FRAGMENT_SHADER header): tiles render
+  // opaquely with the buffer's OWN depth attachment (front-most wins
+  // in-house), replacing the old per-tile painter's sort whose tile-CENTER
+  // depth proxy misordered 2.5D relief (a summit near a tile edge could
+  // land behind a later-drawn neighbor) and never resolved within-tile
+  // self-occlusion at all.
+  private shadeFbo: WebGLFramebuffer | null = null
+  private shadeTexture: WebGLTexture | null = null
+  private shadeDepth: WebGLRenderbuffer | null = null
+  private shadeWidth = 0
+  private shadeHeight = 0
+  private compositeProgram: WebGLProgram | null = null
+  private compositeUShade: WebGLUniformLocation | null = null
+  private compositeUOpacity: WebGLUniformLocation | null = null
 
   constructor(id: string, options: MatcapLiveOptions) {
     this.id = id
@@ -328,6 +363,40 @@ export class MatcapLiveLayer implements CustomLayerInterface {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+
+    this.compositeProgram = compileProgram(gl, COMPOSITE_VERT, COMPOSITE_FRAG)
+    this.compositeUShade = gl.getUniformLocation(this.compositeProgram, "u_shade")
+    this.compositeUOpacity = gl.getUniformLocation(this.compositeProgram, "u_opacity")
+  }
+
+  /** Same (re)create-at-drawing-buffer-size helper as
+   *  phong-live-gl-layer.ts's ensureShadeFbo. */
+  private ensureShadeFbo(gl: WebGL2RenderingContext): boolean {
+    const w = gl.drawingBufferWidth
+    const h = gl.drawingBufferHeight
+    if (this.shadeFbo && this.shadeWidth === w && this.shadeHeight === h) return true
+    if (this.shadeFbo) gl.deleteFramebuffer(this.shadeFbo)
+    if (this.shadeTexture) gl.deleteTexture(this.shadeTexture)
+    if (this.shadeDepth) gl.deleteRenderbuffer(this.shadeDepth)
+    this.shadeTexture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, this.shadeTexture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    this.shadeDepth = gl.createRenderbuffer()
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this.shadeDepth)
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h)
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null)
+    this.shadeFbo = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadeFbo)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.shadeTexture, 0)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.shadeDepth)
+    const complete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE
+    this.shadeWidth = w
+    this.shadeHeight = h
+    return complete
   }
 
   onRemove(_map: MapLibreMap, gl: WebGL2RenderingContext) {
@@ -342,6 +411,14 @@ export class MatcapLiveLayer implements CustomLayerInterface {
     if (this.matcapTexture) gl.deleteTexture(this.matcapTexture)
     this.matcapTexture = null
     this.matcapTextureUrl = null
+    if (this.shadeFbo) gl.deleteFramebuffer(this.shadeFbo)
+    this.shadeFbo = null
+    if (this.shadeTexture) gl.deleteTexture(this.shadeTexture)
+    this.shadeTexture = null
+    if (this.shadeDepth) gl.deleteRenderbuffer(this.shadeDepth)
+    this.shadeDepth = null
+    if (this.compositeProgram) gl.deleteProgram(this.compositeProgram)
+    this.compositeProgram = null
     if (this.vao) gl.deleteVertexArray(this.vao)
     this.vao = null
     this.gl = null
@@ -365,7 +442,6 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       uMatcap: gl.getUniformLocation(program, "u_matcap"),
       uRotationRad: gl.getUniformLocation(program, "u_rotationRad"),
       uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
-      uOpacity: gl.getUniformLocation(program, "u_opacity"),
       uCameraRight: gl.getUniformLocation(program, "u_cameraRight"),
       uCameraUp: gl.getUniformLocation(program, "u_cameraUp"),
       uLightRelativeToCamera: gl.getUniformLocation(program, "u_lightRelativeToCamera"),
@@ -507,7 +583,6 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       gl.uniform1i(bundle.uMatcap, 2)
       gl.uniform1f(bundle.uRotationRad, (this.options.rotationDeg * Math.PI) / 180)
       gl.uniform1f(bundle.uExaggeration, this.options.exaggeration)
-      gl.uniform1f(bundle.uOpacity, this.options.opacity)
       gl.uniform1i(bundle.uLightRelativeToCamera, this.options.lightRelativeToCamera ? 1 : 0)
 
       // Camera basis for the view-space ("Camera") lookup — ANALYTIC from
@@ -544,18 +619,13 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       const terrain = (map as unknown as { terrain?: MapTerrainLike }).terrain
       gl.uniform1i(bundle.uTerrain, 1)
 
-      // Sort back-to-front before drawing — this layer's premultiplied-alpha
-      // blend (gl.blendFunc(ONE, ONE_MINUS_SRC_ALPHA)) only composites
-      // correctly in painter's-algorithm order; map.coveringTiles() returns a
-      // quadtree traversal order with no such guarantee, which read as
-      // "depth fighting" between overlapping/adjacent tile edges once the
-      // mesh actually follows real terrain elevation (a flat layer never
-      // exposed this — coplanar quads don't care about draw order). Depth
-      // proxy: each tile's own center, projected through its own mainMatrix,
-      // NDC z/w (bigger = farther in the -1..1 convention) — computed once
-      // per tile here since `p` is needed for drawing anyway.
-      const TILE_CENTER = 4096
-      const toDraw: { tileID: OverscaledTileID; entry: TextureEntry; p: ReturnType<typeof map.transform.getProjectionData>; depth: number }[] = []
+      // Collect the drawable set (kicking off fetches for misses). The old
+      // per-tile painter's sort is GONE: its tile-CENTER depth proxy
+      // misordered 2.5D relief (a summit near a tile edge could land behind
+      // a later-drawn neighbor, flickering with camera movement) and never
+      // resolved within-tile self-occlusion at all — the offscreen depth
+      // attachment below settles both per fragment.
+      const drawable: { tileID: OverscaledTileID; entry: TextureEntry }[] = []
       for (const tileID of tileIDs) {
         const key = tileID.key
         const entry = this.textures.get(key)
@@ -564,19 +634,28 @@ export class MatcapLiveLayer implements CustomLayerInterface {
           continue
         }
         entry.lastUsed = this.frameCounter
-        const p = map.transform.getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
-        const m = p.mainMatrix
-        // clip.z / clip.w for the tile-local center point (elevation
-        // omitted — a same-tile z-fighting fix only needs relative ordering
-        // between tiles, not per-vertex precision).
-        const clipW = m[3] * TILE_CENTER + m[7] * TILE_CENTER + m[15]
-        const clipZ = m[2] * TILE_CENTER + m[6] * TILE_CENTER + m[14]
-        const depth = clipW !== 0 ? clipZ / clipW : 0
-        toDraw.push({ tileID, entry, p, depth })
+        drawable.push({ tileID, entry })
       }
-      toDraw.sort((a, b) => b.depth - a.depth)
 
-      for (const { tileID, entry, p } of toDraw) {
+      // STAGE 1 — opaque render into the layer's own shade buffer,
+      // front-most-wins via its own depth attachment (same architecture and
+      // state bookkeeping as phong-live-gl-layer.ts).
+      if (!this.ensureShadeFbo(gl)) return
+      const prevFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null
+      const blendWasEnabled = gl.isEnabled(gl.BLEND)
+      const depthWasEnabled = gl.isEnabled(gl.DEPTH_TEST)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadeFbo)
+      gl.viewport(0, 0, this.shadeWidth, this.shadeHeight)
+      gl.disable(gl.BLEND)
+      gl.enable(gl.DEPTH_TEST)
+      gl.depthFunc(gl.LEQUAL)
+      gl.depthMask(true)
+      // Alpha 0 = "no tile drew here" — the composite skips those pixels.
+      gl.clearColor(0, 0, 0, 0)
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+      for (const { tileID, entry } of drawable) {
+        const p = map.transform.getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
         gl.uniformMatrix4fv(bundle.uProjectionMatrix, false, p.mainMatrix)
         gl.uniform4f(bundle.uProjectionTileMercatorCoords, p.tileMercatorCoords[0], p.tileMercatorCoords[1], p.tileMercatorCoords[2], p.tileMercatorCoords[3])
         gl.uniform4f(bundle.uProjectionClippingPlane, p.clippingPlane[0], p.clippingPlane[1], p.clippingPlane[2], p.clippingPlane[3])
@@ -604,6 +683,24 @@ export class MatcapLiveLayer implements CustomLayerInterface {
         gl.uniform1f(bundle.uInvGroundRes, entry.invGroundRes)
         gl.drawElements(gl.TRIANGLES, this.indexCount, this.indexType, 0)
       }
+
+      // STAGE 2 — single premultiplied fullscreen composite at the layer
+      // opacity (MapLibre's expected blend func is already active).
+      gl.bindFramebuffer(gl.FRAMEBUFFER, prevFbo)
+      gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
+      gl.disable(gl.DEPTH_TEST)
+      gl.enable(gl.BLEND)
+      gl.useProgram(this.compositeProgram)
+      gl.bindVertexArray(null) // attribute-less fullscreen triangle (gl_VertexID)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, this.shadeTexture)
+      gl.uniform1i(this.compositeUShade, 0)
+      gl.uniform1f(this.compositeUOpacity, this.options.opacity)
+      gl.drawArrays(gl.TRIANGLES, 0, 3)
+
+      // Restore the enable-state this layer flipped.
+      if (blendWasEnabled) gl.enable(gl.BLEND); else gl.disable(gl.BLEND)
+      if (depthWasEnabled) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST)
 
       this.pruneTextures()
     } catch (err) {

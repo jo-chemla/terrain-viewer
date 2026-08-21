@@ -359,7 +359,15 @@ void main() {
   vec3 H = normalize(L + V);
 
   float diffuse = u_diffuseStrength * max(dot(n, L), 0.0);
-  float diffuseIntensity = clamp(AMBIENT + diffuse, 0.0, 1.0);
+  // NORMALIZED for the multiply-compositing model (deliberate deviation
+  // from the raster path's raw AMBIENT + diffuse): dividing by the maximum
+  // attainable value (AMBIENT + u_diffuseStrength) maps a fully-lit slope
+  // to exactly 1 — leaving the albedo untouched there — and everything
+  // else darkens proportionally. Without it, the whole image was scaled by
+  // AMBIENT + diffuse (max 1.35 clamped, floor 0.35), so turning Diffuse
+  // Strength DOWN darkened the entire map toward 35% — a specular-only
+  // setup dimmed the basemap instead of just adding highlights.
+  float diffuseIntensity = clamp((AMBIENT + diffuse) / (AMBIENT + u_diffuseStrength), 0.0, 1.0);
   float specDot = max(dot(n, H), 0.0);
   float specular = u_specularStrength * pow(specDot, SHININESS);
 
