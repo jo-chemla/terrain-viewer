@@ -1770,6 +1770,29 @@ export function TerrainViewer() {
       }
     }
 
+    // One-shot sidebar-fold overrides from the URL: `?openSections=a,b` /
+    // `?closeSections=c,d` (keys = sectionOpenAtom's own keys, e.g.
+    // hillshade, lightingEffects, bookmarks; unknown keys ignored). The
+    // fold state itself deliberately STAYS jotai atomWithStorage, not nuqs
+    // — panels open/close constantly in a session and URL-tracking that
+    // would churn the address bar/history on every click. These params are
+    // for hand-crafted links (docs, demos, walkthroughs) that want a panel
+    // pre-opened on arrival; applied after the historical-hostname section
+    // defaults above, so an explicit link wins over those.
+    {
+      const parseSectionKeys = (name: string) => (searchParams.get(name) ?? "").split(",").map((s) => s.trim()).filter(Boolean)
+      const sectionsToOpen = parseSectionKeys("openSections")
+      const sectionsToClose = parseSectionKeys("closeSections")
+      if (sectionsToOpen.length || sectionsToClose.length) {
+        setSectionOpen((prev) => {
+          const next: Record<string, boolean> = { ...prev }
+          for (const key of sectionsToOpen) if (key in next) next[key] = true
+          for (const key of sectionsToClose) if (key in next) next[key] = false
+          return next as typeof prev
+        })
+      }
+    }
+
     if (Object.keys(stateOverrides).length > 0) setState(stateOverrides)
 
     if (projectConfig?.initialSections) {
