@@ -809,21 +809,20 @@ export class PhongLiveLayer implements CustomLayerInterface {
       })
 
       // Compass azimuth + altitude -> unit light vector in the SAME (x=east,
-      // y=south, z=up) space the normals live in. HORIZONTAL SIGNS FLIPPED
-      // vs phong-protocol.ts's formula (which negates both sin and cos):
-      // with the per-fragment normals + multiply compositing, the pad pill
-      // pointing north rendered the light coming from the SOUTH and east
-      // rendered it from the WEST (both axes mirrored — user-verified
-      // 2026-08-21); the pill means "the direction the light comes FROM",
-      // so the live path uses the un-negated form. If the Legacy (raster)
-      // renderer turns out to disagree with the pad the same way on an A/B,
-      // its own formula needs the same flip — do NOT "harmonize" this back
-      // to match it without checking against the pad first.
+      // y=south, z=up) space the normals live in — byte-for-byte the same
+      // formula/signs as phong-protocol.ts, which ARE correct for both
+      // anchors (verified 2026-08-21 against the pad, native hillshade, and
+      // the sun-shadow tools, all agreeing). HISTORY WARNING: these signs
+      // were briefly flipped and partially compensated across two commits
+      // after an "absolute is inverted" report that turned out to come from
+      // a STALE dev tab — if an inversion is ever reported again, have the
+      // reporter hard-refresh and A/B against native hillshade (same
+      // illuminationDir state) before touching any sign here.
       const azRad = (this.options.lightDir * Math.PI) / 180
       const elRad = (this.options.lightAlt * Math.PI) / 180
       const cosEl = Math.cos(elRad)
-      const lx0 = Math.sin(azRad) * cosEl
-      const ly0 = Math.cos(azRad) * cosEl
+      const lx0 = -Math.sin(azRad) * cosEl
+      const ly0 = -Math.cos(azRad) * cosEl
       const lz0 = Math.sin(elRad)
 
       let lx = lx0, ly = ly0, lz = lz0
@@ -852,17 +851,9 @@ export class PhongLiveLayer implements CustomLayerInterface {
         }
         const basis = this.lastCameraBasis
         if (basis) {
-          // The substitution below was hand-verified against the ORIGINAL
-          // negated-horizontal base vector — the absolute-path sign flip
-          // above (2026-08-21, so the pad pill means "light from") would
-          // pass through it and reverse the headlamp (user-reported). Feed
-          // it the original signs; only the ABSOLUTE interpretation was
-          // ever mirrored.
-          const sx0 = -lx0
-          const sy0 = -ly0
-          lx = sx0 * basis.right[0] - sy0 * basis.up[0] - lz0 * basis.forward[0]
-          ly = sx0 * basis.right[1] - sy0 * basis.up[1] - lz0 * basis.forward[1]
-          lz = sx0 * basis.right[2] - sy0 * basis.up[2] - lz0 * basis.forward[2]
+          lx = lx0 * basis.right[0] - ly0 * basis.up[0] - lz0 * basis.forward[0]
+          ly = lx0 * basis.right[1] - ly0 * basis.up[1] - lz0 * basis.forward[1]
+          lz = lx0 * basis.right[2] - ly0 * basis.up[2] - lz0 * basis.forward[2]
           const len = Math.hypot(lx, ly, lz) || 1
           lx /= len; ly /= len; lz /= len
         } else {
