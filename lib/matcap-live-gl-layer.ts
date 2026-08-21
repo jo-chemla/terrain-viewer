@@ -30,8 +30,8 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap, OverscaledTileID } from "maplibre-gl"
 import { createTileMesh } from "maplibre-gl"
 import { computeNormalPixels } from "./normals-protocol"
-import { computeCameraBasis, type Vec3 } from "./phong-live-gl-layer"
-import type { UpstreamEncoding } from "./normal-derived-protocol"
+import { computeCameraBasis, DEM_NORMAL_GLSL, type Vec3 } from "./phong-live-gl-layer"
+import { groundResolutionM, tileRowToLatRad, RAD_TO_DEG, type UpstreamEncoding } from "./normal-derived-protocol"
 
 /** Shape of the real (but publicly untyped) `map.terrain` property — mirrors
  *  maplibre-gl's own `TerrainData` return shape for `getTerrainData()`. See
@@ -130,7 +130,6 @@ void main() {
 const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 in vec2 v_uv;
-uniform sampler2D u_normalMap;
 uniform sampler2D u_matcap;
 uniform float u_rotationRad;
 uniform float u_exaggeration;
@@ -144,15 +143,13 @@ uniform bool u_lightRelativeToCamera;
 uniform vec3 u_cameraRight;
 uniform vec3 u_cameraUp;
 out vec4 fragColor;
+${DEM_NORMAL_GLSL}
 
 void main() {
-  vec3 encoded = texture(u_normalMap, v_uv).rgb;
-  vec3 raw = encoded * 2.0 - 1.0;
-
-  // Reapply the current exaggeration live to the cached (unexaggerated)
-  // normal, same reasoning as gpu-matcap-compute.ts.
-  vec2 slope = (raw.xy / raw.z) * u_exaggeration;
-  vec3 n = normalize(vec3(slope, 1.0));
+  // Per-fragment Horn normal straight from the Float32 DEM — see
+  // DEM_NORMAL_GLSL (phong-live-gl-layer.ts) for why this replaced the
+  // baked 8-bit normal texture. Exaggeration applies live, as before.
+  vec3 n = demNormal(v_uv, u_exaggeration);
 
   // Only the material's apparent orientation rotates (Sphere Rotation),
   // never the surface itself.
@@ -217,7 +214,9 @@ interface ProgramBundle {
   uProjectionClippingPlane: WebGLUniformLocation | null
   uProjectionTransition: WebGLUniformLocation | null
   uProjectionFallbackMatrix: WebGLUniformLocation | null
-  uNormalMap: WebGLUniformLocation | null
+  uDem: WebGLUniformLocation | null
+  uDemDim: WebGLUniformLocation | null
+  uInvGroundRes: WebGLUniformLocation | null
   uMatcap: WebGLUniformLocation | null
   uRotationRad: WebGLUniformLocation | null
   uExaggeration: WebGLUniformLocation | null
@@ -235,6 +234,9 @@ interface ProgramBundle {
 interface TextureEntry {
   texture: WebGLTexture
   lastUsed: number
+  /** 1 / (mercator-corrected meters per pixel) at this tile's center
+   *  latitude — feeds u_invGroundRes (see phong-live-gl-layer.ts). */
+  invGroundRes: number
 }
 
 export class MatcapLiveLayer implements CustomLayerInterface {
@@ -289,7 +291,12 @@ export class MatcapLiveLayer implements CustomLayerInterface {
     this.map = map
     this.gl = gl
 
-    const mesh = createTileMesh({ granularity: 8 }, "16bit")
+    // Same drape-mesh density as MapLibre's own terrain (meshSize 128), NO
+    // border apron — see phong-live-gl-layer.ts's onAdd comment for both
+    // rationales (the 8×8 grid read as blocky under per-fragment normals;
+    // the apron double-composited translucent output along tile seams).
+    const terrainMeshSize = ((map as unknown as { terrain?: { meshSize?: number } }).terrain?.meshSize) ?? 128
+    const mesh = createTileMesh({ granularity: terrainMeshSize })
     this.vao = gl.createVertexArray()
     gl.bindVertexArray(this.vao)
     const vertexBuffer = gl.createBuffer()
@@ -342,7 +349,9 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       uProjectionClippingPlane: gl.getUniformLocation(program, "u_projection_clipping_plane"),
       uProjectionTransition: gl.getUniformLocation(program, "u_projection_transition"),
       uProjectionFallbackMatrix: gl.getUniformLocation(program, "u_projection_fallback_matrix"),
-      uNormalMap: gl.getUniformLocation(program, "u_normalMap"),
+      uDem: gl.getUniformLocation(program, "u_dem"),
+      uDemDim: gl.getUniformLocation(program, "u_demDim"),
+      uInvGroundRes: gl.getUniformLocation(program, "u_invGroundRes"),
       uMatcap: gl.getUniformLocation(program, "u_matcap"),
       uRotationRad: gl.getUniformLocation(program, "u_rotationRad"),
       uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
@@ -365,20 +374,27 @@ export class MatcapLiveLayer implements CustomLayerInterface {
     this.pending.add(key)
     const { z, x, y } = tileID.canonical
     const controller = new AbortController()
+    // Consumes only the returned Float32 `grid` (padded elevations) — see
+    // phong-live-gl-layer.ts's fetchTile comment for the full rationale
+    // (shared cache/abort machinery kept; baked normals unused on this path).
     computeNormalPixels(this.options.upstreamTemplate, this.options.encoding, z, x, y, this.options.tileSize, controller.signal)
-      .then(({ pixels }) => {
+      .then(({ grid }) => {
         this.pending.delete(key)
         if (this.disposed || !this.gl) return
         const gl = this.gl
         const texture = gl.createTexture()!
         gl.bindTexture(gl.TEXTURE_2D, texture)
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+        // NEAREST + texelFetch — the shader does its own bilinear (see
+        // DEM_NORMAL_GLSL), no float-linear extension needed.
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.options.tileSize, this.options.tileSize, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
-        this.textures.set(key, { texture, lastUsed: this.frameCounter })
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, grid.stride, grid.stride, 0, gl.RED, gl.FLOAT, grid.padded)
+        const latCenterDeg = tileRowToLatRad(y + 0.5, z) * RAD_TO_DEG
+        const invGroundRes = 1 / groundResolutionM(latCenterDeg, z, this.options.tileSize)
+        this.textures.set(key, { texture, lastUsed: this.frameCounter, invGroundRes })
         this.map?.triggerRepaint()
       })
       .catch((err) => {
@@ -462,16 +478,22 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       // Dpr-only tile-selection bump — same reasoning as
       // phong-live-gl-layer.ts's render() comment (texels ≈ device pixels
       // on retina, without the old fixed /2 that drove the reload churn).
+      // Terrain-aware culling too, same as phong: without it, flat-footprint
+      // frustum tests culled tiles whose elevated relief was right in front
+      // of the camera at high pitch.
       const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1
+      const terrainForCulling = (map as unknown as { terrain?: MapTerrainLike }).terrain
       const tileIDs = map.coveringTiles({
         tileSize: Math.max(1, Math.round(this.options.tileSize / dpr)),
         minzoom: this.options.minzoom,
         maxzoom: this.options.maxzoom,
+        ...(terrainForCulling ? { terrain: terrainForCulling as never } : {}),
       })
 
       gl.useProgram(bundle.program)
       gl.bindVertexArray(this.vao)
-      gl.uniform1i(bundle.uNormalMap, 0)
+      gl.uniform1i(bundle.uDem, 0)
+      gl.uniform1f(bundle.uDemDim, this.options.tileSize)
       gl.uniform1i(bundle.uMatcap, 2)
       gl.uniform1f(bundle.uRotationRad, (this.options.rotationDeg * Math.PI) / 180)
       gl.uniform1f(bundle.uExaggeration, this.options.exaggeration)
@@ -556,6 +578,7 @@ export class MatcapLiveLayer implements CustomLayerInterface {
 
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, entry.texture)
+        gl.uniform1f(bundle.uInvGroundRes, entry.invGroundRes)
         gl.drawElements(gl.TRIANGLES, this.indexCount, this.indexType, 0)
       }
 

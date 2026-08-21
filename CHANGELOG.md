@@ -1,3 +1,11 @@
+# Changelog — Live Lighting Rework: Native-Sharpness Phong & Matcap
+<!-- released: 2026-08-21 -->
+
+#### TL;DR
+- **2D Fast Phong/Matcap rework** — normals now derived per fragment straight from the full-precision float DEM (no more baked 8-bit normal tiles), and the drape mesh matches MapLibre's own 128×128 terrain mesh: native-hillshade sharpness on the exact surface MapLibre draws.
+- **Phong composites true albedo** via blend passes (framebuffer × diffuse, + specular) — the raster basemap, hypso, and background show through correctly instead of reading washed-out/transparent; the opacity slider fades the whole effect.
+- Fixed tile-seam streaks (border aprons removed) and high-pitch dropouts of tiles close to the camera (terrain-aware covering-tile culling).
+
 # Changelog — Historical Fixes, Matcap Rework, Docs Restructure
 <!-- released: 2026-08-20 -->
 

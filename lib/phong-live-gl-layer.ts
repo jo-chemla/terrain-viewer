@@ -51,7 +51,7 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap, OverscaledTileID } from "maplibre-gl"
 import { createTileMesh } from "maplibre-gl"
 import { computeNormalPixels } from "./normals-protocol"
-import type { UpstreamEncoding } from "./normal-derived-protocol"
+import { groundResolutionM, tileRowToLatRad, RAD_TO_DEG, type UpstreamEncoding } from "./normal-derived-protocol"
 
 // --- Minimal vec3/mat4 helpers for the camera-relative light fix below ---
 // (self-contained rather than pulling in a matrix library for six calls/frame).
@@ -247,31 +247,105 @@ void main() {
 `
 }
 
-// Same Blinn-Phong math/encoding as gpu-phong-compute.ts's fragment shader
-// (kept byte-for-byte equivalent — see that file for the derivation/rationale
-// of the two-regime multiply-darken/screen-brighten alpha encoding), except
-// output is premultiplied — CustomLayerInterface.render's default blend func
-// is `gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)`, which expects that.
+// Same Blinn-Phong LIGHTING math as gpu-phong-compute.ts's fragment shader,
+// with a two-PASS output driven by u_pass instead of that file's two-regime
+// alpha overlay. Why: a custom layer cannot join MapLibre's RTT drape pass
+// (where the raster path's overlay composites correctly) — it draws over
+// the already-draped stack, and the overlay there read as a washed-out/
+// transparent basemap. TRUE albedo compositing needs no basemap sampling
+// though: the framebuffer beneath this layer IS the albedo, so render()
+// draws pass 0 with blendFunc(DST_COLOR, ZERO) (framebuffer × diffuse
+// shade) and pass 1 with blendFunc(ONE, ONE) (+ specular) — exact
+// albedo × (ambient + diffuse) + specular, order-independent. u_opacity
+// fades pass 0 toward the identity multiplier (×1) and scales pass 1, so
+// 0% leaves the map untouched and 100% is full-strength shading.
+// Shared per-fragment normal derivation, spliced into BOTH this file's and
+// matcap-live-gl-layer.ts's fragment shaders. The previous pipeline baked
+// normals CPU/compute-side into a fixed tileSize² RGBA8 texture — three
+// compounding softness sources vs the native hillshade layer (texel-grid
+// Nyquist limit, 8-bit ~1/127 normal quantization, LINEAR filtering of the
+// baked normals; see .claude/memory/phong-live-sharpness.md). This instead
+// uploads the RAW Float32 padded elevation grid (the same
+// fetchPaddedElevationGrid product the CPU path consumed — 1-texel halo
+// stitched from real neighbor tiles, so edge stencils never see a clamp
+// seam) and evaluates the exact same Horn gradient PER FRAGMENT on the
+// bilinearly-reconstructed surface — what MapLibre's own hillshade does per
+// device pixel.
+export const DEM_NORMAL_GLSL = `
+// (n+2)x(n+2) R32F padded elevation grid. NEAREST + texelFetch only — no
+// float-linear extension needed; filtering happens manually in demAt() so
+// the derivative is evaluated on the exact bilinear surface everywhere.
+uniform highp sampler2D u_dem;
+uniform float u_demDim;        // n — the tile's own pixel count (texture is n+2)
+uniform float u_invGroundRes;  // 1 / (mercator-corrected meters per pixel) at this tile
+
+float demTexel(ivec2 c) {
+  // c is a tile-pixel index in [-1, n] — +1 shifts into the padded texture,
+  // whose [0, n+1] range covers exactly that. The clamp only ever engages
+  // for the sub-halo offsets a tile-edge fragment's outer stencil taps ask
+  // for — the same positions the CPU pipeline's own edge pixels clamped.
+  return texelFetch(u_dem, clamp(c + ivec2(1), ivec2(0), ivec2(int(u_demDim) + 1)), 0).r;
+}
+
+// Bilinear elevation at continuous tile-pixel coords p in [0, n] — the same
+// surface hardware LINEAR filtering would reconstruct, computed manually.
+float demAt(vec2 p) {
+  vec2 base = p - 0.5;
+  ivec2 i = ivec2(floor(base));
+  vec2 f = base - vec2(i);
+  float e00 = demTexel(i);
+  float e10 = demTexel(i + ivec2(1, 0));
+  float e01 = demTexel(i + ivec2(0, 1));
+  float e11 = demTexel(i + ivec2(1, 1));
+  return mix(mix(e00, e10, f.x), mix(e01, e11, f.x), f.y);
+}
+
+// Numerically identical to normal-derived-protocol.ts's hornGradient — same
+// weights, same signs, same DELIBERATE absence of the textbook /8 (the
+// pipeline's baked-in slope-contrast factor every consumer downstream is
+// calibrated against) — just evaluated at this fragment's exact position
+// instead of once per texel and then smeared by texture filtering.
+vec2 hornDxDy(vec2 p) {
+  float a0 = demAt(p + vec2(-1.0, -1.0));
+  float a1 = demAt(p + vec2( 0.0, -1.0));
+  float a2 = demAt(p + vec2( 1.0, -1.0));
+  float a3 = demAt(p + vec2(-1.0,  0.0));
+  float a5 = demAt(p + vec2( 1.0,  0.0));
+  float a6 = demAt(p + vec2(-1.0,  1.0));
+  float a7 = demAt(p + vec2( 0.0,  1.0));
+  float a8 = demAt(p + vec2( 1.0,  1.0));
+  return vec2(
+    (a0 + a3 + a3 + a6 - (a2 + a5 + a5 + a8)) * u_invGroundRes,
+    (a6 + a7 + a7 + a8 - (a0 + a1 + a1 + a2)) * u_invGroundRes
+  );
+}
+
+// (x=east, y=south, z=up) tile-local unit normal — byte-for-byte the CPU
+// path's normalize(vec3(-dx, -dy, 1)) with live exaggeration applied, minus
+// its encode/decode round-trip.
+vec3 demNormal(vec2 uv, float exaggeration) {
+  vec2 g = hornDxDy(uv * u_demDim);
+  return normalize(vec3(-g * exaggeration, 1.0));
+}
+`
+
 const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 in vec2 v_uv;
-uniform sampler2D u_normalMap;
 uniform vec3 u_lightDir;
 uniform float u_diffuseStrength;
 uniform float u_specularStrength;
 uniform float u_exaggeration;
 uniform float u_opacity;
+uniform int u_pass; // 0 = multiplicative diffuse, 1 = additive specular (see header)
 out vec4 fragColor;
+${DEM_NORMAL_GLSL}
 
 const float AMBIENT = 0.35;
 const float SHININESS = 32.0;
 
 void main() {
-  vec3 encoded = texture(u_normalMap, v_uv).rgb;
-  vec3 raw = encoded * 2.0 - 1.0;
-
-  vec2 slope = (raw.xy / raw.z) * u_exaggeration;
-  vec3 n = normalize(vec3(slope, 1.0));
+  vec3 n = demNormal(v_uv, u_exaggeration);
 
   vec3 L = u_lightDir;
   vec3 V = vec3(0.0, 0.0, 1.0);
@@ -281,19 +355,17 @@ void main() {
   float diffuseIntensity = clamp(AMBIENT + diffuse, 0.0, 1.0);
   float specDot = max(dot(n, H), 0.0);
   float specular = u_specularStrength * pow(specDot, SHININESS);
-  float total = diffuseIntensity + specular;
 
-  vec3 color;
-  float alpha;
-  if (total <= 1.0) {
-    color = vec3(0.0);
-    alpha = 1.0 - total;
+  if (u_pass == 0) {
+    // Multiply blend (DST_COLOR, ZERO): this fragment IS the multiplier
+    // applied to the draped stack beneath (the albedo). Alpha 1 preserves
+    // the destination alpha (dst.a × 1).
+    fragColor = vec4(vec3(mix(1.0, diffuseIntensity, u_opacity)), 1.0);
   } else {
-    color = vec3(1.0);
-    alpha = min(total - 1.0, 1.0);
+    // Additive blend (ONE, ONE): specular brightens past the albedo.
+    // Alpha 0 leaves the destination alpha untouched (dst.a + 0).
+    fragColor = vec4(vec3(specular * u_opacity), 0.0);
   }
-  alpha *= u_opacity;
-  fragColor = vec4(color * alpha, alpha);
 }
 `
 
@@ -334,12 +406,15 @@ interface ProgramBundle {
   uProjectionClippingPlane: WebGLUniformLocation | null
   uProjectionTransition: WebGLUniformLocation | null
   uProjectionFallbackMatrix: WebGLUniformLocation | null
-  uNormalMap: WebGLUniformLocation | null
+  uDem: WebGLUniformLocation | null
+  uDemDim: WebGLUniformLocation | null
+  uInvGroundRes: WebGLUniformLocation | null
   uLightDir: WebGLUniformLocation | null
   uDiffuseStrength: WebGLUniformLocation | null
   uSpecularStrength: WebGLUniformLocation | null
   uExaggeration: WebGLUniformLocation | null
   uOpacity: WebGLUniformLocation | null
+  uPass: WebGLUniformLocation | null
   uTerrain: WebGLUniformLocation | null
   uTerrainDim: WebGLUniformLocation | null
   uTerrainMatrix: WebGLUniformLocation | null
@@ -350,6 +425,10 @@ interface ProgramBundle {
 interface TextureEntry {
   texture: WebGLTexture
   lastUsed: number
+  /** 1 / (mercator-corrected meters per pixel) at this tile's own center
+   *  latitude — the per-tile half of the Horn gradient the fragment shader
+   *  can't derive from the texture alone (u_invGroundRes). */
+  invGroundRes: number
 }
 
 export class PhongLiveLayer implements CustomLayerInterface {
@@ -415,7 +494,28 @@ export class PhongLiveLayer implements CustomLayerInterface {
     // calls, never the geometry itself. a_pos is bound to attribute location 0
     // for every program variant (see compileProgram), so this one VAO is valid
     // no matter which program is bound at draw time.
-    const mesh = createTileMesh({ granularity: 8 }, "16bit")
+    // Mesh density MATCHES MapLibre's own terrain drape mesh
+    // (Terrain.meshSize = 128 — read live when terrain is already active,
+    // with 128 as the fallback since that's a maplibre-gl constant): the
+    // vertex shader displaces through the exact same get_elevation()/DEM
+    // texture MapLibre's terrain.vertex.glsl samples, so at equal mesh
+    // density this draws the SAME surface MapLibre's native terrain does.
+    // The old `granularity: 8` (an 8×8 quad grid) was invisible under the
+    // soft baked-normal shading, but the per-fragment DEM normals
+    // out-resolved it — reading as "blocky terrain" under crisp shading.
+    // NO generateBorders, deliberately: the border apron (a flat EXTENT/128
+    // strip at edge-CLAMPED elevation) slices through the neighbor tile's
+    // displaced surface on any real relief, and because this layer's output
+    // is a translucent shadow/highlight overlay (see FRAGMENT_SHADER's
+    // two-regime alpha) every overlap composites TWICE — which rendered as
+    // dark streaks along every tile boundary ("visible skirts/seams",
+    // user-reported 2026-08-20). Same-zoom neighbors share identical edge
+    // elevations (same upstream DEM), so their edge vertices coincide
+    // exactly without any apron. ~17k vertices/tile — the same order
+    // MapLibre's own terrain mesh draws; indices size auto-picked
+    // (indexType handles both).
+    const terrainMeshSize = ((map as unknown as { terrain?: { meshSize?: number } }).terrain?.meshSize) ?? 128
+    const mesh = createTileMesh({ granularity: terrainMeshSize })
     this.vao = gl.createVertexArray()
     gl.bindVertexArray(this.vao)
     const vertexBuffer = gl.createBuffer()
@@ -468,12 +568,15 @@ export class PhongLiveLayer implements CustomLayerInterface {
       uProjectionClippingPlane: gl.getUniformLocation(program, "u_projection_clipping_plane"),
       uProjectionTransition: gl.getUniformLocation(program, "u_projection_transition"),
       uProjectionFallbackMatrix: gl.getUniformLocation(program, "u_projection_fallback_matrix"),
-      uNormalMap: gl.getUniformLocation(program, "u_normalMap"),
+      uDem: gl.getUniformLocation(program, "u_dem"),
+      uDemDim: gl.getUniformLocation(program, "u_demDim"),
+      uInvGroundRes: gl.getUniformLocation(program, "u_invGroundRes"),
       uLightDir: gl.getUniformLocation(program, "u_lightDir"),
       uDiffuseStrength: gl.getUniformLocation(program, "u_diffuseStrength"),
       uSpecularStrength: gl.getUniformLocation(program, "u_specularStrength"),
       uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
       uOpacity: gl.getUniformLocation(program, "u_opacity"),
+      uPass: gl.getUniformLocation(program, "u_pass"),
       uTerrain: gl.getUniformLocation(program, "u_terrain"),
       uTerrainDim: gl.getUniformLocation(program, "u_terrain_dim"),
       uTerrainMatrix: gl.getUniformLocation(program, "u_terrain_matrix"),
@@ -489,20 +592,36 @@ export class PhongLiveLayer implements CustomLayerInterface {
     this.pending.add(key)
     const { z, x, y } = tileID.canonical
     const controller = new AbortController()
+    // Still computeNormalPixels — its refcounted promise cache, abort
+    // semantics, and neighbor-stitched fetch are exactly what's needed, and
+    // the raster (3D Slow) protocols share the same entries. Only the
+    // returned `grid` (the raw Float32 padded elevations) is consumed now;
+    // the baked 8-bit normals ride along unused on this path (cheap — the
+    // GPU compute pass — and still needed by the raster pipeline anyway).
     computeNormalPixels(this.options.upstreamTemplate, this.options.encoding, z, x, y, this.options.tileSize, controller.signal)
-      .then(({ pixels }) => {
+      .then(({ grid }) => {
         this.pending.delete(key)
         if (this.disposed || !this.gl) return
         const gl = this.gl
         const texture = gl.createTexture()!
         gl.bindTexture(gl.TEXTURE_2D, texture)
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+        // NEAREST deliberately — the shader texelFetches and reconstructs
+        // the bilinear surface itself (see DEM_NORMAL_GLSL), so no
+        // OES_texture_float_linear dependency and no double-filtering.
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.options.tileSize, this.options.tileSize, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
-        this.textures.set(key, { texture, lastUsed: this.frameCounter })
+        // Full-precision elevations, padded (stride = tileSize + 2): same
+        // GPU footprint as the old tileSize² RGBA8 normal texture (4 B/texel
+        // either way), so MAX_CACHED_TEXTURES budgeting is unchanged.
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, grid.stride, grid.stride, 0, gl.RED, gl.FLOAT, grid.padded)
+        // Same per-tile scale computeNormalPixelsUncached feeds the CPU/
+        // compute Horn pass (tile-center latitude, mercator-corrected).
+        const latCenterDeg = tileRowToLatRad(y + 0.5, z) * RAD_TO_DEG
+        const invGroundRes = 1 / groundResolutionM(latCenterDeg, z, this.options.tileSize)
+        this.textures.set(key, { texture, lastUsed: this.frameCounter, invGroundRes })
         this.map?.triggerRepaint()
       })
       .catch((err) => {
@@ -578,10 +697,25 @@ export class PhongLiveLayer implements CustomLayerInterface {
       // drove the cache-thrash/reload churn (see pruneTextures), so it
       // stays gone.
       const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1
+      // The real Terrain instance MapLibre's own terrain rendering uses —
+      // no public TS type (see MapTerrainLike), undefined whenever 3D
+      // terrain isn't active. Needed BOTH for per-tile drape data below and
+      // for terrain-aware covering-tile culling right here.
+      const terrain = (map as unknown as { terrain?: MapTerrainLike }).terrain
       const tileIDs = map.coveringTiles({
         tileSize: Math.max(1, Math.round(this.options.tileSize / dpr)),
         minzoom: this.options.minzoom,
         maxzoom: this.options.maxzoom,
+        // Terrain-aware visibility (CoveringTilesOptionsInternal.terrain —
+        // accepted at runtime, absent from the public options type; the
+        // spread dodges the excess-property check). Without it every
+        // candidate tile is frustum-tested as a FLAT footprint, so at high
+        // pitch a tile whose elevated relief towers right in front of the
+        // near plane gets culled the moment its flat footprint leaves the
+        // frustum — the "tiles vanish close to the camera" dropout
+        // (user-reported 2026-08-21). With it, visibility accounts for each
+        // tile's min/max elevation, exactly like MapLibre's own sources.
+        ...(terrain ? { terrain: terrain as never } : {}),
       })
 
       // Compass azimuth + altitude -> unit light vector in the SAME (x=east,
@@ -641,22 +775,18 @@ export class PhongLiveLayer implements CustomLayerInterface {
 
       gl.useProgram(bundle.program)
       gl.bindVertexArray(this.vao)
-      gl.uniform1i(bundle.uNormalMap, 0)
+      gl.uniform1i(bundle.uDem, 0)
+      gl.uniform1f(bundle.uDemDim, this.options.tileSize)
       gl.uniform3f(bundle.uLightDir, lx, ly, lz)
       gl.uniform1f(bundle.uDiffuseStrength, this.options.diffuseStrength)
       gl.uniform1f(bundle.uSpecularStrength, this.options.specularStrength)
       gl.uniform1f(bundle.uExaggeration, this.options.exaggeration)
       gl.uniform1f(bundle.uOpacity, this.options.opacity)
-      gl.activeTexture(gl.TEXTURE0)
-
-      // The real Terrain instance MapLibre's own terrain rendering uses —
-      // has no public TS type (see MapTerrainLike above), so this is
-      // undefined/null (not an error) whenever 3D terrain elevation isn't
-      // active, in which case every tile below binds the flat fallback
-      // instead and get_elevation() returns 0 uniformly.
-      const terrain = (map as unknown as { terrain?: MapTerrainLike }).terrain
       gl.uniform1i(bundle.uTerrain, 1)
 
+      // Collect the drawable set once (kicking off fetches for misses) so
+      // both blend passes below iterate exactly the same tiles.
+      const drawable: { tileID: OverscaledTileID; entry: TextureEntry }[] = []
       for (const tileID of tileIDs) {
         const key = tileID.key
         const entry = this.textures.get(key)
@@ -665,44 +795,68 @@ export class PhongLiveLayer implements CustomLayerInterface {
           continue
         }
         entry.lastUsed = this.frameCounter
+        drawable.push({ tileID, entry })
+      }
 
-        // Per-tile projection uniforms from MapLibre's own projection code.
-        // These are exactly what shaderData.vertexShaderPrelude's projectTile()
-        // consumes, so the SAME shader handles mercator and globe — the whole
-        // point of routing through the prelude instead of a bare u_matrix.
-        // applyGlobeMatrix:true so globe gets the sphere transform (ignored,
-        // harmlessly, under mercator).
-        const p = map.transform.getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
-        gl.uniformMatrix4fv(bundle.uProjectionMatrix, false, p.mainMatrix)
-        gl.uniform4f(bundle.uProjectionTileMercatorCoords, p.tileMercatorCoords[0], p.tileMercatorCoords[1], p.tileMercatorCoords[2], p.tileMercatorCoords[3])
-        gl.uniform4f(bundle.uProjectionClippingPlane, p.clippingPlane[0], p.clippingPlane[1], p.clippingPlane[2], p.clippingPlane[3])
-        gl.uniform1f(bundle.uProjectionTransition, p.projectionTransition)
-        gl.uniformMatrix4fv(bundle.uProjectionFallbackMatrix, false, p.fallbackMatrix)
+      const drawTiles = () => {
+        for (const { tileID, entry } of drawable) {
+          // Per-tile projection uniforms from MapLibre's own projection code.
+          // These are exactly what shaderData.vertexShaderPrelude's
+          // projectTile() consumes, so the SAME shader handles mercator and
+          // globe. applyGlobeMatrix:true so globe gets the sphere transform
+          // (ignored, harmlessly, under mercator).
+          const p = map.transform.getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
+          gl.uniformMatrix4fv(bundle.uProjectionMatrix, false, p.mainMatrix)
+          gl.uniform4f(bundle.uProjectionTileMercatorCoords, p.tileMercatorCoords[0], p.tileMercatorCoords[1], p.tileMercatorCoords[2], p.tileMercatorCoords[3])
+          gl.uniform4f(bundle.uProjectionClippingPlane, p.clippingPlane[0], p.clippingPlane[1], p.clippingPlane[2], p.clippingPlane[3])
+          gl.uniform1f(bundle.uProjectionTransition, p.projectionTransition)
+          gl.uniformMatrix4fv(bundle.uProjectionFallbackMatrix, false, p.fallbackMatrix)
 
-        // Same DEM texture + uniforms MapLibre's own terrain.vertex.glsl reads
-        // for this exact tile (see this file's header comment) — get_elevation()
-        // in TERRAIN_PRELUDE samples them identically, so the mesh displaces
-        // onto the SAME surface MapLibre's native terrain rendering computes,
-        // no independently-fetched/meshed DEM involved.
-        gl.activeTexture(gl.TEXTURE1)
-        if (terrain) {
-          const td = terrain.getTerrainData(tileID)
-          gl.bindTexture(gl.TEXTURE_2D, td.texture)
-          gl.uniform1f(bundle.uTerrainDim, td.u_terrain_dim)
-          gl.uniformMatrix4fv(bundle.uTerrainMatrix, false, td.u_terrain_matrix)
-          gl.uniform4fv(bundle.uTerrainUnpack, td.u_terrain_unpack)
-          gl.uniform1f(bundle.uTerrainExaggeration, td.u_terrain_exaggeration)
-        } else {
-          gl.bindTexture(gl.TEXTURE_2D, this.flatTerrainTexture)
-          gl.uniform1f(bundle.uTerrainDim, 1)
-          gl.uniformMatrix4fv(bundle.uTerrainMatrix, false, PhongLiveLayer.FLAT_TERRAIN_MATRIX)
-          gl.uniform4fv(bundle.uTerrainUnpack, PhongLiveLayer.FLAT_TERRAIN_UNPACK)
-          gl.uniform1f(bundle.uTerrainExaggeration, 1)
+          // Same DEM texture + uniforms MapLibre's own terrain.vertex.glsl
+          // reads for this exact tile (see this file's header comment) —
+          // get_elevation() in TERRAIN_PRELUDE samples them identically, so
+          // the mesh displaces onto the SAME surface MapLibre's native
+          // terrain rendering computes.
+          gl.activeTexture(gl.TEXTURE1)
+          if (terrain) {
+            const td = terrain.getTerrainData(tileID)
+            gl.bindTexture(gl.TEXTURE_2D, td.texture)
+            gl.uniform1f(bundle.uTerrainDim, td.u_terrain_dim)
+            gl.uniformMatrix4fv(bundle.uTerrainMatrix, false, td.u_terrain_matrix)
+            gl.uniform4fv(bundle.uTerrainUnpack, td.u_terrain_unpack)
+            gl.uniform1f(bundle.uTerrainExaggeration, td.u_terrain_exaggeration)
+          } else {
+            gl.bindTexture(gl.TEXTURE_2D, this.flatTerrainTexture)
+            gl.uniform1f(bundle.uTerrainDim, 1)
+            gl.uniformMatrix4fv(bundle.uTerrainMatrix, false, PhongLiveLayer.FLAT_TERRAIN_MATRIX)
+            gl.uniform4fv(bundle.uTerrainUnpack, PhongLiveLayer.FLAT_TERRAIN_UNPACK)
+            gl.uniform1f(bundle.uTerrainExaggeration, 1)
+          }
+
+          gl.activeTexture(gl.TEXTURE0)
+          gl.bindTexture(gl.TEXTURE_2D, entry.texture)
+          gl.uniform1f(bundle.uInvGroundRes, entry.invGroundRes)
+          gl.drawElements(gl.TRIANGLES, this.indexCount, this.indexType, 0)
         }
+      }
 
-        gl.activeTexture(gl.TEXTURE0)
-        gl.bindTexture(gl.TEXTURE_2D, entry.texture)
-        gl.drawElements(gl.TRIANGLES, this.indexCount, this.indexType, 0)
+      // TRUE albedo compositing via blend equations (no basemap sampling
+      // needed): the framebuffer at this layer's slot already holds the
+      // draped stack — raster basemap, hypso, background — i.e. the albedo.
+      // PASS 0 multiplies it by the diffuse shade (blendFunc(DST_COLOR,
+      // ZERO): result = dst × src), PASS 1 adds the specular highlight on
+      // top (blendFunc(ONE, ONE)). Together: albedo × (ambient + diffuse)
+      // + specular — the exact Blinn-Phong composition the raster path's
+      // two-regime alpha overlay only approximates. Both passes are
+      // order-independent (multiply and add commute across overlapping
+      // fragments), so no depth sorting is needed.
+      gl.blendFunc(gl.DST_COLOR, gl.ZERO)
+      gl.uniform1i(bundle.uPass, 0)
+      drawTiles()
+      if (this.options.specularStrength > 0) {
+        gl.blendFunc(gl.ONE, gl.ONE)
+        gl.uniform1i(bundle.uPass, 1)
+        drawTiles()
       }
 
       this.pruneTextures()
@@ -714,6 +868,9 @@ export class PhongLiveLayer implements CustomLayerInterface {
     } finally {
       gl.bindVertexArray(null)
       gl.useProgram(null)
+      // Restore the premultiplied-alpha blend MapLibre's own layers (and
+      // other custom layers, e.g. matcap) expect — this layer changed it.
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
     }
   }
 }

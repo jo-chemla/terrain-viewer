@@ -24,5 +24,68 @@ Analysis from 2026-08-20 (fixes-historical branch), after the user asked why liv
 - **Higher-precision normal encoding** — e.g. RG16/RGBA16F or split hi/lo bytes; kills source 2 only.
 - **Per-fragment normals from the DEM texture in-shader** — the real native-parity fix; eliminates all three at once. Note the terrain-drape prelude already samples a DEM texture (`get_elevation` in TERRAIN_PRELUDE, from `map.terrain.getTerrainData`) — but that's MapLibre's *terrain* DEM, which may differ from the layer's own upstream source; deriving normals per fragment would need the layer's upstream DEM as a texture (upload the decoded elevation tile instead of, or alongside, the baked normal tile) plus latitude-corrected ground resolution per tile (see normals-protocol.ts's groundResolutionM usage).
 
+## 2026-08-20 follow-up: the per-fragment fix IS implemented
+
+Same day, the user asked for an exploration and the full native-parity option
+was implemented in both live layers (initially left uncommitted for testing):
+
+- `DEM_NORMAL_GLSL` (exported from phong-live-gl-layer.ts, spliced into both
+  fragment shaders): manual-bilinear elevation reconstruction + per-fragment
+  Horn gradient + `demNormal(uv, exaggeration)`.
+- Data path: `computeNormalPixels` was ALREADY returning `grid` (the
+  `fetchPaddedElevationGrid` product — Float32, 1-texel halo stitched from
+  real neighbors), so the layers just upload `grid.padded` as an R32F
+  `(n+2)²` texture (NEAREST + texelFetch — no OES_texture_float_linear
+  dependency) instead of the baked RGBA8 normals. Same 4 B/texel GPU budget.
+  The baked normals still ride along unused (the raster protocols need them;
+  the refcounted cache/abort machinery is shared).
+- Per-tile `u_invGroundRes` uniform = `1/groundResolutionM(tileCenterLat, z, n)`
+  — mirrors computeNormalPixelsUncached exactly.
+- CRITICAL parity detail: hornGradient has NO textbook /8 factor and its dx
+  is (west−east)-signed — deliberate, every downstream consumer is
+  calibrated to it. The GLSL replicates it verbatim; do not "fix" it.
+
+This kills all three softness sources at once. Cost: 8 bilinear taps
+(32 texelFetches) per fragment — fine on GPU. Halo=1 means the outermost
+half-pixel of a tile clamps its outer stencil tap, same as the CPU path.
+
+Follow-ups landed the same session (2026-08-20/21), all user-verified or
+user-requested:
+- **generateBorders removed** after first being added with the 128 mesh:
+  the flat EXTENT/128 apron at edge-clamped elevation slices through the
+  neighbor's displaced surface and double-composites → dark streaks along
+  every tile seam. Same-zoom neighbors coincide exactly without it.
+- **Phong live = TRUE albedo via blend equations, not sampling**: a custom
+  layer can't join MapLibre's RTT drape pass, so the old translucent
+  overlay washed out the basemap. Instead: pass 0 blendFunc(DST_COLOR,
+  ZERO) multiplies the framebuffer (the draped stack IS the albedo) by the
+  diffuse shade, pass 1 blendFunc(ONE, ONE) adds specular; u_opacity fades
+  pass 0 toward identity. Order-independent, so no depth sort. MUST restore
+  blendFunc(ONE, ONE_MINUS_SRC_ALPHA) in finally. Matcap stays opaque
+  premultiplied (user explicitly likes it).
+- **Terrain-aware coveringTiles**: pass `terrain` (the live map.terrain,
+  via spread to dodge the excess-property check — it's on
+  CoveringTilesOptionsInternal, not the public type) or high-pitch views
+  cull tiles whose ELEVATED relief is right in front of the camera while
+  their flat footprint is outside the frustum ("tiles vanish near the
+  camera" dropout).
+
+User verdict on first test: shading sharpness ✓, but it EXPOSED the drape
+mesh — the custom layers tessellated each tile at
+`createTileMesh({ granularity: 8 })` (8×8 quads), which the old soft
+shading had masked; under crisp per-fragment normals it read as "blocky
+terrain". Follow-up fix (same session): mesh granularity now matches
+MapLibre's own terrain drape mesh — `Terrain.meshSize` is a public
+property, constant 128 in maplibre-gl (read live off `map.terrain` with
+128 as fallback) — plus `generateBorders: true` (a thin EXTENT/128 apron,
+~half a mesh cell, hiding cracks between adjacent tiles). Since the vertex
+shader displaces through the SAME get_elevation()/getTerrainData DEM
+texture MapLibre's terrain.vertex.glsl samples, equal mesh density ⇒ the
+same surface MapLibre natively draws — this IS the "reuse MapLibre's
+terrain geometry mechanism" answer; the geometry buffers themselves aren't
+publicly reachable, but replicating (samplers + meshSize) is exact.
+Indices auto-size (129²+borders ≈ 17k verts still fits 16-bit; both layers
+branch on mesh.uses32bitIndices either way).
+
 **Why:** avoids re-deriving this diagnosis and re-tripping the churn regression on the next sharpness attempt.
-**How to apply:** if asked to "make live phong/matcap sharper," pick from the options above; keep the pruneTextures current-frame guard and never reintroduce an unconditional multi-level zoom bump. Related: [[camera-sync]].
+**How to apply:** if asked to "make live phong/matcap sharper" beyond this, the remaining lever is the opt-in extra zoom level; keep the pruneTextures current-frame guard and never reintroduce an unconditional multi-level zoom bump. Related: [[camera-sync]].
