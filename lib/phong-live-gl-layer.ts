@@ -809,15 +809,21 @@ export class PhongLiveLayer implements CustomLayerInterface {
       })
 
       // Compass azimuth + altitude -> unit light vector in the SAME (x=east,
-      // y=south, z=up) space the normal map is encoded in — byte-for-byte the
-      // same formula/empirically-verified signs as phong-protocol.ts (see its
-      // header comment for how these signs were pinned against maplibre's own
-      // hillshade shader).
+      // y=south, z=up) space the normals live in. HORIZONTAL SIGNS FLIPPED
+      // vs phong-protocol.ts's formula (which negates both sin and cos):
+      // with the per-fragment normals + multiply compositing, the pad pill
+      // pointing north rendered the light coming from the SOUTH and east
+      // rendered it from the WEST (both axes mirrored — user-verified
+      // 2026-08-21); the pill means "the direction the light comes FROM",
+      // so the live path uses the un-negated form. If the Legacy (raster)
+      // renderer turns out to disagree with the pad the same way on an A/B,
+      // its own formula needs the same flip — do NOT "harmonize" this back
+      // to match it without checking against the pad first.
       const azRad = (this.options.lightDir * Math.PI) / 180
       const elRad = (this.options.lightAlt * Math.PI) / 180
       const cosEl = Math.cos(elRad)
-      const lx0 = -Math.sin(azRad) * cosEl
-      const ly0 = -Math.cos(azRad) * cosEl
+      const lx0 = Math.sin(azRad) * cosEl
+      const ly0 = Math.cos(azRad) * cosEl
       const lz0 = Math.sin(elRad)
 
       let lx = lx0, ly = ly0, lz = lz0
