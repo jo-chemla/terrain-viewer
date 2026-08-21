@@ -852,9 +852,17 @@ export class PhongLiveLayer implements CustomLayerInterface {
         }
         const basis = this.lastCameraBasis
         if (basis) {
-          lx = lx0 * basis.right[0] - ly0 * basis.up[0] - lz0 * basis.forward[0]
-          ly = lx0 * basis.right[1] - ly0 * basis.up[1] - lz0 * basis.forward[1]
-          lz = lx0 * basis.right[2] - ly0 * basis.up[2] - lz0 * basis.forward[2]
+          // The substitution below was hand-verified against the ORIGINAL
+          // negated-horizontal base vector — the absolute-path sign flip
+          // above (2026-08-21, so the pad pill means "light from") would
+          // pass through it and reverse the headlamp (user-reported). Feed
+          // it the original signs; only the ABSOLUTE interpretation was
+          // ever mirrored.
+          const sx0 = -lx0
+          const sy0 = -ly0
+          lx = sx0 * basis.right[0] - sy0 * basis.up[0] - lz0 * basis.forward[0]
+          ly = sx0 * basis.right[1] - sy0 * basis.up[1] - lz0 * basis.forward[1]
+          lz = sx0 * basis.right[2] - sy0 * basis.up[2] - lz0 * basis.forward[2]
           const len = Math.hypot(lx, ly, lz) || 1
           lx /= len; ly /= len; lz /= len
         } else {
