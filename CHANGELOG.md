@@ -3,6 +3,7 @@
 
 #### TL;DR
 - **Live Phong/Matcap rework** (renderers now labeled **Live** vs **Legacy**): per-fragment normals straight from the float DEM on MapLibre's own 128×128 drape mesh — native-hillshade sharpness. Phong composites true albedo over the basemap/hypso stack (hidden surfaces handled, specular-only no longer dims the map) with a camera-headlamp light anchor; Matcap gets correct camera anchoring at every bearing and per-fragment depth (no more summits flickering behind neighboring tiles). Also fixed: tile-seam streaks, high-pitch near-camera tile dropouts, endless tile refetch on hi-dpi. New featured bookmarks (Amazon Rivers, Willamette River) with fresh thumbnails.
+- **Shareable BYOD links** — a URL referencing a sample-library source id (e.g. `?sourceB=custom-ign-lidarhd-dtm-wms-raw`) now auto-adds it to a fresh visitor's Bring-Your-Own-Data list instead of showing an empty pane, and the new `?addSources=id1,id2` param prepopulates several terrain/basemap samples at once without selecting any of them.
 
 # Changelog — Historical Fixes, Matcap Rework, Docs Restructure
 <!-- released: 2026-08-20 -->

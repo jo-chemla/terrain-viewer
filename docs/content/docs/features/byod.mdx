@@ -14,6 +14,8 @@ Add your own terrain or basemap source from the "Add New Terrain Dataset" dialog
 
 A heavily-loaded Terrain source list — several custom BYOD sources (national LiDAR DSMs, a Copernicus GLO-30 export) alongside the built-in defaults — comparing two of them side by side is exactly what [Split Modes](/features/split-modes) covers.
 
+**Shareable via URL:** a link whose `sourceA`/`sourceB`/`basemapSource…` params reference a sample-library id (e.g. `?sourceB=custom-ign-lidarhd-dtm-wms-raw`) auto-adds that source to the recipient's BYOD list on load, and `?addSources=id1,id2` prepopulates several samples at once without selecting any of them — handy for handing a colleague both the IGN DSM *and* DTM ready to toggle between.
+
 ## Local (offline) COG terrain sources
 
 Two ways to use a COG that lives on your own disk, without uploading it anywhere:
