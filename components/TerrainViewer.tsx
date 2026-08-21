@@ -1721,6 +1721,44 @@ export function TerrainViewer() {
       setCustomBasemapSources((prev) => [...prev.filter((s) => !ids.has(s.id)), ...projectConfig.customBasemapSources!])
     }
 
+    // Per-view source ids referenced directly by the URL (a shared link like
+    // ?sourceB=custom-ign-lidarhd-dtm-wms-raw) that this browser doesn't
+    // know: built-ins and localStorage custom sources cover the SENDER, but
+    // a fresh visitor opening that link would just get a silently-empty
+    // pane. If the unknown id exists in the sample library, seed it — merge
+    // by id, same semantics as the Load Sample buttons and the project
+    // seeding above. Checked off searchParams (only ids the link explicitly
+    // carries), never the resolved defaults (those are always built-ins).
+    // (Plain arrays + Set — `Map` is shadowed by react-map-gl's component
+    // import in this file.)
+    {
+      const missingTerrainIds = new Set<string>()
+      const missingTerrain: CustomTerrainSource[] = []
+      for (const side of VIEW_IDS) {
+        const value = searchParams.get(`source${side}`)
+        if (!value || missingTerrainIds.has(value)) continue
+        if (value in ((terrainSources as any) ?? {}) || customTerrainSources.some((s) => s.id === value)) continue
+        const sample = SAMPLE_TERRAIN_SOURCES.find((s) => s.id === value)
+        if (sample) { missingTerrainIds.add(sample.id); missingTerrain.push(sample) }
+      }
+      if (missingTerrain.length) {
+        setCustomTerrainSources((prev) => [...prev.filter((s) => !missingTerrainIds.has(s.id)), ...missingTerrain])
+      }
+      // Same for the basemap side of a shared link — identical failure class.
+      const missingBasemapIds = new Set<string>()
+      const missingBasemap: CustomBasemapSource[] = []
+      for (const field of ["basemapSource", ...VIEW_IDS.map((side) => `basemapSource${side}`)]) {
+        const value = searchParams.get(field)
+        if (!value || missingBasemapIds.has(value)) continue
+        if (BUILTIN_BASEMAP_OPTIONS.some((o) => o.value === value) || customBasemapSources.some((s) => s.id === value)) continue
+        const sample = SAMPLE_BASEMAP_SOURCES.find((s) => s.id === value)
+        if (sample) { missingBasemapIds.add(sample.id); missingBasemap.push(sample) }
+      }
+      if (missingBasemap.length) {
+        setCustomBasemapSources((prev) => [...prev.filter((s) => !missingBasemapIds.has(s.id)), ...missingBasemap])
+      }
+    }
+
     if (Object.keys(stateOverrides).length > 0) setState(stateOverrides)
 
     if (projectConfig?.initialSections) {

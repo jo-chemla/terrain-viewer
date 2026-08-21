@@ -4,9 +4,9 @@
   "pages": [
     "index",
     "tech-stack",
+    "equations",
     "non-geo-relief-visualization",
     "---Custom Protocols---",
-    "equations",
     "terrain-analysis-pipeline",
     "lrm",
     "lighting-effects",
