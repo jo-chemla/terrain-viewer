@@ -3532,6 +3532,13 @@ export function TerrainViewer() {
     : state.showCaptureDatePill
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
     if (effectiveCaptureDatePill === "off") return null
+    // The pill describes the BASEMAP source/date — in terrain mode that
+    // layer only renders while the Raster Basemap viz mode is on, so a
+    // pill without it labels imagery that isn't on screen (e.g. a terrain
+    // split comparing two DEMs). Historical mode always shows the basemap
+    // (opacity forced to 100% in the per-view render above), so no gate
+    // there — same reasoning as historicalTimelineActive's.
+    if (!isHistoricalMode && !state.showRasterBasemap) return null
     const resolved = perViewResolved[pane.side]
     if (!resolved || !resolved.basemapSource) return null
     // A non-historical basemap (Mapbox/HERE/Google Sat/OSM/plain Bing) has no
