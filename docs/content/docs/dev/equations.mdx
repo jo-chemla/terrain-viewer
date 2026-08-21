@@ -17,7 +17,15 @@ $$
 h_{\text{mapbox}} = -10000 + (R \cdot 256^2 + G \cdot 256 + B) \cdot 0.1
 $$
 
-**The Horn 3×3 gradient** (`hornGradient()`, ported from GDAL's `GDALSlopeHornAlg`), the shared building block for Slope, Aspect, TRI\*, Curvature, and (per-sub-cell) Blobness. For a 3×3 window $a_0..a_8$ (row-major, $a_4$ = center) with ground resolution $L$ at the tile's center latitude:
+**The Horn 3×3 gradient** (`hornGradient()`, ported from GDAL's `GDALSlopeHornAlg`), the shared building block for Slope, Aspect, TRI\*, Curvature, and (per-sub-cell) Blobness. The window is named $a_0..a_8$ row-major — GDAL's own `afWin[0..8]` convention, kept for line-by-line parity with the ported code — laid out on the tile grid as ($x$ = column = east, $y$ = row = south):
+
+|  | west (col −1) | center col | east (col +1) |
+|---|---|---|---|
+| **north (row −1)** | $a_0$ | $a_1$ | $a_2$ |
+| **center row** | $a_3$ | $a_4$ (center) | $a_5$ |
+| **south (row +1)** | $a_6$ | $a_7$ | $a_8$ |
+
+With ground resolution $L$ at the tile's center latitude:
 
 $$
 \frac{\partial z}{\partial x} = \frac{a_0 + 2a_3 + a_6 - a_2 - 2a_5 - a_8}{8 L \cos(\text{lat})}
