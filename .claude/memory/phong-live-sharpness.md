@@ -55,14 +55,31 @@ user-requested:
   the flat EXTENT/128 apron at edge-clamped elevation slices through the
   neighbor's displaced surface and double-composites → dark streaks along
   every tile seam. Same-zoom neighbors coincide exactly without it.
-- **Phong live = TRUE albedo via blend equations, not sampling**: a custom
-  layer can't join MapLibre's RTT drape pass, so the old translucent
-  overlay washed out the basemap. Instead: pass 0 blendFunc(DST_COLOR,
-  ZERO) multiplies the framebuffer (the draped stack IS the albedo) by the
-  diffuse shade, pass 1 blendFunc(ONE, ONE) adds specular; u_opacity fades
-  pass 0 toward identity. Order-independent, so no depth sort. MUST restore
-  blendFunc(ONE, ONE_MINUS_SRC_ALPHA) in finally. Matcap stays opaque
+- **Phong live = TRUE albedo via an offscreen shade buffer + blend
+  composite** (final form after two failed intermediates): tiles render
+  OPAQUELY into the layer's own FBO (RGBA8 color: RGB = diffuse multiplier
+  clear-colored to 1, A = specular; DEPTH_COMPONENT24 renderbuffer =
+  front-most wins in-house), then two fullscreen attribute-less triangles
+  composite it onto the map: blendFunc(DST_COLOR, ZERO) multiply, then
+  blendFunc(ONE, ONE) specular add. Failed intermediates, do NOT retry:
+  (1) blending tile meshes directly against the main framebuffer — hidden
+  back-side geometry multiplies its shadow through the surface in front;
+  (2) renderingMode "3d" + depth prepass against the SHARED depth buffer —
+  z-fights MapLibre's own terrain mesh (different mesh/matrix precision)
+  into blocky speckle. MUST restore blendFunc(ONE, ONE_MINUS_SRC_ALPHA),
+  the bound FBO (save FRAMEBUFFER_BINDING — maplibre may not render into
+  null), and BLEND/DEPTH_TEST enable-state. Matcap stays opaque
   premultiplied (user explicitly likes it).
+- **hornGradient axis asymmetry (important!)**: dx is (west − east) —
+  NEGATED vs the standard derivative — while dy is (south − north) —
+  standard. So the derived normal's y is geometrically correct but its x
+  points UPHILL. Every consumer is calibrated to this (phong light signs,
+  Absolute matcap, slope/aspect), so never "fix" the kernel; the one place
+  needing geometric truth (matcap Camera mode projecting onto real camera
+  axes) negates n.x locally (nGeo). Symptom that revealed it: matcap
+  under-sphere shadow on up-screen slopes when facing east/west only
+  (screen-up is n.x-dominated there, n.y-dominated facing north/south).
+  The matcap camera basis itself is analytic from bearing/pitch now.
 - **Terrain-aware coveringTiles**: pass `terrain` (the live map.terrain,
   via spread to dodge the excess-property check — it's on
   CoveringTilesOptionsInternal, not the public type) or high-pitch views

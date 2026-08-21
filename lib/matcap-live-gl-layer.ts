@@ -164,10 +164,23 @@ void main() {
     // "Camera": classic view-space matcap — the normal projected onto the
     // camera's live right/up axes. Screen-right-facing slopes sample the
     // material sphere's right, screen-up-facing its top (v flipped: image
-    // v grows downward). Reduces exactly to the Absolute branch at a
-    // top-down, north-up camera (right=east=+x, up=north=-y).
-    uv = vec2(0.5 + 0.5 * dot(rotatedN, u_cameraRight),
-              0.5 - 0.5 * dot(rotatedN, u_cameraUp));
+    // v grows downward).
+    //
+    // nGeo: the shared hornGradient's axes have ASYMMETRIC sign
+    // conventions — dy is (south − north), the standard row-axis
+    // derivative, but dx is (west − east), NEGATED vs standard — so the
+    // normal's y component is geometrically correct while its x component
+    // points uphill instead of out. Every downstream consumer is
+    // calibrated to that flip (phong's empirically-pinned light signs,
+    // the Absolute branch's raster-parity lookup), so it is corrected
+    // HERE, at the one consumer that projects the normal onto real
+    // camera axes — not in the kernel. Symptom fixed: facing east/west,
+    // screen-up is dominated by n.x, and the flipped sign put the clay
+    // matcap's under-sphere shadow on up-screen slopes (correct facing
+    // north/south, where screen axes are driven by the correct n.y).
+    vec3 nGeo = vec3(-rotatedN.x, rotatedN.y, rotatedN.z);
+    uv = vec2(0.5 + 0.5 * dot(nGeo, u_cameraRight),
+              0.5 - 0.5 * dot(nGeo, u_cameraUp));
   } else {
     // "Absolute": tile-space orthographic lookup, byte-identical in
     // convention to gpu-matcap-compute.ts / matcap-protocol.ts — pinned to

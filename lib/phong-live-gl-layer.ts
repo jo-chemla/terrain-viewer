@@ -248,17 +248,25 @@ void main() {
 }
 
 // Same Blinn-Phong LIGHTING math as gpu-phong-compute.ts's fragment shader,
-// with a two-PASS output driven by u_pass instead of that file's two-regime
-// alpha overlay. Why: a custom layer cannot join MapLibre's RTT drape pass
-// (where the raster path's overlay composites correctly) — it draws over
-// the already-draped stack, and the overlay there read as a washed-out/
-// transparent basemap. TRUE albedo compositing needs no basemap sampling
-// though: the framebuffer beneath this layer IS the albedo, so render()
-// draws pass 0 with blendFunc(DST_COLOR, ZERO) (framebuffer × diffuse
-// shade) and pass 1 with blendFunc(ONE, ONE) (+ specular) — exact
-// albedo × (ambient + diffuse) + specular, order-independent. u_opacity
-// fades pass 0 toward the identity multiplier (×1) and scales pass 1, so
-// 0% leaves the map untouched and 100% is full-strength shading.
+// but rendered OPAQUELY into this layer's own offscreen shade buffer (RGB =
+// multiplicative diffuse factor, A = additive specular term), which
+// render() then composites onto the main framebuffer with two fullscreen
+// blend draws: multiply (blendFunc(DST_COLOR, ZERO)) then add
+// (blendFunc(ONE, ONE)) — exact albedo × (ambient + diffuse) + specular,
+// where the albedo is whatever the draped stack (basemap/hypso/background)
+// already rendered beneath this layer's slot. Why this shape:
+// - A custom layer cannot join MapLibre's RTT drape pass (where the raster
+//   path's two-regime alpha overlay composites correctly), so the overlay
+//   encoding read as a washed-out/transparent basemap here.
+// - Blending the tile meshes DIRECTLY against the main framebuffer let
+//   hidden back-side geometry (a ridge's far slope) multiply its shadow
+//   through the surface in front (user-reported); a depth prepass against
+//   MapLibre's shared depth buffer z-fought its terrain mesh into blocky
+//   speckle (different mesh/matrix precision). The offscreen buffer has
+//   its OWN depth attachment, so front-most-wins is resolved entirely
+//   in-house before any compositing touches the map.
+// u_opacity fades the diffuse factor toward the identity multiplier (×1)
+// and scales the specular term, so 0% leaves the map untouched.
 // Shared per-fragment normal derivation, spliced into BOTH this file's and
 // matcap-live-gl-layer.ts's fragment shaders. The previous pipeline baked
 // normals CPU/compute-side into a fixed tileSize² RGBA8 texture — three
@@ -337,7 +345,6 @@ uniform float u_diffuseStrength;
 uniform float u_specularStrength;
 uniform float u_exaggeration;
 uniform float u_opacity;
-uniform int u_pass; // 0 = multiplicative diffuse, 1 = additive specular (see header)
 out vec4 fragColor;
 ${DEM_NORMAL_GLSL}
 
@@ -356,16 +363,35 @@ void main() {
   float specDot = max(dot(n, H), 0.0);
   float specular = u_specularStrength * pow(specDot, SHININESS);
 
-  if (u_pass == 0) {
-    // Multiply blend (DST_COLOR, ZERO): this fragment IS the multiplier
-    // applied to the draped stack beneath (the albedo). Alpha 1 preserves
-    // the destination alpha (dst.a × 1).
-    fragColor = vec4(vec3(mix(1.0, diffuseIntensity, u_opacity)), 1.0);
-  } else {
-    // Additive blend (ONE, ONE): specular brightens past the albedo.
-    // Alpha 0 leaves the destination alpha untouched (dst.a + 0).
-    fragColor = vec4(vec3(specular * u_opacity), 0.0);
-  }
+  // Shade-buffer encoding, consumed by COMPOSITE_FRAG: RGB = the
+  // multiplicative diffuse factor (1.0 = identity — also the buffer's
+  // clear color, so uncovered pixels leave the map untouched), A = the
+  // additive specular term.
+  fragColor = vec4(vec3(mix(1.0, diffuseIntensity, u_opacity)), clamp(specular * u_opacity, 0.0, 1.0));
+}
+`
+
+// Fullscreen composite pair — draws the shade buffer onto the main
+// framebuffer. Single clip-space triangle from gl_VertexID (no vertex
+// buffer, no attributes — the default VAO suffices); texelFetch at
+// gl_FragCoord so no UVs either.
+const COMPOSITE_VERT = `#version 300 es
+void main() {
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}
+`
+const COMPOSITE_FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D u_shade;
+uniform int u_pass; // 0 = multiply (rgb factor), 1 = add (alpha = specular)
+out vec4 fragColor;
+void main() {
+  vec4 s = texelFetch(u_shade, ivec2(gl_FragCoord.xy), 0);
+  // Pass 0 under blendFunc(DST_COLOR, ZERO): src IS the multiplier; alpha
+  // 1 preserves dst alpha. Pass 1 under blendFunc(ONE, ONE): specular
+  // added; alpha 0 leaves dst alpha untouched.
+  fragColor = (u_pass == 0) ? vec4(s.rgb, 1.0) : vec4(vec3(s.a), 0.0);
 }
 `
 
@@ -414,7 +440,6 @@ interface ProgramBundle {
   uSpecularStrength: WebGLUniformLocation | null
   uExaggeration: WebGLUniformLocation | null
   uOpacity: WebGLUniformLocation | null
-  uPass: WebGLUniformLocation | null
   uTerrain: WebGLUniformLocation | null
   uTerrainDim: WebGLUniformLocation | null
   uTerrainMatrix: WebGLUniformLocation | null
@@ -434,11 +459,11 @@ interface TextureEntry {
 export class PhongLiveLayer implements CustomLayerInterface {
   id: string
   type: "custom" = "custom"
-  // "3d" (not "2d") since the hidden-surface fix: render() runs a depth
-  // prepass so occluded back-side terrain can't bleed into the multiply/
-  // specular blend passes, and only "3d" custom layers get the shared
-  // depth buffer.
-  renderingMode: "3d" = "3d"
+  // "2d": hidden-surface resolution happens entirely in this layer's OWN
+  // offscreen shade buffer (which has its own depth attachment) — the
+  // shared map depth buffer is never needed. An interim "3d" + shared-depth
+  // prepass z-fought MapLibre's terrain mesh into blocky speckle.
+  renderingMode: "2d" = "2d"
   options: PhongLiveOptions
 
   private map: MapLibreMap | null = null
@@ -469,6 +494,17 @@ export class PhongLiveLayer implements CustomLayerInterface {
   // non-invertible matrix doesn't snap the light to a garbage direction for
   // one frame; just reuses the previous orientation until the next good one.
   private lastCameraBasis: { right: Vec3; up: Vec3; forward: Vec3 } | null = null
+  // Offscreen shade buffer (color RGBA8 + its own depth renderbuffer) the
+  // tile meshes render into opaquely — see the FRAGMENT_SHADER header.
+  // Recreated whenever the drawing buffer resizes.
+  private shadeFbo: WebGLFramebuffer | null = null
+  private shadeTexture: WebGLTexture | null = null
+  private shadeDepth: WebGLRenderbuffer | null = null
+  private shadeWidth = 0
+  private shadeHeight = 0
+  private compositeProgram: WebGLProgram | null = null
+  private compositeUShade: WebGLUniformLocation | null = null
+  private compositeUPass: WebGLUniformLocation | null = null
 
   constructor(id: string, options: PhongLiveOptions) {
     this.id = id
@@ -541,6 +577,41 @@ export class PhongLiveLayer implements CustomLayerInterface {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+
+    this.compositeProgram = compileProgram(gl, COMPOSITE_VERT, COMPOSITE_FRAG)
+    this.compositeUShade = gl.getUniformLocation(this.compositeProgram, "u_shade")
+    this.compositeUPass = gl.getUniformLocation(this.compositeProgram, "u_pass")
+  }
+
+  /** (Re)creates the offscreen shade buffer at the current drawing-buffer
+   *  size — a no-op while the size is unchanged. Returns false if the
+   *  framebuffer can't be completed (skip drawing that frame). */
+  private ensureShadeFbo(gl: WebGL2RenderingContext): boolean {
+    const w = gl.drawingBufferWidth
+    const h = gl.drawingBufferHeight
+    if (this.shadeFbo && this.shadeWidth === w && this.shadeHeight === h) return true
+    if (this.shadeFbo) gl.deleteFramebuffer(this.shadeFbo)
+    if (this.shadeTexture) gl.deleteTexture(this.shadeTexture)
+    if (this.shadeDepth) gl.deleteRenderbuffer(this.shadeDepth)
+    this.shadeTexture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, this.shadeTexture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    this.shadeDepth = gl.createRenderbuffer()
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this.shadeDepth)
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h)
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null)
+    this.shadeFbo = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadeFbo)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.shadeTexture, 0)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.shadeDepth)
+    const complete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE
+    this.shadeWidth = w
+    this.shadeHeight = h
+    return complete
   }
 
   onRemove(_map: MapLibreMap, gl: WebGL2RenderingContext) {
@@ -552,6 +623,14 @@ export class PhongLiveLayer implements CustomLayerInterface {
     this.programs.clear()
     if (this.flatTerrainTexture) gl.deleteTexture(this.flatTerrainTexture)
     this.flatTerrainTexture = null
+    if (this.shadeFbo) gl.deleteFramebuffer(this.shadeFbo)
+    this.shadeFbo = null
+    if (this.shadeTexture) gl.deleteTexture(this.shadeTexture)
+    this.shadeTexture = null
+    if (this.shadeDepth) gl.deleteRenderbuffer(this.shadeDepth)
+    this.shadeDepth = null
+    if (this.compositeProgram) gl.deleteProgram(this.compositeProgram)
+    this.compositeProgram = null
     if (this.vao) gl.deleteVertexArray(this.vao)
     this.vao = null
     this.gl = null
@@ -580,7 +659,6 @@ export class PhongLiveLayer implements CustomLayerInterface {
       uSpecularStrength: gl.getUniformLocation(program, "u_specularStrength"),
       uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
       uOpacity: gl.getUniformLocation(program, "u_opacity"),
-      uPass: gl.getUniformLocation(program, "u_pass"),
       uTerrain: gl.getUniformLocation(program, "u_terrain"),
       uTerrainDim: gl.getUniformLocation(program, "u_terrain_dim"),
       uTerrainMatrix: gl.getUniformLocation(program, "u_terrain_matrix"),
@@ -844,42 +922,54 @@ export class PhongLiveLayer implements CustomLayerInterface {
         }
       }
 
-      // TRUE albedo compositing via blend equations (no basemap sampling
-      // needed): the framebuffer at this layer's slot already holds the
-      // draped stack — raster basemap, hypso, background — i.e. the albedo.
-      // PASS 0 multiplies it by the diffuse shade (blendFunc(DST_COLOR,
-      // ZERO): result = dst × src), PASS 1 adds the specular highlight on
-      // top (blendFunc(ONE, ONE)). Together: albedo × (ambient + diffuse)
-      // + specular — the exact Blinn-Phong composition the raster path's
-      // two-regime alpha overlay only approximates.
-      //
-      // DEPTH PREPASS first: multiply/add commute between overlapping
-      // VISIBLE fragments, but with no depth test at all, HIDDEN back-side
-      // geometry (a ridge's far slope, terrain behind a peak) blended in
-      // too — its shadow multiplied through the surface in front of it
-      // (user-reported ghost darkening, 2026-08-21). So write this layer's
-      // own mesh depth with colors masked (renderingMode "3d" provides the
-      // shared depth buffer), then draw the color passes with depth-test
-      // LEQUAL and writes off — only the front-most surface of our mesh
-      // contributes. The color passes redraw the IDENTICAL geometry (same
-      // shader, same uniforms), so their depths reproduce the prepass
-      // values exactly and LEQUAL passes precisely on the front surface.
+      // STAGE 1 — render the shade OPAQUELY into this layer's own
+      // offscreen buffer, front-most-wins via its own depth attachment
+      // (see the FRAGMENT_SHADER header for why neither direct blending
+      // nor a shared-depth prepass works). MapLibre may be rendering into
+      // its own framebuffer (not null) — save and restore whatever is
+      // bound.
+      if (!this.ensureShadeFbo(gl)) return
+      const prevFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null
+      const blendWasEnabled = gl.isEnabled(gl.BLEND)
+      const depthWasEnabled = gl.isEnabled(gl.DEPTH_TEST)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadeFbo)
+      gl.viewport(0, 0, this.shadeWidth, this.shadeHeight)
+      gl.disable(gl.BLEND)
       gl.enable(gl.DEPTH_TEST)
       gl.depthFunc(gl.LEQUAL)
       gl.depthMask(true)
-      gl.colorMask(false, false, false, false)
-      gl.uniform1i(bundle.uPass, 0)
+      // Clear to the identity shade (multiplier 1, specular 0) so pixels no
+      // tile covers leave the map untouched in the composite.
+      gl.clearColor(1, 1, 1, 0)
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
       drawTiles()
 
-      gl.colorMask(true, true, true, true)
-      gl.depthMask(false)
+      // STAGE 2 — composite the shade buffer onto the map: multiply
+      // (albedo × diffuse shade), then add (+ specular). The framebuffer
+      // beneath this layer's slot IS the albedo (draped basemap/hypso/
+      // background), so this is exact Blinn-Phong compositing with no
+      // basemap sampling.
+      gl.bindFramebuffer(gl.FRAMEBUFFER, prevFbo)
+      gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
+      gl.disable(gl.DEPTH_TEST)
+      gl.enable(gl.BLEND)
+      gl.useProgram(this.compositeProgram)
+      gl.bindVertexArray(null) // attribute-less fullscreen triangle (gl_VertexID)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, this.shadeTexture)
+      gl.uniform1i(this.compositeUShade, 0)
       gl.blendFunc(gl.DST_COLOR, gl.ZERO)
-      drawTiles()
+      gl.uniform1i(this.compositeUPass, 0)
+      gl.drawArrays(gl.TRIANGLES, 0, 3)
       if (this.options.specularStrength > 0) {
         gl.blendFunc(gl.ONE, gl.ONE)
-        gl.uniform1i(bundle.uPass, 1)
-        drawTiles()
+        gl.uniform1i(this.compositeUPass, 1)
+        gl.drawArrays(gl.TRIANGLES, 0, 3)
       }
+
+      // Restore the enable-state this layer flipped.
+      if (blendWasEnabled) gl.enable(gl.BLEND); else gl.disable(gl.BLEND)
+      if (depthWasEnabled) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST)
 
       this.pruneTextures()
     } catch (err) {
@@ -890,12 +980,11 @@ export class PhongLiveLayer implements CustomLayerInterface {
     } finally {
       gl.bindVertexArray(null)
       gl.useProgram(null)
-      // Restore every piece of GL state this layer changed — the
-      // premultiplied blend MapLibre's own layers (and matcap) expect, plus
-      // the mask/depth state the prepass touched.
+      // Restore the premultiplied blend MapLibre's own layers (and matcap)
+      // expect — the composite passes changed it. (Framebuffer/viewport/
+      // enable-state are restored inline above; on an exception mid-stage
+      // the next MapLibre draw re-binds its own framebuffer regardless.)
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
-      gl.colorMask(true, true, true, true)
-      gl.depthMask(true)
     }
   }
 }
