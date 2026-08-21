@@ -19,11 +19,15 @@ $$
 
 **The Horn 3×3 gradient** (`hornGradient()`, ported from GDAL's `GDALSlopeHornAlg`), the shared building block for Slope, Aspect, TRI\*, Curvature, and (per-sub-cell) Blobness. The window is named $a_0..a_8$ row-major — GDAL's own `afWin[0..8]` convention, kept for line-by-line parity with the ported code — laid out on the tile grid as ($x$ = column = east, $y$ = row = south):
 
-{/* w-fit via arbitrary selectors: the prose default stretches tables to the
-    full text column, which reads badly for a tiny 3×3 legend — keep the
-    cells snug instead. Markdown table (not JSX) so remark-math still
-    renders the $a_i$ cells. */}
-<div className="[&_table]:w-fit [&_th]:px-3 [&_td]:px-3 [&_th]:py-1 [&_td]:py-1 [&_td]:text-center">
+{/* w-fit + mx-auto via arbitrary selectors: the prose default stretches
+    tables to the full text column, which reads badly for a tiny 3×3
+    legend — keep the cells snug and center the whole thing instead.
+    Markdown table (not JSX) so remark-math still renders the $a_i$ cells;
+    title caption above it, same muted-italic convention as the docs'
+    screenshot captions. */}
+<div className="[&_table]:w-fit [&_table]:mx-auto [&_th]:px-3 [&_td]:px-3 [&_th]:py-1 [&_td]:py-1 [&_td]:text-center">
+
+<p className="text-center text-sm text-fd-muted-foreground italic">The Horn 3×3 gradient window — ported from GDAL's <code>GDALSlopeHornAlg</code></p>
 
 |  | west (col −1) | center col | east (col +1) |
 |---|---|---|---|
