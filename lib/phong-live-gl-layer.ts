@@ -497,11 +497,6 @@ export class PhongLiveLayer implements CustomLayerInterface {
   private flatTerrainTexture: WebGLTexture | null = null
   private static readonly FLAT_TERRAIN_MATRIX = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
   private static readonly FLAT_TERRAIN_UNPACK = [0, 0, 0, 0]
-  // Last-known-good camera basis for camera-relative light (see
-  // computeCameraBasis) — kept across frames so a rare degenerate/
-  // non-invertible matrix doesn't snap the light to a garbage direction for
-  // one frame; just reuses the previous orientation until the next good one.
-  private lastCameraBasis: { right: Vec3; up: Vec3; forward: Vec3 } | null = null
   // Offscreen shade buffer (color RGBA8 + its own depth renderbuffer) the
   // tile meshes render into opaquely — see the FRAGMENT_SHADER header.
   // Recreated whenever the drawing buffer resizes.
@@ -827,45 +822,39 @@ export class PhongLiveLayer implements CustomLayerInterface {
 
       let lx = lx0, ly = ly0, lz = lz0
       if (this.options.lightRelativeToCamera) {
-        // Camera-relative ("headlamp"): reinterpret (lightDir, lightAlt) as
-        // an offset from the camera's OWN orientation — not just bearing
-        // (yaw) the way the previous version did, which left the light's
-        // altitude untouched as pitch changed. Uses the same real-camera-
-        // basis technique that fixed Matcap's equivalent bug (see
-        // computeCameraBasis) instead of hand-deriving a pitch/bearing
-        // rotation matrix — right/up/forward are built from real per-tile
-        // projection-matrix data via unprojection, not a separately chosen
-        // sign convention.
-        //
-        // The substitution below (right<->east, up<->-south i.e. north,
-        // forward<->-up i.e. down) is verified to reduce to EXACTLY the old
-        // lx0/ly0/lz0 formula at the reference orientation (bearing=0,
-        // pitch=0, where right=east, up=north, forward=straight down) —
-        // checked against all three axis cases (az=0/el=0, az=0/el=90,
-        // az=90/el=0) by hand before shipping, so this is a verified-
-        // consistent extension of the existing formula, not a fresh guess.
-        if (tileIDs.length > 0) {
-          const p0 = map.transform.getProjectionData({ overscaledTileID: tileIDs[0], applyGlobeMatrix: true })
-          const basis = computeCameraBasis(p0.mainMatrix)
-          if (basis) this.lastCameraBasis = basis
-        }
-        const basis = this.lastCameraBasis
-        if (basis) {
-          lx = lx0 * basis.right[0] - ly0 * basis.up[0] - lz0 * basis.forward[0]
-          ly = lx0 * basis.right[1] - ly0 * basis.up[1] - lz0 * basis.forward[1]
-          lz = lx0 * basis.right[2] - ly0 * basis.up[2] - lz0 * basis.forward[2]
-          const len = Math.hypot(lx, ly, lz) || 1
-          lx /= len; ly /= len; lz /= len
-        } else {
-          // No visible tiles yet this frame (nothing to derive a basis
-          // from) and no previous basis cached — fall back to the old
-          // bearing-only approximation rather than an undefined light.
-          const azDegFallback = this.options.lightDir + map.getBearing()
-          const azRadFallback = (azDegFallback * Math.PI) / 180
-          lx = -Math.sin(azRadFallback) * cosEl
-          ly = -Math.cos(azRadFallback) * cosEl
-          lz = lz0
-        }
+        // Camera-relative ("headlamp"): (lightDir, lightAlt) is an offset
+        // from the camera's own orientation — pad-up = light from straight
+        // ahead, pad-right = from the right, elevation rises toward the
+        // viewer. ANALYTIC camera frame from bearing/pitch — the same
+        // construction that fixed Matcap's east/west mirror (see
+        // matcap-live-gl-layer.ts render()); the previous
+        // computeCameraBasis unprojection had the same bearing-handedness
+        // flaw here (correct facing north/south where sin β = 0, mirrored
+        // facing east/west — user-reported 2026-08-21). Frame derived in
+        // right-handed ENU, converted to tile coords (negate y):
+        //   right   = (cos β, sin β, 0)
+        //   up_s    = (sin β·cos p, −cos β·cos p, sin p)
+        //   viewer  = (−sin β·sin p, cos β·sin p, cos p)   (toward camera)
+        // The TRUE light direction is then flipped in x into the normals'
+        // convention — the shared hornGradient's x axis is negated vs the
+        // standard derivative (see matcap's nGeo comment), and the
+        // absolute-path formula (−sin/−cos) already encodes that same flip.
+        // Reduces exactly to the absolute formula with azimuth = az + β at
+        // pitch 0, so the reference-orientation behavior is unchanged.
+        const bRad = (map.getBearing() * Math.PI) / 180
+        const pRad = (map.getPitch() * Math.PI) / 180
+        const sinB = Math.sin(bRad), cosB = Math.cos(bRad)
+        const sinP = Math.sin(pRad), cosP = Math.cos(pRad)
+        const sinAz = Math.sin(azRad), cosAz = Math.cos(azRad)
+        // True-convention tile-space light: cosEl·(sinAz·right + cosAz·up_s) + sinEl·viewer
+        const tx = cosEl * (sinAz * cosB + cosAz * sinB * cosP) + lz0 * (-sinB * sinP)
+        const ty = cosEl * (sinAz * sinB + cosAz * -cosB * cosP) + lz0 * (cosB * sinP)
+        const tz = cosEl * (cosAz * sinP) + lz0 * cosP
+        lx = -tx // x-flip into the normals' (hornGradient) convention
+        ly = ty
+        lz = tz
+        const len = Math.hypot(lx, ly, lz) || 1
+        lx /= len; ly /= len; lz /= len
       }
 
       gl.useProgram(bundle.program)

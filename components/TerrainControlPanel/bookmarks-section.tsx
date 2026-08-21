@@ -4,7 +4,7 @@ import { useAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
 import {
   Bookmark as BookmarkIcon, Trash2, Pencil, GalleryThumbnails, Upload, Download as DownloadIcon, ImageOff, Plus, ChevronDown,
-  ChevronsDownUp, ChevronsUpDown, Edit, List, LayoutGrid,
+  ChevronsDownUp, ChevronsUpDown, Edit, List, LayoutGrid, Star,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -725,7 +725,9 @@ export const BookmarksSection: React.FC<{
         <Collapsible open={isFeaturedOpen} onOpenChange={setIsFeaturedOpen}>
           <div className="flex items-center justify-between gap-2">
             <CollapsibleTrigger className="flex-1 min-w-0 text-left cursor-pointer">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Featured</span>
+              {/* Outline star (lucide's default stroke-only render) — a
+                  filled one would read as "already favorited". */}
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide"><Star className="h-3 w-3 shrink-0" />Featured</span>
             </CollapsibleTrigger>
             <CollapsibleTrigger className="cursor-pointer">
               <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isFeaturedOpen && "rotate-180")} />

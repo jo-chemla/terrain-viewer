@@ -1,7 +1,7 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom } from "jotai"
-import { Trash2, ImageOff, Pencil, Check, List, LayoutGrid } from "lucide-react"
+import { Trash2, ImageOff, Pencil, Check, List, LayoutGrid, Star } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
@@ -423,7 +423,8 @@ export const BookmarksGalleryModal: React.FC<{
         <div className="space-y-4">
         {showFeatured && (
           <div>
-            <h3 className="mb-1.5 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-1.5 flex items-center gap-1.5 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <Star className="h-3 w-3 shrink-0" />
               Featured
             </h3>
             <div className={itemsContainerCls}>
