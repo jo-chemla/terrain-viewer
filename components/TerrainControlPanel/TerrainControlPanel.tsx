@@ -74,7 +74,9 @@ export const SECTION_KEYS = [
 export type SectionKey = (typeof SECTION_KEYS)[number]
 type SectionOpenState = Record<SectionKey, boolean>
 
-const DEFAULT_OPEN_STATE: SectionOpenState = {
+// Exported for ShareSection's "Copy URL with panel state" — the copied link
+// only carries openSections/closeSections keys that DIFFER from these.
+export const DEFAULT_OPEN_STATE: SectionOpenState = {
   general: true,
   comparisonMix: false,
   visualizationModes: true,

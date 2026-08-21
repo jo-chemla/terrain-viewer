@@ -1,6 +1,9 @@
 import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
-import { Share2, Check, ImageIcon, Loader2, Link, Scissors, AlertCircle } from "lucide-react"
+import { Share2, Check, ImageIcon, Loader2, Link, Scissors, AlertCircle, PanelRight } from "lucide-react"
+import { useAtom } from "jotai"
+// Same import-cycle shape as product-tour.tsx's — established/working here.
+import { sectionOpenAtom, DEFAULT_OPEN_STATE } from "./TerrainControlPanel"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Dialog,
@@ -195,6 +198,64 @@ const CopyUrlButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
         <>
           <Link className="h-3.5 w-3.5 shrink-0" />
           Copy URL to clipboard
+        </>
+      )}
+    </button>
+  )
+}
+
+// ── CopyUrlWithPanelsButton ───────────────────────────────────────────────────
+// Same URL as CopyUrlButton, plus one-shot ?openSections=/&closeSections=
+// params (see TerrainViewer.tsx's embed-config effect) reproducing the
+// CURRENT sidebar fold state on the recipient's side. Only keys that differ
+// from DEFAULT_OPEN_STATE are encoded, keeping the link short — the fold
+// state itself stays jotai atomWithStorage, never nuqs (URL-tracking every
+// panel click would churn history), so this button is the shareable bridge.
+
+const CopyUrlWithPanelsButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
+  const [copied, setCopied] = useState(false)
+  const [sectionOpen] = useAtom(sectionOpenAtom)
+
+  const handleCopy = useCallback(async () => {
+    try {
+      const url = new URL(pageUrl)
+      const open: string[] = []
+      const close: string[] = []
+      for (const [key, defaultOpen] of Object.entries(DEFAULT_OPEN_STATE)) {
+        const current = (sectionOpen as Record<string, boolean>)[key] ?? defaultOpen
+        if (current && !defaultOpen) open.push(key)
+        else if (!current && defaultOpen) close.push(key)
+      }
+      url.searchParams.delete("openSections")
+      url.searchParams.delete("closeSections")
+      if (open.length) url.searchParams.set("openSections", open.join(","))
+      if (close.length) url.searchParams.set("closeSections", close.join(","))
+      await navigator.clipboard.writeText(url.toString())
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard denied
+    }
+  }, [pageUrl, sectionOpen])
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="
+        flex items-center justify-center gap-2 w-full rounded-md px-3 py-2
+        border border-border bg-background hover:bg-muted/40
+        text-xs font-medium transition-colors duration-150 cursor-pointer
+      "
+    >
+      {copied ? (
+        <>
+          <Check className="h-3.5 w-3.5 text-green-400 shrink-0" />
+          <span className="text-green-400">URL copied!</span>
+        </>
+      ) : (
+        <>
+          <PanelRight className="h-3.5 w-3.5 shrink-0" />
+          Copy URL with panel state
         </>
       )}
     </button>
@@ -610,6 +671,7 @@ const ShareModal: React.FC<{
           </button>
 
           <CopyUrlButton pageUrl={activeUrl} />
+          <CopyUrlWithPanelsButton pageUrl={activeUrl} />
         </div>
 
         {/* Text preview */}

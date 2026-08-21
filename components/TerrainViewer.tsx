@@ -205,6 +205,13 @@ export const QUERY_STATE_PARSERS = {
     // mode, instead of re-selecting "Normal" and then the real mode again.
     splitBlendModeEnabled: parseAsBoolean.withDefault(true),
     overlayOpacity: parseAsFloat.withDefault(1.0),
+    // Split gutter position (overlay clip boundary / side-by-side divider)
+    // as a 0-1 ratio of the available width. Shareable/bookmarkable — but
+    // the LIVE value during a drag stays in splitRatioAtom (jotai, also
+    // the cross-session memory); this param seeds the atom once at load
+    // and receives a debounced mirror of it (see the effects below), so
+    // dragging the pill never spams URL/history updates per frame.
+    splitRatio: parseAsFloat.withDefault(0.5),
     // "overlay"-only: "Match Colors (View A as reference)" — live-samples
     // both panes' CURRENTLY RENDERED canvases (whatever tiles are actually
     // loaded in the viewport, re-sampled at most once/second) and recolors
@@ -920,6 +927,27 @@ export function TerrainViewer() {
   // from a previous historical-mode session. Every other split style in
   // historical mode honors the user's chosen gridLayout.
   const isHistoricalMode = state.appMode === "historical"
+  // nuqs ⇄ atom bridge for the split gutter (see the splitRatio parser's
+  // comment): a URL that explicitly carries ?splitRatio seeds the live atom
+  // once at load (an explicit link wins over the localStorage-remembered
+  // position)...
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("splitRatio")) {
+      setSplitRatio(clamp(state.splitRatio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // ...and the atom mirrors back into the URL on a 500ms debounce (same
+  // cadence as commitViewState's camera writes), rounded to 3 decimals so
+  // the param stays readable; the tolerance guard breaks the write-back
+  // loop once URL and atom agree.
+  useEffect(() => {
+    const rounded = Math.round(splitRatio * 1000) / 1000
+    if (Math.abs(rounded - state.splitRatio) < 0.002) return
+    const timer = setTimeout(() => setState({ splitRatio: rounded }), 500)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitRatio, state.splitRatio])
   // Keeps the tab favicon's SHAPE (mountain vs clock) in sync with the live
   // app mode — index.html's own inline script only gets one best-effort
   // guess in before this component ever mounts (stored appMode if any, else
