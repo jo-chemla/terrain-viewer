@@ -96,8 +96,8 @@ export const PRESET_BOOKMARKS: Bookmark[] = [
     ts: 0,
     thumb: "/bookmark-thumbs/iceland-overlay.jpg",
     search: presetSearch({
-      viewMode: "2d", zoom: 6.1, lat: 63.7946, lng: -18.2345, pitch: 50,
-      splitStyle: "overlay", sourceB: "aws", showRasterBasemap: true, basemapSourceA: "bing",
+      viewMode: "2d", zoom: 6.39, lat: 65.0406, lng: -18.5289, pitch: 0,
+      splitStyle: "overlay", showRasterBasemap: true, basemapSourceA: "bing",
       dateA: 1072825200000, tellsBeta: true, tellsFrozen: true,
       overlayOpacity: 0.8834786817944542, rasterBasemapOpacity: 0.8,
     }),
