@@ -4,3 +4,4 @@
 - [Docs screenshots context](screenshots-context.md) — Playwright setup/gotchas for capturing real docs screenshots, URL/lightbox conventions, docs-update branch history
 - [docs-update handoff](handoff-docs-update.md) — current state for a fresh agent picking up the docs-update branch: what's done, deliberately deferred, and the one known-unresolved app bug
 - [Phong/Matcap live-layer sharpness](phong-live-sharpness.md) — why live phong reads softer than native hillshade (baked 8-bit normal grid, not the lighting equation), the tile-churn regression to avoid, and the rework options
+- [Embed bridge](embed-bridge.md) — meta-app iframe→wrapper state sync: 1 Hz postMessage poll, why not history patching or same-origin DNS tricks, origin allowlist
