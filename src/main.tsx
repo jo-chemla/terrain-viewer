@@ -22,6 +22,11 @@ import "./index.css"
 import "./styles/themes/index.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TanStackDevtools } from '@tanstack/react-devtools'
+import { startEmbedBridge } from "@/lib/embed-bridge"
+
+// When iframed by an allowed meta-app wrapper (heritagewatch/anchise/localhost),
+// stream our URL state up to it once a second — see lib/embed-bridge.ts.
+startEmbedBridge()
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
