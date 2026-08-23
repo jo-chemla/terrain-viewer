@@ -26,7 +26,11 @@ export const HistoricalTimelineToggle: React.FC<{ onExpand: () => void; widthPx?
           <Button
             variant="ghost"
             size="icon"
-            className="fixed z-10 left-4 bottom-4 h-10 w-10 cursor-pointer rounded-md border bg-background shadow-lg hover:bg-accent"
+            // absolute (inside TerrainViewer's fixed inset-0 root), not
+            // fixed — same single-bottom-edge reasoning as the timeline
+            // panel/minimap: every bottom overlay anchors to the app
+            // surface, so they can never drift apart on mobile.
+            className="absolute z-10 left-4 bottom-4 h-10 w-10 cursor-pointer rounded-md border bg-background shadow-lg hover:bg-accent"
             style={widthPx ? { width: widthPx } : undefined}
             onClick={onExpand}
           >

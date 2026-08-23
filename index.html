@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: lets the app surface extend into the notch/home-
+         indicator areas on iOS, which is what makes env(safe-area-inset-*)
+         report real values (the historical timeline panel pads its bottom by
+         env(safe-area-inset-bottom) when docked full-bleed on mobile). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Terrain Viewer</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Purple favicon everywhere except the real production domains (any local

@@ -442,25 +442,6 @@ export function TerrainControlPanel({
     document.documentElement.classList.toggle("dark", theme === "dark")
   }, [theme])
 
-  // Handle dynamic viewport height for mobile browsers
-  useEffect(() => {
-    if (!isMobile) return
-
-    const setVH = () => {
-      const vh = window.innerHeight * 0.01
-      document.documentElement.style.setProperty('--vh', `${vh}px`)
-    }
-
-    setVH()
-    window.addEventListener('resize', setVH)
-    window.addEventListener('orientationchange', setVH)
-
-    return () => {
-      window.removeEventListener('resize', setVH)
-      window.removeEventListener('orientationchange', setVH)
-    }
-  }, [isMobile])
-
   if (!isSidebarOpen) {
     return (
       <>
@@ -522,7 +503,6 @@ export function TerrainControlPanel({
             : "bg-background/95",
           "transition-[background-color] duration-150"
         )}
-        style={{ height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined }}
       >
         <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b">
           <Tooltip>

@@ -206,6 +206,9 @@ importers:
       '@types/file-saver':
         specifier: 2.0.5
         version: 2.0.5
+      '@types/geojson':
+        specifier: ^7946.0.16
+        version: 7946.0.16
       '@types/node':
         specifier: ^22
         version: 22.20.1
