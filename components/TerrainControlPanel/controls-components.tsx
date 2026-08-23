@@ -4,6 +4,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pi
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
+import type { Slider as SliderPrimitive } from "@base-ui/react/slider"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -82,9 +83,14 @@ export function SegmentedToggle<T extends string>({
 
 // ─── MobileSlider ─────────────────────────────────────────────────────────────
 
-export const MobileSlider = forwardRef<
-  React.ElementRef<typeof Slider>,
-  React.ComponentPropsWithoutRef<typeof Slider> & { sliderId?: string }
+// forwardRef can't carry a generic type parameter through, so the component is
+// implemented against the widest props and re-exported below under a generic
+// signature (same trick as Base UI's own SliderRoot declaration) — that's what
+// lets `value={[min, max]}` call sites get an array-typed onValueChange
+// instead of the raw `number | readonly number[]` union.
+const MobileSliderInner = forwardRef<
+  HTMLDivElement,
+  SliderPrimitive.Root.Props & { sliderId?: string }
 >(({ sliderId, className, onPointerDown, onPointerUp, onPointerCancel, ...props }, ref) => {
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
   
@@ -119,7 +125,11 @@ export const MobileSlider = forwardRef<
     />
   )
 })
-MobileSlider.displayName = "MobileSlider"
+MobileSliderInner.displayName = "MobileSlider"
+
+export const MobileSlider = MobileSliderInner as <Value extends number | readonly number[] = number | readonly number[]>(
+  props: SliderPrimitive.Root.Props<Value> & { sliderId?: string; ref?: React.Ref<HTMLDivElement> },
+) => React.ReactElement
 
 // ─── PasswordInput ────────────────────────────────────────────────────────────
 

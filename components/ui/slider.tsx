@@ -5,14 +5,20 @@ import { Slider as SliderPrimitive } from '@base-ui/react/slider'
 
 import { cn } from '@/lib/utils'
 
-function Slider({
+// Generic over the value shape, mirroring Base UI's own SliderRoot<Value> —
+// the original non-generic `SliderPrimitive.Root.Props` erased that parameter
+// to the `number | readonly number[]` union, which is why every range call
+// site failed to destructure `([min, max]) => ...` under tsc and every
+// single-value site needed a `v as number` cast. With the generic preserved,
+// `value={[a, b]}` infers an array-typed onValueChange automatically.
+function Slider<Value extends number | readonly number[]>({
   className,
   defaultValue,
   value,
   min = 0,
   max = 100,
   ...props
-}: SliderPrimitive.Root.Props) {
+}: SliderPrimitive.Root.Props<Value>) {
   // The official pattern's `_values` fallback only accounts for array vs.
   // "nothing passed" — it renders 2 <Thumb>s (`[min, max]`) whenever `value`/
   // `defaultValue` isn't an array, even for a genuine single-thumb slider
