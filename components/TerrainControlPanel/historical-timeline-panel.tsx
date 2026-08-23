@@ -1243,16 +1243,33 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       ref={setPanelRef}
       id="tour-historical-timeline"
       className={cn(
-        "fixed z-10 backdrop-blur-[2px] border border-border bg-background/95 shadow-sm transition-[background-color,right] duration-150",
-        "bottom-0 left-0 right-0 rounded-none",
-        "sm:bottom-4 sm:left-4 sm:right-[var(--timeline-right-offset)] sm:rounded-xl",
+        // `absolute` (inside TerrainViewer's fixed inset-0 root), not
+        // `fixed` — so this panel's bottom edge is by construction the SAME
+        // edge the map panes (and their in-pane scalebar/attribution) end at.
+        // As a viewport-fixed element it anchored to the layout viewport
+        // instead, which on mobile could disagree with the app surface's own
+        // bottom whenever browser chrome animated — the panel then stuck out
+        // past the app/screen bottom and never quite lined up with the
+        // minimap/scale clearances measured in the other frame.
+        "absolute z-10 backdrop-blur-[2px] border border-border bg-background/95 shadow-sm transition-[background-color,right] duration-150",
+        // Mobile: docked full-bleed. max-h + scroll is a backstop so the
+        // panel can never swallow the whole screen (landscape phones); the
+        // safe-area padding keeps the caption/year rows above the iPhone
+        // home indicator (needs viewport-fit=cover, set in index.html).
+        "bottom-0 left-0 right-0 rounded-none max-h-[65dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]",
+        "sm:bottom-4 sm:left-4 sm:right-[var(--timeline-right-offset)] sm:rounded-xl sm:max-h-none sm:overflow-visible sm:pb-0",
       )}
       style={{ ["--timeline-right-offset" as any]: isSidebarOpen && !isMobile ? "26rem" : "1rem" }}
     >
       {controlsExpanded ? (
         <div className="flex items-center justify-between px-4 pt-3 pb-3 border-b gap-3">
-          <h2 className="text-sm font-semibold shrink-0">Historical Timeline</h2>
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {/* Hidden on mobile — with the title and wrap-mode pills both
+              present, a phone-width header wrapped the pill row into 6+
+              stacked lines and the panel ballooned to half the screen (the
+              reported mobile overflow). Mobile keeps every pill reachable in
+              a single horizontally-scrollable line instead. */}
+          <h2 className="hidden sm:block text-sm font-semibold shrink-0">Historical Timeline</h2>
+          <div className="flex items-center gap-1.5 min-w-0 flex-nowrap overflow-x-auto justify-start sm:flex-wrap sm:overflow-x-visible sm:justify-end">
             {visibleSourceIds.map((id) => {
               const active = timelineSourcesForPills.includes(id)
               const cfg = SOURCE_CONFIG[id]
@@ -1264,7 +1281,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                         type="button"
                         onClick={() => toggleSource(id)}
                         className={cn(
-                          "cursor-pointer flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                          // shrink-0 + whitespace-nowrap: in the mobile
+                          // nowrap/scroll pill row, flex would otherwise
+                          // crush each pill and wrap its label text.
+                          // Larger padding/text below sm: — these are the
+                          // primary touch targets on a phone, and the
+                          // desktop 11px/py-0.5 size is too small a hit
+                          // area for fingers.
+                          "cursor-pointer flex items-center gap-1 shrink-0 whitespace-nowrap rounded-full border transition-colors font-medium",
+                          "px-3 py-1.5 text-xs sm:px-2.5 sm:py-0.5 sm:text-[11px]",
                           // Active pills keep their original dark-slate text at
                           // rest (readable against the pastel background) —
                           // only switching to text-primary-foreground on hover,
@@ -1294,7 +1319,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 </Tooltip>
               )
             })}
-            <div className="w-px self-stretch bg-border mx-0.5" />
+            <div className="w-px shrink-0 self-stretch bg-border mx-0.5" />
             {RESOLUTION_CLASSES.map(({ id, label }) => {
               const active = resolutionClasses.includes(id)
               return (
@@ -1305,8 +1330,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                   className={cn(
                     // rounded-full to match the source pills immediately to
                     // its left (px-2 not px-2.5 — no colored dot/loader to
-                    // balance, so it reads fine slightly narrower).
-                    "cursor-pointer rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                    // balance, so it reads fine slightly narrower). Same
+                    // mobile touch-target upsizing as the source pills.
+                    "cursor-pointer shrink-0 whitespace-nowrap rounded-full border transition-colors font-medium",
+                    "px-2.5 py-1.5 text-xs sm:px-2 sm:py-0.5 sm:text-[11px]",
                     active ? "bg-accent text-accent-foreground border-border" : "text-muted-foreground border-border/60 hover:bg-accent",
                   )}
                 >

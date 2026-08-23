@@ -86,7 +86,11 @@ export const TriFields: React.FC<{
             max={250}
             step={1}
             value={[state.triMin ?? rampBounds.min, state.triMax ?? rampBounds.max]}
-            onValueChange={([min, max]) => setState({ triMin: Math.min(min, max), triMax: Math.max(min, max) })}
+            // Base UI's onValueChange hands over `number | readonly number[]`
+            // (single-thumb vs range union) — cast like every other
+            // MobileSlider call site (controls-components.tsx) rather than
+            // destructuring the union directly, which tsc rejects.
+            onValueChange={(value) => { const [min, max] = value as number[]; setState({ triMin: Math.min(min, max), triMax: Math.max(min, max) }) }}
             className="w-full cursor-pointer"
           />
         </div>

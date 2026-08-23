@@ -1871,25 +1871,6 @@ export function TerrainViewer() {
     }
   }, [mapLoaded.A])
 
-  // Handle dynamic viewport height for mobile browsers
-  useEffect(() => {
-    if (!isMobile) return
-
-    const setVH = () => {
-      const vh = window.innerHeight * 0.01
-      document.documentElement.style.setProperty('--vh', `${vh}px`)
-    }
-
-    setVH()
-    window.addEventListener('resize', setVH)
-    window.addEventListener('orientationchange', setVH)
-
-    return () => {
-      window.removeEventListener('resize', setVH)
-      window.removeEventListener('orientationchange', setVH)
-    }
-  }, [isMobile])
-
   // A terrain-aware MapLibre camera has a SIXTH parameter beyond
   // center/zoom/bearing/pitch/roll: `transform.elevation`, the altitude of the
   // point the camera is looking at (public readers: Map#getCameraTargetElevation,
@@ -3308,7 +3289,7 @@ export function TerrainViewer() {
           {isPrimary && (
             <TellsInspectPopup
               mapRef={mapRefs.A as any}
-              active={mapLoaded.A && state.tellsBeta}
+              active={!!(mapLoaded.A && state.tellsBeta)}
             />
           )}
           <MatcapRasterLayer
@@ -3697,12 +3678,19 @@ export function TerrainViewer() {
     // `fixed` removes this div from document flow entirely, so it can never
     // contribute to body's own scroll size no matter how its height is
     // computed.
-    <div
-      className={cn("fixed left-0 right-0 top-0 overflow-hidden", !isMobile && "bottom-0")}
-      style={{
-        height: isMobile ? 'calc(var(--vh, 1vh) * 100)' : undefined
-      }}
-    >
+    //
+    // `inset-0` on EVERY platform (mobile included) — this div is the single
+    // "bottom edge" reference for the whole app. The old mobile branch sized
+    // it to `--vh * 100` (a JS copy of window.innerHeight) while the timeline
+    // panel/minimap stayed `fixed bottom-0` against the layout viewport —
+    // two different bottoms that drift apart whenever mobile browser chrome
+    // animates or the resize event lags, which is what made panel/minimap/
+    // scalebar alignment unreliable on phones. `bottom: 0` on a fixed element
+    // already tracks the browser's dynamic toolbars natively (same edge the
+    // overlays used), so anchoring the root to it too — and hanging every
+    // bottom overlay off this root with `absolute` — keeps them all glued to
+    // one shared edge with no JS resize plumbing at all.
+    <div className="fixed inset-0 overflow-hidden">
       <div ref={splitContainerRef} className="absolute inset-0">
         {paneLayouts.map((pane) => {
           const isBlendedOverlayPane = isOverlaySplit && pane.side === "B"
@@ -3892,13 +3880,17 @@ export function TerrainViewer() {
         />
       ))}
       {/* A plain floating div (not a per-map maplibre IControl) — positioned
-          relative to the whole viewport via the SAME minimapBottomOffset
-          already used for the old in-map-corner version, so it correctly
-          clears the historical timeline panel's own height regardless of
-          grid shape, instead of always sitting at view A's own bottom-left
-          (the row 0/row 1 seam in a 2-row grid, nowhere near the timeline). */}
+          via the SAME minimapBottomOffset already used for the old
+          in-map-corner version, so it correctly clears the historical
+          timeline panel's own height regardless of grid shape, instead of
+          always sitting at view A's own bottom-left (the row 0/row 1 seam in
+          a 2-row grid, nowhere near the timeline). `absolute` (against the
+          root app surface), not `fixed` (against the layout viewport) — so
+          its bottom edge is the exact same edge the panes/scalebar and the
+          timeline panel anchor to, which is what keeps all three aligned on
+          mobile where the two frames can differ. */}
       {!activeProjectConfig?.hideMapControls?.includes("minimap") && (
-        <div className="fixed z-10" style={{ bottom: minimapBottomOffset, left: `${MAP_CTRL_EDGE_MARGIN_PX}px` }}>
+        <div className="absolute z-10" style={{ bottom: minimapBottomOffset, left: `${MAP_CTRL_EDGE_MARGIN_PX}px` }}>
           <MinimapInternal
             parentMap={mapRefs.A.current?.getMap()}
             position="bottom-left"
