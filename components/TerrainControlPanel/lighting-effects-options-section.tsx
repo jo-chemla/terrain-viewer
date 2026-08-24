@@ -6,11 +6,11 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Section, CheckboxWithSlider, SliderControl, SegmentedToggle } from "./controls-components"
+import { Section, CheckboxWithSlider, SliderControl, SegmentedToggle, AdvancedModeToggle } from "./controls-components"
 import { LightDirectionControl } from "./light-direction-control"
 import { useDebouncedState } from "./use-debounced-state"
 import { cn } from "@/lib/utils"
-import { activeSliderAtom } from "@/lib/settings-atoms"
+import { activeSliderAtom, activeProjectConfigAtom, lightingEffectsAdvancedAtom } from "@/lib/settings-atoms"
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
 
 // Common width for the Phong toggle groups (see SegmentedToggle in
@@ -44,6 +44,14 @@ export const LightingEffectsOptionsSection: React.FC<{
   isOpen,
   onOpenChange,
 }) => {
+  const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
+  // Opaque hiddenSections identifier, same pattern as splitScreen/sourceInfo —
+  // drops the whole Shadows sub-mode (checkbox + detail fields) for embeds.
+  const hideShadows = activeProjectConfig?.hiddenSections?.includes("shadows") ?? false
+  // Same Basic/Advanced fold as Terrain Analysis / Relief Visualization
+  // (AdvancedModeToggle in the header): Basic collapses each sub-mode
+  // (Phong/Matcap/Shadows) to just its checkbox + opacity row.
+  const [advanced, setAdvanced] = useAtom(lightingEffectsAdvancedAtom)
   const [isLightDirOpen, setIsLightDirOpen] = useState(true)
   const [isIntensitiesOpen, setIsIntensitiesOpen] = useState(true)
   // Shadows' own copy of the Light Direction fold — the pad edits the SAME
@@ -97,7 +105,7 @@ export const LightingEffectsOptionsSection: React.FC<{
   if (!state.showLightingEffects) return null
 
   return (
-    <Section id="tour-lighting-effects-section" title="Lighting Effects" isOpen={isOpen} onOpenChange={onOpenChange} pulseKey="showLightingEffects">
+    <Section id="tour-lighting-effects-section" title="Lighting Effects" isOpen={isOpen} onOpenChange={onOpenChange} pulseKey="showLightingEffects" headerExtra={<AdvancedModeToggle advanced={advanced} onToggle={() => setAdvanced(!advanced)} />}>
       <div className="space-y-4">
         {/* ─── Phong sub-mode ─── */}
         <div className="space-y-2">
@@ -110,7 +118,7 @@ export const LightingEffectsOptionsSection: React.FC<{
             sliderValue={state.phongOpacity}
             onSliderChange={(value) => setState({ phongOpacity: value })}
           />
-          {state.showPhong && (
+          {state.showPhong && advanced && (
             <div className="space-y-3 pl-1">
               <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
                 <Label className="text-sm font-medium">Renderer</Label>
@@ -192,7 +200,7 @@ export const LightingEffectsOptionsSection: React.FC<{
             sliderValue={state.matcapOpacity}
             onSliderChange={(value) => setState({ matcapOpacity: value })}
           />
-          {state.showMatcap && (
+          {state.showMatcap && advanced && (
             <div className="space-y-3 pl-1">
               <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
                 <Label className="text-sm font-medium">Renderer</Label>
@@ -285,6 +293,7 @@ export const LightingEffectsOptionsSection: React.FC<{
         </div>
 
         {/* ─── Shadows sub-mode ─── */}
+        {!hideShadows && (
         <div className="space-y-2">
           <CheckboxWithSlider
             id="lighting-shadows"
@@ -302,7 +311,7 @@ export const LightingEffectsOptionsSection: React.FC<{
             sliderValue={state.shadowOpacity}
             onSliderChange={(value) => setState({ shadowOpacity: value })}
           />
-          {state.showShadows && (
+          {state.showShadows && advanced && (
             <div className="space-y-3 pl-1">
               <SliderControl
                 label="Search Radius (px)"
@@ -331,6 +340,7 @@ export const LightingEffectsOptionsSection: React.FC<{
             </div>
           )}
         </div>
+        )}
       </div>
     </Section>
   )
