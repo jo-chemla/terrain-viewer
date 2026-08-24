@@ -282,10 +282,10 @@ export const GroupHeading: React.FC<{ children: React.ReactNode; className?: str
 
 // ─── AdvancedModeToggle ────────────────────────────────────────────────────────
 //
-// Basic/Advanced switch for a Terrain Analysis / Relief Visualization section
-// (one atom per section — see terrainAnalysisAdvancedAtom/
-// reliefVisualizationAdvancedAtom in settings-atoms.ts, folding one doesn't
-// affect the other): Basic collapses every sub-mode to just its
+// Basic/Advanced switch for a Terrain Analysis / Relief Visualization /
+// Lighting Effects section (one atom per section — see
+// terrainAnalysisAdvancedAtom & friends in settings-atoms.ts, folding one
+// doesn't affect the others): Basic collapses every sub-mode to just its
 // checkbox/title/opacity slider, same as the everything-off look; Advanced
 // (default) shows each sub-mode's full options block (color ramp, range
 // sliders, etc.) as before. Deliberately does NOT swap between two different

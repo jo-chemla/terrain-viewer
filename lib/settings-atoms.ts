@@ -77,6 +77,7 @@ export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
 // doesn't affect the other.
 export const terrainAnalysisAdvancedAtom = atomWithStorage("terrainAnalysisAdvanced", true)
 export const reliefVisualizationAdvancedAtom = atomWithStorage("reliefVisualizationAdvanced", true)
+export const lightingEffectsAdvancedAtom = atomWithStorage("lightingEffectsAdvanced", true)
 
 // Guided product tour (components/TerrainControlPanel/product-tour.tsx).
 // hasSeenTourAtom gates the one-time auto-start; isTourOpenAtom is the
