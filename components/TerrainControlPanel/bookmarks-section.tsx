@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Toggle } from "@/components/ui/toggle"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
+import { track } from "@/lib/analytics"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, TooltipButton, TooltipIconButton } from "./controls-components"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -426,6 +427,7 @@ export const BookmarksSection: React.FC<{
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleRestorePreset = useCallback((preset: Bookmark) => {
+    track("tools-bookmarks", { action: "restore-preset", preset: preset.name })
     restorePreset(preset, setState, mapRef)
     setActiveBookmarkId(null)
     setActiveProjectId(null)
@@ -550,6 +552,7 @@ export const BookmarksSection: React.FC<{
 
   const saveBookmark = useCallback(async (parentId?: string) => {
     setIsSaving(true)
+    track("tools-bookmarks", { action: "save", child: !!parentId })
     try {
       const thumb = await captureBookmarkThumbnail(mapRef)
       // Full nuqs state lives entirely in the query string already (every
@@ -615,10 +618,12 @@ export const BookmarksSection: React.FC<{
     // that first child IS "the project's view" as far as the list shows it.
     // Falls back to the project itself if it has no children.
     const target = !b.parentId ? (childrenOf(b.id)[0] ?? b) : b
+    track("tools-bookmarks", { action: "restore" })
     restoreBookmark(target, setState, activeProjectId, setActiveProjectId, setActiveBookmarkId, mapRef)
   }, [setState, activeProjectId, setActiveProjectId, setActiveBookmarkId, mapRef, childrenOf])
 
   const handleExport = useCallback(() => {
+    track("tools-bookmarks", { action: "export", count: bookmarks.length })
     const blob = new Blob([exportBookmarksJson(bookmarks)], { type: "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -633,6 +638,7 @@ export const BookmarksSection: React.FC<{
       try {
         const imported = JSON.parse(text)
         if (!Array.isArray(imported)) return
+        track("tools-bookmarks", { action: "import", count: imported.length })
         setBookmarks((prev) => mergeImportedBookmarks(prev, imported as Bookmark[]))
       } catch (e) {
         console.error("Failed to import bookmarks:", e)
