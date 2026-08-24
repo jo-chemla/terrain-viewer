@@ -5,6 +5,8 @@ description: How the gehist:// protocol reverse-engineers Google Earth's histori
 
 "Google Earth Historical" is one of four providers behind [Historical Imagery mode](/features/basemaps-and-historical) — the one that reaches occasional very old outlier captures for well-covered areas, via a reverse-engineered protocol scaffolded from [Iconem's own GE_TimeMachine](https://github.com/Iconem/GE_TimeMachine). This page has two parts: the protocol itself (how Google's undocumented "Time Machine" data format actually works — universal, not app-specific) and how this app wires it in (which is app-specific and diverges from GE_TimeMachine's own standalone-demo instructions).
 
+There is no official API for this data today, but that may change: [Google's issue tracker](https://issuetracker.google.com/issues/35826354) shows they are tracking interest in official Historical Imagery API access, and activity there suggests work is being done toward offering it. In the meantime, this implementation mocks up a Google Earth Enterprise client to make the imagery viewable.
+
 ## Built on
 
 Reading Time Machine end-to-end means walking an undocumented, encrypted, protobuf quadtree protocol. GE_TimeMachine builds on several open-source projects, reusing their logic and reverse-engineering directly wherever the work is substantial:
