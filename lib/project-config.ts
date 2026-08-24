@@ -45,7 +45,13 @@ export interface ProjectConfig {
    *  SectionKey (e.g. "contour", "background", "drawing", ...). Distinct from
    *  hideSourcePanels (which only covers terrainSource/rasterBasemap): for "contour"
    *  specifically, this also hides the "Contours + GeoGrid" checkbox row in
-   *  VisualizationModesSection, since that's the same feature exposed twice. */
+   *  VisualizationModesSection, since that's the same feature exposed twice.
+   *  Some keys are finer-grained than a whole section: "projectImportExport" and
+   *  "openIn" hide those two individual General Settings rows, "hillshadeAdvanced"
+   *  the advanced half of Hillshade Options, "sourceInfo"/"sunShadowCalculator"
+   *  their Tools-group panels, "lightDatetimeMode" the Free/Datetime selector on
+   *  every light-direction pad (pinning the light to Free), and "shadows" the
+   *  Shadows sub-mode inside Lighting Effects. */
   hiddenSections?: string[]
   /** Custom terrain/basemap sources this project depends on (e.g. referenced by id
    *  in initialState.sourceA/basemapSource) — merged by id into the visitor's

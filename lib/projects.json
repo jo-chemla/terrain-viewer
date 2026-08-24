@@ -39,9 +39,9 @@
   "dura": {
     "id": "dura",
     "name": "Dura Frescoes Viewer",
-    "description": "Dura Europos Synagogue COG terrain + basemap (W-0.5mm), fixed 2D view over the site, hillshade on (hypsometric tint off), raster basemap at 20% opacity, contours/Terrain-Analysis/Relief-Visualization/split-screen/elevation-picker off and hidden, 2D/3D view modes only (no globe), sidebar closed by default, source pickers hidden, Visualization Modes and Hillshade Options sections open, map controls disabled.",
+    "description": "Dura Europos Synagogue COG terrain + basemap (W-0.5mm), fixed 2D view over the site, hillshade on (hypsometric tint off), raster basemap at 20% opacity, contours/Terrain-Analysis/Relief-Visualization/split-screen/elevation-picker off and hidden, 2D/3D view modes only (no globe), sidebar closed by default, source pickers hidden, Visualization Modes and Hillshade Options sections open, map controls disabled, Bookmarks/Source-Info/Sun-Shadow-Calculator sections and the General Settings Project + Open-in controls hidden, light pinned to Free mode (no Free/Datetime selector), Shadows sub-mode off and hidden.",
     "hideSourcePanels": true,
-    "hiddenSections": ["contour", "terrainAnalysis", "reliefVisualization", "splitScreen", "elevationPicker", "hillshadeAdvanced"],
+    "hiddenSections": ["contour", "terrainAnalysis", "reliefVisualization", "splitScreen", "elevationPicker", "hillshadeAdvanced", "bookmarks", "sourceInfo", "sunShadowCalculator", "projectImportExport", "openIn", "lightDatetimeMode", "shadows"],
     "disableViewModes": ["globe"],
     "hideMapControls": ["geocoder", "zoom", "geolocate", "minimap", "scale"],
     "initialState": {
@@ -54,6 +54,7 @@
       "showReliefVisualization": false,
       "showHillshade": true,
       "showColorRelief": false,
+      "showShadows": false,
       "showRasterBasemap": true,
       "rasterBasemapOpacity": 0.2,
       "viewMode": "2d",
