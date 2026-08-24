@@ -1341,6 +1341,9 @@ export function TerrainViewer() {
   // stream. A ref snapshot fires events only on real transitions and skips the
   // initial mount, so defaults / URL-restored state aren't miscounted as usage.
   const analyticsPrev = useRef<Record<string, unknown> | null>(null)
+  // One error-map-source event per (view, source) per session — tile errors
+  // repeat per tile and would otherwise flood the event stream.
+  const trackedSourceErrors = useRef(new Set<string>())
   useEffect(() => {
     // Master viz-mode toggles (the "Visualization Modes" checkboxes) vs the
     // sub-modes housed inside them — tracked as separate event names so the
@@ -1361,6 +1364,7 @@ export function TerrainViewer() {
     const snapshot: Record<string, unknown> = {
       viewMode: state.viewMode, phongRenderer: state.phongRenderer, matcapRenderer: state.matcapRenderer,
       sourceA: state.sourceA, basemap: activeBasemap, splitStyle: state.splitStyle, gridLayout: state.gridLayout,
+      appMode: state.appMode, splitBlendMode: state.splitBlendMode, splitBlendModeEnabled: state.splitBlendModeEnabled,
       // A few discrete sub-mode settings worth knowing which values people pick
       // (not every slider — just the categorical choices; color ramps aren't
       // tracked, just the algorithm/mode selections).
@@ -1386,6 +1390,13 @@ export function TerrainViewer() {
       if (state.phongRenderer !== prev.phongRenderer) track("options-light-phong", { renderer: state.phongRenderer })
       if (state.matcapRenderer !== prev.matcapRenderer) track("options-light-matcap", { renderer: state.matcapRenderer })
       if (state.splitStyle !== prev.splitStyle) track("tools-split-screen", { style: state.splitStyle })
+      // "load" (one-per-visit resolution, embed-config effect below) vs
+      // "switch" (explicit Mode Picker change) share one event name so the
+      // dashboard shows both the landing distribution and the churn.
+      if (state.appMode !== prev.appMode) track("app-mode", { mode: state.appMode, trigger: "switch" })
+      if (state.gridLayout !== prev.gridLayout) track("tools-split-layout", { layout: state.gridLayout })
+      if (state.splitBlendMode !== prev.splitBlendMode || state.splitBlendModeEnabled !== prev.splitBlendModeEnabled)
+        track("tools-split-blend", { mode: state.splitBlendMode, enabled: state.splitBlendModeEnabled })
       if (state.sourceA !== prev.sourceA) {
         const custom = customTerrainSources.find((s) => s.id === state.sourceA)
         track("source-terrain", { source: state.sourceA, custom: !!custom })
@@ -1613,6 +1624,11 @@ export function TerrainViewer() {
     // visitor who explicitly parked this origin in terrain mode (via
     // `?appMode=terrain`) still doesn't get yanked into a historical camera.
     const effectiveAppMode = (stateOverrides.appMode as AppMode | undefined) ?? state.appMode
+    // One-per-visit load signals (the diff effect above deliberately skips
+    // the initial mount): which app mode this visit resolved to, and which
+    // project preset (if any) it landed on.
+    track("app-mode", { mode: effectiveAppMode, trigger: "load" })
+    if (projectConfig) track("app-project", { id: projectConfig.id })
     if (effectiveAppMode === "historical" && isHistoricalHostname(window.location.hostname)) {
       const HISTORICAL_HOSTNAME_DEFAULTS: Record<string, unknown> = {
         viewMode: "2d",
@@ -2820,6 +2836,19 @@ export function TerrainViewer() {
             // while the map is settled instead of being wiped every frame.
             mapInstance.on('movestart', () => resetSlowTileProgress())
             mapInstance.on('zoomstart', () => resetSlowTileProgress())
+
+            // Source/tile load failures, deduped per (view, source) via
+            // trackedSourceErrors — only events carrying a sourceId (a
+            // failing source/tile, e.g. a CORS-blocked or 404ing BYOD COG),
+            // not MapLibre's generic error chatter.
+            mapInstance.on('error', (e) => {
+              const sourceId = (e as { sourceId?: string }).sourceId
+              if (!sourceId) return
+              const key = `${side}:${sourceId}`
+              if (trackedSourceErrors.current.has(key)) return
+              trackedSourceErrors.current.add(key)
+              track("error-map-source", { source: sourceId, message: String(e?.error?.message ?? "").slice(0, 120) })
+            })
 
             // Once terrain is on, several routine operations leave the
             // camera-target elevation stale — DEM tiles arriving AFTER

@@ -5,6 +5,7 @@ import { atomWithStorage } from "jotai/utils"
 import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { cn } from "@/lib/utils"
+import { track } from "@/lib/analytics"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { OpenInLinksButton } from "./open-in-links"
 import { useWaybackItemsWithLocalChanges, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
@@ -483,6 +484,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const set = new Set(timelineSourcesForPills)
     if (set.has(id)) set.delete(id)
     else set.add(id)
+    track("historical-sources", { source: id, enabled: set.has(id) })
     // Never allow zero sources selected — collapsing to none would make the
     // timeline unusable with no way back in through the UI.
     setState({ [pillsField]: set.size ? Array.from(set) : [id] })
@@ -505,6 +507,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const set = new Set(resolutionClasses)
     if (set.has(id)) set.delete(id)
     else set.add(id)
+    track("historical-resolution", { class: id, enabled: set.has(id) })
     // Same "never allow zero" rule as toggleSource above.
     setState({ resolutionClasses: set.size ? Array.from(set) : [id] })
   }, [resolutionClasses, setState])

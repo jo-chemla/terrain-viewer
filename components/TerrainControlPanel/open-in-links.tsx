@@ -4,6 +4,7 @@ import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { SquareArrowOutUpRight, ChevronDown, Plus, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { track } from "@/lib/analytics"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -269,7 +270,10 @@ export const OpenInLinksButton: React.FC<{
   const openDestination = useCallback((id: string) => {
     const dest = allDestinations.find((d) => d.id === id)
     const url = dest?.buildUrl(buildContext())
-    if (url) window.open(url, "_blank", "noopener,noreferrer")
+    if (url) {
+      track("actions-open-in", { target: id, custom: !!dest?.isCustom })
+      window.open(url, "_blank", "noopener,noreferrer")
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildContext, customDestinations])
 

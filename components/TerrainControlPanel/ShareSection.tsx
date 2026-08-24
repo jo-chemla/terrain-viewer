@@ -1,6 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { Share2, Check, ImageIcon, Loader2, Link, Scissors, AlertCircle, PanelRight } from "lucide-react"
+import { track } from "@/lib/analytics"
 import { useAtom } from "jotai"
 // Same import-cycle shape as product-tour.tsx's — established/working here.
 import { sectionOpenAtom, DEFAULT_OPEN_STATE } from "./TerrainControlPanel"
@@ -173,6 +174,7 @@ const CopyUrlButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(pageUrl)
+      track("actions-share", { kind: "copy-url" })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -231,6 +233,7 @@ const CopyUrlWithPanelsButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => 
       if (open.length) url.searchParams.set("openSections", open.join(","))
       if (close.length) url.searchParams.set("closeSections", close.join(","))
       await navigator.clipboard.writeText(url.toString())
+      track("actions-share", { kind: "copy-url-panels" })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -464,6 +467,7 @@ const ShareModal: React.FC<{
   }, [])
 
   const handleNativeShare = useCallback(async () => {
+    track("actions-share", { kind: "native" })
     const urlToShare =
       shortenEnabled && shortenState.status === "done" ? shortenState.shortUrl : pageUrl
     try {
@@ -595,6 +599,7 @@ const ShareModal: React.FC<{
                       target="_blank"
                       rel="noopener noreferrer"
                       onMouseDown={handlePlatformMouseDown}
+                      onClick={() => track("actions-share", { kind: platform.id })}
                       className="
                         group flex flex-col items-center justify-center gap-1.5
                         rounded-md px-2 py-3

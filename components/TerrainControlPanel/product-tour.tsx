@@ -4,6 +4,7 @@ import { useAtom } from "jotai"
 import { Coachmark, useCoachmark } from "coachmark"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { track } from "@/lib/analytics"
 import {
   hasSeenTourAtom, isTourOpenAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
   isHillshadeXYPadOpenAtom, type AppMode,
@@ -1010,6 +1011,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       comparisonMixAdvancedOpen: a.comparisonMixAdvancedOpen,
       stateFields: Object.fromEntries(TOUR_STATE_KEYS.map((k) => [k, a.state[k]])),
     }
+    track("app-tour", { action: "start" })
     setBranch(null)
     goToIndex(0)
   }, [goToIndex])
@@ -1019,6 +1021,9 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   }, [goToIndex])
 
   const closeAndRestore = useCallback(() => {
+    // Finish and abandon both land here (the last step's Finish button is a
+    // Coachmark.Close) — step vs steps tells them apart on the dashboard.
+    track("app-tour", { action: "close", step: stepIndex + 1, steps: activeSteps.length, branch: branch ?? "none" })
     setOpen(false)
     const snap = snapshotRef.current
     const a = actionsRef.current
@@ -1038,7 +1043,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     setBranch(null)
     setIsTourRequested(false)
     setHasSeenTour(true)
-  }, [setIsTourRequested, setHasSeenTour])
+  }, [setIsTourRequested, setHasSeenTour, stepIndex, activeSteps.length, branch])
 
   // Coachmark's spotlight cutout lets clicks reach the actual live control
   // underneath it (that's the whole point of a spotlight) — but that control

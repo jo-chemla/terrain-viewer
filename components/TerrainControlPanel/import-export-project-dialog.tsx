@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { bookmarksAtom, parseBookmarkSearch } from "@/lib/bookmarks"
 import { drawingLayersAtom, drawingFeaturesAtom } from "./TerraDrawSystem"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
+import { track } from "@/lib/analytics"
 import {
   buildProjectExportArchive, applyProjectImport, hasLocalFileSources, parseProjectExportArchive,
   type ProjectExportSelection,
@@ -81,6 +82,7 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
     // explicitly, defeating nuqs's default-omission and blowing well past
     // the URL length limit.
     const viewState = window.location.search.replace(/^\?/, "")
+    track("actions-project", { action: "export", categories: Object.entries(selection).filter(([, on]) => on).map(([k]) => k).join(",") })
     const archive = await buildProjectExportArchive(selection, { bookmarks, drawingLayers, drawingFeatures, viewState })
     // `as BlobPart` — TS's DOM lib type for Blob's constructor wants a
     // Uint8Array<ArrayBuffer> specifically, but fflate's zipSync returns the
@@ -118,6 +120,7 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
         setError(`"${file.name}" doesn't look like a project export.`)
         return
       }
+      track("actions-project", { action: "import" })
       const { failedCogIds } = await applyProjectImport(payload, cogBytesById, bookmarkThumbBytesById)
       // Nothing bundled at all (plain export, or localCogs was left
       // unchecked at export time) — the pre-existing generic warning still

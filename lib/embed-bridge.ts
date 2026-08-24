@@ -38,6 +38,8 @@
 // merge — nuqs drops params that return to their default, and a merge would
 // keep those stale values alive in shared wrapper URLs.
 
+import { track } from "./analytics"
+
 const ALLOWED_EMBEDDER_HOSTS = new Set([
   "app.heritagewatch.ai",
   "anchise.iconem.com",
@@ -66,6 +68,9 @@ export function startEmbedBridge(): void {
 
   const embedderOrigin = new URL(document.referrer).origin
   if (!isAllowedEmbedder(embedderOrigin)) return
+
+  // One handshake event per embedded session — which wrapper is hosting us.
+  track("app-embed", { embedder: new URL(embedderOrigin).hostname })
 
   let lastSent: string | null = null
   const sendIfChanged = () => {

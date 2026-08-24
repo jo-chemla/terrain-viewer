@@ -89,7 +89,10 @@ export const ExportMultiDialog: React.FC<{
     // opening this dialog.
     const bounds = getMapBounds()
     const viewportBbox: Bbox4 = [bounds.west, bounds.south, bounds.east, bounds.north]
-    track("actions-export", { kind: "export-multi", mode, features: mode === "feature" ? selectedFeatures.length : 0, sources: sourceIds.size, gdal: includeGdalScript })
+    // sourceIds spells out WHICH historical providers get exported (wayback,
+    // ge-historical, hls, planet, …), not just how many — sorted so the same
+    // selection always yields one dashboard value regardless of click order.
+    track("actions-export", { kind: "export-multi", mode, features: mode === "feature" ? selectedFeatures.length : 0, sources: sourceIds.size, sourceIds: Array.from(sourceIds).sort().join(","), gdal: includeGdalScript })
     try {
       const outcome = await exportMultiHistorical({
         mode,
