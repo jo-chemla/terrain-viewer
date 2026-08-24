@@ -4,6 +4,7 @@ description: Off, Overlay, and Side — comparing terrain/basemap sources agains
 ---
 
 import { Gallery } from "@/components/gallery";
+import { Accordions, Accordion } from "fumadocs-ui/components/accordion";
 
 **Split Mode** (General Settings) controls how many "views" of the map are on screen and how they relate to each other. It's the same three-way choice in both Terrain and Historical Imagery mode, but Side behaves differently between them: a fixed 2×1 pane pair in Terrain mode, or any grid up to 4×2 (8 views, labeled A–H) in Historical mode.
 
@@ -61,3 +62,44 @@ Overlay mode's Blend Mode dropdown controls how source A composites over source 
     },
   ]}
 />
+
+## Color Matching (Match Colors)
+
+**Match Colors** (Compare and Blend, historical mode) automatically recolors every other view onto view A's color histogram, so two different imagery sources — or two different dates of the same source — no longer look noticeably darker/bluer/warmer next to each other when compared or blended. A **Color Space** picker controls how thorough the match is: **RGB** (the default) is instant, while **HSL / HSV / LAB / LCH** are slower but can match more subtle color differences.
+
+The same 2×2 grid over Zermatt (Bing Aerial 2003, Google Hybrid, ESRI World Imagery 2023, Mapbox Satellite), with and without Match Colors — with it on, views B–D take on view A's warmer 2003 Bing palette instead of each keeping their own look:
+
+<Gallery
+  groups={[
+    {
+      items: [
+        { title: "Match Colors on (RGB)", image: "/docs/screenshots/split-modes/match-colors-on.jpg", alt: "2x2 historical grid with Match Colors on — Google, ESRI and Mapbox views recolored onto Bing view A's histogram, all four panes sharing one consistent palette" },
+        { title: "Match Colors off", image: "/docs/screenshots/split-modes/match-colors-off.jpg", alt: "The same 2x2 grid with Match Colors off — each view keeps its native colors, the panes visibly disagreeing in tone and saturation" },
+      ],
+    },
+  ]}
+/>
+
+In the default RGB space, the match works by computing a Look-Up Table that maps the target's per-channel Cumulative Density Function (sampled from a subsampled 96×96 copy of its canvas) onto the reference's CDF, then applying that LUT as a live CSS SVG filter — an `feComponentTransfer` — on the target map's canvas. See the full pipeline in the folded details block below.
+
+<Accordions type="single">
+<Accordion title="Technical details — the full color-matching pipeline">
+
+Under the hood (`HistogramMatchFilter`, one instance per non-A view), both color-space paths share the same sampling front-end, then diverge in how the correction is computed and applied.
+
+**Shared front-end — sample what's actually on screen.** The reference (view A) and target canvases are each drawn downscaled onto a small 96×96 offscreen canvas and read back with `getImageData` — so the match is always based on the tiles currently rendered in the viewport, not the raw source imagery. It re-samples whenever either map settles (on `idle`), debounced to at most once per second, so the correction tracks whatever loads as you pan and zoom.
+
+**RGB — a live CSS filter, zero pixels touched:**
+
+1. **Build a per-channel 256-entry LUT.** Independently for R, G, and B, the target sample's cumulative distribution is mapped onto the reference's (exact empirical-CDF histogram matching, scikit-image style) — yielding three lookup tables of 256 output values each.
+2. **Serialize the LUT into the filter.** Each LUT is turned into a space-separated string of 256 values normalized to 0–1 and written into the `tableValues` attribute of `<feFuncR/G/B type="table">` inside an `feComponentTransfer`, in a hidden 0×0 `<svg><filter>` the component renders. The filter is declared `colorInterpolationFilters="sRGB"` so the tables operate on sRGB values, not linearized ones.
+3. **Attach it via CSS.** `targetCanvas.style.filter = "url(#histogram-match-to-reference-<id>)"` — the GPU composites the correction every frame for free and the live map stays fully interactive. Updating the match later just means rewriting the `tableValues` attributes; the referenced filter re-applies automatically.
+
+The last serialized LUT strings are also remembered across a disable — so toggling Match Colors back on re-attaches the filter synchronously (stale by at most one recompute interval, the same staleness the live filter already tolerates between idle recomputes) instead of sitting visually uncorrected through the one-second debounce.
+
+**HSL / HSV / LAB / LCH — a real per-pixel conversion.** `feComponentTransfer` can only remap raw R/G/B output, so these spaces can't be expressed as a CSS filter: instead, actual pixels are converted through a 3D LUT over the chosen color space and drawn onto a static overlay canvas stacked above the live map, at the target's own native resolution (the LUT is what makes that affordable — roughly 100–400ms even at high-DPI fullscreen, where a naive per-pixel conversion took 0.5–0.9s). Because the overlay is a snapshot, it hides itself the moment either map starts moving — motion feedback beats color accuracy mid-gesture — and fades back in once the next recompute lands.
+
+The algorithm is ported from Iconem/historical-satellite's standalone [histogram-matching demo](https://terrain-viewer.iconem.com/histogram-matching-example/histogram-matching.html), vendored in this repo for reference.
+
+</Accordion>
+</Accordions>
