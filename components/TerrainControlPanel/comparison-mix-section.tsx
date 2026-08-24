@@ -147,7 +147,10 @@ export const ComparisonMixSection: React.FC<{
           Layout steps can spotlight the Split Mode control alongside
           whichever of the two actually applies, instead of just the one
           control in isolation. */}
-      <div id="tour-historical-split-and-mode" className="scroll-mt-[100px]">
+      {/* space-y-2 restores the row gap the Section's CollapsibleContent
+          would provide if these rows were its direct children — this tour
+          wrapper otherwise swallows it. */}
+      <div id="tour-historical-split-and-mode" className="space-y-2 scroll-mt-[100px]">
       <div id="tour-historical-split-mode" className="flex items-center justify-between gap-2 scroll-mt-[100px]">
         <Label className="text-sm font-medium">Split Mode</Label>
         <SegmentedToggle
