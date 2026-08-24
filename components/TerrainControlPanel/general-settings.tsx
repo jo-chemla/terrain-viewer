@@ -25,6 +25,8 @@ export const GeneralSettings: React.FC<{
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const disabledViewModes = activeProjectConfig?.disableViewModes ?? []
   const hideSplitScreen = activeProjectConfig?.hiddenSections?.includes("splitScreen") ?? false
+  const hideProjectImportExport = activeProjectConfig?.hiddenSections?.includes("projectImportExport") ?? false
+  const hideOpenIn = activeProjectConfig?.hiddenSections?.includes("openIn") ?? false
   // Terrain mode's own "Open in..." fallback, below — a second copy of the
   // one already living in the historical timeline panel's A/B caption row
   // (historical-timeline-panel.tsx), which only renders once the timeline
@@ -78,7 +80,7 @@ export const GeneralSettings: React.FC<{
           />
         </div>
       )}
-      <ImportExportProjectDialog setState={setState} />
+      {!hideProjectImportExport && <ImportExportProjectDialog setState={setState} />}
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
         <div className="space-y-1 pt-1">
           <div className="flex items-center justify-between">
@@ -97,7 +99,7 @@ export const GeneralSettings: React.FC<{
           the bottom of Compare and Blend instead (comparison-mix-section.tsx).
           Deliberately always shown here too, even though the timeline panel
           usually also has one — see the hook comment above. */}
-      {!historicalMode && (
+      {!historicalMode && !hideOpenIn && (
         <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="w-full" />
       )}
     </Section>

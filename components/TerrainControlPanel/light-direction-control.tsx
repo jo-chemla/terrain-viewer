@@ -12,7 +12,7 @@ import { MobileSlider, SectionIdContext, SegmentedToggle } from "./controls-comp
 import { SphericalXYPad } from "./XYPad"
 import { useDebouncedState, useDebouncedLightDir } from "./use-debounced-state"
 import { cn } from "@/lib/utils"
-import { activeSliderAtom } from "@/lib/settings-atoms"
+import { activeSliderAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { solarPosition, inverseSunPosition, dayLength, formatDayOfYear, formatHour, dayOfYearToDate, dayOfYearFromDate } from "@/lib/solar-position"
 import { utcOffsetHoursAt, utcInstantForDayOfYear } from "@/lib/timezone"
 
@@ -123,6 +123,12 @@ export const LightDirectionControl: React.FC<{
   cameraRelative = false,
 }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
+  const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
+  // Project embeds can pin the light to Free mode ("lightDatetimeMode" in
+  // hiddenSections): the Free/Datetime toggle row disappears and the control
+  // behaves as Free even if the URL carries lightUseDatetime=true.
+  const hideDatetimeMode = activeProjectConfig?.hiddenSections?.includes("lightDatetimeMode") ?? false
+  const useDatetime = state.lightUseDatetime && !hideDatetimeMode
   // Expanded by default even when foldable — padFoldable only controls
   // whether the fold toggle exists at all, not the pad's initial visibility.
   const [showPad, setShowPad] = useState(true)
@@ -238,29 +244,31 @@ export const LightDirectionControl: React.FC<{
   // the setter already wrote the matching light, so the guard makes this a
   // no-op (no second render) rather than a fighting rewrite.
   useEffect(() => {
-    if (!state.lightUseDatetime) return
+    if (!useDatetime) return
     const { illuminationDir: dir, illuminationAlt: alt } = sunToIllum(state.lightDayOfYear, state.lightTimeOfDay)
     if (Math.abs(dir - state.illuminationDir) > 0.05 || Math.abs(alt - state.illuminationAlt) > 0.05) {
       setState({ illuminationDir: dir, illuminationAlt: alt })
     }
-  }, [state.lightUseDatetime, sunToIllum, state.lightDayOfYear, state.lightTimeOfDay, state.illuminationDir, state.illuminationAlt, setState])
+  }, [useDatetime, sunToIllum, state.lightDayOfYear, state.lightTimeOfDay, state.illuminationDir, state.illuminationAlt, setState])
 
   return (
     <div className="space-y-3">
-      <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
-        <Label className="text-sm font-medium">Mode</Label>
-        <SegmentedToggle
-          className={SEG_WIDTH}
-          value={state.lightUseDatetime ? "datetime" : "free"}
-          onChange={(value) => setState({ lightUseDatetime: value === "datetime" })}
-          options={[
-            { value: "free", label: "Free", tooltip: "Drag the pad to set any light azimuth + elevation freely — the closest matching day/time is back-solved and shown below the pad." },
-            { value: "datetime", label: "Datetime", tooltip: "Set the day + time with the sliders, or drag the pad directly — either one updates the other, using the viewport-center latitude/longitude." },
-          ]}
-        />
-      </div>
+      {!hideDatetimeMode && (
+        <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+          <Label className="text-sm font-medium">Mode</Label>
+          <SegmentedToggle
+            className={SEG_WIDTH}
+            value={state.lightUseDatetime ? "datetime" : "free"}
+            onChange={(value) => setState({ lightUseDatetime: value === "datetime" })}
+            options={[
+              { value: "free", label: "Free", tooltip: "Drag the pad to set any light azimuth + elevation freely — the closest matching day/time is back-solved and shown below the pad." },
+              { value: "datetime", label: "Datetime", tooltip: "Set the day + time with the sliders, or drag the pad directly — either one updates the other, using the viewport-center latitude/longitude." },
+            ]}
+          />
+        </div>
+      )}
 
-      {state.lightUseDatetime && (
+      {useDatetime && (
         <div className="space-y-3">
           {/* Day of year → calendar date, with seasonal tick marks. Shares
               `sliderId` with the Time slider and XY pad so editing any of
@@ -431,7 +439,7 @@ export const LightDirectionControl: React.FC<{
             onChange={setLightDir}
             fixedAzimuth={fixedAzimuth}
             fixedElevation={fixedElevation}
-            sunEnvelopeLat={state.lightUseDatetime ? state.lat : undefined}
+            sunEnvelopeLat={useDatetime ? state.lat : undefined}
             // Headlamp mode: azimuth 0 = light from straight ahead (screen
             // top), 90 = from the right, etc. — arrows, not compass points.
             cardinalLabels={cameraRelative ? ["↑", "→", "↓", "←"] : undefined}
