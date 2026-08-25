@@ -198,7 +198,7 @@ the returned COGs. Four roles, four sources:
 |---|---|---|
 | Terrain base (low zoom) | LOLA global + PGDA polar caps | repacked COGs (HF) |
 | Terrain detail (high zoom) | Kaguya TC DTM strips | USGS COGs, live-warped |
-| Imagery basemap (global) | OPM moon hillshade (CARTO XYZ, alive) or USGS WMS via titiler | ready-made tiles |
+| Imagery basemap (global) | OPM moon hillshade (CARTO XYZ, alive — native 3857, no proxy) or USGS WMS via titiler (that server is 4326/IAU-only; it rejects `srs=EPSG:3857`, so maplibre's native WMS path can't reach it directly) | ready-made tiles |
 | Imagery detail | the strips' `orthoimage_*` COGs | deck.gl-raster candidate |
 
 Only the **terrain base** row needs repacking, for three independent reasons:
