@@ -1457,7 +1457,7 @@ export function TerrainViewer() {
     maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
     // Lunar resolution-ladder skeleton (base COG + Kaguya strips via STAC) —
     // registered but dormant until a source is added via registerStacDemSource;
-    // see lib/stacdem-protocol.ts and docs/dev/moon-lola.
+    // see lib/stacdem-protocol.ts and docs/beta/moon-lola.
     maplibregl.addProtocol('stacdem', withTileResultCache(stacdemProtocol))
     maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
     maplibregl.addProtocol('aspect', withTileResultCache(aspectProtocol))
