@@ -1,0 +1,150 @@
+# Assembles Moon LOLA terrain COGs entirely on the CI runner (no local disk needed)
+# and publishes them to a Hugging Face dataset repo, whose CDN serves CORS +
+# HTTP-range requests — so the app can stream them with the existing
+# `cog://…#dem` custom terrain source, with zero app-code changes.
+#
+# Two artifact families:
+#  1. Global LDEM (equirectangular 0–360° int16 ×0.5 m, PDS Geosciences Node)
+#     → warped to EPSG:3857 (lunar lon/lat treated as Earth lon/lat — the same
+#     trick Google Moon KML pyramids use). Horizontal distances are inflated by
+#     R_earth/R_moon ≈ 3.671; elevations stay true meters, so crank the app's
+#     exaggeration ≈3.7× for true-ratio relief.
+#  2. PGDA south-pole LDEMs (Barker et al. 2023, already Cloud-Optimized,
+#     Float32 meters, south polar stereographic in meters) → CRS *relabeled* to
+#     EPSG:3857 ("fake mercator": stereographic meters pass as mercator meters
+#     near null island, scale error ≤7% at 60°S, ~0% at the pole). No resampling.
+#
+# Requires one repo secret: HF_TOKEN (a Hugging Face write token).
+
+name: Assemble Moon LOLA terrain
+
+on:
+  workflow_dispatch:
+    inputs:
+      hf_repo:
+        description: Hugging Face dataset repo (created if missing)
+        default: jo-chemla/moon-lola-terrain
+        type: string
+      build_global:
+        description: Build global LDEM_64 (474 m/px) mercator COG
+        default: true
+        type: boolean
+      polar_products:
+        description: Comma-separated PGDA products to relabel+republish
+        default: LDEM_60S_120MPP_ADJ,LDEM_80S_20MPP_ADJ,LDEM_83S_10MPP_ADJ
+        type: string
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_REPO: ${{ inputs.hf_repo }}
+      GDAL_CACHEMAX: '2048'
+    steps:
+      - name: Install GDAL + huggingface_hub
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q gdal-bin python3-gdal
+          pip install -q -U 'huggingface_hub[cli]'
+          gdalinfo --version
+          df -h /
+
+      - name: Create HF dataset repo
+        run: |
+          python3 - <<'EOF'
+          import os
+          from huggingface_hub import HfApi
+          HfApi(token=os.environ['HF_TOKEN']).create_repo(
+              os.environ['HF_REPO'], repo_type='dataset', exist_ok=True)
+          EOF
+
+      - name: Global LDEM_64 -> EPSG:3857 COG
+        if: ${{ inputs.build_global }}
+        run: |
+          set -euxo pipefail
+          curl -sSfL -o ldem_64.img \
+            https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/img/ldem_64.img
+
+          # Raw grid: 23040x11520 int16 LSB, lon 0..360 from the left edge,
+          # DN * 0.5 = elevation (m) rel. to the 1737400 m reference sphere.
+          cat > raw.vrt <<'EOF'
+          <VRTDataset rasterXSize="23040" rasterYSize="11520">
+            <VRTRasterBand dataType="Int16" band="1" subClass="VRTRawRasterBand">
+              <SourceFilename relativeToVRT="1">ldem_64.img</SourceFilename>
+              <ImageOffset>0</ImageOffset>
+              <PixelOffset>2</PixelOffset>
+              <LineOffset>46080</LineOffset>
+              <ByteOrder>LSB</ByteOrder>
+            </VRTRasterBand>
+          </VRTDataset>
+          EOF
+
+          # Rewrap 0..360 -> -180..180 as two georeferenced halves.
+          gdal_translate -q -srcwin 0     0 11520 11520 -a_srs EPSG:4326 -a_ullr    0  90  180 -90 raw.vrt east.tif
+          gdal_translate -q -srcwin 11520 0 11520 11520 -a_srs EPSG:4326 -a_ullr -180  90    0 -90 raw.vrt west.tif
+          gdalbuildvrt -q merged.vrt west.tif east.tif
+
+          gdal_calc.py -A merged.vrt --calc='A*0.5' --type Float32 \
+            --co COMPRESS=DEFLATE --co TILED=YES --quiet --outfile elev4326.tif
+
+          gdalwarp -q -t_srs EPSG:3857 \
+            -te -20037508.343 -20037508.343 20037508.343 20037508.343 \
+            -ts 23040 23040 -r bilinear -multi -wo NUM_THREADS=ALL_CPUS \
+            -of COG -co COMPRESS=DEFLATE -co PREDICTOR=3 -co BLOCKSIZE=512 \
+            -co BIGTIFF=IF_SAFER elev4326.tif moon_ldem_global_64ppd_mercator_cog.tif
+
+          hf upload --repo-type dataset "$HF_REPO" \
+            moon_ldem_global_64ppd_mercator_cog.tif moon_ldem_global_64ppd_mercator_cog.tif
+          rm -f ldem_64.img east.tif west.tif elev4326.tif moon_ldem_global_64ppd_mercator_cog.tif
+
+      - name: PGDA south-pole COGs -> relabel EPSG:3857, republish
+        if: ${{ inputs.polar_products != '' }}
+        run: |
+          set -euxo pipefail
+          IFS=',' read -ra PRODUCTS <<< "${{ inputs.polar_products }}"
+          for P in "${PRODUCTS[@]}"; do
+            P="$(echo "$P" | xargs)"
+            OUT="$(echo "$P" | tr '[:upper:]' '[:lower:]')_fakemercator_cog.tif"
+            curl -sSfL -o src.tif "https://pgda.gsfc.nasa.gov/data/LOLA_20mpp/${P}.TIF"
+            # Pure CRS relabel (south polar stereographic meters -> "3857 meters"
+            # near null island); COG driver rebuilds the overview pyramid.
+            gdal_translate -q -a_srs EPSG:3857 -of COG \
+              -co COMPRESS=DEFLATE -co PREDICTOR=3 -co BLOCKSIZE=512 \
+              -co BIGTIFF=IF_SAFER -co NUM_THREADS=ALL_CPUS src.tif "$OUT"
+            hf upload --repo-type dataset "$HF_REPO" "$OUT" "$OUT"
+            rm -f src.tif "$OUT"
+            df -h /
+          done
+
+      - name: Upload dataset README (citations)
+        run: |
+          cat > README.md <<'EOF'
+          ---
+          license: pddl
+          pretty_name: Moon LOLA terrain COGs for MapLibre
+          ---
+          # Moon LOLA terrain COGs
+
+          Cloud-Optimized GeoTIFF DEMs of the Moon, repackaged for direct
+          browser streaming in MapLibre GL (terrain-viewer's `cog://…#dem`
+          custom terrain source).
+
+          - `moon_ldem_global_64ppd_mercator_cog.tif` — LRO LOLA LDEM 64 ppd
+            (~474 m/px), warped to EPSG:3857 treating lunar lon/lat as Earth
+            lon/lat. Elevations in meters relative to the 1737.4 km sphere;
+            horizontal scale inflated ×3.671 (use ~3.7× vertical exaggeration).
+          - `ldem_*_fakemercator_cog.tif` — LOLA south-pole mosaics (Barker et
+            al. 2023), Float32 meters, south polar stereographic **meters
+            relabeled as EPSG:3857** — the south pole renders at lat/lon 0,0
+            with near-true metric scale (k = 1.00 at the pole … 1.07 at 60°S).
+
+          ## Sources & citations
+          - LRO LOLA LDEM_64, NASA PDS Geosciences Node
+            (Smith et al. 2010, doi:10.1007/s11214-009-9512-y)
+          - South-pole mosaics: Barker et al. 2023, Planet. Sci. J. 4, 183,
+            doi:10.3847/PSJ/acf3e1 — https://pgda.gsfc.nasa.gov/products/90
+          NASA data, public domain.
+          EOF
+          hf upload --repo-type dataset "$HF_REPO" README.md README.md
