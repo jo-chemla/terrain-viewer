@@ -1,0 +1,115 @@
+# Builds a tile-index ("tindex", after gdaltindex/`pdal tindex`) of the USGS
+# Kaguya TC stereo DTM v2 strips: one vector feature per strip with its
+# footprint geometry and a `location` attribute pointing at the COG asset —
+# plus the per-strip CRS as a proj4 string so the client never has to parse
+# user-defined lunar geokeys itself.
+#
+# Two outputs, uploaded to the same Hugging Face dataset as the terrain COGs:
+#  - kaguya_tc_dtms_v2_tindex.fgb      FlatGeobuf — packed Hilbert R-tree means
+#    the app can bbox-query the REMOTE file via HTTP range requests without
+#    ever downloading the whole index (the `flatgeobuf` JS client does this
+#    natively). This is the runtime index for the stacdem:// protocol.
+#  - kaguya_tc_dtms_v2_tindex.parquet  GeoParquet — for offline analytics.
+#
+# ~156k items over ~520 paged STAC requests; be a polite client (sequential,
+# retries). Requires the HF_TOKEN repo secret (same as assemble-moon-lola).
+
+name: Build Kaguya TC DTM tindex
+
+on:
+  workflow_dispatch:
+    inputs:
+      hf_repo:
+        description: Hugging Face dataset repo
+        default: jo-chemla/moon-lola-terrain
+        type: string
+      collection:
+        description: STAC collection id to index
+        default: kaguya_terrain_camera_usgs_dtms_v2
+        type: string
+
+jobs:
+  tindex:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_REPO: ${{ inputs.hf_repo }}
+      COLLECTION: ${{ inputs.collection }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install -q requests geopandas pyarrow shapely pyproj 'huggingface_hub[cli]'
+
+      - name: Page STAC collection into tindex
+        run: |
+          python3 - <<'EOF'
+          import json, os, time
+          import requests
+          import geopandas as gpd
+          from shapely.geometry import shape
+          from pyproj import CRS
+
+          API = "https://stac.astrogeology.usgs.gov/api"
+          coll = os.environ["COLLECTION"]
+          url = f"{API}/collections/{coll}/items?limit=300"
+          rows, geoms, page = [], [], 0
+          # proj4 strings repeat across thousands of items — cache the
+          # (slowish) projjson->proj4 conversion by the serialized projjson.
+          proj4_cache: dict[str, str] = {}
+          sess = requests.Session()
+          sess.headers["User-Agent"] = "terrain-viewer-tindex/1.0"
+          while url:
+              page += 1
+              for attempt in range(5):
+                  try:
+                      r = sess.get(url, timeout=60)
+                      r.raise_for_status()
+                      break
+                  except Exception as e:
+                      print(f"page {page} attempt {attempt}: {e}")
+                      time.sleep(5 * (attempt + 1))
+              else:
+                  raise SystemExit(f"giving up on page {page}")
+              fc = r.json()
+              for f in fc["features"]:
+                  p = f["properties"]
+                  assets = f["assets"]
+                  pj = p.get("proj:projjson")
+                  key = json.dumps(pj, sort_keys=True) if pj else p.get("proj:wkt2", "")
+                  if key not in proj4_cache:
+                      crs = CRS.from_json_dict(pj) if pj else CRS.from_wkt(p["proj:wkt2"])
+                      proj4_cache[key] = crs.to_proj4()
+                  geoms.append(shape(f["geometry"]))
+                  rows.append({
+                      "stac_id": f["id"],
+                      # gdaltindex/pdal-tindex convention: `location` points at
+                      # the indexed raster — here the strip's DTM COG.
+                      "location": assets["dtm"]["href"],
+                      "location_ortho_l": assets.get("orthoimage_left", {}).get("href"),
+                      "location_ortho_r": assets.get("orthoimage_right", {}).get("href"),
+                      "srs": proj4_cache[key],
+                      "gsd": p.get("gsd"),
+                      "proj_transform": json.dumps(p.get("proj:transform")),
+                      "proj_shape": json.dumps(p.get("proj:shape")),
+                  })
+              url = next((l["href"] for l in fc.get("links", []) if l["rel"] == "next"), None)
+              if page % 20 == 0:
+                  print(f"page {page}: {len(rows)} items")
+          print(f"done: {len(rows)} items, {len(proj4_cache)} distinct CRS")
+
+          # Footprints are lon/lat on the Moon; label EPSG:4326 (the standard
+          # planetary-STAC fudge) so tooling round-trips the coordinates.
+          gdf = gpd.GeoDataFrame(rows, geometry=geoms, crs="EPSG:4326")
+          gdf.to_file("kaguya_tc_dtms_v2_tindex.fgb", driver="FlatGeobuf", SPATIAL_INDEX="YES")
+          gdf.to_parquet("kaguya_tc_dtms_v2_tindex.parquet")
+          EOF
+          ls -la --block-size=M kaguya_tc_dtms_v2_tindex.*
+
+      - name: Upload to Hugging Face
+        run: |
+          hf upload --repo-type dataset "$HF_REPO" kaguya_tc_dtms_v2_tindex.fgb kaguya_tc_dtms_v2_tindex.fgb
+          hf upload --repo-type dataset "$HF_REPO" kaguya_tc_dtms_v2_tindex.parquet kaguya_tc_dtms_v2_tindex.parquet
