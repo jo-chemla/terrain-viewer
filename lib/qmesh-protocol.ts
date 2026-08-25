@@ -46,17 +46,33 @@ export function registerQmeshSource(id: string, config: QmeshSourceConfig): void
   sources.set(id, config)
 }
 
+/** Default ion token from the Vite env (.env.local, untracked):
+ *  VITE_CESIUM_ION_TOKEN=... — ion tokens are client-visible by design, but
+ *  keep them out of git anyway. */
+export const DEFAULT_ION_TOKEN: string | undefined =
+  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_CESIUM_ION_TOKEN
+
 /** Cesium ion flow: assets aren't served at a static URL — exchange the user's
  *  ion token for the asset's endpoint (temporary tile-server URL + short-lived
- *  access token), then register that as a qmesh source. Known terrain assets:
- *  1 = Cesium World Terrain, 2684 = Cesium Moon Terrain (heights relative to
- *  the Moon reference ellipsoid; pair with the angular/true-position lunar
- *  mapping — see docs/beta/moon-lola on the moon branch).
+ *  access token), then register that as a qmesh source.
+ *  Terrain assets verified live against this account (2026-08-25; all
+ *  endpoint-exchange + layer.json fit the protocol's assumptions —
+ *  EPSG:4326, scheme tms, {z}/{x}/{y}.terrain?v={version}):
+ *    1 = Cesium World Terrain (16 levels; tile 0/0/0 fetch verified 200)
+ *    3956 = ArcticDEM Release 4 (note: coverage above ~85°N is beyond the
+ *           mercator ceiling and unreachable in maplibre)
+ *    3957 = PAMap Terrain · 2426648 = Cesium World Bathymetry ·
+ *    2767062 = Japan Regional Terrain
+ *  Cesium Moon Terrain is NOT in the account and not in the quick-add list —
+ *  add it from the ion Asset Depot web UI, then use its account asset id
+ *  (heights relative to the Moon reference ellipsoid; pair with the
+ *  angular/true-position lunar mapping — see docs/beta/moon-lola).
  *  NOTE: the endpoint accessToken expires (~1h) — re-registering on a 401 is
  *  a TODO for the caller; the protocol will surface the 401 as a tile error. */
 export async function registerIonQmeshSource(
-  id: string, assetId: number, ionToken: string,
+  id: string, assetId: number, ionToken: string | undefined = DEFAULT_ION_TOKEN,
 ): Promise<void> {
+  if (!ionToken) throw new Error("qmesh: no ion token (arg or VITE_CESIUM_ION_TOKEN)")
   const res = await fetch(`https://api.cesium.com/v1/assets/${assetId}/endpoint`, {
     headers: { Authorization: `Bearer ${ionToken}` },
   })
