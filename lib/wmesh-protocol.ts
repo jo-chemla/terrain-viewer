@@ -7,11 +7,12 @@
 // requested web-mercator tile, and terrarium-encodes the result.
 //
 // Why: unlocks the whole quantized-mesh ecosystem MapLibre can't otherwise
-// consume — Cesium World Terrain / ion Moon (user-supplied ion token; ion's
-// ToS restrict use outside Cesium engines, so ship no ion default), national
-// open services (Austria, Switzerland), and anything produced by
-// ctb/cesium-terrain-builder. Same protocol shape as float32dem://: decode →
-// Float32Array → terrarium PNG, wrapped in withTileResultCache at registration.
+// consume — Cesium World Terrain / ion Moon Terrain (via the user's own ion
+// token and registerIonWmeshSource below; Iconem has an ion arrangement for
+// prototyping), national open services (Austria, Switzerland), and anything
+// produced by ctb/cesium-terrain-builder. Same protocol shape as
+// float32dem://: decode → Float32Array → terrarium PNG, wrapped in
+// withTileResultCache at registration.
 //
 // URL format: wmesh://{sourceId}/{z}/{x}/{y} with the endpoint registered via
 // registerWmeshSource() — quantized-mesh endpoints need layer.json metadata
@@ -43,6 +44,28 @@ const layerJsonCache = new Map<string, Promise<LayerJson>>()
 
 export function registerWmeshSource(id: string, config: WmeshSourceConfig): void {
   sources.set(id, config)
+}
+
+/** Cesium ion flow: assets aren't served at a static URL — exchange the user's
+ *  ion token for the asset's endpoint (temporary tile-server URL + short-lived
+ *  access token), then register that as a wmesh source. Known terrain assets:
+ *  1 = Cesium World Terrain, 2684 = Cesium Moon Terrain (heights relative to
+ *  the Moon reference ellipsoid; pair with the angular/true-position lunar
+ *  mapping — see docs/beta/moon-lola on the moon branch).
+ *  NOTE: the endpoint accessToken expires (~1h) — re-registering on a 401 is
+ *  a TODO for the caller; the protocol will surface the 401 as a tile error. */
+export async function registerIonWmeshSource(
+  id: string, assetId: number, ionToken: string,
+): Promise<void> {
+  const res = await fetch(`https://api.cesium.com/v1/assets/${assetId}/endpoint`, {
+    headers: { Authorization: `Bearer ${ionToken}` },
+  })
+  if (!res.ok) throw new Error(`wmesh: ion endpoint exchange for asset ${assetId} -> ${res.status}`)
+  const endpoint = await res.json() as { url: string; accessToken: string }
+  registerWmeshSource(id, {
+    rootUrl: endpoint.url.replace(/\/$/, ""),
+    headers: { Authorization: `Bearer ${endpoint.accessToken}` },
+  })
 }
 
 async function getLayerJson(config: WmeshSourceConfig): Promise<LayerJson> {
