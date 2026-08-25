@@ -13,6 +13,8 @@
     "wms-float32-protocol",
     "---Historical---",
     "esri-wayback",
-    "ge-historical"
+    "ge-historical",
+    "---Planetary---",
+    "moon-lola"
   ]
 }
