@@ -187,7 +187,46 @@ uses [`geowarp`](https://github.com/GeoTIFF/geowarp) + proj4 — no hand-rolled
 resampling. The same machinery pointed at the strips' `orthoimage_*` assets
 gives a matched imagery basemap that sharpens in lockstep with the terrain.
 
-For that basemap side, an alternative under evaluation is
+### Index vs data, terrain vs imagery — the cheat-sheet
+
+The FlatGeobuf is a *catalog*, the COGs are the *data*: every high-zoom tile
+request first asks the index (remote-FGB bbox query or live STAC search)
+"**which strips** touch this bbox?", then range-reads "**which pixels**" from
+the returned COGs. Four roles, four sources:
+
+| Role | Source | Form |
+|---|---|---|
+| Terrain base (low zoom) | LOLA global + PGDA polar caps | repacked COGs (HF) |
+| Terrain detail (high zoom) | Kaguya TC DTM strips | USGS COGs, live-warped |
+| Imagery basemap (global) | OPM moon hillshade (CARTO XYZ, alive) or USGS WMS via titiler | ready-made tiles |
+| Imagery detail | the strips' `orthoimage_*` COGs | deck.gl-raster candidate |
+
+Only the **terrain base** row needs repacking, for three independent reasons:
+PGDA sends no CORS headers, the CRS is lunar (the geomatico protocol is
+hard-wired EPSG:3857), and the global GDR rasters aren't COGs at all (untiled,
+no overviews). The Kaguya strips need none of that — already CORS-served COGs —
+only the client-side warp.
+
+**geowarp vs deck.gl-raster is a tier choice, not a rivalry.**
+[`geowarp`](https://github.com/GeoTIFF/geowarp) is CPU, explicit, and returns
+*data* (a `Float32Array` we can terrarium-encode → usable for maplibre
+**terrain**); its custom `forward`/`inverse` hooks take plain proj4 converters,
+so lunar CRSes unknown to any EPSG registry just work. deck.gl-raster
+reprojects on the **GPU** and outputs pixels-on-screen — faster and prettier,
+but unusable for `setTerrain`, so it only competes for the **imagery** rows.
+
+**Is there an existing lunar DTM basemap to skip all this?** No — that gap is
+the project. What's hosted today is colorized renders (USGS WMS, Trek, OPM —
+pictures of terrain, not elevations), wrong formats (raw GDR grids, JP2), a
+mesh encoding maplibre can't eat (Cesium ion's Moon quantized-mesh — real
+streamable lunar terrain, what the Cesium demos use), or CORS-less COGs (PGDA).
+Nobody serves lunar elevation as terrarium/terrain-RGB tiles or
+mercator-labeled COGs; the repacked set here appears to be the first
+browser-streamable lunar DEM for the MapLibre world.
+
+### deck.gl-raster for the basemap side
+
+An alternative under evaluation is
 [`@developmentseed/deck.gl-raster`](https://github.com/developmentseed/deck.gl-raster)
 (the maintained successor of kylebarron/deck.gl-raster) via a deck.gl
 `MapboxOverlay`: its `MosaicLayer` is viewport-driven — per-source rendering
