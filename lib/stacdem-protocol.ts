@@ -1,7 +1,7 @@
 // stacdem:// — dynamic lunar terrain from a base COG + per-strip STAC COGs.
 //
 // SKELETON (feature-flag-less, not yet user-reachable): the resolution-ladder
-// protocol designed in docs/content/docs/dev/moon-lola.mdx. One maplibre
+// protocol designed in docs/content/docs/beta/moon-lola.mdx. One maplibre
 // raster-dem source that serves:
 //   z <  detailMinZoom : windows of a global/base DEM COG (EPSG:3857-labeled
 //                        "fake mercator", see the docs page) — its overview
