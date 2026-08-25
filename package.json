@@ -21,6 +21,7 @@
     "@base-ui/react": "^1.6.0",
     "@esri/wayback-core": "^1.1.0",
     "@geomatico/maplibre-cog-protocol": "^0.8.0",
+    "@here/quantized-mesh-decoder": "^1.2.8",
     "@loaders.gl/core": "^4.3.4",
     "@loaders.gl/geopackage": "^4.3.4",
     "@loaders.gl/wms": "^4.3.4",
