@@ -1,4 +1,4 @@
-// wmesh:// — Cesium quantized-mesh terrain as a maplibre raster-dem source.
+// qmesh:// — Cesium quantized-mesh terrain as a maplibre raster-dem source.
 //
 // SKELETON (registered but dormant — no UI reaches it yet). Fetches Cesium
 // `.terrain` tiles (the open quantized-mesh spec), decodes the triangle mesh
@@ -8,19 +8,19 @@
 //
 // Why: unlocks the whole quantized-mesh ecosystem MapLibre can't otherwise
 // consume — Cesium World Terrain / ion Moon Terrain (via the user's own ion
-// token and registerIonWmeshSource below; Iconem has an ion arrangement for
+// token and registerIonQmeshSource below; Iconem has an ion arrangement for
 // prototyping), national open services (Austria, Switzerland), and anything
 // produced by ctb/cesium-terrain-builder. Same protocol shape as
 // float32dem://: decode → Float32Array → terrarium PNG, wrapped in
 // withTileResultCache at registration.
 //
-// URL format: wmesh://{sourceId}/{z}/{x}/{y} with the endpoint registered via
-// registerWmeshSource() — quantized-mesh endpoints need layer.json metadata
+// URL format: qmesh://{sourceId}/{z}/{x}/{y} with the endpoint registered via
+// registerQmeshSource() — quantized-mesh endpoints need layer.json metadata
 // (tile template, available levels), which doesn't fit in a tile URL template.
 
 import { elevationToTerrarium } from "./elevation-encoding"
 
-export interface WmeshSourceConfig {
+export interface QmeshSourceConfig {
   /** Root URL containing layer.json, e.g.
    *  "https://assets.ion.cesium.com/{assetId}" or a self-hosted ctb tree. */
   rootUrl: string
@@ -39,41 +39,41 @@ interface LayerJson {
   projection?: string       // "EPSG:4326" (geographic) is the common case
 }
 
-const sources = new Map<string, WmeshSourceConfig>()
+const sources = new Map<string, QmeshSourceConfig>()
 const layerJsonCache = new Map<string, Promise<LayerJson>>()
 
-export function registerWmeshSource(id: string, config: WmeshSourceConfig): void {
+export function registerQmeshSource(id: string, config: QmeshSourceConfig): void {
   sources.set(id, config)
 }
 
 /** Cesium ion flow: assets aren't served at a static URL — exchange the user's
  *  ion token for the asset's endpoint (temporary tile-server URL + short-lived
- *  access token), then register that as a wmesh source. Known terrain assets:
+ *  access token), then register that as a qmesh source. Known terrain assets:
  *  1 = Cesium World Terrain, 2684 = Cesium Moon Terrain (heights relative to
  *  the Moon reference ellipsoid; pair with the angular/true-position lunar
  *  mapping — see docs/beta/moon-lola on the moon branch).
  *  NOTE: the endpoint accessToken expires (~1h) — re-registering on a 401 is
  *  a TODO for the caller; the protocol will surface the 401 as a tile error. */
-export async function registerIonWmeshSource(
+export async function registerIonQmeshSource(
   id: string, assetId: number, ionToken: string,
 ): Promise<void> {
   const res = await fetch(`https://api.cesium.com/v1/assets/${assetId}/endpoint`, {
     headers: { Authorization: `Bearer ${ionToken}` },
   })
-  if (!res.ok) throw new Error(`wmesh: ion endpoint exchange for asset ${assetId} -> ${res.status}`)
+  if (!res.ok) throw new Error(`qmesh: ion endpoint exchange for asset ${assetId} -> ${res.status}`)
   const endpoint = await res.json() as { url: string; accessToken: string }
-  registerWmeshSource(id, {
+  registerQmeshSource(id, {
     rootUrl: endpoint.url.replace(/\/$/, ""),
     headers: { Authorization: `Bearer ${endpoint.accessToken}` },
   })
 }
 
-async function getLayerJson(config: WmeshSourceConfig): Promise<LayerJson> {
+async function getLayerJson(config: QmeshSourceConfig): Promise<LayerJson> {
   let cached = layerJsonCache.get(config.rootUrl)
   if (!cached) {
     cached = fetch(`${config.rootUrl}/layer.json${config.query ?? ""}`, { headers: config.headers })
       .then((r) => {
-        if (!r.ok) throw new Error(`wmesh: layer.json ${r.status}`)
+        if (!r.ok) throw new Error(`qmesh: layer.json ${r.status}`)
         return r.json()
       })
     layerJsonCache.set(config.rootUrl, cached)
@@ -119,7 +119,7 @@ interface DecodedMesh {
 }
 
 async function fetchAndDecodeGeoTile(
-  config: WmeshSourceConfig, layer: LayerJson,
+  config: QmeshSourceConfig, layer: LayerJson,
   level: number, gx: number, gy: number, signal: AbortSignal,
 ): Promise<DecodedMesh | null> {
   const template = layer.tiles?.[0] ?? "{z}/{x}/{y}.terrain"
@@ -137,7 +137,7 @@ async function fetchAndDecodeGeoTile(
     },
   })
   if (res.status === 404) return null // hole in availability — caller falls back
-  if (!res.ok) throw new Error(`wmesh: tile ${level}/${gx}/${gy} -> ${res.status}`)
+  if (!res.ok) throw new Error(`qmesh: tile ${level}/${gx}/${gy} -> ${res.status}`)
   const buf = await res.arrayBuffer()
 
   const { default: decode } = await import("@here/quantized-mesh-decoder")
@@ -190,16 +190,16 @@ function rasterizeMesh(
   }
 }
 
-/** wmesh://{sourceId}/{z}/{x}/{y} -> terrarium PNG. */
-export async function wmeshProtocol(
+/** qmesh://{sourceId}/{z}/{x}/{y} -> terrarium PNG. */
+export async function qmeshProtocol(
   params: { url: string },
   abortController: AbortController,
 ): Promise<{ data: Uint8Array }> {
-  const m = params.url.match(/^wmesh:\/\/([^/]+)\/(\d+)\/(\d+)\/(\d+)/)
-  if (!m) throw new Error(`wmesh: bad url ${params.url}`)
+  const m = params.url.match(/^qmesh:\/\/([^/]+)\/(\d+)\/(\d+)\/(\d+)/)
+  if (!m) throw new Error(`qmesh: bad url ${params.url}`)
   const [, id, zs, xs, ys] = m
   const config = sources.get(id)
-  if (!config) throw new Error(`wmesh: unregistered source "${id}"`)
+  if (!config) throw new Error(`qmesh: unregistered source "${id}"`)
   const z = +zs, x = +xs, y = +ys
   const size = config.tileSize ?? 256
   const layer = await getLayerJson(config)

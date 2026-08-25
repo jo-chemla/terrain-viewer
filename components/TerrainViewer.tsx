@@ -54,7 +54,7 @@ import maplibregl from 'maplibre-gl'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
-import { wmeshProtocol } from '@/lib/wmesh-protocol'
+import { qmeshProtocol } from '@/lib/qmesh-protocol'
 import { slopeProtocol } from '@/lib/slope-protocol'
 import { aspectProtocol } from '@/lib/aspect-protocol'
 import { triProtocol } from '@/lib/tri-protocol'
@@ -1467,8 +1467,8 @@ export function TerrainViewer() {
     maplibregl.addProtocol('cog-contour', cogContourProtocol)
     maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
     // Cesium quantized-mesh terrain (dormant until a source is registered via
-    // registerWmeshSource) — see lib/wmesh-protocol.ts.
-    maplibregl.addProtocol('wmesh', withTileResultCache(wmeshProtocol))
+    // registerQmeshSource) — see lib/qmesh-protocol.ts.
+    maplibregl.addProtocol('qmesh', withTileResultCache(qmeshProtocol))
     maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
     maplibregl.addProtocol('aspect', withTileResultCache(aspectProtocol))
     maplibregl.addProtocol('tri', withTileResultCache(triProtocol))
