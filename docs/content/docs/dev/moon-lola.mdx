@@ -187,6 +187,21 @@ uses [`geowarp`](https://github.com/GeoTIFF/geowarp) + proj4 — no hand-rolled
 resampling. The same machinery pointed at the strips' `orthoimage_*` assets
 gives a matched imagery basemap that sharpens in lockstep with the terrain.
 
+For that basemap side, an alternative under evaluation is
+[`@developmentseed/deck.gl-raster`](https://github.com/developmentseed/deck.gl-raster)
+(the maintained successor of kylebarron/deck.gl-raster) via a deck.gl
+`MapboxOverlay`: its `MosaicLayer` is viewport-driven — per-source rendering
+that the FlatGeobuf tindex could feed directly — and `MultiCOGLayer` unifies
+parallel COGs (caveat: assumes one shared CRS across sources). Timing caveats
+from upstream issues: the high-level STAC layer is
+[unbuilt (#147)](https://github.com/developmentseed/deck.gl-raster/issues/147),
+and the MultiCOG API is being
+[revamped (#417)](https://github.com/developmentseed/deck.gl-raster/issues/417)
+around the RasterTileLayer refactor (#404) — prototype behind a flag, don't
+couple deeply yet. Hard boundary either way: deck.gl layers can't feed
+maplibre's terrain engine, so elevation stays on `stacdem://`; deck.gl-raster
+only competes for the imagery/basemap layer.
+
 ## Citations
 
 - Smith et al. 2010, *The Lunar Orbiter Laser Altimeter investigation*, Space Sci. Rev. — [doi:10.1007/s11214-009-9512-y](https://doi.org/10.1007/s11214-009-9512-y)
