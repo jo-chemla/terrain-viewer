@@ -2,6 +2,8 @@
 // (raster) sources, given a source `type`. Consolidates what used to be two
 // independently-drifting implementations: the terrain-only `cogTileUrl` and an inline
 // COG-vs-titiler branch duplicated in RasterBasemapSource.
+import { appendNodataMarkers, type NodataConfig } from "./nodata"
+
 export type RasterSourceType =
   | "cog"
   | "vrt"
@@ -23,8 +25,12 @@ export function buildRasterTileSource(params: {
    *  cog:// protocol's "#dem" hash (selects the DEM color function); plain
    *  raster imagery sources need neither. */
   isDem?: boolean
+  /** Out-of-coverage floor/fill in metres (lib/nodata.ts). Only the float32dem
+   *  branch consumes these — the cog:// branch carries them via the protocol's
+   *  color function instead, since a `cog://` URL is just the file's address. */
+  nodata?: NodataConfig
 }): { url: string } | { tiles: string[]; scheme?: "xyz" | "tms" } {
-  const { url, type, useCogProtocol, titilerEndpoint, scheme, isDem } = params
+  const { url, type, useCogProtocol, titilerEndpoint, scheme, isDem, nodata } = params
 
   switch (type) {
     case "tilejson":
@@ -60,7 +66,9 @@ export function buildRasterTileSource(params: {
         // live WMS endpoint, so geomatico mode always goes through the client-side
         // float32dem:// protocol (decoded by float32demProtocol), regardless of what
         // FORMAT the source's own GetMap URL requests.
-        return { tiles: [`float32dem://${url.replace(/^https?:\/\//, "")}`] }
+        // The nodata pair rides along as URL markers — float32demProtocol gets a
+        // URL and nothing else — and is stripped again before the GetMap goes out.
+        return { tiles: [appendNodataMarkers(`float32dem://${url.replace(/^https?:\/\//, "")}`, nodata ?? {})] }
       }
       // Titiler mode: GDAL's WMS minidriver (the `WMS:` connection-string prefix)
       // lets titiler/GDAL treat the live WMS service as a single addressable raster

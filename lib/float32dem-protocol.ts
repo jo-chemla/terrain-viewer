@@ -1,4 +1,5 @@
 import { fromArrayBuffer } from "geotiff"
+import { NODATA_FILL_PARAM, NODATA_FLOOR_PARAM, resolveNodata } from "./nodata"
 
 /**
  * Ported from public/maplibre-raster-dem-wms-float32-generic.html (the IGN LidarHD
@@ -33,7 +34,47 @@ import { fromArrayBuffer } from "geotiff"
 // decimation prefilter matched to the factor. Costs F² pixels per request.
 const SUPERSAMPLE_RE = /[?&]__supersample=(\d+)/i
 
-function boxDownsample(src: ArrayLike<number>, width: number, height: number, factor: number): { data: Float64Array; width: number; height: number } {
+// Nodata fill for out-of-coverage cells — dormant unless a source opts in.
+// Measured against IGN LiDAR-HD MNT/MNS (2026-09-12, Rade de Brest): the WMS
+// returns a **-9999 sentinel** (declared in the GeoTIFF's GDAL_NODATA tag), never
+// NaN — so the `isFinite` guard in the encode loop below fires on exactly zero
+// samples, and a -9999 m pit sails straight through (it does NOT wrap: -9999 +
+// 32768 = 22769 is in range, so Terrarium round-trips it exactly).
+//
+// Worse, the server's LAMB93 -> 3857 reprojection *interpolates* the sentinel
+// against valid neighbours, smearing a fringe of intermediate garbage around
+// every coverage boundary — a straddling MNT tile measured ~46951 cells at
+// exactly -9999 plus ~1400 more spread continuously over -9374, -5000, -1000,
+// -100, -50, -10. So an exact `v === nodata` test leaves a halo of deep pits,
+// and so does any fixed floor placed down near the sentinel.
+//
+// The smear is strictly one-directional — blending -9999 with valid terrain can
+// only land *below* the valid range, never above — so testing from below erases
+// sentinel and fringe together, in one pass, with no hole bookkeeping:
+//
+//     if (v <= floor) v = fill
+//
+// The floor/fill pair and its "either implies the other" rule are shared with the
+// COG path — see lib/nodata.ts for the full semantics. A URL is all this protocol
+// receives, so the pair arrives as two markers appended by source-builder.ts
+// (or hand-written on the source), stripped here before the GetMap goes out:
+//
+//   &__nodatafill=<meters>   what a hole is replaced with
+//   &__nodatafloor=<meters>  at or below this = hole
+//
+// Neither marker = data passed through untouched, so generic float32dem:// sources
+// (incl. real bathymetry) are unaffected.
+//
+// The IGN sources ship floor -20 / fill 0. The floor sits under the Etang de
+// Lavalduc's -5..-10 m bed with margin, so no genuine French terrain is eaten;
+// the fill sits at sea level because IGN's holes are water abutting a valid
+// surface measuring -2.4 to -2.6 m, leaving a ~2.4 m step at the coverage
+// boundary where filling at the floor would leave ~17.6 m of ledge for terrain
+// skirts to hang off.
+const NODATAFILL_RE = new RegExp(`[?&]${NODATA_FILL_PARAM}=(-?\\d+(?:\\.\\d+)?)`, "i")
+const NODATAFLOOR_RE = new RegExp(`[?&]${NODATA_FLOOR_PARAM}=(-?\\d+(?:\\.\\d+)?)`, "i")
+
+function boxDownsample(src: ArrayLike<number>, width: number, height: number, factor: number, holeFloor: number): { data: Float64Array; width: number; height: number } {
   const outW = Math.floor(width / factor)
   const outH = Math.floor(height / factor)
   const out = new Float64Array(outW * outH)
@@ -45,12 +86,15 @@ function boxDownsample(src: ArrayLike<number>, width: number, height: number, fa
         const row = (oy * factor + dy) * width + ox * factor
         for (let dx = 0; dx < factor; dx++) {
           const v = src[row + dx]
-          // Average only finite samples — a nodata cell shouldn't drag its
-          // whole block to the 0-elevation fallback.
-          if (isFinite(v)) { sum += v; count++ }
+          // Average only valid samples — a nodata cell shouldn't drag its whole
+          // block down. holeFloor is -Infinity for sources that haven't opted
+          // into nodata handling, leaving this a bare finite check as before.
+          if (isFinite(v) && v > holeFloor) { sum += v; count++ }
         }
       }
-      out[oy * outW + ox] = count > 0 ? sum / count : 0
+      // NaN, not 0, for an all-hole block: it stays flagged as a hole so the
+      // fill pass below resolves it, instead of silently becoming sea level.
+      out[oy * outW + ox] = count > 0 ? sum / count : NaN
     }
   }
   return { data: out, width: outW, height: outH }
@@ -72,6 +116,20 @@ export async function float32demProtocol(
       .replace(/([?&]HEIGHT=)(\d+)/i, (_, k, v) => `${k}${parseInt(v, 10) * supersample}`)
   }
 
+  // Nodata fill marker (see NODATAFILL_RE's comment): strip it before the
+  // GetMap, same as __supersample. null = source hasn't opted in.
+  const fillMatch = url.match(NODATAFILL_RE)
+  const floorMatch = url.match(NODATAFLOOR_RE)
+  if (fillMatch) url = url.replace(NODATAFILL_RE, "")
+  if (floorMatch) url = url.replace(NODATAFLOOR_RE, "")
+  // resolveNodata applies the "either one implies the other" rule, so a single
+  // marker is the plain single-knob clamp.
+  const nodata = resolveNodata({
+    nodataFill: fillMatch ? parseFloat(fillMatch[1]) : undefined,
+    nodataFloor: floorMatch ? parseFloat(floorMatch[1]) : undefined,
+  })
+  const holeFloor = nodata?.floor ?? -Infinity
+
   const response = await fetch(url, { signal: abortController.signal })
   const arrayBuffer = await response.arrayBuffer()
 
@@ -83,10 +141,23 @@ export async function float32demProtocol(
   let elevationData = rasters[0] as ArrayLike<number>
 
   if (supersample > 1) {
-    const down = boxDownsample(elevationData, width, height, supersample)
+    const down = boxDownsample(elevationData, width, height, supersample, holeFloor)
     elevationData = down.data
     width = down.width
     height = down.height
+  }
+
+  // Replace holes + reprojection smear with the fill level, in place. Runs after
+  // the downsample so box averages are computed from valid samples only. Writable
+  // in both branches: geotiff's own Float32Array, or boxDownsample's Float64Array.
+  // A substitution rather than a clamp — when floor sits below fill, a valid cell
+  // between the two keeps its own value; when they're equal the two are identical.
+  if (nodata) {
+    const out = elevationData as Float32Array | Float64Array
+    for (let i = 0; i < out.length; i++) {
+      const v = out[i]
+      if (!isFinite(v) || v <= nodata.floor) out[i] = nodata.fill
+    }
   }
 
   // Encode to Terrarium (same formula as elevationToTerrarium in MapSources.tsx):

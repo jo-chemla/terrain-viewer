@@ -2,7 +2,7 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
-import { ChevronDown, Link, Settings2, Expand, Copy, Check } from "lucide-react"
+import { ChevronDown, Link, Settings2, Expand, Copy, Check, Info } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
+import { supportsNodataControls } from "@/lib/nodata"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
 import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
@@ -49,6 +50,9 @@ export const CustomTerrainSourceModal: React.FC<{
   const [boundsSouth, setBoundsSouth] = useState("")
   const [boundsEast, setBoundsEast] = useState("")
   const [boundsNorth, setBoundsNorth] = useState("")
+  // Out-of-coverage floor/fill in metres, as free-text drafts — see lib/nodata.ts.
+  const [nodataFloor, setNodataFloor] = useState("")
+  const [nodataFill, setNodataFill] = useState("")
   // Folded by default — most sources need neither a linked pair nor manual
   // bounds, so this stays out of the way unless deliberately expanded.
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
@@ -75,9 +79,12 @@ export const CustomTerrainSourceModal: React.FC<{
       setBoundsSouth(editingSource.bounds ? String(editingSource.bounds[1]) : "")
       setBoundsEast(editingSource.bounds ? String(editingSource.bounds[2]) : "")
       setBoundsNorth(editingSource.bounds ? String(editingSource.bounds[3]) : "")
+      setNodataFloor(editingSource.nodataFloor === undefined ? "" : String(editingSource.nodataFloor))
+      setNodataFill(editingSource.nodataFill === undefined ? "" : String(editingSource.nodataFill))
       // Description deliberately excluded — it alone shouldn't pop Advanced open;
       // only fields whose value actually diverges from doing-nothing should.
-      setIsAdvancedOpen(editingSource.maxzoom !== undefined || !!editingSource.linkedBasemapId || !!editingSource.bounds)
+      setIsAdvancedOpen(editingSource.maxzoom !== undefined || !!editingSource.linkedBasemapId || !!editingSource.bounds
+        || editingSource.nodataFloor !== undefined || editingSource.nodataFill !== undefined)
       // Re-opening the modal on an existing "cog-local" source: the File itself
       // only lives in-memory for the session it was picked in, so after a reload
       // this is null until the user picks the file again via the button below.
@@ -94,6 +101,8 @@ export const CustomTerrainSourceModal: React.FC<{
       setBoundsSouth("")
       setBoundsEast("")
       setBoundsNorth("")
+      setNodataFloor("")
+      setNodataFill("")
       setIsAdvancedOpen(false)
       setLocalFileName(null)
       setLocalFileWarning(null)
@@ -130,6 +139,11 @@ export const CustomTerrainSourceModal: React.FC<{
     })
   }, [name, registerLocalFile])
 
+  // Only the types this app decodes itself can honour a nodata floor/fill —
+  // titiler-mode and plain XYZ sources have no interception point (lib/nodata.ts).
+  // Declared above handleSave because its dependency array reads it at render time.
+  const showNodataFields = supportsNodataControls(type, useCogProtocol)
+
   const handleSave = useCallback(() => {
     if (!name || !url) return
     const parsedMaxzoom = maxzoom === "" ? undefined : Number(maxzoom)
@@ -139,13 +153,18 @@ export const CustomTerrainSourceModal: React.FC<{
     const parsedBounds = [boundsWest, boundsSouth, boundsEast, boundsNorth].every((v) => v !== "") && boundsValues.every(Number.isFinite)
       ? (boundsValues as [number, number, number, number])
       : undefined
+    // Dropped entirely for a type that can't honour them, so switching type
+    // doesn't leave an invisible setting behind on the saved source.
+    const parseNodata = (v: string) => (!showNodataFields || v === "" || !Number.isFinite(Number(v)) ? undefined : Number(v))
     onSave({
       id: editingSource?.id, name, url, type: type as CustomTerrainSource["type"], description, maxzoom: parsedMaxzoom,
       linkedBasemapId: linkedBasemapId || undefined,
       bounds: parsedBounds,
+      nodataFloor: parseNodata(nodataFloor),
+      nodataFill: parseNodata(nodataFill),
     })
     onOpenChange(false)
-  }, [name, url, type, description, maxzoom, linkedBasemapId, boundsWest, boundsSouth, boundsEast, boundsNorth, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, maxzoom, linkedBasemapId, boundsWest, boundsSouth, boundsEast, boundsNorth, nodataFloor, nodataFill, showNodataFields, editingSource, onSave, onOpenChange])
 
   // COG/cog-local sources detect their own zoom range from file metadata via
   // geomatico (below) rather than needing a manual field — but MapSources.tsx's
@@ -341,6 +360,57 @@ export const CustomTerrainSourceModal: React.FC<{
                         onChange={(e) => setMaxzoom(e.target.value)}
                         className="cursor-text"
                       />
+                    </div>
+                  )}
+                  {showNodataFields && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1.5 text-sm">
+                        No-Data Floor / Fill (optional)
+                        <Tooltip>
+                          <TooltipTrigger render={<span><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>} />
+                          <TooltipContent>
+                            <p className="max-w-xs">
+                              Elevations at or below the floor are treated as out-of-coverage and
+                              replaced with the fill, removing the spikes and pits a sentinel like
+                              -9999 decodes to. Set the floor below the lowest real elevation in the
+                              data. Either field alone sets both. Values are in metres after the
+                              source&apos;s own scale/offset are applied. NaN samples are always
+                              filled, even with both fields empty.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </Label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <Input
+                          id="source-nodata-floor"
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="Floor, e.g. -20"
+                          value={nodataFloor}
+                          onChange={(e) => setNodataFloor(e.target.value)}
+                          className="cursor-text text-xs"
+                        />
+                        <Input
+                          id="source-nodata-fill"
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="Fill, e.g. 0"
+                          value={nodataFill}
+                          onChange={(e) => setNodataFill(e.target.value)}
+                          className="cursor-text text-xs"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {/* A COG's own SCALE/OFFSET tags decide what "metres" means here, and
+                            they are not always the identity — Dura Europos' 0.5mm DSM carries
+                            SCALE=-4000, which puts its whole model at NEGATIVE elevations. A
+                            floor of 0 then sits above every pixel and flattens the entire
+                            surface to the fill, with no error to explain it. So state the
+                            transform whenever it isn't a no-op. */}
+                        {isCogType && cogMetadata && (cogMetadata.scale !== 1 || cogMetadata.offset !== 0)
+                          ? `Metres, after this source's own scale ×${cogMetadata.scale} / offset ${cogMetadata.offset} — set the floor below that transformed range, not the raw values. Empty = pass through untouched.`
+                          : "Metres, after this source's scale/offset. Empty = pass through untouched."}
+                      </p>
                     </div>
                   )}
                   <div className="space-y-2">

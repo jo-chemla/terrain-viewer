@@ -122,6 +122,12 @@ export interface CustomTerrainSource {
    *  be set from ONE side (here or CustomBasemapSource.linkedTerrainId) —
    *  TerrainViewer.tsx's auto-select effects check both directions. */
   linkedBasemapId?: string
+  /** Out-of-coverage handling, in metres — at or below `nodataFloor` (plus any
+   *  non-finite sample) is treated as a hole and replaced with `nodataFill`.
+   *  Either one alone implies the other. Only honoured by types that decode
+   *  client-side; see supportsNodataControls in lib/nodata.ts. */
+  nodataFloor?: number
+  nodataFill?: number
 }
 
 // getOnInit: true reads localStorage synchronously on first render instead of the

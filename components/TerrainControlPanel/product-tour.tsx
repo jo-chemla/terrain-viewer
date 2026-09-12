@@ -292,7 +292,25 @@ const GENERAL_STEPS: TourStepDef[] = [
     key: "map", domId: MAP_ANCHOR_ID, side: "bottom", align: "center",
     fullScreenSpotlight: true, spotlightRadius: 24,
     title: "The Map Viewport",
-    description: "This is your workspace — pan by dragging, zoom with the scroll wheel, and (in 3D/Globe view) rotate and tilt by right-click-dragging. Every visualization mode renders live, directly on this map.",
+    description: (
+      <>
+        <p className="pb-3">This is your workspace — pan by dragging, zoom with the scroll wheel, and (in 3D/Globe view) rotate and tilt by right-click-dragging. Every visualization mode renders live, directly on this map.</p>
+        {/* The docs pointer also closes the tour (makeDocsStep), but that is
+            several branches away and only reached by whoever sits through the
+            whole thing. Repeating it up front costs one line and catches the
+            reader who wants the reference rather than the walkthrough.
+            Relative "docs/" href — same subpath reasoning as settings-dialog's
+            BookOpen button and makeDocsStep's links. */}
+        <a
+          href="docs/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full no-underline")}
+        >
+          For more depth, see the full documentation →
+        </a>
+      </>
+    ),
     onEnter: prepareGeneralIntro,
   },
   {

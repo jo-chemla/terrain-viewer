@@ -10,6 +10,7 @@ import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction } from '@geomatico/maplibre-cog-protocol'
 import { useCogMetadata, zoomRangeFromMetadata, type CogMetadata } from "@/lib/cog-metadata"
 import { elevationToTerrainrgb, elevationToTerrarium } from "@/lib/elevation-encoding"
+import { resolveNodata } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
 import { buildAspectProtocolUrl } from "@/lib/aspect-protocol"
@@ -36,16 +37,29 @@ import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
 import { STATIC_BASEMAP_ATTRIBUTIONS } from "@/lib/basemap-attribution"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 
-const makeTerrainrgbColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
+// Per-pixel COG decode, registered with geomatico's setColorFunction below — this
+// runs inside the cog:// protocol, so it IS the elevation path, not just colouring.
+//
+// The non-finite guard is load-bearing: `raw === noData` cannot catch a NaN
+// sentinel (NaN !== NaN), and NaN is exactly what several DSMs use — the Dura
+// Europos scans declare GDAL_NODATA as literally NaN and carry NaN across 12-57%
+// of their pixels. Unguarded, NaN reaches elevationToTerrarium, whose components
+// come out NaN, get clamped to 0 by the Uint8ClampedArray write, and decode back
+// as -32768 m: a 32 km abyss around the perimeter.
+//
+// `nodata` (floor/fill, in metres, post scale/offset) is the optional per-source
+// override from the source modal — see lib/nodata.ts.
+const makeElevationColorFunction = (
+    encode: (elevation: number) => [number, number, number, number],
+    scale = 1,
+    offset = 0,
+    noData?: number,
+    nodata?: { floor: number; fill: number } | null,
+) => (pixel: any, color: any) => {
     const raw = pixel[0]
-    const elevation = raw === noData ? 0 : offset + raw * scale
-    color.set(elevationToTerrainrgb(elevation))
-}
-
-const makeTerrariumColorFunction = (scale = 1, offset = 0, noData?: number) => (pixel: any, color: any) => {
-    const raw = pixel[0]
-    const elevation = raw === noData ? 0 : offset + raw * scale
-    color.set(elevationToTerrarium(elevation))
+    const elevation = offset + raw * scale
+    const isHole = !isFinite(raw) || raw === noData || (nodata ? elevation <= nodata.floor : false)
+    color.set(encode(isHole ? (nodata?.fill ?? 0) : elevation))
 }
 
 // -------------------------
@@ -174,13 +188,18 @@ export const TerrainSources = memo(({
         const scale = metadata?.scale ?? 1
         const offset = metadata?.offset ?? 0
         const noData = metadata?.noData
+        // null when the source sets neither — the file's own noData tag and the
+        // non-finite guard still apply, so Dura-style NaN borders are fixed
+        // without any per-source configuration.
+        const nodata = resolveNodata(customSource ?? {})
         setColorFunction(
             resolvedCogUrl,
-            highResTerrain
-                ? makeTerrariumColorFunction(scale, offset, noData)
-                : makeTerrainrgbColorFunction(scale, offset, noData)
+            makeElevationColorFunction(
+                highResTerrain ? elevationToTerrarium : elevationToTerrainrgb,
+                scale, offset, noData, nodata,
+            )
         )
-    }, [isCogProtocol, resolvedCogUrl, highResTerrain, metadata?.scale, metadata?.offset])
+    }, [isCogProtocol, resolvedCogUrl, highResTerrain, metadata?.scale, metadata?.offset, metadata?.noData, customSource?.nodataFloor, customSource?.nodataFill])
 
     const sourceConfig: RasterDEMSourceSpecification | null | undefined = useMemo(() => {
         if (customSource) {
@@ -197,6 +216,7 @@ export const TerrainSources = memo(({
                 useCogProtocol: isCogLocal ? true : useCogProtocol,
                 titilerEndpoint,
                 isDem: true,
+                nodata: customSource,
             })
             const encoding = isCogProtocol
                 ? highResTerrain ? 'terrarium' : 'mapbox'
