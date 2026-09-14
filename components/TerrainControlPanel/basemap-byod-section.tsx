@@ -185,7 +185,9 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   // the user already has (matching id), add ones they don't, and leave every other
   // user-added source (not part of the sample set) untouched.
   const handleLoadSample = useCallback(() => {
-    const samples = SAMPLE_BASEMAP_SOURCES as CustomBasemapSource[]
+    // See CustomBasemapSource.loadWithSamples — opt-out for this bulk action
+    // only, permalink import still finds them by id.
+    const samples = (SAMPLE_BASEMAP_SOURCES as CustomBasemapSource[]).filter((s) => s.loadWithSamples !== false)
     const sampleIds = new Set(samples.map((s) => s.id))
     const preserved = customBasemapSources.filter((s) => !sampleIds.has(s.id))
     setCustomBasemapSources([...preserved, ...samples])

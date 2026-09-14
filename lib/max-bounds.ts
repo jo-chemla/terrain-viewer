@@ -6,11 +6,32 @@
 import { getCogMetadata } from "@geomatico/maplibre-cog-protocol"
 import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
 import { resolveLocalFileUrl, localFileId } from "./local-file-store"
+import customSources from "./custom-sources.json"
+
+// id -> shipped sample definition, across both terrain and basemap sample lists.
+const SAMPLE_SOURCES_BY_ID: Record<string, { bounds?: LngLatBoundsTuple }> = Object.fromEntries(
+  [...customSources.SAMPLE_TERRAIN_SOURCES, ...customSources.SAMPLE_BASEMAPS_SOURCES]
+    .map((s) => [(s as { id: string }).id, s as { bounds?: LngLatBoundsTuple }]),
+)
 
 export type MaxBoundsMode = "none" | "terrain" | "raster" | "union" | "custom"
 export const MAX_BOUNDS_MODES = ["none", "terrain", "raster", "union", "custom"] as const
 
 export type LngLatBoundsTuple = [west: number, south: number, east: number, north: number]
+
+/** A source's static extent: its own `bounds`, else the shipped sample with the
+ *  same id. Sources are copied into localStorage on first use, so a copy saved
+ *  before a sample gained `bounds` would otherwise stay boundless forever —
+ *  which made "fit to bounds" do nothing while maxBounds still constrained to
+ *  the right country. Both paths must agree, hence one helper. */
+export function staticBoundsFor(
+  source: { id?: string; bounds?: LngLatBoundsTuple } | undefined,
+): LngLatBoundsTuple | null {
+  if (!source) return null
+  if (source.bounds) return source.bounds
+  const sample = source.id ? SAMPLE_SOURCES_BY_ID[source.id] : undefined
+  return sample?.bounds ?? null
+}
 
 export function unionBounds(a: LngLatBoundsTuple | null, b: LngLatBoundsTuple | null): LngLatBoundsTuple | null {
   if (!a) return b
@@ -41,7 +62,8 @@ export async function resolveCustomSourceBounds(
   opts: ResolveOpts,
 ): Promise<LngLatBoundsTuple | null> {
   if (!source) return null
-  if (source.bounds) return source.bounds
+  const staticBounds = staticBoundsFor(source)
+  if (staticBounds) return staticBounds
 
   if (source.type === "tilejson") {
     try {

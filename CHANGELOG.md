@@ -1,3 +1,20 @@
+# Changelog — National Terrain Sources
+<!-- released: 2026-09-14 -->
+
+#### TL;DR
+- **Twelve national elevation sources added**, each verified against a known summit: Norway, USGS 3DEP, Netherlands AHN, England, Finland, Tirol, Czechia, Italy, Mexico, Spain. Mostly 0.5–2 m LiDAR, against ~30 m for a global DEM.
+- **Selecting one pins the map to that country**, with enough underzoom to see the whole of it ([maplibre-xy](https://github.com/larsmaxfield/maplibre-xy)). Settings → Map Bounds to change.
+- **New docs page** listing every national dataset — country, format, endpoint, resolution, coverage.
+- **Custom RGB encoding** for tile sources that use neither Terrarium nor Terrain-RGB (Mexico packs elevation with a base of 1000, not 10000).
+- **WCS 2.0 support**, and a fix for servers that return a slightly larger extent than requested, which shifted terrain by a few percent.
+
+### Bug Fixes
+- No-data detection now catches positive sentinels — the Netherlands signals no-coverage with `+3.4e38`, which a floor could never catch, so offshore tiles read as -32768 m.
+- A source's `minzoom` no longer clamps the camera; it limits tile requests only.
+- A COG source can be pinned to titiler (*Always serve via titiler* in its Advanced settings). Needed for files not in Web Mercator — the browser reader misplaced Switzerland's LV95 COG and read ANADEM's degree-sized pixels as metres, which locked the camera at z19.
+- `maxBounds` is applied imperatively — react-map-gl 8's maplibre build never calls `setMaxBounds`, so bounds only ever took effect at page load.
+- Sample sources sorted by ISO 3166-1 alpha-3, with two wrong codes fixed (Greece was `GRE`, the IOC code, not `GRC`). Project scans (Dura Europos, Amphipolis) no longer load with the samples, but stay importable by permalink.
+
 # Changelog — No-Data Handling for DEM Sources
 <!-- released: 2026-09-12 -->
 

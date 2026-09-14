@@ -30,6 +30,26 @@
 export const NODATA_FILL_PARAM = "__nodatafill"
 export const NODATA_FLOOR_PARAM = "__nodatafloor"
 
+/**
+ * Magnitude beyond which a sample is a sentinel rather than terrain, whatever
+ * its sign. The floor alone is not enough: it catches the low sentinels
+ * (-9999, -3.4e38) but the Dutch AHN service signals no-coverage with
+ * **+3.4e38** — Float32's max, positive — so an offshore AHN tile comes back
+ * uniformly positive-huge, sails over any floor, and encodes to RGB 0,0,0 which
+ * reads as -32768 m. Measured directly against service.pdok.nl.
+ *
+ * 1e30 is chosen to sit far above anything a real source can hold while still
+ * catching the Float32/Float64 extremes that GDAL emits as nodata. It must stay
+ * well clear of scaled non-geographic models: the Dura Europos DSMs reach
+ * +16016 m once their SCALE=1000 is applied, and those must not be eaten.
+ */
+export const SENTINEL_MAGNITUDE = 1e30
+
+/** A sample that is not real terrain: non-finite, or an out-of-range sentinel. */
+export function isSentinel(v: number): boolean {
+  return !isFinite(v) || Math.abs(v) >= SENTINEL_MAGNITUDE
+}
+
 export interface NodataConfig {
   /** At or below this (metres) counts as a hole. */
   nodataFloor?: number

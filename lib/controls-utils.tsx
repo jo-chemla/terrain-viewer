@@ -38,6 +38,40 @@ export function shouldZoomToBounds(viewport: Bounds, target: Bounds): boolean {
   return fullyWithin || disjoint
 }
 
+/**
+ * Terrain variant of the rule above, reduced to a single invariant:
+ *
+ *   fit only when the viewport is NOT already fully inside the target bounds.
+ *
+ * A terrain source either declares a footprint or it doesn't. A worldwide one
+ * (Mapterhorn, AWS) declares none, so selecting it never reaches here and never
+ * moves the camera. A bounded one moves you only when you are not already
+ * looking somewhere it covers. Every case then falls out:
+ *
+ *   Mapterhorn -> Spain            world view isn't inside Spain -> fly to Spain
+ *   Spain -> Mapterhorn            no bounds                     -> stay put
+ *   Madrid -> Mapterhorn -> Spain  Madrid IS inside Spain        -> stay on Madrid
+ *   Netherlands -> Mexico          not inside Mexico             -> fly to Mexico
+ *   Europe-wide -> Spain           viewport contains Spain, so is
+ *                                  not inside it                 -> fly to Spain
+ *
+ * The last line is the deliberate difference from shouldZoomToBounds, which
+ * moves when the target is fully inside the viewport but does NOTHING when the
+ * two merely overlap. For terrain, partial overlap is the common case — picking
+ * a country while looking at its neighbour — and staying put there is what made
+ * switching sources feel broken.
+ *
+ * EPSILON absorbs float noise from a round-trip through the map's getBounds(),
+ * so re-selecting the source you already have doesn't re-fly.
+ */
+export function shouldZoomToTerrainBounds(viewport: Bounds, target: Bounds): boolean {
+  const EPSILON = 1e-6
+  const viewportInsideTarget =
+    viewport.west >= target.west - EPSILON && viewport.east <= target.east + EPSILON &&
+    viewport.south >= target.south - EPSILON && viewport.north <= target.north + EPSILON
+  return !viewportInsideTarget
+}
+
 export const useTheme = () => {
   const [theme, setTheme] = useQueryState(
     "theme",

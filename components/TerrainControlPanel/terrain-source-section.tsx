@@ -18,8 +18,10 @@ import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import type { MapRef } from "react-map-gl/maplibre"
 import saveAs from "file-saver"
 import { Section, SourceGridToggle, GroupHeading } from "./controls-components"
-import { type Bounds, templateLink, shouldZoomToBounds } from "@/lib/controls-utils"
+import { type Bounds, templateLink, shouldZoomToTerrainBounds } from "@/lib/controls-utils"
 import { resolveLinkedBasemapId } from "@/lib/linked-sources"
+import { staticBoundsFor } from "@/lib/max-bounds"
+import { applyBoundedView, fitPaddingFor } from "@/lib/underzoom"
 import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
@@ -151,10 +153,11 @@ export const TerrainSourceSection: React.FC<{
   // `force` skips the smart-zoom heuristic and always moves the camera — used by
   // the dedicated "Fit to bounds" button. Without it (the default, used when a
   // source's label is clicked to activate it), the camera only moves when the
-  // target bounds are fully inside the current viewport, or fully disjoint from
-  // it — see shouldZoomToBounds — so activating a source whose bounds cover (or
-  // only partially overlap) the current viewport doesn't yank the user's context
-  // away from wherever they're already looking.
+  // the viewport is not ALREADY fully inside the source's own bounds — see
+  // shouldZoomToTerrainBounds. So picking a country you are not looking at flies
+  // there, picking a worldwide source never moves you (it has no bounds, so this
+  // is never called), and coming back to a country you are already zoomed inside
+  // leaves your view alone rather than pulling back out to the whole country.
   const attemptFitBounds = useCallback((bbox: [number, number, number, number], force = false) => {
     if (!mapRef.current) return
     const [west, south, east, north] = bbox
@@ -162,16 +165,32 @@ export const TerrainSourceSection: React.FC<{
       const viewport = mapRef.current.getMap().getBounds()
       const target = { west, south, east, north }
       const viewportBounds = { west: viewport.getWest(), south: viewport.getSouth(), east: viewport.getEast(), north: viewport.getNorth() }
-      if (!shouldZoomToBounds(viewportBounds, target)) return
+      if (!shouldZoomToTerrainBounds(viewportBounds, target)) return
     }
-    mapRef.current.fitBounds([[west, south], [east, north]], { padding: 50, speed: 6 })
+    const map = mapRef.current.getMap()
+    // Apply the target's constraint BEFORE flying. Selecting a source runs this
+    // fit synchronously from the click, whereas the maxBounds effect in
+    // TerrainViewer only re-resolves a tick later. Two things went wrong without
+    // it: the camera was still fenced inside the PREVIOUS country so maplibre
+    // clamped the flight back (Netherlands -> Mexico simply stayed over the
+    // Netherlands), and the relaxed underzoom constrain was not in force yet, so
+    // stock maplibre refused to let the country shrink inside the viewport and
+    // the fit came out filling the frame instead of showing the whole country.
+    // Only touched when a constraint is already active, so maxBoundsMode "none"
+    // keeps its unbounded behaviour.
+    if (map.getMaxBounds()) applyBoundedView(map, [west, south, east, north])
+    map.fitBounds([[west, south], [east, north]], { padding: fitPaddingFor(map), speed: 6 })
   }, [mapRef])
 
   const handleFitToBounds = useCallback(async (source: CustomTerrainSource, force = false) => {
     // Populated directly from WMS GetCapabilities (see wms-picker-panel.tsx) — no
     // fetch needed, unlike the type-specific detection below.
-    if (source.bounds) {
-      attemptFitBounds(source.bounds, force)
+    // staticBoundsFor, not source.bounds — a localStorage copy saved before the
+    // sample gained bounds would otherwise silently fall through to the
+    // type-specific detection below and fit to nothing.
+    const staticBounds = staticBoundsFor(source)
+    if (staticBounds) {
+      attemptFitBounds(staticBounds, force)
       return
     }
     if (source.type === 'tilejson') {
@@ -240,7 +259,9 @@ export const TerrainSourceSection: React.FC<{
   // the user already has (matching id), add ones they don't, and leave every other
   // user-added source (not part of the sample set) untouched.
   const handleLoadSample = useCallback(() => {
-    const samples = SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[]
+    // loadWithSamples === false opts an entry out of this bulk action only; it
+    // stays importable by permalink (see CustomTerrainSource.loadWithSamples).
+    const samples = (SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[]).filter((s) => s.loadWithSamples !== false)
     const sampleIds = new Set(samples.map((s) => s.id))
     const preserved = customTerrainSources.filter((s) => !sampleIds.has(s.id))
     setCustomTerrainSources([...preserved, ...samples])

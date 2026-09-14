@@ -51,6 +51,7 @@ import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName
 import { cn } from "@/lib/utils"
 
 import maplibregl from 'maplibre-gl'
+import { applyBoundedView } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
@@ -763,7 +764,11 @@ export const QUERY_STATE_PARSERS = {
     // "terrain"/"raster"/"union" are resolved asynchronously from the active
     // source(s) (see the maxBounds effect below and lib/max-bounds.ts);
     // "custom" uses the four WSNE fields directly.
-    maxBoundsMode: parseAsStringLiteral(MAX_BOUNDS_MODES).withDefault("none"),
+    // Defaults to "terrain" so selecting a national dataset pins the camera to
+    // that country: resolveCustomSourceBounds returns the source's own extent
+    // (static `bounds` for WMS/WCS/TMS, COG metadata bbox otherwise) and null for
+    // anything worldwide, so global sources stay completely unconstrained.
+    maxBoundsMode: parseAsStringLiteral(MAX_BOUNDS_MODES).withDefault("terrain"),
     maxBoundsBuffer: parseAsFloat.withDefault(0),
     maxBoundsWest: parseAsFloat.withDefault(-180),
     maxBoundsSouth: parseAsFloat.withDefault(-85),
@@ -2653,13 +2658,20 @@ export function TerrainViewer() {
   // maxZoom right before choosing which setter to call first — sidesteps the
   // ordering assumption entirely instead of trying to out-time it.
   const applySafeZoomBounds = useCallback((map: maplibregl.Map, minZoom: number, maxZoom: number) => {
-    if (minZoom > map.getMaxZoom()) {
-      map.setMaxZoom(maxZoom)
-      map.setMinZoom(minZoom)
-    } else {
-      map.setMinZoom(minZoom)
-      map.setMaxZoom(maxZoom)
-    }
+    // Normalise before touching the map. A custom source whose metadata has not
+    // resolved yet can momentarily report a degenerate or inverted range (a COG
+    // with no cached metadata reports maxzoom 0 while minzoom is also 0), and
+    // maplibre then throws "maxZoom must be greater than the current minZoom"
+    // out of a passive effect, which takes the whole component down.
+    const lo = Math.min(Math.max(minZoom, -2), 23)
+    const hi = Math.min(Math.max(maxZoom, lo + 0.5), 24)
+    // Widen to the extremes first so neither setter is ever validated against a
+    // stale opposite bound, then narrow. That removes the ordering problem
+    // entirely rather than trying to pick the right order for each transition.
+    map.setMinZoom(-2)
+    map.setMaxZoom(24)
+    map.setMinZoom(lo)
+    map.setMaxZoom(hi)
   }, [])
 
   useEffect(() => {
@@ -2685,6 +2697,32 @@ export function TerrainViewer() {
   // the camera. Re-resolves whenever the active source or mode/buffer changes;
   // stale in-flight resolutions are dropped via the `cancelled` flag.
   const [resolvedMaxBounds, setResolvedMaxBounds] = useState<LngLatBoundsTuple | null>(null)
+
+  // maxBounds on its own is unusably strict for a country-shaped extent: maplibre
+  // refuses to zoom out past the point where the bounds fill the viewport, so a
+  // tall country on a wide screen (or vice-versa) can never be seen whole, and you
+  // cannot nudge the camera an inch past the edge. maplibre-xy's Underzoom relaxes
+  // exactly that — extendScale allows zooming out beyond the fit, extendPan allows
+  // panning a little past the edge.
+  //
+  // Applied imperatively rather than as a <Map> prop: `transformConstrain` is a
+  // maplibre constructor option and react-map-gl doesn't forward it (verified —
+  // zero occurrences in its dist). maplibre-gl 5.24 exposes the same hook as
+  // map.transform.setConstrainOverride(), which can be set at any time.
+  useEffect(() => {
+    for (const side of activeViewIds) {
+      const map = mapRefs[side].current?.getMap()
+      if (!mapLoaded[side] || !map) continue
+      // Shared helper (lib/underzoom.ts) so the terrain picker can apply exactly
+      // the same thing a beat earlier, before its fitBounds — otherwise the fit
+      // is evaluated against stock maplibre constrain, which refuses to let the
+      // bounds shrink inside the viewport and so never shows a whole country.
+      applyBoundedView(map, resolvedMaxBounds)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedMaxBounds, mapLoaded, activeViewIds.join(",")])
+
+
 
   useEffect(() => {
     if (state.maxBoundsMode === "none") {

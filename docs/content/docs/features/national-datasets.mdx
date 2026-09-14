@@ -1,0 +1,97 @@
+---
+title: National Open-Data Terrain
+description: Government elevation services from national mapping agencies, ready to load as terrain sources
+---
+
+import { NationalDatasetsTable, NationalCoverageMap, UnusableDatasetsTable, MapterhornSummary, Glo30Table, SubNationalTable } from "@/components/national-datasets-table";
+
+The built-in sources on [Terrain and Basemap Sources](/features/terrain-sources) are worldwide tilesets. This page covers the other half of the library: **elevation services published directly by national mapping agencies**, at resolutions global tilesets can't match — 0.5 m LiDAR for France and the Netherlands against ~30 m for a global DEM.
+
+Load them from **Sources → Terrain → Load Sample Sources**, or open any of them directly with a `?sourceA=<id>` link.
+
+<NationalCoverageMap />
+
+## Credit where it is due: Mapterhorn
+
+This page only exists because [Mapterhorn](https://mapterhorn.com/) did the hard part first. It is an open, community-run project that solves the same problem from the other end: rather than talking to each agency's API live, it **ingests** the world's open elevation data — API endpoints, hundred-thousand-file bulk archives, S3 buckets, national download portals — normalises it, and republishes the result as one global, unified [Terrarium](https://mapterhorn.com/) raster tileset distributed as PMTiles, with a [coverage map](https://mapterhorn.com/coverage/) and full [attribution](https://mapterhorn.com/attribution/) for every contributing dataset.
+
+Its [source catalogue](https://github.com/mapterhorn/mapterhorn/tree/main/source-catalog) is the best inventory of open elevation data anywhere: 153 sources across 32 countries, each with a licence, a resolution and a file list. Working through it makes the shape of the problem obvious — those 153 sources amount to roughly **690,000 individual files**, overwhelmingly `.tif`, `.asc` and `.zip` bulk downloads. Only a handful are a single fetchable file, and only a minority of countries expose a live API at all.
+
+That is the division of labour between the two projects. Mapterhorn gives you consistent global terrain with no per-country special cases. The sources below skip the ingest entirely and stream from the agency in real time, which keeps the native resolution — 0.5 m where the agency publishes 0.5 m — at the cost of only working country by country, at whatever speed that government's server manages. Mapterhorn is the sensible default; these are for when you want the sharpest possible data over one country.
+
+The [Mapterhorn issue tracking new data sources](https://github.com/mapterhorn/mapterhorn/issues/27) is also where several of the endpoints below were first discussed.
+
+## How these compare to Mapterhorn
+
+<MapterhornSummary />
+
+Only a minority are an actual upgrade. That is worth stating plainly, because it is not obvious why a *national agency's own API* would ever be coarser than a re-published global tileset — and the reason is that the two get their data by different routes.
+
+Mapterhorn ingests whatever an agency publishes in **bulk**: multi-terabyte download archives, S3 buckets, hundreds of thousands of tiles. Agencies routinely publish their finest LiDAR that way while exposing only a coarser, cheaper product over a live API — Italy publishes 1 m regional LiDAR for download but serves TINITALY at 10 m; Spain's PNOA LiDAR is 0.5 m in bulk while the IDEE tile service is ~5 m. So Mapterhorn can be finer.
+
+It runs the other way too. Norway's `hoydedata.no` ImageServer resamples a 0.25 m grid on demand, four times finer than the 1 m product Mapterhorn downloaded. And where an agency publishes no bulk data at all, Mapterhorn has nothing to ingest and falls back to global 30 m, so any working API wins by default.
+
+One caveat on both sides: Mapterhorn's delivered detail is also capped by its tileset's max zoom, whereas these APIs resample to whatever window is asked for.
+
+## The datasets
+
+<NationalDatasetsTable />
+
+## Regional datasets
+
+Some of the best data on this page covers a state or a province rather than a country. These are kept out of **Load Sample Sources** so that list stays national, but each is a normal source and loads from a `?sourceA=<id>` link.
+
+<SubNationalTable />
+
+Two are worth singling out. **Queensland** serves a best-available mosaic of 0.5–1 m drone and aircraft LiDAR — ten times finer than the 5 m national grid, and Geoscience Australia publishes no national equivalent at all. And **Aguada Fénix** is not a mapping agency product: it is the airborne survey that revealed the largest known Maya monumental construction ([Inomata et al., *Nature* 2020](https://www.nature.com/articles/s41586-020-2343-4)), a platform invisible from the ground and unmistakable in a hillshade. That is the case for LiDAR archaeology in one dataset.
+
+## Copernicus GLO-30, the supra-national fallback
+
+Most of the world has no national elevation API at all. What fills that gap is [Copernicus GLO-30](https://spacedata.copernicus.eu/collections/copernicus-digital-elevation-model) — a free, global 30 m DEM from ESA and Airbus, and the single most important dataset on this page: it is the base layer of Mapterhorn, the source behind Digital Earth Africa, and the fallback anywhere a country publishes nothing.
+
+Several organisations re-serve the same GLO-30 pixels in different shapes:
+
+<Glo30Table />
+
+**ANADEM** and **GEDTM30** are a newer idea worth understanding, both distributed through OpenTopography. Rather than re-serving GLO-30 unchanged, they apply machine learning to *correct* it towards bare earth — GLO-30 is a surface model, so over the Amazon it measures the canopy, not the ground, and can sit tens of metres high. ANADEM covers South America; [GEDTM30](https://stac.openlandmap.org/gedtm-30m/gedtm-30m_20060101_20151231/gedtm-30m_20060101_20151231.json) is global and calibrated against GEDI spaceborne LiDAR. Neither is finer than 30 m — the gain is vertical accuracy under forest, not detail. See OpenTopography's [note on ML-derived terrain models](https://opentopography.org/news/new-machine-learning-derived-digital-terrain-models) and the [GEDTM30 discussion](https://codeberg.org/openlandmap/GEDTM30/issues/5).
+
+Digital Earth Africa is the one worth loading directly: it is the only keyless live raw-elevation service covering any African country, and it turns a continent of nothing into a working source. It is not, however, finer than Mapterhorn — it is literally the same GLO-30 data, just fetched live from an API instead of a tileset.
+
+## Why these and not others
+
+Surveying national mapping agencies worldwide turns up two consistent traps.
+
+**No agency anywhere publishes Terrarium tiles.** Only two publish a pre-rendered elevation tile pyramid at all (Japan's GSI and Mexico's INEGI), and both invented their own encoding. Everything else serves raw rasters on demand.
+
+**`FORMAT=image/geotiff` on a WMS is usually a lie.** Germany's BKG, the UK Environment Agency, Portugal, Croatia, Ecuador and Canada's MRDEM all advertise it and all return an 8-bit RGB colour ramp — a picture of elevation, not elevation. The raw values live on **WCS** or on an **ArcGIS ImageServer**, never on the WMS. A related trap: ArcGIS estates usually expose `MapServer` (rendered) rather than `ImageServer` (raw), which is what rules out Slovakia, Colombia, Argentina and Australia.
+
+Everything listed above was verified by decoding a real tile and checking it against a known summit or sea-level point before being added.
+
+## How they are served
+
+Three different transports end up as the same `raster-dem` source in the app:
+
+- **WMS/WCS raw Float32** — the app requests a GeoTIFF per tile and re-encodes it to Terrarium in the browser, via the `float32dem://` protocol. WCS 1.0 works unmodified because its `BBOX=` is shaped exactly like a WMS `GetMap`; WCS 2.0 needs a rewrite to `subset=` per axis, which a `&__wcs2subset=X,Y` marker on the URL performs.
+- **ArcGIS ImageServer** — `exportImage` with `format=tiff`, which returns raw Float32 and takes the same `bbox=` as a WMS, so it reuses the identical code path (USGS 3DEP, Czechia).
+- **Single COG** — Switzerland and ANADEM are each one national file. Neither is in Web Mercator (LV95 and geographic EPSG:4674), and the in-browser COG reader does not reproject, so these are pinned to titiler with the source's *Always serve via titiler* switch, whatever the global COG setting says.
+- **XYZ tiles** — a normal tile pyramid. Spain is standard Terrain-RGB. Mexico is not: its layer is *named* "terranium" but packs elevation with Terrain-RGB's factors and a `baseShift` of 1000 instead of 10000, so it is configured with [custom RGB encoding](/features/byod) and reads ~9 km too low without it.
+
+## Surveyed, but not API-usable
+
+These countries do publish a national elevation product — often an excellent one — that still cannot be consumed here. Each row is a reproduced failure, not an assumption.
+
+<UnusableDatasetsTable />
+
+Two patterns dominate. **Auth at the data step**: Portugal and Sweden both publish modern, public STAC catalogues under CC BY 4.0 where the *index* is open and CORS-enabled but every raster byte sits behind OAuth2 or HTTP Basic. **Rendered, not raw**: the product is a hillshade or a hypsometric colour ramp, sometimes mislabelled as an elevation coverage.
+
+Beyond the table, a long tail of countries publishes nothing retrievable at all. Across Central Asia, the Caucasus, the western Balkans, the Caribbean, Central America, the Middle East, South-East Asia and the Pacific, the national geoportal is typically a dead host, a single-page app with no service directory, or an ArcGIS estate exposing only rendered `MapServer` layers. Two small countries need no entry of their own: **Monaco** is inside France's IGN LiDAR coverage and **San Marino** inside Italy's TINITALY, so both already work through the sources above.
+
+This is exactly the gap Mapterhorn fills. It ingests several of these under licence — Portugal's 0.5 m and Sweden's 1 m are both in its source catalogue — so those countries already render at national resolution in this app through the Mapterhorn tileset, just not by talking to the agency live. Greece is the one case where the data isn't open at all, and falls back to global 30 m.
+
+## Coverage edges and no-data
+
+A national dataset stops at its border, and services disagree about how to say so. Some return a sentinel (`-9999` for France and Finland, `-3.4e38` for England, **positive** `+3.4e38` for the Netherlands), some return a service exception, and some return a GeoTIFF that cannot be parsed at all.
+
+Sentinels are handled per-source by a no-data floor/fill, so out-of-coverage areas sit flat at sea level instead of decoding as a 10 km pit. Where a service answers with an error instead, those tiles simply don't render.
+
+Because of this, selecting a national dataset constrains the map to that country's extent by default — see Settings → Map Bounds to change or disable it.

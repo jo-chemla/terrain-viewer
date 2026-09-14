@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Switch } from "@/components/ui/switch"
 import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import { supportsNodataControls } from "@/lib/nodata"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
@@ -53,6 +54,13 @@ export const CustomTerrainSourceModal: React.FC<{
   // Out-of-coverage floor/fill in metres, as free-text drafts — see lib/nodata.ts.
   const [nodataFloor, setNodataFloor] = useState("")
   const [nodataFill, setNodataFill] = useState("")
+  // Custom RGB elevation packing for TMS pyramids that are neither Terrarium nor
+  // Terrain-RGB — see resolveCustomEncoding in lib/elevation-encoding.ts.
+  const [redFactor, setRedFactor] = useState("")
+  const [greenFactor, setGreenFactor] = useState("")
+  const [blueFactor, setBlueFactor] = useState("")
+  const [baseShift, setBaseShift] = useState("")
+  const [cogViaTitiler, setCogViaTitiler] = useState(false)
   // Folded by default — most sources need neither a linked pair nor manual
   // bounds, so this stays out of the way unless deliberately expanded.
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
@@ -81,10 +89,19 @@ export const CustomTerrainSourceModal: React.FC<{
       setBoundsNorth(editingSource.bounds ? String(editingSource.bounds[3]) : "")
       setNodataFloor(editingSource.nodataFloor === undefined ? "" : String(editingSource.nodataFloor))
       setNodataFill(editingSource.nodataFill === undefined ? "" : String(editingSource.nodataFill))
+      const str = (v: number | undefined) => (v === undefined ? "" : String(v))
+      setRedFactor(str(editingSource.redFactor))
+      setGreenFactor(str(editingSource.greenFactor))
+      setBlueFactor(str(editingSource.blueFactor))
+      setBaseShift(str(editingSource.baseShift))
+      setCogViaTitiler(!!editingSource.cogViaTitiler)
       // Description deliberately excluded — it alone shouldn't pop Advanced open;
       // only fields whose value actually diverges from doing-nothing should.
       setIsAdvancedOpen(editingSource.maxzoom !== undefined || !!editingSource.linkedBasemapId || !!editingSource.bounds
-        || editingSource.nodataFloor !== undefined || editingSource.nodataFill !== undefined)
+        || editingSource.nodataFloor !== undefined || editingSource.nodataFill !== undefined
+        || editingSource.redFactor !== undefined || editingSource.greenFactor !== undefined
+        || editingSource.blueFactor !== undefined || editingSource.baseShift !== undefined
+        || !!editingSource.cogViaTitiler)
       // Re-opening the modal on an existing "cog-local" source: the File itself
       // only lives in-memory for the session it was picked in, so after a reload
       // this is null until the user picks the file again via the button below.
@@ -103,6 +120,11 @@ export const CustomTerrainSourceModal: React.FC<{
       setBoundsNorth("")
       setNodataFloor("")
       setNodataFill("")
+      setRedFactor("")
+      setGreenFactor("")
+      setBlueFactor("")
+      setBaseShift("")
+      setCogViaTitiler(false)
       setIsAdvancedOpen(false)
       setLocalFileName(null)
       setLocalFileWarning(null)
@@ -142,7 +164,15 @@ export const CustomTerrainSourceModal: React.FC<{
   // Only the types this app decodes itself can honour a nodata floor/fill —
   // titiler-mode and plain XYZ sources have no interception point (lib/nodata.ts).
   // Declared above handleSave because its dependency array reads it at render time.
-  const showNodataFields = supportsNodataControls(type, useCogProtocol)
+  // A remote COG can opt out of the in-browser reader per source (non-3857
+  // files); nodata controls only exist on that reader, so they follow it.
+  const showTitilerToggle = type === "cog"
+  const showNodataFields = supportsNodataControls(type, useCogProtocol && !(showTitilerToggle && cogViaTitiler))
+  // Terrain-RGB only. Terrarium is a single fixed packing with nothing to vary,
+  // and cog:// / wms-raw are re-encoded to Terrarium by our own protocols before
+  // maplibre sees them (see MapSources.tsx), so exposing it there would only
+  // break them. Custom factors are therefore a Terrain-RGB *variant*.
+  const showEncodingFields = type === "terrainrgb"
 
   const handleSave = useCallback(() => {
     if (!name || !url) return
@@ -156,15 +186,22 @@ export const CustomTerrainSourceModal: React.FC<{
     // Dropped entirely for a type that can't honour them, so switching type
     // doesn't leave an invisible setting behind on the saved source.
     const parseNodata = (v: string) => (!showNodataFields || v === "" || !Number.isFinite(Number(v)) ? undefined : Number(v))
+    const parseEncoding = (v: string) => (!showEncodingFields || v === "" || !Number.isFinite(Number(v)) ? undefined : Number(v))
     onSave({
       id: editingSource?.id, name, url, type: type as CustomTerrainSource["type"], description, maxzoom: parsedMaxzoom,
       linkedBasemapId: linkedBasemapId || undefined,
       bounds: parsedBounds,
       nodataFloor: parseNodata(nodataFloor),
       nodataFill: parseNodata(nodataFill),
+      // Same drop-on-type-change rule as the nodata pair.
+      redFactor: parseEncoding(redFactor),
+      greenFactor: parseEncoding(greenFactor),
+      blueFactor: parseEncoding(blueFactor),
+      baseShift: parseEncoding(baseShift),
+      cogViaTitiler: showTitilerToggle && cogViaTitiler ? true : undefined,
     })
     onOpenChange(false)
-  }, [name, url, type, description, maxzoom, linkedBasemapId, boundsWest, boundsSouth, boundsEast, boundsNorth, nodataFloor, nodataFill, showNodataFields, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, maxzoom, linkedBasemapId, boundsWest, boundsSouth, boundsEast, boundsNorth, nodataFloor, nodataFill, showNodataFields, redFactor, greenFactor, blueFactor, baseShift, showEncodingFields, cogViaTitiler, showTitilerToggle, editingSource, onSave, onOpenChange])
 
   // COG/cog-local sources detect their own zoom range from file metadata via
   // geomatico (below) rather than needing a manual field — but MapSources.tsx's
@@ -360,6 +397,54 @@ export const CustomTerrainSourceModal: React.FC<{
                         onChange={(e) => setMaxzoom(e.target.value)}
                         className="cursor-text"
                       />
+                    </div>
+                  )}
+                  {showTitilerToggle && (
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="source-cog-via-titiler" className="flex items-center gap-1.5 text-sm">
+                        Always serve via titiler
+                        <Tooltip>
+                          <TooltipTrigger render={<span><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>} />
+                          <TooltipContent>
+                            <p className="max-w-xs">
+                              For a COG that is not in EPSG:3857. The in-browser reader does not
+                              reproject, so such a file is misplaced and its zoom range misread;
+                              titiler warps it server-side. Overrides the global COG setting for
+                              this source only.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </Label>
+                      <Switch id="source-cog-via-titiler" checked={cogViaTitiler} onCheckedChange={setCogViaTitiler} />
+                    </div>
+                  )}
+                  {showEncodingFields && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1.5 text-sm">
+                        Custom RGB Encoding (optional)
+                        <Tooltip>
+                          <TooltipTrigger render={<span><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>} />
+                          <TooltipContent>
+                            <p className="max-w-xs">
+                              For tile pyramids that pack elevation as neither Terrarium nor
+                              Terrain-RGB: elevation = R×red + G×green + B×blue − baseShift.
+                              Leave all four empty to use the encoding implied by the source type.
+                              Terrarium is 256 / 1 / 0.00390625 / 32768; Terrain-RGB is
+                              6553.6 / 25.6 / 0.1 / 10000.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </Label>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        <Input type="number" inputMode="decimal" placeholder="red" value={redFactor} onChange={(e) => setRedFactor(e.target.value)} className="cursor-text text-xs" />
+                        <Input type="number" inputMode="decimal" placeholder="green" value={greenFactor} onChange={(e) => setGreenFactor(e.target.value)} className="cursor-text text-xs" />
+                        <Input type="number" inputMode="decimal" placeholder="blue" value={blueFactor} onChange={(e) => setBlueFactor(e.target.value)} className="cursor-text text-xs" />
+                        <Input type="number" inputMode="decimal" placeholder="baseShift" value={baseShift} onChange={(e) => setBaseShift(e.target.value)} className="cursor-text text-xs" />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Any one value switches this source to custom decoding; the others default
+                        to the Terrain-RGB factors.
+                      </p>
                     </div>
                   )}
                   {showNodataFields && (

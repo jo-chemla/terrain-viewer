@@ -106,6 +106,13 @@ export interface CustomTerrainSource {
   /** Overrides the auto-detected (or fallback 0-20) zoom range — useful for WMS
    *  sources where COG metadata detection doesn't apply. */
   maxzoom?: number
+  /** Lowest zoom to REQUEST TILES at — deliberately not a camera constraint (see
+   *  the onZoomRangeChange comment in MapSources.tsx). Only for services that
+   *  genuinely fail on a large area: Italy 504s between z6-z9, Finland takes 13s
+   *  at z7 and 57s at z6. Measure from a point deep inland before setting this —
+   *  probing near a coast conflates "zoom too low" with "tile crosses the
+   *  coverage edge", which is how an earlier pass got these badly wrong. */
+  minzoom?: number
   /** Fallback raster-dem encoding used only when a 'tilejson' source's manifest omits
    *  its own "encoding" field (most, e.g. Mapterhorn's, declare it — see
    *  useTilejsonMetadata in MapSources.tsx, which is preferred over this when present). */
@@ -128,6 +135,38 @@ export interface CustomTerrainSource {
    *  client-side; see supportsNodataControls in lib/nodata.ts. */
   nodataFloor?: number
   nodataFill?: number
+  /** Custom RGB elevation packing for a tiled raster-dem source, for services
+   *  that use neither Terrarium nor Terrain-RGB. Maps 1:1 onto maplibre's
+   *  `encoding: "custom"` (see the style spec's raster-dem source):
+   *
+   *      elevation = R*redFactor + G*greenFactor + B*blueFactor - baseShift
+   *
+   *  For reference maplibre's own presets are terrarium = 256/1/(1/256)/32768
+   *  and mapbox (Terrain-RGB) = 6553.6/25.6/0.1/10000. Mexico's INEGI service
+   *  is Terrain-RGB's factors with baseShift 1000 instead of 10000 — the whole
+   *  reason this exists, since it would otherwise read ~9 km too low.
+   *
+   *  Set any one of the four to switch the source to custom encoding; the rest
+   *  fall back to the Terrain-RGB presets rather than to maplibre's raw
+   *  defaults of 1/1/1/0, which decode nothing useful. */
+  redFactor?: number
+  greenFactor?: number
+  blueFactor?: number
+  baseShift?: number
+  /** Whether "Load Sample Sources" includes this entry. Defaults to true when
+   *  absent. Set false for project-specific datasets (the Dura Europos and
+   *  Amphipolis scans) that shouldn't clutter everyone's list — they remain
+   *  fully reachable, because the permalink importer in TerrainViewer.tsx looks
+   *  sources up in the sample set by id regardless of this flag, so a shared
+   *  ?sourceA=<id> link still auto-adds them. */
+  loadWithSamples?: boolean
+  /** Always fetch this 'cog' source through titiler, ignoring the global
+   *  in-browser-vs-titiler toggle. For COGs that are not in EPSG:3857: the
+   *  geomatico reader does not reproject, so a Swiss LV95 or a geographic
+   *  (EPSG:4674) file is misplaced AND has its pixel size read as metres,
+   *  which also produces an absurd detected zoom range. titiler warps
+   *  server-side and gets both right. */
+  cogViaTitiler?: boolean
 }
 
 // getOnInit: true reads localStorage synchronously on first render instead of the
@@ -159,6 +198,9 @@ export interface CustomBasemapSource {
   url: string
   type: "cog" | "cog-local" | "tms" | "wms" | "wmts" | "tilejson"
   description?: string
+  /** Whether "Load Sample Sources" includes this entry. Defaults to true when
+   *  absent; see CustomTerrainSource.loadWithSamples for the rationale. */
+  loadWithSamples?: boolean
   /** 'tms' for bottom-left-origin tile grids (rare) — see maplibre raster source `scheme`. Defaults to 'xyz'. */
   scheme?: "xyz" | "tms"
   /** Overrides the default 0-22 fallback zoom range, e.g. from a NextGIS QMS z_min/z_max. */

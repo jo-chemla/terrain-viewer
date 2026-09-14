@@ -1,5 +1,5 @@
 import { fromArrayBuffer } from "geotiff"
-import { NODATA_FILL_PARAM, NODATA_FLOOR_PARAM, resolveNodata } from "./nodata"
+import { NODATA_FILL_PARAM, NODATA_FLOOR_PARAM, resolveNodata, isSentinel } from "./nodata"
 
 /**
  * Ported from public/maplibre-raster-dem-wms-float32-generic.html (the IGN LidarHD
@@ -74,6 +74,81 @@ const SUPERSAMPLE_RE = /[?&]__supersample=(\d+)/i
 const NODATAFILL_RE = new RegExp(`[?&]${NODATA_FILL_PARAM}=(-?\\d+(?:\\.\\d+)?)`, "i")
 const NODATAFLOOR_RE = new RegExp(`[?&]${NODATA_FLOOR_PARAM}=(-?\\d+(?:\\.\\d+)?)`, "i")
 
+// WCS 2.0 request-shape rewrite. Most raw-elevation services this protocol talks
+// to are WCS *1.0* GetCoverage, which takes `BBOX=minx,miny,maxx,maxy` +
+// WIDTH/HEIGHT — byte-identical to the WMS GetMap shape, so `{bbox-epsg-3857}`
+// templates straight in and no rewrite is needed (Norway, Finland, AHN, NRW,
+// Baden-Wurttemberg, Brandenburg, Meckl.-Vorpommern, BKG, UK EA, Flanders).
+//
+// WCS *2.0* dropped BBOX entirely: it wants one `subset=` per axis and
+// `scaleSize=` instead of WIDTH/HEIGHT. Sending BBOX to a 2.0.1 endpoint returns
+// HTTP 504 (measured against TINITALY). Since maplibre can only ever substitute
+// a comma-joined bbox, the conversion has to happen here.
+//
+// Opt in with `&__wcs2subset=<xAxis>,<yAxis>[,ogc|axis]`. The axis LABELS are
+// part of the marker because servers disagree: TINITALY (Italy) publishes X/Y
+// for a projected CRS, Digital Earth Africa publishes x/y, EMODnet Long/Lat,
+// and Poland's GUGiK `y x` where y is easting. Getting them backwards silently
+// returns the wrong region rather than an error, so it is explicit, not guessed.
+//
+// The third field picks how `scaleSize` names its axes, because the two servers
+// we support want OPPOSITE spellings and reject the other outright:
+//   ogc  (default) - OGC grid-axis URIs, .../1/i(W),.../1/j(H). TINITALY needs
+//                    this and 404s on plain labels.
+//   axis           - reuse the subset labels, x(W),y(H). Digital Earth Africa
+//                    needs this and 500s on the OGC URIs.
+const WCS2SUBSET_RE = /[?&]__wcs2subset=([A-Za-z]+),([A-Za-z]+)(?:,(ogc|axis))?/i
+const OGC_AXIS = "http://www.opengis.net/def/axis/OGC/1"
+
+// Some WCS servers honour the requested BBOX only approximately: they reproject
+// it into their native CRS, snap to their own grid, and hand back a raster whose
+// real extent is LARGER than what was asked for — correctly georeferenced, just
+// not the rectangle we wanted. Measured on a z12 tile: Finland's Paituli returns
+// 10400 m for a 9784 m tile, England's EA 10282 m. Packing those pixels as if
+// they covered the tile exactly shifts and scales the terrain by ~3-6%, which
+// reads as "the tiles are weird" rather than as an outright failure. (Adding
+// RESPONSE_CRS changes nothing — verified both ways.)
+//
+// So: believe the GeoTIFF's georeferencing over the request, and resample onto
+// the grid actually asked for. Servers that already answer with the requested
+// extent (Norway, Tirol, Czechia, IGN) skip this entirely.
+//
+// BILINEAR, not nearest-neighbour. The drift is a non-integer fraction of a
+// pixel — TINITALY is off by a steady 5.3% at every zoom — so nearest-neighbour
+// duplicates and drops whole rows/columns on a regular beat, which reads as a
+// grid of ridges once hillshade amplifies the derivative. Bilinear is only safe
+// because the nodata fill has already run by this point (see the call site), so
+// there are no sentinels left to smear into their neighbours; the isSentinel
+// fallback covers sources that never opted into nodata handling at all.
+function resampleToBbox(
+  src: ArrayLike<number>, sw: number, sh: number,
+  srcBbox: [number, number, number, number], dstBbox: [number, number, number, number],
+  dw: number, dh: number,
+): Float64Array {
+  const [sx0, sy0, sx1, sy1] = srcBbox
+  const [dx0, dy0, dx1, dy1] = dstBbox
+  const out = new Float64Array(dw * dh)
+  const sxSpan = sx1 - sx0, sySpan = sy1 - sy0
+  const at = (x: number, y: number) =>
+    src[Math.min(sh - 1, Math.max(0, y)) * sw + Math.min(sw - 1, Math.max(0, x))]
+  for (let y = 0; y < dh; y++) {
+    // Row centre in world coords; raster rows run north -> south.
+    const wy = dy1 - ((y + 0.5) * (dy1 - dy0)) / dh
+    const fy = ((sy1 - wy) * sh) / sySpan - 0.5
+    const y0 = Math.floor(fy), ty = fy - y0
+    for (let x = 0; x < dw; x++) {
+      const wx = dx0 + ((x + 0.5) * (dx1 - dx0)) / dw
+      const fx = ((wx - sx0) * sw) / sxSpan - 0.5
+      const x0 = Math.floor(fx), tx = fx - x0
+      const v00 = at(x0, y0), v10 = at(x0 + 1, y0), v01 = at(x0, y0 + 1), v11 = at(x0 + 1, y0 + 1)
+      out[y * dw + x] = isSentinel(v00) || isSentinel(v10) || isSentinel(v01) || isSentinel(v11)
+        ? at(Math.round(fx), Math.round(fy))
+        : v00 * (1 - tx) * (1 - ty) + v10 * tx * (1 - ty) + v01 * (1 - tx) * ty + v11 * tx * ty
+    }
+  }
+  return out
+}
+
 function boxDownsample(src: ArrayLike<number>, width: number, height: number, factor: number, holeFloor: number): { data: Float64Array; width: number; height: number } {
   const outW = Math.floor(width / factor)
   const outH = Math.floor(height / factor)
@@ -89,7 +164,7 @@ function boxDownsample(src: ArrayLike<number>, width: number, height: number, fa
           // Average only valid samples — a nodata cell shouldn't drag its whole
           // block down. holeFloor is -Infinity for sources that haven't opted
           // into nodata handling, leaving this a bare finite check as before.
-          if (isFinite(v) && v > holeFloor) { sum += v; count++ }
+          if (!isSentinel(v) && v > holeFloor) { sum += v; count++ }
         }
       }
       // NaN, not 0, for an all-hole block: it stays flagged as a hole so the
@@ -106,6 +181,14 @@ export async function float32demProtocol(
 ): Promise<{ data: Uint8Array }> {
   let url = "https://" + params.url.replace(/^float32dem:\/\//, "")
 
+  // Captured before any marker rewriting, since the WCS 2.0 branch below removes
+  // BBOX outright. Used after decode to detect a server that answered with a
+  // different extent than we asked for (see resampleToBbox).
+  const requestedBboxMatch = url.match(/[?&]BBOX=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)/i)
+  const requestedBbox: [number, number, number, number] | null = requestedBboxMatch
+    ? [parseFloat(requestedBboxMatch[1]), parseFloat(requestedBboxMatch[2]), parseFloat(requestedBboxMatch[3]), parseFloat(requestedBboxMatch[4])]
+    : null
+
   // Supersampling marker (see SUPERSAMPLE_RE's comment): strip it and
   // scale the GetMap's own WIDTH/HEIGHT up by the factor.
   const ssMatch = url.match(SUPERSAMPLE_RE)
@@ -114,6 +197,28 @@ export async function float32demProtocol(
     url = url.replace(SUPERSAMPLE_RE, "")
       .replace(/([?&]WIDTH=)(\d+)/i, (_, k, v) => `${k}${parseInt(v, 10) * supersample}`)
       .replace(/([?&]HEIGHT=)(\d+)/i, (_, k, v) => `${k}${parseInt(v, 10) * supersample}`)
+  }
+
+  // WCS 2.0 rewrite (see WCS2SUBSET_RE's comment). Runs AFTER the supersample
+  // block so it converts the already-scaled WIDTH/HEIGHT, not the original.
+  const wcs2Match = url.match(WCS2SUBSET_RE)
+  if (wcs2Match) {
+    const [, xAxis, yAxis, scaleStyle] = wcs2Match
+    url = url.replace(WCS2SUBSET_RE, "")
+    const bboxMatch = url.match(/[?&]BBOX=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)/i)
+    if (bboxMatch) {
+      const [, minX, minY, maxX, maxY] = bboxMatch
+      url = url.replace(/[?&]BBOX=[^&]*/i, "") +
+        `&subset=${xAxis}(${minX},${maxX})&subset=${yAxis}(${minY},${maxY})`
+    }
+    const wMatch = url.match(/[?&]WIDTH=(\d+)/i)
+    const hMatch = url.match(/[?&]HEIGHT=(\d+)/i)
+    if (wMatch && hMatch) {
+      const scale = scaleStyle?.toLowerCase() === "axis"
+        ? `${xAxis}(${wMatch[1]}),${yAxis}(${hMatch[1]})`
+        : `${OGC_AXIS}/i(${wMatch[1]}),${OGC_AXIS}/j(${hMatch[1]})`
+      url = url.replace(/[?&]WIDTH=\d+/i, "").replace(/[?&]HEIGHT=\d+/i, "") + `&scaleSize=${scale}`
+    }
   }
 
   // Nodata fill marker (see NODATAFILL_RE's comment): strip it before the
@@ -140,24 +245,41 @@ export async function float32demProtocol(
   let height = image.getHeight()
   let elevationData = rasters[0] as ArrayLike<number>
 
+  // Replace holes + reprojection smear with the fill level, in place. Writable in
+  // both branches: geotiff's own Float32Array, or boxDownsample's Float64Array.
+  // A substitution rather than a clamp — when floor sits below fill, a valid cell
+  // between the two keeps its own value; when they're equal the two are identical.
+  //
+  // Runs FIRST, before the re-grid below, because that step interpolates: filling
+  // here means there is no -9999 left to smear into its valid neighbours. Doing it
+  // the other way round would reintroduce exactly the fringe this exists to kill.
+  if (nodata) {
+    const out = elevationData as Float32Array | Float64Array
+    for (let i = 0; i < out.length; i++) {
+      const v = out[i]
+      if (isSentinel(v) || v <= nodata.floor) out[i] = nodata.fill
+    }
+  }
+
+  // Re-grid onto the requested extent if the server drifted (see resampleToBbox).
+  // Tolerance is 0.5% of the tile span: comfortably above float/grid-snap noise,
+  // well below the 3-6% drift that actually causes visible misregistration.
+  if (requestedBbox) {
+    const got = image.getBoundingBox() as [number, number, number, number]
+    const spanX = requestedBbox[2] - requestedBbox[0]
+    const spanY = requestedBbox[3] - requestedBbox[1]
+    const tol = Math.max(Math.abs(spanX), Math.abs(spanY)) * 0.005
+    const drifted = got.some((v, i) => Math.abs(v - requestedBbox[i]) > tol)
+    if (drifted && isFinite(got[0]) && got[2] !== got[0] && got[3] !== got[1]) {
+      elevationData = resampleToBbox(elevationData, width, height, got, requestedBbox, width, height)
+    }
+  }
+
   if (supersample > 1) {
     const down = boxDownsample(elevationData, width, height, supersample, holeFloor)
     elevationData = down.data
     width = down.width
     height = down.height
-  }
-
-  // Replace holes + reprojection smear with the fill level, in place. Runs after
-  // the downsample so box averages are computed from valid samples only. Writable
-  // in both branches: geotiff's own Float32Array, or boxDownsample's Float64Array.
-  // A substitution rather than a clamp — when floor sits below fill, a valid cell
-  // between the two keeps its own value; when they're equal the two are identical.
-  if (nodata) {
-    const out = elevationData as Float32Array | Float64Array
-    for (let i = 0; i < out.length; i++) {
-      const v = out[i]
-      if (!isFinite(v) || v <= nodata.floor) out[i] = nodata.fill
-    }
   }
 
   // Encode to Terrarium (same formula as elevationToTerrarium in MapSources.tsx):

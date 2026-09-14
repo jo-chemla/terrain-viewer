@@ -50,6 +50,7 @@
     "lucide-react": "^0.454.0",
     "maplibre-contour": "0.1.0",
     "maplibre-gl": "^5.24.0",
+    "maplibre-xy": "^1.1.0",
     "mediabunny": "^1.34.4",
     "modern-screenshot": "4.7.0",
     "nuqs": "^2.8.8",

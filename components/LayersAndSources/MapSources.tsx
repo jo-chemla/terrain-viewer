@@ -9,8 +9,8 @@ import { probeMaxZoomAt } from "@/lib/tile-max-zoom"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction } from '@geomatico/maplibre-cog-protocol'
 import { useCogMetadata, zoomRangeFromMetadata, type CogMetadata } from "@/lib/cog-metadata"
-import { elevationToTerrainrgb, elevationToTerrarium } from "@/lib/elevation-encoding"
-import { resolveNodata } from "@/lib/nodata"
+import { elevationToTerrainrgb, elevationToTerrarium, resolveCustomEncoding } from "@/lib/elevation-encoding"
+import { resolveNodata, isSentinel } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
 import { buildAspectProtocolUrl } from "@/lib/aspect-protocol"
@@ -40,7 +40,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value"
 // Per-pixel COG decode, registered with geomatico's setColorFunction below — this
 // runs inside the cog:// protocol, so it IS the elevation path, not just colouring.
 //
-// The non-finite guard is load-bearing: `raw === noData` cannot catch a NaN
+// The sentinel guard is load-bearing: `raw === noData` cannot catch a NaN
 // sentinel (NaN !== NaN), and NaN is exactly what several DSMs use — the Dura
 // Europos scans declare GDAL_NODATA as literally NaN and carry NaN across 12-57%
 // of their pixels. Unguarded, NaN reaches elevationToTerrarium, whose components
@@ -58,7 +58,7 @@ const makeElevationColorFunction = (
 ) => (pixel: any, color: any) => {
     const raw = pixel[0]
     const elevation = offset + raw * scale
-    const isHole = !isFinite(raw) || raw === noData || (nodata ? elevation <= nodata.floor : false)
+    const isHole = isSentinel(raw) || raw === noData || (nodata ? elevation <= nodata.floor : false)
     color.set(encode(isHole ? (nodata?.fill ?? 0) : elevation))
 }
 
@@ -161,7 +161,11 @@ export const TerrainSources = memo(({
     // there's no titiler server that could reach the user's disk — so it ignores
     // the useCogProtocolVsTitiler toggle entirely, unlike a remote "cog" source.
     const isCogLocal = customSource?.type === 'cog-local'
-    const isCogProtocol = (customSource?.type === 'cog' && useCogProtocol) || isCogLocal
+    // A source can opt out of the in-browser reader (non-3857 COG, see
+    // CustomTerrainSource.cogViaTitiler); it then behaves as if the global
+    // toggle were set to titiler for this source only.
+    const useCogProtocolForSource = useCogProtocol && !customSource?.cogViaTitiler
+    const isCogProtocol = (customSource?.type === 'cog' && useCogProtocolForSource) || isCogLocal
     const isTilejson = customSource?.type === 'tilejson'
     // For a local file, this session's blob: URL if the file has been picked (or
     // re-picked after a reload), else null — same "not ready yet" shape as a COG
@@ -176,9 +180,18 @@ export const TerrainSources = memo(({
     // A custom source's explicit maxzoom (e.g. WMS sources without COG metadata to auto-detect from)
     // wins over both the metadata-detected value and the 0-20 fallback.
     const maxzoom = customSource?.maxzoom ?? detectedMaxzoom
+    // Same override shape as maxzoom: a source that errors on huge tiles can
+    // declare the lowest zoom it actually serves (see CustomTerrainSource.minzoom).
+    const effectiveMinzoom = customSource?.minzoom ?? minzoom
 
     useEffect(() => {
         if (isCogProtocol && !metadata) return  // don't fire until real metadata
+        // Deliberately reports the DETECTED minzoom, not customSource.minzoom.
+        // TerrainViewer feeds this into effectiveMinZoom -> map.setMinZoom(), so a
+        // source-declared minzoom would clamp the user's camera and stop them
+        // zooming out at all. That field exists only to stop us *requesting* tiles
+        // a service can't answer (see CustomTerrainSource.minzoom); below it the
+        // terrain should simply not render, while the viewport stays free.
         onZoomRangeChange?.({ minzoom, maxzoom, isCustom: !!customSource })
     }, [minzoom, maxzoom, metadata, isCogProtocol, onZoomRangeChange])
 
@@ -213,7 +226,7 @@ export const TerrainSources = memo(({
             const built = buildRasterTileSource({
                 url: isCogLocal ? resolvedCogUrl! : customSource.url,
                 type: isCogLocal ? 'cog' : customSource.type,
-                useCogProtocol: isCogLocal ? true : useCogProtocol,
+                useCogProtocol: isCogLocal ? true : useCogProtocolForSource,
                 titilerEndpoint,
                 isDem: true,
                 nodata: customSource,
@@ -227,15 +240,25 @@ export const TerrainSources = memo(({
                 // must match here or maplibre would misdecode every pixel.
                 : customSource.type === 'terrarium' || customSource.type === 'wms-raw' ? 'terrarium'
                 : 'mapbox'  // terrainrgb
+            // Custom RGB packing, for plain tile pyramids that use neither named
+            // encoding — e.g. Mexico's INEGI, which is Terrain-RGB's factors with
+            // baseShift 1000 instead of 10000 and reads ~9 km too low otherwise.
+            // Deliberately restricted to the TMS family: cog:// and wms-raw tiles
+            // reach maplibre already re-encoded to Terrarium by our own protocols,
+            // so overriding their encoding would corrupt every pixel.
+            const customEncoding = customSource.type === 'terrarium' || customSource.type === 'terrainrgb'
+                ? resolveCustomEncoding(customSource)
+                : null
             return {
                 type: "raster-dem",
                 // wms-raw's URL requests a fixed WIDTH/HEIGHT (e.g. 514 = 512 + 1px buffer per side)
                 // matching a 512px tile — see public/maplibre-raster-dem-wms-float32-generic.html.
                 // TileJSON sources carry their own tileSize in the manifest maplibre fetches.
                 ...(customSource.type === 'tilejson' ? {} : { tileSize: customSource.type === 'wms-raw' ? 512 : 256 }),
-                minzoom,
+                minzoom: effectiveMinzoom,
                 maxzoom,
-                encoding,
+                encoding: customEncoding ? 'custom' : encoding,
+                ...(customEncoding ?? {}),
                 ...built,
             }
         }
@@ -247,7 +270,7 @@ export const TerrainSources = memo(({
             ...base.sourceConfig,
             tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
         }
-    }, [customSource, source, useCogProtocol, titilerEndpoint, highResTerrain, minzoom, maxzoom, isCogProtocol, isCogLocal, resolvedCogUrl, isTilejson, tilejsonMetadata, mapboxKey, maptilerKey, metadata])
+    }, [customSource, source, useCogProtocolForSource, titilerEndpoint, highResTerrain, effectiveMinzoom, maxzoom, isCogProtocol, isCogLocal, resolvedCogUrl, isTilejson, tilejsonMetadata, mapboxKey, maptilerKey, metadata])
 
     // A source's declared maxzoom (sourceConfig.maxzoom) isn't always backed by
     // real coverage at every location — most visibly Mapterhorn, which declares
