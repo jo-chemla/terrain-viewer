@@ -1,5 +1,65 @@
-import { fromArrayBuffer } from "geotiff"
+import { fromArrayBuffer, type GeoTIFFImage } from "geotiff"
 import { NODATA_FILL_PARAM, NODATA_FLOOR_PARAM, resolveNodata, isSentinel } from "./nodata"
+
+/**
+ * geotiff's readRasters, tolerant of SPARSE tiled/stripped files. ArcGIS
+ * (WCSServer and ImageServer alike) writes the parts of a window that fall
+ * outside the coverage extent as tiles with TileOffsets = TileByteCounts = 0 —
+ * GDAL's SPARSE_OK convention — and geotiff.js then throws "Offset is outside
+ * the bounds of the DataView" for the whole read. That is every tile that
+ * crosses the border, i.e. at country-fit zoom for a small extent like Tirol or
+ * Czechia it is every tile there is, so the country rendered blank exactly when
+ * the map had just been fenced to it.
+ *
+ * Missing blocks are synthesised as NaN (float) or the GDAL_NODATA value (int)
+ * so the ordinary hole handling downstream (isSentinel treats non-finite as a
+ * hole; the Terrarium encoder maps it to 0) does the rest. Files with no empty
+ * block go straight through untouched.
+ */
+export async function readRastersSparse(image: GeoTIFFImage) {
+  const fd = image.fileDirectory
+  const counts: ArrayLike<number> | undefined = fd.TileByteCounts ?? fd.StripByteCounts
+  const offsets: ArrayLike<number> | undefined = fd.TileOffsets ?? fd.StripOffsets
+  let hasEmpty = false
+  if (counts && offsets) {
+    for (let i = 0; i < counts.length; i++) if (counts[i] === 0 || offsets[i] === 0) { hasEmpty = true; break }
+  }
+  if (!hasEmpty || !counts || !offsets) return image.readRasters()
+
+  const tileW = image.getTileWidth()
+  const tileH = image.getTileHeight()
+  const perRow = Math.ceil(image.getWidth() / tileW)
+  const perCol = Math.ceil(image.getHeight() / tileH)
+  const bytesPerPixel = image.getBytesPerPixel()
+  const bits: number = fd.BitsPerSample[0]
+  const isFloat = image.getSampleFormat() === 3
+  const nodataTag = fd.GDAL_NODATA !== undefined ? parseFloat(String(fd.GDAL_NODATA)) : NaN
+  const fill = isFloat ? NaN : Number.isFinite(nodataTag) ? nodataTag : 0
+  const { littleEndian } = image
+  const blank = new ArrayBuffer(tileW * tileH * bytesPerPixel)
+  if (fill !== 0) {
+    const view = new DataView(blank)
+    for (let off = 0; off < blank.byteLength; off += bytesPerPixel) {
+      if (isFloat && bits === 32) view.setFloat32(off, fill, littleEndian)
+      else if (isFloat && bits === 64) view.setFloat64(off, fill, littleEndian)
+      else if (bits === 16) view.setInt16(off, fill, littleEndian)
+      else if (bits === 32) view.setInt32(off, fill, littleEndian)
+      else if (bits === 8) view.setInt8(off, fill)
+    }
+  }
+
+  const original = image.getTileOrStrip.bind(image)
+  // Instance-level override — geotiff reads through this.getTileOrStrip, so
+  // shadowing it on the one image is enough and nothing else is affected.
+  ;(image as unknown as { getTileOrStrip: typeof original }).getTileOrStrip = async (x, y, sample, poolOrDecoder, signal) => {
+    const index = image.planarConfiguration === 2 ? sample * perRow * perCol + y * perRow + x : y * perRow + x
+    if (counts[index] === 0 || offsets[index] === 0) {
+      return { x, y, sample, data: blank.slice(0) } as unknown as ArrayBuffer
+    }
+    return original(x, y, sample, poolOrDecoder, signal)
+  }
+  return image.readRasters()
+}
 
 /**
  * Ported from public/maplibre-raster-dem-wms-float32-generic.html (the IGN LidarHD
@@ -240,7 +300,7 @@ export async function float32demProtocol(
 
   const tiff = await fromArrayBuffer(arrayBuffer)
   const image = await tiff.getImage()
-  const rasters = await image.readRasters()
+  const rasters = await readRastersSparse(image)
   let width = image.getWidth()
   let height = image.getHeight()
   let elevationData = rasters[0] as ArrayLike<number>
