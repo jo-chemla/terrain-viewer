@@ -31,6 +31,16 @@
             "description": "FLANDERS ONLY - Wallonia and Brussels publish no raw service. Free re-use (Gratis Open Data Licentie Vlaanderen). Verified Antwerp 2-12 m. Use WCS 1.0.0: the 2.0.1 endpoint wraps the GeoTIFF in a multipart/related envelope that a browser client would have to unwrap. NoData -9999."
         },
         {
+            "id": "custom-ca-nrcan-mrdem30",
+            "name": "CAN - NRCan MRDEM 30m DTM - single national COG",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "maxzoom": 13,
+            "bounds": [-141.5, 41.5, -52, 84],
+            "description": "Medium Resolution DEM, the national 30m terrain model (CDEM successor) as one 84 GB COG on NRCan's CanElevation bucket - CORS *, range requests, LZW, 10 overviews. EPSG:3979 (Canada Atlas Lambert), so pinned to titiler. Nodata -32767. A DSM twin sits at mrdem-30/mrdem-30-dsm.tif and the older CDEM at datacube-prod-data-public.s3.amazonaws.com/store/elevation/cdem-cdsm/cdem/cdem-canada-dem.tif. Coarser than the 2m HRDEM Mapterhorn ingests - this is the whole-country product; HRDEM itself is only published per tile. Verified: Banff 1387 m, Mt Robson 3902 m (30m pixel; true 3954). Open Government Licence - Canada."
+        },
+        {
             "id": "custom-ch-swissaltiregio",
             "name": "CHE - swisstopo swissALTIRegio 10m - single national COG",
             "url": "https://data.geo.admin.ch/ch.swisstopo.swissaltiregio/swissaltiregio/swissaltiregio_2056_5728.tif",
@@ -104,6 +114,16 @@
             "description": "Raw Float32 elevation decoded client-side (float32dem:// protocol) — no gdal_calc needed to recover real altitude. Ported from public/maplibre-raster-dem-wms-float32-generic.html. Bounds are mainland France (+Corsica), since IGN's LidarHD coverage doesn't extend to overseas territories."
         },
         {
+            "id": "custom-fr-ign-rgealti-highres",
+            "name": "FRA - IGN RGE ALTI 1-5m (mainland + overseas departments) - WMS raw Float32",
+            "url": "data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES&STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514",
+            "type": "wms-raw",
+            "maxzoom": 16,
+            "nodataFloor": -9000,
+            "nodataFill": 0,
+            "description": "RGE ALTI, IGN's 1-5m national grid, on the same WMS-Raster endpoint as LiDAR HD - and unlike LiDAR HD it also covers Reunion, Guadeloupe, Martinique, Saint-Martin, French Guiana, Mayotte and Saint-Pierre-et-Miquelon (not New Caledonia or Polynesia, which only have the 25m BD ALTI layer ELEVATION.ELEVATIONGRIDCOVERAGE). Deliberately unbounded so the map is not fenced to one hemisphere. Verified: Mont Blanc window max 4778.8 m, Piton des Neiges 3069.8 m (true 3070.5), La Soufriere 1465.7 m (true 1467). Sentinel -99999, with resampled -99999.0078 edge pixels, hence the -9000 floor. Etalab 2.0. Reunion also has LiDAR HD at 0.5m: IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.RGR92UTM40S."
+        },
+        {
             "id": "custom-uk-ea-lidar-dtm1",
             "name": "GBR - England EA LIDAR Composite DTM 1m - WCS raw Float32",
             "url": "environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wcs?service=WCS&version=1.0.0&request=GetCoverage&coverage=13787b9a-26a4-4775-8523-806d13af58fc:Lidar_Composite_Elevation_DTM_1m&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514&FORMAT=image/tiff",
@@ -113,6 +133,18 @@
             "nodataFill": 0,
             "bounds": [-6.4, 49.8, 1.8, 55.9],
             "description": "Environment Agency national lidar composite. ENGLAND ONLY (not Wales/Scotland/NI) and ~75% coverage, so expect real gaps inland. OGL v3. No-data is -3.4e38, hence the floor. Server returns a ~5% larger extent than requested; the protocol re-grids onto the requested bbox (resampleToBbox)."
+        },
+        {
+            "id": "custom-ht-cnigs-dtm15",
+            "name": "HTI - CNIGS / World Bank LiDAR DTM 1.5m - VRT via titiler",
+            "url": "https://opentopography.s3.sdsc.edu/raster/Haiti_16/Haiti_16_be.vrt",
+            "type": "vrt",
+            "loadWithSamples": false,
+            "minzoom": 12,
+            "maxzoom": 17,
+            "titilerNodata": 0,
+            "bounds": [-74.5, 18.0, -71.6, 20.15],
+            "description": "The 2014-2016 Haiti Digital Terrain Model (World Bank / CNIGS / HaitiData, flown by IGN FI-IMAO), 1.5m bare earth over the whole country, hosted on OpenTopography as a VRT over 369 UInt16 GeoTIFF tiles in EPSG:32618 with nodata 0. Range requests and CORS work, but the VRT has no overviews and titiler.xyz answers HTTP 500 for any window below z12 - so it only renders when already zoomed in, and is kept out of Load Samples for that reason. Its titilerNodata is 0 because titiler cannot cast the default -999 to uint16. Verified: Citadelle Laferriere ridge 810-816 m (tile max 895 m). Licence not stated on the OpenTopography record (OTSDEM.082021.32618.1)."
         },
         {
             "id": "custom-idn-big-demnas",
@@ -136,6 +168,15 @@
             "nodataFill": 0,
             "bounds": [6.6, 35.4, 18.6, 47.1],
             "description": "TINITALY 1.1, the de-facto national DEM of Italy (INGV; IGM publishes no open raw service). CC BY 4.0. WCS 2.0.1 rejects BBOX with HTTP 504, so the __wcs2subset marker rewrites it to subset=X()/Y() plus scaleSize - see WCS2SUBSET_RE in lib/float32dem-protocol.ts. Sentinel -9999. Regione Sardegna also serves a 1m WCS (webgis2.regione.sardegna.it/geoserverraster/ows, coverage raster:DTM_1M_MOSAICO_ALTIMETRIA) but it covers only about half the island in patchy blocks, so it is not shipped. Requests between z6 and z9 return 504 after ~60s; z10 works (~4s), hence minzoom 10."
+        },
+        {
+            "id": "custom-jp-gsj-terrainrgb",
+            "name": "JPN - GSI/GSJ seamless elevation tiles 5-10m - Terrain-RGB",
+            "url": "https://gbank.gsj.jp/seamless/elev/terrainRGB/mixed/{z}/{y}/{x}.png",
+            "type": "terrainrgb",
+            "maxzoom": 15,
+            "bounds": [122, 20, 154, 46],
+            "description": "The Geological Survey of Japan (AIST) re-serves GSI's national elevation tiles as standard Mapbox Terrain-RGB: DEM5A/B/C (5m) where available, DEM10B (10m) elsewhere, Hyogo LiDAR at z16-17, with ASTER GDEM and GEBCO bathymetry outside Japan at low zoom. Note the {z}/{y}/{x} order in the path. GSI's own tiles use a signed 24-bit x0.01 packing no raster-dem encoding can express - this conversion is what makes Japan loadable here. z16+ returns HTTP 400 outside Hyogo, hence maxzoom 15. Verified: Mt Fuji 3773.8 m (true 3776). CORS *. GSI content usage terms (attribution GSI / GSJ-AIST); GSJ marks the service experimental."
         },
         {
             "id": "custom-mx-inegi-cem",
@@ -200,6 +241,17 @@
             "description": "LINZ Basemaps: national 8m DEM with regional 1m LiDAR mosaicked in. The only true Terrain-RGB service published by any national mapping agency. CC BY 4.0 LINZ, attribution required. Two non-obvious requirements: pipeline=terrain-rgb (without it the endpoint 404s) and an api= key. The key is NOT issued by a server - LINZ Basemaps mints it client-side as \"c\" + a lowercase ULID and caches it in localStorage, so there is no registration, login or email. The one shipped here was minted the same way and can be replaced with your own at basemaps.linz.govt.nz if it ever gets rate-limited."
         },
         {
+            "id": "custom-uy-ideuy-mdt30",
+            "name": "URY - IDEuy MDT nacional 30m - WCS 2.0 raw Float32",
+            "url": "mapas.ide.uy/geoserver-raster/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=raster__mdt_pais_30m_4326&subsettingCrs=http://www.opengis.net/def/crs/EPSG/0/3857&outputCrs=http://www.opengis.net/def/crs/EPSG/0/3857&format=image/tiff&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514&__wcs2subset=X,Y",
+            "type": "wms-raw",
+            "maxzoom": 12,
+            "nodataFloor": -1000,
+            "nodataFill": 0,
+            "bounds": [-58.4, -35, -53, -30.1],
+            "description": "Uruguay's national 30m terrain model from IDEuy (AGESIC). WCS 2.0.1 on GeoServer, rewritten by the __wcs2subset marker with the OGC i/j scaleSize URIs. Slow - 7-11 s per window - but genuine Float32. Untagged nodata -32767 (sea), caught by the floor. Requests entirely outside the extent return an OWS exception, which simply leaves those tiles empty. Verified: Cerro de Montevideo 132.0 m (true 132). The 30 cm - 2.5 m urban DSM (mds_urbana) is only published as a styled WMS. No fees or access constraints declared."
+        },
+        {
             "id": "custom-us-3dep",
             "name": "USA - USGS 3DEP - ImageServer raw Float32",
             "url": "elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=514,514&format=tiff&f=image",
@@ -219,12 +271,55 @@
             "description": "All of South America in one COG - 187853x262864 with 10 overview levels, CORS open, range requests supported. Same 30m grid as Copernicus GLO-30 but machine-learning corrected to BARE EARTH, which matters enormously under Amazon canopy where GLO-30 measures the treetops - so the gain over Mapterhorn is accuracy beneath forest, not resolution. maxzoom 13 matches the native 30m grid; without it the COG reader over-zooms far past the real detail. EPSG:4674, so it is pinned to titiler (cogViaTitiler): the in-browser COG reader assumes 3857, misplaces it, and reads its degree-sized pixels as metres - which is what made the camera lock at z19. Nodata -9999. See https://opentopography.org/news/new-machine-learning-derived-digital-terrain-models"
         },
         {
+            "id": "custom-emodnet-bathymetry",
+            "name": "Global - EMODnet Bathymetry (European seas) ~115m - WCS raw Float32",
+            "url": "ows.emodnet-bathymetry.eu/wcs?service=WCS&version=1.0.0&request=GetCoverage&coverage=emodnet:mean&crs=EPSG:3857&response_crs=EPSG:3857&format=GeoTIFF&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514",
+            "type": "wms-raw",
+            "maxzoom": 11,
+            "nodataFloor": -20000,
+            "nodataFill": 0,
+            "bounds": [-36, 15, 43, 84],
+            "description": "European Marine Observation and Data Network digital bathymetry 2024, 1/16 arc-minute (~115 m) mean depth of all European seas, negative below sea level; land is NaN and fills to 0. WCS 1.0 with a WMS-shaped BBOX so it needs no rewrite. Older releases are coverage=emodnet:mean_2016/2018/2020/2022. Verified central North Sea -32.5 m. CC BY 4.0, attribution EMODnet Bathymetry Consortium."
+        },
+        {
+            "id": "custom-gedtm30",
+            "name": "Global - GEDTM30 bare-earth 30m - single global COG",
+            "url": "https://s3.opengeohub.org/global/dtm/v1.2/gedtm_rf_m_30m_s_20060101_20151231_go_epsg.4326.3855_v1.2.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "minzoom": 6,
+            "maxzoom": 13,
+            "description": "OpenLandMap / OpenGeoHub's global 30m terrain model, one 432 GB COG (1.3 million x 540 thousand pixels, 11 overviews) with CORS * and range requests. Like ANADEM it is a machine-learning fusion of GLO-30, ALOS and GEDI spaceborne LiDAR corrected towards bare earth, so the gain over a plain GLO-30 is under forest canopy, not in resolution. EPSG:4326, pinned to titiler; titiler.xyz answers HTTP 500 for z4-z5 windows of this file, hence minzoom 6. Nodata +3.4e38. Verified: Mont Blanc 4805.6 m, Everest 8742 m (3x3 max). CC BY 4.0, Zenodo 15689805."
+        },
+        {
             "id": "custom-openwaters-seascape",
             "name": "Global - Open Waters Seascape Bathymetry - Terrarium",
             "url": "https://tiles.openwaters.io/seascape/{z}/{x}/{y}.webp",
             "type": "terrarium",
             "maxzoom": 17,
             "description": "Merged global + regional bathymetric compilations (GEBCO, EMODnet, NOAA CUDEM, and many more). See https://github.com/openwatersio/seascape"
+        },
+        {
+            "id": "custom-pgc-arcticdem",
+            "name": "Global - PGC ArcticDEM 2m (Arctic, ellipsoidal) - ImageServer raw Float32",
+            "url": "di-pgc.img.arcgis.com/arcgis/rest/services/arcticdem_latest/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=514,514&format=tiff&pixelType=F32&noData=-9999&noDataInterpretation=esriNoDataMatchAny&f=image",
+            "type": "wms-raw",
+            "maxzoom": 18,
+            "nodataFloor": -500,
+            "nodataFill": 0,
+            "bounds": [-180, 60, 180, 85],
+            "description": "Polar Geospatial Center's ArcticDEM mosaic, 2m stereo-photogrammetric surface model of all land north of 60 N (Greenland, Svalbard, Iceland, northern Scandinavia, Siberia, Alaska, Canadian Arctic). Heights are ELLIPSOIDAL (WGS84), so they sit tens of metres off orthometric summits: Gunnbjorn Fjeld reads 3749.8 m against 3694 m, and open sea off Nuuk reads +28 m. Native EPSG:3413, warped to 3857 server-side; Web Mercator stops at 85 N. Windows outside coverage come back as sparse TIFFs, which the protocol tolerates. CORS echoes the Origin. CC BY 4.0, attribution PGC / NSF / NGA."
+        },
+        {
+            "id": "custom-pgc-rema",
+            "name": "Global - PGC REMA 2m (Antarctica, ellipsoidal) - ImageServer raw Float32",
+            "url": "di-pgc.img.arcgis.com/arcgis/rest/services/rema_latest/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=514,514&format=tiff&pixelType=F32&noData=-9999&noDataInterpretation=esriNoDataMatchAny&f=image",
+            "type": "wms-raw",
+            "maxzoom": 18,
+            "nodataFloor": -500,
+            "nodataFill": 0,
+            "bounds": [-180, -85, 180, -60],
+            "description": "Reference Elevation Model of Antarctica, PGC's 2m mosaic of the whole continent. Ellipsoidal heights like ArcticDEM: Vinson Massif reads 4874.6 m against 4892 m orthometric. Native EPSG:3031; Web Mercator cannot show south of 85 S, so the pole itself is out of reach. CORS echoes the Origin. CC BY 4.0, attribution PGC / NSF."
         },
         {
             "id": "custom-reearth-terrarium",
@@ -288,6 +383,18 @@
             "url": "https://portalrediam.cica.es/repositorio/01_CARACTERIZACION_TERRITORIO/07_BASES_REF_ELEV/01_ELEVACIONES/01_PROYECTOS_REGIONALES/2020_AND_PNOA_LIDAR_V226_el/InfGeografica/InfRaster/MDT/ETRS89_h30_Horto/Cuadrantes_1m/MDT_Andalucia_2020_COG.tif",
             "type": "cog",
             "description": "See https://www.juntadeandalucia.es/medioambiente/portal/acceso-rediam/geoportal/raster-formato-cog/bases-referencia-y-elevaciones/modelos-digitales-elevaciones"
+        },
+        {
+            "id": "custom-fr-ign-lidarhd-reunion",
+            "name": "FRA - IGN Lidar HD DTM 0.5m Reunion - WMS raw Float32",
+            "url": "data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.RGR92UTM40S&STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514",
+            "type": "wms-raw",
+            "loadWithSamples": false,
+            "maxzoom": 17,
+            "nodataFloor": -20,
+            "nodataFill": 0,
+            "bounds": [55.2, -21.4, 55.85, -20.85],
+            "description": "LiDAR HD for the island of Reunion, the one overseas department IGN has flown so far - a separate layer from the mainland LAMB93 one, in RGR92 / UTM 40S. Same 0.5m bare-earth product; a DSM twin is IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.RGR92UTM40S. Verified: Piton des Neiges 3069.3 m (true 3070.5). Sentinel -9999. Etalab 2.0."
         },
         {
             "id": "custom-1763115512226",

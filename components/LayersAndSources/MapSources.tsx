@@ -230,6 +230,7 @@ export const TerrainSources = memo(({
                 titilerEndpoint,
                 isDem: true,
                 nodata: customSource,
+                titilerNodata: customSource.titilerNodata,
             })
             const encoding = isCogProtocol
                 ? highResTerrain ? 'terrarium' : 'mapbox'

@@ -22,8 +22,8 @@ type Source = {
 // ISO 3166-1 alpha-3 -> English short name, for the codes actually in use.
 const COUNTRY: Record<string, string> = {
   AFR: "Africa (continental)", AUS: "Australia", CAN: "Canada", DEU: "Germany", SAM: "South America", AUT: "Austria", BEL: "Belgium", IDN: "Indonesia", CZE: "Czechia", ESP: "Spain", FIN: "Finland", FRA: "France",
-  GBR: "United Kingdom", GRC: "Greece", ITA: "Italy", MEX: "Mexico",
-  NLD: "Netherlands", NOR: "Norway", SYR: "Syria", USA: "United States",
+  GBR: "United Kingdom", GRC: "Greece", HTI: "Haiti", ITA: "Italy", JPN: "Japan", MEX: "Mexico",
+  NLD: "Netherlands", NOR: "Norway", SYR: "Syria", URY: "Uruguay", USA: "United States",
 };
 
 // Native ground resolution and real-world coverage. Kept here rather than in
@@ -54,8 +54,20 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-au-nsw-dem5": { res: "5 m", coverage: "New South Wales only" },
   "custom-de-nrw-dgm1": { res: "1 m", coverage: "North Rhine-Westphalia only" },
   "custom-mx-aguadafenix-lidar": { res: "0.5 m", coverage: "Middle Usumacinta survey area (archaeology)" },
-  "custom-sam-anadem": { res: "30 m", coverage: "All South America, bare-earth under canopy" },
   "custom-us-3dep": { res: "1–10 m", coverage: "Nationwide incl. AK, HI, PR" },
+  "custom-ca-nrcan-mrdem30": { res: "30 m", coverage: "Nationwide, one single COG (via titiler)" },
+  "custom-fr-ign-rgealti-highres": { res: "1–5 m", coverage: "Mainland + Réunion, Guadeloupe, Martinique, Guyane, Mayotte, St-Pierre-et-Miquelon" },
+  "custom-fr-ign-lidarhd-reunion": { res: "0.5 m", coverage: "Réunion only" },
+  "custom-jp-gsj-terrainrgb": { res: "5–10 m", coverage: "Nationwide (5 m where DEM5 exists, 10 m elsewhere)" },
+  "custom-uy-ideuy-mdt30": { res: "30 m", coverage: "Nationwide (7–11 s per tile)" },
+  "custom-ht-cnigs-dtm15": { res: "1.5 m", coverage: "Nationwide, but renders only from z12 (VRT without overviews)" },
+  "custom-gedtm30": { res: "30 m", coverage: "Global 65 S–85 N, bare earth (via titiler, z6+)" },
+  "custom-pgc-arcticdem": { res: "2 m", coverage: "All land north of 60 N, ellipsoidal heights" },
+  "custom-pgc-rema": { res: "2 m", coverage: "Antarctica to 85 S, ellipsoidal heights" },
+  "custom-emodnet-bathymetry": { res: "~115 m", coverage: "All European seas (bathymetry)" },
+  "custom-openwaters-seascape": { res: "varies", coverage: "Global bathymetry compilation" },
+  "custom-reearth-terrarium": { res: "~30 m", coverage: "Global, ellipsoidal heights" },
+  "custom-sam-anadem": { res: "30 m", coverage: "All South America, bare-earth under canopy (via titiler)" },
   // Served through titiler / the browser COG reader rather than a live agency API.
   "custom-1762932753466": { res: "1 m", coverage: "Andalucía region only (286 GB COG)" },
   "custom-1763115512226": { res: "1 m", coverage: "Mainland France (RGE ALTI, community repack)" },
@@ -82,7 +94,7 @@ const MAPTERHORN_RES: Record<string, number | null> = {
   // 5 m LiDAR grid; CHE is 0.5 m nationally (the 0.25 m entry is Canton Zurich only).
   LVA: 20, NLD: 5, NOR: 1, NZL: 1, POL: 1, PRT: 0.5, ROU: 0.5, RWA: 10,
   SVK: 1, SVN: 1, SWE: 1, TWN: 20, USA: 1, AUS: 5,
-  MEX: null, GRC: null, SYR: null, IDN: null, SAM: null,
+  MEX: null, GRC: null, SYR: null, IDN: null, SAM: null, URY: null, HTI: null,
   // Not a country: DE Africa re-serves the same GLO-30 Mapterhorn already uses globally.
   AFR: 30,
 };
@@ -105,8 +117,56 @@ const PROJECT_SCANS = new Set(["dura-w-05mm", "dura-grid-2mm", "custom-176303200
 const SUB_NATIONAL = new Set([
   "custom-au-nsw-dem5", "custom-au-qld-dem", "custom-ca-ontario-dtm05",
   "custom-de-nrw-dgm1", "custom-mx-aguadafenix-lidar", "custom-at-tirol-dgm5",
-  "custom-be-vlaanderen-dtm1", "custom-1762932753466",
+  "custom-be-vlaanderen-dtm1", "custom-1762932753466", "custom-fr-ign-lidarhd-reunion",
 ]);
+
+// Regional services that were verified but are NOT shipped as sample sources —
+// the app's library stays national, and these are documented so nobody has to
+// re-discover them. Every row is a live-decoded window, same bar as the rest.
+const REGIONAL_DOCS_ONLY: { iso: string; region: string; product: string; res: string; served: string; host: string; url: string; note: string }[] = [
+  { iso: "ARG", region: "Córdoba", product: "IDECOR MDE 5 m (dem_5m_cba_ext)", res: "5 m", served: "WCS 1.0, Int16",
+    host: "idecor-ws.mapascordoba.gob.ar", url: "https://idecor-ws.mapascordoba.gob.ar/geoserver/ows?service=WCS&version=1.0.0&request=GetCapabilities",
+    note: "Cerro Champaquí 2787 m (true 2790). Nodata 32767. Also MDE-Ar 30 m and MERIT 90 m clips of the province." },
+  { iso: "AUS", region: "Murray–Darling Basin", product: "MDBA 1 m LiDAR DTMs + srtm_1sec_demh_v1", res: "1 m / 30 m", served: "ArcGIS ImageServer, F32",
+    host: "gis.mdba.gov.au", url: "https://gis.mdba.gov.au/arcgis/rest/services/ELEVATION?f=pjson",
+    note: "25 ImageServers; Kosciuszko 2223 m via the SRTM DEM-H one. Needs noData=-9999&noDataInterpretation=esriNoDataMatchAny." },
+  { iso: "CAN", region: "New Brunswick", product: "GeoNB LiDAR DEM 1 m (DEM_Raw_MNE_Brut)", res: "1 m", served: "ArcGIS ImageServer, F32",
+    host: "geonb.snb.ca", url: "https://geonb.snb.ca/image/rest/services/Elevation/DEM_Raw_MNE_Brut/ImageServer",
+    note: "Mount Carleton 815 m (true 820). DSM twin DSM_Raw_MNT_Brut. Pass noData=-9999." },
+  { iso: "FIN", region: "Helsinki", product: "City of Helsinki Korkeusmalli 2021 1 m", res: "1 m", served: "WCS 2.0, F32",
+    host: "kartta.hel.fi", url: "https://kartta.hel.fi/ws/geoserver/avoindata/wcs?service=WCS&request=GetCapabilities",
+    note: "Needs the __wcs2subset=X,Y,ij rewrite (bare i()/j() scaleSize). Nodata -32767. CC BY 4.0." },
+  { iso: "NLD", region: "Zeeland waters", product: "Rijkswaterstaat bodemhoogte_zeeland bathymetry", res: "~20 m", served: "WCS 2.0, F32",
+    host: "geo.rijkswaterstaat.nl", url: "https://geo.rijkswaterstaat.nl/services/ogc/gdr/bodemhoogte_zeeland/ows?service=WCS&request=GetCapabilities",
+    note: "Bed level in NAP metres, Westerschelde channel −27 m. Same ij scaleSize rewrite as Helsinki. CC0." },
+  { iso: "USA", region: "Kentucky", product: "KyFromAbove 2 ft DTM (Phase 2, Z metres)", res: "0.6 m", served: "ArcGIS ImageServer, F32",
+    host: "kyraster.ky.gov", url: "https://kyraster.ky.gov/arcgis/rest/services/ElevationServices/Ky_DEM_KYAPED_2FT_Phase2_ZMeters_WGS84WM/ImageServer",
+    note: "Statewide, finer than 3DEP. Lexington airport 297 m (true 298)." },
+  { iso: "USA", region: "Vermont", product: "VCGI LiDAR DEM / DSM 0.35 m", res: "0.35 m", served: "ArcGIS ImageServer, F32",
+    host: "maps.vcgi.vermont.gov", url: "https://maps.vcgi.vermont.gov/arcgis/rest/services/EGC_services/IMG_VCGI_LIDARDEM_SP_NOCACHE_v1/ImageServer",
+    note: "Finest statewide grid found in the US; first-return DSM twin IMG_VCGI_LIDARDSM_SP_NOCACHE_V1." },
+  { iso: "USA", region: "Oregon", product: "DOGAMI DTM / DSM mosaics (Z feet)", res: "0.9 m", served: "ArcGIS ImageServer, F32",
+    host: "gis.dogami.oregon.gov", url: "https://gis.dogami.oregon.gov/arcgis/rest/services/lidar/DIGITAL_TERRAIN_MODEL_MOSAIC/ImageServer",
+    note: "LiDAR footprint only, not the whole state. Values in feet." },
+  { iso: "USA", region: "Iowa", product: "ISU lidar_2020_dem / lidar_2020_dsm 1 m", res: "1 m", served: "ArcGIS ImageServer, F32",
+    host: "ortho.gis.iastate.edu", url: "https://ortho.gis.iastate.edu/arcgis/rest/services/ortho/lidar_2020_dem/ImageServer",
+    note: "Statewide DTM and a draft DSM." },
+  { iso: "USA", region: "Connecticut", product: "CT ECO 2023 lidar DEM 2 ft (Z feet) + DSM", res: "0.6 m", served: "ArcGIS ImageServer, F32",
+    host: "cteco.uconn.edu", url: "https://cteco.uconn.edu/ctraster/rest/services/elevation/Elevation/ImageServer",
+    note: "DSM at MaxSurfaceHeight_2023. Values in feet." },
+  { iso: "USA", region: "Illinois", product: "ISGS statewide lidar DEM (Z feet)", res: "0.3 m", served: "ArcGIS ImageServer, F32",
+    host: "data.isgs.illinois.edu", url: "https://data.isgs.illinois.edu/arcgis/rest/services/Elevation/IL_Statewide_Lidar_DEM_WGS/ImageServer",
+    note: "Per-county DSM services on the same server. Values in feet." },
+  { iso: "USA", region: "New York", product: "NYS ITS Latest_DEM 1 m mosaic", res: "1 m", served: "ArcGIS ImageServer, F32",
+    host: "elevation.its.ny.gov", url: "https://elevation.its.ny.gov/arcgis/rest/services/Latest_DEM/ImageServer",
+    note: "Newest / highest-resolution-on-top statewide mosaic." },
+  { iso: "USA", region: "North Carolina", product: "NC OneMap DEM03 QL2 (Z feet)", res: "0.95 m", served: "ArcGIS ImageServer, F32",
+    host: "services.nconemap.gov", url: "https://services.nconemap.gov/secure/rest/services/Elevation/DEM03/ImageServer",
+    note: "Declared nodata −9999. Values in feet." },
+  { iso: "USA", region: "Wisconsin, Ohio, Louisiana, Massachusetts, New Jersey, Alaska", product: "State DEM ImageServers", res: "0.3–5 m", served: "ArcGIS ImageServer",
+    host: "dnrmaps.wi.gov …", url: "https://dnrmaps.wi.gov/arcgis_image/rest/services/DW_Elevation/EN_DEM_from_LiDAR/ImageServer",
+    note: "All verified F32 with CORS: WI EN_DEM_from_LiDAR, OH OH_DEM_test (feet), LA 2017_2024_Louisiana_1M_DTM (feet), MA ELEVATION_LIDAR_INT_2013to2021 (Int16), NJ NJ_10ft_DEM (3 m), AK IFSAR_DTM (5 m). None finer than 3DEP." },
+];
 
 type Row = { s: Source; iso: string; ours: number | null; mh: number | null | undefined };
 
@@ -264,6 +324,60 @@ export function SubNationalTable() {
         {rows.length} regional datasets. Kept out of <em>Load Sample Sources</em> so the list stays
         national, but each remains importable with a <code>?sourceA=&lt;id&gt;</code> link.
       </p>
+    </div>
+  );
+}
+
+/** "Global -" sources: worldwide, polar and continental products that are not a
+ *  national agency's, generated from the same JSON so they cannot drift. */
+export function GlobalDatasetsTable() {
+  const raw = fs.readFileSync(path.join(process.cwd(), "..", "lib", "custom-sources.json"), "utf8");
+  const sources: Source[] = JSON.parse(raw).SAMPLE_TERRAIN_SOURCES;
+  const rows = sources.filter((s) => s.name.startsWith("Global - "));
+  return (
+    <div className="overflow-x-auto">
+      <table className="text-sm">
+        <thead>
+          <tr><th>Dataset</th><th>Served as</th><th>Endpoint</th><th>Resolution</th><th>Coverage</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((s) => (
+            <tr key={s.id}>
+              <td>{s.name.replace(/^Global - /, "")}</td>
+              <td>{SERVING_LABEL(s.type)}</td>
+              <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
+              <td>{FACTS[s.id]?.res ?? "—"}</td>
+              <td>{FACTS[s.id]?.coverage ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Verified regional services documented here but not shipped in the library. */
+export function RegionalDocsOnlyTable() {
+  return (
+    <div className="overflow-x-auto">
+      <table className="text-sm">
+        <thead>
+          <tr><th>ISO A3</th><th>Region</th><th>Dataset</th><th>Resolution</th><th>Served as</th><th>Endpoint</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          {REGIONAL_DOCS_ONLY.map((r) => (
+            <tr key={`${r.iso}-${r.region}`}>
+              <td><code>{r.iso}</code></td>
+              <td>{r.region}</td>
+              <td>{r.product}</td>
+              <td>{r.res}</td>
+              <td>{r.served}</td>
+              <td><a href={r.url} target="_blank" rel="noopener noreferrer">{r.host}</a></td>
+              <td>{r.note}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -449,7 +563,29 @@ const UNUSABLE: {
   { iso: "HRV", country: "Croatia", product: "DGU DMR", served: "WMS",
     reason: "Advertises image/geotiff but returns a 3-band RGB hillshade, and sends no CORS header." },
   { iso: "JPN", country: "Japan", product: "GSI 標高タイル (1 / 5 / 10 m)", served: "XYZ PNG tiles",
-    reason: "Works and is keyless, but uses GSI's own signed-24-bit ×0.01 m packing — neither Terrarium nor Terrain-RGB, so it needs a bespoke protocol." },
+    reason: "GSI's own tiles use a signed-24-bit ×0.01 m packing no raster-dem encoding can express. The Geological Survey of Japan's Terrain-RGB conversion of the same tiles is what is shipped instead." },
+  { iso: "AUS", country: "Australia", product: "Geoscience Australia DEM_LiDAR_5m / SRTM 1 s WCS", served: "MapServer WCS 1.0",
+    reason: "Genuine Float32 with CORS, but requestResponseCRSs is EPSG:4326 only — a 3857 BBOX is refused with HTTP 400, and this app only templates Web Mercator windows." },
+  { iso: "USA", country: "United States (Minnesota)", product: "MnGeo 0.5 m Gen-2 lidar DEM", served: "33 COGs + VRT",
+    reason: "Float32 COGs with CORS and range support, but in EPSG:6344 and split across 33 files under one VRT — no single reprojectable file." },
+  { iso: "CAN", country: "Canada (HRDEM)", product: "NRCan HRDEM mosaic 1–2 m", served: "WCS 1.1.1 / per-tile COGs",
+    reason: "Only WCS 1.1.1 is served, which needs GRIDOFFSETS derived from the window; the COGs are per 100 km tile with no mosaic file. MRDEM 30 m is the single-file product and is shipped." },
+  { iso: "IND", country: "India", product: "NRSC Bhuvan CartoDEM", served: "GeoServer",
+    reason: "WCS is disabled and the WMS carries no raw elevation layer; CartoDEM is download-only via Bhoonidhi." },
+  { iso: "HKG", country: "Hong Kong", product: "Lands Department 5 m DTM (2020 LiDAR)", served: "CSDI MapServer / AGOL tiles",
+    reason: "The CSDI service is rendered WMS only; the AGOL ImageServer is TilesOnly LERC with no exportImage." },
+  { iso: "KOR", country: "South Korea", product: "NGII / VWorld DEM", served: "WMS",
+    reason: "Every endpoint requires a key registered to a domain." },
+  { iso: "TWN", country: "Taiwan", product: "MOI 20 m DTM", served: "NLSC WMTS",
+    reason: "Only hillshade, slope and aspect derivatives are served; the DTM itself is download-only on data.gov.tw." },
+  { iso: "CRI", country: "Costa Rica", product: "SNIT IGN MDT", served: "GeoServer",
+    reason: "WCS disabled; the WMS exposes only 1:5000 contour vectors." },
+  { iso: "GTM", country: "Guatemala", product: "IDEG / PACUNAM LiDAR", served: "GeoServer WCS",
+    reason: "The WCS answers with zero coverages; the Maya LiDAR surveys are not published as a service." },
+  { iso: "ZAF", country: "South Africa", product: "NGI 5 m / SUDEM", served: "—",
+    reason: "No NGI ImageServer or WCS exists; the documented SUDEM WCS host is unreachable and was a hillshade." },
+  { iso: "AFR", country: "Africa (RCMRD)", product: "RCMRD country SRTM 30 m ImageServers", served: "ArcGIS ImageServer",
+    reason: "Five countries (Uganda, Botswana, Burundi, Comoros, South Sudan) are keyless Float32 with CORS, the rest need a token — and all are the same SRTM/GLO-30 class data Mapterhorn already has, so nothing is gained." },
   { iso: "POL", country: "Poland", product: "GUGiK NMT 1 m", served: "WCS 2.0",
     reason: "Works and is free — the highest-resolution national DEM found anywhere — but sends no CORS headers at all, so a browser cannot read it." },
   { iso: "PRT", country: "Portugal", product: "DGT MDT 0.5 m / 2 m LiDAR", served: "STAC + OAuth2",

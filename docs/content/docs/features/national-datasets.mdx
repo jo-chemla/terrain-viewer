@@ -3,7 +3,7 @@ title: National Open-Data Terrain
 description: Government elevation services from national mapping agencies, ready to load as terrain sources
 ---
 
-import { NationalDatasetsTable, NationalCoverageMap, UnusableDatasetsTable, MapterhornSummary, Glo30Table, SubNationalTable } from "@/components/national-datasets-table";
+import { NationalDatasetsTable, NationalCoverageMap, UnusableDatasetsTable, MapterhornSummary, Glo30Table, SubNationalTable, GlobalDatasetsTable, RegionalDocsOnlyTable } from "@/components/national-datasets-table";
 
 The built-in sources on [Terrain and Basemap Sources](/features/terrain-sources) are worldwide tilesets. This page covers the other half of the library: **elevation services published directly by national mapping agencies**, at resolutions global tilesets can't match — 0.5 m LiDAR for France and the Netherlands against ~30 m for a global DEM.
 
@@ -43,7 +43,19 @@ Some of the best data on this page covers a state or a province rather than a co
 
 <SubNationalTable />
 
+Beyond those, a second tier was verified to the same standard but deliberately left out of the library, because a national list is more useful than an exhaustive one. Each is a normal endpoint you can paste into **Add Custom Source**:
+
+<RegionalDocsOnlyTable />
+
 Two are worth singling out. **Queensland** serves a best-available mosaic of 0.5–1 m drone and aircraft LiDAR — ten times finer than the 5 m national grid, and Geoscience Australia publishes no national equivalent at all. And **Aguada Fénix** is not a mapping agency product: it is the airborne survey that revealed the largest known Maya monumental construction ([Inomata et al., *Nature* 2020](https://www.nature.com/articles/s41586-020-2343-4)), a platform invisible from the ground and unmistakable in a hillshade. That is the case for LiDAR archaeology in one dataset.
+
+## Global and polar datasets
+
+Not every good source belongs to a country. These are worldwide, polar or sea-floor products from research consortia, listed under **Global** in the sample library:
+
+<GlobalDatasetsTable />
+
+Two things to know. **ArcticDEM and REMA are ellipsoidal**: the Polar Geospatial Center publishes heights above the WGS84 ellipsoid, so summits sit tens of metres off their map values and open sea reads +28 m off Greenland. And the two ML terrain models, GEDTM30 and ANADEM, are explained in the next section.
 
 ## Copernicus GLO-30, the supra-national fallback
 
@@ -61,7 +73,7 @@ Digital Earth Africa is the one worth loading directly: it is the only keyless l
 
 Surveying national mapping agencies worldwide turns up two consistent traps.
 
-**No agency anywhere publishes Terrarium tiles.** Only two publish a pre-rendered elevation tile pyramid at all (Japan's GSI and Mexico's INEGI), and both invented their own encoding. Everything else serves raw rasters on demand.
+**No agency anywhere publishes Terrarium tiles.** Only two national agencies publish a pre-rendered elevation tile pyramid at all (Japan's GSI and Mexico's INEGI), and both invented their own encoding — Mexico's is close enough to Terrain-RGB to be described with custom factors, Japan's is not, and Japan only loads because the Geological Survey of Japan re-serves GSI's tiles as genuine Terrain-RGB. Everything else serves raw rasters on demand.
 
 **`FORMAT=image/geotiff` on a WMS is usually a lie.** Germany's BKG, the UK Environment Agency, Portugal, Croatia, Ecuador and Canada's MRDEM all advertise it and all return an 8-bit RGB colour ramp — a picture of elevation, not elevation. The raw values live on **WCS** or on an **ArcGIS ImageServer**, never on the WMS. A related trap: ArcGIS estates usually expose `MapServer` (rendered) rather than `ImageServer` (raw), which is what rules out Slovakia, Colombia, Argentina and Australia.
 
@@ -74,7 +86,7 @@ Three different transports end up as the same `raster-dem` source in the app:
 - **WMS/WCS raw Float32** — the app requests a GeoTIFF per tile and re-encodes it to Terrarium in the browser, via the `float32dem://` protocol. WCS 1.0 works unmodified because its `BBOX=` is shaped exactly like a WMS `GetMap`; WCS 2.0 needs a rewrite to `subset=` per axis, which a `&__wcs2subset=X,Y` marker on the URL performs.
 - **ArcGIS ImageServer** — `exportImage` with `format=tiff`, which returns raw Float32 and takes the same `bbox=` as a WMS, so it reuses the identical code path (USGS 3DEP, Czechia).
 - **Single COG** — Switzerland and ANADEM are each one national file. Neither is in Web Mercator (LV95 and geographic EPSG:4674), and the in-browser COG reader does not reproject, so these are pinned to titiler with the source's *Always serve via titiler* switch, whatever the global COG setting says.
-- **XYZ tiles** — a normal tile pyramid. Spain is standard Terrain-RGB. Mexico is not: its layer is *named* "terranium" but packs elevation with Terrain-RGB's factors and a `baseShift` of 1000 instead of 10000, so it is configured with [custom RGB encoding](/features/byod) and reads ~9 km too low without it.
+- **XYZ tiles** — a normal tile pyramid. Spain, New Zealand and Japan are standard Terrain-RGB. Mexico is not: its layer is *named* "terranium" but packs elevation with Terrain-RGB's factors and a `baseShift` of 1000 instead of 10000, so it is configured with [custom RGB encoding](/features/byod) and reads ~9 km too low without it.
 
 ## Surveyed, but not API-usable
 

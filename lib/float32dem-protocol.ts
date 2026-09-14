@@ -157,7 +157,9 @@ const NODATAFLOOR_RE = new RegExp(`[?&]${NODATA_FLOOR_PARAM}=(-?\\d+(?:\\.\\d+)?
 //                    this and 404s on plain labels.
 //   axis           - reuse the subset labels, x(W),y(H). Digital Earth Africa
 //                    needs this and 500s on the OGC URIs.
-const WCS2SUBSET_RE = /[?&]__wcs2subset=([A-Za-z]+),([A-Za-z]+)(?:,(ogc|axis))?/i
+//   ij             - bare grid labels, i(W),j(H). GeoServer (Helsinki,
+//                    Rijkswaterstaat) answers ScaleAxisUndefined to both others.
+const WCS2SUBSET_RE = /[?&]__wcs2subset=([A-Za-z]+),([A-Za-z]+)(?:,(ogc|axis|ij))?/i
 const OGC_AXIS = "http://www.opengis.net/def/axis/OGC/1"
 
 // Some WCS servers honour the requested BBOX only approximately: they reproject
@@ -274,8 +276,11 @@ export async function float32demProtocol(
     const wMatch = url.match(/[?&]WIDTH=(\d+)/i)
     const hMatch = url.match(/[?&]HEIGHT=(\d+)/i)
     if (wMatch && hMatch) {
-      const scale = scaleStyle?.toLowerCase() === "axis"
+      const style = scaleStyle?.toLowerCase()
+      const scale = style === "axis"
         ? `${xAxis}(${wMatch[1]}),${yAxis}(${hMatch[1]})`
+        : style === "ij"
+        ? `i(${wMatch[1]}),j(${hMatch[1]})`
         : `${OGC_AXIS}/i(${wMatch[1]}),${OGC_AXIS}/j(${hMatch[1]})`
       url = url.replace(/[?&]WIDTH=\d+/i, "").replace(/[?&]HEIGHT=\d+/i, "") + `&scaleSize=${scale}`
     }

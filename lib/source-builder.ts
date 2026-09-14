@@ -29,8 +29,11 @@ export function buildRasterTileSource(params: {
    *  branch consumes these — the cog:// branch carries them via the protocol's
    *  color function instead, since a `cog://` URL is just the file's address. */
   nodata?: NodataConfig
+  /** titiler `nodata=` override for the cog/vrt titiler branches; see
+   *  CustomTerrainSource.titilerNodata. Unset keeps the historical defaults. */
+  titilerNodata?: number
 }): { url: string } | { tiles: string[]; scheme?: "xyz" | "tms" } {
-  const { url, type, useCogProtocol, titilerEndpoint, scheme, isDem, nodata } = params
+  const { url, type, useCogProtocol, titilerEndpoint, scheme, isDem, nodata, titilerNodata } = params
 
   switch (type) {
     case "tilejson":
@@ -44,7 +47,7 @@ export function buildRasterTileSource(params: {
         : {
             tiles: [
               isDem
-                ? `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
+                ? `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? 0}&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
                 : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(url)}`,
             ],
           }
@@ -56,7 +59,7 @@ export function buildRasterTileSource(params: {
       }
       return {
         tiles: [
-          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=-999&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}`,
+          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? -999}&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}`,
         ],
       }
 

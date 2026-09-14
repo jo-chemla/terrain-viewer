@@ -167,6 +167,12 @@ export interface CustomTerrainSource {
    *  which also produces an absurd detected zoom range. titiler warps
    *  server-side and gets both right. */
   cogViaTitiler?: boolean
+  /** Value handed to titiler as its `nodata=` override for a 'cog' or 'vrt'
+   *  source served through it. Defaults to 0 for COG and -999 for VRT, which
+   *  is what the shipped RGE ALTI repack needs, but a UInt16 file such as the
+   *  Haiti DTM makes titiler fail with "Cannot convert fill_value -999.0 to
+   *  dtype uint16", so it has to be settable per source. */
+  titilerNodata?: number
 }
 
 // getOnInit: true reads localStorage synchronously on first render instead of the

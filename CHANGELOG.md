@@ -2,7 +2,7 @@
 <!-- released: 2026-09-14 -->
 
 #### TL;DR
-- **Twelve national elevation sources added**, each verified against a known summit: Norway, USGS 3DEP, Netherlands AHN, England, Finland, Tirol, Czechia, Italy, Mexico, Spain. Mostly 0.5–2 m LiDAR, against ~30 m for a global DEM.
+- **National elevation sources added**, each verified against a known summit: Norway, USGS 3DEP, Netherlands AHN, England, Finland, Tirol, Czechia, Italy, Japan, Mexico, Spain, Uruguay, Canada, France overseas, plus polar ArcticDEM/REMA, GEDTM30 and EMODnet bathymetry. Mostly 0.5–2 m LiDAR, against ~30 m for a global DEM.
 - **Selecting one pins the map to that country**, with enough underzoom to see the whole of it ([maplibre-xy](https://github.com/larsmaxfield/maplibre-xy)). Settings → Map Bounds to change.
 - **New docs page** listing every national dataset — country, format, endpoint, resolution, coverage.
 - **Custom RGB encoding** for tile sources that use neither Terrarium nor Terrain-RGB (Mexico packs elevation with a base of 1000, not 10000).
