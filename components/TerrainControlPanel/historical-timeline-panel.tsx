@@ -697,9 +697,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // whose marks are guaranteed at least MIN_YEAR_LABEL_GAP_PX apart — so a
   // long span reads as a clean "every 5 years" or "every 10 years" axis
   // instead of a sparse, irregular subset of individual years.
+  //
+  // Zoomed in far enough that whole years are wider than the gap, the axis
+  // subdivides the same way: half-years, quarters, then months (the smallest
+  // of 6/3/2/1 months whose marks still keep MIN_YEAR_LABEL_GAP_PX apart).
+  // Month marks are labelled by month name, with the year at every January
+  // (bold gridline) so the axis never loses track of which year it is in.
   const YEAR_STEPS = [1, 2, 5, 10, 20, 25, 50, 100]
+  const MONTH_STEPS = [6, 3, 2, 1]
+  const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  type AxisMark = { frac: number; label: string; t: number; major: boolean }
   const yearMarks = useMemo(() => {
-    if (!items.length || !trackWidth) return [] as { frac: number; label: string }[]
+    if (!items.length || !trackWidth) return [] as AxisMark[]
     // UTC throughout (getUTCFullYear/Date.UTC), not local time — effectiveMin's
     // own floor (DEFAULT_VIEW_FLOOR_MS) is a Date.UTC value, so mixing in a
     // local-time year boundary here could put it on the wrong side of that
@@ -711,23 +720,52 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const endYear = new Date(effectiveMax).getUTCFullYear()
     const msPerYear = 365.25 * 86_400_000
     const pxPerYear = trackWidth / (effectiveSpan / msPerYear)
+    const marks: AxisMark[] = []
+
+    // Sub-year axis: the finest month step that still keeps the labels apart.
+    // Only considered once single years are comfortably wider than the gap,
+    // otherwise a "6-month" axis would just crowd the plain yearly one.
+    const pxPerMonth = pxPerYear / 12
+    const monthStep = pxPerYear >= MIN_YEAR_LABEL_GAP_PX * 2
+      ? MONTH_STEPS.find((m) => pxPerMonth * m >= MIN_YEAR_LABEL_GAP_PX)
+      : undefined
+    if (monthStep) {
+      const start = new Date(effectiveMin)
+      let y = start.getUTCFullYear()
+      let m = Math.floor(start.getUTCMonth() / monthStep) * monthStep
+      for (;;) {
+        const t = Date.UTC(y, m, 1)
+        if (t > effectiveMax) break
+        if (t >= effectiveMin) {
+          marks.push({ frac: (t - effectiveMin) / effectiveSpan, t, major: m === 0, label: m === 0 ? String(y) : MONTH_SHORT[m] })
+        }
+        m += monthStep
+        if (m >= 12) { m -= 12; y += 1 }
+      }
+      // The window's own start month/year at the left edge when no January
+      // is in view, so a Mar–Sep window still says which year it is.
+      if (!marks.some((mk) => mk.major)) {
+        marks.unshift({ frac: 0, t: effectiveMin, major: true, label: `${MONTH_SHORT[start.getUTCMonth()]} ${start.getUTCFullYear()}` })
+      }
+      return marks
+    }
+
     let step = YEAR_STEPS[YEAR_STEPS.length - 1]
     for (const s of YEAR_STEPS) {
       if (pxPerYear * s >= MIN_YEAR_LABEL_GAP_PX) { step = s; break }
     }
-    const marks: { frac: number; label: string }[] = []
     const firstMarkYear = Math.ceil(startYear / step) * step
     for (let y = firstMarkYear; y <= endYear; y += step) {
       const t = Date.UTC(y, 0, 1)
       if (t < effectiveMin || t > effectiveMax) continue
-      marks.push({ frac: (t - effectiveMin) / effectiveSpan, label: String(y) })
+      marks.push({ frac: (t - effectiveMin) / effectiveSpan, t, major: true, label: String(y) })
     }
     // A zoomed-in window can span a single year without ever containing that
     // year's Jan 1 boundary (e.g. zoomed to Mar-Sep 2020) — the step logic
     // above only places marks AT those boundaries, so it can come up
     // completely empty and read as "the year label just disappeared". Always
     // show at least the window's own start year, anchored to the left edge.
-    if (!marks.length) marks.push({ frac: 0, label: String(startYear) })
+    if (!marks.length) marks.push({ frac: 0, t: effectiveMin, major: true, label: String(startYear) })
     return marks
   }, [items.length, effectiveMin, effectiveMax, effectiveSpan, trackWidth])
 
@@ -1499,8 +1537,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               <div className="absolute left-0 right-0 top-1/2 h-px bg-border" />
               {yearMarks.map((mark) => (
                 <div
-                  key={`grid-${mark.label}`}
-                  className="absolute top-0 bottom-0 w-px bg-border/70 pointer-events-none"
+                  key={`grid-${mark.t}`}
+                  className={`absolute top-0 bottom-0 w-px pointer-events-none ${mark.major ? "bg-border" : "bg-border/40"}`}
                   style={{ left: `${mark.frac * 100}%` }}
                 />
               ))}
@@ -1630,8 +1668,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         <div className="relative h-3 mx-2">
           {yearMarks.map((mark) => (
             <span
-              key={mark.label}
-              className="absolute -translate-x-1/2 text-[9px] text-muted-foreground tabular-nums"
+              key={mark.t}
+              className={`absolute -translate-x-1/2 text-[9px] tabular-nums whitespace-nowrap ${mark.major ? "text-foreground/80 font-medium" : "text-muted-foreground"}`}
               style={{ left: `${mark.frac * 100}%` }}
             >
               {mark.label}

@@ -2046,13 +2046,63 @@ export function TerrainViewer() {
   // so the camera doesn't bob as the ground rises under it; re-resolving
   // between drag frames would undo that, and would also overwrite the
   // elevation handleViewMove has just mirrored onto the other views.
+  // Self-heal for synced views that have drifted apart. handleViewMove keeps
+  // them together frame by frame, but a few paths can still leave one view at
+  // a different zoom or centre with nothing to pull it back: a jumpTo clamped
+  // by that view's own constraints (maxBounds / underzoom / a zoom range that
+  // was applied to one map before the other had loaded), a move that fired
+  // while isSyncing was set, or a view mounted mid-gesture. Until now the only
+  // way out was a reload. Runs on idle, copies every other view wholesale from
+  // the last-touched one, and only when something actually differs — so it
+  // never fights a live gesture and never fires on an already-synced pair.
+  // Unlike resettleTerrainElevation it does not need terrain, so it also
+  // covers 2D historical mode.
+  const reconcileSyncedViews = useCallback(() => {
+    if (!isSplit || pointerDownRef.current || isSyncing.current) return
+    const preferred = lastInteractedViewRef.current
+    const referenceSide = activeViewIds.includes(preferred) ? preferred : activeViewIds[0]
+    const reference = mapRefs[referenceSide]?.current?.getMap()
+    if (!reference) return
+    const tr = reference.transform
+    const ZOOM_EPS = 1e-3, DEG_EPS = 1e-6, ANGLE_EPS = 1e-2
+    const drifted = activeViewIds.filter((side) => {
+      if (side === referenceSide) return false
+      const map = mapRefs[side].current?.getMap()
+      if (!map) return false
+      const t = map.transform
+      return Math.abs(t.zoom - tr.zoom) > ZOOM_EPS
+        || Math.abs(t.center.lng - tr.center.lng) > DEG_EPS
+        || Math.abs(t.center.lat - tr.center.lat) > DEG_EPS
+        || Math.abs(t.bearing - tr.bearing) > ANGLE_EPS
+        || Math.abs(t.pitch - tr.pitch) > ANGLE_EPS
+    })
+    if (!drifted.length) return
+    isSyncing.current = true
+    try {
+      for (const side of drifted) {
+        const map = mapRefs[side].current!.getMap()
+        map.jumpTo({
+          center: tr.center,
+          zoom: tr.zoom,
+          bearing: tr.bearing,
+          pitch: tr.pitch,
+          ...(map.getTerrain() && reference.getTerrain() ? { elevation: tr.elevation } : {}),
+        })
+      }
+    } finally {
+      isSyncing.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeViewIds.join(","), isSplit])
+
   const resettleTerrainElevationOnIdle = useCallback(() => {
     for (const side of activeViewIds) {
       if (mapRefs[side].current?.getMap()?.isMoving()) return
     }
+    reconcileSyncedViews()
     resettleTerrainElevation()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeViewIds.join(","), resettleTerrainElevation])
+  }, [activeViewIds.join(","), reconcileSyncedViews, resettleTerrainElevation])
 
   // Each view's 'idle' listener is registered once, in its onLoad, so its
   // closure would otherwise pin whichever activeViewIds happened to be current
