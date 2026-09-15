@@ -514,13 +514,12 @@ export function NationalCoverageMap() {
         </g>
         {/* Every box first, then every label, so a label never ends up under a
             neighbouring country's box (the USA box covers Mexico's label
-            otherwise). Labels are dark on light, and white with a black halo in
-            dark mode - paint-order puts the stroke behind the glyphs. */}
+            otherwise). Labels are dark on light, and white in
+            dark mode. */}
         <g fill="#22c55e" fillOpacity="0.45" stroke="#15803d" strokeWidth="1">
           {[...byIso.entries()].map(([iso, b]) => <path key={iso} d={boxPath(b)} />)}
         </g>
-        <g fontSize="8.5" fontWeight="700" textAnchor="middle" paintOrder="stroke" strokeLinejoin="round"
-           className="fill-[#052e16] stroke-transparent dark:fill-white dark:stroke-black" strokeWidth="2.5">
+        <g fontSize="8.5" fontWeight="700" textAnchor="middle" className="fill-[#052e16] dark:fill-white">
           {[...byIso.entries()].map(([iso, b]) => {
             const [cx, cy] = project((b[0] + b[2]) / 2, (b[1] + b[3]) / 2);
             return <text key={iso} x={cx} y={cy + 3}>{iso}</text>;
