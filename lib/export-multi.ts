@@ -20,7 +20,10 @@ import bbox from "@turf/bbox"
 // be representative enough that "does this release/date have distinct
 // imagery at this spot" resolves sensibly. 16 sits comfortably inside every
 // source's own pyramid (Wayback caps at 19, GE at 23, HLS at 16, EOX at 14).
-const LISTING_ZOOM = 16
+/** Zoom at which capture dates are listed per target. Exported so the
+ *  dialog's live count lists at the same zoom and the export then hits the
+ *  metadata cache instead of fetching everything a second time. */
+export const LISTING_ZOOM = 16
 
 export type ExportMultiMode = "viewport" | "feature"
 

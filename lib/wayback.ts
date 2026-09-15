@@ -125,18 +125,30 @@ export function useWaybackItemsWithLocalChanges(latitudeRaw: number, longitudeRa
 // both derive their own narrower shape from this one shared cache/network
 // call instead of each fetching separately.
 const fullMetaCache = new Map<string, WaybackMetadata | null>()
+// In-flight requests, so two callers asking for the same release at once
+// (the export dialog's live count and the timeline's own ticks, say) share
+// one network call instead of each firing their own.
+const fullMetaInflight = new Map<string, Promise<WaybackMetadata | null>>()
 
 async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<WaybackMetadata | null> {
   const key = `${releaseNumber}:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
   if (fullMetaCache.has(key)) return fullMetaCache.get(key)!
-  try {
-    const meta = await getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber)
-    fullMetaCache.set(key, meta)
-    return meta
-  } catch {
-    fullMetaCache.set(key, null)
-    return null
-  }
+  const pending = fullMetaInflight.get(key)
+  if (pending) return pending
+  const p = (async () => {
+    try {
+      const meta = await getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber)
+      fullMetaCache.set(key, meta)
+      return meta
+    } catch {
+      fullMetaCache.set(key, null)
+      return null
+    } finally {
+      fullMetaInflight.delete(key)
+    }
+  })()
+  fullMetaInflight.set(key, p)
+  return p
 }
 
 /** Plain (non-hook) fetch + cache of the REAL per-tile capture date/label for
@@ -427,16 +439,28 @@ export async function listWaybackTicksInRange(
   // imagery date at a spot (the mosaic changed nearby, not here), which
   // counted - and exported - the same pixels several times over. Keep the
   // newest release for each date, which is the one still being served.
+  // The per-release metadata calls are independent: run them a few at a
+  // time rather than strictly one after another, which for 15-20 releases
+  // at a second or two each was the "Listing dates - wayback" stall.
+  const CONCURRENCY = 6
+  const metas: ({ dateMs: number; label: string } | null)[] = new Array(items.length)
+  let next = 0
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++
+      metas[i] = await fetchWaybackCaptureMeta(latitude, longitude, zoom, items[i].releaseNum)
+    }
+  }))
   const byDate = new Map<number, { dateMs: number; label: string; item: WaybackItem }>()
-  for (const item of items) {
-    const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum)
+  items.forEach((item, i) => {
+    const meta = metas[i]
     const dateMs = meta?.dateMs ?? item.releaseDatetime
-    if (dateMs < startMs || dateMs > endMs) continue
+    if (dateMs < startMs || dateMs > endMs) return
     const prev = byDate.get(dateMs)
     if (!prev || item.releaseNum > prev.item.releaseNum) {
       byDate.set(dateMs, { dateMs, label: meta?.label ?? new Date(dateMs).toISOString().slice(0, 10), item })
     }
-  }
+  })
   return [...byDate.values()].sort((a, b) => a.dateMs - b.dateMs)
 }
 

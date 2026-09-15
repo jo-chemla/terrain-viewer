@@ -18,7 +18,7 @@ import { SegmentedToggle } from "./controls-components"
 import { drawingFeaturesAtom, drawingLayersAtom } from "./TerraDrawSystem"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { CURRENT_BASEMAP_SOURCE_IDS, EXPORT_SOURCE_LABELS, listExportTicks, type ExportSourceId } from "@/lib/historical-export-sources"
-import { exportMultiHistorical, type ExportMultiMode, type ExportMultiSkip } from "@/lib/export-multi"
+import { exportMultiHistorical, LISTING_ZOOM, type ExportMultiMode, type ExportMultiSkip } from "@/lib/export-multi"
 import type { Bbox4 } from "@/lib/feature-extent"
 import { track } from "@/lib/analytics"
 
@@ -210,7 +210,7 @@ export const ExportMultiDialog: React.FC<{
     const timer = setTimeout(async () => {
       const ids = Array.from(sourceIds)
       const results = await Promise.all(ids.map(async (id) => {
-        try { return [id, (await listExportTicks(id, view.lat, view.lng, view.zoom, startMs, endMs, planetKey, keys)).length] as const }
+        try { return [id, (await listExportTicks(id, view.lat, view.lng, LISTING_ZOOM, startMs, endMs, planetKey, keys)).length] as const }
         catch { return [id, undefined] as const }
       }))
       if (cancelled) return
