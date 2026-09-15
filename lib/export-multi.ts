@@ -23,6 +23,15 @@ import bbox from "@turf/bbox"
 /** Fallback zoom at which capture dates are listed per target when the
  *  caller does not pass the map's own zoom (see ExportMultiOptions.listingZoom). */
 export const LISTING_ZOOM = 16
+/** Older Wayback releases have no metadata above this; asking higher just
+ *  returns nothing and falls back to the release date. */
+export const LISTING_ZOOM_CAP = 18
+
+/** The zoom a target's tiles will be fetched at for a given resolution,
+ *  which is also the zoom its dates should be listed at (see listingZoom). */
+export function fetchZoomFor(bbox: Bbox4, targetResolution: number): number {
+  return Math.min(LISTING_ZOOM_CAP, Math.max(1, pickZoomForResolution(bbox, targetResolution, targetResolution, 256)))
+}
 
 export type ExportMultiMode = "viewport" | "feature"
 
@@ -47,15 +56,20 @@ export interface ExportMultiOptions {
   planetKey?: string
   /** Mapbox / HERE keys for their "current" basemap exports. */
   keys?: ExportSourceKeys
-  /** Zoom used to list capture dates. Pass the map's current zoom: the
-   *  historical timeline resolves Wayback / Google Earth dates at exactly
-   *  that zoom and location, and every listing cache in lib/wayback.ts and
-   *  lib/ge-historical.ts is keyed on (location to 3 decimals, rounded
-   *  zoom), so listing at the same zoom reuses what the timeline already
-   *  fetched instead of re-querying Esri for every release. It also keeps
-   *  the export's dates identical to the ticks the user is looking at -
-   *  Wayback's capture dates genuinely differ between zoom levels. */
-  listingZoom?: number
+  /** Zoom used to list capture dates, and it matters: Wayback's release
+   *  set and capture dates genuinely differ between zoom levels.
+   *
+   *  - "fetch" (default): each target lists at the zoom its tiles will be
+   *    fetched at (from targetResolution, capped by LISTING_ZOOM_CAP), so
+   *    the dates describe the pixels that end up in the file. Re-queries
+   *    Esri / Google when that zoom differs from the map's.
+   *  - a number (the map's zoom): reuse what the historical timeline has
+   *    already resolved at that zoom - every listing cache in lib/wayback.ts
+   *    and lib/ge-historical.ts is keyed on (location to 3 decimals, rounded
+   *    zoom) - so listing is instant and matches the ticks on screen, at
+   *    the cost of possibly describing a coarser mosaic level than the one
+   *    exported. */
+  listingZoom?: number | "fetch"
   /** Also write one `<target>_gdal_commands.bat` per target into the zip,
    *  with a gdal_translate command per (source, capture date) that has a
    *  real fetchable tile URL — see lib/gdal-export.ts for which sources
@@ -119,7 +133,10 @@ function buildTargets(opts: ExportMultiOptions): ExportTarget[] {
 
 export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<ExportMultiResult> {
   const { sourceIds, startMs, endMs, targetResolution, planetKey, keys, includeGdalScript, onProgress, signal } = opts
-  const listingZoom = Math.round(opts.listingZoom ?? LISTING_ZOOM)
+  const listingZoomFor = (target: ExportTarget) =>
+    opts.listingZoom === undefined || opts.listingZoom === "fetch"
+      ? fetchZoomFor(target.paddedBbox, targetResolution)
+      : Math.round(opts.listingZoom)
 
   const targets = buildTargets(opts)
 
@@ -136,7 +153,7 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
       if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError")
       onProgress?.({ phase: "listing", completed: listed, total: listingTotal, label: `${target.label} — ${sourceId}` })
       try {
-        const ticks = await listExportTicks(sourceId, target.centerLat, target.centerLng, listingZoom, startMs, endMs, planetKey, keys)
+        const ticks = await listExportTicks(sourceId, target.centerLat, target.centerLng, listingZoomFor(target), startMs, endMs, planetKey, keys)
         if (!ticks.length) skipped.push({ feature: target.label, source: sourceId, reason: "No capture found in the selected date range" })
         for (const tick of ticks) plan.push({ target, source: sourceId, tick })
       } catch (err) {

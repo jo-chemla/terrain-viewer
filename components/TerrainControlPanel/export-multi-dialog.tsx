@@ -18,7 +18,7 @@ import { SegmentedToggle } from "./controls-components"
 import { drawingFeaturesAtom, drawingLayersAtom } from "./TerraDrawSystem"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { CURRENT_BASEMAP_SOURCE_IDS, EXPORT_SOURCE_LABELS, listExportTicks, type ExportSourceId } from "@/lib/historical-export-sources"
-import { exportMultiHistorical, type ExportMultiMode, type ExportMultiSkip } from "@/lib/export-multi"
+import { exportMultiHistorical, fetchZoomFor, type ExportMultiMode, type ExportMultiSkip } from "@/lib/export-multi"
 import type { Bbox4 } from "@/lib/feature-extent"
 import { track } from "@/lib/analytics"
 
@@ -178,6 +178,10 @@ export const ExportMultiDialog: React.FC<{
   const [percentPadding, setPercentPadding] = useState(20)
   const [targetResolution, setTargetResolution] = useState(512)
   const [includeGdalScript, setIncludeGdalScript] = useState(false)
+  // Off = list dates at the zoom the tiles are fetched at (accurate for the
+  // exported pixels, may re-query). On = reuse the timeline's dates at the
+  // map zoom (instant, matches the ticks on screen). See listingZoom.
+  const [reuseTimelineDates, setReuseTimelineDates] = useState(false)
 
   const [isRunning, setIsRunning] = useState(false)
   const [progress, setProgress] = useState<{ phase: "listing" | "exporting"; fraction: number; label: string } | null>(null)
@@ -191,6 +195,14 @@ export const ExportMultiDialog: React.FC<{
   )
 
   const hasTargets = mode === "viewport" ? true : selectedFeatures.length > 0
+  // The two candidate listing zooms for the viewport, so the choice below
+  // can say when they coincide (and the toggle then changes nothing).
+  const viewZoom = getMapView ? Math.round(getMapView()?.zoom ?? 0) : 0
+  const exportZoom = useMemo(() => {
+    const b = getMapBounds()
+    return fetchZoomFor([b.west, b.south, b.east, b.north], targetResolution)
+  }, [getMapBounds, targetResolution])
+  const countZoom = reuseTimelineDates ? viewZoom : exportZoom
 
   // How many captures each selected source has inside the date range, at
   // the viewport centre — the same listing the export runs first, so the
@@ -210,9 +222,7 @@ export const ExportMultiDialog: React.FC<{
     const timer = setTimeout(async () => {
       const ids = Array.from(sourceIds)
       const results = await Promise.all(ids.map(async (id) => {
-        // Same zoom as the timeline resolves its ticks at, so this reads
-        // from the cache the timeline has already filled (see listingZoom).
-        try { return [id, (await listExportTicks(id, view.lat, view.lng, Math.round(view.zoom), startMs, endMs, planetKey, keys)).length] as const }
+        try { return [id, (await listExportTicks(id, view.lat, view.lng, countZoom, startMs, endMs, planetKey, keys)).length] as const }
         catch { return [id, undefined] as const }
       }))
       if (cancelled) return
@@ -221,7 +231,7 @@ export const ExportMultiDialog: React.FC<{
       setRangeCounts({ counts, pending: false })
     }, 500)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [open, getMapView, startDate, endDate, sourceIds, planetKey, keys])
+  }, [open, getMapView, startDate, endDate, sourceIds, planetKey, keys, countZoom])
 
   // Mirror the chosen range onto the historical timeline so its ticks show
   // exactly what is about to be exported. Debounced with the count above.
@@ -268,7 +278,7 @@ export const ExportMultiDialog: React.FC<{
         includeGdalScript,
         planetKey,
         keys,
-        listingZoom: getMapView?.()?.zoom,
+        listingZoom: reuseTimelineDates ? getMapView?.()?.zoom : "fetch",
         signal: controller.signal,
         onProgress: ({ phase, completed, total, label }) => setProgress({ phase, fraction: total ? completed / total : 0, label }),
       })
@@ -390,7 +400,7 @@ export const ExportMultiDialog: React.FC<{
             {getMapView && sourceIds.size > 0 && (
               <p className="text-xs text-muted-foreground">
                 {rangeCounts.pending ? "Counting captures in range… " : ""}
-                <span className="text-foreground/80">{totalInRange} capture{totalInRange === 1 ? "" : "s"}</span> in range at the viewport centre
+                <span className="text-foreground/80">{totalInRange} capture{totalInRange === 1 ? "" : "s"}</span> in range at the viewport centre, listed at z{countZoom}
                 {targetCount > 1 && <> → about {totalInRange * targetCount} files across {targetCount} features</>}
                 {": "}
                 {[
@@ -428,6 +438,17 @@ export const ExportMultiDialog: React.FC<{
             <Input type="number" min={64} value={targetResolution} onChange={(e) => setTargetResolution(Number(e.target.value) || 512)} className="cursor-text w-32" />
           </div>
 
+          <div className="flex items-center gap-2">
+            <Checkbox id="export-multi-reuse-dates" checked={reuseTimelineDates} onCheckedChange={(v) => setReuseTimelineDates(!!v)} className="cursor-pointer" />
+            <Label htmlFor="export-multi-reuse-dates" className="text-sm cursor-pointer">
+              Reuse the timeline&apos;s dates (map zoom z{viewZoom})
+              <span className="text-xs text-muted-foreground font-normal">
+                {viewZoom === exportZoom
+                  ? " — same as the export zoom, no difference"
+                  : ` — instant, but the export fetches at z${exportZoom}, where Wayback's releases and dates can differ`}
+              </span>
+            </Label>
+          </div>
           <div className="flex items-center gap-2">
             <Checkbox id="export-multi-gdal" checked={includeGdalScript} onCheckedChange={(v) => setIncludeGdalScript(!!v)} className="cursor-pointer" />
             <Label htmlFor="export-multi-gdal" className="text-sm cursor-pointer">Include gdal_translate script</Label>
