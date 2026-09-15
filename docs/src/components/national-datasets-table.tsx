@@ -536,10 +536,15 @@ export function NationalCoverageMap({ region = "world" }: { region?: "world" | "
             const cls = national.has(c.iso) ? "fill-emerald-500/60" : partial.has(c.iso) ? "fill-emerald-500/20" : "fill-transparent";
             return (
               <g key={c.iso} className={cls}>
-                {/* One string child: React 19 refuses a <title> whose children
-                    are an array and renders it empty. */}
-                <title>{`${c.iso} — ${c.name}${national.has(c.iso) ? "" : partial.has(c.iso) ? " (regional data only)" : ""}`}</title>
-                {c.rings.map((ring, i) => <path key={i} d={ringPath(ring)} />)}
+                {/* The tooltip <title> sits INSIDE every path, not once on the
+                    group: browsers only reliably show a title that is a direct
+                    child of the hovered element. One string child, because
+                    React 19 renders a <title> with array children as empty. */}
+                {c.rings.map((ring, i) => (
+                  <path key={i} d={ringPath(ring)}>
+                    <title>{`${c.iso} — ${c.name}${national.has(c.iso) ? "" : partial.has(c.iso) ? " (regional data only)" : ""}`}</title>
+                  </path>
+                ))}
               </g>
             );
           })}
