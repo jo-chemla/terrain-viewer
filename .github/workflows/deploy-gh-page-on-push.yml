@@ -76,6 +76,18 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      # The concurrency group above serialises RUNS, but the Pages backend
+      # deployment created by the previous run can still be "in progress"
+      # when this run reaches it — two pushes a couple of minutes apart made
+      # the second fail with "Deployment request failed ... due to in
+      # progress deployment". Try once, and on failure wait and try again.
       - name: Deploy to GitHub Pages
         id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: Wait for the previous Pages deployment to finish
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 150
+      - name: Deploy to GitHub Pages (retry)
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
