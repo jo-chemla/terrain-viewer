@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
-import { planetKeyAtom, mapboxKeyAtom, hereKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom } from "@/lib/settings-atoms"
 import { SegmentedToggle } from "./controls-components"
 import { drawingFeaturesAtom, drawingLayersAtom } from "./TerraDrawSystem"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
@@ -149,8 +149,9 @@ export const ExportMultiDialog: React.FC<{
   const planetKey = useAtomValue(planetKeyAtom)
   const hasPlanetKey = !!planetKey
   const mapboxKey = useAtomValue(mapboxKeyAtom)
+  const maptilerKey = useAtomValue(maptilerKeyAtom)
   const hereKey = useAtomValue(hereKeyAtom)
-  const keys = useMemo(() => ({ mapbox: mapboxKey || undefined, here: hereKey || undefined }), [mapboxKey, hereKey])
+  const keys = useMemo(() => ({ mapbox: mapboxKey || undefined, maptiler: maptilerKey || undefined, here: hereKey || undefined }), [mapboxKey, maptilerKey, hereKey])
   const requestTimelineWindow = useSetAtom(timelineWindowRequestAtom)
   // Start from the range the timeline is already showing: opening the dialog
   // adopts its visible window as the start/end dates (only on open, so the
@@ -396,7 +397,7 @@ export const ExportMultiDialog: React.FC<{
             />
             <SourcePicker
               label="Current basemaps"
-              ids={CURRENT_BASEMAP_SOURCE_IDS.filter((id) => (id !== "mapbox" || !!mapboxKey) && (id !== "here" || !!hereKey))}
+              ids={CURRENT_BASEMAP_SOURCE_IDS.filter((id) => (id !== "mapbox" || !!mapboxKey) && (id !== "maptiler" || !!maptilerKey) && (id !== "here" || !!hereKey))}
               labelOf={(id) => EXPORT_SOURCE_LABELS[id].replace(" (current)", "")}
               selected={sourceIds}
               setSelected={setSourceIds}

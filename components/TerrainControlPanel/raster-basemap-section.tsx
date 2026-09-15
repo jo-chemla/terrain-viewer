@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, planetKeyAtom } from "@/lib/settings-atoms"
+import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, maptilerKeyAtom, planetKeyAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, CycleButtonGroup, SliderControl, SourceGridToggle, GroupHeading } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
@@ -29,6 +29,7 @@ export const BUILTIN_BASEMAP_OPTIONS = [
   { value: "bing", label: "Bing Aerial", shortLabel: "Bing" },
   { value: "esri", label: "ESRI World Imagery", shortLabel: "ESRI" },
   { value: "mapbox", label: "Mapbox Satellite", shortLabel: "Mapbox" },
+  { value: "maptiler", label: "MapTiler Satellite", shortLabel: "MapTiler" },
   { value: "here", label: "HERE Satellite", shortLabel: "HERE" },
   { value: "googlesat", label: "Google Satellite", shortLabel: "Google Sat" },
   { value: "osm", label: "OpenStreetMap", shortLabel: "OSM" },
@@ -46,7 +47,7 @@ export const BASEMAP_SHORT_LABELS: Record<string, string> = Object.fromEntries(
 // VITE_MAPBOX_ACCESS_TOKEN in .env) so users don't select a basemap that just
 // fails to render. Both mapboxKeyAtom and hereKeyAtom default to "" unless
 // that local .env var is present — see settings-atoms.ts.
-const KEY_GATED_BASEMAPS = { here: hereKeyAtom, mapbox: mapboxKeyAtom, planet: planetKeyAtom } as const
+const KEY_GATED_BASEMAPS = { here: hereKeyAtom, mapbox: mapboxKeyAtom, maptiler: maptilerKeyAtom, planet: planetKeyAtom } as const
 
 export const RasterBasemapSection: React.FC<{
   state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef>;
@@ -58,6 +59,7 @@ export const RasterBasemapSection: React.FC<{
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [hereKey] = useAtom(hereKeyAtom)
   const [mapboxKey] = useAtom(mapboxKeyAtom)
+  const [maptilerKey] = useAtom(maptilerKeyAtom)
   const [planetKey] = useAtom(planetKeyAtom)
   const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
   // Real "as-of" capture date for Bing's single live mosaic (see lib/bing.ts)
@@ -69,12 +71,12 @@ export const RasterBasemapSection: React.FC<{
   // too, not just a static "always current" implication.
   const { label: esriCaptureLabel } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
 
-  const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, planet: planetKey }
+  const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, maptiler: maptilerKey, planet: planetKey }
   const visibleBuiltinOptions = useMemo(
     () => BUILTIN_BASEMAP_OPTIONS
       .filter((o) => !(o.value in KEY_GATED_BASEMAPS) || !!gatedKeyValues[o.value])
       .filter((o) => state.historicalBeta || o.value !== "historical"),
-    [hereKey, mapboxKey, planetKey, state.historicalBeta],
+    [hereKey, mapboxKey, maptilerKey, planetKey, state.historicalBeta],
   )
 
   const basemapSourceOptions = useMemo(() => [

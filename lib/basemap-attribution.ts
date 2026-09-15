@@ -23,6 +23,7 @@ export const STATIC_BASEMAP_ATTRIBUTIONS: Record<string, string> = {
   google: "© Google",
   googlesat: "© Google",
   mapbox: "© Mapbox © OpenStreetMap",
+  maptiler: "© MapTiler © OpenStreetMap contributors",
   here: "© HERE",
   // Kept as a plain descriptive string (not a "see sidebar" pointer like
   // esri/wayback below) since useBingDynamicAttribution already falls back

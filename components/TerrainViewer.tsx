@@ -3104,6 +3104,7 @@ export function TerrainViewer() {
             basemapSource={perViewResolved[side].basemapSource}
             mapboxKey={mapboxKey}
             hereKey={hereKey}
+            maptilerKey={maptilerKey}
             date={perViewResolved[side].date}
             latitude={state.lat}
             longitude={state.lng}

@@ -12,17 +12,17 @@ import { eoxS2CloudlessTicks, eoxS2CloudlessTileUrl } from "./eox-s2-cloudless"
 import { fetchBingCaptureDate, toQuadkey } from "./bing"
 import type { FetchRgbTileMosaicOptions } from "./rgb-tile-mosaic"
 
-export const EXPORT_SOURCE_IDS = ["wayback", "hls", "ge-historical", "planet", "eox-s2", "bing", "google", "esri", "mapbox", "here"] as const
+export const EXPORT_SOURCE_IDS = ["wayback", "hls", "ge-historical", "planet", "eox-s2", "bing", "google", "esri", "mapbox", "maptiler", "here"] as const
 export type ExportSourceId = (typeof EXPORT_SOURCE_IDS)[number]
 /** The non-archival providers: one current mosaic each, no date range. Bing
  *  is the odd one out only in that it can report its capture date. */
-export const CURRENT_BASEMAP_SOURCE_IDS: readonly ExportSourceId[] = ["bing", "google", "esri", "mapbox", "here"]
+export const CURRENT_BASEMAP_SOURCE_IDS: readonly ExportSourceId[] = ["bing", "google", "esri", "mapbox", "maptiler", "here"]
 export const EXPORT_SOURCE_LABELS: Record<ExportSourceId, string> = {
   wayback: "Esri Wayback", hls: "HLS", "ge-historical": "GE Historical", planet: "Planet", "eox-s2": "EOX Sentinel-2",
-  bing: "Bing (current)", google: "Google (current)", esri: "Esri (current)", mapbox: "Mapbox (current)", here: "HERE (current)",
+  bing: "Bing (current)", google: "Google (current)", esri: "Esri (current)", mapbox: "Mapbox (current)", maptiler: "MapTiler (current)", here: "HERE (current)",
 }
 /** Keys some current basemaps need; a missing key makes that source list nothing. */
-export interface ExportSourceKeys { mapbox?: string; here?: string }
+export interface ExportSourceKeys { mapbox?: string; maptiler?: string; here?: string }
 
 export interface ExportTick {
   dateMs: number
@@ -68,6 +68,7 @@ export async function listExportTicks(
   if (sourceId === "google") return current("https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", 21)
   if (sourceId === "esri") return current("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.jpg", 19)
   if (sourceId === "mapbox") return keys?.mapbox ? current(`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token=${keys.mapbox}`, 22) : []
+  if (sourceId === "maptiler") return keys?.maptiler ? current(`https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${keys.maptiler}`, 20) : []
   if (sourceId === "here") return keys?.here ? current(`https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?style=satellite.day&apiKey=${keys.here}`, 20) : []
 
   if (sourceId === "wayback") {

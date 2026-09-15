@@ -424,6 +424,7 @@ export const BookmarksSection: React.FC<{
   // day-to-day use (restore a view, add a new one) isn't cluttered by them.
   const [editMode, setEditMode] = useState(false)
   const [isFeaturedOpen, setIsFeaturedOpen] = useState(false)
+  const [isOwnOpen, setIsOwnOpen] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleRestorePreset = useCallback((preset: Bookmark) => {
@@ -747,13 +748,17 @@ export const BookmarksSection: React.FC<{
         </Collapsible>
 
         {roots.length > 0 && (
-          <div>
-            {/* Same label styling as the Featured header above (Bookmark
-                icon instead of the star) — without it, a folded Featured
-                section made the user's own rows read as its content. */}
-            <div className="pb-1 pt-0.5">
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide"><BookmarkIcon className="h-3 w-3 shrink-0" />Your Bookmarks</span>
+          <Collapsible open={isOwnOpen} onOpenChange={setIsOwnOpen}>
+            {/* Same header as Featured above, and foldable the same way. */}
+            <div className="flex items-center justify-between gap-2 pb-1 pt-0.5">
+              <CollapsibleTrigger className="flex-1 min-w-0 text-left cursor-pointer">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide"><BookmarkIcon className="h-3 w-3 shrink-0" />Your Bookmarks <span className="normal-case tracking-normal">({roots.length})</span></span>
+              </CollapsibleTrigger>
+              <CollapsibleTrigger className="cursor-pointer">
+                <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isOwnOpen && "rotate-180")} />
+              </CollapsibleTrigger>
             </div>
+            <CollapsibleContent>
             <div
               ref={listRef}
               className="space-y-1 overflow-y-auto"
