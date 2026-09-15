@@ -15,7 +15,7 @@ import { planetMonthlyTicks } from "@/lib/planet"
 import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
-import { planetKeyAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, timelineWindowRequestAtom } from "@/lib/settings-atoms"
 import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
@@ -647,6 +647,20 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // wheel handler's own `newSpan >= paddedSpan ? null : ...`) — without this,
   // effectiveMin would then snap back to the floored defaultMin instead of
   // staying at paddedMin, undoing the very zoom-out the user just did.
+
+  // Export Multi asks for its own date range to be shown (see
+  // timelineWindowRequestAtom) — same path as a manual zoom, so the sticky
+  // hasZoomed flag flips and the re-clamp effect below keeps it in bounds.
+  const [windowRequest] = useAtom(timelineWindowRequestAtom)
+  useEffect(() => {
+    if (!windowRequest) return
+    const min = Math.max(paddedMin, windowRequest.min)
+    const max = Math.min(paddedMax, windowRequest.max)
+    if (max <= min) return
+    hasZoomedRef.current = true
+    setViewWindow(min <= paddedMin && max >= paddedMax ? null : { min, max })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [windowRequest])
 
   // Re-clamp a zoomed window whenever the full extent itself shifts (e.g. a
   // pill toggle shrinks the dataset) so a stale window can't reference dates

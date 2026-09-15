@@ -58,6 +58,15 @@ export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://t
  *  the slope protocol for z13 tiles that 404, and the overlay went blank.
  *  Session-only, never persisted. */
 export const viewportCenterAtom = atom<{ lat: number; lng: number } | null>(null)
+
+/** One-shot request to zoom the historical timeline to a date window —
+ *  written by Export Multi as its start/end dates change, so the timeline
+ *  shows exactly the captures about to be downloaded. `nonce` makes the
+ *  same window re-apply if the user has zoomed away in between. */
+export const timelineWindowRequestAtom = atom<{ min: number; max: number; nonce: number } | null>(null)
+
+/** Fold state of the Terrain Analysis sub-groups, persisted. */
+export const terrainAnalysisGroupsOpenAtom = atomWithStorage<Record<string, boolean>>("terrainAnalysisGroupsOpen", {})
 export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
 
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)

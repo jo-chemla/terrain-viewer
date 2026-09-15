@@ -1,8 +1,25 @@
 import type React from "react"
 import { useAtom } from "jotai"
-import { Separator } from "@/components/ui/separator"
+import { ChevronDown } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Section, CheckboxWithSlider, AdvancedModeToggle, GroupHeading } from "./controls-components"
-import { terrainAnalysisAdvancedAtom } from "@/lib/settings-atoms"
+import { terrainAnalysisAdvancedAtom, terrainAnalysisGroupsOpenAtom } from "@/lib/settings-atoms"
+
+// Each of the three groups folds independently and remembers its state.
+// Open by default so a first visit still shows every mode.
+const FoldableGroup: React.FC<{ id: string; title: string; children: React.ReactNode }> = ({ id, title, children }) => {
+  const [openMap, setOpenMap] = useAtom(terrainAnalysisGroupsOpenAtom)
+  const open = openMap[id] ?? true
+  return (
+    <Collapsible open={open} onOpenChange={(o) => setOpenMap({ ...openMap, [id]: o })}>
+      <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer border-b border-border/60">
+        <GroupHeading>{title}</GroupHeading>
+        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-4 pt-3">{children}</CollapsibleContent>
+    </Collapsible>
+  )
+}
 import { SlopeFields } from "./slope-options-section"
 import { AspectFields } from "./aspect-options-section"
 import { TriFields } from "./tri-options-section"
@@ -41,7 +58,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
       headerExtra={<AdvancedModeToggle advanced={advanced} onToggle={() => setAdvanced(!advanced)} />}
     >
       <div className="space-y-4">
-        <GroupHeading>Surface derivatives</GroupHeading>
+        <FoldableGroup id="surface" title="Surface derivatives">
 
         <div className="space-y-2">
           <CheckboxWithSlider
@@ -82,8 +99,8 @@ export const TerrainAnalysisOptionsSection: React.FC<{
           {state.showCurvature && advanced && <CurvatureFields state={state} setState={setState} />}
         </div>
 
-        <Separator />
-        <GroupHeading>Neighborhood statistics</GroupHeading>
+        </FoldableGroup>
+        <FoldableGroup id="neighborhood" title="Neighborhood statistics">
 
         <div className="space-y-2">
           <CheckboxWithSlider
@@ -137,8 +154,8 @@ export const TerrainAnalysisOptionsSection: React.FC<{
           {state.showShapeIndex && advanced && <ShapeIndexFields state={state} setState={setState} />}
         </div>
 
-        <Separator />
-        <GroupHeading>Principal Components</GroupHeading>
+        </FoldableGroup>
+        <FoldableGroup id="pca" title="Principal Components">
 
         <div className="space-y-2">
           <CheckboxWithSlider
@@ -178,6 +195,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
           />
           {state.showOrientation && advanced && <OrientationFields state={state} setState={setState} />}
         </div>
+        </FoldableGroup>
       </div>
     </Section>
   )

@@ -6,7 +6,7 @@
 // components/TerrainControlPanel/export-multi-dialog.tsx for the UI.
 import { zipSync } from "fflate"
 import type { GeoJSONFeature, DrawLayer } from "@/components/TerrainControlPanel/TerraDrawSystem"
-import { EXPORT_SOURCE_IDS, listExportTicks, type ExportSourceId, type ExportTick } from "./historical-export-sources"
+import { EXPORT_SOURCE_IDS, listExportTicks, type ExportSourceId, type ExportSourceKeys, type ExportTick } from "./historical-export-sources"
 import { computeFeaturePaddedExtent, type Bbox4 } from "./feature-extent"
 import { fetchRgbTileMosaic } from "./rgb-tile-mosaic"
 import { buildRgbGeoTiff } from "./rgb-geotiff"
@@ -43,6 +43,8 @@ export interface ExportMultiOptions {
    *  exported tile; the source's own real tile pyramid may cap it lower. */
   targetResolution: number
   planetKey?: string
+  /** Mapbox / HERE keys for their "current" basemap exports. */
+  keys?: ExportSourceKeys
   /** Also write one `<target>_gdal_commands.bat` per target into the zip,
    *  with a gdal_translate command per (source, capture date) that has a
    *  real fetchable tile URL — see lib/gdal-export.ts for which sources
@@ -105,7 +107,7 @@ function buildTargets(opts: ExportMultiOptions): ExportTarget[] {
 }
 
 export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<ExportMultiResult> {
-  const { sourceIds, startMs, endMs, targetResolution, planetKey, includeGdalScript, onProgress, signal } = opts
+  const { sourceIds, startMs, endMs, targetResolution, planetKey, keys, includeGdalScript, onProgress, signal } = opts
 
   const targets = buildTargets(opts)
 
@@ -122,7 +124,7 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
       if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError")
       onProgress?.({ phase: "listing", completed: listed, total: listingTotal, label: `${target.label} — ${sourceId}` })
       try {
-        const ticks = await listExportTicks(sourceId, target.centerLat, target.centerLng, LISTING_ZOOM, startMs, endMs, planetKey)
+        const ticks = await listExportTicks(sourceId, target.centerLat, target.centerLng, LISTING_ZOOM, startMs, endMs, planetKey, keys)
         if (!ticks.length) skipped.push({ feature: target.label, source: sourceId, reason: "No capture found in the selected date range" })
         for (const tick of ticks) plan.push({ target, source: sourceId, tick })
       } catch (err) {

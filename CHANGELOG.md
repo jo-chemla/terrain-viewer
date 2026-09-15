@@ -12,7 +12,9 @@
 ### Bug Fixes
 - No-data detection now catches positive sentinels — the Netherlands signals no-coverage with `+3.4e38`, which a floor could never catch, so offshore tiles read as -32768 m.
 - A source's `minzoom` no longer clamps the camera; it limits tile requests only.
-- Drawing layers can be shown or hidden individually (checkbox next to each layer's radio); hidden layers keep their features, still export and persist.
+- Drawing layers: a checkbox per layer shows or hides it; the layer new drawings go to is picked by clicking its name (shown in bold), replacing the radio.
+- Export Multi (Historical): calendar date pickers, the timeline zooms to the chosen range so you see what will be downloaded, EOX Sentinel-2 is off by default, and a new "Current basemaps" group exports today's Google, Esri, Bing, Mapbox and HERE mosaics.
+- Terrain Analysis sub-groups (Surface derivatives, Neighborhood statistics, Principal Components) fold independently and remember their state.
 - Drawing export has a third scope, "Selected layer only", alongside flattened and one-file-per-layer.
 - Export Multi (Historical) shows how many captures each selected source has in the chosen date range before you run it.
 - A range-slider thumb whose value is outside the slider bounds now stays pinned at the nearest edge instead of vanishing, and dragging the other thumb no longer snaps it to the edge.

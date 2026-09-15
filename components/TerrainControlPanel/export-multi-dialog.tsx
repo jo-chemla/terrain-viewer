@@ -1,7 +1,9 @@
 import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
-import { useAtomValue } from "jotai"
-import { Layers, Loader2, X } from "lucide-react"
+import { useAtomValue, useSetAtom } from "jotai"
+import { Layers, Loader2, X, CalendarDays } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import saveAs from "file-saver"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -11,16 +13,49 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
-import { planetKeyAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, mapboxKeyAtom, hereKeyAtom, timelineWindowRequestAtom } from "@/lib/settings-atoms"
 import { SegmentedToggle } from "./controls-components"
 import { drawingFeaturesAtom, drawingLayersAtom } from "./TerraDrawSystem"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
-import { EXPORT_SOURCE_IDS, listExportTicks, type ExportSourceId } from "@/lib/historical-export-sources"
+import { EXPORT_SOURCE_IDS, CURRENT_BASEMAP_SOURCE_IDS, EXPORT_SOURCE_LABELS, listExportTicks, type ExportSourceId } from "@/lib/historical-export-sources"
 import { exportMultiHistorical, type ExportMultiMode, type ExportMultiSkip } from "@/lib/export-multi"
 import type { Bbox4 } from "@/lib/feature-extent"
 import { track } from "@/lib/analytics"
 
-const DEFAULT_SOURCE_IDS: ExportSourceId[] = ["wayback", "ge-historical", "bing", "eox-s2"]
+// EOX Sentinel-2 is off by default: a 10 m yearly cloudless mosaic is rarely
+// what someone exporting VHR history wants, and it adds a file per year.
+const DEFAULT_SOURCE_IDS: ExportSourceId[] = ["wayback", "ge-historical", "bing"]
+const HISTORICAL_SOURCE_IDS = EXPORT_SOURCE_IDS.filter((id) => !CURRENT_BASEMAP_SOURCE_IDS.includes(id))
+
+/** "2024-03-08" <-> Date, UTC, for the calendar pickers. */
+const parseIso = (s: string) => new Date(`${s}T12:00:00Z`)
+const DatePickerButton: React.FC<{ value: string; onChange: (iso: string) => void; min?: string; max?: string }> = ({ value, onChange, min, max }) => (
+  <Popover>
+    <PopoverTrigger
+      render={
+        <Button variant="outline" className="w-full justify-between cursor-pointer font-normal tabular-nums">
+          {value || "Pick a date"}
+          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+        </Button>
+      }
+    />
+    <PopoverContent align="start" className="w-auto p-0">
+      <Calendar
+        mode="single"
+        selected={value ? parseIso(value) : undefined}
+        defaultMonth={value ? parseIso(value) : undefined}
+        captionLayout="dropdown"
+        startMonth={new Date(1930, 0)}
+        endMonth={new Date()}
+        disabled={[
+          ...(min ? [{ before: parseIso(min) }] : []),
+          ...(max ? [{ after: parseIso(max) }] : []),
+        ]}
+        onSelect={(d) => { if (d) onChange(isoDate(d)) }}
+      />
+    </PopoverContent>
+  </Popover>
+)
 const ALL_LAYERS = "__all__"
 
 function isAbortError(error: unknown): boolean {
@@ -43,6 +78,10 @@ export const ExportMultiDialog: React.FC<{
   const layers = useAtomValue(drawingLayersAtom)
   const planetKey = useAtomValue(planetKeyAtom)
   const hasPlanetKey = !!planetKey
+  const mapboxKey = useAtomValue(mapboxKeyAtom)
+  const hereKey = useAtomValue(hereKeyAtom)
+  const keys = useMemo(() => ({ mapbox: mapboxKey || undefined, here: hereKey || undefined }), [mapboxKey, hereKey])
+  const requestTimelineWindow = useSetAtom(timelineWindowRequestAtom)
 
   // "viewport" is the default — it needs nothing drawn at all, just the
   // current map view, so it's the path that works the instant the dialog
@@ -97,7 +136,7 @@ export const ExportMultiDialog: React.FC<{
     const timer = setTimeout(async () => {
       const ids = Array.from(sourceIds)
       const results = await Promise.all(ids.map(async (id) => {
-        try { return [id, (await listExportTicks(id, view.lat, view.lng, view.zoom, startMs, endMs, planetKey)).length] as const }
+        try { return [id, (await listExportTicks(id, view.lat, view.lng, view.zoom, startMs, endMs, planetKey, keys)).length] as const }
         catch { return [id, undefined] as const }
       }))
       if (cancelled) return
@@ -106,7 +145,18 @@ export const ExportMultiDialog: React.FC<{
       setRangeCounts({ counts, pending: false })
     }, 500)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [open, getMapView, startDate, endDate, sourceIds, planetKey])
+  }, [open, getMapView, startDate, endDate, sourceIds, planetKey, keys])
+
+  // Mirror the chosen range onto the historical timeline so its ticks show
+  // exactly what is about to be exported. Debounced with the count above.
+  useEffect(() => {
+    if (!open) return
+    const startMs = new Date(`${startDate}T00:00:00Z`).getTime()
+    const endMs = new Date(`${endDate}T23:59:59Z`).getTime()
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return
+    const timer = setTimeout(() => requestTimelineWindow({ min: startMs, max: endMs, nonce: Date.now() }), 500)
+    return () => clearTimeout(timer)
+  }, [open, startDate, endDate, requestTimelineWindow])
   const totalInRange = Array.from(sourceIds).reduce((n, id) => n + (rangeCounts.counts[id] ?? 0), 0)
   const targetCount = mode === "viewport" ? 1 : selectedFeatures.length
 
@@ -141,6 +191,7 @@ export const ExportMultiDialog: React.FC<{
         targetResolution,
         includeGdalScript,
         planetKey,
+        keys,
         signal: controller.signal,
         onProgress: ({ phase, completed, total, label }) => setProgress({ phase, fraction: total ? completed / total : 0, label }),
       })
@@ -214,21 +265,31 @@ export const ExportMultiDialog: React.FC<{
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Start date</Label>
-              <Input type="date" value={startDate} max={endDate} onChange={(e) => setStartDate(e.target.value)} className="cursor-text" />
+              <DatePickerButton value={startDate} max={endDate} onChange={setStartDate} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">End date</Label>
-              <Input type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} className="cursor-text" />
+              <DatePickerButton value={endDate} min={startDate} onChange={setEndDate} />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-sm font-medium">Historical sources</Label>
             <div className="grid grid-cols-2 gap-1.5">
-              {EXPORT_SOURCE_IDS.filter((id) => id !== "planet" || hasPlanetKey).map((id) => (
+              {HISTORICAL_SOURCE_IDS.filter((id) => id !== "planet" || hasPlanetKey).map((id) => (
                 <div key={id} className="flex items-center gap-2">
                   <Checkbox id={`export-multi-src-${id}`} checked={sourceIds.has(id)} onCheckedChange={() => toggleSource(id)} className="cursor-pointer" />
-                  <Label htmlFor={`export-multi-src-${id}`} className="text-sm cursor-pointer truncate">{SOURCE_CONFIG[id]?.label ?? id}</Label>
+                  <Label htmlFor={`export-multi-src-${id}`} className="text-sm cursor-pointer truncate">{SOURCE_CONFIG[id]?.label ?? EXPORT_SOURCE_LABELS[id]}</Label>
+                </div>
+              ))}
+            </div>
+            <Label className="text-sm font-medium pt-1">Current basemaps</Label>
+            <p className="text-xs text-muted-foreground">One file each, today's mosaic, regardless of the date range.</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {CURRENT_BASEMAP_SOURCE_IDS.filter((id) => (id !== "mapbox" || !!mapboxKey) && (id !== "here" || !!hereKey)).map((id) => (
+                <div key={id} className="flex items-center gap-2">
+                  <Checkbox id={`export-multi-src-${id}`} checked={sourceIds.has(id)} onCheckedChange={() => toggleSource(id)} className="cursor-pointer" />
+                  <Label htmlFor={`export-multi-src-${id}`} className="text-sm cursor-pointer truncate">{EXPORT_SOURCE_LABELS[id]}</Label>
                 </div>
               ))}
             </div>
@@ -238,14 +299,10 @@ export const ExportMultiDialog: React.FC<{
                 <span className="text-foreground/80">{totalInRange} capture{totalInRange === 1 ? "" : "s"}</span> in range at the viewport centre
                 {targetCount > 1 && <> → about {totalInRange * targetCount} files across {targetCount} features</>}
                 {": "}
-                {Array.from(sourceIds).map((id) => `${SOURCE_CONFIG[id]?.shortLabel ?? id} ${rangeCounts.counts[id] ?? "…"}`).join(" · ")}
+                {Array.from(sourceIds).map((id) => `${SOURCE_CONFIG[id]?.shortLabel ?? EXPORT_SOURCE_LABELS[id]} ${rangeCounts.counts[id] ?? "…"}`).join(" · ")}
               </p>
             )}
-            {/* Bing has no browsable archive (a single current mosaic) — its
-                one export ignores the date range above entirely. */}
-            {sourceIds.has("bing") && (
-              <p className="text-xs text-muted-foreground">Bing has no date archive — contributes exactly one (current) capture regardless of date range.</p>
-            )}
+
           </div>
 
           {/* Padding only means anything relative to a drawn feature's own

@@ -1079,13 +1079,11 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
 
             {multiLayerMode && (
                 <>
-                    <RadioGroup value={activeLayerId} onValueChange={setActiveLayerId} className="gap-2">
+                    {/* Checkbox = shown or hidden. Clicking a name makes it the
+                        layer new drawings go to — shown in bold, no radio. */}
+                    <div className="flex flex-col gap-2">
                         {layers.map((layer) => (
                             <div key={layer.id} className="flex items-center gap-2 min-w-0">
-                                <RadioGroupItem value={layer.id} id={`draw-layer-${layer.id}`} className="cursor-pointer shrink-0" />
-                                {/* Radio = which layer new drawings go to; this
-                                    checkbox = whether the layer is shown at all.
-                                    A hidden layer can still be the active one. */}
                                 <Tooltip>
                                     <TooltipTrigger
                                         render={
@@ -1109,9 +1107,14 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                         className="h-8 flex-1 min-w-0 text-sm"
                                     />
                                 ) : (
-                                    <Label htmlFor={`draw-layer-${layer.id}`} className={`flex-1 text-sm truncate min-w-0 cursor-pointer ${layer.hidden ? "text-muted-foreground line-through decoration-muted-foreground/50" : ""}`}>
-                                        {layer.name} <span className="text-muted-foreground">({featureCount(layer.id)})</span>
-                                    </Label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveLayerId(layer.id)}
+                                        title={layer.id === activeLayerId ? "Active layer — new drawings go here" : "Click to draw on this layer"}
+                                        className={`flex-1 text-left text-sm truncate min-w-0 cursor-pointer ${layer.id === activeLayerId ? "font-bold" : "font-normal"} ${layer.hidden ? "text-muted-foreground" : ""}`}
+                                    >
+                                        {layer.name} <span className="text-muted-foreground font-normal">({featureCount(layer.id)})</span>
+                                    </button>
                                 )}
 
                                 {editMode ? (
@@ -1233,7 +1236,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                 )}
                             </div>
                         ))}
-                    </RadioGroup>
+                    </div>
 
                     {iteratorLayerId && iteratorTotal > 0 && (
                         <div className="space-y-2 rounded-md border p-2">
@@ -1835,7 +1838,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                                 ] as const).map(([value, label, hint]) => (
                                     <div key={value} className="flex items-start gap-2">
                                         <RadioGroupItem value={value} id={`td-export-${value}`} className="cursor-pointer shrink-0 mt-0.5" />
-                                        <Label htmlFor={`td-export-${value}`} className="cursor-pointer flex flex-col gap-0.5">
+                                        <Label htmlFor={`td-export-${value}`} className="cursor-pointer flex flex-col items-start text-left gap-0.5">
                                             <span className="text-xs font-medium">{label}</span>
                                             <span className="text-[11px] text-muted-foreground font-normal">{hint}</span>
                                         </Label>
