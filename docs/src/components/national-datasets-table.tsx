@@ -512,15 +512,20 @@ export function NationalCoverageMap() {
         <g fill="none" stroke="currentColor" strokeOpacity="0.35" strokeWidth="0.5" strokeLinejoin="round">
           {(WORLD as number[][]).map((ring, i) => <path key={i} d={ringPath(ring)} />)}
         </g>
-        {[...byIso.entries()].map(([iso, b]) => {
-          const [cx, cy] = project((b[0] + b[2]) / 2, (b[1] + b[3]) / 2);
-          return (
-            <g key={iso}>
-              <path d={boxPath(b)} fill="#22c55e" fillOpacity="0.45" stroke="#15803d" strokeWidth="1" />
-              <text x={cx} y={cy + 3} textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#052e16">{iso}</text>
-            </g>
-          );
-        })}
+        {/* Every box first, then every label, so a label never ends up under a
+            neighbouring country's box (the USA box covers Mexico's label
+            otherwise). Labels are dark on light, and white with a black halo in
+            dark mode - paint-order puts the stroke behind the glyphs. */}
+        <g fill="#22c55e" fillOpacity="0.45" stroke="#15803d" strokeWidth="1">
+          {[...byIso.entries()].map(([iso, b]) => <path key={iso} d={boxPath(b)} />)}
+        </g>
+        <g fontSize="8.5" fontWeight="700" textAnchor="middle" paintOrder="stroke" strokeLinejoin="round"
+           className="fill-[#052e16] stroke-transparent dark:fill-white dark:stroke-black" strokeWidth="2.5">
+          {[...byIso.entries()].map(([iso, b]) => {
+            const [cx, cy] = project((b[0] + b[2]) / 2, (b[1] + b[3]) / 2);
+            return <text key={iso} x={cx} y={cy + 3}>{iso}</text>;
+          })}
+        </g>
       </svg>
       <figcaption className="text-xs text-fd-muted-foreground">
         {byIso.size} countries with an integrated national endpoint. Highlights are each source&apos;s declared
@@ -572,8 +577,6 @@ const UNUSABLE: {
     reason: "Priced as a product with access by written request; no anonymous endpoint." },
   { iso: "AUS", country: "Australia", product: "Geoscience Australia 5 m DEM", served: "Download portal",
     reason: "No ImageServer exists; the WMS is a MapServer returning rendered RGB. Elvis is a clip-and-ship portal." },
-  { iso: "CAN", country: "Canada", product: "NRCan MRDEM-30 / CDEM", served: "Single COG",
-    reason: "Usable, but an 84 GB BigTIFF in EPSG:3979 with no CORS — titiler only, not the browser reader." },
   { iso: "CHE", country: "Switzerland", product: "swissALTI3D / swissSURFACE3D 0.5 m", served: "Per-tile COGs + WMS",
     reason: "Every swisstopo WMS elevation layer is 'reliefschattierung' — hillshade — and the 0.5 m products are only per-tile COGs indexed by STAC. The 10 m swissALTIRegio single COG above is the one live option." },
   { iso: "ITA", country: "Italy (Sardinia)", product: "Regione Sardegna DTM 1 m", served: "GeoServer WCS",
