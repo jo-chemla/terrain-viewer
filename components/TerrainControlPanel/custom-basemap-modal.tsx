@@ -38,7 +38,7 @@ export const CustomBasemapModal: React.FC<{
 }> = ({ isOpen, onOpenChange, editingSource, onSave, onLiveOpacityChange, mapRef }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
-  const [type, setType] = useState<BasemapFormType>("tms")
+  const [type, setType] = useState<BasemapFormType>("qms")
   // Brief "copied!" confirmation on the template hint's copy button — same
   // 2s-timeout pattern as ShareSection's CopyUrlButton.
   const [templateCopied, setTemplateCopied] = useState(false)
@@ -119,7 +119,9 @@ export const CustomBasemapModal: React.FC<{
     } else {
       setName("")
       setUrl("")
-      setType("tms")
+      // A fresh basemap starts on the NextGIS QMS search: most people want to
+      // find a named tile service, not type a template by hand.
+      setType("qms")
       setDescription("")
       setRole("basemap")
       setOpacity(100)

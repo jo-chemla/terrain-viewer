@@ -16,6 +16,7 @@ type Source = {
   bounds?: [number, number, number, number];
   loadWithSamples?: boolean;
   cogViaTitiler?: boolean;
+  resolutionM?: number;
   description?: string;
 };
 
@@ -86,20 +87,13 @@ const SERVING: Record<string, string> = {
   tilejson: "TileJSON",
 };
 
-// Best native resolution Mapterhorn ingests per country, read off its
-// source-catalog (153 sources, 32 country groups) on 2026-09-14. null = the
+// Best native resolution Mapterhorn ingests per country, kept in
+// lib/custom-sources.json (MAPTERHORN_BEST_RESOLUTION_M) so the app's sample
+// picker and this page grade sources against the same numbers. Absent = the
 // country has no entry, so Mapterhorn falls back to global GLO-30 (~30 m).
-const MAPTERHORN_RES: Record<string, number | null> = {
-  AUT: 1, BEL: 0.5, CAN: 2, CHE: 0.5, CYP: 1, CZE: 5, DEU: 0.25, DNK: 0.4,
-  ESP: 0.5, EST: 1, FIN: 2, FRA: 0.5, GBR: 1, ISL: 10, ITA: 1, JPN: 1, LUX: 0.5,
-  // NLD is AHN5 5 m in the catalogue (nlahn5lowresfilled), NOT 0.5 m; AUS is the
-  // 5 m LiDAR grid; CHE is 0.5 m nationally (the 0.25 m entry is Canton Zurich only).
-  LVA: 20, NLD: 5, NOR: 1, NZL: 1, POL: 1, PRT: 0.5, ROU: 0.5, RWA: 10,
-  SVK: 1, SVN: 1, SWE: 1, TWN: 20, USA: 1, AUS: 5,
-  MEX: null, GRC: null, SYR: null, IDN: null, SAM: null, URY: null, HTI: null, FRO: null,
-  // Not a country: DE Africa re-serves the same GLO-30 Mapterhorn already uses globally.
-  AFR: 30,
-};
+const MAPTERHORN_RES: Record<string, number | null> = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "..", "lib", "custom-sources.json"), "utf8"),
+).MAPTERHORN_BEST_RESOLUTION_M;
 const GLO30 = 30; // Mapterhorn's global fallback
 
 // "0.5 m" / "~15 m" / "1–10 m" -> the finest number present.
@@ -210,7 +204,7 @@ function loadRows(): Row[] {
     // are dropped, since they are not national elevation products at all.
     .filter((r): r is { s: Source; iso: string } =>
       Boolean(r.iso) && r.iso !== "AFR" && !PROJECT_SCANS.has(r.s.id))
-    .map(({ s, iso }) => ({ s, iso, ours: parseRes(FACTS[s.id]?.res), mh: MAPTERHORN_RES[iso] }))
+    .map(({ s, iso }) => ({ s, iso, ours: s.resolutionM ?? parseRes(FACTS[s.id]?.res), mh: MAPTERHORN_RES[iso] }))
     .sort((a, b) => a.iso.localeCompare(b.iso) || a.s.name.localeCompare(b.s.name));
 }
 

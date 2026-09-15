@@ -3,13 +3,15 @@ import { Plus, Minus, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { compareWithMapterhorn, formatRes, type MapterhornComparison, type MapterhornVerdict } from "@/lib/mapterhorn-compare"
 
-/** The two fields every sample entry (terrain or basemap) is guaranteed to have. */
+/** The fields every sample entry (terrain or basemap) is guaranteed to have. */
 export interface SampleLike {
   id: string
   name: string
   type?: string
   loadWithSamples?: boolean
+  resolutionM?: number
 }
 
 type SectionKey = "national" | "global" | "regional"
@@ -20,8 +22,24 @@ const SECTIONS: { key: SectionKey; title: string; blurb: string }[] = [
   { key: "regional", title: "Sub-national and project scans", blurb: "A state, a province, or a single survey. Left out of Load all." },
 ]
 
+/** Top-level split for terrain: is this an upgrade over the built-in Mapterhorn? */
+type TierKey = "better" | "notBetter"
+const TIERS: { key: TierKey; title: string; blurb: string }[] = [
+  { key: "better", title: "⬆️ Better than Mapterhorn here",
+    blurb: "Either finer than the bulk data Mapterhorn ingested for the country, or the only national data at all where Mapterhorn falls back to global 30 m." },
+  { key: "notBetter", title: "⬇️ Not better than Mapterhorn",
+    blurb: "Same or coarser grid. Worth it only for data straight from the agency, a surface model, or bathymetry." },
+]
+
+const VERDICT_STYLE: Record<MapterhornVerdict, { label: string; className: string; title: string }> = {
+  new: { label: "New", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300", title: "Mapterhorn has no national source here" },
+  finer: { label: "Finer", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300", title: "Finer than what Mapterhorn ingested" },
+  same: { label: "Same", className: "bg-muted text-muted-foreground", title: "Same resolution as Mapterhorn" },
+  coarser: { label: "Coarser", className: "bg-orange-500/15 text-orange-700 dark:text-orange-300", title: "Mapterhorn ingested finer data" },
+}
+
 /**
- * Which section a sample belongs to. "Global - " is an explicit name prefix.
+ * Which scope a sample belongs to. "Global - " is an explicit name prefix.
  * Regional entries are the ones custom-sources.json deliberately lists AFTER
  * the global block (its convention: sub-national sinks below the nationals) or
  * flags loadWithSamples: false (project scans). Nothing else needs a field.
@@ -61,9 +79,13 @@ function kindOf(name: string): { label: string; title: string } | null {
  * that sample — even a copy edited locally — and a plus otherwise. Adding a row
  * that is already present refreshes the stored copy from the sample definition,
  * the same merge-by-id rule the bulk action always had.
+ *
+ * With `compareToMapterhorn` (terrain only) the list is first split into what
+ * beats the built-in Mapterhorn terrain and what does not, each with its own
+ * Nation-wide / Global / Sub-national sections and a per-row verdict.
  */
 export function SampleSourcesModal<T extends SampleLike>({
-  open, onOpenChange, title, samples, current, setCurrent,
+  open, onOpenChange, title, samples, current, setCurrent, compareToMapterhorn = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -71,15 +93,30 @@ export function SampleSourcesModal<T extends SampleLike>({
   samples: readonly T[]
   current: T[]
   setCurrent: (next: T[]) => void
+  compareToMapterhorn?: boolean
 }) {
   const presentIds = useMemo(() => new Set(current.map((s) => s.id)), [current])
+  const lastGlobal = useMemo(() => samples.reduce((acc, s, i) => (s.name.startsWith("Global - ") ? i : acc), -1), [samples])
+  const comparisons = useMemo(() => {
+    const m = new Map<string, MapterhornComparison | null>()
+    if (compareToMapterhorn) for (const s of samples) m.set(s.id, compareWithMapterhorn(s))
+    return m
+  }, [samples, compareToMapterhorn])
+  // tier -> section -> rows. Without comparison everything sits in one tier.
   const grouped = useMemo(() => {
-    const lastGlobal = samples.reduce((acc, s, i) => (s.name.startsWith("Global - ") ? i : acc), -1)
-    const out: Record<SectionKey, T[]> = { national: [], global: [], regional: [] }
-    samples.forEach((s, i) => out[sectionOf(s, i, lastGlobal)].push(s))
+    const out: Record<TierKey, Record<SectionKey, T[]>> = {
+      better: { national: [], global: [], regional: [] },
+      notBetter: { national: [], global: [], regional: [] },
+    }
+    samples.forEach((s, i) => {
+      const c = comparisons.get(s.id)
+      const tier: TierKey = !compareToMapterhorn || c?.verdict === "new" || c?.verdict === "finer" ? "better" : "notBetter"
+      out[tier][sectionOf(s, i, lastGlobal)].push(s)
+    })
     return out
-  }, [samples])
-  const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({ national: true, global: true, regional: true })
+  }, [samples, comparisons, compareToMapterhorn, lastGlobal])
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
+  const isOpen = (k: string) => openSections[k] ?? true
 
   const add = (entries: readonly T[]) => {
     const ids = new Set(entries.map((s) => s.id))
@@ -95,6 +132,7 @@ export function SampleSourcesModal<T extends SampleLike>({
   const Row = ({ s }: { s: T }) => {
     const present = presentIds.has(s.id)
     const kind = kindOf(s.name)
+    const c = comparisons.get(s.id)
     return (
       <div className="flex items-center gap-2 min-w-0 py-1">
         <span className="flex-1 min-w-0 text-sm truncate" title={s.name}>{s.name}</span>
@@ -107,6 +145,19 @@ export function SampleSourcesModal<T extends SampleLike>({
               : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"}`}
           >
             {kind.label}
+          </span>
+        )}
+        {compareToMapterhorn && (
+          <span className="shrink-0 w-32 text-right text-xs text-muted-foreground tabular-nums" title="This source vs Mapterhorn's best ingested grid for the area">
+            {c ? (c.verdict === "same" ? formatRes(c.ours) : `${formatRes(c.ours)} vs ${formatRes(c.theirs)}`) : "—"}
+          </span>
+        )}
+        {compareToMapterhorn && (
+          <span
+            title={c ? VERDICT_STYLE[c.verdict].title : "No resolution recorded"}
+            className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 w-14 text-center ${c ? VERDICT_STYLE[c.verdict].className : "bg-muted text-muted-foreground"}`}
+          >
+            {c ? VERDICT_STYLE[c.verdict].label : "—"}
           </span>
         )}
         {s.type && <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0 w-16 text-right">{s.type}</span>}
@@ -123,6 +174,46 @@ export function SampleSourcesModal<T extends SampleLike>({
       </div>
     )
   }
+
+  const Section = ({ id, title, blurb, rows, level }: { id: string; title: string; blurb: string; rows: T[]; level: 1 | 2 }) => {
+    const loaded = rows.filter((s) => presentIds.has(s.id)).length
+    return (
+      <Collapsible open={isOpen(id)} onOpenChange={(o) => setOpenSections((p) => ({ ...p, [id]: o }))}>
+        <CollapsibleTrigger className={`flex items-center justify-between w-full py-1 cursor-pointer ${level === 1 ? "border-b-2" : "border-b"}`}>
+          <span className={level === 1 ? "text-sm font-bold" : "text-sm font-semibold"}>
+            {title} <span className="font-normal text-muted-foreground">· {loaded}/{rows.length}</span>
+          </span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen(id) ? "rotate-180" : ""}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <p className="text-xs text-muted-foreground pt-1">{blurb}</p>
+        </CollapsibleContent>
+      </Collapsible>
+    )
+  }
+
+  const renderSections = (tier: TierKey, prefix: string) =>
+    SECTIONS.map((sec) => {
+      const rows = grouped[tier][sec.key]
+      if (!rows.length) return null
+      const id = `${prefix}${sec.key}`
+      return (
+        <Collapsible key={id} open={isOpen(id)} onOpenChange={(o) => setOpenSections((p) => ({ ...p, [id]: o }))}>
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer border-b">
+            <span className="text-sm font-semibold">
+              {sec.title} <span className="font-normal text-muted-foreground">· {rows.filter((s) => presentIds.has(s.id)).length}/{rows.length}</span>
+            </span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen(id) ? "rotate-180" : ""}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <p className="text-xs text-muted-foreground pt-1">{sec.blurb}</p>
+            <div className="divide-y divide-border/50">
+              {rows.map((s) => <Row key={s.id} s={s} />)}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )
+    })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,28 +232,19 @@ export function SampleSourcesModal<T extends SampleLike>({
             <Minus className="h-4 w-4" /> Clear all
           </Button>
         </div>
-        <div className="overflow-y-auto pr-1 -mr-1 space-y-3">
-          {SECTIONS.map((sec) => {
-            const rows = grouped[sec.key]
-            if (!rows.length) return null
-            const loaded = rows.filter((s) => presentIds.has(s.id)).length
-            return (
-              <Collapsible key={sec.key} open={openSections[sec.key]} onOpenChange={(o) => setOpenSections((p) => ({ ...p, [sec.key]: o }))}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer border-b">
-                  <span className="text-sm font-semibold">
-                    {sec.title} <span className="font-normal text-muted-foreground">· {loaded}/{rows.length}</span>
-                  </span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections[sec.key] ? "rotate-180" : ""}`} />
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <p className="text-xs text-muted-foreground pt-1">{sec.blurb}</p>
-                  <div className="divide-y divide-border/50">
-                    {rows.map((s) => <Row key={s.id} s={s} />)}
+        <div className="overflow-y-auto pr-1 -mr-1 space-y-4">
+          {compareToMapterhorn
+            ? TIERS.map((tier) => {
+                const rows = Object.values(grouped[tier.key]).flat()
+                if (!rows.length) return null
+                return (
+                  <div key={tier.key} className="space-y-3">
+                    <Section id={tier.key} title={tier.title} blurb={tier.blurb} rows={rows} level={1} />
+                    {isOpen(tier.key) && <div className="pl-2 space-y-3">{renderSections(tier.key, `${tier.key}:`)}</div>}
                   </div>
-                </CollapsibleContent>
-              </Collapsible>
-            )
-          })}
+                )
+              })
+            : renderSections("better", "")}
         </div>
       </DialogContent>
     </Dialog>

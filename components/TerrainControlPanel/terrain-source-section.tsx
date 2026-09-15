@@ -373,6 +373,7 @@ export const TerrainSourceSection: React.FC<{
         samples={SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[]}
         current={customTerrainSources}
         setCurrent={setCustomTerrainSources}
+        compareToMapterhorn
       />
       <Dialog open={isBatchEditModalOpen} onOpenChange={setIsBatchEditModalOpen}>
         <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden" showCloseButton={false}>
