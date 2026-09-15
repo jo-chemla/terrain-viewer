@@ -12,6 +12,7 @@
 ### Bug Fixes
 - No-data detection now catches positive sentinels — the Netherlands signals no-coverage with `+3.4e38`, which a floor could never catch, so offshore tiles read as -32768 m.
 - A source's `minzoom` no longer clamps the camera; it limits tile requests only.
+- Slope and the other client-computed overlays no longer go blank past the zoom a tileset really has: they now probe coverage at the viewport centre like the terrain source does, so Mapterhorn over a GLO-30-only area (z12) overzooms instead of requesting z13 tiles that 404.
 - Sparse GeoTIFFs from ArcGIS servers no longer fail to decode. Out-of-coverage blocks are written with zero offsets, which geotiff.js rejected outright, so Tirol and Czechia rendered blank at exactly the zoom the map had just been fenced to.
 - A COG source can be pinned to titiler (*Always serve via titiler* in its Advanced settings). Needed for files not in Web Mercator — the browser reader misplaced Switzerland's LV95 COG and read ANADEM's degree-sized pixels as metres, which locked the camera at z19.
 - `maxBounds` is applied imperatively — react-map-gl 8's maplibre build never calls `setMaxBounds`, so bounds only ever took effect at page load.

@@ -17,7 +17,7 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
+  viewportCenterAtom, activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource,
 } from "@/lib/settings-atoms"
@@ -919,6 +919,14 @@ export function TerrainViewer() {
       timeMs: 500
     }
   })
+  // Mirror the primary camera centre for the viz sources' coverage probe (see
+  // viewportCenterAtom). Rounded to ~11 km so a live pan does not churn it.
+  const setViewportCenter = useSetAtom(viewportCenterAtom)
+  const centerLat = Math.round(state.lat * 10) / 10
+  const centerLng = Math.round(state.lng * 10) / 10
+  useEffect(() => {
+    setViewportCenter({ lat: centerLat, lng: centerLng })
+  }, [centerLat, centerLng, setViewportCenter])
   // Dynamic per-view field lookups (viewFieldName/sourceFieldName return a
   // plain `string`, not a key of the huge literal QUERY_STATE_PARSERS type)
   // need an escape hatch from that type's strict indexing — same pragmatic

@@ -48,6 +48,16 @@ export const hereKeyAtom = atomWithStorage("hereKey", import.meta.env.VITE_HERE_
 // pasted into Settings.
 export const planetKeyAtom = atomWithStorage("planetKey", import.meta.env.VITE_PLANET_API_KEY ?? "")
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
+
+/** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.
+ *  Read by useClientDemUpstream (MapSources.tsx) so EVERY client-computed viz
+ *  source — slope, matcap, phong, shadows, tells — probes real tile coverage at
+ *  this location, the way the primary terrain source already did. Without it
+ *  Mapterhorn's declared maxzoom 18 stood over places it only serves to z12
+ *  (Syria, and anywhere else with GLO-30 only), so past z12.5 MapLibre asked
+ *  the slope protocol for z13 tiles that 404, and the overlay went blank.
+ *  Session-only, never persisted. */
+export const viewportCenterAtom = atom<{ lat: number; lng: number } | null>(null)
 export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
 
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)

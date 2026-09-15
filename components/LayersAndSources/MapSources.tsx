@@ -3,7 +3,7 @@ import { Source } from "react-map-gl/maplibre"
 import { useAtom, useAtomValue } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
-import { useCogProtocolVsTitilerAtom, highResTerrainAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
+import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
 import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { probeMaxZoomAt } from "@/lib/tile-max-zoom"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
@@ -644,11 +644,17 @@ export const useClientDemUpstream = (
     // this location — otherwise the two could disagree at a coverage gap:
     // the displayed raster shows a blank/overzoomed tile at the declared
     // maxzoom while the point-sample cleanly falls back to a lower, real one.
-    lat?: number,
-    lng?: number,
+    latProp?: number,
+    lngProp?: number,
 ) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const [highResTerrain] = useAtom(highResTerrainAtom)
+    // Callers that pass lat/lng win; everyone else probes at the primary
+    // viewport centre (see viewportCenterAtom), so no viz source is left with
+    // a declared maxzoom the tiles at this location cannot honour.
+    const viewportCenter = useAtomValue(viewportCenterAtom)
+    const lat = latProp ?? viewportCenter?.lat
+    const lng = lngProp ?? viewportCenter?.lng
     // Unused directly — read so this re-renders when a local COG file is (re-)picked.
     const localFileVersion = useAtomValue(localFileVersionAtom)
     const customSource = customTerrainSources.find((s) => s.id === terrainSource)
@@ -811,7 +817,10 @@ export const SlopeSource = memo(({
                 // clientUpstream.template in the key: re-picking a different file for
                 // the same "cog-local" source (id unchanged) must remount rather than
                 // patch tiles against a stale pyramid keyed by the old blob: URL.
-                key={`slope-client-${terrainSource}-${clientUpstream.template}`}
+                // maxzoom too: react-map-gl never applies a changed maxzoom to a
+                // mounted Source, so the per-location coverage probe (see
+                // useClientDemUpstream) has to remount to take effect.
+                key={`slope-client-${terrainSource}-${clientUpstream.template}-z${clientUpstream.maxzoom}`}
                 type="raster-dem"
                 tiles={[url]}
                 tileSize={clientUpstream.tileSize}
@@ -871,7 +880,7 @@ const NormalDerivedSource = memo(({ enabled, sourceId, terrainSource, customTerr
         <Source
             id={sourceId}
             // clientUpstream.template: same re-pick staleness reasoning as SlopeSource above.
-            key={`${sourceId}-${terrainSource}${keySuffix}-${clientUpstream.template}`}
+            key={`${sourceId}-${terrainSource}${keySuffix}-${clientUpstream.template}-z${clientUpstream.maxzoom}`}
             type="raster-dem"
             tiles={[url]}
             tileSize={clientUpstream.tileSize}
@@ -1049,7 +1058,7 @@ export const MatcapSource = memo(({
     return (
         <Source
             id="matcapSource"
-            key={`matcapSource-${terrainSource}-${clientUpstream.template}`}
+            key={`matcapSource-${terrainSource}-${clientUpstream.template}-z${clientUpstream.maxzoom}`}
             type="raster"
             tiles={[url]}
             tileSize={clientUpstream.tileSize}
@@ -1090,7 +1099,7 @@ export const PhongSource = memo(({
     return (
         <Source
             id="phongSource"
-            key={`phongSource-${terrainSource}-${clientUpstream.template}`}
+            key={`phongSource-${terrainSource}-${clientUpstream.template}-z${clientUpstream.maxzoom}`}
             type="raster"
             tiles={[url]}
             tileSize={clientUpstream.tileSize}
@@ -1121,7 +1130,7 @@ export const ShadowSource = memo(({
     return (
         <Source
             id="shadowSource"
-            key={`shadowSource-${terrainSource}-${clientUpstream.template}`}
+            key={`shadowSource-${terrainSource}-${clientUpstream.template}-z${clientUpstream.maxzoom}`}
             type="raster"
             tiles={[url]}
             tileSize={clientUpstream.tileSize}
@@ -1191,7 +1200,7 @@ export const TellsSource = memo(({ enabled, terrainSource, customTerrainSources,
         <>
             <Source
                 id={sourceId}
-                key={`${sourceId}-${terrainSource}-${clientUpstream.template}-${effectiveOptions.tellSizeMeters}-${effectiveOptions.radiusPx}-${effectiveOptions.minReliefMeters}-${effectiveOptions.blobnessMin}-${effectiveOptions.planMin}-${effectiveOptions.detHessianMin}-${effectiveOptions.measureScale}-${effectiveOptions.vetoResolution}`}
+                key={`${sourceId}-${terrainSource}-${clientUpstream.template}-z${clientUpstream.maxzoom}-${effectiveOptions.tellSizeMeters}-${effectiveOptions.radiusPx}-${effectiveOptions.minReliefMeters}-${effectiveOptions.blobnessMin}-${effectiveOptions.planMin}-${effectiveOptions.detHessianMin}-${effectiveOptions.measureScale}-${effectiveOptions.vetoResolution}`}
                 type="vector"
                 tiles={[url]}
                 maxzoom={15}
