@@ -499,6 +499,19 @@ export function NationalCoverageMap({ region = "world" }: { region?: "world" | "
     const n = ring.length / 2;
     return project(sx / n / 10, sy / n / 10);
   };
+  // Width of the largest ring on screen, to skip labels that could not fit:
+  // in the world view the Benelux/Alpine cluster would otherwise pile up
+  // into one unreadable knot, which is what the Europe figure is for.
+  const screenWidth = (c: Country, scale: number) => {
+    const ring = c.rings.reduce((a, b) => (b.length > a.length ? b : a));
+    let minX = Infinity, maxX = -Infinity;
+    for (let j = 0; j < ring.length; j += 2) {
+      const [x] = project(ring[j] / 10, ring[j + 1] / 10);
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+    }
+    return (maxX - minX) * scale;
+  };
 
   // The viewBox is the crop; everything else is drawn in world coordinates and
   // scaled back so strokes and type stay the same size on screen.
@@ -510,7 +523,7 @@ export function NationalCoverageMap({ region = "world" }: { region?: "world" | "
   })();
   const vb = region === "europe" ? eu : world;
   const scale = W / vb[2];
-  const labelled = (WORLD as Country[]).filter((c) => national.has(c.iso) || partial.has(c.iso));
+  const labelled = (WORLD as Country[]).filter((c) => (national.has(c.iso) || partial.has(c.iso)) && screenWidth(c, scale) >= 12);
 
   return (
     <figure>
