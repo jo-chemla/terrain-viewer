@@ -704,10 +704,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Month marks are labelled by month name, with the year at every January
   // (bold gridline) so the axis never loses track of which year it is in.
   const YEAR_STEPS = [1, 2, 5, 10, 20, 25, 50, 100]
-  const MONTH_STEPS = [6, 3, 2, 1]
+  const MONTH_STEPS = [1, 2, 3, 6] // ascending: the first that fits is the finest
   // Below a month: 14-, 7-, 2- and 1-day marks (the wheel zoom floors the
   // window at 14 days, so day marks are what a fully zoomed-in axis shows).
-  const DAY_STEPS = [14, 7, 2, 1]
+  const DAY_STEPS = [1, 2, 7, 14]
   const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
   type AxisMark = { frac: number; label: string; t: number; major: boolean }
   const yearMarks = useMemo(() => {
