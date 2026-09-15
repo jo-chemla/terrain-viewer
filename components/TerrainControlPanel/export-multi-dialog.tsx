@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
-import { planetKeyAtom, mapboxKeyAtom, hereKeyAtom, timelineWindowRequestAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, mapboxKeyAtom, hereKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom } from "@/lib/settings-atoms"
 import { SegmentedToggle } from "./controls-components"
 import { drawingFeaturesAtom, drawingLayersAtom } from "./TerraDrawSystem"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
@@ -152,6 +152,19 @@ export const ExportMultiDialog: React.FC<{
   const hereKey = useAtomValue(hereKeyAtom)
   const keys = useMemo(() => ({ mapbox: mapboxKey || undefined, here: hereKey || undefined }), [mapboxKey, hereKey])
   const requestTimelineWindow = useSetAtom(timelineWindowRequestAtom)
+  // Start from the range the timeline is already showing: opening the dialog
+  // adopts its visible window as the start/end dates (only on open, so the
+  // dates typed here are never overwritten while it is up). The two then stay
+  // in step the other way round through timelineWindowRequestAtom below.
+  const timelineWindow = useAtomValue(timelineViewWindowAtom)
+  const wasOpenRef = useRef(false)
+  useEffect(() => {
+    if (open && !wasOpenRef.current && timelineWindow) {
+      setStartDate(isoDate(new Date(timelineWindow.min)))
+      setEndDate(isoDate(new Date(timelineWindow.max)))
+    }
+    wasOpenRef.current = open
+  }, [open, timelineWindow])
 
   // "viewport" is the default — it needs nothing drawn at all, just the
   // current map view, so it's the path that works the instant the dialog

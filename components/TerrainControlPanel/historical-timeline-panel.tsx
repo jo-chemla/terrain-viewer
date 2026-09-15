@@ -15,7 +15,7 @@ import { planetMonthlyTicks } from "@/lib/planet"
 import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
-import { planetKeyAtom, timelineWindowRequestAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom } from "@/lib/settings-atoms"
 import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
@@ -687,6 +687,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const effectiveMin = viewWindow ? Math.max(paddedMin, viewWindow.min) : (hasZoomedRef.current ? paddedMin : defaultMin)
   const effectiveMax = viewWindow ? Math.min(paddedMax, viewWindow.max) : paddedMax
   const effectiveSpan = Math.max(1, effectiveMax - effectiveMin)
+  // Publish the visible window (see timelineViewWindowAtom).
+  const setPublishedWindow = useSetAtom(timelineViewWindowAtom)
+  useEffect(() => {
+    if (!items.length) return
+    setPublishedWindow({ min: effectiveMin, max: effectiveMax })
+  }, [effectiveMin, effectiveMax, items.length, setPublishedWindow])
   // Is there real content outside the current view (pan gutter's own
   // visibility gate) — independent of whether the user has ever actually
   // zoomed (viewWindow can be null while this is still true, e.g. the very

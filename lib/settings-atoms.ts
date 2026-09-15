@@ -65,6 +65,11 @@ export const viewportCenterAtom = atom<{ lat: number; lng: number } | null>(null
  *  same window re-apply if the user has zoomed away in between. */
 export const timelineWindowRequestAtom = atom<{ min: number; max: number; nonce: number } | null>(null)
 
+/** The timeline's currently visible date window, mirrored by the panel on
+ *  every change - read by Export Multi when it opens, so its start/end dates
+ *  begin as whatever the user is already looking at. */
+export const timelineViewWindowAtom = atom<{ min: number; max: number } | null>(null)
+
 /** Fold state of the Terrain Analysis sub-groups, persisted. */
 export const terrainAnalysisGroupsOpenAtom = atomWithStorage<Record<string, boolean>>("terrainAnalysisGroupsOpen", {})
 export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
