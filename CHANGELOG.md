@@ -13,6 +13,7 @@
 - No-data detection now catches positive sentinels — the Netherlands signals no-coverage with `+3.4e38`, which a floor could never catch, so offshore tiles read as -32768 m.
 - A source's `minzoom` no longer clamps the camera; it limits tile requests only.
 - Drawing layers: a checkbox per layer shows or hides it; the layer new drawings go to is picked by clicking its name (shown in bold), replacing the radio; clicking the active layer again toggles its visibility.
+- Export Multi (Historical): source groups are two inline pickers spelling out what is selected, Cancel releases the dialog immediately, nothing is downloaded when every target was skipped, and a capture whose tiles are missing at the wanted zoom is retried up to three zooms coarser instead of being skipped (older Wayback releases and Google Earth dates rarely reach z19).
 - Export Multi (Historical): calendar date pickers, the timeline zooms to the chosen range so you see what will be downloaded, EOX Sentinel-2 is off by default, and a "Current basemaps" picker (all on by default, one control) exports today's Google, Esri, Bing, Mapbox and HERE mosaics.
 - Terrain Analysis sub-groups (Surface derivatives, Neighborhood statistics, Principal Components) fold independently and remember their state.
 - Drawing export has a third scope, "Selected layer only", alongside flattened and one-file-per-layer.

@@ -27,6 +27,58 @@ import { track } from "@/lib/analytics"
 const DEFAULT_SOURCE_IDS: ExportSourceId[] = ["wayback", "ge-historical", ...CURRENT_BASEMAP_SOURCE_IDS]
 const HISTORICAL_SOURCE_IDS = EXPORT_SOURCE_IDS.filter((id) => !CURRENT_BASEMAP_SOURCE_IDS.includes(id))
 
+/** Label + one multi-select control on a single line: "All" first, then
+ *  each source individually. The trigger spells out what is chosen. */
+const SourcePicker: React.FC<{
+  label: string
+  ids: readonly ExportSourceId[]
+  labelOf: (id: ExportSourceId) => string
+  selected: Set<ExportSourceId>
+  setSelected: React.Dispatch<React.SetStateAction<Set<ExportSourceId>>>
+  hint?: string
+}> = ({ label, ids, labelOf, selected, setSelected, hint }) => {
+  const chosen = ids.filter((id) => selected.has(id))
+  const allOn = chosen.length === ids.length && ids.length > 0
+  const setMany = (on: boolean, only?: ExportSourceId) => setSelected((prev) => {
+    const next = new Set(prev)
+    for (const id of only ? [only] : ids) on ? next.add(id) : next.delete(id)
+    return next
+  })
+  const names = chosen.map(labelOf).join(", ")
+  const summary = chosen.length === 0 ? "None" : allOn ? `All (${names})` : names
+  const slug = label.toLowerCase().replace(/\W+/g, "-")
+  return (
+    <div className="flex items-center gap-3">
+      <Label className="text-sm font-medium shrink-0 w-36">{label}</Label>
+      <Popover>
+        <PopoverTrigger
+          render={
+            <Button variant="outline" className="flex-1 min-w-0 justify-between cursor-pointer font-normal">
+              <span className="truncate">{summary}</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            </Button>
+          }
+        />
+        <PopoverContent align="end" className="w-64 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Checkbox id={`${slug}-all`} checked={allOn} indeterminate={!allOn && chosen.length > 0} onCheckedChange={(v) => setMany(v === true)} className="cursor-pointer" />
+            <Label htmlFor={`${slug}-all`} className="text-sm cursor-pointer font-medium">All</Label>
+          </div>
+          <div className="border-t pt-1.5 space-y-1.5">
+            {ids.map((id) => (
+              <div key={id} className="flex items-center gap-2">
+                <Checkbox id={`${slug}-${id}`} checked={selected.has(id)} onCheckedChange={(v) => setMany(v === true, id)} className="cursor-pointer" />
+                <Label htmlFor={`${slug}-${id}`} className="text-sm cursor-pointer truncate">{labelOf(id)}</Label>
+              </div>
+            ))}
+          </div>
+          {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
+
 /** "2024-03-08" <-> Date, UTC, for the calendar pickers. */
 const parseIso = (s: string) => new Date(`${s}T12:00:00Z`)
 const DatePickerButton: React.FC<{ value: string; onChange: (iso: string) => void; min?: string; max?: string }> = ({ value, onChange, min, max }) => (
@@ -106,15 +158,6 @@ export const ExportMultiDialog: React.FC<{
     () => layerId === ALL_LAYERS ? features : features.filter((f) => f.properties?.layerId === layerId),
     [features, layerId],
   )
-
-  const toggleSource = useCallback((id: ExportSourceId) => {
-    setSourceIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
 
   const hasTargets = mode === "viewport" ? true : selectedFeatures.length > 0
 
@@ -196,6 +239,15 @@ export const ExportMultiDialog: React.FC<{
         onProgress: ({ phase, completed, total, label }) => setProgress({ phase, fraction: total ? completed / total : 0, label }),
       })
       if (controller.signal.aborted) return
+      // Nothing fetched means nothing worth a download: an empty zip (or one
+      // holding only the gdal script) would just look like a broken export.
+      if (outcome.fileCount === 0) {
+        setError(outcome.skipped.length
+          ? `Nothing exported — every target was skipped (${outcome.skipped[0].reason}${outcome.skipped.length > 1 ? `, and ${outcome.skipped.length - 1} more` : ""}).`
+          : "Nothing exported — no target and source combination produced a file.")
+        setResult({ fileCount: 0, skipped: outcome.skipped })
+        return
+      }
       saveAs(outcome.zipBlob, `historical-export-${Date.now()}.zip`)
       setResult({ fileCount: outcome.fileCount, skipped: outcome.skipped })
     } catch (err) {
@@ -212,7 +264,17 @@ export const ExportMultiDialog: React.FC<{
     }
   }, [isRunning, hasTargets, mode, selectedFeatures, sourceIds, layers, startDate, endDate, pointPaddingMeters, percentPadding, targetResolution, includeGdalScript, planetKey, getMapBounds])
 
-  const handleCancel = useCallback(() => abortControllerRef.current?.abort(), [])
+  // Abort AND release the UI at once: the pipeline only notices the abort at
+  // its next checkpoint, and a slow Wayback / Google Earth listing can sit
+  // in between for many seconds, which read as "cancel does nothing".
+  // Whatever the in-flight run produces afterwards is dropped via the
+  // `controller.signal.aborted` guard in handleRun.
+  const handleCancel = useCallback(() => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setIsRunning(false)
+    setProgress(null)
+  }, [])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -273,58 +335,23 @@ export const ExportMultiDialog: React.FC<{
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Historical sources</Label>
-            <div className="grid grid-cols-2 gap-1.5">
-              {HISTORICAL_SOURCE_IDS.filter((id) => id !== "planet" || hasPlanetKey).map((id) => (
-                <div key={id} className="flex items-center gap-2">
-                  <Checkbox id={`export-multi-src-${id}`} checked={sourceIds.has(id)} onCheckedChange={() => toggleSource(id)} className="cursor-pointer" />
-                  <Label htmlFor={`export-multi-src-${id}`} className="text-sm cursor-pointer truncate">{SOURCE_CONFIG[id]?.label ?? EXPORT_SOURCE_LABELS[id]}</Label>
-                </div>
-              ))}
-            </div>
-            <Label className="text-sm font-medium pt-1">Current basemaps</Label>
-            {/* One control for the whole group: "All" first, then each
-                provider, so it does not cost a row per basemap. Mapbox and
-                HERE only appear once their keys are set. */}
-            {(() => {
-              const available = CURRENT_BASEMAP_SOURCE_IDS.filter((id) => (id !== "mapbox" || !!mapboxKey) && (id !== "here" || !!hereKey))
-              const chosen = available.filter((id) => sourceIds.has(id))
-              const allOn = chosen.length === available.length
-              const setMany = (ids: readonly ExportSourceId[], on: boolean) => setSourceIds((prev) => {
-                const next = new Set(prev)
-                for (const id of ids) on ? next.add(id) : next.delete(id)
-                return next
-              })
-              const summary = allOn ? `All (${available.length})` : chosen.length === 0 ? "None" : chosen.map((id) => EXPORT_SOURCE_LABELS[id].replace(" (current)", "")).join(", ")
-              return (
-                <Popover>
-                  <PopoverTrigger
-                    render={
-                      <Button variant="outline" className="w-full justify-between cursor-pointer font-normal">
-                        <span className="truncate">{summary}</span>
-                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                      </Button>
-                    }
-                  />
-                  <PopoverContent align="start" className="w-64 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <Checkbox id="export-multi-current-all" checked={allOn} indeterminate={!allOn && chosen.length > 0} onCheckedChange={(v) => setMany(available, v === true)} className="cursor-pointer" />
-                      <Label htmlFor="export-multi-current-all" className="text-sm cursor-pointer font-medium">All current basemaps</Label>
-                    </div>
-                    <div className="border-t pt-1.5 space-y-1.5">
-                      {available.map((id) => (
-                        <div key={id} className="flex items-center gap-2">
-                          <Checkbox id={`export-multi-src-${id}`} checked={sourceIds.has(id)} onCheckedChange={() => toggleSource(id)} className="cursor-pointer" />
-                          <Label htmlFor={`export-multi-src-${id}`} className="text-sm cursor-pointer truncate">{EXPORT_SOURCE_LABELS[id].replace(" (current)", "")}</Label>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">One file each, today's mosaic, regardless of the date range.</p>
-                  </PopoverContent>
-                </Popover>
-              )
-            })()}
+          <div className="space-y-2">
+            <SourcePicker
+              label="Historical sources"
+              ids={HISTORICAL_SOURCE_IDS.filter((id) => id !== "planet" || hasPlanetKey)}
+              labelOf={(id) => SOURCE_CONFIG[id]?.label ?? EXPORT_SOURCE_LABELS[id]}
+              selected={sourceIds}
+              setSelected={setSourceIds}
+              hint="One file per capture date in the range."
+            />
+            <SourcePicker
+              label="Current basemaps"
+              ids={CURRENT_BASEMAP_SOURCE_IDS.filter((id) => (id !== "mapbox" || !!mapboxKey) && (id !== "here" || !!hereKey))}
+              labelOf={(id) => EXPORT_SOURCE_LABELS[id].replace(" (current)", "")}
+              selected={sourceIds}
+              setSelected={setSourceIds}
+              hint="One file each, today's mosaic, regardless of the date range."
+            />
             {getMapView && sourceIds.size > 0 && (
               <p className="text-xs text-muted-foreground">
                 {rangeCounts.pending ? "Counting captures in range… " : ""}
@@ -353,8 +380,8 @@ export const ExportMultiDialog: React.FC<{
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Target resolution (px per tile)</Label>
+          <div className="flex items-center gap-3">
+            <Label className="text-sm font-medium shrink-0 w-36">Target resolution (px)</Label>
             <Input type="number" min={64} value={targetResolution} onChange={(e) => setTargetResolution(Number(e.target.value) || 512)} className="cursor-text w-32" />
           </div>
 

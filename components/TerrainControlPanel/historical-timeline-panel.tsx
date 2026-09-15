@@ -1723,7 +1723,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
           {yearMarks.map((mark) => (
             <span
               key={mark.t}
-              className={`absolute -translate-x-1/2 text-[9px] tabular-nums whitespace-nowrap ${mark.major ? "text-foreground/80 font-medium" : "text-muted-foreground"}`}
+              className={`absolute -translate-x-1/2 tabular-nums whitespace-nowrap ${mark.major ? "text-[10px] text-foreground/90 font-bold" : "text-[9px] text-muted-foreground"}`}
               style={{ left: `${mark.frac * 100}%` }}
             >
               {mark.label}

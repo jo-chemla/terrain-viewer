@@ -142,18 +142,38 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
     if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError")
     onProgress?.({ phase: "exporting", completed: done, total: plan.length, label: `${item.target.label} — ${item.source} — ${item.tick.label}` })
     try {
-      const zoom = Math.min(
+      const wantedZoom = Math.min(
         pickZoomForResolution(item.target.paddedBbox, targetResolution, targetResolution, item.tick.tileSpec.tileSize),
         item.tick.tileSpec.maxzoom,
       )
-      const mosaic = await fetchRgbTileMosaic({
-        tileUrlTemplate: item.tick.tileSpec.tileUrlTemplate,
-        buildTileUrl: item.tick.tileSpec.buildTileUrl,
-        tileSize: item.tick.tileSpec.tileSize,
-        bbox: item.target.paddedBbox,
-        zoom,
-        signal,
-      })
+      // A source's declared maxzoom is a ceiling, not a promise: an older
+      // Wayback release often stops at z17 where the current one reaches
+      // z19, and Google Earth's older dates thin out at high zoom the same
+      // way, so the first request 404s on a tile and the whole capture used
+      // to be skipped. Step down a few zooms before giving up — a coarser
+      // file beats no file, and the reason records what was tried.
+      const MAX_STEP_DOWN = 3
+      let mosaic: Awaited<ReturnType<typeof fetchRgbTileMosaic>> | null = null
+      let lastError: unknown = null
+      for (let zoom = wantedZoom; zoom >= Math.max(1, wantedZoom - MAX_STEP_DOWN); zoom--) {
+        try {
+          mosaic = await fetchRgbTileMosaic({
+            tileUrlTemplate: item.tick.tileSpec.tileUrlTemplate,
+            buildTileUrl: item.tick.tileSpec.buildTileUrl,
+            tileSize: item.tick.tileSpec.tileSize,
+            bbox: item.target.paddedBbox,
+            zoom,
+            signal,
+          })
+          break
+        } catch (err) {
+          if (isAbortError(err)) throw err
+          lastError = err
+        }
+      }
+      if (!mosaic) {
+        throw new Error(`No tiles at z${wantedZoom}–z${Math.max(1, wantedZoom - MAX_STEP_DOWN)}: ${lastError instanceof Error ? lastError.message : "fetch failed"}`)
+      }
       const tiffBlob = await buildRgbGeoTiff(mosaic.r, mosaic.g, mosaic.b, mosaic.width, mosaic.height, {
         west: mosaic.bbox[0], south: mosaic.bbox[1], east: mosaic.bbox[2], north: mosaic.bbox[3],
       })
