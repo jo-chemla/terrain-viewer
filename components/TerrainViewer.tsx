@@ -701,12 +701,16 @@ export const QUERY_STATE_PARSERS = {
     // section) — only affects the single/split basemap layer, not overlays.
     basemapSourceOpacity: parseAsFloat.withDefault(1.0),
     exaggeration: parseAsFloat.withDefault(1),
-    lat: parseAsFloat.withDefault(45.9788),
-    lng: parseAsFloat.withDefault(7.674),
-    zoom: parseAsFloat.withDefault(12.37),
+    // Whole-earth start, the same view handleGoHome resets to and historical
+    // mode already used. The old Matterhorn start looked good but dropped a
+    // first-time visitor into one alpine valley with no idea the app is
+    // worldwide; the preset bookmarks still take them there in one click.
+    lat: parseAsFloat.withDefault(20),
+    lng: parseAsFloat.withDefault(0),
+    zoom: parseAsFloat.withDefault(1),
     // -- try getting out of pitch 0 loop in 3d
     // pitch: parseAsFloat.withDefault(60.001),
-    pitch: parseAsFloatPrecise.withDefault(60),
+    pitch: parseAsFloatPrecise.withDefault(0),
     bearing: parseAsFloat.withDefault(0),
     // --
     hillshadeMethod: parseAsStringLiteral(HILLSHADE_METHODS).withDefault("combined"),
@@ -1641,7 +1645,10 @@ export function TerrainViewer() {
         showRasterBasemap: true,
         basemapSourceA: "historical",
         dateA: 1514678400000,
-        basemapSourceB: "historical",
+        // View B opens on Bing rather than a dated Wayback layer: Wayback
+        // first resolves which release covers the date, which shows as a
+        // basemap flash while the page settles; Bing renders straight away.
+        basemapSourceB: "bing",
         dateB: 1295049600000,
         historicalActiveSourceA: "ge-historical",
       }

@@ -18,17 +18,19 @@ type SectionKey = "national" | "global" | "regional"
 
 const SECTIONS: { key: SectionKey; title: string; blurb: string }[] = [
   { key: "national", title: "Nation-wide", blurb: "Published by a national mapping agency, covering the whole country." },
-  { key: "global", title: "Global", blurb: "Worldwide, polar and sea-floor products from research consortia." },
+  { key: "global", title: "Global", blurb: "Worldwide and polar products from research consortia." },
   { key: "regional", title: "Sub-national and project scans", blurb: "A state, a province, or a single survey. Left out of Load all." },
 ]
 
 /** Top-level split for terrain: is this an upgrade over the built-in Mapterhorn? */
-type TierKey = "better" | "notBetter"
+type TierKey = "better" | "notBetter" | "bathy"
 const TIERS: { key: TierKey; title: string; blurb: string }[] = [
   { key: "better", title: "⬆️ Better than Mapterhorn here",
     blurb: "Either finer than the bulk data Mapterhorn ingested for the country, or the only national data at all where Mapterhorn falls back to global 30 m." },
   { key: "notBetter", title: "⬇️ Not better than Mapterhorn",
-    blurb: "Same or coarser grid. Worth it only for data straight from the agency, a surface model, or bathymetry." },
+    blurb: "Same or coarser grid. Worth it for data straight from the agency, or for a surface model where Mapterhorn only has bare earth." },
+  { key: "bathy", title: "🌊 Bathymetry",
+    blurb: "Sea-floor depth, negative below sea level. Mapterhorn is land-only, so there is nothing to compare against." },
 ]
 
 const VERDICT_STYLE: Record<MapterhornVerdict, { label: string; className: string; title: string }> = {
@@ -107,10 +109,13 @@ export function SampleSourcesModal<T extends SampleLike>({
     const out: Record<TierKey, Record<SectionKey, T[]>> = {
       better: { national: [], global: [], regional: [] },
       notBetter: { national: [], global: [], regional: [] },
+      bathy: { national: [], global: [], regional: [] },
     }
     samples.forEach((s, i) => {
       const c = comparisons.get(s.id)
-      const tier: TierKey = !compareToMapterhorn || c?.verdict === "new" || c?.verdict === "finer" ? "better" : "notBetter"
+      const tier: TierKey = !compareToMapterhorn ? "better"
+        : kindOf(s.name)?.label === "Bathy" ? "bathy"
+        : c?.verdict === "new" || c?.verdict === "finer" ? "better" : "notBetter"
       out[tier][sectionOf(s, i, lastGlobal)].push(s)
     })
     return out
@@ -133,6 +138,7 @@ export function SampleSourcesModal<T extends SampleLike>({
     const present = presentIds.has(s.id)
     const kind = kindOf(s.name)
     const c = comparisons.get(s.id)
+    const showCompare = compareToMapterhorn && kind?.label !== "Bathy"
     return (
       <div className="flex items-center gap-2 min-w-0 py-1">
         <span className="flex-1 min-w-0 text-sm truncate" title={s.name}>{s.name}</span>
@@ -147,12 +153,17 @@ export function SampleSourcesModal<T extends SampleLike>({
             {kind.label}
           </span>
         )}
-        {compareToMapterhorn && (
+        {compareToMapterhorn && !showCompare && (
+          <span className="shrink-0 w-32 text-right text-xs text-muted-foreground tabular-nums">
+            {s.resolutionM !== undefined ? formatRes(s.resolutionM) : ""}
+          </span>
+        )}
+        {showCompare && (
           <span className="shrink-0 w-32 text-right text-xs text-muted-foreground tabular-nums" title="This source vs Mapterhorn's best ingested grid for the area">
             {c ? (c.verdict === "same" ? formatRes(c.ours) : `${formatRes(c.ours)} vs ${formatRes(c.theirs)}`) : "—"}
           </span>
         )}
-        {compareToMapterhorn && (
+        {showCompare && (
           <span
             title={c ? VERDICT_STYLE[c.verdict].title : "No resolution recorded"}
             className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 w-14 text-center ${c ? VERDICT_STYLE[c.verdict].className : "bg-muted text-muted-foreground"}`}
@@ -240,7 +251,11 @@ export function SampleSourcesModal<T extends SampleLike>({
                 return (
                   <div key={tier.key} className="space-y-3">
                     <Section id={tier.key} title={tier.title} blurb={tier.blurb} rows={rows} level={1} />
-                    {isOpen(tier.key) && <div className="pl-2 space-y-3">{renderSections(tier.key, `${tier.key}:`)}</div>}
+                    {isOpen(tier.key) && (
+                      tier.key === "bathy"
+                        ? <div className="pl-2 divide-y divide-border/50">{rows.map((s) => <Row key={s.id} s={s} />)}</div>
+                        : <div className="pl-2 space-y-3">{renderSections(tier.key, `${tier.key}:`)}</div>
+                    )}
                   </div>
                 )
               })
