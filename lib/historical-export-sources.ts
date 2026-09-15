@@ -61,9 +61,11 @@ export async function listExportTicks(
   // Current (non-archival) basemaps: exactly one tick, dated today, whatever
   // the range says — same convention as Bing below. Templates mirror
   // rasterBasemaps in MapSources.tsx.
+  // Their capture date is unknown, so the tick is labelled "latest" rather
+  // than today's date - a date in the filename would claim a precision the
+  // data does not have.
   const current = (tileUrlTemplate: string, maxzoom: number): ExportTick[] => {
-    const now = Date.now()
-    return [{ dateMs: now, label: dateLabel(now), tileSpec: { tileUrlTemplate, tileSize: 256, maxzoom } }]
+    return [{ dateMs: Date.now(), label: "latest", tileSpec: { tileUrlTemplate, tileSize: 256, maxzoom } }]
   }
   if (sourceId === "google") return current("https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", 21)
   if (sourceId === "esri") return current("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.jpg", 19)
@@ -118,7 +120,9 @@ export async function listExportTicks(
   const effectiveDateMs = dateMs ?? Date.now()
   return [{
     dateMs: effectiveDateMs,
-    label: dateLabel(effectiveDateMs),
+    // Bing does report its mosaic's capture date at the location; only when
+    // that lookup fails does the file fall back to "latest".
+    label: dateMs ? dateLabel(dateMs) : "latest",
     tileSpec: {
       buildTileUrl: (z, x, y) => `${BING_URL_BASE}${toQuadkey(x, y, z)}${BING_URL_SUFFIX}`,
       quadkeyUrlTemplate: `${BING_URL_BASE}{quadkey}${BING_URL_SUFFIX}`,

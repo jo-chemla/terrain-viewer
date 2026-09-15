@@ -208,7 +208,10 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
       })
       if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError")
 
-      let name = `${item.target.label}_${item.target.extentDescriptor}_${item.source}_${item.tick.label}`
+      // The viewport target's label and extent descriptor are both
+      // "viewport"; don't repeat it (viewport_viewport_bing_...).
+      const stem = item.target.extentDescriptor === item.target.label ? item.target.label : `${item.target.label}_${item.target.extentDescriptor}`
+      let name = `${stem}_${item.source}_${item.tick.label}`
       if (usedNames.has(name)) {
         let n = 2
         while (usedNames.has(`${name}-${n}`)) n++
@@ -247,7 +250,7 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
         const template = item.tick.tileSpec.tileUrlTemplate
         const quadkeyTemplate = item.tick.tileSpec.quadkeyUrlTemplate
         if (hasGdalTemplate(template) || hasGdalQuadkeyTemplate(quadkeyTemplate)) {
-          const filename = `${label}_${item.target.extentDescriptor}_${item.source}_${item.tick.label}_gdal`
+          const filename = `${item.target.extentDescriptor === label ? label : `${label}_${item.target.extentDescriptor}`}_${item.source}_${item.tick.label}_gdal`
           lines.push(buildGdalTranslateCommand({ tileUrlTemplate: template, quadkeyUrlTemplate: quadkeyTemplate, bbox: item.target.paddedBbox, filename, outsizeWidth: targetResolution }))
         } else {
           lines.push(buildGdalSkipComment(
