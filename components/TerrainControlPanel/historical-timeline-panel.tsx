@@ -705,6 +705,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // (bold gridline) so the axis never loses track of which year it is in.
   const YEAR_STEPS = [1, 2, 5, 10, 20, 25, 50, 100]
   const MONTH_STEPS = [6, 3, 2, 1]
+  // Below a month: 14-, 7-, 2- and 1-day marks (the wheel zoom floors the
+  // window at 14 days, so day marks are what a fully zoomed-in axis shows).
+  const DAY_STEPS = [14, 7, 2, 1]
   const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
   type AxisMark = { frac: number; label: string; t: number; major: boolean }
   const yearMarks = useMemo(() => {
@@ -726,6 +729,36 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     // Only considered once single years are comfortably wider than the gap,
     // otherwise a "6-month" axis would just crowd the plain yearly one.
     const pxPerMonth = pxPerYear / 12
+    const pxPerDay = pxPerYear / 365.25
+    const dayStep = pxPerMonth >= MIN_YEAR_LABEL_GAP_PX * 2
+      ? DAY_STEPS.find((d) => pxPerDay * d >= MIN_YEAR_LABEL_GAP_PX)
+      : undefined
+    if (dayStep) {
+      // Day marks aligned to the calendar (1st, 15th for 14-day; 1st, 8th,
+      // 15th, 22nd for 7-day; every other/every day otherwise). The 1st of
+      // a month is labelled with the month name and drawn as a major mark,
+      // with the year at January; other days show the day number only.
+      const start = new Date(effectiveMin)
+      let y = start.getUTCFullYear(), m = start.getUTCMonth(), d = 1
+      for (;;) {
+        const t = Date.UTC(y, m, d)
+        if (t > effectiveMax) break
+        const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+        if (t >= effectiveMin && (d - 1) % dayStep === 0 && (dayStep === 1 || d + dayStep <= daysInMonth + 1)) {
+          marks.push({
+            frac: (t - effectiveMin) / effectiveSpan, t, major: d === 1,
+            label: d === 1 ? (m === 0 ? String(y) : MONTH_SHORT[m]) : String(d),
+          })
+        }
+        d += 1
+        if (d > daysInMonth) { d = 1; m += 1; if (m === 12) { m = 0; y += 1 } }
+      }
+      if (!marks.some((mk) => mk.major)) {
+        marks.unshift({ frac: 0, t: effectiveMin, major: true, label: `${MONTH_SHORT[start.getUTCMonth()]} ${start.getUTCFullYear()}` })
+      }
+      return marks
+    }
+
     const monthStep = pxPerYear >= MIN_YEAR_LABEL_GAP_PX * 2
       ? MONTH_STEPS.find((m) => pxPerMonth * m >= MIN_YEAR_LABEL_GAP_PX)
       : undefined
