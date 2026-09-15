@@ -17,6 +17,7 @@ type Source = {
   loadWithSamples?: boolean;
   cogViaTitiler?: boolean;
   resolutionM?: number;
+  infoUrl?: string;
   description?: string;
 };
 
@@ -293,7 +294,7 @@ export function NationalDatasetsTable() {
                     <tr key={s.id}>
                       <td><code>{iso}</code></td>
                       <td>{COUNTRY[iso] ?? iso}</td>
-                      <td>{s.name.replace(ISO_RE, "")}</td>
+                      <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}</td>
                       <td>{SERVING_LABEL(s.type)}</td>
                       <td>
                         <a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a>
@@ -334,7 +335,7 @@ export function SubNationalTable() {
             <tr key={s.id}>
               <td><code>{iso}</code></td>
               <td>{COUNTRY[iso] ?? iso}</td>
-              <td>{s.name.replace(ISO_RE, "")}</td>
+              <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}</td>
               <td>{SERVING_LABEL(s.type)}</td>
               <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
               <td>{FACTS[s.id]?.res ?? "—"}</td>
@@ -366,7 +367,7 @@ export function GlobalDatasetsTable() {
         <tbody>
           {rows.map((s) => (
             <tr key={s.id}>
-              <td>{s.name.replace(/^Global - /, "")}</td>
+              <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(/^Global - /, "")}</a> : s.name.replace(/^Global - /, "")}</td>
               <td>{SERVING_LABEL(s.type)}</td>
               <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
               <td>{FACTS[s.id]?.res ?? "—"}</td>
