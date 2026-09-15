@@ -198,10 +198,15 @@ export const ExportMultiDialog: React.FC<{
   // The two candidate listing zooms for the viewport, so the choice below
   // can say when they coincide (and the toggle then changes nothing).
   const viewZoom = getMapView ? Math.round(getMapView()?.zoom ?? 0) : 0
+  // Re-read the bounds each time the dialog opens: this component mounts
+  // with the panel, before the map exists, and getMapBounds() then answers
+  // the whole-world fallback - which at 512 px resolves to z1 and stuck
+  // there because nothing in the memo's inputs ever changed.
   const exportZoom = useMemo(() => {
     const b = getMapBounds()
     return fetchZoomFor([b.west, b.south, b.east, b.north], targetResolution)
-  }, [getMapBounds, targetResolution])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getMapBounds, targetResolution, open])
   const countZoom = reuseTimelineDates ? viewZoom : exportZoom
 
   // How many captures each selected source has inside the date range, at
@@ -439,6 +444,10 @@ export const ExportMultiDialog: React.FC<{
           </div>
 
           <div className="flex items-center gap-2">
+            <Checkbox id="export-multi-gdal" checked={includeGdalScript} onCheckedChange={(v) => setIncludeGdalScript(!!v)} className="cursor-pointer" />
+            <Label htmlFor="export-multi-gdal" className="text-sm cursor-pointer">Include gdal_translate script</Label>
+          </div>
+          <div className="flex items-center gap-2">
             <Checkbox id="export-multi-reuse-dates" checked={reuseTimelineDates} onCheckedChange={(v) => setReuseTimelineDates(!!v)} className="cursor-pointer" />
             <Label htmlFor="export-multi-reuse-dates" className="text-sm cursor-pointer">
               Reuse the timeline&apos;s dates (map zoom z{viewZoom})
@@ -448,10 +457,6 @@ export const ExportMultiDialog: React.FC<{
                   : ` — instant, but the export fetches at z${exportZoom}, where Wayback's releases and dates can differ`}
               </span>
             </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox id="export-multi-gdal" checked={includeGdalScript} onCheckedChange={(v) => setIncludeGdalScript(!!v)} className="cursor-pointer" />
-            <Label htmlFor="export-multi-gdal" className="text-sm cursor-pointer">Include gdal_translate script</Label>
           </div>
           {includeGdalScript && (
             <p className="text-xs text-muted-foreground">
