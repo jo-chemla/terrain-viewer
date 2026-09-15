@@ -422,14 +422,22 @@ export async function listWaybackTicksInRange(
   latitude: number, longitude: number, zoom: number, startMs: number, endMs: number,
 ): Promise<{ dateMs: number; label: string; item: WaybackItem }[]> {
   const items = await getCachedLocalChanges(latitude, longitude, zoom)
-  const out: { dateMs: number; label: string; item: WaybackItem }[] = []
+  // One tick per CAPTURE date, not per release: the "local changes" list is
+  // per release, and several consecutive releases routinely carry the same
+  // imagery date at a spot (the mosaic changed nearby, not here), which
+  // counted - and exported - the same pixels several times over. Keep the
+  // newest release for each date, which is the one still being served.
+  const byDate = new Map<number, { dateMs: number; label: string; item: WaybackItem }>()
   for (const item of items) {
     const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum)
     const dateMs = meta?.dateMs ?? item.releaseDatetime
     if (dateMs < startMs || dateMs > endMs) continue
-    out.push({ dateMs, label: meta?.label ?? new Date(dateMs).toISOString().slice(0, 10), item })
+    const prev = byDate.get(dateMs)
+    if (!prev || item.releaseNum > prev.item.releaseNum) {
+      byDate.set(dateMs, { dateMs, label: meta?.label ?? new Date(dateMs).toISOString().slice(0, 10), item })
+    }
   }
-  return out.sort((a, b) => a.dateMs - b.dateMs)
+  return [...byDate.values()].sort((a, b) => a.dateMs - b.dateMs)
 }
 
 /** getWaybackItems/getWaybackItemsWithLocalChanges both return newest-first

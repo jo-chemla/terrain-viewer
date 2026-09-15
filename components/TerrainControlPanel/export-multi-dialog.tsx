@@ -377,7 +377,15 @@ export const ExportMultiDialog: React.FC<{
                 <span className="text-foreground/80">{totalInRange} capture{totalInRange === 1 ? "" : "s"}</span> in range at the viewport centre
                 {targetCount > 1 && <> → about {totalInRange * targetCount} files across {targetCount} features</>}
                 {": "}
-                {Array.from(sourceIds).map((id) => `${SOURCE_CONFIG[id]?.shortLabel ?? EXPORT_SOURCE_LABELS[id]} ${rangeCounts.counts[id] ?? "…"}`).join(" · ")}
+                {[
+                  ...Array.from(sourceIds).filter((id) => !CURRENT_BASEMAP_SOURCE_IDS.includes(id)).map((id) => `${SOURCE_CONFIG[id]?.shortLabel ?? EXPORT_SOURCE_LABELS[id]} ${rangeCounts.counts[id] ?? "…"}`),
+                  ...(() => {
+                    const cur = Array.from(sourceIds).filter((id) => CURRENT_BASEMAP_SOURCE_IDS.includes(id))
+                    if (!cur.length) return []
+                    const n = cur.reduce((acc, id) => acc + (rangeCounts.counts[id] ?? 0), 0)
+                    return [`current basemaps ${rangeCounts.pending ? "…" : n}`]
+                  })(),
+                ].join(" · ")}
               </p>
             )}
 
