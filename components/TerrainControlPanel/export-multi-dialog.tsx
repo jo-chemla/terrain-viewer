@@ -60,10 +60,12 @@ const SourcePicker: React.FC<{
       <Popover>
         <PopoverTrigger
           render={
-            // min-w-0 and overflow-hidden on the button itself: a flex child
-            // does not shrink below its content without them, so a long
-            // "All (...)" summary widened the dialog instead of truncating.
-            <Button variant="outline" title={summary} className="flex-1 min-w-0 max-w-full overflow-hidden justify-between cursor-pointer font-normal">
+            // w-0 + flex-1: a definite zero width makes the button contribute
+            // nothing to the row's min-content size, so a long "All (...)"
+            // summary truncates instead of widening the whole dialog (min-w-0
+            // alone lets it SHRINK but still counts its text toward the
+            // container's intrinsic width, which the dialog grid then honoured).
+            <Button variant="outline" title={summary} className="flex-1 w-0 min-w-0 overflow-hidden justify-between cursor-pointer font-normal">
               <span className="truncate min-w-0">{summary}</span>
               <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
             </Button>
@@ -294,7 +296,7 @@ export const ExportMultiDialog: React.FC<{
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto" showCloseButton={false}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden" showCloseButton={false}>
         <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">
           <X className="h-4 w-4" />
         </DialogClose>
@@ -305,7 +307,7 @@ export const ExportMultiDialog: React.FC<{
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           <div className="space-y-1.5">
             <Label className="text-sm font-medium">Export target</Label>
             <SegmentedToggle
