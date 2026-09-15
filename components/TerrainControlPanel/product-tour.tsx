@@ -521,7 +521,7 @@ const TERRAIN_STEPS: TourStepDef[] = [
   {
     key: "byod-terrain", domId: "tour-byod-terrain-row", side: "left", align: "center",
     title: "Bring Your Own Data",
-    description: "Add your own COG, VRT, or WMS terrain source with \"Add Dataset\", batch-edit every source as JSON, or click Sample to load a set of ready-made examples — the same options exist for basemaps too.",
+    description: "Add your own COG, VRT, or WMS terrain source with \"Add Dataset\", batch-edit every source as JSON, or click Sample to pick from the ready-made national and global datasets, one at a time or all at once — the same options exist for basemaps too.",
     // Scrolling straight to this button row (its own target) can push the
     // Terrain Sources section's own title off the top of the panel if there's
     // a long list of sources above it. Scrolling the SECTION's top into view

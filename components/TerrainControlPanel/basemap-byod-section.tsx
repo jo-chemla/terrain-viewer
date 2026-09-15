@@ -19,6 +19,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { CustomBasemapModal } from "./custom-basemap-modal"
 import { BasemapBatchEditModal } from "./basemap-batch-edit-modal"
 import { CustomSourceDetails } from "./custom-source-details"
+import { SampleSourcesModal } from "./sample-sources-modal"
 import { shouldZoomToBounds } from "@/lib/controls-utils"
 import { resolveLinkedTerrainId } from "@/lib/linked-sources"
 
@@ -33,6 +34,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const [isAddBasemapModalOpen, setIsAddBasemapModalOpen] = useState(false)
   const [editingBasemap, setEditingBasemap] = useState<CustomBasemapSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
+  const [isSampleModalOpen, setIsSampleModalOpen] = useState(false)
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
 
   // Resolves a basemap source's paired terrain NAME for CustomSourceDetails'
@@ -181,17 +183,8 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     }
   }, [customBasemapSources])
 
-  // Merge by id rather than replacing the whole list — refresh any sample entries
-  // the user already has (matching id), add ones they don't, and leave every other
-  // user-added source (not part of the sample set) untouched.
-  const handleLoadSample = useCallback(() => {
-    // See CustomBasemapSource.loadWithSamples — opt-out for this bulk action
-    // only, permalink import still finds them by id.
-    const samples = (SAMPLE_BASEMAP_SOURCES as CustomBasemapSource[]).filter((s) => s.loadWithSamples !== false)
-    const sampleIds = new Set(samples.map((s) => s.id))
-    const preserved = customBasemapSources.filter((s) => !sampleIds.has(s.id))
-    setCustomBasemapSources([...preserved, ...samples])
-  }, [customBasemapSources, setCustomBasemapSources])
+  // Picked from a modal, same as the terrain samples (see SampleSourcesModal).
+  const handleLoadSample = useCallback(() => setIsSampleModalOpen(true), [])
 
   // 'overlay' sources stack on top of the active basemap (see OverlayBasemapSources/
   // Layers in MapSources.tsx/MapLayers.tsx) instead of being one themselves — keep
@@ -232,7 +225,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                 id="tour-load-basemap-samples"
                 icon={TestTube}
                 label="Sample"
-                tooltip="Load sample basemap sources"
+                tooltip="Pick from the sample basemap sources"
                 onClick={handleLoadSample}
               />
             </div>
@@ -328,6 +321,14 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         </CollapsibleContent>
 
       </Collapsible>
+      <SampleSourcesModal
+        open={isSampleModalOpen}
+        onOpenChange={setIsSampleModalOpen}
+        title="Sample basemap sources"
+        samples={SAMPLE_BASEMAP_SOURCES as CustomBasemapSource[]}
+        current={customBasemapSources}
+        setCurrent={setCustomBasemapSources}
+      />
       <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} onLiveOpacityChange={handleLiveOpacityChange} mapRef={mapRef} />
       <BasemapBatchEditModal
         isOpen={isBatchEditModalOpen}

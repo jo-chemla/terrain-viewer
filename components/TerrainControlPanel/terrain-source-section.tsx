@@ -26,6 +26,7 @@ import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/gri
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
+import { SampleSourcesModal } from "./sample-sources-modal"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { TooltipButton } from "./controls-components"
 import { JsonEditor } from "@/components/ui/json-editor"
@@ -46,6 +47,7 @@ export const TerrainSourceSection: React.FC<{
   const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false)
   const [editingSource, setEditingSource] = useState<CustomTerrainSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
+  const [isSampleModalOpen, setIsSampleModalOpen] = useState(false)
   const [batchEditJson, setBatchEditJson] = useState("")
   const [batchEditError, setBatchEditError] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -255,17 +257,10 @@ export const TerrainSourceSection: React.FC<{
     }
   }, [batchEditJson, setCustomTerrainSources])
 
-  // Merge by id rather than replacing the whole list — refresh any sample entries
-  // the user already has (matching id), add ones they don't, and leave every other
-  // user-added source (not part of the sample set) untouched.
-  const handleLoadSample = useCallback(() => {
-    // loadWithSamples === false opts an entry out of this bulk action only; it
-    // stays importable by permalink (see CustomTerrainSource.loadWithSamples).
-    const samples = (SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[]).filter((s) => s.loadWithSamples !== false)
-    const sampleIds = new Set(samples.map((s) => s.id))
-    const preserved = customTerrainSources.filter((s) => !sampleIds.has(s.id))
-    setCustomTerrainSources([...preserved, ...samples])
-  }, [customTerrainSources, setCustomTerrainSources])
+  // The sample library is picked from a modal (see SampleSourcesModal) rather
+  // than bulk-loaded: with ~50 national datasets, one click dumping all of
+  // them into the list was more noise than help.
+  const handleLoadSample = useCallback(() => setIsSampleModalOpen(true), [])
 
   return (
     <>
@@ -327,7 +322,7 @@ export const TerrainSourceSection: React.FC<{
                 <TooltipButton
                   icon={TestTube}
                   label="Sample"
-                  tooltip="Load sample terrain sources"
+                  tooltip="Pick from the sample terrain sources"
                   onClick={handleLoadSample}
                 />
               </div>
@@ -371,6 +366,14 @@ export const TerrainSourceSection: React.FC<{
         </Button>
       </Section>
       <CustomTerrainSourceModal isOpen={isAddSourceModalOpen} onOpenChange={setIsAddSourceModalOpen} editingSource={editingSource} onSave={handleSaveCustomSource} mapRef={mapRef} />
+      <SampleSourcesModal
+        open={isSampleModalOpen}
+        onOpenChange={setIsSampleModalOpen}
+        title="Sample terrain sources"
+        samples={SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[]}
+        current={customTerrainSources}
+        setCurrent={setCustomTerrainSources}
+      />
       <Dialog open={isBatchEditModalOpen} onOpenChange={setIsBatchEditModalOpen}>
         <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden" showCloseButton={false}>
           <DialogHeader>

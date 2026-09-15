@@ -4,6 +4,7 @@
 #### TL;DR
 - **National elevation sources added**, each verified against a known summit: Norway, USGS 3DEP, Netherlands AHN, England, Finland, Estonia, Tirol, Czechia, Italy, Japan, Mexico, Spain, Uruguay, Canada, Faroe, France overseas, plus polar ArcticDEM/REMA, GEDTM30 and EMODnet bathymetry. Mostly 0.5–2 m LiDAR, against ~30 m for a global DEM.
 - **Selecting one pins the map to that country**, with enough underzoom to see the whole of it ([maplibre-xy](https://github.com/larsmaxfield/maplibre-xy)). Settings → Map Bounds to change.
+- **Sample sources are now picked, not dumped**: the Sample button opens a list with a plus/minus per dataset and Load all / Clear all, instead of adding ~50 entries in one go.
 - **New docs page** listing every national dataset — country, format, endpoint, resolution, coverage.
 - **Custom RGB encoding** for tile sources that use neither Terrarium nor Terrain-RGB (Mexico packs elevation with a base of 1000, not 10000).
 - **WCS 2.0 support**, and a fix for servers that return a slightly larger extent than requested, which shifted terrain by a few percent.
