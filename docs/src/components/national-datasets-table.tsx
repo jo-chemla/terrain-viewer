@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import WORLD from "./world-110m.json";
 
+type Country = { iso: string; name: string; rings: number[][] };
+
 // lib/custom-sources.json at the repo root is the single source of truth for the
 // sample library the app ships — same "read the real file at build time" trick
 // changelog-list.tsx uses for CHANGELOG.md, so this table cannot drift from what
@@ -442,27 +444,22 @@ export function Glo30Table() {
 }
 
 /**
- * Coverage diagram. Country outlines are Natural Earth 110m, Douglas-Peucker
- * simplified to ~0.55 deg and drawn in an Equal Earth projection and stored as flat integer arrays in tenths of a
- * degree — 176 rings / 2227 points / 19 KB, which is under a pixel of error at
- * this size. Covered countries are marked by their source's own declared
- * bounds, so the highlight is real data rather than a hand-coloured map.
+ * Coverage choropleth. Country polygons are Natural Earth 110m admin-0, tagged
+ * with ISO-3 and name and Douglas-Peucker simplified by docs/scripts/
+ * build-world-110m.mjs, drawn in an Equal Earth projection. A country is
+ * filled when a shipped national source covers it, lightly filled when only a
+ * regional one does, and each polygon carries a native <title> tooltip with
+ * its code and name. `region="europe"` renders the same drawing cropped to
+ * Europe, where most of the sources are and the world view is too small to
+ * read.
  */
-export function NationalCoverageMap() {
-  const raw = fs.readFileSync(
-    path.join(process.cwd(), "..", "lib", "custom-sources.json"),
-    "utf8",
-  );
-  const sources: Source[] = JSON.parse(raw).SAMPLE_TERRAIN_SOURCES;
-
-  const byIso = new Map<string, [number, number, number, number]>();
-  for (const s of sources) {
-    const iso = ISO_RE.exec(s.name)?.[1];
-    // AFR is continental Copernicus GLO-30, not a national dataset - it would
-    // shade half the map and misrepresent what this chart is about.
-    if (!iso || iso === "AFR" || !s.bounds || s.loadWithSamples === false) continue;
-    if (!byIso.has(iso)) byIso.set(iso, s.bounds);
-  }
+export function NationalCoverageMap({ region = "world" }: { region?: "world" | "europe" }) {
+  const rows = loadRows();
+  const national = new Set(rows.filter((r) => !SUB_NATIONAL.has(r.s.id)).map((r) => r.iso));
+  const partial = new Set([
+    ...rows.filter((r) => SUB_NATIONAL.has(r.s.id)).map((r) => r.iso),
+    ...REGIONAL_DOCS_ONLY.map((r) => r.iso),
+  ].filter((iso) => !national.has(iso)));
 
   // Equal Earth (Savric/Patterson/Jenny 2018) - equal-area, so a country's
   // highlight is proportional to its real size instead of Mercator-inflated,
@@ -477,7 +474,6 @@ export function NationalCoverageMap() {
       t * (A1 + A2 * t2 + t6 * (A3 + A4 * t2)),
     ];
   };
-  // World extent in projected units, used to fit the drawing to the viewBox.
   const [XMAX] = eqEarth(180, 0);
   const [, YMAX] = eqEarth(0, 90);
   const W = 720, H = Math.round((W * YMAX) / XMAX);
@@ -493,43 +489,61 @@ export function NationalCoverageMap() {
     }
     return d + "Z";
   };
-  // A lat/lng box is not a rectangle once projected, so walk its edges.
-  const boxPath = (b: [number, number, number, number]) => {
-    const [w, s0, e, n] = b, STEP = 8;
-    const pts: [number, number][] = [];
-    for (let i = 0; i <= STEP; i++) pts.push(project(w + ((e - w) * i) / STEP, n));
-    for (let i = 0; i <= STEP; i++) pts.push(project(e, n - ((n - s0) * i) / STEP));
-    for (let i = 0; i <= STEP; i++) pts.push(project(e - ((e - w) * i) / STEP, s0));
-    for (let i = 0; i <= STEP; i++) pts.push(project(w, s0 + ((n - s0) * i) / STEP));
-    return pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join("") + "Z";
+  // Label anchor: vertex mean of the country's largest ring, which is inside
+  // for every country we label (the mean of a concave ring can fall outside,
+  // but none of these do at 110m).
+  const centroid = (c: Country): [number, number] => {
+    const ring = c.rings.reduce((a, b) => (b.length > a.length ? b : a));
+    let sx = 0, sy = 0;
+    for (let j = 0; j < ring.length; j += 2) { sx += ring[j]; sy += ring[j + 1]; }
+    const n = ring.length / 2;
+    return project(sx / n / 10, sy / n / 10);
   };
+
+  // The viewBox is the crop; everything else is drawn in world coordinates and
+  // scaled back so strokes and type stay the same size on screen.
+  const world: [number, number, number, number] = [0, 0, W, H];
+  const eu = (() => {
+    const [x0, y0] = project(-12, 72);
+    const [x1, y1] = project(35, 34);
+    return [x0, y0, x1 - x0, y1 - y0] as [number, number, number, number];
+  })();
+  const vb = region === "europe" ? eu : world;
+  const scale = W / vb[2];
+  const labelled = (WORLD as Country[]).filter((c) => national.has(c.iso) || partial.has(c.iso));
 
   return (
     <figure>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-lg border border-fd-border bg-fd-muted/20" role="img"
-           aria-label="World map in Equal Earth projection showing which countries have an integrated national elevation endpoint">
-        {/* borders only, no fill */}
-        <g fill="none" stroke="currentColor" strokeOpacity="0.35" strokeWidth="0.5" strokeLinejoin="round">
-          {(WORLD as number[][]).map((ring, i) => <path key={i} d={ringPath(ring)} />)}
+      <svg viewBox={vb.join(" ")} className="w-full rounded-lg border border-fd-border bg-fd-muted/20" role="img"
+           aria-label={region === "europe"
+             ? "Europe, Equal Earth projection, countries with an integrated national elevation endpoint filled"
+             : "World map in Equal Earth projection, countries with an integrated national elevation endpoint filled"}>
+        <g stroke="currentColor" strokeOpacity="0.35" strokeWidth={0.5 / scale} strokeLinejoin="round">
+          {(WORLD as Country[]).map((c) => {
+            const cls = national.has(c.iso) ? "fill-emerald-500/60" : partial.has(c.iso) ? "fill-emerald-500/20" : "fill-transparent";
+            return (
+              <g key={c.iso} className={cls}>
+                {/* One string child: React 19 refuses a <title> whose children
+                    are an array and renders it empty. */}
+                <title>{`${c.iso} — ${c.name}${national.has(c.iso) ? "" : partial.has(c.iso) ? " (regional data only)" : ""}`}</title>
+                {c.rings.map((ring, i) => <path key={i} d={ringPath(ring)} />)}
+              </g>
+            );
+          })}
         </g>
-        {/* Every box first, then every label, so a label never ends up under a
-            neighbouring country's box (the USA box covers Mexico's label
-            otherwise). Labels are dark on light, and white in
-            dark mode. */}
-        <g fill="#22c55e" fillOpacity="0.45" stroke="#15803d" strokeWidth="1">
-          {[...byIso.entries()].map(([iso, b]) => <path key={iso} d={boxPath(b)} />)}
-        </g>
-        <g fontSize="8.5" fontWeight="700" textAnchor="middle" className="fill-[#052e16] dark:fill-white">
-          {[...byIso.entries()].map(([iso, b]) => {
-            const [cx, cy] = project((b[0] + b[2]) / 2, (b[1] + b[3]) / 2);
-            return <text key={iso} x={cx} y={cy + 3}>{iso}</text>;
+        <g fontSize={8.5 / scale} fontWeight="700" textAnchor="middle" className="fill-[#052e16] dark:fill-white pointer-events-none">
+          {labelled.map((c) => {
+            const [cx, cy] = centroid(c);
+            return <text key={c.iso} x={cx} y={cy + 3 / scale}>{c.iso}</text>;
           })}
         </g>
       </svg>
       <figcaption className="text-xs text-fd-muted-foreground">
-        {byIso.size} countries with an integrated national endpoint. Highlights are each source&apos;s declared
-        bounding box, not exact coverage — England&apos;s dataset covers ~75% of England, and Austria&apos;s is
-        Tirol only. Continental Copernicus GLO-30 is excluded; see below.
+        {region === "europe"
+          ? "Europe at 3×. "
+          : `${national.size} countries with an integrated national endpoint (filled), ${partial.size} with regional data only (light). `}
+        Hover a country for its code and name. Filling the whole country is a simplification — England&apos;s dataset
+        covers ~75% of England, and Austria&apos;s shipped source is Tirol only. Continental Copernicus GLO-30 is excluded; see below.
       </figcaption>
     </figure>
   );
