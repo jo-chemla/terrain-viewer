@@ -79,6 +79,12 @@ export const drawingFeaturesAtom = atom<GeoJSONFeature[]>([])
 // lib/download-geojson.ts) — useful when layers represent genuinely separate
 // deliverables that should stay separate files after export.
 export const drawingExportPerLayerAtom = atomWithStorage("drawingExportPerLayer", false)
+/** What the Export button writes: every layer flattened into one file, one
+ *  file per layer in a zip, or just the layer currently selected by the
+ *  radio. Supersedes drawingExportPerLayerAtom (kept so an old stored
+ *  value still means "perLayer" on first read, see TerraDrawControls). */
+export type DrawingExportScope = "flat" | "perLayer" | "active"
+export const drawingExportScopeAtom = atomWithStorage<DrawingExportScope | null>("drawingExportScope", null)
 
 // Single source of truth for "which TerraDraw mode is currently active",
 // written at every point draw.setMode() itself is called (TerraDrawControls'
@@ -103,6 +109,9 @@ export interface DrawLayer {
     fillColor: string
     /** Outline/stroke width in px, 0.5–5, shared across every mode's outline-ish property. */
     strokeWidth: number
+    /** Hidden layers still exist (features kept, exported, persisted) but
+     *  draw at zero opacity and width — see buildModeStyles. */
+    hidden?: boolean
 }
 
 // Cycled through when a new layer is added, so successive layers are visually
@@ -309,15 +318,19 @@ function resolveLayer(layers: DrawLayer[], feature: any): DrawLayer {
 // polygons, circles) — lines don't have one. strokeWidth is the thickness of
 // that outline, and doubles as the linestring's own width.
 function buildModeStyles(layersRef: { current: DrawLayer[] }) {
+    // A hidden layer is drawn at zero opacity AND zero width — opacity alone
+    // leaves a 1px hairline on some GPUs, width alone leaves polygon fills.
+    const hiddenOf = (feature: any) => !!resolveLayer(layersRef.current, feature).hidden
     const fillOf = (feature: any): any => splitHexAlpha(resolveLayer(layersRef.current, feature).fillColor).color
-    const fillOpacityOf = (feature: any): any => splitHexAlpha(resolveLayer(layersRef.current, feature).fillColor).opacity
+    const fillOpacityOf = (feature: any): any => hiddenOf(feature) ? 0 : splitHexAlpha(resolveLayer(layersRef.current, feature).fillColor).opacity
     const strokeOf = (feature: any): any => splitHexAlpha(resolveLayer(layersRef.current, feature).strokeColor).color
-    const strokeOpacityOf = (feature: any): any => splitHexAlpha(resolveLayer(layersRef.current, feature).strokeColor).opacity
-    const strokeWidthOf = (feature: any): any => resolveLayer(layersRef.current, feature).strokeWidth
+    const strokeOpacityOf = (feature: any): any => hiddenOf(feature) ? 0 : splitHexAlpha(resolveLayer(layersRef.current, feature).strokeColor).opacity
+    const strokeWidthOf = (feature: any): any => hiddenOf(feature) ? 0 : resolveLayer(layersRef.current, feature).strokeWidth
+    const pointWidthOf = (feature: any): any => hiddenOf(feature) ? 0 : 6
 
     return {
         point: {
-            pointColor: fillOf, pointOpacity: fillOpacityOf,
+            pointColor: fillOf, pointOpacity: fillOpacityOf, pointWidth: pointWidthOf,
             pointOutlineColor: strokeOf, pointOutlineOpacity: strokeOpacityOf, pointOutlineWidth: strokeWidthOf,
         },
         linestring: { lineStringColor: fillOf, lineStringOpacity: fillOpacityOf, lineStringWidth: strokeWidthOf },
@@ -334,7 +347,7 @@ function buildModeStyles(layersRef: { current: DrawLayer[] }) {
             outlineColor: strokeOf, outlineOpacity: strokeOpacityOf, outlineWidth: strokeWidthOf,
         },
         select: {
-            selectedPointColor: fillOf, selectedPointOpacity: fillOpacityOf,
+            selectedPointColor: fillOf, selectedPointOpacity: fillOpacityOf, selectedPointWidth: pointWidthOf,
             selectedPointOutlineColor: strokeOf, selectedPointOutlineOpacity: strokeOpacityOf, selectedPointOutlineWidth: strokeWidthOf,
             selectedLineStringColor: fillOf, selectedLineStringOpacity: fillOpacityOf, selectedLineStringWidth: strokeWidthOf,
             selectedPolygonColor: fillOf, selectedPolygonFillOpacity: fillOpacityOf,
@@ -862,6 +875,10 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
         setLayers(layers.map((l) => (l.id === layerId ? { ...l, strokeWidth } : l)))
     }
 
+    const setLayerHidden = (layerId: string, hidden: boolean) => {
+        setLayers(layers.map((l) => (l.id === layerId ? { ...l, hidden: hidden || undefined } : l)))
+    }
+
     const deleteLayer = (layerId: string) => {
         if (layers.length <= 1) return
         const idsToDelete = features.filter((f) => f.properties?.layerId === layerId).map((f) => f.id).filter(Boolean) as string[]
@@ -1066,6 +1083,24 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                         {layers.map((layer) => (
                             <div key={layer.id} className="flex items-center gap-2 min-w-0">
                                 <RadioGroupItem value={layer.id} id={`draw-layer-${layer.id}`} className="cursor-pointer shrink-0" />
+                                {/* Radio = which layer new drawings go to; this
+                                    checkbox = whether the layer is shown at all.
+                                    A hidden layer can still be the active one. */}
+                                <Tooltip>
+                                    <TooltipTrigger
+                                        render={
+                                            <span className="flex shrink-0">
+                                                <Checkbox
+                                                    checked={!layer.hidden}
+                                                    onCheckedChange={(checked) => setLayerHidden(layer.id, checked !== true)}
+                                                    aria-label={layer.hidden ? `Show ${layer.name}` : `Hide ${layer.name}`}
+                                                    className="cursor-pointer"
+                                                />
+                                            </span>
+                                        }
+                                    />
+                                    <TooltipContent><p>{layer.hidden ? "Hidden — click to show" : "Shown — click to hide"}</p></TooltipContent>
+                                </Tooltip>
 
                                 {editMode ? (
                                     <Input
@@ -1074,7 +1109,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                         className="h-8 flex-1 min-w-0 text-sm"
                                     />
                                 ) : (
-                                    <Label htmlFor={`draw-layer-${layer.id}`} className="flex-1 text-sm truncate min-w-0 cursor-pointer">
+                                    <Label htmlFor={`draw-layer-${layer.id}`} className={`flex-1 text-sm truncate min-w-0 cursor-pointer ${layer.hidden ? "text-muted-foreground line-through decoration-muted-foreground/50" : ""}`}>
                                         {layer.name} <span className="text-muted-foreground">({featureCount(layer.id)})</span>
                                     </Label>
                                 )}
@@ -1341,8 +1376,17 @@ function flattenFeatures(features: any[]): any[] {
 function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
     const [layers, setLayers] = useAtom(drawingLayersAtom)
-    const [, setActiveLayerId] = useAtom(activeLayerIdAtom)
-    const [exportPerLayer, setExportPerLayer] = useAtom(drawingExportPerLayerAtom)
+    const [activeLayerId, setActiveLayerId] = useAtom(activeLayerIdAtom)
+    const [exportPerLayerLegacy] = useAtom(drawingExportPerLayerAtom)
+    const [exportScopeStored, setExportScope] = useAtom(drawingExportScopeAtom)
+    const exportScope: DrawingExportScope = exportScopeStored ?? (exportPerLayerLegacy ? "perLayer" : "flat")
+    const activeLayer = layers.find((l) => l.id === activeLayerId) ?? layers[0]
+    const activeLayerFeatureCount = features.filter((f) => (f.properties?.layerId ?? layers[0]?.id) === activeLayer?.id).length
+    const EXPORT_SCOPE_LABEL: Record<DrawingExportScope, string> = {
+        flat: "Export — every layer flattened into one .geojson",
+        perLayer: "Export — one .geojson per layer, bundled into a .zip",
+        active: `Export — only "${activeLayer?.name ?? "the active layer"}" as one .geojson`,
+    }
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [visible, setVisible] = useState(true)
     const [opacity, setOpacity] = useState(1)
@@ -1374,8 +1418,12 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
     }
 
     const exportGeoJSON = () => {
-        track("tools-drawing", { action: "export", features: features.length, perLayer: exportPerLayer })
-        if (exportPerLayer) downloadGeoJSONByLayer(features, layers, 'drawings')
+        track("tools-drawing", { action: "export", features: features.length, scope: exportScope })
+        if (exportScope === "perLayer") downloadGeoJSONByLayer(features, layers, 'drawings')
+        else if (exportScope === "active") {
+            const own = features.filter((f) => (f.properties?.layerId ?? layers[0]?.id) === activeLayer?.id)
+            downloadGeoJSON(own, `drawings-${(activeLayer?.name ?? "layer").trim().replace(/[^\w\- ]+/g, "-").replace(/\s+/g, "_")}`)
+        }
         else downloadGeoJSON(features, 'drawings')
     }
 
@@ -1754,7 +1802,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                                 </Button>
                             }
                         />
-                        <TooltipContent><p>{exportPerLayer ? "Export — one .geojson per layer, bundled into a .zip" : "Export — every layer flattened into one .geojson"}</p></TooltipContent>
+                        <TooltipContent><p>{EXPORT_SCOPE_LABEL[exportScope]}</p></TooltipContent>
                     </Tooltip>
                     <Popover>
                         <Tooltip>
@@ -1777,16 +1825,23 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                             />
                             <TooltipContent><p>Export options</p></TooltipContent>
                         </Tooltip>
-                        <PopoverContent className="w-64 space-y-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                                <Label htmlFor="td-export-per-layer" className="text-xs font-medium cursor-pointer">Split export by layer</Label>
-                                <Switch id="td-export-per-layer" checked={exportPerLayer} onCheckedChange={setExportPerLayer} className="cursor-pointer" />
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                {exportPerLayer
-                                    ? "Exports one .geojson per layer, bundled into a .zip"
-                                    : "Exports every layer flattened into one .geojson"}
-                            </p>
+                        <PopoverContent className="w-72 space-y-2">
+                            <Label className="text-xs font-medium">Export scope</Label>
+                            <RadioGroup value={exportScope} onValueChange={(v) => setExportScope(v as DrawingExportScope)} className="gap-1.5">
+                                {([
+                                    ["flat", "All layers, flattened", "Every feature in one .geojson (each keeps its layerId)"],
+                                    ["perLayer", "One file per layer", "A .geojson per layer, bundled into a .zip"],
+                                    ["active", "Selected layer only", `Just "${activeLayer?.name ?? "the active layer"}" (${activeLayerFeatureCount} feature${activeLayerFeatureCount === 1 ? "" : "s"}), one .geojson`],
+                                ] as const).map(([value, label, hint]) => (
+                                    <div key={value} className="flex items-start gap-2">
+                                        <RadioGroupItem value={value} id={`td-export-${value}`} className="cursor-pointer shrink-0 mt-0.5" />
+                                        <Label htmlFor={`td-export-${value}`} className="cursor-pointer flex flex-col gap-0.5">
+                                            <span className="text-xs font-medium">{label}</span>
+                                            <span className="text-[11px] text-muted-foreground font-normal">{hint}</span>
+                                        </Label>
+                                    </div>
+                                ))}
+                            </RadioGroup>
                         </PopoverContent>
                     </Popover>
                 </div>

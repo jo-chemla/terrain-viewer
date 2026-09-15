@@ -86,6 +86,14 @@ export const DownloadSection: React.FC<{
     return () => clearTimeout(timer)
   }, [exportWarning])
 
+  // Centre + zoom for ExportMultiDialog's live capture count (see there).
+  const getMapView = useCallback(() => {
+    const map = mapRef.current?.getMap()
+    if (!map) return null
+    const c = map.getCenter()
+    return { lat: c.lat, lng: c.lng, zoom: map.getZoom() }
+  }, [mapRef])
+
   const getTitilerDownloadUrl = useCallback(() => {
     const sourceConfig = getSourceConfig(state.sourceA)
     if (!sourceConfig) return ""
@@ -335,7 +343,7 @@ export const DownloadSection: React.FC<{
           onClick={() => setIsExportMultiOpen(true)}
           className="w-full bg-transparent"
         />
-        <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} />
+        <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} getMapView={getMapView} />
       </Section>
     )
   }
@@ -458,7 +466,7 @@ export const DownloadSection: React.FC<{
           />
         </div>
       </div>
-      <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} />
+      <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} getMapView={getMapView} />
     </Section>
   )
 }

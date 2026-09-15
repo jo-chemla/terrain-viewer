@@ -91,8 +91,27 @@ export function SegmentedToggle<T extends string>({
 const MobileSliderInner = forwardRef<
   HTMLDivElement,
   SliderPrimitive.Root.Props & { sliderId?: string }
->(({ sliderId, className, onPointerDown, onPointerUp, onPointerCancel, ...props }, ref) => {
+>(({ sliderId, className, onPointerDown, onPointerUp, onPointerCancel, value, onValueChange, min = 0, max = 100, ...props }, ref) => {
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
+
+  // A value outside [min, max] (typed into a bound field, or left behind by a
+  // bounds change) used to put its thumb off the end of the track, where it
+  // was invisible and ungrabbable. Draw such a thumb pinned AT the nearest
+  // end instead — it reads as "beyond this edge" and can still be dragged —
+  // while the real value is kept in state: when a different thumb moves,
+  // the pinned one's original out-of-range value is handed back unchanged,
+  // so dragging one bound never silently snaps the other to the track edge.
+  const clampOne = (v: number) => Math.min(max, Math.max(min, v))
+  const displayValue = Array.isArray(value) ? value.map(clampOne) : typeof value === "number" ? clampOne(value) : value
+  const handleValueChange = (next: any, ...rest: any[]) => {
+    if (Array.isArray(next) && Array.isArray(value)) {
+      const restored = next.map((v: number, i: number) =>
+        v === (displayValue as number[])[i] && value[i] !== (displayValue as number[])[i] ? value[i] : v)
+      ;(onValueChange as any)?.(restored, ...rest)
+      return
+    }
+    ;(onValueChange as any)?.(next, ...rest)
+  }
   
   const [, setActiveSlider] = useAtom(activeSliderAtom)
   const id = sliderId ?? (props as any)["aria-label"] ?? "slider"
@@ -121,6 +140,10 @@ const MobileSliderInner = forwardRef<
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
+      min={min}
+      max={max}
+      value={displayValue as any}
+      onValueChange={handleValueChange as any}
       {...props}
     />
   )

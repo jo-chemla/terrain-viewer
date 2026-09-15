@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback, useRef, useMemo } from "react"
+import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { useAtomValue } from "jotai"
 import { Layers, Loader2, X } from "lucide-react"
 import saveAs from "file-saver"
@@ -15,7 +15,7 @@ import { planetKeyAtom } from "@/lib/settings-atoms"
 import { SegmentedToggle } from "./controls-components"
 import { drawingFeaturesAtom, drawingLayersAtom } from "./TerraDrawSystem"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
-import { EXPORT_SOURCE_IDS, type ExportSourceId } from "@/lib/historical-export-sources"
+import { EXPORT_SOURCE_IDS, listExportTicks, type ExportSourceId } from "@/lib/historical-export-sources"
 import { exportMultiHistorical, type ExportMultiMode, type ExportMultiSkip } from "@/lib/export-multi"
 import type { Bbox4 } from "@/lib/feature-extent"
 import { track } from "@/lib/analytics"
@@ -35,7 +35,10 @@ export const ExportMultiDialog: React.FC<{
   open: boolean
   onOpenChange: (open: boolean) => void
   getMapBounds: () => { west: number; south: number; east: number; north: number }
-}> = ({ open, onOpenChange, getMapBounds }) => {
+  /** Viewport centre + zoom, for the live "how many captures in this range"
+   *  count below; the export itself still reads bounds at run time. */
+  getMapView?: () => { lat: number; lng: number; zoom: number } | null
+}> = ({ open, onOpenChange, getMapBounds, getMapView }) => {
   const features = useAtomValue(drawingFeaturesAtom)
   const layers = useAtomValue(drawingLayersAtom)
   const planetKey = useAtomValue(planetKeyAtom)
@@ -75,6 +78,37 @@ export const ExportMultiDialog: React.FC<{
   }, [])
 
   const hasTargets = mode === "viewport" ? true : selectedFeatures.length > 0
+
+  // How many captures each selected source has inside the date range, at
+  // the viewport centre — the same listing the export runs first, so the
+  // dialog can say "37 files" before anyone presses Export instead of after.
+  // Debounced: the date inputs fire on every keystroke, and Wayback/GE
+  // listings are real network calls.
+  const [rangeCounts, setRangeCounts] = useState<{ counts: Partial<Record<ExportSourceId, number>>; pending: boolean }>({ counts: {}, pending: false })
+  useEffect(() => {
+    if (!open || !getMapView) return
+    const view = getMapView()
+    if (!view) return
+    const startMs = new Date(`${startDate}T00:00:00Z`).getTime()
+    const endMs = new Date(`${endDate}T23:59:59Z`).getTime()
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return
+    let cancelled = false
+    setRangeCounts((prev) => ({ ...prev, pending: true }))
+    const timer = setTimeout(async () => {
+      const ids = Array.from(sourceIds)
+      const results = await Promise.all(ids.map(async (id) => {
+        try { return [id, (await listExportTicks(id, view.lat, view.lng, view.zoom, startMs, endMs, planetKey)).length] as const }
+        catch { return [id, undefined] as const }
+      }))
+      if (cancelled) return
+      const counts: Partial<Record<ExportSourceId, number>> = {}
+      for (const [id, n] of results) if (n !== undefined) counts[id] = n
+      setRangeCounts({ counts, pending: false })
+    }, 500)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [open, getMapView, startDate, endDate, sourceIds, planetKey])
+  const totalInRange = Array.from(sourceIds).reduce((n, id) => n + (rangeCounts.counts[id] ?? 0), 0)
+  const targetCount = mode === "viewport" ? 1 : selectedFeatures.length
 
   const handleRun = useCallback(async () => {
     if (isRunning || !hasTargets || !sourceIds.size) return
@@ -198,6 +232,15 @@ export const ExportMultiDialog: React.FC<{
                 </div>
               ))}
             </div>
+            {getMapView && sourceIds.size > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {rangeCounts.pending ? "Counting captures in range… " : ""}
+                <span className="text-foreground/80">{totalInRange} capture{totalInRange === 1 ? "" : "s"}</span> in range at the viewport centre
+                {targetCount > 1 && <> → about {totalInRange * targetCount} files across {targetCount} features</>}
+                {": "}
+                {Array.from(sourceIds).map((id) => `${SOURCE_CONFIG[id]?.shortLabel ?? id} ${rangeCounts.counts[id] ?? "…"}`).join(" · ")}
+              </p>
+            )}
             {/* Bing has no browsable archive (a single current mosaic) — its
                 one export ignores the date range above entirely. */}
             {sourceIds.has("bing") && (

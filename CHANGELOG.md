@@ -12,6 +12,10 @@
 ### Bug Fixes
 - No-data detection now catches positive sentinels — the Netherlands signals no-coverage with `+3.4e38`, which a floor could never catch, so offshore tiles read as -32768 m.
 - A source's `minzoom` no longer clamps the camera; it limits tile requests only.
+- Drawing layers can be shown or hidden individually (checkbox next to each layer's radio); hidden layers keep their features, still export and persist.
+- Drawing export has a third scope, "Selected layer only", alongside flattened and one-file-per-layer.
+- Export Multi (Historical) shows how many captures each selected source has in the chosen date range before you run it.
+- A range-slider thumb whose value is outside the slider bounds now stays pinned at the nearest edge instead of vanishing, and dragging the other thumb no longer snaps it to the edge.
 - Synced views that drift apart (one pane at a different zoom or centre, previously only fixable by a reload) are pulled back together on the next idle, in every split and grid layout, terrain or not.
 - Historical timeline axis subdivides when zoomed in: half-years, quarters, then months, with the year kept at every January.
 - Slope and the other client-computed overlays no longer go blank past the zoom a tileset really has: they now probe coverage at the viewport centre like the terrain source does, so Mapterhorn over a GLO-30-only area (z12) overzooms instead of requesting z13 tiles that 404.
