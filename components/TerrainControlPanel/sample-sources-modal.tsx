@@ -33,7 +33,7 @@ const SECTIONS: { key: SectionKey; title: string; blurb: string }[] = [
 /** Top-level split for terrain: is this an upgrade over the built-in Mapterhorn? */
 type TierKey = "better" | "notBetter" | "bathy"
 const TIERS: { key: TierKey; title: string; icon: LucideIcon; blurb: string }[] = [
-  { key: "better", title: "Better than Mapterhorn here", icon: ArrowUp,
+  { key: "better", title: "Potentially better than Mapterhorn", icon: ArrowUp,
     blurb: "Finer than the bulk data Mapterhorn ingested for the country, the only national data where Mapterhorn falls back to global 30 m, or an AI bare-earth model where Mapterhorn only has the GLO-30 surface." },
   { key: "notBetter", title: "Not better than Mapterhorn", icon: ArrowDown,
     blurb: "Same or coarser grid. Worth it for data straight from the agency, or for a surface model where Mapterhorn only has bare earth." },
