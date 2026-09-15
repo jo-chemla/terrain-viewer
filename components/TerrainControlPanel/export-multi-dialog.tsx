@@ -17,7 +17,7 @@ import { planetKeyAtom, mapboxKeyAtom, hereKeyAtom, timelineWindowRequestAtom } 
 import { SegmentedToggle } from "./controls-components"
 import { drawingFeaturesAtom, drawingLayersAtom } from "./TerraDrawSystem"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
-import { EXPORT_SOURCE_IDS, CURRENT_BASEMAP_SOURCE_IDS, EXPORT_SOURCE_LABELS, listExportTicks, type ExportSourceId } from "@/lib/historical-export-sources"
+import { CURRENT_BASEMAP_SOURCE_IDS, EXPORT_SOURCE_LABELS, listExportTicks, type ExportSourceId } from "@/lib/historical-export-sources"
 import { exportMultiHistorical, type ExportMultiMode, type ExportMultiSkip } from "@/lib/export-multi"
 import type { Bbox4 } from "@/lib/feature-extent"
 import { track } from "@/lib/analytics"
@@ -25,7 +25,11 @@ import { track } from "@/lib/analytics"
 // EOX Sentinel-2 is off by default: a 10 m yearly cloudless mosaic is rarely
 // what someone exporting VHR history wants, and it adds a file per year.
 const DEFAULT_SOURCE_IDS: ExportSourceId[] = ["wayback", "ge-historical", ...CURRENT_BASEMAP_SOURCE_IDS]
-const HISTORICAL_SOURCE_IDS = EXPORT_SOURCE_IDS.filter((id) => !CURRENT_BASEMAP_SOURCE_IDS.includes(id))
+// Ordered for the picker: very-high-resolution archives first (Wayback, then
+// Google Earth right under it), a rule, then the medium-resolution ones.
+const HISTORICAL_VHR_IDS: readonly ExportSourceId[] = ["wayback", "ge-historical"]
+const HISTORICAL_MEDIUM_IDS: readonly ExportSourceId[] = ["hls", "eox-s2", "planet"]
+const HISTORICAL_SOURCE_IDS: readonly ExportSourceId[] = [...HISTORICAL_VHR_IDS, ...HISTORICAL_MEDIUM_IDS]
 
 /** Label + one multi-select control on a single line: "All" first, then
  *  each source individually. The trigger spells out what is chosen. */
@@ -36,7 +40,10 @@ const SourcePicker: React.FC<{
   selected: Set<ExportSourceId>
   setSelected: React.Dispatch<React.SetStateAction<Set<ExportSourceId>>>
   hint?: string
-}> = ({ label, ids, labelOf, selected, setSelected, hint }) => {
+  /** Optional partition: ids in groups[0] are listed first, then a rule,
+   *  then the next group, and so on (VHR sources above medium-resolution). */
+  groups?: readonly (readonly ExportSourceId[])[]
+}> = ({ label, ids, labelOf, selected, setSelected, hint, groups }) => {
   const chosen = ids.filter((id) => selected.has(id))
   const allOn = chosen.length === ids.length && ids.length > 0
   const setMany = (on: boolean, only?: ExportSourceId) => setSelected((prev) => {
@@ -53,8 +60,11 @@ const SourcePicker: React.FC<{
       <Popover>
         <PopoverTrigger
           render={
-            <Button variant="outline" className="flex-1 min-w-0 justify-between cursor-pointer font-normal">
-              <span className="truncate">{summary}</span>
+            // min-w-0 and overflow-hidden on the button itself: a flex child
+            // does not shrink below its content without them, so a long
+            // "All (...)" summary widened the dialog instead of truncating.
+            <Button variant="outline" title={summary} className="flex-1 min-w-0 max-w-full overflow-hidden justify-between cursor-pointer font-normal">
+              <span className="truncate min-w-0">{summary}</span>
               <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
             </Button>
           }
@@ -64,14 +74,20 @@ const SourcePicker: React.FC<{
             <Checkbox id={`${slug}-all`} checked={allOn} indeterminate={!allOn && chosen.length > 0} onCheckedChange={(v) => setMany(v === true)} className="cursor-pointer" />
             <Label htmlFor={`${slug}-all`} className="text-sm cursor-pointer font-medium">All</Label>
           </div>
-          <div className="border-t pt-1.5 space-y-1.5">
-            {ids.map((id) => (
-              <div key={id} className="flex items-center gap-2">
-                <Checkbox id={`${slug}-${id}`} checked={selected.has(id)} onCheckedChange={(v) => setMany(v === true, id)} className="cursor-pointer" />
-                <Label htmlFor={`${slug}-${id}`} className="text-sm cursor-pointer truncate">{labelOf(id)}</Label>
+          {(groups ?? [ids]).map((group, gi) => {
+            const members = group.filter((id) => ids.includes(id))
+            if (!members.length) return null
+            return (
+              <div key={gi} className="border-t pt-1.5 space-y-1.5">
+                {members.map((id) => (
+                  <div key={id} className="flex items-center gap-2">
+                    <Checkbox id={`${slug}-${id}`} checked={selected.has(id)} onCheckedChange={(v) => setMany(v === true, id)} className="cursor-pointer" />
+                    <Label htmlFor={`${slug}-${id}`} className="text-sm cursor-pointer truncate">{labelOf(id)}</Label>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )
+          })}
           {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
         </PopoverContent>
       </Popover>
@@ -339,10 +355,11 @@ export const ExportMultiDialog: React.FC<{
             <SourcePicker
               label="Historical sources"
               ids={HISTORICAL_SOURCE_IDS.filter((id) => id !== "planet" || hasPlanetKey)}
+              groups={[HISTORICAL_VHR_IDS, HISTORICAL_MEDIUM_IDS]}
               labelOf={(id) => SOURCE_CONFIG[id]?.label ?? EXPORT_SOURCE_LABELS[id]}
               selected={sourceIds}
               setSelected={setSourceIds}
-              hint="One file per capture date in the range."
+              hint="One file per capture date in the range. Very-high-resolution archives above the rule, medium-resolution below."
             />
             <SourcePicker
               label="Current basemaps"

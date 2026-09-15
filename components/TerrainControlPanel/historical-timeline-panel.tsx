@@ -637,8 +637,16 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // below as a hard zoom/pan limit (as opposed to the raw tick data itself)
   // is now this, not the true unpadded domain — see ZOOM_OUT_PADDING_FRACTION.
   const zoomOutPaddingMs = Math.min(fullSpan * ZOOM_OUT_PADDING_FRACTION, ZOOM_OUT_PADDING_MAX_MS)
-  const paddedMin = fullMin - zoomOutPaddingMs
-  const paddedMax = fullMax + zoomOutPaddingMs
+  // Export Multi may ask to show a range that lies partly or wholly outside
+  // the ticks' own domain (its default is "the last year up to today", while
+  // the newest capture here can be months or years older). Honour the ASKED
+  // dates exactly by widening the reachable domain to include them, rather
+  // than sliding or clipping the window - a shifted window read as "wrong
+  // dates". The extension stays for the session so zooming back out still
+  // reaches it.
+  const [domainExtension, setDomainExtension] = useState<{ min: number; max: number } | null>(null)
+  const paddedMin = Math.min(fullMin - zoomOutPaddingMs, domainExtension?.min ?? Infinity)
+  const paddedMax = Math.max(fullMax + zoomOutPaddingMs, domainExtension?.max ?? -Infinity)
   const paddedSpan = paddedMax - paddedMin
   // Sticky once true — the wheel-zoom handler and the pan-gutter below both
   // set this on the FIRST real interaction. Needed because zooming/panning
@@ -654,18 +662,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const [windowRequest] = useAtom(timelineWindowRequestAtom)
   useEffect(() => {
     if (!windowRequest) return
-    // Keep the REQUESTED SPAN, slid inside the reachable domain, rather than
-    // intersecting the two: the export dialog defaults to "the last year up
-    // to today", while this axis ends six months after the newest tick, so a
-    // plain intersection left a ten-day sliver at the far right that read
-    // as the sync not working at all. Slide the window left until it fits.
-    const span = Math.max(MIN_VISIBLE_SPAN_MS, windowRequest.max - windowRequest.min)
-    let max = Math.min(paddedMax, windowRequest.max)
-    let min = Math.max(paddedMin, max - span)
-    if (max - min < span) max = Math.min(paddedMax, min + span)
-    if (max <= min) return
+    const { min, max } = windowRequest
+    if (!(max > min)) return
     hasZoomedRef.current = true
-    setViewWindow(min <= paddedMin && max >= paddedMax ? null : { min, max })
+    // Widen the domain first (see domainExtension) so the window below is
+    // never clipped by the re-clamp effect that follows a domain change.
+    setDomainExtension((prev) => ({ min: Math.min(prev?.min ?? Infinity, min), max: Math.max(prev?.max ?? -Infinity, max) }))
+    setViewWindow({ min, max })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowRequest])
 
@@ -1723,7 +1726,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
           {yearMarks.map((mark) => (
             <span
               key={mark.t}
-              className={`absolute -translate-x-1/2 tabular-nums whitespace-nowrap ${mark.major ? "text-[10px] text-foreground/90 font-bold" : "text-[9px] text-muted-foreground"}`}
+              className={`absolute -translate-x-1/2 tabular-nums whitespace-nowrap ${mark.major ? "text-[11px] text-foreground/90 font-bold" : "text-[9px] text-muted-foreground"}`}
               style={{ left: `${mark.frac * 100}%` }}
             >
               {mark.label}
