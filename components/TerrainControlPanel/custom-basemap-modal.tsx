@@ -9,12 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SegmentedToggle } from "./controls-components"
-import { type CustomBasemapSource, customTerrainSourcesAtom } from "@/lib/settings-atoms"
+import { type CustomBasemapSource, customTerrainSourcesAtom, customBasemapLastTypeAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
 import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
@@ -41,7 +41,14 @@ export const CustomBasemapModal: React.FC<{
 }> = ({ isOpen, onOpenChange, editingSource, onSave, onLiveOpacityChange, mapRef }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
-  const [type, setType] = useState<BasemapFormType>("qms")
+  const [lastType, setLastType] = useAtom(customBasemapLastTypeAtom)
+  const [type, setTypeState] = useState<BasemapFormType>(lastType as BasemapFormType)
+  // Remember the choice for the next "Add Basemap" (not while editing an
+  // existing source, whose type is its own).
+  const setType = useCallback((t: BasemapFormType) => {
+    setTypeState(t)
+    if (!editingSource) setLastType(t)
+  }, [editingSource, setLastType])
   // Brief "copied!" confirmation on the template hint's copy button — same
   // 2s-timeout pattern as ShareSection's CopyUrlButton.
   const [templateCopied, setTemplateCopied] = useState(false)
@@ -122,9 +129,8 @@ export const CustomBasemapModal: React.FC<{
     } else {
       setName("")
       setUrl("")
-      // A fresh basemap starts on the NextGIS QMS search: most people want to
-      // find a named tile service, not type a template by hand.
-      setType("qms")
+      // NextGIS QMS on the very first run, then the last type used.
+      setTypeState((lastType as BasemapFormType) || "qms")
       setDescription("")
       setRole("basemap")
       setOpacity(100)
@@ -276,7 +282,7 @@ export const CustomBasemapModal: React.FC<{
               onValueChange={(value: any) => setType(value)}
               items={{
                 tms: "TMS/XYZ (Raster Tile)",
-                cog: "COG (Cloud Optimized Geotiff)",
+                cog: "Remote COG (URL)",
                 "cog-local": "Local COG file (this browser only)",
                 wms: "Raster (WMS / WMTS)",
                 tilejson: "TileJSON (Raster Basemap)",
@@ -289,19 +295,30 @@ export const CustomBasemapModal: React.FC<{
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="tms">TMS/XYZ (Raster Tile)</SelectItem>
-                <SelectItem value="cog">COG (Cloud Optimized Geotiff)</SelectItem>
-                {/* Streams straight off the user's disk via a blob: object URL — no
-                    upload, no companion server. Only ever readable via the geomatico
-                    cog:// protocol, and the picked file only lives in this browser
-                    tab's memory — it isn't saved, so it needs re-picking after a
-                    reload (mirrors "Local COG file" on the Terrain Source side). */}
-                <SelectItem value="cog-local">Local COG file (this browser only)</SelectItem>
-                <SelectItem value="wms">Raster (WMS / WMTS)</SelectItem>
-                <SelectItem value="tilejson">TileJSON (Raster Basemap)</SelectItem>
-                {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
-                {!editingSource && <SelectItem value="qms">NextGIS QMS (search)</SelectItem>}
-                {!editingSource && <SelectItem value="eli">OSM Editor Layer Index (search)</SelectItem>}
+                {!editingSource && (
+                  <SelectGroup>
+                    <SelectLabel>Search a catalogue</SelectLabel>
+                    <SelectItem value="qms">NextGIS QMS (search)</SelectItem>
+                    <SelectItem value="eli">OSM Editor Layer Index (search)</SelectItem>
+                  </SelectGroup>
+                )}
+                <SelectGroup>
+                  <SelectLabel>Cloud Optimized GeoTIFF</SelectLabel>
+                  {/* Streams straight off the user's disk via a blob: object URL — no
+                      upload, no companion server. Only ever readable via the geomatico
+                      cog:// protocol, and the picked file only lives in this browser
+                      tab's memory — it isn't saved, so it needs re-picking after a
+                      reload (mirrors "Local COG file" on the Terrain Source side). */}
+                  <SelectItem value="cog-local">Local COG file (this browser only)</SelectItem>
+                  <SelectItem value="cog">Remote COG (URL)</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Tile and map services</SelectLabel>
+                  <SelectItem value="tms">TMS/XYZ (Raster Tile)</SelectItem>
+                  {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
+                  <SelectItem value="wms">Raster (WMS / WMTS)</SelectItem>
+                  <SelectItem value="tilejson">TileJSON (Raster Basemap)</SelectItem>
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>

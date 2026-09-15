@@ -84,10 +84,12 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       // from newSource (see terrain-source-section.tsx's matching comment for
       // why: a brand-new id can't yet be a reverse-link target, and
       // customBasemapSources here is one render stale).
+      // Both the single-view field and view A's per-view field, so it is
+      // what shows whichever layout is active (view A in split / grid).
       if (newSource.linkedTerrainId) {
-        setState({ basemapSource: newSource.id, sourceA: newSource.linkedTerrainId })
+        setState({ basemapSource: newSource.id, basemapSourceA: newSource.id, sourceA: newSource.linkedTerrainId })
       } else {
-        setState({ basemapSource: newSource.id })
+        setState({ basemapSource: newSource.id, basemapSourceA: newSource.id })
       }
     }
   }, [customBasemapSources, setCustomBasemapSources, setState])

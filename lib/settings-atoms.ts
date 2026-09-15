@@ -59,6 +59,10 @@ export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://t
  *  Session-only, never persisted. */
 export const viewportCenterAtom = atom<{ lat: number; lng: number } | null>(null)
 
+/** Type the "Add Basemap" modal opens on: NextGIS QMS search the very first
+ *  time, then whatever was picked last. Persisted; edit mode ignores it. */
+export const customBasemapLastTypeAtom = atomWithStorage<string>("customBasemapLastType", "qms")
+
 /** One-shot request to zoom the historical timeline to a date window —
  *  written by Export Multi as its start/end dates change, so the timeline
  *  shows exactly the captures about to be downloaded. `nonce` makes the
