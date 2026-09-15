@@ -369,7 +369,7 @@
             "bounds": [-82.0, -56.0, -34.0, 13.0],
             "description": "All of South America in one COG - 187853x262864 with 10 overview levels, CORS open, range requests supported. AI terrain model: the same 30m grid as Copernicus GLO-30, which is a SURFACE model, machine-learning corrected to BARE EARTH. Under Amazon canopy GLO-30 measures the treetops and can sit tens of metres high; Mapterhorn only carries that surface over South America, so this is the better ground model there - same resolution, but terrain rather than canopy. maxzoom 13 matches the native 30m grid; without it the COG reader over-zooms far past the real detail. EPSG:4674, so it is pinned to titiler (cogViaTitiler): the in-browser COG reader assumes 3857, misplaces it, and reads its degree-sized pixels as metres - which is what made the camera lock at z19. Nodata -9999. See https://opentopography.org/news/new-machine-learning-derived-digital-terrain-models",
             "resolutionM": 30,
-            "infoUrl": "https://portal.opentopography.org/raster?opentopoID=OTSDEM.082025.4674.1"
+            "infoUrl": "https://hge-iph.github.io/anadem/"
         },
         {
             "id": "custom-africa-deafrica-cop30",
@@ -558,7 +558,7 @@
             "loadWithSamples": false,
             "description": "Iconem photogrammetric scan of the Kasta tumulus at Amphipolis, served as a COG. Centimetre-class survey data (resolution recorded here as ~0.1 m) - Mapterhorn has no Greek source at all and falls back to global 30 m.",
             "resolutionM": 0.1,
-            "infoUrl": "https://3d.iconem.com/greece/amphipolis/"
+            "infoUrl": "https://iconem.com"
         },
         {
             "id": "custom-mx-aguadafenix-lidar",
@@ -580,7 +580,7 @@
             "linkedBasemapId": "dura-grid-2mm",
             "description": "",
             "resolutionM": 0.002,
-            "infoUrl": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/"
+            "infoUrl": "https://iconem.com"
         },
         {
             "id": "dura-w-05mm",
@@ -591,7 +591,7 @@
             "linkedBasemapId": "dura-w-05mm",
             "description": "",
             "resolutionM": 0.0005,
-            "infoUrl": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/"
+            "infoUrl": "https://iconem.com"
         }
     ],
     "SAMPLE_BASEMAPS_SOURCES": [

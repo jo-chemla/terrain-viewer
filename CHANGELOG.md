@@ -15,23 +15,22 @@
 - Sparse GeoTIFFs from ArcGIS servers no longer fail to decode. Out-of-coverage blocks are written with zero offsets, which geotiff.js rejected outright, so Tirol and Czechia rendered blank at exactly the zoom the map had just been fenced to.
 - A COG source can be pinned to titiler (*Always serve via titiler* in its Advanced settings). Needed for files not in Web Mercator — the browser reader misplaced Switzerland's LV95 COG and read ANADEM's degree-sized pixels as metres, which locked the camera at z19.
 - `maxBounds` is applied imperatively — react-map-gl 8's maplibre build never calls `setMaxBounds`, so bounds only ever took effect at page load.
-- Sample sources sorted by ISO 3166-1 alpha-3, with two wrong codes fixed (Greece was `GRE`, the IOC code, not `GRC`). Project scans (Dura Europos, Amphipolis) no longer load with the samples, but stay importable by permalink.
+- Sample sources sorted by ISO 3166-1 alpha-3, with two wrong codes fixed (Greece was `GRE`, the IOC code, not `GRC`). Project scans no longer load with the samples, but stay importable by permalink.
 
 # Changelog — No-Data Handling for DEM Sources
 <!-- released: 2026-09-12 -->
 
 #### TL;DR
-- **Out-of-coverage cells no longer decode to absurd elevations.** IGN LiDAR HD's `-9999` sentinel was passing straight through as a 10 km pit (the old guard only caught `NaN`, which that service never returns), and the WMS reprojection smears it into a fringe of intermediate garbage along every coverage boundary — so an exact sentinel match was never going to be enough. Both are now handled by a threshold. Separately, COG DSMs that declare their no-data as `NaN` — the Dura Europos scans, 12–57% of their pixels — were decoding to **-32768 m**, since `NaN === NaN` is false and the check could never fire; that one is fixed with no configuration needed.
-- **New No-Data Floor / Fill fields** in a custom terrain source's Advanced section: anything at or below the floor (plus any `NaN`) is treated as a hole and replaced with the fill. Either field alone sets both. Shown only for sources this app decodes itself (COG via the browser reader, and WMS-raw) — titiler-served and plain XYZ tile sources have no interception point. The bundled IGN LiDAR HD DTM/DSM sources ship floor `-20` / fill `0`, which clears the sentinel while preserving genuinely below-sea-level French terrain (the Dunkirk polders at -2 m, the Étang de Lavalduc's bed at -5 to -10 m).
-- The guided tour's opening step now carries a button through to the full documentation, rather than only mentioning it in the final step.
+- **Out-of-coverage cells no longer decode to absurd elevations.** IGN LiDAR HD's `-9999` sentinel passed straight through as a 10 km pit, and WMS reprojection smears it into a fringe of garbage along every coverage edge, so an exact match was never enough; both are now caught by a threshold. COGs that declare their no-data as `NaN` were decoding to -32768 m and are fixed with no configuration.
+- **New No-Data Floor / Fill fields** in a custom source's Advanced section: anything at or below the floor, plus any `NaN`, is replaced with the fill. Shown only for sources this app decodes itself (browser-read COG and WMS-raw). The bundled IGN LiDAR HD sources ship floor `-20` / fill `0`, which clears the sentinel while keeping France's genuinely below-sea-level polders.
 
 ### Features
-- `lib/nodata.ts` centralises the floor/fill semantics; each source type lowers it to its own transport — URL markers (`__nodatafill` / `__nodatafloor`) for the `float32dem://` protocol, color-function arguments for `cog://`.
-- The No-Data hint line states a COG's own `SCALE`/`OFFSET` when they aren't the identity, since those decide what "metres" means in these fields — Dura Europos' 0.5mm DSM carries `SCALE=-4000`, putting its entire model at negative elevations, where a floor of `0` would silently flatten every pixel to the fill.
+- `lib/nodata.ts` centralises the floor/fill rule; each transport lowers it its own way, URL markers for `float32dem://` and color-function arguments for `cog://`. The hint line states a COG's `SCALE`/`OFFSET` when they are not the identity, since they decide what "metres" means in these fields.
+- The guided tour's opening step now carries a button through to the full documentation.
 
 ### Bug Fixes
-- `float32dem://`: the `isFinite` guard never fired on IGN LiDAR HD (no `NaN` in the response), and `boxDownsample` averaged sentinel values into its supersampled output instead of skipping them.
-- COG color function: `raw === noData` cannot match a `NaN` no-data tag, so such pixels reached the Terrarium encoder, came out `NaN`, were clamped to `[0,0,0]`, and decoded as -32768 m.
+- `float32dem://`: the `isFinite` guard never fired on IGN LiDAR HD, and supersampling averaged sentinel values into its output instead of skipping them.
+- COG color function: `raw === noData` cannot match a `NaN` tag, so such pixels reached the Terrarium encoder and decoded as -32768 m.
 
 # Changelog — Live Lighting Rework: Native-Sharpness Phong & Matcap
 <!-- released: 2026-08-21 -->
