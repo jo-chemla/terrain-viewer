@@ -6,7 +6,7 @@
 // pure per-source functions RasterBasemapSource itself calls.
 import { listWaybackTicksInRange, waybackTileUrl } from "./wayback"
 import { syntheticHlsTicks, hlsTileUrl } from "./hls"
-import { listGeHistoricalTicksInRange, geHistoricalTileSource } from "./ge-historical"
+import { listGeHistoricalTicksInRange, geHistoricalTileSource, fetchGeHistoricalTileBlob } from "./ge-historical"
 import { planetMonthlyTicks, planetTileUrl } from "./planet"
 import { eoxS2CloudlessTicks, eoxS2CloudlessTileUrl } from "./eox-s2-cloudless"
 import { fetchBingCaptureDate, toQuadkey } from "./bing"
@@ -21,6 +21,12 @@ export const EXPORT_SOURCE_LABELS: Record<ExportSourceId, string> = {
   wayback: "Esri Wayback", hls: "HLS", "ge-historical": "GE Historical", planet: "Planet", "eox-s2": "EOX Sentinel-2",
   bing: "Bing (current)", google: "Google (current)", esri: "Esri (current)", mapbox: "Mapbox (current)", maptiler: "MapTiler (current)", here: "HERE (current)",
 }
+/** Filename stem per source - the provider name rather than the internal id
+ *  ("esri-wayback" beats "wayback" when a file turns up out of context). */
+export const EXPORT_SOURCE_FILE_STEMS: Record<ExportSourceId, string> = {
+  wayback: "esri-wayback", hls: "nasa-hls", "ge-historical": "google-earth", planet: "planet", "eox-s2": "eox-sentinel2",
+  bing: "bing", google: "google", esri: "esri", mapbox: "mapbox", maptiler: "maptiler", here: "here",
+}
 /** Keys some current basemaps need; a missing key makes that source list nothing. */
 export interface ExportSourceKeys { mapbox?: string; maptiler?: string; here?: string }
 
@@ -28,7 +34,7 @@ export interface ExportTick {
   dateMs: number
   /** yyyy-mm-dd, for filenames — see lib/export-multi.ts. */
   label: string
-  tileSpec: Pick<FetchRgbTileMosaicOptions, "tileUrlTemplate" | "buildTileUrl" | "tileSize"> & {
+  tileSpec: Pick<FetchRgbTileMosaicOptions, "tileUrlTemplate" | "buildTileUrl" | "fetchTileBlob" | "tileSize"> & {
     maxzoom: number
     /** Bing only — a literal `{quadkey}` placeholder template (this app's
      *  own convention, same as `{x}`/`{y}`/`{z}` elsewhere), since Bing
@@ -94,7 +100,13 @@ export async function listExportTicks(
       const spec = geHistoricalTileSource(t.dateMs)
       return {
         dateMs: t.dateMs, label: dateLabel(t.dateMs),
-        tileSpec: { tileUrlTemplate: spec.tiles[0], tileSize: spec.tileSize, maxzoom: spec.maxzoom },
+        // tileUrlTemplate is kept for the gdal script's "not fetchable" note;
+        // the mosaic itself goes through fetchTileBlob (gehist:// is not a
+        // scheme the Fetch API accepts).
+        tileSpec: {
+          tileUrlTemplate: spec.tiles[0], tileSize: spec.tileSize, maxzoom: spec.maxzoom,
+          fetchTileBlob: (z, x, y, signal) => fetchGeHistoricalTileBlob(z, x, y, t.dateMs, signal),
+        },
       }
     })
   }

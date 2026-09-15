@@ -45,6 +45,21 @@ export function geHistoricalTileSource(dateMs: number): { tiles: string[]; tileS
   return { tiles: spec.tiles, tileSize: spec.tileSize, maxzoom: spec.maxzoom, attribution: "Google, see dynamic attribution in source panel" }
 }
 
+/** One Google Earth Historical tile as PNG bytes, resolved in-process — the
+ *  same path the gehist:// protocol handler takes, minus MapLibre. For the
+ *  Export Multi mosaic, which cannot fetch() a custom scheme. Throws when
+ *  Google has no tile for that date/level, so the caller's zoom step-down
+ *  can try a coarser level rather than writing a transparent frame. */
+export async function fetchGeHistoricalTileBlob(z: number, x: number, y: number, dateMs: number, signal?: AbortSignal): Promise<Blob> {
+  const ge = getGe()
+  const d = new Date(dateMs)
+  // Same shared target-date state the protocol handler sets per request.
+  ;(ge.source as { targetDate: { year: number; month: number; day: number } }).targetDate = { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() }
+  const data: Uint8Array | null = await (ge.source as { getMercatorTile: (z: number, x: number, y: number, signal?: AbortSignal) => Promise<Uint8Array | null> }).getMercatorTile(z, x, y, signal)
+  if (!data) throw new Error(`Google Earth has no tile at z${z} for ${d.toISOString().slice(0, 10)}`)
+  return new Blob([data as BlobPart], { type: "image/png" })
+}
+
 const LOCAL_DATES_DEBOUNCE_MS = 400
 
 /** Real per-location capture dates from Google's own IMAGERY_HISTORY layer

@@ -25,6 +25,11 @@ export interface FetchRgbTileMosaicOptions {
   /** Overrides tileUrlTemplate's plain {z}/{x}/{y} substitution for sources
    *  whose URL isn't a simple template (quadkey-addressed tiles, etc). */
   buildTileUrl?: (z: number, x: number, y: number) => string
+  /** Bypasses fetch() entirely for sources that only exist behind a MapLibre
+   *  custom protocol (Google Earth Historical's gehist://, which the Fetch
+   *  API refuses with "URL scheme not supported"): resolves the tile bytes
+   *  in-process instead. Wins over tileUrlTemplate / buildTileUrl. */
+  fetchTileBlob?: (z: number, x: number, y: number, signal?: AbortSignal) => Promise<Blob>
   tileSize: number
   /** Requested bbox in lon/lat (EPSG:4326), [west, south, east, north]. */
   bbox: [number, number, number, number]
@@ -34,8 +39,8 @@ export interface FetchRgbTileMosaicOptions {
 }
 
 export async function fetchRgbTileMosaic(opts: FetchRgbTileMosaicOptions): Promise<RgbTileMosaicResult> {
-  const { tileUrlTemplate, buildTileUrl, tileSize, bbox, zoom, onProgress, signal } = opts
-  if (!tileUrlTemplate && !buildTileUrl) throw new Error("fetchRgbTileMosaic needs either tileUrlTemplate or buildTileUrl")
+  const { tileUrlTemplate, buildTileUrl, fetchTileBlob, tileSize, bbox, zoom, onProgress, signal } = opts
+  if (!tileUrlTemplate && !buildTileUrl && !fetchTileBlob) throw new Error("fetchRgbTileMosaic needs a tileUrlTemplate, buildTileUrl or fetchTileBlob")
   const [west, south, east, north] = bbox
 
   const [xMinF, yMinF] = lonLatToTileXY(west, north, zoom)
@@ -58,13 +63,17 @@ export async function fetchRgbTileMosaic(opts: FetchRgbTileMosaicOptions): Promi
 
   for (let ty = yMin; ty <= yMax; ty++) {
     for (let tx = xMin; tx <= xMax; tx++) {
-      const url = buildTileUrl
-        ? buildTileUrl(zoom, tx, ty)
-        : tileUrlTemplate!.replace("{z}", String(zoom)).replace("{x}", String(tx)).replace("{y}", String(ty))
-
-      const response = await fetch(url, { signal })
-      if (!response.ok) throw new Error(`Tile fetch failed (${response.status}): ${url}`)
-      const blob = await response.blob()
+      let blob: Blob
+      if (fetchTileBlob) {
+        blob = await fetchTileBlob(zoom, tx, ty, signal)
+      } else {
+        const url = buildTileUrl
+          ? buildTileUrl(zoom, tx, ty)
+          : tileUrlTemplate!.replace("{z}", String(zoom)).replace("{x}", String(tx)).replace("{y}", String(ty))
+        const response = await fetch(url, { signal })
+        if (!response.ok) throw new Error(`Tile fetch failed (${response.status}): ${url}`)
+        blob = await response.blob()
+      }
       const bitmap = await createImageBitmap(blob)
 
       const canvas = document.createElement("canvas")

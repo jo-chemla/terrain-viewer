@@ -6,7 +6,7 @@
 // components/TerrainControlPanel/export-multi-dialog.tsx for the UI.
 import { zipSync } from "fflate"
 import type { GeoJSONFeature, DrawLayer } from "@/components/TerrainControlPanel/TerraDrawSystem"
-import { EXPORT_SOURCE_IDS, listExportTicks, type ExportSourceId, type ExportSourceKeys, type ExportTick } from "./historical-export-sources"
+import { EXPORT_SOURCE_IDS, EXPORT_SOURCE_FILE_STEMS, listExportTicks, type ExportSourceId, type ExportSourceKeys, type ExportTick } from "./historical-export-sources"
 import { computeFeaturePaddedExtent, type Bbox4 } from "./feature-extent"
 import { fetchRgbTileMosaic } from "./rgb-tile-mosaic"
 import { buildRgbGeoTiff } from "./rgb-geotiff"
@@ -189,6 +189,7 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
           mosaic = await fetchRgbTileMosaic({
             tileUrlTemplate: item.tick.tileSpec.tileUrlTemplate,
             buildTileUrl: item.tick.tileSpec.buildTileUrl,
+            fetchTileBlob: item.tick.tileSpec.fetchTileBlob,
             tileSize: item.tick.tileSpec.tileSize,
             bbox: item.target.paddedBbox,
             zoom,
@@ -211,7 +212,7 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
       // The viewport target's label and extent descriptor are both
       // "viewport"; don't repeat it (viewport_viewport_bing_...).
       const stem = item.target.extentDescriptor === item.target.label ? item.target.label : `${item.target.label}_${item.target.extentDescriptor}`
-      let name = `${stem}_${item.source}_${item.tick.label}`
+      let name = `${stem}_${EXPORT_SOURCE_FILE_STEMS[item.source]}_${item.tick.label}`
       if (usedNames.has(name)) {
         let n = 2
         while (usedNames.has(`${name}-${n}`)) n++
@@ -250,7 +251,7 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
         const template = item.tick.tileSpec.tileUrlTemplate
         const quadkeyTemplate = item.tick.tileSpec.quadkeyUrlTemplate
         if (hasGdalTemplate(template) || hasGdalQuadkeyTemplate(quadkeyTemplate)) {
-          const filename = `${item.target.extentDescriptor === label ? label : `${label}_${item.target.extentDescriptor}`}_${item.source}_${item.tick.label}_gdal`
+          const filename = `${item.target.extentDescriptor === label ? label : `${label}_${item.target.extentDescriptor}`}_${EXPORT_SOURCE_FILE_STEMS[item.source]}_${item.tick.label}_gdal`
           lines.push(buildGdalTranslateCommand({ tileUrlTemplate: template, quadkeyUrlTemplate: quadkeyTemplate, bbox: item.target.paddedBbox, filename, outsizeWidth: targetResolution }))
         } else {
           lines.push(buildGdalSkipComment(
