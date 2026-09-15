@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { useAtomValue, useSetAtom } from "jotai"
-import { Layers, Loader2, X, CalendarDays } from "lucide-react"
+import { Layers, Loader2, X, CalendarDays, ChevronDown } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import saveAs from "file-saver"
@@ -24,7 +24,7 @@ import { track } from "@/lib/analytics"
 
 // EOX Sentinel-2 is off by default: a 10 m yearly cloudless mosaic is rarely
 // what someone exporting VHR history wants, and it adds a file per year.
-const DEFAULT_SOURCE_IDS: ExportSourceId[] = ["wayback", "ge-historical", "bing"]
+const DEFAULT_SOURCE_IDS: ExportSourceId[] = ["wayback", "ge-historical", ...CURRENT_BASEMAP_SOURCE_IDS]
 const HISTORICAL_SOURCE_IDS = EXPORT_SOURCE_IDS.filter((id) => !CURRENT_BASEMAP_SOURCE_IDS.includes(id))
 
 /** "2024-03-08" <-> Date, UTC, for the calendar pickers. */
@@ -284,15 +284,47 @@ export const ExportMultiDialog: React.FC<{
               ))}
             </div>
             <Label className="text-sm font-medium pt-1">Current basemaps</Label>
-            <p className="text-xs text-muted-foreground">One file each, today's mosaic, regardless of the date range.</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {CURRENT_BASEMAP_SOURCE_IDS.filter((id) => (id !== "mapbox" || !!mapboxKey) && (id !== "here" || !!hereKey)).map((id) => (
-                <div key={id} className="flex items-center gap-2">
-                  <Checkbox id={`export-multi-src-${id}`} checked={sourceIds.has(id)} onCheckedChange={() => toggleSource(id)} className="cursor-pointer" />
-                  <Label htmlFor={`export-multi-src-${id}`} className="text-sm cursor-pointer truncate">{EXPORT_SOURCE_LABELS[id]}</Label>
-                </div>
-              ))}
-            </div>
+            {/* One control for the whole group: "All" first, then each
+                provider, so it does not cost a row per basemap. Mapbox and
+                HERE only appear once their keys are set. */}
+            {(() => {
+              const available = CURRENT_BASEMAP_SOURCE_IDS.filter((id) => (id !== "mapbox" || !!mapboxKey) && (id !== "here" || !!hereKey))
+              const chosen = available.filter((id) => sourceIds.has(id))
+              const allOn = chosen.length === available.length
+              const setMany = (ids: readonly ExportSourceId[], on: boolean) => setSourceIds((prev) => {
+                const next = new Set(prev)
+                for (const id of ids) on ? next.add(id) : next.delete(id)
+                return next
+              })
+              const summary = allOn ? `All (${available.length})` : chosen.length === 0 ? "None" : chosen.map((id) => EXPORT_SOURCE_LABELS[id].replace(" (current)", "")).join(", ")
+              return (
+                <Popover>
+                  <PopoverTrigger
+                    render={
+                      <Button variant="outline" className="w-full justify-between cursor-pointer font-normal">
+                        <span className="truncate">{summary}</span>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </Button>
+                    }
+                  />
+                  <PopoverContent align="start" className="w-64 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Checkbox id="export-multi-current-all" checked={allOn} indeterminate={!allOn && chosen.length > 0} onCheckedChange={(v) => setMany(available, v === true)} className="cursor-pointer" />
+                      <Label htmlFor="export-multi-current-all" className="text-sm cursor-pointer font-medium">All current basemaps</Label>
+                    </div>
+                    <div className="border-t pt-1.5 space-y-1.5">
+                      {available.map((id) => (
+                        <div key={id} className="flex items-center gap-2">
+                          <Checkbox id={`export-multi-src-${id}`} checked={sourceIds.has(id)} onCheckedChange={() => toggleSource(id)} className="cursor-pointer" />
+                          <Label htmlFor={`export-multi-src-${id}`} className="text-sm cursor-pointer truncate">{EXPORT_SOURCE_LABELS[id].replace(" (current)", "")}</Label>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">One file each, today's mosaic, regardless of the date range.</p>
+                  </PopoverContent>
+                </Popover>
+              )
+            })()}
             {getMapView && sourceIds.size > 0 && (
               <p className="text-xs text-muted-foreground">
                 {rangeCounts.pending ? "Counting captures in range… " : ""}

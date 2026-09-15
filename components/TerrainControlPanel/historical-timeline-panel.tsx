@@ -654,8 +654,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const [windowRequest] = useAtom(timelineWindowRequestAtom)
   useEffect(() => {
     if (!windowRequest) return
-    const min = Math.max(paddedMin, windowRequest.min)
-    const max = Math.min(paddedMax, windowRequest.max)
+    // Keep the REQUESTED SPAN, slid inside the reachable domain, rather than
+    // intersecting the two: the export dialog defaults to "the last year up
+    // to today", while this axis ends six months after the newest tick, so a
+    // plain intersection left a ten-day sliver at the far right that read
+    // as the sync not working at all. Slide the window left until it fits.
+    const span = Math.max(MIN_VISIBLE_SPAN_MS, windowRequest.max - windowRequest.min)
+    let max = Math.min(paddedMax, windowRequest.max)
+    let min = Math.max(paddedMin, max - span)
+    if (max - min < span) max = Math.min(paddedMax, min + span)
     if (max <= min) return
     hasZoomedRef.current = true
     setViewWindow(min <= paddedMin && max >= paddedMax ? null : { min, max })

@@ -1109,8 +1109,8 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                 ) : (
                                     <button
                                         type="button"
-                                        onClick={() => setActiveLayerId(layer.id)}
-                                        title={layer.id === activeLayerId ? "Active layer — new drawings go here" : "Click to draw on this layer"}
+                                        onClick={() => layer.id === activeLayerId ? setLayerHidden(layer.id, !layer.hidden) : setActiveLayerId(layer.id)}
+                                        title={layer.id === activeLayerId ? `Active layer — new drawings go here. Click again to ${layer.hidden ? "show" : "hide"} it` : "Click to draw on this layer"}
                                         className={`flex-1 text-left text-sm truncate min-w-0 cursor-pointer ${layer.id === activeLayerId ? "font-bold" : "font-normal"} ${layer.hidden ? "text-muted-foreground" : ""}`}
                                     >
                                         {layer.name} <span className="text-muted-foreground font-normal">({featureCount(layer.id)})</span>
