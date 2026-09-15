@@ -373,9 +373,9 @@ export function TerrainControlPanel({
       if (activeProjectConfig.initialViewMode) resets.viewMode = activeProjectConfig.initialViewMode
     }
     const camera = {
-      lat: (activeProjectConfig?.initialState?.lat as number | undefined) ?? 20,
+      lat: (activeProjectConfig?.initialState?.lat as number | undefined) ?? 21.4208,
       lng: (activeProjectConfig?.initialState?.lng as number | undefined) ?? 0,
-      zoom: (activeProjectConfig?.initialState?.zoom as number | undefined) ?? 1,
+      zoom: (activeProjectConfig?.initialState?.zoom as number | undefined) ?? 1.52,
       pitch: (activeProjectConfig?.initialState?.pitch as number | undefined) ?? 0,
       bearing: (activeProjectConfig?.initialState?.bearing as number | undefined) ?? 0,
     }

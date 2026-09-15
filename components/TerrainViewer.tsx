@@ -705,9 +705,9 @@ export const QUERY_STATE_PARSERS = {
     // mode already used. The old Matterhorn start looked good but dropped a
     // first-time visitor into one alpine valley with no idea the app is
     // worldwide; the preset bookmarks still take them there in one click.
-    lat: parseAsFloat.withDefault(20),
+    lat: parseAsFloat.withDefault(21.4208),
     lng: parseAsFloat.withDefault(0),
-    zoom: parseAsFloat.withDefault(1),
+    zoom: parseAsFloat.withDefault(1.52),
     // -- try getting out of pitch 0 loop in 3d
     // pitch: parseAsFloat.withDefault(60.001),
     pitch: parseAsFloatPrecise.withDefault(0),

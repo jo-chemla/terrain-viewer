@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Plus, Minus, ChevronDown } from "lucide-react"
+import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -12,9 +12,17 @@ export interface SampleLike {
   type?: string
   loadWithSamples?: boolean
   resolutionM?: number
+  url?: string
+  infoUrl?: string
 }
 
 type SectionKey = "national" | "global" | "regional"
+
+/** Bare host-and-path link for a source with no landing page recorded. */
+const endpointOf = (u: string) => {
+  const bare = u.replace(/^[a-z]+:\/\/\/vsicurl\//i, "").replace(/^WMS:/i, "")
+  return bare.startsWith("http") ? bare : `https://${bare}`
+}
 
 const SECTIONS: { key: SectionKey; title: string; blurb: string }[] = [
   { key: "national", title: "Nation-wide", blurb: "Published by a national mapping agency, covering the whole country." },
@@ -24,18 +32,19 @@ const SECTIONS: { key: SectionKey; title: string; blurb: string }[] = [
 
 /** Top-level split for terrain: is this an upgrade over the built-in Mapterhorn? */
 type TierKey = "better" | "notBetter" | "bathy"
-const TIERS: { key: TierKey; title: string; blurb: string }[] = [
-  { key: "better", title: "⬆️ Better than Mapterhorn here",
-    blurb: "Either finer than the bulk data Mapterhorn ingested for the country, or the only national data at all where Mapterhorn falls back to global 30 m." },
-  { key: "notBetter", title: "⬇️ Not better than Mapterhorn",
+const TIERS: { key: TierKey; title: string; icon: LucideIcon; blurb: string }[] = [
+  { key: "better", title: "Better than Mapterhorn here", icon: ArrowUp,
+    blurb: "Finer than the bulk data Mapterhorn ingested for the country, the only national data where Mapterhorn falls back to global 30 m, or an AI bare-earth model where Mapterhorn only has the GLO-30 surface." },
+  { key: "notBetter", title: "Not better than Mapterhorn", icon: ArrowDown,
     blurb: "Same or coarser grid. Worth it for data straight from the agency, or for a surface model where Mapterhorn only has bare earth." },
-  { key: "bathy", title: "🌊 Bathymetry",
+  { key: "bathy", title: "Bathymetry", icon: Waves,
     blurb: "Sea-floor depth, negative below sea level. Mapterhorn is land-only, so there is nothing to compare against." },
 ]
 
 const VERDICT_STYLE: Record<MapterhornVerdict, { label: string; className: string; title: string }> = {
   new: { label: "New", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300", title: "Mapterhorn has no national source here" },
   finer: { label: "Finer", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300", title: "Finer than what Mapterhorn ingested" },
+  bareearth: { label: "Bare earth", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300", title: "AI terrain model on the same 30 m grid, where Mapterhorn only has the GLO-30 surface model" },
   same: { label: "Same", className: "bg-muted text-muted-foreground", title: "Same resolution as Mapterhorn" },
   coarser: { label: "Coarser", className: "bg-orange-500/15 text-orange-700 dark:text-orange-300", title: "Mapterhorn ingested finer data" },
 }
@@ -115,7 +124,7 @@ export function SampleSourcesModal<T extends SampleLike>({
       const c = comparisons.get(s.id)
       const tier: TierKey = !compareToMapterhorn ? "better"
         : kindOf(s.name)?.label === "Bathy" ? "bathy"
-        : c?.verdict === "new" || c?.verdict === "finer" ? "better" : "notBetter"
+        : c?.verdict === "new" || c?.verdict === "finer" || c?.verdict === "bareearth" ? "better" : "notBetter"
       out[tier][sectionOf(s, i, lastGlobal)].push(s)
     })
     return out
@@ -172,6 +181,17 @@ export function SampleSourcesModal<T extends SampleLike>({
           </span>
         )}
         {s.type && <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0 w-16 text-right">{s.type}</span>}
+        {(s.infoUrl || s.url) && (
+          <a
+            href={s.infoUrl ?? endpointOf(s.url!)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={s.infoUrl ? "Dataset page (licence, viewer)" : "Raw endpoint"}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        )}
         <Button
           variant={present ? "outline" : "secondary"}
           size="icon-sm"
@@ -186,16 +206,41 @@ export function SampleSourcesModal<T extends SampleLike>({
     )
   }
 
-  const Section = ({ id, title, blurb, rows, level }: { id: string; title: string; blurb: string; rows: T[]; level: 1 | 2 }) => {
+  /** Add-all / remove-all for one group, sitting left of its chevron. They live
+   *  OUTSIDE the CollapsibleTrigger (itself a button) so they neither nest
+   *  buttons nor toggle the fold when clicked. */
+  const GroupActions = ({ rows }: { rows: T[] }) => {
+    const loaded = rows.filter((s) => presentIds.has(s.id)).length
+    return (
+      <span className="flex items-center gap-1 shrink-0">
+        <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Add every source in this group"
+          disabled={loaded === rows.length} onClick={() => add(rows)}>
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+        <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Remove every source in this group"
+          disabled={loaded === 0} onClick={() => remove(rows)}>
+          <Minus className="h-3.5 w-3.5" />
+        </Button>
+      </span>
+    )
+  }
+
+  const Section = ({ id, title, icon: Icon, blurb, rows, level }: { id: string; title: string; icon?: LucideIcon; blurb: string; rows: T[]; level: 1 | 2 }) => {
     const loaded = rows.filter((s) => presentIds.has(s.id)).length
     return (
       <Collapsible open={isOpen(id)} onOpenChange={(o) => setOpenSections((p) => ({ ...p, [id]: o }))}>
-        <CollapsibleTrigger className={`flex items-center justify-between w-full py-1 cursor-pointer ${level === 1 ? "border-b-2" : "border-b"}`}>
-          <span className={level === 1 ? "text-sm font-bold" : "text-sm font-semibold"}>
-            {title} <span className="font-normal text-muted-foreground">· {loaded}/{rows.length}</span>
-          </span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen(id) ? "rotate-180" : ""}`} />
-        </CollapsibleTrigger>
+        <div className={`flex items-center gap-1 ${level === 1 ? "border-b-2" : "border-b"}`}>
+          <CollapsibleTrigger className="flex items-center gap-1.5 flex-1 min-w-0 py-1 cursor-pointer text-left">
+            {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
+            <span className={level === 1 ? "text-sm font-bold" : "text-sm font-semibold"}>
+              {title} <span className="font-normal text-muted-foreground">· {loaded}/{rows.length}</span>
+            </span>
+          </CollapsibleTrigger>
+          <GroupActions rows={rows} />
+          <CollapsibleTrigger className="cursor-pointer p-1">
+            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen(id) ? "rotate-180" : ""}`} />
+          </CollapsibleTrigger>
+        </div>
         <CollapsibleContent>
           <p className="text-xs text-muted-foreground pt-1">{blurb}</p>
         </CollapsibleContent>
@@ -210,12 +255,17 @@ export function SampleSourcesModal<T extends SampleLike>({
       const id = `${prefix}${sec.key}`
       return (
         <Collapsible key={id} open={isOpen(id)} onOpenChange={(o) => setOpenSections((p) => ({ ...p, [id]: o }))}>
-          <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer border-b">
-            <span className="text-sm font-semibold">
-              {sec.title} <span className="font-normal text-muted-foreground">· {rows.filter((s) => presentIds.has(s.id)).length}/{rows.length}</span>
-            </span>
-            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen(id) ? "rotate-180" : ""}`} />
-          </CollapsibleTrigger>
+          <div className="flex items-center gap-1 border-b">
+            <CollapsibleTrigger className="flex items-center flex-1 min-w-0 py-1 cursor-pointer text-left">
+              <span className="text-sm font-semibold">
+                {sec.title} <span className="font-normal text-muted-foreground">· {rows.filter((s) => presentIds.has(s.id)).length}/{rows.length}</span>
+              </span>
+            </CollapsibleTrigger>
+            <GroupActions rows={rows} />
+            <CollapsibleTrigger className="cursor-pointer p-1">
+              <ChevronDown className={`h-4 w-4 transition-transform ${isOpen(id) ? "rotate-180" : ""}`} />
+            </CollapsibleTrigger>
+          </div>
           <CollapsibleContent>
             <p className="text-xs text-muted-foreground pt-1">{sec.blurb}</p>
             <div className="divide-y divide-border/50">
@@ -250,7 +300,7 @@ export function SampleSourcesModal<T extends SampleLike>({
                 if (!rows.length) return null
                 return (
                   <div key={tier.key} className="space-y-3">
-                    <Section id={tier.key} title={tier.title} blurb={tier.blurb} rows={rows} level={1} />
+                    <Section id={tier.key} title={tier.title} icon={tier.icon} blurb={tier.blurb} rows={rows} level={1} />
                     {isOpen(tier.key) && (
                       tier.key === "bathy"
                         ? <div className="pl-2 divide-y divide-border/50">{rows.map((s) => <Row key={s.id} s={s} />)}</div>

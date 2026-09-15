@@ -173,6 +173,10 @@ export interface CustomTerrainSource {
    *  Haiti DTM makes titiler fail with "Cannot convert fill_value -999.0 to
    *  dtype uint16", so it has to be settable per source. */
   titilerNodata?: number
+  /** Human landing page for the dataset - the agency's product page, catalogue
+   *  record or viewer, ideally stating the licence. Shown as a link in the
+   *  sample picker; absent means the raw endpoint host is linked instead. */
+  infoUrl?: string
 }
 
 // getOnInit: true reads localStorage synchronously on first render instead of the

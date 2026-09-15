@@ -8,8 +8,10 @@ import customSources from "./custom-sources.json"
  * sometimes the only data at all (Mexico, Uruguay: Mapterhorn has no national
  * source there and falls back to global 30 m).
  *
- *   new     - Mapterhorn has nothing national here (falls back to GLO-30)
- *   finer   - this source is finer than what Mapterhorn ingested
+ *   new       - Mapterhorn has nothing national here (falls back to GLO-30)
+ *   finer     - this source is finer than what Mapterhorn ingested
+ *   bareearth - same 30 m grid, but an AI terrain model where Mapterhorn only
+ *               has the GLO-30 SURFACE (ANADEM, GEDTM30) - better ground
  *   same    - equal resolution
  *   coarser - Mapterhorn is the better choice for detail
  *
@@ -17,7 +19,7 @@ import customSources from "./custom-sources.json"
  * MAPTERHORN_BEST_RESOLUTION_M per ISO-3 prefix (GLOBAL for the fallback). The
  * docs page grades with the exact same data.
  */
-export type MapterhornVerdict = "new" | "finer" | "same" | "coarser"
+export type MapterhornVerdict = "new" | "finer" | "bareearth" | "same" | "coarser"
 
 export interface MapterhornComparison {
   verdict: MapterhornVerdict
@@ -37,6 +39,7 @@ export function compareWithMapterhorn(source: { name: string; resolutionM?: numb
   if (ours === undefined) return null
   // Bathymetry has no Mapterhorn counterpart at all - it is land-only.
   if (/bathymetr/i.test(source.name)) return { verdict: "new", ours, theirs: GLO30 }
+  if (/bare-earth DTM from the GLO-30/i.test(source.name)) return { verdict: "bareearth", ours, theirs: GLO30 }
   const iso = source.name.startsWith("Global - ") ? "GLOBAL" : ISO_RE.exec(source.name)?.[1]
   const national = iso ? BEST[iso] : undefined
   // No national entry (or one no better than the global fallback): anything
