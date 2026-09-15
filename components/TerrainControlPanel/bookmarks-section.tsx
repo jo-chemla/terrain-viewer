@@ -865,7 +865,8 @@ export const BookmarksSection: React.FC<{
               />
               <TooltipContent><p>Drag to resize</p></TooltipContent>
             </Tooltip>
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
         <div className="flex gap-2">

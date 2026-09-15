@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
 import { ChevronDown, Link, Settings2, Expand, Copy, Check } from "lucide-react"
@@ -19,9 +19,12 @@ import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName,
 import { copyToClipboard } from "@/lib/controls-utils"
 import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
 import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
+// Lazy: the Editor Layer Index ships an ~800 KB always-loaded locator, which
+// should only ever be fetched once someone picks this option.
+const EliSearchPanel = lazy(() => import("./eli-search-panel").then((m) => ({ default: m.EliSearchPanel })))
 import { WmsPickerPanel } from "./wms-picker-panel"
 
-type BasemapFormType = "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "tilejson" | "wms-picker"
+type BasemapFormType = "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "eli" | "tilejson" | "wms-picker"
 
 export const CustomBasemapModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomBasemapSource | null
@@ -279,6 +282,7 @@ export const CustomBasemapModal: React.FC<{
                 tilejson: "TileJSON (Raster Basemap)",
                 "wms-picker": "WMS (list layers)",
                 qms: "NextGIS QMS (search)",
+                eli: "OSM Editor Layer Index (search)",
               }}
             >
               <SelectTrigger id="basemap-type" className="cursor-pointer w-full">
@@ -297,12 +301,17 @@ export const CustomBasemapModal: React.FC<{
                 <SelectItem value="tilejson">TileJSON (Raster Basemap)</SelectItem>
                 {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
                 {!editingSource && <SelectItem value="qms">NextGIS QMS (search)</SelectItem>}
+                {!editingSource && <SelectItem value="eli">OSM Editor Layer Index (search)</SelectItem>}
               </SelectContent>
             </Select>
           </div>
 
           {type === "qms" ? (
             <NextGisQmsSearchPanel onSave={(source) => { onSave(source); onOpenChange(false) }} />
+          ) : type === "eli" ? (
+            <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading the Editor Layer Index…</p>}>
+              <EliSearchPanel mapRef={mapRef} onSave={(source) => { onSave(source); onOpenChange(false) }} />
+            </Suspense>
           ) : type === "wms-picker" ? (
             <WmsPickerPanel
               format="image/png"
