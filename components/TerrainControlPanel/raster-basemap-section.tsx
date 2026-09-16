@@ -24,6 +24,9 @@ import { activeViews, viewFieldName, type ViewId, type GridLayoutId } from "@/li
 // one actually renders is picked via the bottom timeline panel's pills/ticks,
 // not the sidebar (see lib/historical-sources.ts's resolveActiveHistoricalSource).
 export const BUILTIN_BASEMAP_OPTIONS = [
+  // Only offered while at least one overlay is stacked (or while selected):
+  // overlays alone, nothing underneath.
+  { value: "none", label: "None (overlays only)", shortLabel: "None" },
   { value: "historical", label: "Historical Imagery", shortLabel: "Historical" },
   { value: "google", label: "Google Hybrid", shortLabel: "Google" },
   { value: "bing", label: "Bing Aerial", shortLabel: "Bing" },
@@ -75,8 +78,9 @@ export const RasterBasemapSection: React.FC<{
   const visibleBuiltinOptions = useMemo(
     () => BUILTIN_BASEMAP_OPTIONS
       .filter((o) => !(o.value in KEY_GATED_BASEMAPS) || !!gatedKeyValues[o.value])
-      .filter((o) => state.historicalBeta || o.value !== "historical"),
-    [hereKey, mapboxKey, maptilerKey, planetKey, state.historicalBeta],
+      .filter((o) => state.historicalBeta || o.value !== "historical")
+      .filter((o) => o.value !== "none" || (state.overlayBasemapIds?.length ?? 0) > 0 || state.basemapSource === "none" || state.basemapSourceA === "none"),
+    [hereKey, mapboxKey, maptilerKey, planetKey, state.historicalBeta, state.overlayBasemapIds, state.basemapSource, state.basemapSourceA],
   )
 
   const basemapSourceOptions = useMemo(() => [

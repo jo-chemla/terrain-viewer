@@ -6,6 +6,7 @@ import { ChevronDown, Link, Settings2, Expand, Copy, Check, ExternalLink } from 
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
@@ -62,6 +63,7 @@ export const CustomBasemapModal: React.FC<{
   }, [])
   const [description, setDescription] = useState("")
   const [role, setRole] = useState<CustomBasemapSource["role"]>("basemap")
+  const [cogViaTitiler, setCogViaTitiler] = useState(false)
   const [opacity, setOpacity] = useState(100)
   // Unlike the terrain side, no basemap source type gets an auto-detected zoom
   // range (RasterBasemapSource just reads customBasemap.minzoom/maxzoom with a
@@ -112,6 +114,7 @@ export const CustomBasemapModal: React.FC<{
       setType(editingSource.type)
       setDescription(editingSource.description || "")
       setRole(editingSource.role ?? "basemap")
+      setCogViaTitiler(!!editingSource.cogViaTitiler)
       setOpacity(editingSource.opacity ?? 100)
       originalOpacityRef.current = editingSource.opacity ?? 100
       setMinzoom(editingSource.minzoom === undefined ? "" : String(editingSource.minzoom))
@@ -136,6 +139,7 @@ export const CustomBasemapModal: React.FC<{
       setTypeState((((stacSearchBeta || lastType !== "stac") ? lastType : "qms") as BasemapFormType) || "qms")
       setDescription("")
       setRole("basemap")
+      setCogViaTitiler(false)
       setOpacity(100)
       setMinzoom("")
       setMaxzoom("")
@@ -213,9 +217,10 @@ export const CustomBasemapModal: React.FC<{
       maxzoom: maxzoom === "" ? undefined : Number(maxzoom),
       linkedTerrainId: linkedTerrainId || undefined,
       bounds: parsedBounds,
+      cogViaTitiler: type === "cog" && cogViaTitiler ? true : undefined,
     })
     onOpenChange(false)
-  }, [name, url, type, description, role, opacity, minzoom, maxzoom, linkedTerrainId, boundsWest, boundsSouth, boundsEast, boundsNorth, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, role, opacity, minzoom, maxzoom, linkedTerrainId, boundsWest, boundsSouth, boundsEast, boundsNorth, cogViaTitiler, editingSource, onSave, onOpenChange])
 
   // Unlike terrain, no basemap source type gets an auto-detected zoom range applied
   // at render time (RasterBasemapSource just reads customBasemap.maxzoom with a 0/22
@@ -477,6 +482,15 @@ export const CustomBasemapModal: React.FC<{
                   <ChevronDown className={`h-4 w-4 transition-transform ${isAdvancedOpen ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-2">
+                  {type === "cog" && (
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="basemap-cog-via-titiler" className="text-sm">
+                        Always serve via titiler
+                        <span className="block text-xs font-normal text-muted-foreground">For a COG that is not in EPSG:3857 (the in-browser reader shows nothing for it). Overrides the global COG setting for this source only.</span>
+                      </Label>
+                      <Switch id="basemap-cog-via-titiler" checked={cogViaTitiler} onCheckedChange={setCogViaTitiler} className="cursor-pointer" />
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="basemap-description">
                       Description (optional)

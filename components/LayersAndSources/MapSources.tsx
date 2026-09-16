@@ -404,6 +404,8 @@ export const RasterBasemapSource = memo(({
         : null
 
     const sourceProps = useMemo(() => {
+        // "None": overlays only, no base imagery underneath.
+        if (basemapSource === "none") return null
         if (customBasemap) {
             if (isCogLocal && !resolvedCogUrl) return null // not (re-)picked yet this session
             return buildRasterTileSource({
@@ -543,7 +545,9 @@ export const OverlayBasemapSources = memo(({
                 const sourceProps = buildRasterTileSource({
                     url: isCogLocal ? resolvedCogUrl! : source.url,
                     type: isCogLocal ? "cog" : source.type,
-                    useCogProtocol: isCogLocal ? true : useCogProtocol,
+                    // Same per-source titiler pin as the main basemap path -
+                    // a 4326 / UTM COG stacked as an overlay was blank without it.
+                    useCogProtocol: isCogLocal ? true : useCogProtocol && !source.cogViaTitiler,
                     titilerEndpoint,
                     scheme: source.scheme,
                 })

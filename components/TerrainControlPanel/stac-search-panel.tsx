@@ -143,19 +143,28 @@ async function crawlStaticItems(url: string, bbox: number[] | null, limit: numbe
   const queue: { url: string; depth: number }[] = [{ url, depth: 0 }]
   const itemLinks: string[] = []
   const seen = new Set<string>()
+  // Children are fetched eight at a time: OpenTopography's root alone has
+  // 283 collections, which took minutes one by one.
   while (queue.length && itemLinks.length < limit * 4) {
-    const { url: u, depth } = queue.shift()!
-    if (seen.has(u) || depth > 4) continue
-    seen.add(u)
-    let node: { links?: StacLink[]; extent?: { spatial?: { bbox?: number[][] } } }
-    try { node = await fetchJson(u, { signal }) } catch { continue }
-    // Skip whole collections that cannot overlap the viewport.
-    const ext = node.extent?.spatial?.bbox?.[0]
-    if (bbox && ext && (ext[2] < bbox[0] || ext[0] > bbox[2] || ext[3] < bbox[1] || ext[1] > bbox[3])) continue
-    for (const l of node.links ?? []) {
-      if (l.rel === "item") itemLinks.push(resolveHref(u, l.href))
-      else if (l.rel === "child") queue.push({ url: resolveHref(u, l.href), depth: depth + 1 })
+    const batch: { url: string; depth: number }[] = []
+    while (queue.length && batch.length < 8) {
+      const next = queue.shift()!
+      if (seen.has(next.url) || next.depth > 4) continue
+      seen.add(next.url)
+      batch.push(next)
     }
+    const nodes = await Promise.all(batch.map(({ url: u }) => fetchJson<{ links?: StacLink[]; extent?: { spatial?: { bbox?: number[][] } } }>(u, { signal }).catch(() => null)))
+    nodes.forEach((node, i) => {
+      if (!node) return
+      const { url: u, depth } = batch[i]
+      // Skip whole collections that cannot overlap the viewport.
+      const ext = node.extent?.spatial?.bbox?.[0]
+      if (bbox && ext && (ext[2] < bbox[0] || ext[0] > bbox[2] || ext[3] < bbox[1] || ext[1] > bbox[3])) return
+      for (const l of node.links ?? []) {
+        if (l.rel === "item") itemLinks.push(resolveHref(u, l.href))
+        else if (l.rel === "child") queue.push({ url: resolveHref(u, l.href), depth: depth + 1 })
+      }
+    })
   }
   for (let i = 0; i < itemLinks.length && items.length < limit; i += 8) {
     const batch = await Promise.all(itemLinks.slice(i, i + 8).map((l) => fetchJson<StacItem>(l, { signal }).catch(() => null)))
@@ -203,6 +212,7 @@ export const StacSearchPanel: React.FC<{
   const [error, setError] = useState("")
   const [added, setAdded] = useState<Set<string>>(() => new Set())
   const [only3857, setOnly3857] = useState(false)
+  const [anyDate, setAnyDate] = useState(target === "terrain")
   useEffect(() => { remembered[target] = { presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections } },
     [target, presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections])
 
@@ -237,9 +247,10 @@ export const StacSearchPanel: React.FC<{
       const map = mapRef?.current?.getMap()
       const b = viewportOnly && map ? map.getBounds() : null
       const bbox = b ? [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()] : null
-      const datetime = `${startDate}T00:00:00Z/${endDate}T23:59:59Z`
+      const datetime = anyDate ? undefined : `${startDate}T00:00:00Z/${endDate}T23:59:59Z`
       if (catalog.kind === "api") {
-        const body: Record<string, unknown> = { limit: 50, datetime }
+        const body: Record<string, unknown> = { limit: 50 }
+        if (datetime) body.datetime = datetime
         if (bbox) body.bbox = bbox
         if (collectionId) body.collections = [collectionId]
         const data = await fetchJson<{ features: StacItem[] }>(`${catalog.url}/search`, {
@@ -253,7 +264,8 @@ export const StacSearchPanel: React.FC<{
         const col = collections.find((c) => c.id === collectionId)
         const itemsHref = col?.links?.find((l) => l.rel === "items")?.href
         if (!itemsHref) throw new Error("Pick a collection first: the federation only searches collections, items come from each collection's own API")
-        const q = new URLSearchParams({ limit: "50", datetime })
+        const q = new URLSearchParams({ limit: "50" })
+        if (datetime) q.set("datetime", datetime)
         if (bbox) q.set("bbox", bbox.join(","))
         const data = await fetchJson<{ features: StacItem[] }>(`${itemsHref}${itemsHref.includes("?") ? "&" : "?"}${q}`)
         setItems(data.features ?? [])
@@ -266,7 +278,7 @@ export const StacSearchPanel: React.FC<{
     } finally {
       setLoading(false)
     }
-  }, [catalog, collectionId, collections, startDate, endDate, viewportOnly, mapRef])
+  }, [catalog, collectionId, collections, startDate, endDate, viewportOnly, anyDate, mapRef])
 
   const cogAssets = (it: StacItem) => {
     let assets = Object.entries(it.assets ?? {}).filter(([key, a]) => isCog(a) && (target !== "terrain" || usableForTerrain(key, a)))
@@ -312,7 +324,7 @@ export const StacSearchPanel: React.FC<{
     <div className="space-y-3 min-w-0">
       <p className="text-xs text-muted-foreground">
         Beta — search a STAC catalogue for Cloud Optimized GeoTIFFs and add any as {target === "terrain" ? "terrain (DEM)" : "basemap"} sources; the dialog stays open so you can add several.
-        Web Mercator (3857) assets are listed first{target === "terrain" ? ", single-band elevation rasters only" : ""}, then other known projections (routed through titiler), then assets whose projection the catalogue does not state.
+        Web Mercator (3857) assets stream in-browser and are listed first{target === "terrain" ? ", single-band elevation rasters only" : ""}; everything else (other or unstated projection) is served through titiler.
       </p>
       <Select value={presetId} onValueChange={(v) => v && setPresetId(v)} items={selectItems}>
         <SelectTrigger className="w-full cursor-pointer"><SelectValue /></SelectTrigger>
@@ -355,9 +367,17 @@ export const StacSearchPanel: React.FC<{
       )}
 
       <div className="flex items-center gap-2">
-        <DateButton value={startDate} onChange={setStartDate} />
-        <span className="text-xs text-muted-foreground">to</span>
-        <DateButton value={endDate} onChange={setEndDate} />
+        <div className="flex items-center gap-2 shrink-0" title="Static catalogs are never filtered by date; APIs are, unless this is ticked">
+          <Checkbox id="stac-any-date" checked={anyDate} onCheckedChange={(v) => setAnyDate(v === true)} className="cursor-pointer" />
+          <Label htmlFor="stac-any-date" className="text-xs cursor-pointer">Any date</Label>
+        </div>
+        {!anyDate && (
+          <>
+            <DateButton value={startDate} onChange={setStartDate} />
+            <span className="text-xs text-muted-foreground">to</span>
+            <DateButton value={endDate} onChange={setEndDate} />
+          </>
+        )}
       </div>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 flex-wrap">
@@ -400,23 +420,27 @@ export const StacSearchPanel: React.FC<{
               <div className="flex flex-wrap gap-1">
                 {assets.slice(0, 12).map(([key, a]) => {
                   const epsg = epsgOf(it, a)
-                  const viaTitiler = epsg !== undefined && epsg !== 3857
+                  // Only a declared EPSG:3857 goes to the in-browser reader; a
+                  // declared other CRS AND an undeclared one both go through
+                  // titiler (no catalogue here serves Web Mercator COGs, and
+                  // the browser reader shows nothing for anything else).
+                  const viaTitiler = epsg !== 3857
                   const isAdded = added.has(a.href)
                   const dem = target === "terrain" && looksLikeDem(it, key, a)
                   return (
                     <Button key={key} size="sm" variant={isAdded ? "secondary" : "outline"} className="h-7 cursor-pointer text-xs max-w-full min-w-0 justify-start" disabled={isAdded}
-                      title={`${a.href}${epsg ? `\nEPSG:${epsg}${viaTitiler ? " - served through titiler" : ""}` : ""}${dem ? "\nLooks like an elevation model" : ""}`}
+                      title={`${a.href}\n${epsg ? `EPSG:${epsg}` : "projection not stated"}${viaTitiler ? " - served through titiler" : " - streamed in-browser"}${dem ? "\nLooks like an elevation model" : ""}`}
                       onClick={() => { setAdded((s) => new Set(s).add(a.href)); onSave({
                         name: title === it.id || a.title === title ? `${title}${a.title && a.title !== title ? ` — ${a.title}` : assets.length > 1 ? ` — ${key}` : ""}` : `${title} — ${a.title || key}`, url: a.href, type: "cog",
                         description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""} · ${it.id}${when ? ` · ${when}` : ""}${gsd ? ` · ${gsd}` : ""}${producer ? ` · ${producer}` : ""}${epsg ? ` · EPSG:${epsg}` : ""}`,
                         bounds: it.bbox && it.bbox.length >= 4 ? [it.bbox[0], it.bbox[1], it.bbox[2], it.bbox[3]] : undefined,
-                        cogViaTitiler: viaTitiler || undefined,
+                        cogViaTitiler: viaTitiler,
                       }) }}>
                       {isAdded ? <Check className="h-3 w-3 shrink-0" /> : <Plus className="h-3 w-3 shrink-0" />}
                       <span className="truncate min-w-0">{a.title || key}</span>
                       {dem && <span className="shrink-0 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1.5 text-[10px] font-medium">DEM</span>}
                       {epsg === 3857 && <span className="shrink-0 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1.5 text-[10px] font-medium">3857</span>}
-                      {epsg && viaTitiler ? <span className="shrink-0 rounded-full bg-muted text-muted-foreground px-1.5 text-[10px] font-medium" title="Served through titiler">{epsg}</span> : null}
+                      {viaTitiler && <span className="shrink-0 rounded-full bg-muted text-muted-foreground px-1.5 text-[10px] font-medium" title="Served through titiler">{epsg ?? "titiler"}</span>}
                     </Button>
                   )
                 })}
