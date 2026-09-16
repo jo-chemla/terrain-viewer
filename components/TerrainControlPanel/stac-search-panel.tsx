@@ -260,16 +260,15 @@ export const StacSearchPanel: React.FC<{
     [target, presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections])
 
   // Collections of the chosen catalogue (API / discovery: /collections with
-  // paging; static: child links). Skipped on mount when the remembered
-  // state already belongs to this catalogue.
-  // Only trust a remembered listing that actually holds collections.
-  // A ref, not state: as state it re-ran this effect on its own update, and
-  // the re-run's cleanup cancelled the fetch it had just started.
-  const listedFor = useRef(prev?.presetId === presetId && (prev?.collections.length ?? 0) > 0 ? catalog.url : "")
+  // paging; static: child links). The first run is skipped when a remembered
+  // listing for this catalogue exists; otherwise every run (re)fetches and a
+  // cleanup only discards a superseded fetch. No "already listed" guard: a
+  // guard that survived the cleanup left React's dev double-invocation with
+  // a cancelled fetch and a spinner that never stopped.
+  const skipFirstListing = useRef(prev?.presetId === presetId && (prev?.collections.length ?? 0) > 0)
   const [listing, setListing] = useState(false)
   useEffect(() => {
-    if (listedFor.current === catalog.url) return
-    listedFor.current = catalog.url
+    if (skipFirstListing.current) { skipFirstListing.current = false; return }
     setListing(true)
     setCollections([]); setCollectionId(""); setItems([]); setError("")
     if (!catalog.url) return
@@ -476,7 +475,7 @@ export const StacSearchPanel: React.FC<{
             <DateButton value={endDate} onChange={setEndDate} />
           </>
         )}
-        <Button size="sm" className="cursor-pointer ml-auto shrink-0" onClick={runSearch} disabled={loading || listing || !catalog.url}>
+        <Button size="sm" className="cursor-pointer ml-auto shrink-0" onClick={runSearch} disabled={loading || !catalog.url}>
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Search
         </Button>
       </div>

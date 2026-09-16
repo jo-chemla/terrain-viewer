@@ -13,6 +13,7 @@ import { DocsViewOptions } from '@/components/page-actions';
 import type { Metadata } from 'next';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
 import { docsBasePath, gitConfig } from '@/lib/shared';
+import { changelogToc } from '@/components/changelog-list';
 
 export default async function Page(props: PageProps<'/[...slug]'>) {
   const params = await props.params;
@@ -27,9 +28,12 @@ export default async function Page(props: PageProps<'/[...slug]'>) {
   // "View as Markdown". Without the prefix both resolved to the
   // non-existent un-prefixed /llms.mdx/... path in the deployed export.
   const markdownUrl = docsBasePath + getPageMarkdownUrl(page).url;
+  // The changelog's entries come from CHANGELOG.md at build time, not from
+  // MDX headings, so its right-hand ToC is built from the same file.
+  const toc = params.slug.join('/') === 'changelog' ? changelogToc() : page.data.toc;
 
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage toc={toc} full={page.data.full}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
       <div className="flex flex-row gap-2 items-center border-b pb-6">

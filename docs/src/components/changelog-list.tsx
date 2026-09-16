@@ -49,15 +49,28 @@ const markdownComponents = {
   img: ({ src, alt }: any) => <img src={src} alt={alt} className="rounded border max-w-full my-2" />,
 };
 
-export function ChangelogList() {
+const entryId = (e: ChangelogEntry) => `${e.releasedDate}-${e.heading}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+function loadEntries(): ChangelogEntry[] {
   const raw = fs.readFileSync(path.join(process.cwd(), "..", "CHANGELOG.md"), "utf-8");
-  const entries = parseChangelog(raw).filter((e) => e.tldrMarkdown);
+  return parseChangelog(raw).filter((e) => e.tldrMarkdown);
+}
+
+/** Fumadocs table-of-contents items for the changelog page: one per release,
+ *  "date — title", pointing at the entry heading's id (the page's MDX has no
+ *  headings of its own, the entries are rendered from CHANGELOG.md). */
+export function changelogToc(): { title: string; url: string; depth: number }[] {
+  return loadEntries().map((e) => ({ title: `${e.releasedDate} — ${e.heading}`, url: `#${entryId(e)}`, depth: 2 }));
+}
+
+export function ChangelogList() {
+  const entries = loadEntries();
 
   return (
     <div className="space-y-8">
       {entries.map((entry) => (
         <div key={entry.releasedDate + entry.heading}>
-          <h3 className="text-base font-semibold">
+          <h3 id={entryId(entry)} className="text-base font-semibold scroll-mt-24">
             <span className="text-fd-muted-foreground font-normal mr-2">{entry.releasedDate}</span>
             {entry.heading}
           </h3>

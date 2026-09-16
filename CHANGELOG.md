@@ -6,8 +6,12 @@
 
   ![Coverage overlays over Europe with the hover list](/docs/screenshots/coverage-overlays.jpg)
 - **STAC search** (beta, Settings → Beta) in both Add dialogs: OpenAerialMap, Earth Search, eoAPI, NASA VEDA, swisstopo, LINZ, OpenTopography, polar DEMs, Maxar / Vantor open-data events, Planet disaster releases, a federated collection search, or any catalogue URL. Date range, current view, cloud cover, Web Mercator first, non-Mercator assets pinned to titiler, terrain limited to single-band elevation rasters, add as basemap or overlay.
+
+  ![STAC search: Vantor open-data scenes over the 2026 Nepal flooding](/docs/screenshots/stac-search.jpg)
 - **Basemap catalogue search**: NextGIS QMS and the OSM Editor Layer Index (bundled, bumped weekly), with licence and attribution carried into Source Info and permalinks into their browsers.
 - **OpenStreetMap is now OpenFreeMap's Liberty vector style** instead of raster tiles, with a 3D buildings toggle, following the basemap visibility and opacity controls.
+
+  ![OSM 3D buildings from OpenFreeMap Liberty over a Vantor post-event overlay](/docs/screenshots/osm-liberty-3d.jpg)
 - Source Info card for custom terrain sources; COG viewer links (source.coop, GeoLibre); "None (overlays only)" basemap; per-source titiler pin for non-Mercator COGs on basemaps too.
 
 # Changelog — National Terrain Library & Historical Export
