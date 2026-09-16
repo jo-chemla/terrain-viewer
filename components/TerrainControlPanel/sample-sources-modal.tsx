@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
-import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, type LucideIcon } from "lucide-react"
+import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, Search, type LucideIcon } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -117,6 +118,8 @@ export function SampleSourcesModal<T extends SampleLike>({
   // "bulk": the finest grid the agency advertises for download, i.e. what
   // Mapterhorn would ingest. Switching regroups the tiers live.
   const [metric, setMetric] = useState<ResolutionMetric>("api")
+  const [query, setQuery] = useState("")
+  const q = query.trim().toLowerCase()
   const hasBulk = useMemo(() => samples.some((s) => s.bulkResolutionM !== undefined), [samples])
   const comparisons = useMemo(() => {
     const m = new Map<string, MapterhornComparison | null>()
@@ -131,6 +134,7 @@ export function SampleSourcesModal<T extends SampleLike>({
       bathy: { national: [], global: [], regional: [] },
     }
     samples.forEach((s, i) => {
+      if (q && !`${s.name} ${s.id} ${s.type ?? ""}`.toLowerCase().includes(q)) return
       const c = comparisons.get(s.id)
       const tier: TierKey = !compareToMapterhorn ? "better"
         : kindOf(s.name)?.label === "Bathy" ? "bathy"
@@ -138,7 +142,7 @@ export function SampleSourcesModal<T extends SampleLike>({
       out[tier][sectionOf(s, i, lastGlobal)].push(s)
     })
     return out
-  }, [samples, comparisons, compareToMapterhorn, lastGlobal])
+  }, [samples, comparisons, compareToMapterhorn, lastGlobal, q])
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
   const isOpen = (k: string) => openSections[k] ?? true
 
@@ -295,7 +299,11 @@ export function SampleSourcesModal<T extends SampleLike>({
             {loadedCount} of {samples.length} in your list. Add or remove one at a time, or take the whole set.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative w-56">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input autoFocus placeholder="Filter datasets…" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-8 cursor-text h-9" />
+          </div>
           <Button className="cursor-pointer" onClick={() => add(loadAllSet)}>
             <Plus className="h-4 w-4" /> Load all
           </Button>

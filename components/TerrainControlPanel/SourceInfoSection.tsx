@@ -334,19 +334,18 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
                     <div className={`text-[10px] uppercase tracking-wide text-muted-foreground px-0.5 ${gi === 0 ? "pb-0.5" : "pt-2 pb-0.5 border-t mt-1"}`}>{g.section}</div>
                   )}
                   <div className="flex items-center gap-1.5 py-0.5">
-                    {g.leaves.length > 1 ? (
-                      <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpen ? "Collapse" : "Expand"}
-                        onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !isOpen }))}>
-                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
-                      </button>
-                    ) : <span className="w-[18px] shrink-0" />}
-                    <Checkbox id={`cov-g-${g.key}`} checked={all} indeterminate={!all && on > 0} onCheckedChange={(v) => setMany(g.leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
+                    <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpen ? "Collapse" : "Expand"}
+                      onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !isOpen }))}>
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                    </button>
+                    <Checkbox id={`cov-g-${g.key}`} checked={all && g.leaves.length > 0} indeterminate={!all && on > 0} disabled={g.leaves.length === 0} onCheckedChange={(v) => setMany(g.leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
                     <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />
                     <Label htmlFor={`cov-g-${g.key}`} className="text-xs font-medium cursor-pointer truncate flex-1" title={g.note}>{g.label}</Label>
                     <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{g.leaves.length}</span>
                   </div>
-                  {isOpen && g.leaves.length > 1 && (
+                  {isOpen && (
                     <div className="pl-[42px] space-y-0.5 max-h-48 overflow-y-auto">
+                      {g.leaves.length === 0 && <p className="text-xs text-muted-foreground italic">None</p>}
                       {g.leaves.map((l) => (
                         <div key={l.id} className="flex items-center gap-1.5">
                           <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />

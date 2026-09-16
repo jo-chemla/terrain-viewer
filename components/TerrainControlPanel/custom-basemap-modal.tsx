@@ -6,6 +6,7 @@ import { ChevronDown, Link, Settings2, Expand, Copy, Check, ExternalLink } from 
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -473,6 +474,7 @@ export const CustomBasemapModal: React.FC<{
                   className="cursor-pointer"
                 />
               </div>
+              <Separator className="my-1" />
               <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
                 <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
                   <span className="flex items-center gap-1.5">

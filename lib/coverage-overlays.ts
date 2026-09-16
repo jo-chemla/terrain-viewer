@@ -80,7 +80,8 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     { section: "Basemaps", key: "basemapLibrary", label: "Basemap library", color: OVERLAY_COLORS.basemapLibrary,
       leaves: BASEMAP_LIB.filter((s) => s.bounds).map((s) => ({ id: `blib:${s.id}`, label: s.name, color: OVERLAY_COLORS.basemapLibrary })) },
   ]
-  return groups.filter((g) => g.leaves.length > 0)
+  // "Your …" groups stay listed even when empty (the tree shows "None").
+  return groups.filter((g) => g.leaves.length > 0 || g.key.startsWith("your"))
 }
 
 const rect = (b: number[]): Polygon => ({

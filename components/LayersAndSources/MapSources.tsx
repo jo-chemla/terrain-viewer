@@ -355,7 +355,12 @@ const RASTER_SOURCE_DEBOUNCE_MS = 150
 export const RasterBasemapSource = memo(({
     // basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint,
     basemapSource: rawBasemapSource, mapboxKey, maptilerKey, hereKey, planetKey, date: rawDate, latitude, longitude, zoom, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
+    vectorVisible = true, vectorOpacity = 1,
 }: {
+    /** For the OSM (Liberty) vector basemap, which has no raster layer to
+     *  inherit the "Basemap" viz toggle and opacity from. */
+    vectorVisible?: boolean
+    vectorOpacity?: number
     basemapSource: string
     mapboxKey: string
     maptilerKey?: string
@@ -491,7 +496,7 @@ export const RasterBasemapSource = memo(({
 
     // "osm" is OpenFreeMap's Liberty vector style, not raster tiles: the
     // layers are inserted at the basemap slot by VectorBasemapLayer.
-    if (basemapSource === "osm") return <VectorBasemapLayer />
+    if (basemapSource === "osm") return <VectorBasemapLayer visible={vectorVisible} opacity={vectorOpacity} />
     if (!sourceProps) return null
 
     return (

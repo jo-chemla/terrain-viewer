@@ -20,7 +20,7 @@ const PREFIX = "ofm-liberty-"
 let stylePromise: Promise<StyleSpecification> | null = null
 const loadStyle = () => (stylePromise ??= fetch(LIBERTY_STYLE_URL).then((r) => r.json() as Promise<StyleSpecification>).catch((e) => { stylePromise = null; throw e }))
 
-export const VectorBasemapLayer: React.FC<{ opacity?: number }> = ({ opacity = 1 }) => {
+export const VectorBasemapLayer: React.FC<{ opacity?: number; visible?: boolean }> = ({ opacity = 1, visible = true }) => {
   const { current: mapRef } = useMap()
   const buildings3d = useAtomValue(osmBuildings3dAtom)
   const [installed, setInstalled] = useState(0)
@@ -64,6 +64,17 @@ export const VectorBasemapLayer: React.FC<{ opacity?: number }> = ({ opacity = 1
     if (!map?.getStyle() || !map.getLayer(id)) return
     map.setLayoutProperty(id, "visibility", buildings3d ? "visible" : "none")
   }, [mapRef, buildings3d, installed])
+
+  // "Basemap" viz toggle: hide every Liberty layer.
+  useEffect(() => {
+    const map = mapRef?.getMap()
+    if (!map?.getStyle()) return
+    for (const layer of map.getStyle().layers ?? []) {
+      if (!layer.id.startsWith(PREFIX)) continue
+      if (layer.id === `${PREFIX}building-3d` && !buildings3d) continue
+      try { map.setLayoutProperty(layer.id, "visibility", visible ? "visible" : "none") } catch { /* not yet added */ }
+    }
+  }, [mapRef, visible, buildings3d, installed])
 
   // Basemap opacity: fade every Liberty layer with its own opacity property.
   useEffect(() => {

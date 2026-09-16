@@ -3,9 +3,13 @@
 
 #### TL;DR
 - **Coverage overlays** (Source Info): draw where sources have data before loading them — Mapterhorn's own per-country coverage tiles (hollow where it falls back to GLO-30, with the source's resolution on hover), the whole terrain and basemap libraries, the OSM Editor Layer Index layers touching the view, and your custom sources. Picked from a tree (tick a group, or expand to refine), drawn on every view; hover lists what covers a point, click links to each dataset.
+
+  ![Coverage overlays over Europe with the hover list](/docs/screenshots/coverage-overlays.jpg)
 - **STAC search** (beta, Settings → Beta) in both Add dialogs: OpenAerialMap, Earth Search, eoAPI, NASA VEDA, swisstopo, LINZ, Maxar and Vantor open-data events, Planet disaster releases, PGC polar DEMs, OpenTopography, a federated collection search, or any catalogue URL — date range, current view, then add any COG. Non-Web-Mercator assets are pinned to titiler; terrain only lists single-band rasters, elevation-looking ones first.
 - **OSM Editor Layer Index** basemap search (bundled index, bumped weekly), with licence and attribution carried into Source Info, a permalink into the ELI browser at the current view, and pixel size at max zoom as a resolution hint.
 - **Library** replaces Sample: national and global terrain datasets graded against Mapterhorn by API-served grid or by the agency's best bulk download grid (toggle), with the best bulk grid also in the docs.
+
+  ![The terrain dataset library](/docs/screenshots/terrain-library.jpg)
 
 ### Features
 - Source Info shows a full card for a custom terrain source (model, resolution vs Mapterhorn, serving, extent, dataset page) and the catalogue provenance of custom basemaps.

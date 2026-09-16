@@ -3104,6 +3104,8 @@ export function TerrainViewer() {
           />
           <RasterBasemapSource
             basemapSource={perViewResolved[side].basemapSource}
+            vectorVisible={isHistoricalMode || state.showRasterBasemap}
+            vectorOpacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.basemapSourceOpacity}
             mapboxKey={mapboxKey}
             hereKey={hereKey}
             maptilerKey={maptilerKey}

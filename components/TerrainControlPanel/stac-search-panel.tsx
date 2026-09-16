@@ -356,6 +356,10 @@ export const StacSearchPanel: React.FC<{
     </Popover>
   )
 
+  const collectionQuery = collectionFilter.trim().toLowerCase()
+  const shownCollections = useMemo(() => (collectionQuery ? collections.filter((c) => `${c.title ?? ""} ${c.id}`.toLowerCase().includes(collectionQuery)) : collections).slice(0, 300), [collections, collectionQuery])
+  const allLabel = catalog.kind === "discovery" ? `Pick one of ${collections.length} collections…` : `All collections (${collections.length})`
+  const collectionItems = useMemo(() => Object.fromEntries([["__all__", allLabel], ...collections.map((c) => [c.id, c.title || c.id])]), [collections, allLabel])
   const browserUrl = catalog.url ? `https://radiantearth.github.io/stac-browser/#/external/${catalog.url.replace(/^https?:\/\//, "")}` : ""
   const stacMapUrl = catalog.url ? `https://developmentseed.org/stac-map/?href=${encodeURIComponent(catalog.url)}` : ""
   const groups = ["Elevation", "Mixed", "Imagery", "Registries"] as const
@@ -397,26 +401,24 @@ export const StacSearchPanel: React.FC<{
         </p>
       )}
 
-      {collections.length > 0 && (() => {
-        const q = collectionFilter.trim().toLowerCase()
-        const shown = (q ? collections.filter((c) => `${c.title ?? ""} ${c.id}`.toLowerCase().includes(q)) : collections).slice(0, 300)
-        const allLabel = catalog.kind === "discovery" ? `Pick one of ${collections.length} collections…` : `All collections (${collections.length})`
-        return (
-          <div className="flex items-center gap-2">
-            {collections.length > 25 && (
-              <Input placeholder="Filter collections…" value={collectionFilter} onChange={(e) => setCollectionFilter(e.target.value)} className="cursor-text w-40 shrink-0 h-9" />
-            )}
-            <Select value={collectionId || "__all__"} onValueChange={(v) => setCollectionId(!v || v === "__all__" ? "" : v)} items={Object.fromEntries([["__all__", allLabel], ...collections.map((c) => [c.id, c.title || c.id])])}>
-              <SelectTrigger className="flex-1 w-0 min-w-0 cursor-pointer"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">{allLabel}</SelectItem>
-                {shown.map((c) => <SelectItem key={c.id} value={c.id}>{c.title || c.id}</SelectItem>)}
-                {shown.length < collections.length && <SelectItem value="__more__" disabled>{collections.length - shown.length} more - narrow the filter</SelectItem>}
-              </SelectContent>
-            </Select>
-          </div>
-        )
-      })()}
+      {listing && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground h-9"><Loader2 className="h-4 w-4 animate-spin" /> Listing collections…</div>
+      )}
+      {!listing && collections.length > 0 && (
+        <div className="flex items-center gap-2">
+          {collections.length > 25 && (
+            <Input placeholder="Filter collections…" value={collectionFilter} onChange={(e) => setCollectionFilter(e.target.value)} className="cursor-text w-40 shrink-0 h-9" />
+          )}
+          <Select value={collectionId || "__all__"} onValueChange={(v) => setCollectionId(!v || v === "__all__" ? "" : v)} items={collectionItems}>
+            <SelectTrigger className="flex-1 min-w-0 overflow-hidden cursor-pointer"><SelectValue /></SelectTrigger>
+            <SelectContent className="max-h-80">
+              <SelectItem value="__all__">{allLabel}</SelectItem>
+              {shownCollections.map((c) => <SelectItem key={c.id} value={c.id}>{c.title || c.id}</SelectItem>)}
+              {shownCollections.length < collections.length && <SelectItem value="__more__" disabled>{collections.length - shownCollections.length} more - narrow the filter</SelectItem>}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
@@ -461,7 +463,6 @@ export const StacSearchPanel: React.FC<{
           <SegmentedToggle value={role} onChange={setRole} options={[{ value: "basemap" as const, label: "Basemap" }, { value: "overlay" as const, label: "Overlay" }]} />
         </div>
       )}
-      {listing && <p className="text-xs text-muted-foreground">Listing collections…</p>}
       {target === "basemap" && xyzLinks.length > 0 && (
         <div className="space-y-1">
           <p className="text-[11px] text-muted-foreground">This collection also publishes ready-made tile layers (web-map-links):</p>
