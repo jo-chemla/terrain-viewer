@@ -205,6 +205,9 @@ export interface CustomTerrainSource {
    *  record or viewer, ideally stating the licence. Shown as a link in the
    *  sample picker; absent means the raw endpoint host is linked instead. */
   infoUrl?: string
+  /** Native ground resolution in metres (finest, for a mixed product), used
+   *  to grade the source against Mapterhorn - see lib/mapterhorn-compare.ts. */
+  resolutionM?: number
 }
 
 // getOnInit: true reads localStorage synchronously on first render instead of the
@@ -255,6 +258,14 @@ export interface CustomBasemapSource {
    *  instead of fully opaque. Defaults to 100 for sources created before this
    *  field existed. */
   opacity?: number
+  /** Provenance, filled in by the catalogue pickers (NextGIS QMS, OSM Editor
+   *  Layer Index) and shown in the Source Info section. */
+  attribution?: string
+  licenseName?: string
+  licenseUrl?: string
+  /** Catalogue record or provider page for this source. */
+  infoUrl?: string
+  provider?: "qms" | "eli"
   /** Mirror of CustomTerrainSource.linkedBasemapId — the terrain source this
    *  basemap auto-selects (and is auto-selected by) when either becomes
    *  active. Only needs to be set from one side of the pair. */

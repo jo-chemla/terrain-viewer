@@ -67,6 +67,10 @@ function sectionOf(s: SampleLike, index: number, lastGlobalIndex: number): Secti
  * Spanish) and an English-speaking user should not need to know that DMP is a
  * surface model. Names that say neither get no pill.
  */
+export function terrainKindOf(name: string): { label: string; title: string } | null {
+  return kindOf(name)
+}
+
 function kindOf(name: string): { label: string; title: string } | null {
   if (/bathymetr/i.test(name)) return { label: "Bathy", title: "Bathymetry: depth below sea level" }
   // Stereo-photogrammetric mosaics (ArcticDEM, REMA, Copernicus GLO-30) and

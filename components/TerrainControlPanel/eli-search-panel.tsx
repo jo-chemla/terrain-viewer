@@ -67,10 +67,11 @@ export const EliSearchPanel: React.FC<{
         minzoom: spec.minzoom,
         maxzoom: spec.maxzoom,
         role: layer.overlay ? "overlay" : "basemap",
-        description: [
-          layer.attributionText, layer.licenseUrl ? `Licence: ${layer.licenseUrl}` : undefined,
-          `OSM Editor Layer Index id ${layer.id}`,
-        ].filter(Boolean).join(" — "),
+        description: `OSM Editor Layer Index id ${layer.id}${layer.startDate || layer.endDate ? ` (${layer.startDate ?? "?"} – ${layer.endDate ?? "?"})` : ""}`,
+        attribution: layer.attributionText || undefined,
+        licenseUrl: layer.licenseUrl || undefined,
+        infoUrl: layer.attributionUrl || "https://osmlab.github.io/editor-layer-index/",
+        provider: "eli",
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add basemap")

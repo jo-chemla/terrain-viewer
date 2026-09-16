@@ -25,6 +25,10 @@ interface QmsDetail extends QmsSearchResult {
   z_max: number
   y_origin_top: boolean
   copyright_text?: string
+  copyright_url?: string
+  license_name?: string
+  license_url?: string
+  terms_of_use_url?: string
 }
 
 /**
@@ -85,6 +89,11 @@ export const NextGisQmsSearchPanel: React.FC<{
         scheme: detail.y_origin_top === false ? "tms" : "xyz",
         minzoom: detail.z_min,
         maxzoom: detail.z_max,
+        attribution: detail.copyright_text || undefined,
+        licenseName: detail.license_name || undefined,
+        licenseUrl: detail.license_url || detail.terms_of_use_url || detail.copyright_url || undefined,
+        infoUrl: `https://qms.nextgis.com/geoservices/${detail.id}/`,
+        provider: "qms",
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add basemap")

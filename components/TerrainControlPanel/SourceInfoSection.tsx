@@ -17,6 +17,54 @@ import { resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { BUILTIN_BASEMAP_OPTIONS } from "./raster-basemap-section"
 import { GRID_LAYOUTS, viewFieldName, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
+import { useAtomValue } from "jotai"
+import { ExternalLink } from "lucide-react"
+import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
+import { compareWithMapterhorn, formatRes } from "@/lib/mapterhorn-compare"
+import { terrainKindOf } from "./sample-sources-modal"
+import customSources from "@/lib/custom-sources.json"
+
+const SAMPLE_TERRAIN_BY_ID: Record<string, CustomTerrainSource> = Object.fromEntries(
+  (customSources.SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[]).map((s) => [s.id, s]),
+)
+const TERRAIN_SERVING: Record<string, string> = {
+  "wms-raw": "WMS / WCS / ImageServer, raw Float32 decoded in the browser",
+  terrainrgb: "XYZ tiles, Terrain-RGB", terrarium: "XYZ tiles, Terrarium", cog: "Cloud Optimized GeoTIFF",
+  "cog-local": "Local COG file", vrt: "VRT via titiler", tilejson: "TileJSON", stac: "STAC", mosaicjson: "MosaicJSON",
+}
+const hostOf = (u: string) => u.replace(/^[a-z]+:\/\/\/vsicurl\//i, "").replace(/^WMS:/i, "").replace(/^https?:\/\//, "").split(/[/?]/)[0]
+
+/** What we know about a custom terrain source — for the shipped national
+ *  datasets that is a lot more than an id: grid, DTM/DSM, how it compares to
+ *  Mapterhorn, licence page, extent. A stored copy that predates a field
+ *  falls back to the shipped sample definition of the same id. */
+const CustomTerrainInfo: React.FC<{ source: CustomTerrainSource }> = ({ source }) => {
+  const shipped = SAMPLE_TERRAIN_BY_ID[source.id]
+  const merged = { ...shipped, ...source, resolutionM: source.resolutionM ?? shipped?.resolutionM, infoUrl: source.infoUrl ?? shipped?.infoUrl, bounds: source.bounds ?? shipped?.bounds, description: source.description || shipped?.description }
+  const kind = terrainKindOf(merged.name)
+  const cmp = compareWithMapterhorn(merged)
+  const VERDICT: Record<string, string> = { new: "not in Mapterhorn", finer: "finer than Mapterhorn", bareearth: "bare-earth model where Mapterhorn has the GLO-30 surface", same: "same grid as Mapterhorn", coarser: "coarser than Mapterhorn" }
+  const Row = ({ k, v }: { k: string; v: React.ReactNode }) => (
+    <div className="flex items-start justify-between gap-3 text-xs"><span className="text-muted-foreground shrink-0">{k}</span><span className="text-right min-w-0 break-words">{v}</span></div>
+  )
+  return (
+    <div className="px-2 py-1.5 rounded bg-muted/50 space-y-1">
+      <div className="text-xs font-medium break-words">{merged.name}</div>
+      {kind && <Row k="Model" v={`${kind.label} — ${kind.title.split(":")[1]?.trim() ?? kind.title}`} />}
+      {merged.resolutionM !== undefined && (
+        <Row k="Resolution" v={cmp ? `${formatRes(cmp.ours)}${cmp.verdict === "same" ? "" : ` vs ${formatRes(cmp.theirs)}`} · ${VERDICT[cmp.verdict]}` : formatRes(merged.resolutionM)} />
+      )}
+      <Row k="Served as" v={TERRAIN_SERVING[merged.type] ?? merged.type} />
+      {(merged.minzoom !== undefined || merged.maxzoom !== undefined) && <Row k="Zoom" v={`${merged.minzoom ?? 0} – ${merged.maxzoom ?? "native"}`} />}
+      {merged.bounds && <Row k="Extent" v={merged.bounds.map((b) => b.toFixed(1)).join(", ")} />}
+      <Row k="Endpoint" v={<a href={merged.url.startsWith("http") ? merged.url : `https://${merged.url.replace(/^[a-z]+:\/\/\/vsicurl\//i, "")}`} target="_blank" rel="noopener noreferrer" className="underline">{hostOf(merged.url)}</a>} />
+      {merged.infoUrl && (
+        <Row k="Dataset page" v={<a href={merged.infoUrl} target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center gap-1">{hostOf(merged.infoUrl)} <ExternalLink className="h-3 w-3" /></a>} />
+      )}
+      {merged.description && <p className="text-[11px] text-muted-foreground leading-snug pt-0.5">{merged.description}</p>}
+    </div>
+  )
+}
 
 /** True for every basemap id whose real attribution is resolved dynamically
  *  (as opposed to a fixed string) — shared between the sidebar list below and
@@ -38,9 +86,11 @@ function sourceKindOf(sourceA: string): ProvenanceSourceKind | null {
 
 /** Gate for whether Source Info applies at all to the current Terrain Source —
  *  used by TerrainControlPanel to hide the whole section rather than rendering
- *  a disabled, "not available" state for every other source. */
+ *  a disabled, "not available" state for every other source. Built-in AWS /
+ *  Mapterhorn have a per-tile provenance lookup; every custom source has at
+ *  least its own metadata card. */
 export function isProvenanceSource(sourceA: string): boolean {
-  return sourceKindOf(sourceA) !== null
+  return sourceKindOf(sourceA) !== null || (sourceA !== "aws" && sourceA !== "mapterhorn" && sourceA !== "mapbox" && sourceA !== "maptiler" && !!sourceA)
 }
 
 const MOVE_DEBOUNCE_MS = 400
@@ -53,6 +103,8 @@ const MOVE_DEBOUNCE_MS = 400
 // this renders whenever state.showRasterBasemap is on, alongside the
 // terrain-provenance block above rather than instead of it.
 const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<MapRef> }> = ({ state, mapRef }) => {
+  const customBasemaps = useAtomValue(customBasemapSourcesAtom)
+  const customBasemapById = (id: string): CustomBasemapSource | undefined => customBasemaps.find((b) => b.id === id)
   // Every active view (A-F), not just A/B — generalizes the old fixed pair
   // the same way TerrainViewer.tsx's own perViewResolved does. "overlay"
   // always compares exactly 2 views regardless of state.gridLayout's own
@@ -107,7 +159,7 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
     : id === "esri" ? esriAttribution
     : id === "ge-historical" ? geAttribution
     : id === "bing" ? bingAttribution
-    : STATIC_BASEMAP_ATTRIBUTIONS[id] ?? "—"
+    : STATIC_BASEMAP_ATTRIBUTIONS[id] ?? customBasemapById(id)?.attribution ?? "—"
 
   const activeA = activeSourceFor("A")
   const textA = textFor(activeA, geAttributionA, waybackAttributionA)
@@ -154,12 +206,31 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   // itself (still used as-is for the corner-attribution push above).
   const stripSourcePrefix = (text: string) => text.replace(/^(Esri|Google Earth) - /, "")
 
-  const row = (id: string, geAttribution: string, waybackAttribution: { srcDesc: string; niceDesc: string }, prefix: string) => (
-    <div key={prefix || "single"} className="flex items-start justify-between gap-3 px-2 py-1.5 rounded bg-muted/50 text-xs">
-      <span className="shrink-0">{prefix}{basemapLabel(id)}</span>
-      <span className="text-muted-foreground text-right">{stripSourcePrefix(textFor(id, geAttribution, waybackAttribution))}</span>
-    </div>
-  )
+  const row = (id: string, geAttribution: string, waybackAttribution: { srcDesc: string; niceDesc: string }, prefix: string) => {
+    const custom = customBasemapById(id)
+    return (
+      <div key={prefix || "single"} className="px-2 py-1.5 rounded bg-muted/50 text-xs space-y-0.5">
+        <div className="flex items-start justify-between gap-3">
+          <span className="shrink-0">{prefix}{custom?.name ?? basemapLabel(id)}</span>
+          <span className="text-muted-foreground text-right">{stripSourcePrefix(textFor(id, geAttribution, waybackAttribution))}</span>
+        </div>
+        {custom && (custom.provider || custom.licenseName || custom.licenseUrl || custom.infoUrl) && (
+          // Catalogue provenance for sources added through NextGIS QMS or the
+          // OSM Editor Layer Index: where it came from, and under what licence.
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+            {custom.provider && <span>via {custom.provider === "qms" ? "NextGIS QMS" : "OSM Editor Layer Index"}</span>}
+            {(custom.licenseName || custom.licenseUrl) && (
+              custom.licenseUrl
+                ? <a href={custom.licenseUrl} target="_blank" rel="noopener noreferrer" className="underline">{custom.licenseName || "licence"}</a>
+                : <span>{custom.licenseName}</span>
+            )}
+            {custom.infoUrl && <a href={custom.infoUrl} target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center gap-0.5">record <ExternalLink className="h-3 w-3" /></a>}
+            {!custom.provider && <span>{TERRAIN_SERVING[custom.type] ?? custom.type}</span>}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   // Dedup consecutive views that resolved to the exact same basemap id AND
   // the exact same resolved attribution TEXT (e.g. a 3x1 grid where B and C
@@ -209,6 +280,8 @@ export const SourceInfoSection: React.FC<{
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const sourceKind = sourceKindOf(state.sourceA)
+  const customTerrainSources = useAtomValue(customTerrainSourcesAtom)
+  const customTerrain = customTerrainSources.find((t) => t.id === state.sourceA)
 
   // Drive the "show data provenance at map center" probe from the section's own
   // expand/collapse: expanding turns it on, collapsing turns it off (per
@@ -274,7 +347,8 @@ export const SourceInfoSection: React.FC<{
           source is shown there) — but a raster basemap can be active in
           EITHER app mode, so BasemapAttributionList below always renders
           alongside this, not instead of it. */}
-      {!historicalMode && (
+      {!historicalMode && customTerrain && <CustomTerrainInfo source={customTerrain} />}
+      {!historicalMode && sourceKind && (
       <>
       <div className="flex items-center justify-between gap-2">
         <Label htmlFor="source-info-toggle" className="text-sm font-medium">
