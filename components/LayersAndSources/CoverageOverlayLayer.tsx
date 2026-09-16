@@ -4,7 +4,7 @@ import { Source, Layer, useMap } from "react-map-gl/maplibre"
 import type { MapLayerMouseEvent, ExpressionSpecification } from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import { useAtomValue } from "jotai"
-import { coverageOverlaysAtom, loadCoverageFeatures, getMapterhornSourceMeta, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
+import { coverageOverlaysAtom, loadCoverageFeatures, getMapterhornSourceMeta, coverageGsd, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
@@ -66,15 +66,16 @@ export const CoverageOverlayLayer: React.FC = () => {
       const seen = new Set<string>()
       const out: Hit[] = []
       for (const f of m.queryRenderedFeatures(e.point, { layers })) {
-        const p = f.properties as Record<string, string>
+        const p = f.properties as Record<string, any>
         const meta = mhMeta?.[p.source]
+        const gsd = coverageGsd(p, e.lngLat.lat)
         const hit: Hit = f.layer.id === MH_FILL_ID
           ? { label: "Mapterhorn",
               detail: p.source === "glo30" ? "Copernicus GLO-30 fallback (30 m)"
                 : meta ? `${meta.resolution} m · ${meta.name} (${meta.producer}) · "${p.source}"`
                 : `national source "${p.source}"`,
               url: `https://mapterhorn.com/attribution/#${p.source}` }
-          : { label: p.label, detail: p.detail, url: p.url || undefined }
+          : { label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.url || undefined }
         const k = `${hit.label}|${hit.detail}`
         if (seen.has(k)) continue
         seen.add(k)

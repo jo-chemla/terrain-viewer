@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useEffect, useMemo } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
-import { Search, Plus, Loader2, ExternalLink, CalendarDays } from "lucide-react"
+import { Search, Plus, Check, Loader2, ExternalLink, CalendarDays } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -72,7 +72,7 @@ export const STAC_PRESETS: StacPreset[] = [
 ]
 
 type StacLink = { rel: string; href: string; type?: string; title?: string }
-type StacAsset = { href: string; type?: string; title?: string; roles?: string[]; "proj:epsg"?: number; "proj:code"?: string }
+type StacAsset = { href: string; type?: string; title?: string; roles?: string[]; "proj:epsg"?: number; "proj:code"?: string; "raster:bands"?: unknown[]; "eo:bands"?: unknown[]; bands?: unknown[] }
 type StacItem = { type: "Feature"; id: string; collection?: string; bbox?: number[]; properties: Record<string, unknown>; assets: Record<string, StacAsset>; links?: StacLink[] }
 type StacCollection = { id: string; title?: string; description?: string; links?: StacLink[]; extent?: { spatial?: { bbox?: number[][] } } }
 
@@ -89,6 +89,25 @@ function epsgOf(it: StacItem, a: StacAsset): number | undefined {
   const epsg = a["proj:epsg"] ?? (it.properties["proj:epsg"] as number | undefined)
   return fromCode ? Number(fromCode) : epsg ?? undefined
 }
+
+const DEM_RE = /\b(dem|dsm|dtm|elevation|height|altitude|terrain|surface model|lidar)\b/i
+/** Band count when the asset says (raster:bands, eo:bands, STAC 1.1 bands). */
+const bandCount = (a: StacAsset) => (a["raster:bands"] ?? a["eo:bands"] ?? a.bands)?.length
+/** Terrain wants single-band elevation rasters: drop RGB visuals, multi-band
+ *  scenes and thumbnails; keep unknown band counts (many DEM catalogues
+ *  carry no band metadata at all). */
+function usableForTerrain(key: string, a: StacAsset): boolean {
+  if (/^(visual|thumbnail|overview|rendered_preview)$/i.test(key)) return false
+  const n = bandCount(a)
+  return n === undefined || n === 1
+}
+const looksLikeDem = (it: StacItem, key: string, a: StacAsset) =>
+  DEM_RE.test(`${key} ${a.title ?? ""} ${it.collection ?? ""} ${it.id} ${(a.roles ?? []).join(" ")}`)
+
+// Last search per target survives closing the modal, so re-opening it does
+// not throw the results away.
+type Remembered = { presetId: string; customUrl: string; collectionId: string; startDate: string; endDate: string; viewportOnly: boolean; items: StacItem[]; collections: StacCollection[] }
+const remembered: Partial<Record<"basemap" | "terrain", Remembered>> = {}
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
@@ -159,23 +178,31 @@ export const StacSearchPanel: React.FC<{
   mapRef?: React.RefObject<MapRef | null>
 }> = ({ target, onSave, mapRef }) => {
   const presets = useMemo(() => STAC_PRESETS.filter((p) => p.target === "both" || p.target === target), [target])
-  const [presetId, setPresetId] = useState(presets[0].id)
-  const [customUrl, setCustomUrl] = useState("")
+  const prev = remembered[target]
+  const [presetId, setPresetId] = useState(prev?.presetId ?? presets[0].id)
+  const [customUrl, setCustomUrl] = useState(prev?.customUrl ?? "")
   const catalog = useMemo<StacPreset>(() => presetId === "custom"
     ? { id: "custom", name: "Custom", url: trimSlash(customUrl.trim()), kind: /\.json($|\?)/i.test(customUrl) ? "static" : "api", target: "both", group: "Mixed" }
     : presets.find((p) => p.id === presetId) ?? presets[0], [presetId, customUrl, presets])
-  const [collections, setCollections] = useState<StacCollection[]>([])
-  const [collectionId, setCollectionId] = useState<string>("")
-  const [startDate, setStartDate] = useState(() => isoDate(new Date(Date.now() - 3 * 365 * 86_400_000)))
-  const [endDate, setEndDate] = useState(() => isoDate(new Date()))
-  const [viewportOnly, setViewportOnly] = useState(true)
-  const [items, setItems] = useState<StacItem[]>([])
+  const [collections, setCollections] = useState<StacCollection[]>(prev?.collections ?? [])
+  const [collectionId, setCollectionId] = useState<string>(prev?.collectionId ?? "")
+  const [startDate, setStartDate] = useState(() => prev?.startDate ?? isoDate(new Date(Date.now() - 3 * 365 * 86_400_000)))
+  const [endDate, setEndDate] = useState(() => prev?.endDate ?? isoDate(new Date()))
+  const [viewportOnly, setViewportOnly] = useState(prev?.viewportOnly ?? true)
+  const [items, setItems] = useState<StacItem[]>(prev?.items ?? [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [added, setAdded] = useState<Set<string>>(() => new Set())
+  useEffect(() => { remembered[target] = { presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections } },
+    [target, presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections])
 
   // Collections of the chosen catalogue (API / discovery: /collections with
-  // paging; static: child links).
+  // paging; static: child links). Skipped on mount when the remembered
+  // state already belongs to this catalogue.
+  const [listedFor, setListedFor] = useState(prev?.presetId === presetId ? catalog.url : "")
   useEffect(() => {
+    if (listedFor === catalog.url) return
+    setListedFor(catalog.url)
     setCollections([]); setCollectionId(""); setItems([]); setError("")
     if (!catalog.url) return
     let cancelled = false
@@ -192,7 +219,7 @@ export const StacSearchPanel: React.FC<{
       } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : "Could not list collections") }
     })()
     return () => { cancelled = true }
-  }, [catalog.url, catalog.kind])
+  }, [catalog.url, catalog.kind, listedFor])
 
   const runSearch = useCallback(async () => {
     setLoading(true); setError(""); setItems([])
@@ -231,7 +258,19 @@ export const StacSearchPanel: React.FC<{
     }
   }, [catalog, collectionId, collections, startDate, endDate, viewportOnly, mapRef])
 
-  const cogAssets = (it: StacItem) => Object.entries(it.assets ?? {}).filter(([, a]) => isCog(a))
+  const cogAssets = (it: StacItem) => Object.entries(it.assets ?? {})
+    .filter(([key, a]) => isCog(a) && (target !== "terrain" || usableForTerrain(key, a)))
+  // Web Mercator assets first (they stream in-browser), then unknown, then
+  // everything that needs titiler; DEM-looking items first for terrain.
+  const rank = (it: StacItem) => {
+    const assets = cogAssets(it)
+    if (!assets.length) return 99
+    const codes = assets.map(([, a]) => epsgOf(it, a))
+    const proj = codes.includes(3857) ? 0 : codes.includes(undefined) ? 1 : 2
+    const dem = target === "terrain" && assets.some(([k, a]) => looksLikeDem(it, k, a)) ? 0 : 1
+    return proj * 2 + dem
+  }
+  const ordered = useMemo(() => items.slice().sort((a, b) => rank(a) - rank(b)), [items, target]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const DateButton: React.FC<{ value: string; onChange: (v: string) => void }> = ({ value, onChange }) => (
     <Popover>
@@ -250,8 +289,8 @@ export const StacSearchPanel: React.FC<{
   return (
     <div className="space-y-3 min-w-0">
       <p className="text-xs text-muted-foreground">
-        Beta — search a STAC catalogue for Cloud Optimized GeoTIFFs and add one as a {target === "terrain" ? "terrain (DEM)" : "basemap"} source.
-        Assets that are not Web Mercator are routed through titiler automatically when the catalogue says so.
+        Beta — search a STAC catalogue for Cloud Optimized GeoTIFFs and add any as {target === "terrain" ? "terrain (DEM)" : "basemap"} sources; the dialog stays open so you can add several.
+        Web Mercator assets are listed first{target === "terrain" ? ", single-band elevation rasters only" : ""}; others are routed through titiler automatically when the catalogue states their projection.
       </p>
       <Select value={presetId} onValueChange={(v) => v && setPresetId(v)} items={selectItems}>
         <SelectTrigger className="w-full cursor-pointer"><SelectValue /></SelectTrigger>
@@ -312,7 +351,10 @@ export const StacSearchPanel: React.FC<{
 
       <div className="max-h-72 overflow-y-auto overflow-x-hidden space-y-1">
         {!loading && items.length === 0 && !error && <p className="text-sm text-muted-foreground py-3 text-center">No results yet.</p>}
-        {items.map((it) => {
+        {!loading && items.length > 0 && ordered.every((it) => !cogAssets(it).length) && (
+          <p className="text-sm text-muted-foreground py-3 text-center">{items.length} items, none with a {target === "terrain" ? "single-band elevation" : "COG"} asset.</p>
+        )}
+        {ordered.map((it) => {
           const assets = cogAssets(it)
           if (!assets.length) return null
           const when = typeof it.properties?.datetime === "string" ? (it.properties.datetime as string).slice(0, 10) : ""
@@ -324,15 +366,20 @@ export const StacSearchPanel: React.FC<{
                 {assets.slice(0, 12).map(([key, a]) => {
                   const epsg = epsgOf(it, a)
                   const viaTitiler = epsg !== undefined && epsg !== 3857
+                  const isAdded = added.has(a.href)
+                  const dem = target === "terrain" && looksLikeDem(it, key, a)
                   return (
-                    <Button key={key} size="sm" variant="outline" className="h-7 cursor-pointer text-xs" title={`${a.href}${epsg ? `\nEPSG:${epsg}${viaTitiler ? " - served through titiler" : ""}` : ""}`}
-                      onClick={() => onSave({
+                    <Button key={key} size="sm" variant={isAdded ? "secondary" : "outline"} className="h-7 cursor-pointer text-xs" disabled={isAdded}
+                      title={`${a.href}${epsg ? `\nEPSG:${epsg}${viaTitiler ? " - served through titiler" : ""}` : ""}${dem ? "\nLooks like an elevation model" : ""}`}
+                      onClick={() => { setAdded((s) => new Set(s).add(a.href)); onSave({
                         name: `${it.id} — ${a.title || key}`, url: a.href, type: "cog",
                         description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""}${when ? ` · ${when}` : ""}${epsg ? ` · EPSG:${epsg}` : ""}`,
                         bounds: it.bbox && it.bbox.length >= 4 ? [it.bbox[0], it.bbox[1], it.bbox[2], it.bbox[3]] : undefined,
                         cogViaTitiler: viaTitiler || undefined,
-                      })}>
-                      <Plus className="h-3 w-3" /> {a.title || key}{epsg && viaTitiler ? <span className="text-muted-foreground"> · {epsg}</span> : null}
+                      }) }}>
+                      {isAdded ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />} {a.title || key}
+                      {dem ? <span className="text-emerald-600 dark:text-emerald-400"> DEM</span> : null}
+                      {epsg && viaTitiler ? <span className="text-muted-foreground"> · {epsg}</span> : null}
                     </Button>
                   )
                 })}

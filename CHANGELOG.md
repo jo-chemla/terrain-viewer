@@ -1,3 +1,20 @@
+# Changelog — Catalogue Search & Coverage Overlays
+<!-- released: 2026-09-16 -->
+
+#### TL;DR
+- **Coverage overlays** (Source Info): draw where sources have data before loading them — Mapterhorn's own per-country coverage tiles (hollow where it falls back to GLO-30, with the source's resolution on hover), the whole terrain and basemap libraries, the OSM Editor Layer Index layers touching the view, and your custom sources. Picked from a tree (tick a group, or expand to refine), drawn on every view; hover lists what covers a point, click links to each dataset.
+- **STAC search** (beta, Settings → Beta) in both Add dialogs: OpenAerialMap, Earth Search, eoAPI, NASA VEDA, swisstopo, LINZ, Maxar and Vantor open-data events, Planet disaster releases, PGC polar DEMs, OpenTopography, a federated collection search, or any catalogue URL — date range, current view, then add any COG. Non-Web-Mercator assets are pinned to titiler; terrain only lists single-band rasters, elevation-looking ones first.
+- **OSM Editor Layer Index** basemap search (bundled index, bumped weekly), with licence and attribution carried into Source Info, a permalink into the ELI browser at the current view, and pixel size at max zoom as a resolution hint.
+- **Library** replaces Sample: national and global terrain datasets graded against Mapterhorn by API-served grid or by the agency's best bulk download grid (toggle), with the best bulk grid also in the docs.
+
+### Features
+- Source Info shows a full card for a custom terrain source (model, resolution vs Mapterhorn, serving, extent, dataset page) and the catalogue provenance of custom basemaps.
+- Remote COGs link to the source.coop COG viewer and GeoLibre from their row and from their dialog.
+- Drawings made on view A are mirrored read-only on the other views of a split or grid layout.
+- Add Basemap remembers the last type (NextGIS on first run), Add Terrain likewise; a new basemap is selected for view A and the basemap layer is switched on.
+- MapTiler Satellite as a built-in basemap and Export Multi source; Your Bookmarks folds like Featured.
+- Export Multi (Historical): frames named `viewport_esri-wayback_2021-10-07.tif`, Google Earth Historical fetched in-process, capture counts per source, optional reuse of the timeline's listing.
+
 # Changelog — National Terrain Sources
 <!-- released: 2026-09-14 -->
 

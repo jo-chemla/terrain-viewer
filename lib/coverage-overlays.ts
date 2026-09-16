@@ -52,7 +52,7 @@ export interface CoverageGroup { key: string; label: string; color: string; leav
 export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899" }
 
 const ELI_ID_RE = /OSM Editor Layer Index id (\S+)/
-type Bounded = { id: string; name: string; bounds?: number[]; type?: string; resolutionM?: number; infoUrl?: string }
+type Bounded = { id: string; name: string; bounds?: number[]; type?: string; resolutionM?: number; maxzoom?: number; infoUrl?: string }
 const TERRAIN_LIB = customSources.SAMPLE_TERRAIN_SOURCES as Bounded[]
 const BASEMAP_LIB = customSources.SAMPLE_BASEMAPS_SOURCES as Bounded[]
 
@@ -90,6 +90,16 @@ const rect = (b: number[]): Polygon => ({
 
 const cache = new Map<string, Promise<FeatureCollection>>()
 
+/** "0.5 m" from a native grid, or the ground size of one pixel at the
+ *  source's max zoom at this latitude ("z19 ≈ 30 cm/px") - the only GSD a
+ *  tile service or an ELI entry can offer. */
+export function coverageGsd(p: { resolutionM?: number; maxzoom?: number; tileSize?: number }, lat: number): string | null {
+  if (typeof p.resolutionM === "number") return `${p.resolutionM} m`
+  if (typeof p.maxzoom !== "number") return null
+  const m = 40075016.686 * Math.cos((lat * Math.PI) / 180) / ((p.tileSize || 256) * 2 ** p.maxzoom)
+  return `z${p.maxzoom} ≈ ${m < 1 ? `${Math.round(m * 100)} cm` : `${m.toFixed(m < 10 ? 1 : 0)} m`}/px`
+}
+
 /** Features for one overlay id (never "mapterhorn": that one is vector
  *  tiles); cached per session, keyed on the bounds so an edit refreshes. */
 export function loadCoverageFeatures(id: string, ctx: { terrains: CustomTerrainSource[]; basemaps: CustomBasemapSource[] }): Promise<FeatureCollection> {
@@ -114,7 +124,8 @@ async function eliFeatures(id: string, layerId: string, label: string, url: stri
     if (!layer) return null
     const fc = await eli.loadCoverageFeatures([layer])
     const features: Feature[] = fc.features.map((f) => ({ ...f, properties: { ...f.properties,
-      overlay: id, color: OVERLAY_COLORS.eli, hollow: false, opacity: 0.07, label, detail: "OSM Editor Layer Index footprint", url } }))
+      overlay: id, color: OVERLAY_COLORS.eli, hollow: false, opacity: 0.07, label, detail: "OSM Editor Layer Index footprint", url,
+      maxzoom: layer.maxzoom, tileSize: layer.tileSize || 256 } }))
     return features.length ? { type: "FeatureCollection", features } : null
   } catch { return null }
 }
@@ -127,7 +138,8 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
     const s = (kind === "lib" ? TERRAIN_LIB : BASEMAP_LIB).find((x) => x.id === key)
     if (!s?.bounds) return empty
     return one(id, rect(s.bounds), { color: kind === "lib" ? OVERLAY_COLORS.library : OVERLAY_COLORS.basemapLibrary, label: s.name,
-      detail: `${kind === "lib" ? "Terrain library" : "Basemap library"} (${s.type})${s.resolutionM !== undefined ? ` · ${s.resolutionM} m` : ""} · declared bounds`, url: s.infoUrl ?? "" })
+      detail: `${kind === "lib" ? "Terrain library" : "Basemap library"} (${s.type}) · declared bounds`, url: s.infoUrl ?? "",
+      resolutionM: s.resolutionM, maxzoom: s.maxzoom })
   }
   if (kind === "eli") {
     const eli = await import("@osm-editor-kit/maplibre-editor-layer-index")
@@ -138,7 +150,7 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
     const t = ctx.terrains.find((s) => s.id === key)
     if (!t?.bounds) return empty
     return one(id, rect(t.bounds), { color: OVERLAY_COLORS.yours, label: t.name,
-      detail: `Terrain source (${t.type})${t.resolutionM !== undefined ? ` · ${t.resolutionM} m` : ""} · declared bounds`, url: t.infoUrl ?? "" })
+      detail: `Terrain source (${t.type}) · declared bounds`, url: t.infoUrl ?? "", resolutionM: t.resolutionM, maxzoom: t.maxzoom })
   }
   if (kind === "basemap") {
     const b = ctx.basemaps.find((s) => s.id === key)
@@ -149,7 +161,7 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
       if (fc) return fc
     }
     if (!b.bounds) return empty
-    return one(id, rect(b.bounds), { color: OVERLAY_COLORS.yours, label: b.name, detail: `Basemap (${b.type}) · declared bounds`, url: b.infoUrl ?? "" })
+    return one(id, rect(b.bounds), { color: OVERLAY_COLORS.yours, label: b.name, detail: `Basemap (${b.type}) · declared bounds`, url: b.infoUrl ?? "", maxzoom: b.maxzoom })
   }
   return empty
 }

@@ -335,7 +335,7 @@ export const CustomBasemapModal: React.FC<{
             </Suspense>
           ) : type === "stac" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
-              <StacSearchPanel target="basemap" mapRef={mapRef} onSave={(source) => { onSave({ ...source, role: "basemap", opacity: 100 } as any); onOpenChange(false) }} />
+              <StacSearchPanel target="basemap" mapRef={mapRef} onSave={(source) => onSave({ ...source, role: "basemap", opacity: 100 } as any)} />
             </Suspense>
           ) : type === "wms-picker" ? (
             <WmsPickerPanel
