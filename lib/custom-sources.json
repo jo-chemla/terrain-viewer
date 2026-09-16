@@ -44,6 +44,7 @@
             "bounds": [10.0, 46.6, 12.9, 47.8],
             "description": "TIROL ONLY - no Austria-wide open raw-elevation service exists (BEV publishes none; other Laender are hillshade or 404). CC BY 4.0 AT. A 50cm variant exists as coverage=Gelaendemodell_50cm_M28.",
             "resolutionM": 5,
+            "bulkResolutionM": 1,
             "infoUrl": "https://data-tiris.opendata.arcgis.com/maps/fd330c925ce44e2ea44b3e1086d72a1b/about"
         },
         {
@@ -69,6 +70,7 @@
             "bounds": [-141.5, 41.5, -52, 84],
             "description": "Medium Resolution DEM, the national 30m terrain model (CDEM successor) as one 84 GB COG on NRCan's CanElevation bucket - CORS *, range requests, LZW, 10 overviews. EPSG:3979 (Canada Atlas Lambert), so pinned to titiler. Nodata -32767. A DSM twin sits at mrdem-30/mrdem-30-dsm.tif and the older CDEM at datacube-prod-data-public.s3.amazonaws.com/store/elevation/cdem-cdsm/cdem/cdem-canada-dem.tif. Coarser than the 2m HRDEM Mapterhorn ingests - this is the whole-country product; HRDEM itself is only published per tile. Verified: Banff 1387 m, Mt Robson 3902 m (30m pixel; true 3954). Open Government Licence - Canada.",
             "resolutionM": 30,
+            "bulkResolutionM": 1,
             "infoUrl": "https://open.canada.ca/data/en/dataset/18752265-bda3-498c-a4ba-9dfe68cb98da"
         },
         {
@@ -80,6 +82,7 @@
             "description": "The whole of Switzerland in one 10 GB COG - 55000x43000, six overview levels, 256px tiles, CORS open, range requests supported. A rare case of a national DEM published as a single fetchable file rather than tens of thousands of tiles. EPSG:2056, so it is pinned to titiler (cogViaTitiler) - the in-browser COG reader assumes 3857 and would misplace it. No-data is +3.4e38, a POSITIVE Float32 max. Note swisstopo also publishes swissALTI3D at 0.5m and swissSURFACE3D at 0.5m, but only as per-tile COGs indexed by STAC - and Mapterhorn already ingests the 0.5m, so this 10m single file is for convenience, not resolution. swisstopo open data, attribution required.",
             "cogViaTitiler": true,
             "resolutionM": 10,
+            "bulkResolutionM": 0.5,
             "infoUrl": "https://www.swisstopo.admin.ch/en/height-model-swissaltiregio"
         },
         {
@@ -116,6 +119,7 @@
             "bounds": [-9.5, 35.9, 4.4, 43.9],
             "description": "See https://blog-idee.blogspot.com/2024/03/nuevo-servicio-xyz-del-modelo-digital.html Bounds are mainland Spain + Balearics: the service returns empty tiles over the Canaries and Ceuta/Melilla (verified).",
             "resolutionM": 5,
+            "bulkResolutionM": 2,
             "infoUrl": "https://blog-idee.blogspot.com/2024/03/nuevo-servicio-xyz-del-modelo-digital.html"
         },
         {
@@ -143,6 +147,7 @@
             "bounds": [19.0, 59.5, 31.7, 70.1],
             "description": "Maanmittauslaitos 10m national elevation model, served by CSC Paituli. CC BY 4.0. Sentinel is -9999 and it leaks heavily (70k+ cells on a Halti tile), so the floor is required. Tiles are ~4MB each (the server answers in a wide dtype) and low zooms are slow - 3.9s at z8, 13s at z7, 57s at z6 - hence minzoom 8. Server returns a ~6% larger extent than requested; the protocol re-grids onto the requested bbox (resampleToBbox).",
             "resolutionM": 10,
+            "bulkResolutionM": 2,
             "infoUrl": "https://www.maanmittauslaitos.fi/en/maps-and-spatial-data/datasets-and-interfaces/product-descriptions/elevation-model-10-m"
         },
         {
@@ -259,6 +264,7 @@
             "bounds": [122, 20, 154, 46],
             "description": "The Geological Survey of Japan (AIST) re-serves GSI's national elevation tiles as standard Mapbox Terrain-RGB: DEM5A/B/C (5m) where available, DEM10B (10m) elsewhere, Hyogo LiDAR at z16-17, with ASTER GDEM and GEBCO bathymetry outside Japan at low zoom. Note the {z}/{y}/{x} order in the path. GSI's own tiles use a signed 24-bit x0.01 packing no raster-dem encoding can express - this conversion is what makes Japan loadable here. z16+ returns HTTP 400 outside Hyogo, hence maxzoom 15. Verified: Mt Fuji 3773.8 m (true 3776). CORS *. GSI content usage terms (attribution GSI / GSJ-AIST); GSJ marks the service experimental.",
             "resolutionM": 5,
+            "bulkResolutionM": 1,
             "infoUrl": "https://gbank.gsj.jp/seamless/elev/"
         },
         {
@@ -465,6 +471,7 @@
             "bounds": [141.0, -37.51, 154.0, -28.0],
             "description": "NEW SOUTH WALES - 1m/2m LiDAR resampled to a 5m statewide grid; pairs with the Queensland entry, and Geoscience Australia publishes no national equivalent (its services are decommissioned or region-blocked). CC BY 4.0, NSW Spatial Services. Verified Kosciuszko 2227.4 m against 2228 true. SLOW cold: 28s measured; repeats are server-cached.",
             "resolutionM": 5,
+            "bulkResolutionM": 1,
             "infoUrl": "https://www.data.nsw.gov.au/data/dataset/1-437c0697e6524d8ebf10ad0d915bc219"
         },
         {

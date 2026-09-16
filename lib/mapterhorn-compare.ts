@@ -33,9 +33,19 @@ const BEST: Record<string, number | undefined> = customSources.MAPTERHORN_BEST_R
 const GLO30 = BEST.GLOBAL ?? 30
 const ISO_RE = /^([A-Z]{3}) - /
 
+/** Which grid to grade: what the live API serves ("api", the default and
+ *  what the viewer actually renders), or the finest grid the agency
+ *  advertises for bulk download ("bulk"), which is what Mapterhorn itself
+ *  would ingest. */
+export type ResolutionMetric = "api" | "bulk"
+
+export function resolutionOf(source: { resolutionM?: number; bulkResolutionM?: number }, metric: ResolutionMetric = "api"): number | undefined {
+  return metric === "bulk" ? source.bulkResolutionM ?? source.resolutionM : source.resolutionM
+}
+
 /** null when the source carries no resolution, so nothing can be said. */
-export function compareWithMapterhorn(source: { name: string; resolutionM?: number }): MapterhornComparison | null {
-  const ours = source.resolutionM
+export function compareWithMapterhorn(source: { name: string; resolutionM?: number; bulkResolutionM?: number }, metric: ResolutionMetric = "api"): MapterhornComparison | null {
+  const ours = resolutionOf(source, metric)
   if (ours === undefined) return null
   // Bathymetry has no Mapterhorn counterpart at all - it is land-only.
   if (/bathymetr/i.test(source.name)) return { verdict: "new", ours, theirs: GLO30 }

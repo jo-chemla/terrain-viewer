@@ -17,8 +17,12 @@ import { resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { BUILTIN_BASEMAP_OPTIONS } from "./raster-basemap-section"
 import { GRID_LAYOUTS, viewFieldName, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
-import { useAtomValue } from "jotai"
-import { ExternalLink } from "lucide-react"
+import { useAtomValue, useAtom } from "jotai"
+import { ExternalLink, ChevronDown, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { coverageOverlaysAtom, coverageOverlayOptions } from "@/lib/coverage-overlays"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
 import { compareWithMapterhorn, formatRes } from "@/lib/mapterhorn-compare"
 import { terrainKindOf } from "./sample-sources-modal"
@@ -265,6 +269,53 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   )
 }
 
+/** Multi-select of coverage footprints to draw on the map (see
+ *  lib/coverage-overlays.ts): Mapterhorn's per-country list, custom terrain
+ *  and basemap bounds, ELI coverage polygons. Selected ones show as pills. */
+const CoverageOverlayPicker: React.FC = () => {
+  const [selected, setSelected] = useAtom(coverageOverlaysAtom)
+  const terrains = useAtomValue(customTerrainSourcesAtom)
+  const basemaps = useAtomValue(customBasemapSourcesAtom)
+  const options = coverageOverlayOptions(terrains, basemaps)
+  const toggle = (id: string, on: boolean) => setSelected((prev) => on ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((x) => x !== id))
+  const chosen = options.filter((o) => selected.includes(o.id))
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-sm font-medium">Coverage overlays</Label>
+        <Popover>
+          <PopoverTrigger render={
+            <Button variant="outline" size="sm" className="cursor-pointer font-normal h-7">
+              {chosen.length ? `${chosen.length} shown` : "None"} <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
+          } />
+          <PopoverContent align="end" className="w-72 space-y-1.5 max-h-80 overflow-y-auto">
+            {options.map((o) => (
+              <div key={o.id} className="flex items-center gap-2">
+                <Checkbox id={`cov-${o.id}`} checked={selected.includes(o.id)} onCheckedChange={(v) => toggle(o.id, v === true)} className="cursor-pointer" />
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: o.color }} />
+                <Label htmlFor={`cov-${o.id}`} className="text-xs cursor-pointer truncate" title={o.label}>{o.label}</Label>
+              </div>
+            ))}
+            {options.length <= 1 && <p className="text-[11px] text-muted-foreground">Custom sources appear here once they declare bounds (Advanced in their modal), and OSM Editor Layer Index basemaps always do.</p>}
+          </PopoverContent>
+        </Popover>
+      </div>
+      {chosen.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {chosen.map((o) => (
+            <span key={o.id} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] max-w-full" style={{ borderColor: o.color }}>
+              <span className="truncate max-w-[180px]" title={o.label}>{o.label}</span>
+              <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground" onClick={() => toggle(o.id, false)} aria-label={`Hide ${o.label}`}><X className="h-3 w-3" /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point, click for their links.</p>
+    </div>
+  )
+}
+
 export const SourceInfoSection: React.FC<{
   state: any
   mapRef: React.RefObject<MapRef>
@@ -347,6 +398,7 @@ export const SourceInfoSection: React.FC<{
           source is shown there) — but a raster basemap can be active in
           EITHER app mode, so BasemapAttributionList below always renders
           alongside this, not instead of it. */}
+      <CoverageOverlayPicker />
       {!historicalMode && customTerrain && <CustomTerrainInfo source={customTerrain} />}
       {!historicalMode && sourceKind && (
       <>

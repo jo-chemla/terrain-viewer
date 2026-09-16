@@ -3,7 +3,7 @@ import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, type
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { compareWithMapterhorn, formatRes, type MapterhornComparison, type MapterhornVerdict } from "@/lib/mapterhorn-compare"
+import { compareWithMapterhorn, resolutionOf, formatRes, type MapterhornComparison, type MapterhornVerdict, type ResolutionMetric } from "@/lib/mapterhorn-compare"
 
 /** The fields every sample entry (terrain or basemap) is guaranteed to have. */
 export interface SampleLike {
@@ -12,6 +12,7 @@ export interface SampleLike {
   type?: string
   loadWithSamples?: boolean
   resolutionM?: number
+  bulkResolutionM?: number
   url?: string
   infoUrl?: string
 }
@@ -112,11 +113,16 @@ export function SampleSourcesModal<T extends SampleLike>({
 }) {
   const presentIds = useMemo(() => new Set(current.map((s) => s.id)), [current])
   const lastGlobal = useMemo(() => samples.reduce((acc, s, i) => (s.name.startsWith("Global - ") ? i : acc), -1), [samples])
+  // "api": the grid the live service streams (what this viewer renders);
+  // "bulk": the finest grid the agency advertises for download, i.e. what
+  // Mapterhorn would ingest. Switching regroups the tiers live.
+  const [metric, setMetric] = useState<ResolutionMetric>("api")
+  const hasBulk = useMemo(() => samples.some((s) => s.bulkResolutionM !== undefined), [samples])
   const comparisons = useMemo(() => {
     const m = new Map<string, MapterhornComparison | null>()
-    if (compareToMapterhorn) for (const s of samples) m.set(s.id, compareWithMapterhorn(s))
+    if (compareToMapterhorn) for (const s of samples) m.set(s.id, compareWithMapterhorn(s, metric))
     return m
-  }, [samples, compareToMapterhorn])
+  }, [samples, compareToMapterhorn, metric])
   // tier -> section -> rows. Without comparison everything sits in one tier.
   const grouped = useMemo(() => {
     const out: Record<TierKey, Record<SectionKey, T[]>> = {
@@ -168,11 +174,11 @@ export function SampleSourcesModal<T extends SampleLike>({
         )}
         {compareToMapterhorn && !showCompare && (
           <span className="shrink-0 w-32 text-right text-xs text-muted-foreground tabular-nums">
-            {s.resolutionM !== undefined ? formatRes(s.resolutionM) : ""}
+            {resolutionOf(s, metric) !== undefined ? formatRes(resolutionOf(s, metric)!) : ""}
           </span>
         )}
         {showCompare && (
-          <span className="shrink-0 w-32 text-right text-xs text-muted-foreground tabular-nums" title="This source vs Mapterhorn's best ingested grid for the area">
+          <span className="shrink-0 w-32 text-right text-xs text-muted-foreground tabular-nums" title={`${metric === "bulk" ? "Best advertised bulk grid" : "Grid served by the live API"} vs Mapterhorn's best ingested grid for the area`}>
             {c ? (c.verdict === "same" ? formatRes(c.ours) : `${formatRes(c.ours)} vs ${formatRes(c.theirs)}`) : "—"}
           </span>
         )}
@@ -296,6 +302,13 @@ export function SampleSourcesModal<T extends SampleLike>({
           <Button variant="outline" className="cursor-pointer" onClick={() => remove(samples)} disabled={loadedCount === 0}>
             <Minus className="h-4 w-4" /> Clear all
           </Button>
+          {compareToMapterhorn && hasBulk && (
+            <div className="ml-auto flex items-center gap-1 text-xs" title="Grade by the grid the live API streams (what this viewer renders) or by the finest grid the agency advertises for bulk download (what Mapterhorn would ingest)">
+              <span className="text-muted-foreground mr-1">Resolution:</span>
+              <Button size="sm" variant={metric === "api" ? "secondary" : "ghost"} className="h-7 cursor-pointer" onClick={() => setMetric("api")}>API-served</Button>
+              <Button size="sm" variant={metric === "bulk" ? "secondary" : "ghost"} className="h-7 cursor-pointer" onClick={() => setMetric("bulk")}>Best bulk GSD</Button>
+            </div>
+          )}
         </div>
         <div className="overflow-y-auto pr-1 -mr-1 space-y-4">
           {compareToMapterhorn

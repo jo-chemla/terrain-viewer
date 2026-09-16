@@ -210,6 +210,10 @@ export interface CustomTerrainSource {
   /** Native ground resolution in metres (finest, for a mixed product), used
    *  to grade the source against Mapterhorn - see lib/mapterhorn-compare.ts. */
   resolutionM?: number
+  /** Finest grid the agency ADVERTISES for bulk download, when finer than
+   *  what its live API serves (swissALTI3D 0.5 m vs the 10 m swissALTIRegio
+   *  COG). Absent means the API grid is the best there is. */
+  bulkResolutionM?: number
 }
 
 // getOnInit: true reads localStorage synchronously on first render instead of the

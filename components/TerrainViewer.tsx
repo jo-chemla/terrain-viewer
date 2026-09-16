@@ -112,6 +112,7 @@ import {
 } from "./LayersAndSources/MapLayers"
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
+import { CoverageOverlayLayer } from "./LayersAndSources/CoverageOverlayLayer"
 
 import { createParser } from 'nuqs'
 import { parseAsColor } from "@/lib/nuqs-parser-color"
@@ -3462,6 +3463,9 @@ export function TerrainViewer() {
               theme={theme}
             />
           )}
+
+          {/* Coverage footprints picked in Source Info — every view */}
+          <CoverageOverlayLayer />
 
           {/* Graticules — primary map only */}
           {isPrimary && state.showGraticules && !isHistoricalMode && (

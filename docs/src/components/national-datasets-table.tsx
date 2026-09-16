@@ -19,6 +19,7 @@ type Source = {
   loadWithSamples?: boolean;
   cogViaTitiler?: boolean;
   resolutionM?: number;
+  bulkResolutionM?: number;
   infoUrl?: string;
   description?: string;
 };
@@ -286,7 +287,7 @@ export function NationalDatasetsTable() {
               <thead>
                 <tr>
                   <th>ISO A3</th><th>Country</th><th>Dataset</th><th>Served as</th>
-                  <th>Endpoint</th><th>Resolution</th><th>Coverage</th><th>Mapterhorn</th>
+                  <th>Endpoint</th><th>API resolution</th><th>Bulk download</th><th>Coverage</th><th>Mapterhorn</th>
                 </tr>
               </thead>
               <tbody>
@@ -302,6 +303,7 @@ export function NationalDatasetsTable() {
                         <a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a>
                       </td>
                       <td>{facts?.res ?? "—"}</td>
+                      <td>{s.bulkResolutionM !== undefined ? `${s.bulkResolutionM} m` : facts?.res ? "same" : "—"}</td>
                       <td>{facts?.coverage ?? "—"}</td>
                       <td>{mh === null || mh === undefined ? "not ingested" : `${mh} m`}</td>
                     </tr>
@@ -312,6 +314,11 @@ export function NationalDatasetsTable() {
           </div>
         );
       })}
+      <p className="text-xs text-fd-muted-foreground">
+        <em>API resolution</em> is the grid the live service streams (what the viewer renders and what the grading above uses);{" "}
+        <em>Bulk download</em> is the finest grid the agency advertises for download, which is what Mapterhorn itself ingests.
+        The sample picker in the app can regrade by either.
+      </p>
       <p className="text-xs text-fd-muted-foreground">
         {rows.length} national datasets, generated at build time from{" "}
         <a href="https://github.com/Iconem/terrain-viewer/blob/main/lib/custom-sources.json" target="_blank" rel="noopener noreferrer">
