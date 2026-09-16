@@ -1,67 +1,27 @@
-# Changelog — Catalogue Search & Coverage Overlays
+# Changelog — Catalogue Search, Coverage Overlays & OSM Vector
 <!-- released: 2026-09-16 -->
 
 #### TL;DR
-- **Coverage overlays** (Source Info): draw where sources have data before loading them — Mapterhorn's own per-country coverage tiles (hollow where it falls back to GLO-30, with the source's resolution on hover), the whole terrain and basemap libraries, the OSM Editor Layer Index layers touching the view, and your custom sources. Picked from a tree (tick a group, or expand to refine), drawn on every view; hover lists what covers a point, click links to each dataset.
+- **Coverage overlays** (Source Info): see where sources have data before loading them — Mapterhorn's own per-country coverage tiles with each source's resolution on hover, the whole terrain and basemap libraries, OSM Editor Layer Index footprints, your own sources. Tree picker, drawn on every view; hover lists what covers a point, click links each dataset and can select it for view A.
 
   ![Coverage overlays over Europe with the hover list](/docs/screenshots/coverage-overlays.jpg)
-- **STAC search** (beta, Settings → Beta) in both Add dialogs: OpenAerialMap, Earth Search, eoAPI, NASA VEDA, swisstopo, LINZ, Maxar and Vantor open-data events, Planet disaster releases, PGC polar DEMs, OpenTopography, a federated collection search, or any catalogue URL — date range, current view, then add any COG. Non-Web-Mercator assets are pinned to titiler; terrain only lists single-band rasters, elevation-looking ones first.
-- **OSM Editor Layer Index** basemap search (bundled index, bumped weekly), with licence and attribution carried into Source Info, a permalink into the ELI browser at the current view, and pixel size at max zoom as a resolution hint.
-- **Library** replaces Sample: national and global terrain datasets graded against Mapterhorn by API-served grid or by the agency's best bulk download grid (toggle), with the best bulk grid also in the docs.
+- **STAC search** (beta, Settings → Beta) in both Add dialogs: OpenAerialMap, Earth Search, eoAPI, NASA VEDA, swisstopo, LINZ, OpenTopography, polar DEMs, Maxar / Vantor open-data events, Planet disaster releases, a federated collection search, or any catalogue URL. Date range, current view, cloud cover, Web Mercator first, non-Mercator assets pinned to titiler, terrain limited to single-band elevation rasters, add as basemap or overlay.
+- **Basemap catalogue search**: NextGIS QMS and the OSM Editor Layer Index (bundled, bumped weekly), with licence and attribution carried into Source Info and permalinks into their browsers.
+- **OpenStreetMap is now OpenFreeMap's Liberty vector style** instead of raster tiles, with a 3D buildings toggle, following the basemap visibility and opacity controls.
+- Source Info card for custom terrain sources; COG viewer links (source.coop, GeoLibre); "None (overlays only)" basemap; per-source titiler pin for non-Mercator COGs on basemaps too.
 
-  ![The terrain dataset library](/docs/screenshots/terrain-library.jpg)
-
-### Features
-- Source Info shows a full card for a custom terrain source (model, resolution vs Mapterhorn, serving, extent, dataset page) and the catalogue provenance of custom basemaps.
-- Remote COGs link to the source.coop COG viewer and GeoLibre from their row and from their dialog.
-- Drawings made on view A are mirrored read-only on the other views of a split or grid layout.
-- Add Basemap remembers the last type (NextGIS on first run), Add Terrain likewise; a new basemap is selected for view A and the basemap layer is switched on.
-- MapTiler Satellite as a built-in basemap and Export Multi source; Your Bookmarks folds like Featured.
-- Export Multi (Historical): frames named `viewport_esri-wayback_2021-10-07.tif`, Google Earth Historical fetched in-process, capture counts per source, optional reuse of the timeline's listing.
-
-# Changelog — National Terrain Sources
+# Changelog — National Terrain Library & Historical Export
 <!-- released: 2026-09-14 -->
 
 #### TL;DR
-- **National elevation sources added**, each verified against a known summit: Norway, USGS 3DEP, Netherlands AHN, England, Finland, Estonia, Tirol, Czechia, Italy, Japan, Mexico, Spain, Uruguay, Canada, Faroe, France overseas, plus polar ArcticDEM/REMA, GEDTM30 and EMODnet bathymetry. Mostly 0.5–2 m LiDAR, against ~30 m for a global DEM.
-- **Selecting one pins the map to that country**, with enough underzoom to see the whole of it ([maplibre-xy](https://github.com/larsmaxfield/maplibre-xy)). Settings → Map Bounds to change.
-- **Sample sources are now picked, not dumped**: the Sample button opens a list with a plus/minus per dataset and Load all / Clear all, instead of adding ~50 entries in one go.
-- **New docs page** listing every national dataset — country, format, endpoint, resolution, coverage.
-- **Custom RGB encoding** for tile sources that use neither Terrarium nor Terrain-RGB (Mexico packs elevation with a base of 1000, not 10000).
-- **WCS 2.0 support**, and a fix for servers that return a slightly larger extent than requested, which shifted terrain by a few percent.
+- **Library** replaces Sample: a curated set of high-resolution terrain and basemap sources from national mapping agencies, global products and sub-national surveys — Norway, USGS 3DEP, Netherlands AHN, England, Finland, Estonia, Tirol, Czechia, Italy, Japan, Mexico, Spain, Uruguay, Canada, Faroe, France overseas, ArcticDEM / REMA, GEDTM30, EMODnet — each verified against a known summit, graded against Mapterhorn by API-served and best bulk-download grid, filterable, picked one at a time or all at once. Selecting one pins the map to the country.
 
-### Bug Fixes
-- No-data detection now catches positive sentinels — the Netherlands signals no-coverage with `+3.4e38`, which a floor could never catch, so offshore tiles read as -32768 m.
-- A source's `minzoom` no longer clamps the camera; it limits tile requests only.
-- Drawing layers: a checkbox per layer shows or hides it; the layer new drawings go to is picked by clicking its name (shown in bold), replacing the radio; clicking the active layer again toggles its visibility.
-- Export Multi (Historical): source groups are two inline pickers spelling out what is selected, Cancel releases the dialog immediately, nothing is downloaded when every target was skipped, and a capture whose tiles are missing at the wanted zoom is retried up to three zooms coarser instead of being skipped (older Wayback releases and Google Earth dates rarely reach z19).
-- Export Multi (Historical): calendar date pickers, the timeline zooms to the chosen range so you see what will be downloaded, EOX Sentinel-2 is off by default, and a "Current basemaps" picker (all on by default, one control) exports today's Google, Esri, Bing, Mapbox and HERE mosaics.
-- Terrain Analysis sub-groups (Surface derivatives, Neighborhood statistics, Principal Components) fold independently and remember their state.
-- Drawing export has a third scope, "Selected layer only", alongside flattened and one-file-per-layer.
-- Export Multi (Historical) shows how many captures each selected source has in the chosen date range before you run it.
-- A range-slider thumb whose value is outside the slider bounds now stays pinned at the nearest edge instead of vanishing, and dragging the other thumb no longer snaps it to the edge.
-- Synced views that drift apart (one pane at a different zoom or centre, previously only fixable by a reload) are pulled back together on the next idle, in every split and grid layout, terrain or not.
-- Historical timeline axis subdivides when zoomed in: half-years, quarters, then months, with the year kept at every January.
-- Slope and the other client-computed overlays no longer go blank past the zoom a tileset really has: they now probe coverage at the viewport centre like the terrain source does, so Mapterhorn over a GLO-30-only area (z12) overzooms instead of requesting z13 tiles that 404.
-- Sparse GeoTIFFs from ArcGIS servers no longer fail to decode. Out-of-coverage blocks are written with zero offsets, which geotiff.js rejected outright, so Tirol and Czechia rendered blank at exactly the zoom the map had just been fenced to.
-- A COG source can be pinned to titiler (*Always serve via titiler* in its Advanced settings). Needed for files not in Web Mercator — the browser reader misplaced Switzerland's LV95 COG and read ANADEM's degree-sized pixels as metres, which locked the camera at z19.
-- `maxBounds` is applied imperatively — react-map-gl 8's maplibre build never calls `setMaxBounds`, so bounds only ever took effect at page load.
-- Sample sources sorted by ISO 3166-1 alpha-3, with two wrong codes fixed (Greece was `GRE`, the IOC code, not `GRC`). Project scans no longer load with the samples, but stay importable by permalink.
-
-# Changelog — No-Data Handling for DEM Sources
-<!-- released: 2026-09-12 -->
-
-#### TL;DR
-- **Out-of-coverage cells no longer decode to absurd elevations.** IGN LiDAR HD's `-9999` sentinel passed straight through as a 10 km pit, and WMS reprojection smears it into a fringe of garbage along every coverage edge, so an exact match was never enough; both are now caught by a threshold. COGs that declare their no-data as `NaN` were decoding to -32768 m and are fixed with no configuration.
-- **New No-Data Floor / Fill fields** in a custom source's Advanced section: anything at or below the floor, plus any `NaN`, is replaced with the fill. Shown only for sources this app decodes itself (browser-read COG and WMS-raw). The bundled IGN LiDAR HD sources ship floor `-20` / fill `0`, which clears the sentinel while keeping France's genuinely below-sea-level polders.
-
-### Features
-- `lib/nodata.ts` centralises the floor/fill rule; each transport lowers it its own way, URL markers for `float32dem://` and color-function arguments for `cog://`. The hint line states a COG's `SCALE`/`OFFSET` when they are not the identity, since they decide what "metres" means in these fields.
-- The guided tour's opening step now carries a button through to the full documentation.
-
-### Bug Fixes
-- `float32dem://`: the `isFinite` guard never fired on IGN LiDAR HD, and supersampling averaged sentinel values into its output instead of skipping them.
-- COG color function: `raw === noData` cannot match a `NaN` tag, so such pixels reached the Terrarium encoder and decoded as -32768 m.
+  ![The terrain dataset library](/docs/screenshots/terrain-library.jpg)
+- **Docs page** listing every national dataset with a coverage choropleth, resolution, endpoint and licence.
+- **Decoding fixes** that made these services usable: no-data floors and fills (sentinels, NaN, WMS reprojection fringes), sparse ArcGIS TIFFs, WCS 2.0, custom RGB encodings, COGs pinned to titiler when not in Web Mercator.
+- **Export Multi (Historical)**: calendar pickers synced to the timeline, every current basemap as one picker, capture counts per source, Wayback dedup, zoom step-down retries, clean provider-named files, Google Earth frames fetched in-process.
+- **Drawing layers**: per-layer visibility, export scopes (flat, per layer, selected), drawings mirrored on every view.
+- Whole-world default view, self-healing synced views, zoom-dependent timeline marks, foldable Terrain Analysis sub-groups, MapTiler Satellite basemap.
 
 # Changelog — Live Lighting Rework: Native-Sharpness Phong & Matcap
 <!-- released: 2026-08-21 -->
