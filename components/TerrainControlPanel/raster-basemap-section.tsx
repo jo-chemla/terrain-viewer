@@ -1,6 +1,7 @@
 import type React from "react"
 import { useMemo, useCallback, useState } from "react"
 import { useAtom } from "jotai"
+import { osmBuildings3dAtom } from "@/lib/settings-atoms"
 import { ChevronDown } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -74,6 +75,7 @@ export const RasterBasemapSection: React.FC<{
   // too, not just a static "always current" implication.
   const { label: esriCaptureLabel } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
 
+  const [osmBuildings3d, setOsmBuildings3d] = useAtom(osmBuildings3dAtom)
   const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, maptiler: maptilerKey, planet: planetKey }
   const visibleBuiltinOptions = useMemo(
     () => BUILTIN_BASEMAP_OPTIONS
@@ -197,6 +199,12 @@ export const RasterBasemapSection: React.FC<{
                         />
                         <TooltipContent><p>Set all views to {label}</p></TooltipContent>
                       </Tooltip>
+                      {value === "osm" && (
+                        <span className="flex items-center gap-1 shrink-0" title="Extruded 3D buildings (OpenFreeMap Liberty, from z14)">
+                          <span className="text-[10px] text-muted-foreground">3D</span>
+                          <Switch checked={osmBuildings3d} onCheckedChange={setOsmBuildings3d} className="cursor-pointer scale-75" />
+                        </span>
+                      )}
                     </div>
                   )
                 })}
@@ -225,6 +233,12 @@ export const RasterBasemapSection: React.FC<{
                           <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
                         )}
                       </Label>
+                      {value === "osm" && (
+                        <span className="flex items-center gap-1 shrink-0" title="Extruded 3D buildings (OpenFreeMap Liberty, from z14)">
+                          <span className="text-[10px] text-muted-foreground">3D</span>
+                          <Switch checked={osmBuildings3d} onCheckedChange={setOsmBuildings3d} className="cursor-pointer scale-75" />
+                        </span>
+                      )}
                     </div>
                   ))}
                 </RadioGroup>

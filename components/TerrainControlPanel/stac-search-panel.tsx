@@ -196,7 +196,8 @@ async function crawlStaticItems(url: string, bbox: number[] | null, limit: numbe
 export interface StacSaveSource {
   name: string
   url: string
-  type: "cog"
+  /** "tms" only for a collection's xyz web-map-link (basemap target). */
+  type: "cog" | "tms"
   description?: string
   bounds?: [number, number, number, number]
   /** Set when the asset is known not to be Web Mercator: the in-browser
@@ -241,10 +242,13 @@ export const StacSearchPanel: React.FC<{
   // Collections of the chosen catalogue (API / discovery: /collections with
   // paging; static: child links). Skipped on mount when the remembered
   // state already belongs to this catalogue.
-  const [listedFor, setListedFor] = useState(prev?.presetId === presetId ? catalog.url : "")
+  // Only trust a remembered listing that actually holds collections.
+  const [listedFor, setListedFor] = useState(prev?.presetId === presetId && (prev?.collections.length ?? 0) > 0 ? catalog.url : "")
+  const [listing, setListing] = useState(false)
   useEffect(() => {
     if (listedFor === catalog.url) return
     setListedFor(catalog.url)
+    setListing(true)
     setCollections([]); setCollectionId(""); setItems([]); setError("")
     if (!catalog.url) return
     let cancelled = false
@@ -259,9 +263,16 @@ export const StacSearchPanel: React.FC<{
           if (!cancelled) setCollections(list)
         }
       } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : "Could not list collections") }
+      finally { if (!cancelled) setListing(false) }
     })()
     return () => { cancelled = true }
   }, [catalog.url, catalog.kind, listedFor])
+  // web-map-links on the chosen collection: ready-made XYZ tile layers (rare:
+  // NASA VEDA and the EOPF explorer publish some) - addable as-is.
+  const xyzLinks = useMemo(() => {
+    const col = collections.find((c) => c.id === collectionId)
+    return (col?.links ?? []).filter((l) => l.rel === "xyz" && /\{z\}/.test(l.href)).map((l) => ({ href: l.href.startsWith("//") ? `https:${l.href}` : l.href, title: l.title || l.href.replace(/^https?:\/\//, "").split(/[/?]/)[0] }))
+  }, [collections, collectionId])
 
   const runSearch = useCallback(async () => {
     setLoading(true); setError(""); setItems([])
@@ -405,6 +416,27 @@ export const StacSearchPanel: React.FC<{
         )
       })()}
 
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Checkbox id="stac-viewport-only" checked={viewportOnly} onCheckedChange={(v) => setViewportOnly(v === true)} className="cursor-pointer" />
+          <Label htmlFor="stac-viewport-only" className="text-xs cursor-pointer">Only items covering the current view</Label>
+        </div>
+        <div className="flex items-center gap-2" title="Keep only assets the catalogue declares as EPSG:3857 - the ones the in-browser reader streams without titiler">
+          <Checkbox id="stac-only-3857" checked={only3857} onCheckedChange={(v) => setOnly3857(v === true)} className="cursor-pointer" />
+          <Label htmlFor="stac-only-3857" className="text-xs cursor-pointer">Only Web Mercator (3857)</Label>
+        </div>
+      </div>
+      {target === "basemap" && (
+        <div className="flex items-center gap-2" title="eo:cloud_cover - sent to the API as a query when it supports it, applied here regardless">
+          <Checkbox id="stac-cloud" checked={maxCloud !== null} onCheckedChange={(v) => setMaxCloud(v === true ? 20 : null)} className="cursor-pointer" />
+          <Label htmlFor="stac-cloud" className="text-xs cursor-pointer">Max cloud cover</Label>
+          {maxCloud !== null && (
+            <span className="flex items-center gap-1 text-xs">
+              <Input type="number" min={0} max={100} value={maxCloud} onChange={(e) => setMaxCloud(Math.max(0, Math.min(100, Number(e.target.value) || 0)))} className="h-7 w-16 cursor-text" />%
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-2 shrink-0" title="Static catalogs are never filtered by date; APIs are, unless this is ticked">
           <Checkbox id="stac-any-date" checked={anyDate} onCheckedChange={(v) => setAnyDate(v === true)} className="cursor-pointer" />
@@ -417,39 +449,30 @@ export const StacSearchPanel: React.FC<{
             <DateButton value={endDate} onChange={setEndDate} />
           </>
         )}
-      </div>
-      {target === "basemap" && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2" title="eo:cloud_cover - sent to the API as a query when it supports it, applied here regardless">
-            <Checkbox id="stac-cloud" checked={maxCloud !== null} onCheckedChange={(v) => setMaxCloud(v === true ? 20 : null)} className="cursor-pointer" />
-            <Label htmlFor="stac-cloud" className="text-xs cursor-pointer">Max cloud cover</Label>
-            {maxCloud !== null && (
-              <span className="flex items-center gap-1 text-xs">
-                <Input type="number" min={0} max={100} value={maxCloud} onChange={(e) => setMaxCloud(Math.max(0, Math.min(100, Number(e.target.value) || 0)))} className="h-7 w-16 cursor-text" />%
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <Label className="text-xs">Add as</Label>
-            <SegmentedToggle value={role} onChange={setRole} options={[{ value: "basemap" as const, label: "Basemap" }, { value: "overlay" as const, label: "Overlay" }]} />
-          </div>
-        </div>
-      )}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Checkbox id="stac-viewport-only" checked={viewportOnly} onCheckedChange={(v) => setViewportOnly(v === true)} className="cursor-pointer" />
-            <Label htmlFor="stac-viewport-only" className="text-xs cursor-pointer">Only items covering the current view</Label>
-          </div>
-          <div className="flex items-center gap-2" title="Keep only assets the catalogue declares as EPSG:3857 - the ones the in-browser reader streams without titiler">
-            <Checkbox id="stac-only-3857" checked={only3857} onCheckedChange={(v) => setOnly3857(v === true)} className="cursor-pointer" />
-            <Label htmlFor="stac-only-3857" className="text-xs cursor-pointer">Only Web Mercator (3857)</Label>
-          </div>
-        </div>
-        <Button size="sm" className="cursor-pointer" onClick={runSearch} disabled={loading || !catalog.url}>
+        <Button size="sm" className="cursor-pointer ml-auto shrink-0" onClick={runSearch} disabled={loading || listing || !catalog.url}>
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Search
         </Button>
       </div>
+      {target === "basemap" && (
+        <div className="flex items-center gap-2">
+          <Label className="text-xs">Add as</Label>
+          <SegmentedToggle value={role} onChange={setRole} options={[{ value: "basemap" as const, label: "Basemap" }, { value: "overlay" as const, label: "Overlay" }]} />
+        </div>
+      )}
+      {listing && <p className="text-xs text-muted-foreground">Listing collections…</p>}
+      {target === "basemap" && xyzLinks.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[11px] text-muted-foreground">This collection also publishes ready-made tile layers (web-map-links):</p>
+          <div className="flex flex-wrap gap-1">
+            {xyzLinks.map((l) => (
+              <Button key={l.href} size="sm" variant={added.has(l.href) ? "secondary" : "outline"} className="h-7 cursor-pointer text-xs max-w-full min-w-0" disabled={added.has(l.href)} title={l.href}
+                onClick={() => { setAdded((st) => new Set(st).add(l.href)); onSave({ name: l.title, url: l.href, type: "tms", description: `STAC ${catalog.name} / ${collectionId} · xyz web-map-link`, role }) }}>
+                {added.has(l.href) ? <Check className="h-3 w-3 shrink-0" /> : <Plus className="h-3 w-3 shrink-0" />}<span className="truncate min-w-0">{l.title}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-500">{error}</p>}
       {loading && progress && <p className="text-xs text-muted-foreground">{progress}</p>}

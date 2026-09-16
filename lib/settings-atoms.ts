@@ -62,6 +62,8 @@ export const viewportCenterAtom = atom<{ lat: number; lng: number } | null>(null
 /** Type the "Add Basemap" modal opens on: NextGIS QMS search the very first
  *  time, then whatever was picked last. Persisted; edit mode ignores it. */
 export const customBasemapLastTypeAtom = atomWithStorage<string>("customBasemapLastType", "qms")
+/** OpenFreeMap Liberty (the "OSM" basemap): extruded 3D buildings from z14. */
+export const osmBuildings3dAtom = atomWithStorage<boolean>("osmBuildings3d", true)
 /** Last "Add Dataset" type in the terrain modal (COG on first run). */
 export const customTerrainLastTypeAtom = atomWithStorage<string>("customTerrainLastType", "cog")
 

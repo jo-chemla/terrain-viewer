@@ -1,8 +1,10 @@
 import type React from "react"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useMap } from "react-map-gl/maplibre"
 import type { StyleSpecification, LayerSpecification, SourceSpecification } from "maplibre-gl"
+import { useAtomValue } from "jotai"
 import { LAYER_SLOTS } from "./MapLayers"
+import { osmBuildings3dAtom } from "@/lib/settings-atoms"
 
 /**
  * OpenFreeMap's Liberty style (OpenMapTiles schema, no key) as the "OSM"
@@ -20,6 +22,8 @@ const loadStyle = () => (stylePromise ??= fetch(LIBERTY_STYLE_URL).then((r) => r
 
 export const VectorBasemapLayer: React.FC<{ opacity?: number }> = ({ opacity = 1 }) => {
   const { current: mapRef } = useMap()
+  const buildings3d = useAtomValue(osmBuildings3dAtom)
+  const [installed, setInstalled] = useState(0)
 
   useEffect(() => {
     const map = mapRef?.getMap()
@@ -42,6 +46,7 @@ export const VectorBasemapLayer: React.FC<{ opacity?: number }> = ({ opacity = 1
         if (spec.source) spec.source = PREFIX + spec.source
         try { map.addLayer(spec, before); added.layers.push(lid) } catch { /* an unsupported layer must not sink the rest */ }
       }
+      setInstalled((n) => n + 1)
     }
     loadStyle().then(install).catch(() => {})
     return () => {
@@ -51,6 +56,14 @@ export const VectorBasemapLayer: React.FC<{ opacity?: number }> = ({ opacity = 1
       for (const id of added.sources) { try { if (map.getSource(id)) map.removeSource(id) } catch { /* torn down */ } }
     }
   }, [mapRef])
+
+  // 3D buildings: Liberty's fill-extrusion layer, toggled from the basemap list.
+  useEffect(() => {
+    const map = mapRef?.getMap()
+    const id = `${PREFIX}building-3d`
+    if (!map?.getStyle() || !map.getLayer(id)) return
+    map.setLayoutProperty(id, "visibility", buildings3d ? "visible" : "none")
+  }, [mapRef, buildings3d, installed])
 
   // Basemap opacity: fade every Liberty layer with its own opacity property.
   useEffect(() => {
@@ -66,7 +79,7 @@ export const VectorBasemapLayer: React.FC<{ opacity?: number }> = ({ opacity = 1
         if (layer.type === "symbol") map.setPaintProperty(layer.id, "text-opacity", opacity)
       } catch { /* not yet added */ }
     }
-  }, [mapRef, opacity])
+  }, [mapRef, opacity, installed])
 
   return null
 }

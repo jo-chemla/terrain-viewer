@@ -297,7 +297,7 @@ export const CustomTerrainSourceModal: React.FC<{
 
           {type === "stac" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
-              <StacSearchPanel target="terrain" mapRef={mapRef} onSave={(source) => { onSave(source); fitTo(source.bounds) }} />
+              <StacSearchPanel target="terrain" mapRef={mapRef} onSave={(source) => { onSave({ ...source, type: "cog" }); fitTo(source.bounds) }} />
             </Suspense>
           ) : type === "wms-picker" ? (
             <WmsPickerPanel
