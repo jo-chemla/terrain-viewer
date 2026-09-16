@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom, type AppMode } from "@/lib/settings-atoms"
+import { useCoverageUseRequest } from "@/lib/use-coverage-use-request"
 import { ProductTour } from "./product-tour"
 import type { MapRef } from "react-map-gl/maplibre"
 
@@ -133,6 +134,8 @@ export function TerrainControlPanel({
 }: TerrainControlPanelProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  // "Use as terrain / basemap for view A" from the coverage click modal.
+  useCoverageUseRequest(setState)
   const [isModePickerOpen, setIsModePickerOpen] = useState(false)
   // Nuqs-backed (state.appMode), like every other shareable field — not a
   // local jotai atom — so a link/bookmark can carry which sidebar layout was

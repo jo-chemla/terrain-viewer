@@ -6,6 +6,8 @@ import type { FeatureCollection } from "geojson"
 import { useAtomValue, useSetAtom } from "jotai"
 import { coverageOverlaysAtom, loadCoverageFeatures, getMapterhornSourceMeta, coverageGsd, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
+import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-request"
+import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 const SOURCE_ID = "coverage-overlays"
@@ -15,7 +17,7 @@ const MH_SOURCE_ID = "mapterhorn-coverage"
 const MH_FILL_ID = "mapterhorn-coverage-fill"
 const MH_LINE_ID = "mapterhorn-coverage-line"
 
-type Hit = { label: string; detail: string; url?: string }
+type Hit = { label: string; detail: string; url?: string; overlay?: string }
 
 /**
  * Draws the coverage overlays picked in Source Info (see
@@ -43,6 +45,7 @@ export const CoverageOverlayLayer: React.FC = () => {
   const geoIds = useMemo(() => ids.filter((id) => id !== "mapterhorn"), [ids])
   // A deleted custom source takes its overlay with it.
   const setIds = useSetAtom(coverageOverlaysAtom)
+  const requestUse = useSetAtom(coverageUseRequestAtom)
   useEffect(() => {
     const live = new Set([...terrains.map((t) => `terrain:${t.id}`), ...basemaps.map((b) => `basemap:${b.id}`)])
     const stale = ids.filter((id) => (id.startsWith("terrain:") || id.startsWith("basemap:")) && !live.has(id))
@@ -81,8 +84,8 @@ export const CoverageOverlayLayer: React.FC = () => {
               detail: p.source === "glo30" ? "Copernicus GLO-30 fallback (30 m)"
                 : meta ? `${meta.resolution} m · ${meta.name} (${meta.producer}) · "${p.source}"`
                 : `national source "${p.source}"`,
-              url: `https://mapterhorn.com/attribution/#${p.source}` }
-          : { label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.url || undefined }
+              url: `https://mapterhorn.com/attribution/#${p.source}`, overlay: "mapterhorn" }
+          : { label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.url || undefined, overlay: p.overlay }
         const k = `${hit.label}|${hit.detail}`
         if (seen.has(k)) continue
         seen.add(k)
@@ -151,6 +154,12 @@ export const CoverageOverlayLayer: React.FC = () => {
               <li key={i}>
                 <div className="font-medium">{h.url ? <a href={h.url} target="_blank" rel="noopener noreferrer" className="underline">{h.label}</a> : h.label}</div>
                 <div className="text-xs text-muted-foreground">{h.detail}</div>
+                {h.overlay && coverageUseKind(h.overlay) && (
+                  <Button size="sm" variant="outline" className="h-7 mt-1 cursor-pointer text-xs"
+                    onClick={() => { requestUse({ overlay: h.overlay!, nonce: Date.now() }); setClicked(null) }}>
+                    Use as {coverageUseKind(h.overlay)} for view A
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
