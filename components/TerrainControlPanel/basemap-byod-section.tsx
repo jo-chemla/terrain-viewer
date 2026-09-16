@@ -338,7 +338,21 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         title="Basemap library"
         samples={SAMPLE_BASEMAP_SOURCES as CustomBasemapSource[]}
         current={customBasemapSources}
-        setCurrent={setCustomBasemapSources}
+        setCurrent={(next) => {
+          // Same fallback as the trash button for any view (or the simple
+          // mode's basemapSource) left pointing at a removed id.
+          const kept = new Set(next.map((s) => s.id))
+          const removed = (id: string | undefined) => !!id && !kept.has(id) && customBasemapSources.some((s) => s.id === id)
+          const fallback: Record<ViewId, string> = { A: "esri", B: "google", C: "esri", D: "google", E: "esri", F: "google", G: "esri", H: "google" }
+          const updates: Record<string, string> = {}
+          if (removed(state.basemapSource)) updates.basemapSource = "esri"
+          for (const side of VIEW_IDS) {
+            const field = viewFieldName(side, "basemapSource", true)
+            if (removed(state[field])) updates[field] = fallback[side]
+          }
+          if (Object.keys(updates).length > 0) setState(updates)
+          setCustomBasemapSources(next)
+        }}
       />
       <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} onLiveOpacityChange={handleLiveOpacityChange} mapRef={mapRef} />
       <BasemapBatchEditModal

@@ -474,7 +474,7 @@ export const CustomBasemapModal: React.FC<{
                   className="cursor-pointer"
                 />
               </div>
-              <Separator className="my-1" />
+              <Separator className="my-3" />
               <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
                 <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
                   <span className="flex items-center gap-1.5">

@@ -126,15 +126,29 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 /** Follow `next` links of a paginated /collections listing, up to a cap. */
-async function listCollections(root: string, cap = 600): Promise<StacCollection[]> {
+/** Follow `next` links of a paginated /collections listing, handing each
+ *  page over as it lands (the MAAP federation takes ~8 s for its first page
+ *  and ~2 s per further page: the list fills in instead of blocking). */
+async function listCollections(root: string, onPage: (sofar: StacCollection[]) => void, cap = 1200): Promise<StacCollection[]> {
   const out: StacCollection[] = []
   let url: string | undefined = `${trimSlash(root)}/collections?limit=200`
-  for (let i = 0; url && i < 6 && out.length < cap; i++) {
+  for (let i = 0; url && i < 8 && out.length < cap; i++) {
     const page: { collections?: StacCollection[]; links?: StacLink[] } = await fetchJson(url)
     out.push(...(page.collections ?? []))
+    onPage(out.slice())
     url = page.links?.find((l) => l.rel === "next")?.href
   }
   return out
+}
+
+/** "Failed to fetch" is all the browser says for a blocked request; a CORS
+ *  override extension ("Allow CORS" and the like) is the usual culprit when
+ *  a catalogue that normally works suddenly does not. */
+const explainFetchError = (e: unknown, fallback: string) => {
+  const msg = e instanceof Error ? e.message : fallback
+  return /failed to fetch|networkerror|load failed/i.test(msg)
+    ? `${msg} - the browser blocked the request. A CORS-overriding extension (e.g. "Allow CORS") breaks catalogues that already send the right headers: disable it for this site. Otherwise the catalogue does not allow browser access.`
+    : msg
 }
 
 /** Bounded crawl of a static catalog: child collections/catalogs to a few
@@ -261,10 +275,9 @@ export const StacSearchPanel: React.FC<{
           const children = (root.links ?? []).filter((l) => l.rel === "child")
           if (!cancelled) setCollections(children.map((l) => ({ id: resolveHref(catalog.url, l.href), title: l.title ?? l.href.replace(/^\.\//, "").replace(/\/(collection|catalog)\.json$/, "") })))
         } else {
-          const list = await listCollections(catalog.url)
-          if (!cancelled) setCollections(list)
+          await listCollections(catalog.url, (sofar) => { if (!cancelled) setCollections(sofar) })
         }
-      } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : "Could not list collections") }
+      } catch (e) { if (!cancelled) setError(explainFetchError(e, "Could not list collections")) }
       finally { if (!cancelled) setListing(false) }
     })()
     return () => { cancelled = true }
@@ -314,7 +327,7 @@ export const StacSearchPanel: React.FC<{
         setItems((await crawlStaticItems(start, bbox, 50, setProgress)).filter(cloudOk))
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed")
+      setError(explainFetchError(e, "Search failed"))
     } finally {
       setLoading(false)
       setProgress("")
@@ -401,19 +414,23 @@ export const StacSearchPanel: React.FC<{
         </p>
       )}
 
-      {listing && (
+      {listing && collections.length === 0 && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground h-9"><Loader2 className="h-4 w-4 animate-spin" /> Listing collections…</div>
       )}
-      {!listing && collections.length > 0 && (
+      {collections.length > 0 && (
         <div className="flex items-center gap-2">
           {collections.length > 25 && (
             <Input placeholder="Filter collections…" value={collectionFilter} onChange={(e) => setCollectionFilter(e.target.value)} className="cursor-text w-40 shrink-0 h-9" />
           )}
+          {listing && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />}
           <Select value={collectionId || "__all__"} onValueChange={(v) => setCollectionId(!v || v === "__all__" ? "" : v)} items={collectionItems}>
             <SelectTrigger className="flex-1 min-w-0 overflow-hidden cursor-pointer"><SelectValue /></SelectTrigger>
-            <SelectContent className="max-h-80">
-              <SelectItem value="__all__">{allLabel}</SelectItem>
-              {shownCollections.map((c) => <SelectItem key={c.id} value={c.id}>{c.title || c.id}</SelectItem>)}
+            {/* Width pinned to the trigger and titles truncated: 300 long
+                titles otherwise widened the popup past the viewport, which
+                threw it to the screen corner. */}
+            <SelectContent className="max-h-80 w-(--anchor-width) max-w-(--anchor-width)">
+              <SelectItem value="__all__"><span className="block truncate">{allLabel}{listing ? " (still listing…)" : ""}</span></SelectItem>
+              {shownCollections.map((c) => <SelectItem key={c.id} value={c.id} title={c.title || c.id}><span className="block truncate">{c.title || c.id}</span></SelectItem>)}
               {shownCollections.length < collections.length && <SelectItem value="__more__" disabled>{collections.length - shownCollections.length} more - narrow the filter</SelectItem>}
             </SelectContent>
           </Select>

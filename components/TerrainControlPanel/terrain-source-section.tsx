@@ -378,7 +378,19 @@ export const TerrainSourceSection: React.FC<{
         title="Terrain dataset library"
         samples={SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[]}
         current={customTerrainSources}
-        setCurrent={setCustomTerrainSources}
+        setCurrent={(next) => {
+          // Same per-view fallback as the trash button: a view left pointing
+          // at a removed id would otherwise show nothing.
+          const kept = new Set(next.map((s) => s.id))
+          const fallback: Record<ViewId, string> = { A: "aws", B: "mapterhorn", C: "aws", D: "mapterhorn", E: "aws", F: "mapterhorn", G: "aws", H: "mapterhorn" }
+          const updates: Record<string, string> = {}
+          for (const side of VIEW_IDS) {
+            const cur = state[sourceFieldName(side)]
+            if (cur && cur.startsWith("custom") && !kept.has(cur) && customTerrainSources.some((s) => s.id === cur)) updates[sourceFieldName(side)] = fallback[side]
+          }
+          if (Object.keys(updates).length > 0) setState(updates)
+          setCustomTerrainSources(next)
+        }}
         compareToMapterhorn
       />
       <Dialog open={isBatchEditModalOpen} onOpenChange={setIsBatchEditModalOpen}>

@@ -49,7 +49,7 @@ export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSour
 export interface CoverageLeaf { id: string; label: string; color: string; detail?: string }
 export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps" }
 
-export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899" }
+export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444" }
 
 const ELI_ID_RE = /OSM Editor Layer Index id (\S+)/
 type Bounded = { id: string; name: string; bounds?: number[]; type?: string; resolutionM?: number; maxzoom?: number; infoUrl?: string }
@@ -66,7 +66,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
   for (const b of ctx.basemaps) {
     if (libIds.has(b.id)) continue
     const eli = b.provider === "eli" && ELI_ID_RE.test(b.description ?? "")
-    if (b.bounds || eli) yourBasemaps.push({ id: `basemap:${b.id}`, label: b.name, color: eli ? OVERLAY_COLORS.eli : OVERLAY_COLORS.yours })
+    if (b.bounds || eli) yourBasemaps.push({ id: `basemap:${b.id}`, label: b.name, color: eli ? OVERLAY_COLORS.eli : OVERLAY_COLORS.yourBasemaps })
   }
   const groups: CoverageGroup[] = [
     { section: "Terrain", key: "mapterhorn", label: "Mapterhorn", color: OVERLAY_COLORS.mapterhorn, note: "Mapterhorn's own coverage tiles: which national source covers each area, hollow where it falls back to Copernicus GLO-30.",
@@ -76,7 +76,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     { section: "Terrain", key: "yourTerrain", label: "Your terrain sources", color: OVERLAY_COLORS.yours, note: "Loaded custom terrain sources that declare bounds and are not library entries.", leaves: yourTerrain },
     { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category })) },
-    { section: "Basemaps", key: "yourBasemaps", label: "Your basemaps", color: OVERLAY_COLORS.yours, note: "Loaded custom basemaps that declare bounds (or came from the index) and are not library entries.", leaves: yourBasemaps },
+    { section: "Basemaps", key: "yourBasemaps", label: "Your basemaps", color: OVERLAY_COLORS.yourBasemaps, note: "Loaded custom basemaps that declare bounds (or came from the index) and are not library entries.", leaves: yourBasemaps },
     { section: "Basemaps", key: "basemapLibrary", label: "Basemap library", color: OVERLAY_COLORS.basemapLibrary,
       leaves: BASEMAP_LIB.filter((s) => s.bounds).map((s) => ({ id: `blib:${s.id}`, label: s.name, color: OVERLAY_COLORS.basemapLibrary })) },
   ]
@@ -162,7 +162,7 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
       if (fc) return fc
     }
     if (!b.bounds) return empty
-    return one(id, rect(b.bounds), { color: OVERLAY_COLORS.yours, label: b.name, detail: `Basemap (${b.type}) · declared bounds`, url: b.infoUrl ?? "", maxzoom: b.maxzoom })
+    return one(id, rect(b.bounds), { color: OVERLAY_COLORS.yourBasemaps, label: b.name, detail: `Basemap (${b.type}) · declared bounds`, url: b.infoUrl ?? "", maxzoom: b.maxzoom })
   }
   return empty
 }

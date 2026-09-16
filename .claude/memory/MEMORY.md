@@ -8,3 +8,4 @@
 - [Mobile layout frames](mobile-layout-frames.md) — one shared bottom edge: root fixed inset-0, bottom overlays absolute (never fixed), no --vh hack, isMobile = sm/640
 - [National terrain sources](national-terrain-sources.md) — verification rule, sentinel/ImageServer/WCS2 traps, non-3857 COGs via titiler, bounds+underzoom behaviour, what was rejected and why
 - [Git remotes](git-remotes.md) — main is mirrored at jo-chemla and Iconem; origin has two push URLs so one push lands in both
+- [STAC browser components](stac-browser-components.md) — reuse stac-map / GeoLibre browser components before growing the STAC panel further

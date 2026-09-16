@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Switch } from "@/components/ui/switch"
@@ -273,25 +273,36 @@ export const CustomTerrainSourceModal: React.FC<{
             >
               <SelectTrigger id="source-type" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="cog">COG (Cloud Optimized GeoTIFF)</SelectItem>
-                {/* Streams straight off the user's disk via a blob: object URL — no
-                    upload, no companion server. Only ever readable via the geomatico
-                    cog:// protocol (there's no titiler server that could reach a local
-                    file), and the picked file only lives in this browser tab's memory —
-                    it isn't saved, so it needs re-picking after a reload. */}
-                <SelectItem value="cog-local">Local COG file (this browser only)</SelectItem>
-                <SelectItem value="terrarium">TMS (Terrarium)</SelectItem>
-                <SelectItem value="terrainrgb">TMS (TerrainRGB)</SelectItem>
-                {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
-                {!editingSource && stacSearchBeta && <SelectItem value="stac">STAC catalogue search (beta)</SelectItem>}
-                <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
-                <SelectItem value="tilejson">TileJSON</SelectItem>
-                {/* VRT only streams through titiler (GDAL's vsicurl driver) — the
-                    geomatico cog:// protocol reads a real COG file directly and can't
-                    open a VRT mosaic, so this option is a dead end in that mode. */}
-                <SelectItem value="vrt" disabled={useCogProtocol}>
-                  VRT{useCogProtocol ? " (titiler mode only)" : ""}
-                </SelectItem>
+                <SelectGroup>
+                  <SelectLabel>Cloud Optimized GeoTIFF</SelectLabel>
+                  <SelectItem value="cog">COG (Cloud Optimized GeoTIFF)</SelectItem>
+                  {/* Streams straight off the user's disk via a blob: object URL — no
+                      upload, no companion server. Only ever readable via the geomatico
+                      cog:// protocol (there's no titiler server that could reach a local
+                      file), and the picked file only lives in this browser tab's memory —
+                      it isn't saved, so it needs re-picking after a reload. */}
+                  <SelectItem value="cog-local">Local COG file (this browser only)</SelectItem>
+                  {/* VRT only streams through titiler (GDAL's vsicurl driver) — the
+                      geomatico cog:// protocol reads a real COG file directly and can't
+                      open a VRT mosaic, so this option is a dead end in that mode. */}
+                  <SelectItem value="vrt" disabled={useCogProtocol}>
+                    VRT{useCogProtocol ? " (titiler mode only)" : ""}
+                  </SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Tile and map services</SelectLabel>
+                  <SelectItem value="terrarium">TMS (Terrarium)</SelectItem>
+                  <SelectItem value="terrainrgb">TMS (TerrainRGB)</SelectItem>
+                  <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
+                  <SelectItem value="tilejson">TileJSON</SelectItem>
+                </SelectGroup>
+                {!editingSource && (
+                  <SelectGroup>
+                    <SelectLabel>Search a catalogue</SelectLabel>
+                    <SelectItem value="wms-picker">WMS (list layers)</SelectItem>
+                    {stacSearchBeta && <SelectItem value="stac">STAC catalogue search (beta)</SelectItem>}
+                  </SelectGroup>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -384,7 +395,7 @@ export const CustomTerrainSourceModal: React.FC<{
                   )}
                 </div>
               )}
-              <Separator className="my-1" />
+              <Separator className="my-3" />
               <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
                 <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
                   <span className="flex items-center gap-1.5">

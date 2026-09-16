@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from "react"
 import { Source, Layer, useMap } from "react-map-gl/maplibre"
 import type { MapLayerMouseEvent, ExpressionSpecification } from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
-import { useAtomValue } from "jotai"
+import { useAtomValue, useSetAtom } from "jotai"
 import { coverageOverlaysAtom, loadCoverageFeatures, getMapterhornSourceMeta, coverageGsd, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -41,6 +41,13 @@ export const CoverageOverlayLayer: React.FC = () => {
     return () => { cancelled = true }
   }, [showMapterhorn, mhMeta])
   const geoIds = useMemo(() => ids.filter((id) => id !== "mapterhorn"), [ids])
+  // A deleted custom source takes its overlay with it.
+  const setIds = useSetAtom(coverageOverlaysAtom)
+  useEffect(() => {
+    const live = new Set([...terrains.map((t) => `terrain:${t.id}`), ...basemaps.map((b) => `basemap:${b.id}`)])
+    const stale = ids.filter((id) => (id.startsWith("terrain:") || id.startsWith("basemap:")) && !live.has(id))
+    if (stale.length) setIds((prev) => prev.filter((id) => !stale.includes(id)))
+  }, [ids, terrains, basemaps, setIds])
 
   useEffect(() => {
     let cancelled = false
