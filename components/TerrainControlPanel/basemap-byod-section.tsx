@@ -214,7 +214,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
             <div className="flex gap-2">
               <TooltipButton
                 icon={Plus}
-                label="Basemap"
+                label="Add Basemap"
                 tooltip="Add a new custom basemap source"
                 onClick={() => { setEditingBasemap(null); setIsAddBasemapModalOpen(true) }}
               />

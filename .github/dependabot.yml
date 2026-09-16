@@ -1,0 +1,16 @@
+# The OSM Editor Layer Index ships INSIDE @osm-editor-kit/maplibre-editor-layer-index
+# (per-continent chunks in its dist, no runtime fetch), so the only way to follow
+# the index's weekly upstream releases is to bump the package. Weekly PR, that
+# package only; everything else stays hand-managed.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    allow:
+      - dependency-name: "@osm-editor-kit/maplibre-editor-layer-index"
+    commit-message:
+      prefix: "deps(eli)"
+    labels: ["dependencies", "eli"]

@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
 import { Label } from "@/components/ui/label"
@@ -22,7 +22,7 @@ import { ExternalLink, ChevronDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { coverageOverlaysAtom, coverageOverlayOptions } from "@/lib/coverage-overlays"
+import { coverageOverlaysAtom, coverageGroups, type EliLike } from "@/lib/coverage-overlays"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
 import { compareWithMapterhorn, formatRes } from "@/lib/mapterhorn-compare"
 import { terrainKindOf } from "./sample-sources-modal"
@@ -269,46 +269,105 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   )
 }
 
-/** Multi-select of coverage footprints to draw on the map (see
- *  lib/coverage-overlays.ts): Mapterhorn's per-country list, custom terrain
- *  and basemap bounds, ELI coverage polygons. Selected ones show as pills. */
-const CoverageOverlayPicker: React.FC = () => {
+/** Tree of coverage footprints to draw on the map (see
+ *  lib/coverage-overlays.ts): Mapterhorn's coverage tiles, the whole terrain
+ *  and basemap libraries, the Editor Layer Index layers covering the view,
+ *  and loaded custom sources. A group checkbox takes the whole group;
+ *  expanding it (collapsed by default) refines to a handful of leaves.
+ *  Selected leaves show as pills, one pill per fully selected group. */
+const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ mapRef }) => {
   const [selected, setSelected] = useAtom(coverageOverlaysAtom)
   const terrains = useAtomValue(customTerrainSourcesAtom)
   const basemaps = useAtomValue(customBasemapSourcesAtom)
-  const options = coverageOverlayOptions(terrains, basemaps)
-  const toggle = (id: string, on: boolean) => setSelected((prev) => on ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((x) => x !== id))
-  const chosen = options.filter((o) => selected.includes(o.id))
+  const [eliInView, setEliInView] = useState<EliLike[]>([])
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [open, setOpen] = useState(false)
+  // ELI leaves follow the view at the moment the picker opens (the package is
+  // lazy: 14 MB of index chunks only load once someone asks for it).
+  useEffect(() => {
+    if (!open) return
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    let cancelled = false
+    import("@osm-editor-kit/maplibre-editor-layer-index").then((eli) => {
+      if (cancelled) return
+      const rows = eli.layersInViewport(map.getBounds(), { includeWorldwide: false })
+      setEliInView(rows.slice().sort((a, b) => (a.best ? 0 : 1) - (b.best ? 0 : 1) || a.name.localeCompare(b.name)))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [open, mapRef])
+  const groups = useMemo(() => coverageGroups({ terrains, basemaps, eliInView }), [terrains, basemaps, eliInView])
+  const set = new Set(selected)
+  const setMany = (ids: string[], on: boolean) => setSelected((prev) => {
+    const next = new Set(prev)
+    for (const id of ids) on ? next.add(id) : next.delete(id)
+    return [...next]
+  })
+  const pills: { key: string; label: string; color: string; ids: string[] }[] = []
+  for (const g of groups) {
+    const on = g.leaves.filter((l) => set.has(l.id))
+    if (!on.length) continue
+    if (on.length === g.leaves.length && g.leaves.length > 1) pills.push({ key: g.key, label: `${g.label} (${on.length})`, color: g.color, ids: on.map((l) => l.id) })
+    else for (const l of on) pills.push({ key: l.id, label: l.label, color: l.color, ids: [l.id] })
+  }
+  // Leaves selected earlier that no longer have a leaf (ELI view changed) stay
+  // selected and drawn; they only lose their pill label.
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-medium">Coverage overlays</Label>
-        <Popover>
+        <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger render={
             <Button variant="outline" size="sm" className="cursor-pointer font-normal h-7">
-              {chosen.length ? `${chosen.length} shown` : "None"} <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              {selected.length ? `${selected.length} shown` : "None"} <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           } />
-          <PopoverContent align="end" className="w-72 space-y-1.5 max-h-80 overflow-y-auto">
-            {options.map((o) => (
-              <div key={o.id} className="flex items-center gap-2">
-                <Checkbox id={`cov-${o.id}`} checked={selected.includes(o.id)} onCheckedChange={(v) => toggle(o.id, v === true)} className="cursor-pointer" />
-                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: o.color }} />
-                <Label htmlFor={`cov-${o.id}`} className="text-xs cursor-pointer truncate" title={o.label}>{o.label}</Label>
-              </div>
-            ))}
-            {options.length <= 1 && <p className="text-[11px] text-muted-foreground">Custom sources appear here once they declare bounds (Advanced in their modal), and OSM Editor Layer Index basemaps always do.</p>}
+          <PopoverContent align="end" className="w-80 p-2 max-h-96 overflow-y-auto space-y-1">
+            {groups.map((g) => {
+              const on = g.leaves.filter((l) => set.has(l.id)).length
+              const all = on === g.leaves.length
+              const isOpen = expanded[g.key] ?? false
+              return (
+                <div key={g.key}>
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    <Checkbox id={`cov-g-${g.key}`} checked={all} indeterminate={!all && on > 0} onCheckedChange={(v) => setMany(g.leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />
+                    <Label htmlFor={`cov-g-${g.key}`} className="text-xs font-medium cursor-pointer truncate flex-1" title={g.note}>{g.label}</Label>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{g.leaves.length}</span>
+                    {g.leaves.length > 1 && (
+                      <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5" aria-label={isOpen ? "Collapse" : "Expand"}
+                        onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !isOpen }))}>
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                      </button>
+                    )}
+                  </div>
+                  {isOpen && g.leaves.length > 1 && (
+                    <div className="pl-6 space-y-0.5 max-h-48 overflow-y-auto">
+                      {g.leaves.map((l) => (
+                        <div key={l.id} className="flex items-center gap-1.5">
+                          <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
+                          <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate" title={l.label}>{l.label}</Label>
+                          {l.detail && <span className="text-[10px] text-muted-foreground shrink-0">{l.detail}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </PopoverContent>
         </Popover>
       </div>
-      {chosen.length > 0 && (
+      {pills.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {chosen.map((o) => (
-            <span key={o.id} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] max-w-full" style={{ borderColor: o.color }}>
-              <span className="truncate max-w-[180px]" title={o.label}>{o.label}</span>
-              <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground" onClick={() => toggle(o.id, false)} aria-label={`Hide ${o.label}`}><X className="h-3 w-3" /></button>
+          {pills.slice(0, 16).map((p) => (
+            <span key={p.key} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] max-w-full" style={{ borderColor: p.color }}>
+              <span className="truncate max-w-[180px]" title={p.label}>{p.label}</span>
+              <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground" onClick={() => setMany(p.ids, false)} aria-label={`Hide ${p.label}`}><X className="h-3 w-3" /></button>
             </span>
           ))}
+          {pills.length > 16 && <span className="text-[11px] text-muted-foreground self-center">+{pills.length - 16} more</span>}
+          <button type="button" className="text-[11px] underline text-muted-foreground hover:text-foreground cursor-pointer self-center" onClick={() => setSelected([])}>clear</button>
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point, click for their links.</p>
@@ -398,7 +457,7 @@ export const SourceInfoSection: React.FC<{
           source is shown there) — but a raster basemap can be active in
           EITHER app mode, so BasemapAttributionList below always renders
           alongside this, not instead of it. */}
-      <CoverageOverlayPicker />
+      <CoverageOverlayPicker mapRef={mapRef} />
       {!historicalMode && customTerrain && <CustomTerrainInfo source={customTerrain} />}
       {!historicalMode && sourceKind && (
       <>

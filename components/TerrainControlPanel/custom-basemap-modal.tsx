@@ -2,7 +2,7 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
-import { ChevronDown, Link, Settings2, Expand, Copy, Check } from "lucide-react"
+import { ChevronDown, Link, Settings2, Expand, Copy, Check, ExternalLink } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -422,6 +422,14 @@ export const CustomBasemapModal: React.FC<{
                     }}
                     className="cursor-text"
                   />
+                  {type === "cog" && /^https?:\/\//.test(url.trim()) && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Inspect this COG in the{" "}
+                      <a href={`https://source-cooperative.github.io/cog-viewer/?url=${encodeURIComponent(url.trim())}`} target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center gap-0.5">source.coop viewer <ExternalLink className="h-3 w-3" /></a>
+                      {" "}or{" "}
+                      <a href={`https://web.geolibre.app/?data=${encodeURIComponent(url.trim())}`} target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center gap-0.5">GeoLibre <ExternalLink className="h-3 w-3" /></a>
+                    </p>
+                  )}
                 </div>
               )}
               <div className="space-y-2">

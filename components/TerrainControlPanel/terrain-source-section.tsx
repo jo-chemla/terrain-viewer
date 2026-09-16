@@ -309,7 +309,7 @@ export const TerrainSourceSection: React.FC<{
               <div id="tour-byod-terrain-row" className="flex gap-2">
                 <TooltipButton
                   icon={Plus}
-                  label="Add Dataset"
+                  label="Add Terrain"
                   tooltip="Add a new custom terrain source"
                   onClick={() => { setEditingSource(null); setIsAddSourceModalOpen(true) }}
                 />

@@ -32,6 +32,27 @@ export const EliSearchPanel: React.FC<{
   const [addingId, setAddingId] = useState<string | null>(null)
   const [error, setError] = useState("")
 
+  // Permalink into the ELI browser: same view, the layer's category panel
+  // open, the layer selected.
+  const browserLink = useCallback((r: EliLocatorLayer) => {
+    const map = mapRef?.current?.getMap()
+    const c = map?.getCenter()
+    const q = new URLSearchParams()
+    if (c) { q.set("lat", c.lat.toFixed(4)); q.set("lng", c.lng.toFixed(4)); q.set("zoom", (map!.getZoom()).toFixed(2)) }
+    q.set("open", r.category ?? "photo")
+    q.set("selected", r.id)
+    return `https://osm-editor-kit.github.io/maplibre-editor-layer-index/react-map-gl?${q}`
+  }, [mapRef])
+  // The index records no ground resolution, only a max zoom: the ground
+  // size of one pixel at that zoom, at the current latitude, is the closest
+  // thing to a GSD it can offer.
+  const gsdAt = useCallback((r: EliLocatorLayer) => {
+    if (r.maxzoom === undefined) return null
+    const lat = mapRef?.current?.getMap()?.getCenter().lat ?? 0
+    const m = 40075016.686 * Math.cos((lat * Math.PI) / 180) / ((r.tileSize || 256) * 2 ** r.maxzoom)
+    return `z${r.maxzoom} ≈ ${m < 1 ? `${Math.round(m * 100)} cm` : `${m.toFixed(m < 10 ? 1 : 0)} m`}/px`
+  }, [mapRef])
+
   const results = useMemo(() => {
     const map = mapRef?.current?.getMap()
     let rows: EliLocatorLayer[]
@@ -105,9 +126,12 @@ export const EliSearchPanel: React.FC<{
           className="pl-8 cursor-text"
         />
       </div>
-      <div className="flex items-center gap-2">
-        <Checkbox id="eli-viewport-only" checked={viewportOnly} onCheckedChange={(v) => setViewportOnly(v === true)} className="cursor-pointer" />
-        <Label htmlFor="eli-viewport-only" className="text-xs cursor-pointer">Only layers covering the current view</Label>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Checkbox id="eli-viewport-only" checked={viewportOnly} onCheckedChange={(v) => setViewportOnly(v === true)} className="cursor-pointer" />
+          <Label htmlFor="eli-viewport-only" className="text-xs cursor-pointer">Only layers whose footprint touches the current view</Label>
+        </div>
+        <span className="text-[11px] text-muted-foreground shrink-0 inline-flex items-center gap-1"><Star className="h-3 w-3 text-amber-500" /> = the index's pick for its area</span>
       </div>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
@@ -126,18 +150,18 @@ export const EliSearchPanel: React.FC<{
                   <span className="truncate">{r.name}</span>
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">
-                  {[CATEGORY_LABEL[r.category ?? "other"], r.type.toUpperCase(), r.overlay ? "overlay" : null, r.countryCodes.slice(0, 3).join(", ") || "worldwide", needsKey ? "needs an API key" : null].filter(Boolean).join(" · ")}
+                  {[CATEGORY_LABEL[r.category ?? "other"], r.type.toUpperCase(), gsdAt(r), r.overlay ? "overlay" : null, r.countryCodes.slice(0, 3).join(", ") || "worldwide", needsKey ? "needs an API key" : null].filter(Boolean).join(" · ")}
                 </div>
               </div>
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <a href={`https://osm-editor-kit.github.io/maplibre-editor-layer-index/?q=${encodeURIComponent(r.id)}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-muted-foreground hover:text-foreground">
+                    <a href={browserLink(r)} target="_blank" rel="noopener noreferrer" className="shrink-0 text-muted-foreground hover:text-foreground">
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   }
                 />
-                <TooltipContent><p>Open in the Editor Layer Index browser</p></TooltipContent>
+                <TooltipContent><p>Open this layer in the Editor Layer Index browser, at this view</p></TooltipContent>
               </Tooltip>
               <Button size="sm" variant="outline" className="cursor-pointer shrink-0" disabled={addingId === r.id || needsKey} onClick={() => handleAdd(r)}>
                 {addingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
