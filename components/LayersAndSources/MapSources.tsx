@@ -409,7 +409,7 @@ export const RasterBasemapSource = memo(({
             return buildRasterTileSource({
                 url: isCogLocal ? resolvedCogUrl! : customBasemap.url,
                 type: isCogLocal ? "cog" : customBasemap.type,
-                useCogProtocol: isCogLocal ? true : useCogProtocol,
+                useCogProtocol: isCogLocal ? true : useCogProtocol && !customBasemap.cogViaTitiler,
                 titilerEndpoint,
                 scheme: customBasemap.scheme,
             })

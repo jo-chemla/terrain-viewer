@@ -113,6 +113,7 @@ import {
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
 import { CoverageOverlayLayer } from "./LayersAndSources/CoverageOverlayLayer"
+import { DrawingMirrorLayer } from "./LayersAndSources/DrawingMirrorLayer"
 
 import { createParser } from 'nuqs'
 import { parseAsColor } from "@/lib/nuqs-parser-color"
@@ -3466,6 +3467,9 @@ export function TerrainViewer() {
 
           {/* Coverage footprints picked in Source Info — every view */}
           <CoverageOverlayLayer />
+
+          {/* Terra Draw edits on view A; the other views mirror its features read-only */}
+          {!isPrimary && <DrawingMirrorLayer />}
 
           {/* Graticules — primary map only */}
           {isPrimary && state.showGraticules && !isHistoricalMode && (

@@ -1,0 +1,41 @@
+---
+title: Coverage Overlays
+description: See where each terrain or basemap source actually has data, before switching to it
+---
+
+The **Source Info** section of the sidebar has a **Coverage overlays** picker. It draws the footprint of sources on every map view, so a blank area can be told apart from a slow one, and so you can see which national dataset or which imagery layer covers the place you are looking at *before* loading it.
+
+## What is offered
+
+The picker is a small tree, independent of what is loaded in your Terrain and Basemap lists. Tick a group to draw all of it, or expand it (chevron on the left) and pick a handful of entries.
+
+**Terrain**
+
+- **Mapterhorn** — the built-in terrain's own coverage, streamed from Mapterhorn's coverage vector tiles (`single-archive-tiles.mapterhorn.com/coverage/{z}/{x}/{y}.mvt`). Each polygon carries the id of the national source Mapterhorn ingested there; areas that fall back to Copernicus GLO-30 are drawn hollow. Hovering shows the product name, producer and grid resolution, read once from Mapterhorn's [attribution table](https://download.mapterhorn.com/attribution.json).
+- **Terrain library** — the declared bounds of every dataset in the [national datasets](/features/national-datasets) library, loaded or not.
+- **Your terrain sources** — custom terrain sources you added yourself that declare bounds (Advanced section of the Add Terrain dialog) and are not library entries.
+
+**Basemaps**
+
+- **OSM Editor Layer Index** — the real coverage polygons of the [Editor Layer Index](https://github.com/osmlab/editor-layer-index) layers whose footprint touches the current view at the moment the picker opens. Worldwide layers have no footprint and are left out.
+- **Your basemaps** — custom basemaps with declared bounds, or added from the Editor Layer Index (those use the index polygon).
+- **Basemap library** — the sample basemaps that declare bounds.
+
+## Reading the map
+
+- **Hover** a point to list every overlay covering it in a floating box.
+- **Click** to open the same list as a dialog, with each source's dataset page or catalogue record linked.
+- Selected entries show as pills under the picker. A fully selected group is one pill with its count; remove a pill to hide it, or *clear* to hide all.
+
+Overlays are drawn on all views of a split or grid layout. The selection is session-only: it is not saved and not part of the share URL.
+
+## Where the footprints come from
+
+| Group | Geometry | Source |
+|---|---|---|
+| Mapterhorn | Vector tiles, per national source | Mapterhorn coverage tiles + `attribution.json` |
+| Terrain / basemap library | Bounds rectangles | `bounds` of each entry in `lib/custom-sources.json` |
+| OSM Editor Layer Index | Coverage polygons | `@osm-editor-kit/maplibre-editor-layer-index` (bundled index, bumped weekly) |
+| Your sources | Bounds rectangles | the `bounds` you declared in the source dialog |
+
+Library bounds are the advertised extent of the service, not a survey footprint: a national LiDAR that covers 75 % of the country still shows its whole bounding box. Mapterhorn and the Editor Layer Index carry real polygons.

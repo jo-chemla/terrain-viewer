@@ -16,6 +16,15 @@ A heavily-loaded Terrain source list — several custom BYOD sources (national L
 
 **Shareable via URL:** a link whose `sourceA`/`sourceB`/`basemapSource…` params reference a sample-library id (e.g. `?sourceB=custom-ign-lidarhd-dtm-wms-raw`) auto-adds that source to the recipient's BYOD list on load, and `?addSources=id1,id2` prepopulates several samples at once without selecting any of them — handy for handing a colleague both the IGN DSM *and* DTM ready to toggle between.
 
+## Searching catalogues
+
+Both dialogs can search catalogues instead of taking a URL:
+
+- **NextGIS QMS** and the **OSM Editor Layer Index** (basemaps): the two big registries of tile and WMS services, filtered to the current view, with licence and attribution carried over into Source Info.
+- **STAC search** (beta, enable it in Settings → Beta): pick a catalogue — OpenAerialMap, Earth Search, eoAPI, NASA VEDA, swisstopo, LINZ, Maxar and Vantor open-data events, Planet disaster releases, PGC polar DEMs, OpenTopography, a federated collection search, or any STAC API / static `catalog.json` URL — a date range and the current view, then add any Cloud Optimized GeoTIFF from the results as a terrain or basemap source. Assets whose projection extension says they are not Web Mercator are pinned to titiler automatically. Each catalogue links to stac-map and STAC Browser for a fuller look.
+
+Where a source has data is what [Coverage Overlays](/features/coverage-overlays) show, on the map, before you load it.
+
 ## Local (offline) COG terrain sources
 
 Two ways to use a COG that lives on your own disk, without uploading it anywhere:

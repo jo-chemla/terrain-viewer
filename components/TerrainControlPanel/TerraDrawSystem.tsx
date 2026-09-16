@@ -302,7 +302,7 @@ function reprojectGeometry(geometry: any, fromProj: string): any {
 // just a lookup from feature.properties.layerId into the current layers list.
 // Features predating this layerId property (or with a stale/unknown id) fall
 // back to the first layer rather than a hardcoded default.
-function resolveLayer(layers: DrawLayer[], feature: any): DrawLayer {
+export function resolveLayer(layers: DrawLayer[], feature: any): DrawLayer {
     return layers.find((l) => l.id === feature?.properties?.layerId) ?? layers[0] ?? DEFAULT_LAYER
 }
 

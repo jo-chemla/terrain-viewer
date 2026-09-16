@@ -71,7 +71,7 @@ export const CoverageOverlayLayer: React.FC = () => {
         const hit: Hit = f.layer.id === MH_FILL_ID
           ? { label: "Mapterhorn",
               detail: p.source === "glo30" ? "Copernicus GLO-30 fallback (30 m)"
-                : meta ? `${meta.name} (${meta.producer}) · ${meta.resolution} m · source "${p.source}"`
+                : meta ? `${meta.resolution} m · ${meta.name} (${meta.producer}) · "${p.source}"`
                 : `national source "${p.source}"`,
               url: `https://mapterhorn.com/attribution/#${p.source}` }
           : { label: p.label, detail: p.detail, url: p.url || undefined }

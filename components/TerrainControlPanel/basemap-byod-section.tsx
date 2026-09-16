@@ -87,13 +87,16 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       // customBasemapSources here is one render stale).
       // Both the single-view field and view A's per-view field, so it is
       // what shows whichever layout is active (view A in split / grid).
+      // ...and make sure the basemap layer is actually shown - adding one
+      // with "Basemap" unticked in Visualization looked like a silent failure.
+      const show = state.showRasterBasemap ? {} : { showRasterBasemap: true }
       if (newSource.linkedTerrainId) {
-        setState({ basemapSource: newSource.id, basemapSourceA: newSource.id, sourceA: newSource.linkedTerrainId })
+        setState({ ...show, basemapSource: newSource.id, basemapSourceA: newSource.id, sourceA: newSource.linkedTerrainId })
       } else {
-        setState({ basemapSource: newSource.id, basemapSourceA: newSource.id })
+        setState({ ...show, basemapSource: newSource.id, basemapSourceA: newSource.id })
       }
     }
-  }, [customBasemapSources, setCustomBasemapSources, setState])
+  }, [customBasemapSources, setCustomBasemapSources, setState, state.showRasterBasemap])
 
   // Applies the Edit Basemap modal's opacity slider straight to the atom as
   // it drags — the modal itself only calls this while an existing source is
