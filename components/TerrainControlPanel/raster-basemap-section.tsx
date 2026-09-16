@@ -24,9 +24,6 @@ import { activeViews, viewFieldName, type ViewId, type GridLayoutId } from "@/li
 // one actually renders is picked via the bottom timeline panel's pills/ticks,
 // not the sidebar (see lib/historical-sources.ts's resolveActiveHistoricalSource).
 export const BUILTIN_BASEMAP_OPTIONS = [
-  // Only offered while at least one overlay is stacked (or while selected):
-  // overlays alone, nothing underneath.
-  { value: "none", label: "None (overlays only)", shortLabel: "None" },
   { value: "historical", label: "Historical Imagery", shortLabel: "Historical" },
   { value: "google", label: "Google Hybrid", shortLabel: "Google" },
   { value: "bing", label: "Bing Aerial", shortLabel: "Bing" },
@@ -35,7 +32,10 @@ export const BUILTIN_BASEMAP_OPTIONS = [
   { value: "maptiler", label: "MapTiler Satellite", shortLabel: "MapTiler" },
   { value: "here", label: "HERE Satellite", shortLabel: "HERE" },
   { value: "googlesat", label: "Google Satellite", shortLabel: "Google Sat" },
-  { value: "osm", label: "OpenStreetMap", shortLabel: "OSM" },
+  { value: "osm", label: "OpenStreetMap (OpenFreeMap Liberty)", shortLabel: "OSM" },
+  // Only offered while at least one overlay is stacked (or while selected):
+  // overlays alone, nothing underneath.
+  { value: "none", label: "None (overlays only)", shortLabel: "None" },
 ]
 
 // Lookup by id for the capture-date pill's compact source label — falls back

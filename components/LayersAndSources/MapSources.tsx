@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, useEffect } from "react"
+import { VectorBasemapLayer } from "./VectorBasemapLayer"
 import { Source } from "react-map-gl/maplibre"
 import { useAtom, useAtomValue } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
@@ -488,6 +489,9 @@ export const RasterBasemapSource = memo(({
         onZoomRangeChange?.(zoomRange)
     }, [zoomRange, onZoomRangeChange])
 
+    // "osm" is OpenFreeMap's Liberty vector style, not raster tiles: the
+    // layers are inserted at the basemap slot by VectorBasemapLayer.
+    if (basemapSource === "osm") return <VectorBasemapLayer />
     if (!sourceProps) return null
 
     return (

@@ -19,7 +19,7 @@ import { useEffect, useState } from "react"
 // Applied directly as each <Source>'s own `attribution` prop — MapLibre's
 // AttributionControl reads it automatically.
 export const STATIC_BASEMAP_ATTRIBUTIONS: Record<string, string> = {
-  osm: "© OpenStreetMap contributors",
+  osm: "© OpenStreetMap contributors, © OpenMapTiles, OpenFreeMap (Liberty)",
   google: "© Google",
   googlesat: "© Google",
   mapbox: "© Mapbox © OpenStreetMap",

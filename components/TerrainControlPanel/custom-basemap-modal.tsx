@@ -341,7 +341,7 @@ export const CustomBasemapModal: React.FC<{
             </Suspense>
           ) : type === "stac" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
-              <StacSearchPanel target="basemap" mapRef={mapRef} onSave={(source) => { onSave({ ...source, role: "basemap", opacity: 100 } as any); fitTo(source.bounds) }} />
+              <StacSearchPanel target="basemap" mapRef={mapRef} onSave={(source) => { onSave({ ...source, role: source.role ?? "basemap", opacity: 100 } as any); fitTo(source.bounds) }} />
             </Suspense>
           ) : type === "wms-picker" ? (
             <WmsPickerPanel
@@ -483,12 +483,12 @@ export const CustomBasemapModal: React.FC<{
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-2">
                   {type === "cog" && (
-                    <div className="flex items-center justify-between gap-2">
-                      <Label htmlFor="basemap-cog-via-titiler" className="text-sm">
-                        Always serve via titiler
-                        <span className="block text-xs font-normal text-muted-foreground">For a COG that is not in EPSG:3857 (the in-browser reader shows nothing for it). Overrides the global COG setting for this source only.</span>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="basemap-cog-via-titiler" className="text-sm leading-snug cursor-pointer">
+                        <span className="font-medium">Always serve via titiler</span>{" "}
+                        <span className="font-normal text-muted-foreground">for a COG not in EPSG:3857: the in-browser reader shows nothing for it, titiler warps it server-side. Overrides the global COG setting for this source only.</span>
                       </Label>
-                      <Switch id="basemap-cog-via-titiler" checked={cogViaTitiler} onCheckedChange={setCogViaTitiler} className="cursor-pointer" />
+                      <Switch id="basemap-cog-via-titiler" checked={cogViaTitiler} onCheckedChange={setCogViaTitiler} className="cursor-pointer shrink-0" />
                     </div>
                   )}
                   <div className="space-y-2">

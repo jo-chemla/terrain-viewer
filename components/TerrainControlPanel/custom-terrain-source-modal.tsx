@@ -423,22 +423,12 @@ export const CustomTerrainSourceModal: React.FC<{
                     </div>
                   )}
                   {showTitilerToggle && (
-                    <div className="flex items-center justify-between gap-2">
-                      <Label htmlFor="source-cog-via-titiler" className="flex items-center gap-1.5 text-sm">
-                        Always serve via titiler
-                        <Tooltip>
-                          <TooltipTrigger render={<span><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>} />
-                          <TooltipContent>
-                            <p className="max-w-xs">
-                              For a COG that is not in EPSG:3857. The in-browser reader does not
-                              reproject, so such a file is misplaced and its zoom range misread;
-                              titiler warps it server-side. Overrides the global COG setting for
-                              this source only.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="source-cog-via-titiler" className="text-sm leading-snug cursor-pointer">
+                        <span className="font-medium">Always serve via titiler</span>{" "}
+                        <span className="font-normal text-muted-foreground">for a COG not in EPSG:3857: the in-browser reader does not reproject, titiler warps it server-side. Overrides the global COG setting for this source only.</span>
                       </Label>
-                      <Switch id="source-cog-via-titiler" checked={cogViaTitiler} onCheckedChange={setCogViaTitiler} />
+                      <Switch id="source-cog-via-titiler" checked={cogViaTitiler} onCheckedChange={setCogViaTitiler} className="cursor-pointer shrink-0" />
                     </div>
                   )}
                   {showEncodingFields && (

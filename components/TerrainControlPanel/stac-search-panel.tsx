@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import { SegmentedToggle } from "./controls-components"
 
 // STAC search (beta). Three kinds of catalogue are handled:
 //  - "api": a STAC API - POST {root}/search with bbox / datetime /
@@ -138,22 +139,35 @@ async function listCollections(root: string, cap = 600): Promise<StacCollection[
 
 /** Bounded crawl of a static catalog: child collections/catalogs to a few
  *  levels, item links collected, then fetched in small batches. */
-async function crawlStaticItems(url: string, bbox: number[] | null, limit: number, signal?: AbortSignal): Promise<StacItem[]> {
+type StacNode = { links?: StacLink[]; extent?: { spatial?: { bbox?: number[][] } } }
+// Catalog / collection documents are immutable enough to keep for the
+// session: the second search of OpenTopography's 283 collections is instant.
+const nodeCache = new Map<string, Promise<StacNode | null>>()
+const fetchNode = (u: string, signal?: AbortSignal) => {
+  let p = nodeCache.get(u)
+  if (!p) { p = fetchJson<StacNode>(u, { signal }).catch(() => null); nodeCache.set(u, p) }
+  return p
+}
+
+async function crawlStaticItems(url: string, bbox: number[] | null, limit: number, onProgress?: (msg: string) => void, signal?: AbortSignal): Promise<StacItem[]> {
   const items: StacItem[] = []
   const queue: { url: string; depth: number }[] = [{ url, depth: 0 }]
   const itemLinks: string[] = []
   const seen = new Set<string>()
-  // Children are fetched eight at a time: OpenTopography's root alone has
+  let visited = 0
+  // Children are fetched sixteen at a time: OpenTopography's root alone has
   // 283 collections, which took minutes one by one.
   while (queue.length && itemLinks.length < limit * 4) {
     const batch: { url: string; depth: number }[] = []
-    while (queue.length && batch.length < 8) {
+    while (queue.length && batch.length < 16) {
       const next = queue.shift()!
       if (seen.has(next.url) || next.depth > 4) continue
       seen.add(next.url)
       batch.push(next)
     }
-    const nodes = await Promise.all(batch.map(({ url: u }) => fetchJson<{ links?: StacLink[]; extent?: { spatial?: { bbox?: number[][] } } }>(u, { signal }).catch(() => null)))
+    const nodes = await Promise.all(batch.map(({ url: u }) => fetchNode(u, signal)))
+    visited += batch.length
+    onProgress?.(`Crawling the catalog: ${visited} read, ${queue.length} queued, ${itemLinks.length} items found…`)
     nodes.forEach((node, i) => {
       if (!node) return
       const { url: u, depth } = batch[i]
@@ -166,8 +180,9 @@ async function crawlStaticItems(url: string, bbox: number[] | null, limit: numbe
       }
     })
   }
-  for (let i = 0; i < itemLinks.length && items.length < limit; i += 8) {
-    const batch = await Promise.all(itemLinks.slice(i, i + 8).map((l) => fetchJson<StacItem>(l, { signal }).catch(() => null)))
+  for (let i = 0; i < itemLinks.length && items.length < limit; i += 16) {
+    onProgress?.(`Reading items: ${Math.min(i + 16, itemLinks.length)} of ${itemLinks.length}…`)
+    const batch = await Promise.all(itemLinks.slice(i, i + 16).map((l) => fetchJson<StacItem>(l, { signal }).catch(() => null)))
     for (const it of batch) {
       if (!it) continue
       if (bbox && it.bbox && (it.bbox[2] < bbox[0] || it.bbox[0] > bbox[2] || it.bbox[3] < bbox[1] || it.bbox[1] > bbox[3])) continue
@@ -187,6 +202,8 @@ export interface StacSaveSource {
   /** Set when the asset is known not to be Web Mercator: the in-browser
    *  reader only handles EPSG:3857, titiler reprojects server-side. */
   cogViaTitiler?: boolean
+  /** Basemap target only: stack as an overlay instead of replacing the basemap. */
+  role?: "basemap" | "overlay"
 }
 
 export const StacSearchPanel: React.FC<{
@@ -213,6 +230,11 @@ export const StacSearchPanel: React.FC<{
   const [added, setAdded] = useState<Set<string>>(() => new Set())
   const [only3857, setOnly3857] = useState(false)
   const [anyDate, setAnyDate] = useState(target === "terrain")
+  // Max cloud cover (eo:cloud_cover), basemaps only; null = no filter.
+  const [maxCloud, setMaxCloud] = useState<number | null>(null)
+  const [role, setRole] = useState<"basemap" | "overlay">("basemap")
+  const [collectionFilter, setCollectionFilter] = useState("")
+  const [progress, setProgress] = useState("")
   useEffect(() => { remembered[target] = { presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections } },
     [target, presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections])
 
@@ -248,15 +270,20 @@ export const StacSearchPanel: React.FC<{
       const b = viewportOnly && map ? map.getBounds() : null
       const bbox = b ? [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()] : null
       const datetime = anyDate ? undefined : `${startDate}T00:00:00Z/${endDate}T23:59:59Z`
+      const cloudOk = (it: StacItem) => maxCloud === null || typeof it.properties?.["eo:cloud_cover"] !== "number" || (it.properties["eo:cloud_cover"] as number) <= maxCloud
       if (catalog.kind === "api") {
         const body: Record<string, unknown> = { limit: 50 }
         if (datetime) body.datetime = datetime
         if (bbox) body.bbox = bbox
         if (collectionId) body.collections = [collectionId]
-        const data = await fetchJson<{ features: StacItem[] }>(`${catalog.url}/search`, {
-          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+        const post = (b: Record<string, unknown>) => fetchJson<{ features: StacItem[] }>(`${catalog.url}/search`, {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b),
         })
-        setItems(data.features ?? [])
+        // The query extension is optional: ask the server to filter on cloud
+        // cover, fall back to the plain search (filtered here) if it refuses.
+        const data = maxCloud === null ? await post(body)
+          : await post({ ...body, query: { "eo:cloud_cover": { lte: maxCloud } } }).catch(() => post(body))
+        setItems((data.features ?? []).filter(cloudOk))
       } else if (catalog.kind === "discovery") {
         // Collection search only: items live on the upstream API. The
         // collection's `items` link is an OGC Features endpoint that takes
@@ -268,17 +295,18 @@ export const StacSearchPanel: React.FC<{
         if (datetime) q.set("datetime", datetime)
         if (bbox) q.set("bbox", bbox.join(","))
         const data = await fetchJson<{ features: StacItem[] }>(`${itemsHref}${itemsHref.includes("?") ? "&" : "?"}${q}`)
-        setItems(data.features ?? [])
+        setItems((data.features ?? []).filter(cloudOk))
       } else {
         const start = collectionId || catalog.url
-        setItems(await crawlStaticItems(start, bbox, 50))
+        setItems((await crawlStaticItems(start, bbox, 50, setProgress)).filter(cloudOk))
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Search failed")
     } finally {
       setLoading(false)
+      setProgress("")
     }
-  }, [catalog, collectionId, collections, startDate, endDate, viewportOnly, anyDate, mapRef])
+  }, [catalog, collectionId, collections, startDate, endDate, viewportOnly, anyDate, maxCloud, mapRef])
 
   const cogAssets = (it: StacItem) => {
     let assets = Object.entries(it.assets ?? {}).filter(([key, a]) => isCog(a) && (target !== "terrain" || usableForTerrain(key, a)))
@@ -324,7 +352,7 @@ export const StacSearchPanel: React.FC<{
     <div className="space-y-3 min-w-0">
       <p className="text-xs text-muted-foreground">
         Beta — search a STAC catalogue for Cloud Optimized GeoTIFFs and add any as {target === "terrain" ? "terrain (DEM)" : "basemap"} sources; the dialog stays open so you can add several.
-        Web Mercator (3857) assets stream in-browser and are listed first{target === "terrain" ? ", single-band elevation rasters only" : ""}; everything else (other or unstated projection) is served through titiler.
+        Web Mercator (3857) assets are listed first{target === "terrain" ? ", single-band elevation rasters only" : ""}; an asset whose catalogue declares another projection is pinned to titiler, the rest use the global COG setting.
       </p>
       <Select value={presetId} onValueChange={(v) => v && setPresetId(v)} items={selectItems}>
         <SelectTrigger className="w-full cursor-pointer"><SelectValue /></SelectTrigger>
@@ -356,15 +384,26 @@ export const StacSearchPanel: React.FC<{
         </p>
       )}
 
-      {collections.length > 0 && (
-        <Select value={collectionId || "__all__"} onValueChange={(v) => setCollectionId(!v || v === "__all__" ? "" : v)} items={Object.fromEntries([["__all__", "All collections"], ...collections.map((c) => [c.id, c.title || c.id])])}>
-          <SelectTrigger className="w-full cursor-pointer"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">{catalog.kind === "discovery" ? "Pick a collection…" : `All collections (${collections.length})`}</SelectItem>
-            {collections.slice(0, 600).map((c) => <SelectItem key={c.id} value={c.id}>{c.title || c.id}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      )}
+      {collections.length > 0 && (() => {
+        const q = collectionFilter.trim().toLowerCase()
+        const shown = (q ? collections.filter((c) => `${c.title ?? ""} ${c.id}`.toLowerCase().includes(q)) : collections).slice(0, 300)
+        const allLabel = catalog.kind === "discovery" ? `Pick one of ${collections.length} collections…` : `All collections (${collections.length})`
+        return (
+          <div className="flex items-center gap-2">
+            {collections.length > 25 && (
+              <Input placeholder="Filter collections…" value={collectionFilter} onChange={(e) => setCollectionFilter(e.target.value)} className="cursor-text w-40 shrink-0 h-9" />
+            )}
+            <Select value={collectionId || "__all__"} onValueChange={(v) => setCollectionId(!v || v === "__all__" ? "" : v)} items={Object.fromEntries([["__all__", allLabel], ...collections.map((c) => [c.id, c.title || c.id])])}>
+              <SelectTrigger className="flex-1 w-0 min-w-0 cursor-pointer"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">{allLabel}</SelectItem>
+                {shown.map((c) => <SelectItem key={c.id} value={c.id}>{c.title || c.id}</SelectItem>)}
+                {shown.length < collections.length && <SelectItem value="__more__" disabled>{collections.length - shown.length} more - narrow the filter</SelectItem>}
+              </SelectContent>
+            </Select>
+          </div>
+        )
+      })()}
 
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-2 shrink-0" title="Static catalogs are never filtered by date; APIs are, unless this is ticked">
@@ -379,6 +418,23 @@ export const StacSearchPanel: React.FC<{
           </>
         )}
       </div>
+      {target === "basemap" && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2" title="eo:cloud_cover - sent to the API as a query when it supports it, applied here regardless">
+            <Checkbox id="stac-cloud" checked={maxCloud !== null} onCheckedChange={(v) => setMaxCloud(v === true ? 20 : null)} className="cursor-pointer" />
+            <Label htmlFor="stac-cloud" className="text-xs cursor-pointer">Max cloud cover</Label>
+            {maxCloud !== null && (
+              <span className="flex items-center gap-1 text-xs">
+                <Input type="number" min={0} max={100} value={maxCloud} onChange={(e) => setMaxCloud(Math.max(0, Math.min(100, Number(e.target.value) || 0)))} className="h-7 w-16 cursor-text" />%
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <Label className="text-xs">Add as</Label>
+            <SegmentedToggle value={role} onChange={setRole} options={[{ value: "basemap" as const, label: "Basemap" }, { value: "overlay" as const, label: "Overlay" }]} />
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
@@ -396,6 +452,7 @@ export const StacSearchPanel: React.FC<{
       </div>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
+      {loading && progress && <p className="text-xs text-muted-foreground">{progress}</p>}
 
       <div className="max-h-72 overflow-y-auto overflow-x-hidden space-y-1">
         {!loading && items.length === 0 && !error && <p className="text-sm text-muted-foreground py-3 text-center">No results yet.</p>}
@@ -413,34 +470,35 @@ export const StacSearchPanel: React.FC<{
           const title = typeof p.title === "string" && p.title.trim() ? (p.title as string) : it.id
           const gsd = typeof p.gsd === "number" ? (p.gsd < 1 ? `${Math.round(p.gsd * 100)} cm` : `${(p.gsd as number).toFixed(p.gsd < 10 ? 1 : 0)} m`) : ""
           const producer = typeof p["oam:producer_name"] === "string" ? (p["oam:producer_name"] as string) : typeof p.platform === "string" ? (p.platform as string) : ""
+          const cloud = typeof p["eo:cloud_cover"] === "number" ? `☁ ${Math.round(p["eo:cloud_cover"] as number)}%` : ""
           return (
             <div key={it.id} className="p-2 rounded-md hover:bg-muted/60 space-y-1">
               <div className="text-sm truncate" title={it.id}>{title}</div>
-              <div className="text-[11px] text-muted-foreground truncate">{[it.collection, when, gsd, producer].filter(Boolean).join(" · ")} · {assets.length} COG asset{assets.length === 1 ? "" : "s"}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{[it.collection, when, gsd, cloud, producer].filter(Boolean).join(" · ")} · {assets.length} COG asset{assets.length === 1 ? "" : "s"}</div>
               <div className="flex flex-wrap gap-1">
                 {assets.slice(0, 12).map(([key, a]) => {
                   const epsg = epsgOf(it, a)
-                  // Only a declared EPSG:3857 goes to the in-browser reader; a
-                  // declared other CRS AND an undeclared one both go through
-                  // titiler (no catalogue here serves Web Mercator COGs, and
-                  // the browser reader shows nothing for anything else).
-                  const viaTitiler = epsg !== 3857
+                  // Opt-in: only an asset whose catalogue DECLARES another
+                  // projection is pinned to titiler; unstated ones stay on the
+                  // in-browser reader (the global setting still applies).
+                  const viaTitiler = epsg !== undefined && epsg !== 3857
                   const isAdded = added.has(a.href)
                   const dem = target === "terrain" && looksLikeDem(it, key, a)
                   return (
                     <Button key={key} size="sm" variant={isAdded ? "secondary" : "outline"} className="h-7 cursor-pointer text-xs max-w-full min-w-0 justify-start" disabled={isAdded}
-                      title={`${a.href}\n${epsg ? `EPSG:${epsg}` : "projection not stated"}${viaTitiler ? " - served through titiler" : " - streamed in-browser"}${dem ? "\nLooks like an elevation model" : ""}`}
+                      title={`${a.href}\n${epsg ? `EPSG:${epsg}` : "projection not stated"}${viaTitiler ? " - served through titiler" : ""}${dem ? "\nLooks like an elevation model" : ""}`}
                       onClick={() => { setAdded((s) => new Set(s).add(a.href)); onSave({
-                        name: title === it.id || a.title === title ? `${title}${a.title && a.title !== title ? ` — ${a.title}` : assets.length > 1 ? ` — ${key}` : ""}` : `${title} — ${a.title || key}`, url: a.href, type: "cog",
+                        name: `${when ? `${when} ` : ""}${title === it.id || a.title === title ? `${title}${a.title && a.title !== title ? ` — ${a.title}` : assets.length > 1 ? ` — ${key}` : ""}` : `${title} — ${a.title || key}`}`, url: a.href, type: "cog",
                         description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""} · ${it.id}${when ? ` · ${when}` : ""}${gsd ? ` · ${gsd}` : ""}${producer ? ` · ${producer}` : ""}${epsg ? ` · EPSG:${epsg}` : ""}`,
                         bounds: it.bbox && it.bbox.length >= 4 ? [it.bbox[0], it.bbox[1], it.bbox[2], it.bbox[3]] : undefined,
-                        cogViaTitiler: viaTitiler,
+                        cogViaTitiler: viaTitiler || undefined,
+                        role: target === "basemap" ? role : undefined,
                       }) }}>
                       {isAdded ? <Check className="h-3 w-3 shrink-0" /> : <Plus className="h-3 w-3 shrink-0" />}
                       <span className="truncate min-w-0">{a.title || key}</span>
                       {dem && <span className="shrink-0 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1.5 text-[10px] font-medium">DEM</span>}
                       {epsg === 3857 && <span className="shrink-0 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1.5 text-[10px] font-medium">3857</span>}
-                      {viaTitiler && <span className="shrink-0 rounded-full bg-muted text-muted-foreground px-1.5 text-[10px] font-medium" title="Served through titiler">{epsg ?? "titiler"}</span>}
+                      {viaTitiler && <span className="shrink-0 rounded-full bg-muted text-muted-foreground px-1.5 text-[10px] font-medium" title="Served through titiler">{epsg}</span>}
                     </Button>
                   )
                 })}
