@@ -4,7 +4,7 @@ import { Source, Layer, useMap } from "react-map-gl/maplibre"
 import type { MapLayerMouseEvent, ExpressionSpecification } from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import { useAtomValue } from "jotai"
-import { coverageOverlaysAtom, loadCoverageFeatures, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS } from "@/lib/coverage-overlays"
+import { coverageOverlaysAtom, loadCoverageFeatures, getMapterhornSourceMeta, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
@@ -33,6 +33,13 @@ export const CoverageOverlayLayer: React.FC = () => {
   const [hover, setHover] = useState<{ x: number; y: number; hits: Hit[] } | null>(null)
   const [clicked, setClicked] = useState<Hit[] | null>(null)
   const showMapterhorn = ids.includes("mapterhorn")
+  const [mhMeta, setMhMeta] = useState<Record<string, MapterhornSourceMeta> | null>(null)
+  useEffect(() => {
+    if (!showMapterhorn || mhMeta) return
+    let cancelled = false
+    getMapterhornSourceMeta().then((m) => { if (!cancelled) setMhMeta(m) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [showMapterhorn, mhMeta])
   const geoIds = useMemo(() => ids.filter((id) => id !== "mapterhorn"), [ids])
 
   useEffect(() => {
@@ -60,8 +67,13 @@ export const CoverageOverlayLayer: React.FC = () => {
       const out: Hit[] = []
       for (const f of m.queryRenderedFeatures(e.point, { layers })) {
         const p = f.properties as Record<string, string>
+        const meta = mhMeta?.[p.source]
         const hit: Hit = f.layer.id === MH_FILL_ID
-          ? { label: "Mapterhorn", detail: p.source === "glo30" ? "Copernicus GLO-30 fallback (30 m)" : `national source "${p.source}"`, url: "https://mapterhorn.com/coverage/" }
+          ? { label: "Mapterhorn",
+              detail: p.source === "glo30" ? "Copernicus GLO-30 fallback (30 m)"
+                : meta ? `${meta.name} (${meta.producer}) · ${meta.resolution} m · source "${p.source}"`
+                : `national source "${p.source}"`,
+              url: `https://mapterhorn.com/attribution/#${p.source}` }
           : { label: p.label, detail: p.detail, url: p.url || undefined }
         const k = `${hit.label}|${hit.detail}`
         if (seen.has(k)) continue
@@ -81,7 +93,7 @@ export const CoverageOverlayLayer: React.FC = () => {
     m.on("mouseout", onLeave)
     m.on("click", onClick)
     return () => { m.off("mousemove", onMove); m.off("mouseout", onLeave); m.off("click", onClick); m.getCanvas().style.cursor = "" }
-  }, [map, ids.length])
+  }, [map, ids.length, mhMeta])
 
   if (ids.length === 0) return null
   const isGlo30: ExpressionSpecification = ["==", ["get", "source"], "glo30"]
@@ -104,7 +116,7 @@ export const CoverageOverlayLayer: React.FC = () => {
         <Source id={SOURCE_ID} type="geojson" data={data}>
           <Layer id={FILL_ID} type="fill" paint={{
             "fill-color": ["get", "color"],
-            "fill-opacity": ["case", ["boolean", ["get", "hollow"], false], 0.04, 0.2],
+            "fill-opacity": ["case", ["boolean", ["get", "hollow"], false], 0.04, ["coalesce", ["get", "opacity"], 0.2]],
           }} />
           <Layer id={LINE_ID} type="line" paint={{
             "line-color": ["get", "color"],

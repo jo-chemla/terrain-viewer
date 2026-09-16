@@ -33,8 +33,21 @@ export const coverageOverlaysAtom = atom<string[]>([])
 export const MAPTERHORN_COVERAGE_TILES = "https://single-archive-tiles.mapterhorn.com/coverage/{z}/{x}/{y}.mvt"
 export const MAPTERHORN_COVERAGE_LAYER = "coverage"
 
+export interface MapterhornSourceMeta { source: string; name: string; producer: string; resolution: number; website?: string }
+let mapterhornMeta: Promise<Record<string, MapterhornSourceMeta>> | null = null
+/** Mapterhorn's source catalogue (download.mapterhorn.com/attribution.json):
+ *  per-source grid resolution, product name and producer, keyed by the
+ *  "source" id the coverage tiles carry. Fetched once, on first use. */
+export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSourceMeta>> {
+  if (!mapterhornMeta) {
+    mapterhornMeta = fetch("https://download.mapterhorn.com/attribution.json").then((r) => r.json()).then((rows: MapterhornSourceMeta[]) =>
+      Object.fromEntries(rows.map((r) => [r.source, r]))).catch((e) => { mapterhornMeta = null; throw e })
+  }
+  return mapterhornMeta
+}
+
 export interface CoverageLeaf { id: string; label: string; color: string; detail?: string }
-export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string }
+export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps" }
 
 export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899" }
 
@@ -47,24 +60,27 @@ export interface EliLike { id: string; name: string; category?: string; countryC
 
 export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps: CustomBasemapSource[]; eliInView: EliLike[] }): CoverageGroup[] {
   const libIds = new Set([...TERRAIN_LIB, ...BASEMAP_LIB].map((s) => s.id))
-  const yours: CoverageLeaf[] = []
-  for (const t of ctx.terrains) if (t.bounds && !libIds.has(t.id)) yours.push({ id: `terrain:${t.id}`, label: t.name, color: OVERLAY_COLORS.yours })
+  const yourTerrain: CoverageLeaf[] = []
+  const yourBasemaps: CoverageLeaf[] = []
+  for (const t of ctx.terrains) if (t.bounds && !libIds.has(t.id)) yourTerrain.push({ id: `terrain:${t.id}`, label: t.name, color: OVERLAY_COLORS.yours })
   for (const b of ctx.basemaps) {
     if (libIds.has(b.id)) continue
     const eli = b.provider === "eli" && ELI_ID_RE.test(b.description ?? "")
-    if (b.bounds || eli) yours.push({ id: `basemap:${b.id}`, label: b.name, color: eli ? OVERLAY_COLORS.eli : OVERLAY_COLORS.yours })
+    if (b.bounds || eli) yourBasemaps.push({ id: `basemap:${b.id}`, label: b.name, color: eli ? OVERLAY_COLORS.eli : OVERLAY_COLORS.yours })
   }
-  return [
-    { key: "mapterhorn", label: "Mapterhorn", color: OVERLAY_COLORS.mapterhorn, note: "Mapterhorn's own coverage tiles: which national source covers each area, hollow where it falls back to Copernicus GLO-30.",
+  const groups: CoverageGroup[] = [
+    { section: "Terrain", key: "mapterhorn", label: "Mapterhorn", color: OVERLAY_COLORS.mapterhorn, note: "Mapterhorn's own coverage tiles: which national source covers each area, hollow where it falls back to Copernicus GLO-30.",
       leaves: [{ id: "mapterhorn", label: "Mapterhorn coverage", color: OVERLAY_COLORS.mapterhorn }] },
-    { key: "library", label: "Terrain library", color: OVERLAY_COLORS.library, note: "Declared bounds of every library dataset, loaded or not.",
+    { section: "Terrain", key: "library", label: "Terrain library", color: OVERLAY_COLORS.library, note: "Declared bounds of every library dataset, loaded or not.",
       leaves: TERRAIN_LIB.filter((s) => s.bounds).map((s) => ({ id: `lib:${s.id}`, label: s.name, color: OVERLAY_COLORS.library })) },
-    { key: "basemapLibrary", label: "Basemap library", color: OVERLAY_COLORS.basemapLibrary,
-      leaves: BASEMAP_LIB.filter((s) => s.bounds).map((s) => ({ id: `blib:${s.id}`, label: s.name, color: OVERLAY_COLORS.basemapLibrary })) },
-    { key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
+    { section: "Terrain", key: "yourTerrain", label: "Your terrain sources", color: OVERLAY_COLORS.yours, note: "Loaded custom terrain sources that declare bounds and are not library entries.", leaves: yourTerrain },
+    { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category })) },
-    { key: "yours", label: "Your sources", color: OVERLAY_COLORS.yours, note: "Loaded custom sources that declare bounds and are not library entries.", leaves: yours },
-  ].filter((g) => g.leaves.length > 0)
+    { section: "Basemaps", key: "yourBasemaps", label: "Your basemaps", color: OVERLAY_COLORS.yours, note: "Loaded custom basemaps that declare bounds (or came from the index) and are not library entries.", leaves: yourBasemaps },
+    { section: "Basemaps", key: "basemapLibrary", label: "Basemap library", color: OVERLAY_COLORS.basemapLibrary,
+      leaves: BASEMAP_LIB.filter((s) => s.bounds).map((s) => ({ id: `blib:${s.id}`, label: s.name, color: OVERLAY_COLORS.basemapLibrary })) },
+  ]
+  return groups.filter((g) => g.leaves.length > 0)
 }
 
 const rect = (b: number[]): Polygon => ({
@@ -98,7 +114,7 @@ async function eliFeatures(id: string, layerId: string, label: string, url: stri
     if (!layer) return null
     const fc = await eli.loadCoverageFeatures([layer])
     const features: Feature[] = fc.features.map((f) => ({ ...f, properties: { ...f.properties,
-      overlay: id, color: OVERLAY_COLORS.eli, hollow: false, label, detail: "OSM Editor Layer Index footprint", url } }))
+      overlay: id, color: OVERLAY_COLORS.eli, hollow: false, opacity: 0.07, label, detail: "OSM Editor Layer Index footprint", url } }))
     return features.length ? { type: "FeatureCollection", features } : null
   } catch { return null }
 }

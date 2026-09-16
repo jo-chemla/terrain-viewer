@@ -323,26 +323,30 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
             </Button>
           } />
           <PopoverContent align="end" className="w-80 p-2 max-h-96 overflow-y-auto space-y-1">
-            {groups.map((g) => {
+            {groups.map((g, gi) => {
               const on = g.leaves.filter((l) => set.has(l.id)).length
               const all = on === g.leaves.length
               const isOpen = expanded[g.key] ?? false
+              const newSection = gi === 0 || groups[gi - 1].section !== g.section
               return (
                 <div key={g.key}>
+                  {newSection && (
+                    <div className={`text-[10px] uppercase tracking-wide text-muted-foreground px-0.5 ${gi === 0 ? "pb-0.5" : "pt-2 pb-0.5 border-t mt-1"}`}>{g.section}</div>
+                  )}
                   <div className="flex items-center gap-1.5 py-0.5">
+                    {g.leaves.length > 1 ? (
+                      <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpen ? "Collapse" : "Expand"}
+                        onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !isOpen }))}>
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                      </button>
+                    ) : <span className="w-[18px] shrink-0" />}
                     <Checkbox id={`cov-g-${g.key}`} checked={all} indeterminate={!all && on > 0} onCheckedChange={(v) => setMany(g.leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
                     <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />
                     <Label htmlFor={`cov-g-${g.key}`} className="text-xs font-medium cursor-pointer truncate flex-1" title={g.note}>{g.label}</Label>
                     <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{g.leaves.length}</span>
-                    {g.leaves.length > 1 && (
-                      <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5" aria-label={isOpen ? "Collapse" : "Expand"}
-                        onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !isOpen }))}>
-                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                      </button>
-                    )}
                   </div>
                   {isOpen && g.leaves.length > 1 && (
-                    <div className="pl-6 space-y-0.5 max-h-48 overflow-y-auto">
+                    <div className="pl-[42px] space-y-0.5 max-h-48 overflow-y-auto">
                       {g.leaves.map((l) => (
                         <div key={l.id} className="flex items-center gap-1.5">
                           <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
