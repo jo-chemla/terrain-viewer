@@ -151,13 +151,15 @@ export const CoverageOverlayLayer: React.FC = () => {
           </DialogHeader>
           <ul className="space-y-2 max-h-80 overflow-y-auto text-sm">
             {clicked?.map((h, i) => (
-              <li key={i}>
-                <div className="font-medium">{h.url ? <a href={h.url} target="_blank" rel="noopener noreferrer" className="underline">{h.label}</a> : h.label}</div>
-                <div className="text-xs text-muted-foreground">{h.detail}</div>
+              <li key={i} className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{h.url ? <a href={h.url} target="_blank" rel="noopener noreferrer" className="underline">{h.label}</a> : h.label}</div>
+                  <div className="text-xs text-muted-foreground">{h.detail}</div>
+                </div>
                 {h.overlay && coverageUseKind(h.overlay) && (
-                  <Button size="sm" variant="outline" className="h-7 mt-1 cursor-pointer text-xs"
+                  <Button size="sm" variant="outline" className="h-7 shrink-0 cursor-pointer text-xs" title={`Select this ${coverageUseKind(h.overlay)} for view A`}
                     onClick={() => { requestUse({ overlay: h.overlay!, nonce: Date.now() }); setClicked(null) }}>
-                    Use as {coverageUseKind(h.overlay)} for view A
+                    Use as {coverageUseKind(h.overlay)}
                   </Button>
                 )}
               </li>
