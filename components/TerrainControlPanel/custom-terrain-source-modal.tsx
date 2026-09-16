@@ -282,12 +282,6 @@ export const CustomTerrainSourceModal: React.FC<{
                       file), and the picked file only lives in this browser tab's memory —
                       it isn't saved, so it needs re-picking after a reload. */}
                   <SelectItem value="cog-local">Local COG file (this browser only)</SelectItem>
-                  {/* VRT only streams through titiler (GDAL's vsicurl driver) — the
-                      geomatico cog:// protocol reads a real COG file directly and can't
-                      open a VRT mosaic, so this option is a dead end in that mode. */}
-                  <SelectItem value="vrt" disabled={useCogProtocol}>
-                    VRT{useCogProtocol ? " (titiler mode only)" : ""}
-                  </SelectItem>
                 </SelectGroup>
                 <SelectGroup>
                   <SelectLabel>Tile and map services</SelectLabel>
@@ -295,6 +289,12 @@ export const CustomTerrainSourceModal: React.FC<{
                   <SelectItem value="terrainrgb">TMS (TerrainRGB)</SelectItem>
                   <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
                   <SelectItem value="tilejson">TileJSON</SelectItem>
+                  {/* VRT only streams through titiler (GDAL's vsicurl driver) — the
+                      geomatico cog:// protocol reads a real COG file directly and can't
+                      open a VRT mosaic, so this option is a dead end in that mode. */}
+                  <SelectItem value="vrt" disabled={useCogProtocol}>
+                    VRT{useCogProtocol ? " (titiler mode only)" : ""}
+                  </SelectItem>
                 </SelectGroup>
                 {!editingSource && (
                   <SelectGroup>

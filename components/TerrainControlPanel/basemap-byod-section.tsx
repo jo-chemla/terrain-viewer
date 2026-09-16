@@ -223,7 +223,6 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                 onClick={() => { setEditingBasemap(null); setIsAddBasemapModalOpen(true) }}
               />
               <TooltipButton
-                id="tour-load-basemap-samples"
                 icon={Library}
                 label="Library"
                 tooltip="Pick from the library of sample basemaps"

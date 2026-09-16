@@ -428,7 +428,7 @@ export const StacSearchPanel: React.FC<{
             {/* Width pinned to the trigger and titles truncated: 300 long
                 titles otherwise widened the popup past the viewport, which
                 threw it to the screen corner. */}
-            <SelectContent className="max-h-80 w-(--anchor-width) max-w-(--anchor-width)">
+            <SelectContent align="center" className="max-h-80 min-w-(--anchor-width) max-w-[min(calc(2*var(--anchor-width)),90vw)]">
               <SelectItem value="__all__"><span className="block truncate">{allLabel}{listing ? " (still listing…)" : ""}</span></SelectItem>
               {shownCollections.map((c) => <SelectItem key={c.id} value={c.id} title={c.title || c.id}><span className="block truncate">{c.title || c.id}</span></SelectItem>)}
               {shownCollections.length < collections.length && <SelectItem value="__more__" disabled>{collections.length - shownCollections.length} more - narrow the filter</SelectItem>}
