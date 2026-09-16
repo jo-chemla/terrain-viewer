@@ -250,6 +250,12 @@ export const StacSearchPanel: React.FC<{
   const [role, setRole] = useState<"basemap" | "overlay">("basemap")
   const [collectionFilter, setCollectionFilter] = useState("")
   const [progress, setProgress] = useState("")
+  // Results get most of the dialog: once they land, scroll the dialog so the
+  // list starts at the top and the catalogue / filter header slides away.
+  const resultsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (items.length > 0) resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [items])
   useEffect(() => { remembered[target] = { presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections } },
     [target, presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections])
 
@@ -497,7 +503,7 @@ export const StacSearchPanel: React.FC<{
       {error && <p className="text-sm text-red-500">{error}</p>}
       {loading && progress && <p className="text-xs text-muted-foreground">{progress}</p>}
 
-      <div className="max-h-72 overflow-y-auto overflow-x-hidden space-y-1">
+      <div ref={resultsRef} className="max-h-[65vh] overflow-y-auto overflow-x-hidden space-y-1 scroll-mt-2">
         {!loading && items.length === 0 && !error && <p className="text-sm text-muted-foreground py-3 text-center">No results yet.</p>}
         {!loading && items.length > 0 && ordered.every((it) => !cogAssets(it).length) && (
           <p className="text-sm text-muted-foreground py-3 text-center">{items.length} items, none with a {target === "terrain" ? "single-band elevation" : "COG"} asset.</p>
