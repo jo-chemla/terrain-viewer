@@ -44,6 +44,7 @@ export const CustomBasemapModal: React.FC<{
   const [url, setUrl] = useState("")
   const [lastType, setLastType] = useAtom(customBasemapLastTypeAtom)
   const [stacSearchBeta] = useAtom(stacSearchBetaEnabledAtom)
+  const fitTo = (b?: [number, number, number, number]) => { const m = mapRef?.current?.getMap(); if (m && b) m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, speed: 6 }) }
   const [type, setTypeState] = useState<BasemapFormType>(lastType as BasemapFormType)
   // Remember the choice for the next "Add Basemap" (not while editing an
   // existing source, whose type is its own).
@@ -335,7 +336,7 @@ export const CustomBasemapModal: React.FC<{
             </Suspense>
           ) : type === "stac" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
-              <StacSearchPanel target="basemap" mapRef={mapRef} onSave={(source) => onSave({ ...source, role: "basemap", opacity: 100 } as any)} />
+              <StacSearchPanel target="basemap" mapRef={mapRef} onSave={(source) => { onSave({ ...source, role: "basemap", opacity: 100 } as any); fitTo(source.bounds) }} />
             </Suspense>
           ) : type === "wms-picker" ? (
             <WmsPickerPanel

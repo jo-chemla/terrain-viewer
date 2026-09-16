@@ -79,7 +79,8 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       setCustomBasemapSources(customBasemapSources.map((s) => s.id === source.id ? { ...s, ...source } as CustomBasemapSource : s))
     } else {
       const newSource: CustomBasemapSource = { ...source, id: `custom-basemap-${Date.now()}` } as CustomBasemapSource
-      setCustomBasemapSources([...customBasemapSources, newSource])
+      // Functional update: STAC search adds several from one open dialog.
+      setCustomBasemapSources((prev) => [...prev, newSource])
       // Newly added sources are the ones the user almost always wants to look at
       // immediately — auto-select it as the active basemap. Resolved directly
       // from newSource (see terrain-source-section.tsx's matching comment for

@@ -115,7 +115,9 @@ export const TerrainSourceSection: React.FC<{
       setCustomTerrainSources(customTerrainSources.map((s) => s.id === source.id ? { ...s, ...source } as CustomTerrainSource : s))
     } else {
       const newSource: CustomTerrainSource = { ...source, id: `custom-${Date.now()}` } as CustomTerrainSource
-      setCustomTerrainSources([...customTerrainSources, newSource])
+      // Functional update: STAC search adds several sources from one open
+      // dialog, and the list captured by this closure is one add stale.
+      setCustomTerrainSources((prev) => [...prev, newSource])
       // Newly added sources are the ones the user almost always wants to look at
       // immediately — auto-select it as the primary (sourceA) terrain source.
       // Resolved directly from newSource rather than via selectTerrainA: a

@@ -31,6 +31,7 @@ export const CustomTerrainSourceModal: React.FC<{
   const [url, setUrl] = useState("")
   const [lastType, setLastType] = useAtom(customTerrainLastTypeAtom)
   const [stacSearchBeta] = useAtom(stacSearchBetaEnabledAtom)
+  const fitTo = (b?: [number, number, number, number]) => { const m = mapRef?.current?.getMap(); if (m && b) m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, speed: 6 }) }
   const [type, setTypeState] = useState<TerrainFormType>(lastType as TerrainFormType)
   // Remember the choice for the next "Add Dataset" (not while editing).
   const setType = useCallback((t: TerrainFormType) => {
@@ -296,7 +297,7 @@ export const CustomTerrainSourceModal: React.FC<{
 
           {type === "stac" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
-              <StacSearchPanel target="terrain" mapRef={mapRef} onSave={(source) => onSave(source)} />
+              <StacSearchPanel target="terrain" mapRef={mapRef} onSave={(source) => { onSave(source); fitTo(source.bounds) }} />
             </Suspense>
           ) : type === "wms-picker" ? (
             <WmsPickerPanel

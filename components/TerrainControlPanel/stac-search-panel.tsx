@@ -49,6 +49,8 @@ export const STAC_PRESETS: StacPreset[] = [
     note: "SWISSIMAGE orthophotos and swissALTI3D 0.5 m COGs. Assets are in LV95 (EPSG:2056), so they are routed through titiler." },
   { id: "linz-imagery", name: "LINZ New Zealand Imagery", url: "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/catalog.json", kind: "static", target: "basemap", group: "Imagery",
     note: "Toitū Te Whenua's aerial imagery archive as COGs (NZTM2000, EPSG:2193 - routed through titiler)." },
+  { id: "opentopography", name: "OpenTopography raster DEMs", url: "https://portal.opentopography.org/stac/raster_catalog.json", kind: "static", target: "terrain", group: "Elevation",
+    note: "283 OpenTopography-hosted LiDAR and DEM rasters as COGs, keyless. Static catalog: collections are filtered to the view, items crawled." },
   { id: "linz-elevation", name: "LINZ New Zealand Elevation", url: "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/catalog.json", kind: "static", target: "terrain", group: "Elevation",
     note: "1 m LiDAR DEM and DSM tiles (EPSG:2193 - routed through titiler)." },
   // Disaster imagery
@@ -64,8 +66,6 @@ export const STAC_PRESETS: StacPreset[] = [
   // Elevation
   { id: "pgc", name: "Polar Geospatial Center (ArcticDEM, REMA)", url: "https://stac.pgc.umn.edu/api/v1", kind: "api", target: "terrain", group: "Elevation",
     note: "2 m DEM strips and mosaics, polar stereographic - routed through titiler." },
-  { id: "opentopography", name: "OpenTopography raster DEMs", url: "https://portal.opentopography.org/stac/raster_catalog.json", kind: "static", target: "terrain", group: "Elevation",
-    note: "OpenTopography-hosted DEM datasets (many are large regional COGs)." },
   // Federated discovery
   { id: "discovery", name: "Federated collection discovery (MAAP)", url: "https://discover-api.dit.maap-project.org", kind: "discovery", target: "both", group: "Registries",
     note: "Development Seed's stac-fastapi-collection-discovery: one collection search across several upstream STAC APIs; items come from the chosen collection's own API." },
@@ -90,7 +90,8 @@ function epsgOf(it: StacItem, a: StacAsset): number | undefined {
   return fromCode ? Number(fromCode) : epsg ?? undefined
 }
 
-const DEM_RE = /\b(dem|dsm|dtm|elevation|height|altitude|terrain|surface model|lidar)\b/i
+const DEM_RE = /\b(dem|dsm|dtm|elevation|height|altitude|bare[- ]earth|surface model|ground model|lidar)\b/i
+const NOT_DEM_RE = /\b(qa|quality|mask|saturation|occlusion|cloud|aerosol|angle|azimuth|zenith|thumbnail|preview)\b/i
 /** Band count when the asset says (raster:bands, eo:bands, STAC 1.1 bands). */
 const bandCount = (a: StacAsset) => (a["raster:bands"] ?? a["eo:bands"] ?? a.bands)?.length
 /** Terrain wants single-band elevation rasters: drop RGB visuals, multi-band
@@ -101,8 +102,16 @@ function usableForTerrain(key: string, a: StacAsset): boolean {
   const n = bandCount(a)
   return n === undefined || n === 1
 }
-const looksLikeDem = (it: StacItem, key: string, a: StacAsset) =>
-  DEM_RE.test(`${key} ${a.title ?? ""} ${it.collection ?? ""} ${it.id} ${(a.roles ?? []).join(" ")}`)
+/** An asset that reads as an elevation raster: its own key / title says so
+ *  (or its collection does, for single-asset items), and nothing marks it as
+ *  a quality or mask band. */
+const looksLikeDem = (it: StacItem, key: string, a: StacAsset) => {
+  const own = `${key} ${a.title ?? ""} ${(a.roles ?? []).join(" ")}`
+  if (NOT_DEM_RE.test(own)) return false
+  if (DEM_RE.test(own)) return true
+  const cogs = Object.values(it.assets ?? {}).filter(isCog).length
+  return cogs <= 2 && DEM_RE.test(`${it.collection ?? ""} ${it.id}`)
+}
 
 // Last search per target survives closing the modal, so re-opening it does
 // not throw the results away.
@@ -193,6 +202,7 @@ export const StacSearchPanel: React.FC<{
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [added, setAdded] = useState<Set<string>>(() => new Set())
+  const [only3857, setOnly3857] = useState(false)
   useEffect(() => { remembered[target] = { presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections } },
     [target, presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections])
 
@@ -258,19 +268,31 @@ export const StacSearchPanel: React.FC<{
     }
   }, [catalog, collectionId, collections, startDate, endDate, viewportOnly, mapRef])
 
-  const cogAssets = (it: StacItem) => Object.entries(it.assets ?? {})
-    .filter(([key, a]) => isCog(a) && (target !== "terrain" || usableForTerrain(key, a)))
-  // Web Mercator assets first (they stream in-browser), then unknown, then
-  // everything that needs titiler; DEM-looking items first for terrain.
+  const cogAssets = (it: StacItem) => {
+    let assets = Object.entries(it.assets ?? {}).filter(([key, a]) => isCog(a) && (target !== "terrain" || usableForTerrain(key, a)))
+    if (target === "terrain") {
+      // A scene split into many single-band rasters (Landsat, Sentinel) is
+      // multispectral, not elevation: keep the DEM-looking assets only, and
+      // drop the item when it has none but more than three rasters.
+      const dems = assets.filter(([k, a]) => looksLikeDem(it, k, a))
+      if (dems.length) assets = dems
+      else if (assets.length > 3) assets = []
+    }
+    if (only3857) assets = assets.filter(([, a]) => epsgOf(it, a) === 3857)
+    return assets
+  }
+  // Web Mercator assets first (they stream in-browser), then other known
+  // projections (titiler), then assets whose projection is unknown; DEM-looking
+  // items first for terrain.
   const rank = (it: StacItem) => {
     const assets = cogAssets(it)
     if (!assets.length) return 99
     const codes = assets.map(([, a]) => epsgOf(it, a))
-    const proj = codes.includes(3857) ? 0 : codes.includes(undefined) ? 1 : 2
+    const proj = codes.includes(3857) ? 0 : codes.some((c) => c !== undefined) ? 1 : 2
     const dem = target === "terrain" && assets.some(([k, a]) => looksLikeDem(it, k, a)) ? 0 : 1
     return proj * 2 + dem
   }
-  const ordered = useMemo(() => items.slice().sort((a, b) => rank(a) - rank(b)), [items, target]) // eslint-disable-line react-hooks/exhaustive-deps
+  const ordered = useMemo(() => items.slice().sort((a, b) => rank(a) - rank(b)), [items, target, only3857]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const DateButton: React.FC<{ value: string; onChange: (v: string) => void }> = ({ value, onChange }) => (
     <Popover>
@@ -283,18 +305,22 @@ export const StacSearchPanel: React.FC<{
 
   const browserUrl = catalog.url ? `https://radiantearth.github.io/stac-browser/#/external/${catalog.url.replace(/^https?:\/\//, "")}` : ""
   const stacMapUrl = catalog.url ? `https://developmentseed.org/stac-map/?href=${encodeURIComponent(catalog.url)}` : ""
-  const groups = ["Mixed", "Imagery", "Elevation", "Registries"] as const
-  const selectItems = Object.fromEntries([...presets.map((p) => [p.id, p.name]), ["custom", "Custom catalogue URL…"]])
+  const groups = ["Elevation", "Mixed", "Imagery", "Registries"] as const
+  const selectItems = Object.fromEntries([["custom", "Custom catalog URL…"], ...presets.map((p) => [p.id, p.name])])
 
   return (
     <div className="space-y-3 min-w-0">
       <p className="text-xs text-muted-foreground">
         Beta — search a STAC catalogue for Cloud Optimized GeoTIFFs and add any as {target === "terrain" ? "terrain (DEM)" : "basemap"} sources; the dialog stays open so you can add several.
-        Web Mercator assets are listed first{target === "terrain" ? ", single-band elevation rasters only" : ""}; others are routed through titiler automatically when the catalogue states their projection.
+        Web Mercator (3857) assets are listed first{target === "terrain" ? ", single-band elevation rasters only" : ""}, then other known projections (routed through titiler), then assets whose projection the catalogue does not state.
       </p>
       <Select value={presetId} onValueChange={(v) => v && setPresetId(v)} items={selectItems}>
         <SelectTrigger className="w-full cursor-pointer"><SelectValue /></SelectTrigger>
         <SelectContent>
+          <SelectGroup>
+            <SelectLabel>Other</SelectLabel>
+            <SelectItem value="custom">Custom catalog URL…</SelectItem>
+          </SelectGroup>
           {groups.map((g) => {
             const rows = presets.filter((p) => p.group === g)
             if (!rows.length) return null
@@ -305,10 +331,6 @@ export const StacSearchPanel: React.FC<{
               </SelectGroup>
             )
           })}
-          <SelectGroup>
-            <SelectLabel>Other</SelectLabel>
-            <SelectItem value="custom">Custom catalogue URL…</SelectItem>
-          </SelectGroup>
         </SelectContent>
       </Select>
       {presetId === "custom" && (
@@ -338,9 +360,15 @@ export const StacSearchPanel: React.FC<{
         <DateButton value={endDate} onChange={setEndDate} />
       </div>
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Checkbox id="stac-viewport-only" checked={viewportOnly} onCheckedChange={(v) => setViewportOnly(v === true)} className="cursor-pointer" />
-          <Label htmlFor="stac-viewport-only" className="text-xs cursor-pointer">Only items covering the current view</Label>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Checkbox id="stac-viewport-only" checked={viewportOnly} onCheckedChange={(v) => setViewportOnly(v === true)} className="cursor-pointer" />
+            <Label htmlFor="stac-viewport-only" className="text-xs cursor-pointer">Only items covering the current view</Label>
+          </div>
+          <div className="flex items-center gap-2" title="Keep only assets the catalogue declares as EPSG:3857 - the ones the in-browser reader streams without titiler">
+            <Checkbox id="stac-only-3857" checked={only3857} onCheckedChange={(v) => setOnly3857(v === true)} className="cursor-pointer" />
+            <Label htmlFor="stac-only-3857" className="text-xs cursor-pointer">Only Web Mercator (3857)</Label>
+          </div>
         </div>
         <Button size="sm" className="cursor-pointer" onClick={runSearch} disabled={loading || !catalog.url}>
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Search
@@ -357,11 +385,18 @@ export const StacSearchPanel: React.FC<{
         {ordered.map((it) => {
           const assets = cogAssets(it)
           if (!assets.length) return null
-          const when = typeof it.properties?.datetime === "string" ? (it.properties.datetime as string).slice(0, 10) : ""
+          const p = it.properties ?? {}
+          const dateOf = (k: string) => (typeof p[k] === "string" ? (p[k] as string).slice(0, 10) : "")
+          const when = dateOf("datetime") || dateOf("start_datetime")
+          // Human title when the item carries one (OpenAerialMap, VEDA), the
+          // id (often a uuid or a tile code) otherwise.
+          const title = typeof p.title === "string" && p.title.trim() ? (p.title as string) : it.id
+          const gsd = typeof p.gsd === "number" ? (p.gsd < 1 ? `${Math.round(p.gsd * 100)} cm` : `${(p.gsd as number).toFixed(p.gsd < 10 ? 1 : 0)} m`) : ""
+          const producer = typeof p["oam:producer_name"] === "string" ? (p["oam:producer_name"] as string) : typeof p.platform === "string" ? (p.platform as string) : ""
           return (
             <div key={it.id} className="p-2 rounded-md hover:bg-muted/60 space-y-1">
-              <div className="text-sm truncate" title={it.id}>{it.id}</div>
-              <div className="text-[11px] text-muted-foreground truncate">{[it.collection, when].filter(Boolean).join(" · ")} · {assets.length} COG asset{assets.length === 1 ? "" : "s"}</div>
+              <div className="text-sm truncate" title={it.id}>{title}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{[it.collection, when, gsd, producer].filter(Boolean).join(" · ")} · {assets.length} COG asset{assets.length === 1 ? "" : "s"}</div>
               <div className="flex flex-wrap gap-1">
                 {assets.slice(0, 12).map(([key, a]) => {
                   const epsg = epsgOf(it, a)
@@ -369,17 +404,19 @@ export const StacSearchPanel: React.FC<{
                   const isAdded = added.has(a.href)
                   const dem = target === "terrain" && looksLikeDem(it, key, a)
                   return (
-                    <Button key={key} size="sm" variant={isAdded ? "secondary" : "outline"} className="h-7 cursor-pointer text-xs" disabled={isAdded}
+                    <Button key={key} size="sm" variant={isAdded ? "secondary" : "outline"} className="h-7 cursor-pointer text-xs max-w-full min-w-0 justify-start" disabled={isAdded}
                       title={`${a.href}${epsg ? `\nEPSG:${epsg}${viaTitiler ? " - served through titiler" : ""}` : ""}${dem ? "\nLooks like an elevation model" : ""}`}
                       onClick={() => { setAdded((s) => new Set(s).add(a.href)); onSave({
-                        name: `${it.id} — ${a.title || key}`, url: a.href, type: "cog",
-                        description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""}${when ? ` · ${when}` : ""}${epsg ? ` · EPSG:${epsg}` : ""}`,
+                        name: title === it.id || a.title === title ? `${title}${a.title && a.title !== title ? ` — ${a.title}` : assets.length > 1 ? ` — ${key}` : ""}` : `${title} — ${a.title || key}`, url: a.href, type: "cog",
+                        description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""} · ${it.id}${when ? ` · ${when}` : ""}${gsd ? ` · ${gsd}` : ""}${producer ? ` · ${producer}` : ""}${epsg ? ` · EPSG:${epsg}` : ""}`,
                         bounds: it.bbox && it.bbox.length >= 4 ? [it.bbox[0], it.bbox[1], it.bbox[2], it.bbox[3]] : undefined,
                         cogViaTitiler: viaTitiler || undefined,
                       }) }}>
-                      {isAdded ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />} {a.title || key}
-                      {dem ? <span className="text-emerald-600 dark:text-emerald-400"> DEM</span> : null}
-                      {epsg && viaTitiler ? <span className="text-muted-foreground"> · {epsg}</span> : null}
+                      {isAdded ? <Check className="h-3 w-3 shrink-0" /> : <Plus className="h-3 w-3 shrink-0" />}
+                      <span className="truncate min-w-0">{a.title || key}</span>
+                      {dem && <span className="shrink-0 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1.5 text-[10px] font-medium">DEM</span>}
+                      {epsg === 3857 && <span className="shrink-0 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1.5 text-[10px] font-medium">3857</span>}
+                      {epsg && viaTitiler ? <span className="shrink-0 rounded-full bg-muted text-muted-foreground px-1.5 text-[10px] font-medium" title="Served through titiler">{epsg}</span> : null}
                     </Button>
                   )
                 })}
