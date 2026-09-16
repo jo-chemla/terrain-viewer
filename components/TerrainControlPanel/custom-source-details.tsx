@@ -1,7 +1,7 @@
 import type React from "react"
 import { useRef } from "react"
 import { useAtom, useSetAtom, useAtomValue } from "jotai"
-import { MapPin, Edit, Trash2, Upload, HardDrive, Link } from "lucide-react"
+import { MapPin, Edit, Trash2, Upload, HardDrive, Link, ExternalLink } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -63,6 +63,24 @@ export const CustomSourceDetails: React.FC<{
           />
           <TooltipContent><p>This browser couldn't restore "{source.name}" locally (unsupported browser, storage limit, or it was cleared) — pick it again to use it this session</p></TooltipContent>
         </Tooltip>
+        {/* Remote COGs can be inspected in a standalone viewer: source.coop's
+            COG viewer (metadata, overviews, band stats) or GeoLibre. */}
+        {source.type === "cog" && /^https?:\/\//.test(source.url) && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <a href={`https://source-cooperative.github.io/cog-viewer/?url=${encodeURIComponent(source.url)}`} target="_blank" rel="noopener noreferrer"
+                  className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              }
+            />
+            <TooltipContent>
+              <p>Open in the source.coop COG viewer</p>
+              <p className="text-muted-foreground">or in <a href={`https://web.geolibre.app/?data=${encodeURIComponent(source.url)}`} target="_blank" rel="noopener noreferrer" className="underline">GeoLibre</a></p>
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger
             render={

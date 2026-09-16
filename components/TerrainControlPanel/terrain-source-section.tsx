@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Plus, Edit, TestTube, RotateCcw, Lightbulb } from "lucide-react"
+import { ChevronDown, Plus, Edit, Library, RotateCcw, Lightbulb } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
@@ -27,7 +27,7 @@ import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
 import { SampleSourcesModal } from "./sample-sources-modal"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { TooltipButton } from "./controls-components"
 import { JsonEditor } from "@/components/ui/json-editor"
 
@@ -306,7 +306,7 @@ export const TerrainSourceSection: React.FC<{
 
           <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
             <TooltipProvider>
-              <div id="tour-byod-terrain-row" className="grid grid-cols-3 gap-2">
+              <div id="tour-byod-terrain-row" className="flex gap-2">
                 <TooltipButton
                   icon={Plus}
                   label="Add Dataset"
@@ -314,17 +314,21 @@ export const TerrainSourceSection: React.FC<{
                   onClick={() => { setEditingSource(null); setIsAddSourceModalOpen(true) }}
                 />
                 <TooltipButton
-                  icon={Edit}
-                  label="Batch"
-                  tooltip="Batch edit all sources as JSON"
-                  onClick={handleOpenBatchEdit}
-                />
-                <TooltipButton
-                  icon={TestTube}
-                  label="Sample"
-                  tooltip="Pick from the sample terrain sources"
+                  icon={Library}
+                  label="Library"
+                  tooltip="Pick from the library of national and global terrain datasets"
                   onClick={handleLoadSample}
                 />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button variant="outline" size="sm" className="cursor-pointer bg-transparent shrink-0 px-2" onClick={handleOpenBatchEdit}>
+                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent><p>Batch edit all sources as JSON</p></TooltipContent>
+                </Tooltip>
               </div>
             </TooltipProvider>
 
@@ -369,7 +373,7 @@ export const TerrainSourceSection: React.FC<{
       <SampleSourcesModal
         open={isSampleModalOpen}
         onOpenChange={setIsSampleModalOpen}
-        title="Sample terrain sources"
+        title="Terrain dataset library"
         samples={SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[]}
         current={customTerrainSources}
         setCurrent={setCustomTerrainSources}

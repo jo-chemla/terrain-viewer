@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
 import { ChevronDown, Link, Settings2, Expand, Copy, Check, Info } from "lucide-react"
@@ -12,14 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Switch } from "@/components/ui/switch"
-import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
+import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom, customTerrainLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { supportsNodataControls } from "@/lib/nodata"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
 import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
 import { WmsPickerPanel } from "./wms-picker-panel"
+const StacSearchPanel = lazy(() => import("./stac-search-panel").then((m) => ({ default: m.StacSearchPanel })))
 
-type TerrainFormType = CustomTerrainSource["type"] | "wms-picker"
+type TerrainFormType = CustomTerrainSource["type"] | "wms-picker" | "stac"
 
 export const CustomTerrainSourceModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomTerrainSource | null
@@ -28,7 +29,14 @@ export const CustomTerrainSourceModal: React.FC<{
 }> = ({ isOpen, onOpenChange, editingSource, onSave, mapRef }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
-  const [type, setType] = useState<TerrainFormType>("cog")
+  const [lastType, setLastType] = useAtom(customTerrainLastTypeAtom)
+  const [stacSearchBeta] = useAtom(stacSearchBetaEnabledAtom)
+  const [type, setTypeState] = useState<TerrainFormType>(lastType as TerrainFormType)
+  // Remember the choice for the next "Add Dataset" (not while editing).
+  const setType = useCallback((t: TerrainFormType) => {
+    setTypeState(t)
+    if (!editingSource) setLastType(t)
+  }, [editingSource, setLastType])
   // Brief "copied!" confirmation on the template hint's copy button — same
   // 2s-timeout pattern as ShareSection's CopyUrlButton.
   const [templateCopied, setTemplateCopied] = useState(false)
@@ -110,7 +118,7 @@ export const CustomTerrainSourceModal: React.FC<{
     } else {
       setName("")
       setUrl("")
-      setType("cog")
+      setTypeState(((stacSearchBeta || lastType !== "stac") ? lastType : "cog") as TerrainFormType || "cog")
       setDescription("")
       setMaxzoom("")
       setLinkedBasemapId("")
@@ -255,6 +263,7 @@ export const CustomTerrainSourceModal: React.FC<{
                 terrarium: "TMS (Terrarium)",
                 terrainrgb: "TMS (TerrainRGB)",
                 "wms-picker": "WMS (list layers)",
+                stac: "STAC catalogue search (beta)",
                 "wms-raw": "WMS (raw Float32 elevation)",
                 tilejson: "TileJSON",
                 vrt: `VRT${useCogProtocol ? " (titiler mode only)" : ""}`,
@@ -272,6 +281,7 @@ export const CustomTerrainSourceModal: React.FC<{
                 <SelectItem value="terrarium">TMS (Terrarium)</SelectItem>
                 <SelectItem value="terrainrgb">TMS (TerrainRGB)</SelectItem>
                 {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
+                {!editingSource && stacSearchBeta && <SelectItem value="stac">STAC catalogue search (beta)</SelectItem>}
                 <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
                 <SelectItem value="tilejson">TileJSON</SelectItem>
                 {/* VRT only streams through titiler (GDAL's vsicurl driver) — the
@@ -284,7 +294,11 @@ export const CustomTerrainSourceModal: React.FC<{
             </Select>
           </div>
 
-          {type === "wms-picker" ? (
+          {type === "stac" ? (
+            <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
+              <StacSearchPanel target="terrain" mapRef={mapRef} onSave={(source) => { onSave(source); onOpenChange(false) }} />
+            </Suspense>
+          ) : type === "wms-picker" ? (
             <WmsPickerPanel
               format="image/geotiff"
               tileSize={514}

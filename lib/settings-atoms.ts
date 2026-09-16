@@ -62,6 +62,8 @@ export const viewportCenterAtom = atom<{ lat: number; lng: number } | null>(null
 /** Type the "Add Basemap" modal opens on: NextGIS QMS search the very first
  *  time, then whatever was picked last. Persisted; edit mode ignores it. */
 export const customBasemapLastTypeAtom = atomWithStorage<string>("customBasemapLastType", "qms")
+/** Last "Add Dataset" type in the terrain modal (COG on first run). */
+export const customTerrainLastTypeAtom = atomWithStorage<string>("customTerrainLastType", "cog")
 
 /** One-shot request to zoom the historical timeline to a date window —
  *  written by Export Multi as its start/end dates change, so the timeline
@@ -466,10 +468,12 @@ export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>
 // above — these are read synchronously in TerrainViewer's first-load
 // stateOverrides effect, which would otherwise see the pre-hydration default
 // instead of the real stored value.
-const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true }, undefined, { getOnInit: true })
+const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true, stacSearch: false }, undefined, { getOnInit: true })
 export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
 export const sunShadowBetaEnabledAtom = booleanField(betaEnabledAtom, "sunShadow")
 export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historical")
+/** STAC catalogue search in the Add Dataset / Add Basemap modals (no URL param: local only). */
+export const stacSearchBetaEnabledAtom = booleanField(betaEnabledAtom, "stacSearch")
 
 // Bookmarks gallery modal: on (default) flattens every group's cards into one
 // continuous grid (each card's label prefixed with its project name) so

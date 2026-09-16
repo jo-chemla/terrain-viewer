@@ -70,7 +70,7 @@ export const EliSearchPanel: React.FC<{
         description: `OSM Editor Layer Index id ${layer.id}${layer.startDate || layer.endDate ? ` (${layer.startDate ?? "?"} – ${layer.endDate ?? "?"})` : ""}`,
         attribution: layer.attributionText || undefined,
         licenseUrl: layer.licenseUrl || undefined,
-        infoUrl: layer.attributionUrl || "https://osmlab.github.io/editor-layer-index/",
+        infoUrl: layer.attributionUrl || "https://osm-editor-kit.github.io/maplibre-editor-layer-index/",
         provider: "eli",
       })
     } catch (e) {
@@ -88,6 +88,11 @@ export const EliSearchPanel: React.FC<{
           OSM Editor Layer Index
         </a>
         , the imagery catalogue behind iD and JOSM: agency aerials, historic maps and more, each with its licence.
+        Browse it on a map in the{" "}
+        <a href="https://osm-editor-kit.github.io/maplibre-editor-layer-index/" target="_blank" rel="noopener noreferrer" className="underline">
+          ELI browser
+        </a>
+        .
       </p>
 
       <div className="relative">
@@ -127,12 +132,12 @@ export const EliSearchPanel: React.FC<{
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <a href={`https://osmlab.github.io/editor-layer-index/#${encodeURIComponent(r.id)}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-muted-foreground hover:text-foreground">
+                    <a href={`https://osm-editor-kit.github.io/maplibre-editor-layer-index/?q=${encodeURIComponent(r.id)}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-muted-foreground hover:text-foreground">
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   }
                 />
-                <TooltipContent><p>Open in the index</p></TooltipContent>
+                <TooltipContent><p>Open in the Editor Layer Index browser</p></TooltipContent>
               </Tooltip>
               <Button size="sm" variant="outline" className="cursor-pointer shrink-0" disabled={addingId === r.id || needsKey} onClick={() => handleAdd(r)}>
                 {addingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}

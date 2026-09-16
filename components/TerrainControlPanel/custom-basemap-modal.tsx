@@ -14,7 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SegmentedToggle } from "./controls-components"
-import { type CustomBasemapSource, customTerrainSourcesAtom, customBasemapLastTypeAtom } from "@/lib/settings-atoms"
+import { type CustomBasemapSource, customTerrainSourcesAtom, customBasemapLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
 import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
@@ -22,9 +22,10 @@ import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
 // Lazy: the Editor Layer Index ships an ~800 KB always-loaded locator, which
 // should only ever be fetched once someone picks this option.
 const EliSearchPanel = lazy(() => import("./eli-search-panel").then((m) => ({ default: m.EliSearchPanel })))
+const StacSearchPanel = lazy(() => import("./stac-search-panel").then((m) => ({ default: m.StacSearchPanel })))
 import { WmsPickerPanel } from "./wms-picker-panel"
 
-type BasemapFormType = "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "eli" | "tilejson" | "wms-picker"
+type BasemapFormType = "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "eli" | "tilejson" | "wms-picker" | "stac"
 
 export const CustomBasemapModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomBasemapSource | null
@@ -42,6 +43,7 @@ export const CustomBasemapModal: React.FC<{
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
   const [lastType, setLastType] = useAtom(customBasemapLastTypeAtom)
+  const [stacSearchBeta] = useAtom(stacSearchBetaEnabledAtom)
   const [type, setTypeState] = useState<BasemapFormType>(lastType as BasemapFormType)
   // Remember the choice for the next "Add Basemap" (not while editing an
   // existing source, whose type is its own).
@@ -130,7 +132,7 @@ export const CustomBasemapModal: React.FC<{
       setName("")
       setUrl("")
       // NextGIS QMS on the very first run, then the last type used.
-      setTypeState((lastType as BasemapFormType) || "qms")
+      setTypeState((((stacSearchBeta || lastType !== "stac") ? lastType : "qms") as BasemapFormType) || "qms")
       setDescription("")
       setRole("basemap")
       setOpacity(100)
@@ -289,6 +291,7 @@ export const CustomBasemapModal: React.FC<{
                 "wms-picker": "WMS (list layers)",
                 qms: "NextGIS QMS (search)",
                 eli: "OSM Editor Layer Index (search)",
+                stac: "STAC catalogue search (beta)",
               }}
             >
               <SelectTrigger id="basemap-type" className="cursor-pointer w-full">
@@ -300,6 +303,7 @@ export const CustomBasemapModal: React.FC<{
                     <SelectLabel>Search a catalogue</SelectLabel>
                     <SelectItem value="qms">NextGIS QMS (search)</SelectItem>
                     <SelectItem value="eli">OSM Editor Layer Index (search)</SelectItem>
+                    {stacSearchBeta && <SelectItem value="stac">STAC catalogue search (beta)</SelectItem>}
                   </SelectGroup>
                 )}
                 <SelectGroup>
@@ -328,6 +332,10 @@ export const CustomBasemapModal: React.FC<{
           ) : type === "eli" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading the Editor Layer Index…</p>}>
               <EliSearchPanel mapRef={mapRef} onSave={(source) => { onSave(source); onOpenChange(false) }} />
+            </Suspense>
+          ) : type === "stac" ? (
+            <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
+              <StacSearchPanel target="basemap" mapRef={mapRef} onSave={(source) => { onSave({ ...source, role: "basemap", opacity: 100 } as any); onOpenChange(false) }} />
             </Suspense>
           ) : type === "wms-picker" ? (
             <WmsPickerPanel

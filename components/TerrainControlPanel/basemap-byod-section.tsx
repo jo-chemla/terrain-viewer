@@ -1,11 +1,12 @@
 import type React from "react"
 import { useState, useCallback, useRef } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Plus, Edit, TestTube } from "lucide-react"
+import { ChevronDown, Plus, Edit, Library } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { TooltipButton, SourceGridToggle, GroupHeading } from "./controls-components"
 import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
 import {
@@ -210,7 +211,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
 
         <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
           <TooltipProvider>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex gap-2">
               <TooltipButton
                 icon={Plus}
                 label="Basemap"
@@ -218,18 +219,22 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                 onClick={() => { setEditingBasemap(null); setIsAddBasemapModalOpen(true) }}
               />
               <TooltipButton
-                icon={Edit}
-                label="Batch"
-                tooltip="Batch edit all sources as JSON"
-                onClick={() => setIsBatchEditModalOpen(true)}
-              />
-              <TooltipButton
                 id="tour-load-basemap-samples"
-                icon={TestTube}
-                label="Sample"
-                tooltip="Pick from the sample basemap sources"
+                icon={Library}
+                label="Library"
+                tooltip="Pick from the library of sample basemaps"
                 onClick={handleLoadSample}
               />
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button variant="outline" size="sm" className="cursor-pointer bg-transparent shrink-0 px-2" onClick={() => setIsBatchEditModalOpen(true)}>
+                      <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent><p>Batch edit all sources as JSON</p></TooltipContent>
+              </Tooltip>
             </div>
           </TooltipProvider>
           {basemapRoleSources.length > 0 && (
@@ -326,7 +331,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       <SampleSourcesModal
         open={isSampleModalOpen}
         onOpenChange={setIsSampleModalOpen}
-        title="Sample basemap sources"
+        title="Basemap library"
         samples={SAMPLE_BASEMAP_SOURCES as CustomBasemapSource[]}
         current={customBasemapSources}
         setCurrent={setCustomBasemapSources}

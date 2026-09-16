@@ -2,6 +2,7 @@ import type React from "react"
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { createPortal } from "react-dom"
 import { useAtom, useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai"
+import { stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles, Compass, BookOpen } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -238,6 +239,7 @@ const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[]; onImageClick: (s
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any; historicalMode?: boolean }> = ({ isOpen, onOpenChange, state, setState, historicalMode = false }) => {
   const { theme, toggleTheme, setTheme: setAppTheme } = useTheme()
+  const [stacSearchBeta, setStacSearchBeta] = useAtom(stacSearchBetaEnabledAtom)
   const { setTheme: setColorTheme } = useColorTheme()
   const [showThemeEditor, setShowThemeEditor] = useState(false)
   const setCustomThemes = useSetAtom(customThemesAtom)
@@ -905,6 +907,26 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 Adds <span className="font-semibold text-foreground">ESRI Wayback, HLS (Landsat/Sentinel), Google Earth Historical, and Planet Monthly Mosaic</span>{" "}
                 as basemap options plus a bottom timeline scrubber for picking a capture
                 date per source (Basemap section).
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">STAC catalogue search</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="stac-search-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
+                  <Switch
+                    id="stac-search-beta"
+                    checked={stacSearchBeta}
+                    className="cursor-pointer"
+                    onCheckedChange={(checked) => setStacSearchBeta(checked)}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Adds a <span className="font-semibold text-foreground">STAC search</span> option to the Add Dataset and
+                Add Basemap modals: pick a catalogue (Earth Search, Maxar Open Data, Planetary Computer or any URL),
+                a date range and the current view, then add any Cloud Optimized GeoTIFF from the results.
               </p>
             </div>
           </CollapsibleSection>
