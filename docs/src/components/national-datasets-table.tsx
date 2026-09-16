@@ -60,6 +60,7 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-de-nrw-dgm1": { res: "1 m", coverage: "North Rhine-Westphalia only" },
   "custom-mx-aguadafenix-lidar": { res: "0.5 m", coverage: "Middle Usumacinta survey area (archaeology)" },
   "custom-us-3dep": { res: "1–10 m", coverage: "Nationwide incl. AK, HI, PR" },
+  "custom-us-3dep-wms": { res: "1–10 m", coverage: "Nationwide incl. AK, HI, PR — same mosaic over the WMS front end" },
   "custom-ee-maaamet-dtm1": { res: "1 m", coverage: "Nationwide" },
   "custom-fo-us-dsm25": { res: "25 m", coverage: "All islands (satellite DSM, coarse)" },
   "custom-ca-nrcan-mrdem30": { res: "30 m", coverage: "Nationwide, one single COG (via titiler)" },

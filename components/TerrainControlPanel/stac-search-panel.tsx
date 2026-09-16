@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Search, Plus, Check, Loader2, ExternalLink, CalendarDays } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -243,11 +243,13 @@ export const StacSearchPanel: React.FC<{
   // paging; static: child links). Skipped on mount when the remembered
   // state already belongs to this catalogue.
   // Only trust a remembered listing that actually holds collections.
-  const [listedFor, setListedFor] = useState(prev?.presetId === presetId && (prev?.collections.length ?? 0) > 0 ? catalog.url : "")
+  // A ref, not state: as state it re-ran this effect on its own update, and
+  // the re-run's cleanup cancelled the fetch it had just started.
+  const listedFor = useRef(prev?.presetId === presetId && (prev?.collections.length ?? 0) > 0 ? catalog.url : "")
   const [listing, setListing] = useState(false)
   useEffect(() => {
-    if (listedFor === catalog.url) return
-    setListedFor(catalog.url)
+    if (listedFor.current === catalog.url) return
+    listedFor.current = catalog.url
     setListing(true)
     setCollections([]); setCollectionId(""); setItems([]); setError("")
     if (!catalog.url) return
@@ -266,7 +268,7 @@ export const StacSearchPanel: React.FC<{
       finally { if (!cancelled) setListing(false) }
     })()
     return () => { cancelled = true }
-  }, [catalog.url, catalog.kind, listedFor])
+  }, [catalog.url, catalog.kind])
   // web-map-links on the chosen collection: ready-made XYZ tile layers (rare:
   // NASA VEDA and the EOPF explorer publish some) - addable as-is.
   const xyzLinks = useMemo(() => {

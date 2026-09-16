@@ -242,7 +242,7 @@ export const CustomTerrainSourceModal: React.FC<{
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" showCloseButton={false}>
+      <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{editingSource ? "Edit Terrain Dataset" : "Add New Terrain Dataset"}</DialogTitle>
           <DialogDescription>Add your own terrain data source from a TerrainRGB, Terrarium or COG endpoint.</DialogDescription>
@@ -424,7 +424,7 @@ export const CustomTerrainSourceModal: React.FC<{
                   )}
                   {showTitilerToggle && (
                     <div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="source-cog-via-titiler" className="text-sm leading-snug cursor-pointer">
+                      <Label htmlFor="source-cog-via-titiler" className="block text-sm leading-snug cursor-pointer">
                         <span className="font-medium">Always serve via titiler</span>{" "}
                         <span className="font-normal text-muted-foreground">for a COG not in EPSG:3857: the in-browser reader does not reproject, titiler warps it server-side. Overrides the global COG setting for this source only.</span>
                       </Label>

@@ -259,7 +259,7 @@ export const CustomBasemapModal: React.FC<{
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" showCloseButton={false}>
+      <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>
             {editingSource ? "Edit Basemap" : "Add New Basemap"}
@@ -484,7 +484,7 @@ export const CustomBasemapModal: React.FC<{
                 <CollapsibleContent className="space-y-3 pt-2">
                   {type === "cog" && (
                     <div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="basemap-cog-via-titiler" className="text-sm leading-snug cursor-pointer">
+                      <Label htmlFor="basemap-cog-via-titiler" className="block text-sm leading-snug cursor-pointer">
                         <span className="font-medium">Always serve via titiler</span>{" "}
                         <span className="font-normal text-muted-foreground">for a COG not in EPSG:3857: the in-browser reader shows nothing for it, titiler warps it server-side. Overrides the global COG setting for this source only.</span>
                       </Label>

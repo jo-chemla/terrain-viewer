@@ -366,6 +366,18 @@
             "infoUrl": "https://www.usgs.gov/3d-elevation-program"
         },
         {
+            "id": "custom-us-3dep-wms",
+            "name": "USA - USGS 3DEP - WMS raw Float32",
+            "url": "elevation.nationalmap.gov/arcgis/services/3DEPElevation/ImageServer/WMSServer?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=3DEPElevation:None&STYLES=&FORMAT=image/tiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514",
+            "type": "wms-raw",
+            "maxzoom": 18,
+            "bounds": [-179, 17.6, -65, 71.5],
+            "loadWithSamples": false,
+            "description": "The same 3DEP seamless mosaic as the ImageServer entry, through the ArcGIS WMS front end of that image service: GetMap with FORMAT=image/tiff returns a single-band Float32 GeoTIFF (verified 2458 m over the Sierra), so it decodes exactly like the exportImage route. Kept as an alternative when the REST endpoint misbehaves. Public domain.",
+            "resolutionM": 1,
+            "infoUrl": "https://www.usgs.gov/3d-elevation-program"
+        },
+        {
             "id": "custom-sam-anadem",
             "name": "Global - ANADEM AI bare-earth DTM from the GLO-30 DSM, South America 30m - single COG",
             "url": "https://opentopography.s3.sdsc.edu/raster/ANADEM/ANADEM_be/anadem_v1_compressed_COG.tif",
