@@ -22,6 +22,11 @@ export function useCtrlTapToggle(onTap: () => void, enabled: boolean = true) {
   useEffect(() => {
     if (!enabled) return
     let armed = false
+    // A tap is a quick press: a modifier held for longer than this (waiting
+    // with Ctrl down before deciding to drag, holding Shift while reading)
+    // is not a toggle, whatever else did or did not happen meanwhile.
+    const TAP_MAX_MS = 500
+    let downAt = 0
 
     const isEditableTarget = (target: EventTarget | null): boolean => {
       const el = target as HTMLElement | null
@@ -32,7 +37,7 @@ export function useCtrlTapToggle(onTap: () => void, enabled: boolean = true) {
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Control") {
-        if (!e.repeat) armed = !isEditableTarget(e.target)
+        if (!e.repeat) { armed = !isEditableTarget(e.target); downAt = performance.now() }
         return
       }
       if (e.ctrlKey) armed = false
@@ -40,7 +45,7 @@ export function useCtrlTapToggle(onTap: () => void, enabled: boolean = true) {
 
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key !== "Control") return
-      if (armed) onTapRef.current()
+      if (armed && performance.now() - downAt <= TAP_MAX_MS) onTapRef.current()
       armed = false
     }
 

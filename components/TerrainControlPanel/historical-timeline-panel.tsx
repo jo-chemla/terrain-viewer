@@ -1330,6 +1330,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 e.currentTarget.releasePointerCapture(e.pointerId)
                 ctrlGroupDragRef.current = null
               }}
+              data-snapshot-plain
               className={cn(
                 "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing",
                 !bg && "bg-primary",

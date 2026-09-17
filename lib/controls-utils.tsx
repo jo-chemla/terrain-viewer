@@ -244,6 +244,14 @@ export function snapshotMatchesViewA(mapRef: React.RefObject<MapRef | null>): bo
   return Math.abs(r.width - c.width) < 2 && Math.abs(r.height - c.height) < 2
 }
 
+const stripSelectionEmphasis = (cloned: Node) => {
+  if (!(cloned instanceof Element)) return
+  cloned.querySelectorAll<HTMLElement>("[data-snapshot-plain]").forEach((el) => {
+    el.style.fontWeight = "inherit"
+    el.style.outline = "none"
+  })
+}
+
 const isHidden = (el: Element, stopAt: Element) => {
   for (let n: Element | null = el; n && n !== stopAt; n = n.parentElement) {
     const cs = getComputedStyle(n)
@@ -325,10 +333,9 @@ async function compositeViews(root: HTMLElement, withChrome: boolean, includeTim
       const chrome = await domToCanvas(root, {
         width: rootRect.width, height: rootRect.height, scale: dpr, backgroundColor: null,
         // Selection emphasis (the bold label of the pane the timeline acts
-        // on) is interface state: every pill reads the same in the picture.
-        onCloneNode: (cloned) => {
-          if (cloned instanceof Element) cloned.querySelectorAll<HTMLElement>("[data-snapshot-plain]").forEach((el) => { el.style.fontWeight = "inherit" })
-        },
+        // on, the extra circle on its timeline handle) is interface state:
+        // every pill and handle reads the same in the picture.
+        onCloneNode: stripSelectionEmphasis,
         // Canvases are already drawn above; the split drag handle is a
         // control, not part of the picture; and of maplibre's own controls
         // only the scale bar (and the attribution the imagery licences ask
@@ -351,6 +358,7 @@ async function compositeViews(root: HTMLElement, withChrome: boolean, includeTim
       if (timeline) {
         const r = timeline.getBoundingClientRect()
         const img = await domToCanvas(timeline, { width: r.width, height: r.height, scale: dpr, backgroundColor: null,
+          onCloneNode: stripSelectionEmphasis,
           style: { position: "static", inset: "auto", margin: "0", transform: "none" } })
         ctx.drawImage(img, (r.left - rootRect.left) * dpr, (r.top - rootRect.top) * dpr, r.width * dpr, r.height * dpr)
       }

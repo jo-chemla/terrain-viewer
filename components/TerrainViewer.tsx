@@ -3906,12 +3906,14 @@ export function TerrainViewer() {
           {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
           {label}
         </span>
-        {isSplit && pane.side !== "A" && (
+        {isSplit && (pane.side !== "A" || activeViewIds.length === 2) && (
           <button
             type="button"
             data-snapshot-ignore
-            onClick={() => setState(permuteViewsUpdates(stateAny, [pane.side, "A"], ["A", pane.side]))}
-            title={`Swap view ${pane.side} with view A (drawing and most tools work on view A)`}
+            // On B-H: swap with A. On A, only with exactly two views (overlay,
+            // 2x1), where "the other one" is unambiguous.
+            onClick={() => { const other = pane.side === "A" ? activeViewIds.find((v) => v !== "A")! : pane.side; setState(permuteViewsUpdates(stateAny, [other, "A"], ["A", other])) }}
+            title={pane.side === "A" ? `Swap views A and ${activeViewIds.find((v) => v !== "A")}` : `Swap view ${pane.side} with view A (drawing and most tools work on view A)`}
             className="cursor-pointer text-muted-foreground hover:text-foreground"
           >
             <ArrowLeftRight className="h-3 w-3" />
