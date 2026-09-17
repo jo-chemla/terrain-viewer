@@ -279,6 +279,10 @@ export function SphericalXYPad({
       onPointerCancel={(e) => {
         if (transparentUi) setActiveSlider(null)
       }}
+      // Capture can be lost without a pointerup (window switch mid-drag).
+      onLostPointerCapture={() => {
+        if (transparentUi) setActiveSlider((current) => (current === fullSliderId ? null : current))
+      }}
     >
       {/* Outer circle (minimum elevation) */}
       <div

@@ -120,8 +120,25 @@ const MobileSliderInner = forwardRef<
   // (a plain PointerEvent plus a preventBaseUIHandler() method Base UI attaches
   // at runtime). We only forward the event through, never call that method, so
   // the `any` cast is a safe pass-through rather than a real type mismatch.
+  // The release is listened for on the window, not only on the slider: Base
+  // UI tracks the drag on the document without capturing the pointer, so a
+  // fast drag that ends off the slider (seen on Firefox / macOS) delivers its
+  // pointerup somewhere else, this element's own onPointerUp never fires, and
+  // the side panel stayed transparent until another slider was pressed and
+  // released slowly. Only clears its own id, never a slider pressed since.
   const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
-    if (transparentUi) setActiveSlider(id)
+    if (transparentUi) {
+      setActiveSlider(id)
+      const release = () => {
+        window.removeEventListener("pointerup", release, true)
+        window.removeEventListener("pointercancel", release, true)
+        window.removeEventListener("blur", release)
+        setActiveSlider((current) => (current === id ? null : current))
+      }
+      window.addEventListener("pointerup", release, true)
+      window.addEventListener("pointercancel", release, true)
+      window.addEventListener("blur", release)
+    }
     onPointerDown?.(e as any)
   }
   const handlePointerUp = (e: React.PointerEvent<HTMLSpanElement>) => {

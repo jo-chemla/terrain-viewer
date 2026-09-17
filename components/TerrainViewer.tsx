@@ -2175,6 +2175,16 @@ export function TerrainViewer() {
   // closure would otherwise pin whichever activeViewIds happened to be current
   // at mount — and go stale the moment split mode changes the view set. Read
   // it through a ref instead so the listener always calls the latest one.
+  const reconcileOnIdle = useCallback(() => {
+    for (const side of activeViewIds) {
+      if (mapRefs[side].current?.getMap()?.isMoving()) return
+    }
+    reconcileSyncedViews()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeViewIds.join(","), reconcileSyncedViews])
+  const reconcileOnIdleRef = useRef(reconcileOnIdle)
+  useEffect(() => { reconcileOnIdleRef.current = reconcileOnIdle }, [reconcileOnIdle])
+
   const resettleTerrainElevationOnIdleRef = useRef(resettleTerrainElevationOnIdle)
   useEffect(() => {
     resettleTerrainElevationOnIdleRef.current = resettleTerrainElevationOnIdle
@@ -3042,7 +3052,12 @@ export function TerrainViewer() {
             // the render-to-texture tile cache on every single idle (the
             // "terrain blinks through several states while loading" flicker).
             mapInstance.on('idle', () => {
-              if (!mapInstance.getTerrain()) return
+              // No terrain (2D historical mode): nothing to re-resolve, but the
+              // views still have to be pulled back together. Returning early
+              // here used to skip that too, so a pane mounted by a layout
+              // change (2x1 to 4x2) from the URL's camera - which trails the
+              // live one - stayed wherever it was born until the next gesture.
+              if (!mapInstance.getTerrain()) { reconcileOnIdleRef.current(); return }
               // Live ground-clamping (centerClampedToGround, default true)
               // re-resolves the camera's height from the DEM on EVERY rendered
               // frame (maplibre-gl 5.24, Map#_render), which is the
@@ -3817,7 +3832,8 @@ export function TerrainViewer() {
     const baseLabel = !hasKnownDate ? sourceShortLabel
       : effectiveCaptureDatePill === "source-date" ? `${sourceShortLabel} · ${dateLabel}`
       : dateLabel
-    // Split views name their pane in the pill itself ("B: Bing · 1999-01-15"),
+    // Split views name their pane in the pill itself ("B: Bing · 1999-01-15",
+    // the letter being on-screen only: a snapshot shows "Bing · 1999-01-15"),
     // uncoloured. The pill doubles as the view selector for the timeline
     // (timelineActiveSideAtom: the selected view's label is bold, its handle
     // gets a second circle, the arrow keys act on it), and B-H carry a small
@@ -3825,7 +3841,7 @@ export function TerrainViewer() {
     // on view A. Bold and the button are interface state, not content: they
     // are stripped from snapshots (data-snapshot-plain / data-snapshot-ignore,
     // see captureMapScreenshot).
-    const label = isSplit ? `${pane.side}: ${baseLabel}` : baseLabel
+    const label = baseLabel
     const selectable = isSplit && historicalTimelineVisible && !!state.basemapPerView
     const selected = selectable && timelineActiveSide === pane.side
     const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : "0.5rem"
@@ -3887,6 +3903,7 @@ export function TerrainViewer() {
           title={selectable ? "Click to make the timeline's arrow keys act on this view" : undefined}
           className={cn(selectable && "cursor-pointer", selected && "font-bold")}
         >
+          {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
           {label}
         </span>
         {isSplit && pane.side !== "A" && (

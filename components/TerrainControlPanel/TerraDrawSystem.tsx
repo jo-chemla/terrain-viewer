@@ -18,6 +18,8 @@ import { Toggle } from '@/components/ui/toggle'
 import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ColorAlphaSwatch } from './color-picker'
 import bbox from '@turf/bbox'
@@ -1552,6 +1554,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
     const importDrawing = useDrawingImport(draw, mapRef)
     const [importUrl, setImportUrl] = useState("")
     const [isImportingUrl, setIsImportingUrl] = useState(false)
+    const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false)
     const afterImport = () => { setVisible(true); setOpacity(1) }
 
     const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1584,6 +1587,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
             importDrawing(geojson, nameFromUrl(url), format)
             afterImport()
             setImportUrl("")
+            setIsUrlDialogOpen(false)
         } catch (err) {
             console.error('URL import error:', err)
             reportImportError(`${nameFromUrl(url)} ${err instanceof Error ? err.message : "could not be imported"}`)
@@ -1610,16 +1614,37 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
             </div>
 
             <div className="flex items-center gap-2">
-                <Tooltip>
-                    <TooltipTrigger
-                        render={
-                            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer flex-[2] min-w-0">
-                                <Upload className="h-4 w-4 mr-1 shrink-0" /> <span className="truncate">Import</span>
-                            </Button>
-                        }
-                    />
-                    <TooltipContent><p>Import a GeoJSON, KML, GPX or FlatGeobuf file</p></TooltipContent>
-                </Tooltip>
+                {/* Same split-button shape as Export: the main button is the
+                    default (a file), the chevron holds the alternative (a URL). */}
+                <div className="flex flex-[2] min-w-0">
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="cursor-pointer flex-1 min-w-0 rounded-r-none border-r-0">
+                                    <Upload className="h-4 w-4 mr-1 shrink-0" /> <span className="truncate">Import</span>
+                                </Button>
+                            }
+                        />
+                        <TooltipContent><p>Import a GeoJSON, KML, GPX or FlatGeobuf file</p></TooltipContent>
+                    </Tooltip>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            render={
+                                <Button variant="outline" size="sm" className="cursor-pointer rounded-l-none px-1.5 shrink-0" aria-label="Import options">
+                                    <ChevronDown className="h-4 w-4" />
+                                </Button>
+                            }
+                        />
+                        <DropdownMenuContent align="start" className="w-48">
+                            <DropdownMenuItem className="cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                <Upload className="h-4 w-4" /> From a file…
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="cursor-pointer" onClick={() => { setImportError(null); setIsUrlDialogOpen(true) }}>
+                                <Link className="h-4 w-4" /> From a URL…
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
                 <div className="flex flex-[3] min-w-0">
                     <Tooltip>
                         <TooltipTrigger
@@ -1698,20 +1723,33 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
             <input ref={fileInputRef} type="file" accept={VECTOR_FILE_ACCEPT} onChange={importFile} className="hidden" />
             {/* <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml,.gpkg" onChange={importFile} className="hidden" /> */}
             {/* <input ref={fileInputRef} type="file" accept=".geojson,.json" onChange={importGeoJSON} className="hidden" /> */}
-            <div className="flex items-center gap-2">
-                <Input
-                    value={importUrl}
-                    onChange={(e) => setImportUrl(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") importFromUrl() }}
-                    placeholder="https://… .geojson, .kml, .gpx, .fgb, .shp"
-                    className="h-8 text-xs cursor-text min-w-0"
-                    aria-label="Import vector data from a URL"
-                />
-                <Button variant="outline" size="sm" onClick={importFromUrl} disabled={!importUrl.trim() || isImportingUrl} className="cursor-pointer shrink-0">
-                    {isImportingUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link className="h-4 w-4" />}
-                </Button>
-            </div>
-            {importError && (
+            <Dialog open={isUrlDialogOpen} onOpenChange={(open) => { if (!isImportingUrl) setIsUrlDialogOpen(open) }}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Import from a URL</DialogTitle>
+                        <DialogDescription>
+                            GeoJSON, KML, GPX, FlatGeobuf or Shapefile (its .dbf and .prj are fetched alongside). Geometry and attributes only; the server must allow cross-origin requests.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Input
+                        autoFocus
+                        value={importUrl}
+                        onChange={(e) => setImportUrl(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") importFromUrl() }}
+                        placeholder="https://host/features.geojson"
+                        className="cursor-text"
+                        aria-label="URL of the vector data"
+                    />
+                    {importError && <p className="text-xs text-destructive">{importError}</p>}
+                    <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setIsUrlDialogOpen(false)} disabled={isImportingUrl}>Cancel</Button>
+                        <Button size="sm" className="cursor-pointer" onClick={importFromUrl} disabled={!importUrl.trim() || isImportingUrl}>
+                            {isImportingUrl && <Loader2 className="h-4 w-4 animate-spin" />} Import
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+            {importError && !isUrlDialogOpen && (
                 <p className="text-xs text-destructive">{importError}</p>
             )}
         </div>
