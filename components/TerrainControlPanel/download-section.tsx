@@ -3,13 +3,14 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { useAtom } from "jotai"
 import { Download, Camera, Copy, Loader2, MountainSnow, X, Images } from "lucide-react"
 import { ExportMultiDialog } from "./export-multi-dialog"
-import { titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
+import { snapshotIncludeTimelineAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
 import saveAs from "file-saver"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
-import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot, snapshotMatchesViewA } from "@/lib/controls-utils"
+import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot, snapshotMatchesViewA, SNAPSHOT_TIMELINE_ID } from "@/lib/controls-utils"
+import { Checkbox } from "@/components/ui/checkbox"
 import { getClientExportSource, exportElevationClientSide } from "@/lib/client-export"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { mergeContourLines } from "@/lib/merge-contours"
@@ -47,6 +48,8 @@ export const DownloadSection: React.FC<{
 }> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange, withSeparator, historicalMode = false }) => {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [maxResolution, setMaxResolution] = useAtom(maxResolutionAtom)
+  // Saved, copied and shared snapshots alike (see captureMapScreenshot).
+  const [includeTimeline, setIncludeTimeline] = useAtom(snapshotIncludeTimelineAtom)
   const [useClientExport] = useAtom(useClientExportAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
@@ -338,6 +341,12 @@ export const DownloadSection: React.FC<{
           />
           <ShareButton mapRef={mapRef} />
         </div>
+        {typeof document !== "undefined" && document.getElementById(SNAPSHOT_TIMELINE_ID) && (
+          <div className="flex items-center gap-2">
+            <Checkbox id="snapshot-include-timeline" checked={includeTimeline} onCheckedChange={(v) => setIncludeTimeline(v === true)} className="cursor-pointer" />
+            <Label htmlFor="snapshot-include-timeline" className="text-sm cursor-pointer">Include the timeline in snapshots</Label>
+          </div>
+        )}
         <TooltipButton
           icon={Images}
           label="Export Historical GeoTiffs"
@@ -447,6 +456,12 @@ export const DownloadSection: React.FC<{
           />
           <ShareButton mapRef={mapRef} />
         </div>
+        {typeof document !== "undefined" && document.getElementById(SNAPSHOT_TIMELINE_ID) && (
+          <div className="flex items-center gap-2">
+            <Checkbox id="snapshot-include-timeline" checked={includeTimeline} onCheckedChange={(v) => setIncludeTimeline(v === true)} className="cursor-pointer" />
+            <Label htmlFor="snapshot-include-timeline" className="text-sm cursor-pointer">Include the timeline in snapshots</Label>
+          </div>
+        )}
         <TooltipButton
           icon={Images}
           label="Export Historical GeoTiffs"

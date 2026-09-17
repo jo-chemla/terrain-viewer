@@ -182,6 +182,8 @@ export const copyToClipboard = (text: string) => navigator.clipboard.writeText(t
 
 import { domToBlob, domToCanvas } from "modern-screenshot"
 import type { MapRef } from "react-map-gl/maplibre"
+import { getDefaultStore } from "jotai"
+import { snapshotIncludeTimelineAtom } from "./settings-atoms"
 
 export type ImageFormat = "png" | "jpeg"
 
@@ -207,6 +209,26 @@ function sidePanelCropPx(rootRect: DOMRect): number {
   const crop = rootRect.right - r.left
   // Never crop more than half: a panel that wide is not a margin any more.
   return crop > 0 && crop < rootRect.width / 2 ? crop : 0
+}
+
+export const SNAPSHOT_TIMELINE_ID = "tour-historical-timeline"
+
+/** The historical timeline panel, when it is on screen. */
+function visibleTimeline(): HTMLElement | null {
+  const el = document.getElementById(SNAPSHOT_TIMELINE_ID)
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  return r.width >= 1 && r.height >= 1 ? el : null
+}
+
+/** Same reasoning as sidePanelCropPx, bottom edge: the timeline docks over
+ *  the last row and the camera padding clears it, so without the timeline in
+ *  the picture that strip is blank space. */
+function timelineCropPx(rootRect: DOMRect): number {
+  const el = visibleTimeline()
+  if (!el) return 0
+  const crop = rootRect.bottom - el.getBoundingClientRect().top
+  return crop > 0 && crop < rootRect.height / 2 ? crop : 0
 }
 
 /** True when view A's canvas fills the whole snapshot, i.e. a single view or
@@ -242,7 +264,7 @@ const isHidden = (el: Element, stopAt: Element) => {
  * left to modern-screenshot because it cannot reproduce blend modes between
  * cloned canvases, and re-encodes each one as a data URL.
  */
-async function compositeViews(root: HTMLElement, withChrome: boolean): Promise<HTMLCanvasElement> {
+async function compositeViews(root: HTMLElement, withChrome: boolean, includeTimeline: boolean): Promise<HTMLCanvasElement> {
   const dpr = window.devicePixelRatio || 1
   const rootRect = root.getBoundingClientRect()
   const out = document.createElement("canvas")
@@ -250,7 +272,8 @@ async function compositeViews(root: HTMLElement, withChrome: boolean): Promise<H
   // simply cuts the side panel's strip off the right.
   const outWidthCss = rootRect.width - sidePanelCropPx(rootRect)
   out.width = Math.max(1, Math.round(outWidthCss * dpr))
-  out.height = Math.max(1, Math.round(rootRect.height * dpr))
+  const outHeightCss = rootRect.height - (includeTimeline ? 0 : timelineCropPx(rootRect))
+  out.height = Math.max(1, Math.round(outHeightCss * dpr))
   const ctx = out.getContext("2d")!
   // JPEG has no alpha, and unloaded tiles are transparent: paint the page
   // background first so they do not come out black.
@@ -302,13 +325,30 @@ async function compositeViews(root: HTMLElement, withChrome: boolean): Promise<H
       const chrome = await domToCanvas(root, {
         width: rootRect.width, height: rootRect.height, scale: dpr, backgroundColor: null,
         // Canvases are already drawn above; the split drag handle is a
-        // control, not part of the picture.
-        filter: (node) => !(node instanceof HTMLCanvasElement) && !(node instanceof Element && node.getAttribute("role") === "separator"),
+        // control, not part of the picture; and of maplibre's own controls
+        // only the scale bar (and the attribution the imagery licences ask
+        // for) say something about the image - geocoder, zoom, compass and
+        // geolocate are buttons.
+        filter: (node) => {
+          if (node instanceof HTMLCanvasElement) return false
+          if (!(node instanceof Element)) return true
+          if (node.getAttribute("role") === "separator") return false
+          const c = node.classList
+          return !c.contains("maplibregl-ctrl") || c.contains("maplibregl-ctrl-scale") || c.contains("maplibregl-ctrl-attrib")
+        },
       })
       ctx.globalCompositeOperation = "source-over"
       ctx.globalAlpha = 1
       ctx.filter = "none"
-      ctx.drawImage(chrome, 0, 0, Math.round(rootRect.width * dpr), out.height)
+      ctx.drawImage(chrome, 0, 0, Math.round(rootRect.width * dpr), Math.round(rootRect.height * dpr))
+      // The timeline is a sibling of the split container, not a child.
+      const timeline = includeTimeline ? visibleTimeline() : null
+      if (timeline) {
+        const r = timeline.getBoundingClientRect()
+        const img = await domToCanvas(timeline, { width: r.width, height: r.height, scale: dpr, backgroundColor: null,
+          style: { position: "static", inset: "auto", margin: "0", transform: "none" } })
+        ctx.drawImage(img, (r.left - rootRect.left) * dpr, (r.top - rootRect.top) * dpr, r.width * dpr, r.height * dpr)
+      }
     } catch (error) {
       console.warn("Snapshot: map chrome (pills, controls) could not be rendered, saving the views alone:", error)
     }
@@ -332,7 +372,7 @@ export async function captureMapScreenshot(
   const root = getSnapshotRoot(mapRef)
   if (root) {
     try {
-      const canvas = await compositeViews(root, chrome)
+      const canvas = await compositeViews(root, chrome, getDefaultStore().get(snapshotIncludeTimelineAtom))
       return await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.95 : undefined))
     } catch (error) {

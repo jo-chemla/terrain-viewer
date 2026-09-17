@@ -350,6 +350,11 @@ export function isProdHostname(hostname: string): boolean {
 }
 
 export const transparentUiAtom = atomWithStorage("isTransparentUi", true)
+// Snapshot / Copy / Share: keep the historical timeline in the picture, or
+// (default) crop the strip it covers off the bottom - see captureMapScreenshot.
+// getOnInit: read through getDefaultStore() there, possibly before any
+// component has mounted the atom.
+export const snapshotIncludeTimelineAtom = atomWithStorage("snapshotIncludeTimeline", false, undefined, { getOnInit: true })
 export const activeSliderAtom = atom<string | null>(null)
 
 
