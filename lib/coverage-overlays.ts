@@ -91,6 +91,14 @@ const rect = (b: number[]): Polygon => ({
 
 const cache = new Map<string, Promise<FeatureCollection>>()
 
+/** Ground sample distance in metres, for ordering (coverageGsd below is the
+ *  label): declared resolution, else one pixel at the max zoom. */
+export function coverageGsdMeters(p: { resolutionM?: number; maxzoom?: number; tileSize?: number }, lat: number): number | null {
+  if (typeof p.resolutionM === "number") return p.resolutionM
+  if (typeof p.maxzoom !== "number") return null
+  return 40075016.686 * Math.cos((lat * Math.PI) / 180) / ((p.tileSize || 256) * 2 ** p.maxzoom)
+}
+
 /** "0.5 m" from a native grid, or the ground size of one pixel at the
  *  source's max zoom at this latitude ("z19 ≈ 30 cm/px") - the only GSD a
  *  tile service or an ELI entry can offer. */

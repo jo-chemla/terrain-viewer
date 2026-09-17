@@ -4,7 +4,7 @@ import { Source, Layer, useMap } from "react-map-gl/maplibre"
 import type { MapLayerMouseEvent, ExpressionSpecification } from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import { useAtomValue, useSetAtom } from "jotai"
-import { coverageOverlaysAtom, loadCoverageFeatures, getMapterhornSourceMeta, coverageGsd, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
+import { coverageOverlaysAtom, loadCoverageFeatures, getMapterhornSourceMeta, coverageGsd, coverageGsdMeters, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-request"
 import { Button } from "@/components/ui/button"
@@ -17,7 +17,7 @@ const MH_SOURCE_ID = "mapterhorn-coverage"
 const MH_FILL_ID = "mapterhorn-coverage-fill"
 const MH_LINE_ID = "mapterhorn-coverage-line"
 
-type Hit = { label: string; detail: string; url?: string; overlay?: string; useAs?: "terrain" | "basemap" | "overlay"; needsKey?: boolean }
+type Hit = { gsdM: number; label: string; detail: string; url?: string; overlay?: string; useAs?: "terrain" | "basemap" | "overlay"; needsKey?: boolean }
 
 /**
  * Draws the coverage overlays picked in Source Info (see
@@ -79,20 +79,23 @@ export const CoverageOverlayLayer: React.FC = () => {
         const p = f.properties as Record<string, any>
         const meta = mhMeta?.[p.source]
         const gsd = coverageGsd(p, e.lngLat.lat)
+        const mhRes = p.source === "glo30" ? 30 : Number(meta?.resolution)
         const hit: Hit = f.layer.id === MH_FILL_ID
-          ? { label: "Mapterhorn",
+          ? { gsdM: Number.isFinite(mhRes) ? mhRes : Infinity, useAs: "terrain", label: "Mapterhorn",
               detail: p.source === "glo30" ? "Copernicus GLO-30 fallback (30 m)"
                 : meta ? `${meta.resolution} m · ${meta.name} (${meta.producer}) · "${p.source}"`
                 : `national source "${p.source}"`,
               url: `https://mapterhorn.com/attribution/#${p.source}`, overlay: "mapterhorn" }
-          : { label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.url || undefined, overlay: p.overlay,
+          : { gsdM: coverageGsdMeters(p, e.lngLat.lat) ?? Infinity, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.url || undefined, overlay: p.overlay,
               useAs: p.role === "overlay" ? "overlay" : coverageUseKind(p.overlay) ?? undefined, needsKey: p.needsKey === true || p.needsKey === "true" }
         const k = `${hit.label}|${hit.detail}`
         if (seen.has(k)) continue
         seen.add(k)
         out.push(hit)
       }
-      return out
+      // Finest first; sources with no known resolution last (stable sort
+      // keeps their render order).
+      return out.sort((a, b) => (a.gsdM === b.gsdM ? 0 : a.gsdM - b.gsdM))
     }
     const onMove = (e: MapLayerMouseEvent) => {
       const hits = hitsAt(e)

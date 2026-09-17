@@ -11,7 +11,7 @@ import saveAs from "file-saver"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
 import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot, snapshotMatchesViewA } from "@/lib/controls-utils"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { getClientExportSource, exportElevationClientSide } from "@/lib/client-export"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { mergeContourLines } from "@/lib/merge-contours"
@@ -56,7 +56,7 @@ export const DownloadSection: React.FC<{
   // DEM size cap only exists in terrain mode: the historical batch export
   // has its own target-resolution field in its dialog.
   const exportSettings = (
-    <Collapsible open={isExportSettingsOpen} onOpenChange={setIsExportSettingsOpen}>
+    <Collapsible open={isExportSettingsOpen} onOpenChange={setIsExportSettingsOpen} className="mt-3">
       <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer">
         <GroupHeading>Export settings</GroupHeading>
         <ChevronDown className={`h-4 w-4 transition-transform ${isExportSettingsOpen ? "rotate-180" : ""}`} />
@@ -75,9 +75,9 @@ export const DownloadSection: React.FC<{
             />
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <Checkbox id="snapshot-include-timeline" checked={includeTimeline} onCheckedChange={(v) => setIncludeTimeline(v === true)} className="cursor-pointer" />
+        <div className="flex items-center justify-between gap-2">
           <Label htmlFor="snapshot-include-timeline" className="text-sm cursor-pointer">Include the timeline in snapshots</Label>
+          <Switch id="snapshot-include-timeline" checked={includeTimeline} onCheckedChange={setIncludeTimeline} className="cursor-pointer" />
         </div>
       </CollapsibleContent>
     </Collapsible>
