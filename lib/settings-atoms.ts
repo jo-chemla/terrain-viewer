@@ -350,6 +350,8 @@ export function isProdHostname(hostname: string): boolean {
 }
 
 export const transparentUiAtom = atomWithStorage("isTransparentUi", true)
+// Download and Snapshot's own "Export settings" fold (see download-section.tsx).
+export const isExportSettingsOpenAtom = atomWithStorage("isExportSettingsOpen", false)
 // Snapshot / Copy / Share: keep the historical timeline in the picture, or
 // (default) crop the strip it covers off the bottom - see captureMapScreenshot.
 // getOnInit: read through getDefaultStore() there, possibly before any

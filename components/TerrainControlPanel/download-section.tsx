@@ -1,23 +1,23 @@
 import type React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useAtom } from "jotai"
-import { Download, Camera, Copy, Loader2, MountainSnow, X, Images } from "lucide-react"
+import { Download, Camera, Copy, Loader2, MountainSnow, X, Images, ChevronDown } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ExportMultiDialog } from "./export-multi-dialog"
-import { snapshotIncludeTimelineAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
+import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
 import saveAs from "file-saver"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
 import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot, snapshotMatchesViewA } from "@/lib/controls-utils"
-import { isHistoricalSourceActive } from "@/lib/historical-sources"
 import { Checkbox } from "@/components/ui/checkbox"
 import { getClientExportSource, exportElevationClientSide } from "@/lib/client-export"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { mergeContourLines } from "@/lib/merge-contours"
 import { track } from "@/lib/analytics"
 import { ShareButton } from "./ShareSection"
-import { TooltipButton } from "./controls-components"
+import { TooltipButton, GroupHeading } from "./controls-components"
 import { Progress } from "@/components/ui/progress"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -51,10 +51,37 @@ export const DownloadSection: React.FC<{
   const [maxResolution, setMaxResolution] = useAtom(maxResolutionAtom)
   // Saved, copied and shared snapshots alike (see captureMapScreenshot).
   const [includeTimeline, setIncludeTimeline] = useAtom(snapshotIncludeTimelineAtom)
-  // Same gate as TerrainViewer's historicalTimelineVisible, from the URL
-  // state, so the option appears and disappears with the timeline itself.
-  const timelineOnScreen = !!state.historicalBeta && isHistoricalSourceActive(state)
-    && (historicalMode || !!state.showRasterBasemap) && !state.historicalTimelineCollapsed
+  const [isExportSettingsOpen, setIsExportSettingsOpen] = useAtom(isExportSettingsOpenAtom)
+  // Folded by default, under the last export button of either layout. The
+  // DEM size cap only exists in terrain mode: the historical batch export
+  // has its own target-resolution field in its dialog.
+  const exportSettings = (
+    <Collapsible open={isExportSettingsOpen} onOpenChange={setIsExportSettingsOpen}>
+      <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer">
+        <GroupHeading>Export settings</GroupHeading>
+        <ChevronDown className={`h-4 w-4 transition-transform ${isExportSettingsOpen ? "rotate-180" : ""}`} />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
+        {!historicalMode && (
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="max-resolution" className="text-sm">Max Download Resolution (px)</Label>
+            <Input
+              id="max-resolution"
+              type="number"
+              placeholder="4096"
+              value={maxResolution}
+              onChange={(e) => setMaxResolution(Number.parseFloat(e.target.value))}
+              className="cursor-text h-7 w-24 text-right"
+            />
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <Checkbox id="snapshot-include-timeline" checked={includeTimeline} onCheckedChange={(v) => setIncludeTimeline(v === true)} className="cursor-pointer" />
+          <Label htmlFor="snapshot-include-timeline" className="text-sm cursor-pointer">Include the timeline in snapshots</Label>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
   const [useClientExport] = useAtom(useClientExportAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
@@ -346,12 +373,6 @@ export const DownloadSection: React.FC<{
           />
           <ShareButton mapRef={mapRef} />
         </div>
-        {timelineOnScreen && (
-          <div className="flex items-center gap-2">
-            <Checkbox id="snapshot-include-timeline" checked={includeTimeline} onCheckedChange={(v) => setIncludeTimeline(v === true)} className="cursor-pointer" />
-            <Label htmlFor="snapshot-include-timeline" className="text-sm cursor-pointer">Include the timeline in snapshots</Label>
-          </div>
-        )}
         <TooltipButton
           icon={Images}
           label="Export Historical GeoTiffs"
@@ -359,6 +380,7 @@ export const DownloadSection: React.FC<{
           onClick={() => setIsExportMultiOpen(true)}
           className="w-full bg-transparent"
         />
+        {exportSettings}
         <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} getMapView={getMapView} />
       </Section>
     )
@@ -461,12 +483,6 @@ export const DownloadSection: React.FC<{
           />
           <ShareButton mapRef={mapRef} />
         </div>
-        {timelineOnScreen && (
-          <div className="flex items-center gap-2">
-            <Checkbox id="snapshot-include-timeline" checked={includeTimeline} onCheckedChange={(v) => setIncludeTimeline(v === true)} className="cursor-pointer" />
-            <Label htmlFor="snapshot-include-timeline" className="text-sm cursor-pointer">Include the timeline in snapshots</Label>
-          </div>
-        )}
         <TooltipButton
           icon={Images}
           label="Export Historical GeoTiffs"
@@ -474,19 +490,7 @@ export const DownloadSection: React.FC<{
           onClick={() => setIsExportMultiOpen(true)}
           className="w-full bg-transparent"
         />
-        {/* Lived in the Settings modal — moved next to the export buttons it
-            actually parameterizes (DEM GeoTIFF size cap, both export paths). */}
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <Label htmlFor="max-resolution" className="text-sm">Max Download Resolution (px)</Label>
-          <Input
-            id="max-resolution"
-            type="number"
-            placeholder="4096"
-            value={maxResolution}
-            onChange={(e) => setMaxResolution(Number.parseFloat(e.target.value))}
-            className="cursor-text h-7 w-24 text-right"
-          />
-        </div>
+        {exportSettings}
       </div>
       <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} getMapView={getMapView} />
     </Section>
