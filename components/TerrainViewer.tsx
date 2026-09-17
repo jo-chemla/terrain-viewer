@@ -46,8 +46,9 @@ import { COLOR_SPACES } from "@/lib/histogram-matching";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
 import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
-import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom } from "@/lib/layout-constants"
-import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
+import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom } from "@/lib/layout-constants"
+import { ArrowLeftRight } from "lucide-react"
+import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
 import maplibregl from 'maplibre-gl'
@@ -1973,6 +1974,7 @@ export function TerrainViewer() {
   // counts. Defaults to the primary view for the very first settle after load,
   // when nothing has been touched.
   const lastInteractedViewRef = useRef<ViewId>("A")
+  const [timelineActiveSide, setTimelineActiveSide] = useAtom(timelineActiveSideAtom)
   useEffect(() => {
     const down = () => { pointerDownRef.current = true }
     const up = () => { pointerDownRef.current = false }
@@ -3716,6 +3718,54 @@ export function TerrainViewer() {
   const effectiveCaptureDatePill = state.showCaptureDatePill === "auto"
     ? (isSplit ? "source-date" : "off")
     : state.showCaptureDatePill
+  // Per-pane letter badge, top-centre of the pane's visible part (same
+  // centring rules as datePillFor below). The letter picks the view the
+  // timeline's arrow keys act on (timelineActiveSideAtom, highlighted on the
+  // timeline handle too); the swap button on B-H exchanges that view's whole
+  // content with A's - drawing, picking and most tools only work on view A.
+  // data-snapshot-ignore keeps these buttons out of snapshots.
+  const viewBadgeFor = (pane: PaneLayout): React.ReactNode => {
+    if (!isSplit) return null
+    const visiblePaneWidth = (!isOverlaySplit && pane.isLastCol && isSidebarOpen && !isMobile)
+      ? Math.max(0, pane.width - sidebarFootprintPx)
+      : pane.width
+    const centerPx = isOverlaySplit
+      ? (pane.side === "A" ? overlayGutterPx / 2 : (overlayGutterPx + availableSplitWidth) / 2)
+      : pane.left + visiblePaneWidth / 2
+    const selectable = historicalTimelineVisible && !!state.basemapPerView
+    const selected = selectable && timelineActiveSide === pane.side
+    const color = borderColorFor(pane.side)
+    return (
+      <div key={`badge-${pane.side}`} data-snapshot-ignore className="absolute z-10 flex items-center gap-1" style={{ left: `${centerPx}px`, top: `${pane.top + 8}px`, transform: "translateX(-50%)" }}>
+        <button
+          type="button"
+          data-timeline-side-select
+          disabled={!selectable}
+          onClick={() => setTimelineActiveSide(pane.side)}
+          title={selectable ? `View ${pane.side}: click to make the timeline's arrow keys act on this view` : `View ${pane.side}`}
+          className={cn(
+            "h-5 min-w-5 px-1 rounded-full text-[11px] font-bold leading-none text-white shadow-sm border border-background/80 transition-transform",
+            selectable ? "cursor-pointer" : "cursor-default",
+            selected ? "scale-125 ring-2 ring-background" : "opacity-80",
+          )}
+          style={{ backgroundColor: color }}
+        >
+          {pane.side}
+        </button>
+        {pane.side !== "A" && (
+          <button
+            type="button"
+            onClick={() => setState(permuteViewsUpdates(stateAny, [pane.side, "A"], ["A", pane.side]))}
+            title={`Swap view ${pane.side} with view A (drawing and most tools work on view A)`}
+            className="cursor-pointer h-5 px-1 rounded-full bg-background/90 border border-border shadow-sm text-[10px] font-medium flex items-center gap-0.5 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeftRight className="h-3 w-3" />A
+          </button>
+        )}
+      </div>
+    )
+  }
+
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
     if (effectiveCaptureDatePill === "off") return null
     // The pill describes the BASEMAP source/date — in terrain mode that
@@ -3968,6 +4018,7 @@ export function TerrainViewer() {
           )
         })}
         {paneLayouts.map(datePillFor)}
+        {paneLayouts.map(viewBadgeFor)}
         {/* Static (non-interactive) seams between fixed columns/rows — every
             grid layout except 2x1 (which gets the draggable SplitPill
             instead, just below) and overlay (no seam at all, panes fully

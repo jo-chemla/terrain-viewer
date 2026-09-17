@@ -139,6 +139,30 @@ export function viewFieldName(side: ViewId, base: PerViewBase, basemapPerView: b
   return `${base}${side}`
 }
 
+const PER_VIEW_BASES: PerViewBase[] = ["basemapSource", "date", "historicalActiveSource", "timelineSources"]
+
+/** URL-state updates that move what view `from[i]` shows into view `to[i]`
+ *  (a swap is from=[X,"A"], to=["A",X]; a reorder passes the sorted order
+ *  as `from` and the layout order as `to`). "What a view shows" is its
+ *  terrain source plus the basemap / date / historical-source / timeline-
+ *  sources quartet - the quartet only while basemapPerView is on, since
+ *  otherwise every view shares view A's unsuffixed fields and there is
+ *  nothing per-view to move. Everything is read before anything is written. */
+export function permuteViewsUpdates(state: Record<string, any>, from: ViewId[], to: ViewId[]): Record<string, unknown> {
+  const perView = !!state.basemapPerView
+  const contents = from.map((side) => ({
+    source: state[sourceFieldName(side)],
+    bases: perView ? PER_VIEW_BASES.map((b) => state[viewFieldName(side, b, true)]) : null,
+  }))
+  const updates: Record<string, unknown> = {}
+  to.forEach((side, i) => {
+    if (side === from[i]) return
+    updates[sourceFieldName(side)] = contents[i].source
+    contents[i].bases?.forEach((v, j) => { updates[viewFieldName(side, PER_VIEW_BASES[j], true)] = v })
+  })
+  return updates
+}
+
 /** Terrain source has no shared/unsuffixed variant at all (unlike basemap) —
  *  every view, including A, always reads its own sourceX field. */
 export function sourceFieldName(side: ViewId): string {

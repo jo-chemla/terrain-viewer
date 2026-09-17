@@ -332,7 +332,7 @@ async function compositeViews(root: HTMLElement, withChrome: boolean, includeTim
         filter: (node) => {
           if (node instanceof HTMLCanvasElement) return false
           if (!(node instanceof Element)) return true
-          if (node.getAttribute("role") === "separator") return false
+          if (node.getAttribute("role") === "separator" || node.hasAttribute("data-snapshot-ignore")) return false
           const c = node.classList
           return !c.contains("maplibregl-ctrl") || c.contains("maplibregl-ctrl-scale") || c.contains("maplibregl-ctrl-attrib")
         },

@@ -72,3 +72,10 @@ export const isComparisonMixAdvancedOpenAtom = atomWithStorage("isComparisonMixA
 // Starts at 0 (panel not mounted yet / collapsed); TerrainViewer's own
 // consumers fall back to a small static button-clearance value in that case.
 export const historicalTimelinePanelHeightAtom = atom(0)
+
+// Which view the historical timeline's arrow keys / track clicks act on.
+// Shared (it used to be the panel's own useState) so each map pane's letter
+// badge in TerrainViewer can show and set it too. `armed` mirrors the
+// panel's "last click was on me" gate for the arrow keys: a badge click
+// arms it from outside the panel.
+export const timelineActiveSideAtom = atom<ViewId>("A")

@@ -2,7 +2,7 @@ import type React from "react"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert, ArrowDownNarrowWide } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { cn } from "@/lib/utils"
 import { track } from "@/lib/analytics"
@@ -16,8 +16,8 @@ import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom } from "@/lib/settings-atoms"
-import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom } from "@/lib/layout-constants"
-import { GRID_LAYOUTS, viewFieldName, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
+import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom } from "@/lib/layout-constants"
+import { GRID_LAYOUTS, viewFieldName, SIDE_COLORS, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
 
@@ -148,7 +148,7 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
 export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
   const collapsed = !!state.historicalTimelineCollapsed
   const setCollapsed = useCallback((v: boolean) => setState({ historicalTimelineCollapsed: v }), [setState])
-  const [activeSide, setActiveSide] = useState<ViewId>("A")
+  const [activeSide, setActiveSide] = useAtom(timelineActiveSideAtom)
   const [syncEnabled, setSyncEnabled] = useAtom(historicalTimelineSyncAtom)
   const [sideColorOverrides] = useAtom(sideColorOverridesAtom)
   const [colorizeMapBordersStored] = useAtom(colorizeMapBordersAtom)
@@ -590,6 +590,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Absent an explicit pointer target (e.g. a keyboard step), which side an
   // action applies to: the only historical side when just one is showing,
   // otherwise whichever side the user last touched (activeSide).
+  // Moves each view's whole content (source, date, pills - see
+  // permuteViewsUpdates), so the imagery keeps its own date; only which pane
+  // it sits in changes. Stable: undated views keep their relative order.
+  const sortViewsByDate = () => {
+    const key = (side: ViewId) => (showFor(side) ? resolveDisplayTick(side)?.dateMs ?? null : null)
+    const order = activeViews.map((side, i) => ({ side, i, k: key(side) }))
+      .sort((a, b) => (a.k === null ? (b.k === null ? a.i - b.i : 1) : b.k === null ? -1 : a.k - b.k || a.i - b.i))
+      .map((o) => o.side)
+    const updates = permuteViewsUpdates(state, order, activeViews)
+    if (Object.keys(updates).length === 0) return
+    // The selected pill follows its imagery to the pane it lands in.
+    const landed = activeViews[order.indexOf(activeSide)]
+    if (landed) setActiveSide(landed)
+    setState(updates)
+  }
+
   const resolveSide = useCallback((): ViewId => {
     if (!dualMode) return "A"
     const showing = activeViews.filter(showFor)
@@ -976,7 +992,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // bubble-phase listener saw it.
   useEffect(() => {
     const handler = (e: PointerEvent) => {
+      // A map pane's letter badge (TerrainViewer, data-timeline-side-select)
+      // picks the side the arrows act on, so it counts as a click "in" here.
       lastPointerInPanelRef.current = !!(panelElRef.current && e.target instanceof Node && panelElRef.current.contains(e.target))
+        || (e.target instanceof Element && !!e.target.closest("[data-timeline-side-select]"))
     }
     window.addEventListener("pointerdown", handler, { capture: true })
     return () => window.removeEventListener("pointerdown", handler, { capture: true })
@@ -1312,8 +1331,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 ctrlGroupDragRef.current = null
               }}
               className={cn(
-                "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing",
+                "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing transition-transform",
                 !bg && "bg-primary",
+                // The side the arrow keys act on (also picked from the map
+                // pane's own letter badge) reads bigger and sits on top.
+                dualMode && showingViews.length > 1 && side === activeSide && "scale-150 z-10 ring-1 ring-foreground/40",
               )}
               style={{ left: `${handleLeftPctBySide[side]}%`, ...(bg ? { background: bg } : {}) }}
             >
@@ -1479,6 +1501,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                   )
                 })}
               </div>
+            )}
+            {dualMode && activeViews.length > 1 && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button type="button" onClick={sortViewsByDate} className="cursor-pointer p-1 rounded shrink-0 text-muted-foreground hover:text-foreground" aria-label="Sort views by date">
+                      <ArrowDownNarrowWide className="h-4 w-4" />
+                    </button>
+                  }
+                />
+                <TooltipContent>Reorder the views chronologically, oldest in A; views showing a plain (undated) basemap go last</TooltipContent>
+              </Tooltip>
             )}
             {dualMode && (
               <Tooltip>
