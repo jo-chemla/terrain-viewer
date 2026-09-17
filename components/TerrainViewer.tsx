@@ -1975,6 +1975,69 @@ export function TerrainViewer() {
   // when nothing has been touched.
   const lastInteractedViewRef = useRef<ViewId>("A")
   const [timelineActiveSide, setTimelineActiveSide] = useAtom(timelineActiveSideAtom)
+
+  // A view's source given as a URL rather than an id, on ANY view:
+  // ?sourceB=https://host/dem.cog.tif, ?basemapSourceC=https://host/ortho.tif,
+  // ?basemapSource=https://tiles/{z}/{x}/{y}.png. The URL itself becomes the
+  // custom source's id, so the link stays self-contained (nothing to look up
+  // in the sender's localStorage) and every resolver that finds a custom
+  // source by id keeps working untouched. Reactive rather than part of the
+  // once-only effect above: an embedding page may rewrite the iframe's
+  // parameters later. terrainUrl / basemapUrl (view A only, fixed embed id)
+  // predate this and are left as they are.
+  //   type        a tile template ({z}) is terrarium / tms, anything else a
+  //               COG; ?terrainType= / ?basemapType= override, as for terrainUrl.
+  //   viaTitiler  ?viaTitiler=1 routes URL COGs through titiler, for files
+  //               that are not in Web Mercator.
+  //   camera      a link with no lat/lng of its own is framed on view A's
+  //               COG bounds, once.
+  const urlSourceKey = [...VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]), state.basemapSource, ...VIEW_IDS.map((side) => stateAny[`basemapSource${side}`])]
+    .filter((v) => typeof v === "string" && /^https?:\/\//i.test(v)).join("\n")
+  const hasFramedUrlSourceRef = useRef(false)
+  useEffect(() => {
+    if (!urlSourceKey) return
+    const isUrl = (v: unknown): v is string => typeof v === "string" && /^https?:\/\//i.test(v)
+    const params = new URLSearchParams(window.location.search)
+    const cogViaTitiler = ["1", "true"].includes(params.get("viaTitiler") ?? "") ? true : undefined
+    const nameOf = (url: string) => { try { return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "") || new URL(url).hostname } catch { return url } }
+    const terrainUrls = Array.from(new Set(VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]).filter(isUrl)))
+    const basemapUrls = Array.from(new Set([state.basemapSource, ...VIEW_IDS.map((side) => stateAny[`basemapSource${side}`])].filter(isUrl)))
+    if (terrainUrls.length) {
+      setCustomTerrainSources((prev) => {
+        const missing = terrainUrls.filter((url) => !prev.some((s) => s.id === url))
+        if (!missing.length) return prev
+        return [...prev, ...missing.map((url): CustomTerrainSource => {
+          const type = (state.terrainType || (url.includes("{z}") ? "terrarium" : "cog")) as CustomTerrainSource["type"]
+          return { id: url, name: nameOf(url), url, type, description: "Loaded from a link", ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
+        })]
+      })
+    }
+    if (basemapUrls.length) {
+      setCustomBasemapSources((prev) => {
+        const missing = basemapUrls.filter((url) => !prev.some((s) => s.id === url))
+        if (!missing.length) return prev
+        return [...prev, ...missing.map((url): CustomBasemapSource => {
+          const type = (state.basemapType || (url.includes("{z}") ? "tms" : "cog")) as CustomBasemapSource["type"]
+          return { id: url, name: nameOf(url), url, type, description: "Loaded from a link", ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
+        })]
+      })
+    }
+    if (!hasFramedUrlSourceRef.current && !params.has("lat") && !params.has("lng")) {
+      hasFramedUrlSourceRef.current = true
+      const viewA = [stateAny.sourceA, state.basemapPerView ? state.basemapSourceA : state.basemapSource].find((v) => isUrl(v) && !v.includes("{z}"))
+      if (viewA) {
+        getCogMetadata(viewA).then((metadata: any) => {
+          const bbox = metadata?.bbox
+          if (!bbox) return
+          const [west, south, east, north] = bbox
+          const fit = () => mapRefs.A.current?.fitBounds([[west, south], [east, north]], { padding: 50, duration: 0 })
+          const map = mapRefs.A.current?.getMap()
+          if (map && !map.loaded()) map.once("load", fit); else fit()
+        }).catch((err: unknown) => console.error("Failed to frame the URL source:", err))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlSourceKey])
   useEffect(() => {
     const down = () => { pointerDownRef.current = true }
     const up = () => { pointerDownRef.current = false }

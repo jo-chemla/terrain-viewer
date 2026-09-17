@@ -14,6 +14,11 @@
   ![OSM 3D buildings from OpenFreeMap Liberty over a Vantor post-event overlay](/docs/screenshots/osm-liberty-3d.jpg)
 - Source Info card for custom terrain sources; COG viewer links (source.coop, GeoLibre); "None" basemap, always offered; per-source titiler pin for non-Mercator COGs on basemaps too.
 
+### Features
+- **Split views**: each pane gets a letter badge. Clicking it picks the view the timeline's arrow keys act on (its handle grows on the timeline); the button next to it swaps that view with A, where drawing and most tools work. A new timeline button reorders the views chronologically, undated basemaps last.
+- **Remote data in links and iframes**: any view's terrain or basemap can be a URL (`?sourceB=https://…/dem.tif`, `?basemapSourceC=…`), and `?drawingUrl=` (repeatable) loads remote vector data into the Drawing tool. Drawing import also takes a URL, and now reads GPX, FlatGeobuf and (from a URL) Shapefile besides GeoJSON and KML.
+- Coverage overlays: sources under the cursor are listed finest resolution first.
+
 ### Bug Fixes
 - **Snapshot / Copy / Share capture every view**, not just view A: side-by-side, grid and overlay layouts are composited as shown on screen (wipe position, blend mode, opacity and colour matching included), with date pills, coloured borders, the scale bar and attribution (no geocoder, zoom, compass or geolocate buttons), never the side panel. The strips under the open side panel and the historical timeline are cropped off, so the subject stays centred; "Include the timeline in snapshots", in the new **Export settings** fold of Download and Snapshot (with the download resolution cap), keeps the timeline in the picture instead. The 2D world file is written only when the image is a single extent (single view or overlay).
 - Drawing: click tolerance down from terra-draw's 40 px default to 8 px, so vertices can be placed close together when tracing fine features; the cursor turns into a pointer over the point that finishes the shape.

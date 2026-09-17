@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import type { MapRef } from 'react-map-gl/maplibre'
@@ -7,7 +7,8 @@ import {
     TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawCircleMode, TerraDrawSelectMode
 } from 'terra-draw'
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
-import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, ChevronDown, Target } from 'lucide-react'
+import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, ChevronDown, Target, Link, Loader2 } from 'lucide-react'
+import { fetchVector, parseVector, nameFromUrl, vectorFormatFromName, VECTOR_FILE_ACCEPT } from '@/lib/remote-vector'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -112,6 +113,10 @@ export interface DrawLayer {
     /** Hidden layers still exist (features kept, exported, persisted) but
      *  draw at zero opacity and width — see buildModeStyles. */
     hidden?: boolean
+    /** Set on a layer fed by the ?drawingUrl= parameter: its geometry is
+     *  re-fetched from there on every load (into this same layer, so its
+     *  name and colours survive) and therefore never written to OPFS. */
+    sourceUrl?: string
 }
 
 // Cycled through when a new layer is added, so successive layers are visually
@@ -191,7 +196,7 @@ let hasHydratedVectorLayers = false
  *  useTerraDraw below. */
 async function hydratePersistedVectorLayers(layers: DrawLayer[]): Promise<GeoJSONFeature[]> {
     const perLayer = await Promise.all(
-        layers.map((l) => readPersistedVectorLayerFeatures<GeoJSONFeature>(l.id)),
+        layers.filter((l) => !l.sourceUrl).map((l) => readPersistedVectorLayerFeatures<GeoJSONFeature>(l.id)),
     )
     return perLayer.flatMap((features) => features ?? [])
 }
@@ -468,6 +473,85 @@ function buildModeStyles(layersRef: { current: DrawLayer[] }) {
 
 //     return { draw, features, setFeatures }
 // }
+/** Set once the ?drawingUrl= parameters have been loaded (module-level for
+ *  the same reason as hasHydratedVectorLayers: a remount must not reload). */
+let hasLoadedDrawingUrls = false
+
+/**
+ * Adds a parsed GeoJSON to the drawing as its own layer - the one funnel for
+ * a picked file, a pasted URL and the ?drawingUrl= parameter (see
+ * lib/remote-vector.ts for the parsing). Returns the number of features
+ * added, throws with a readable message otherwise. With `sourceUrl`, an
+ * existing layer already fed by that URL is refilled instead of duplicated.
+ */
+function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef>) {
+    const setFeatures = useSetAtom(drawingFeaturesAtom)
+    const [layers, setLayers] = useAtom(drawingLayersAtom)
+    const setActiveLayerId = useSetAtom(activeLayerIdAtom)
+    const layersRef = useRef(layers)
+    layersRef.current = layers
+
+    return useCallback((geojson: any, name: string, format: string, opts: { sourceUrl?: string; fit?: boolean } = {}): number => {
+        // A bare .json also matches unrelated exports (a bookmarks file...):
+        // check the obvious shape first, turf_truncate's own "Unknown Geometry
+        // Type" is accurate but opaque.
+        if (!geojson || (geojson.type !== 'FeatureCollection' && geojson.type !== 'Feature')) {
+            throw new Error(`"${name}" doesn't look like GeoJSON (expected a Feature or FeatureCollection) — wrong file selected?`)
+        }
+        const truncated = turf_truncate(geojson, { precision: 6, coordinates: 2 })
+        const raw = truncated.type === 'FeatureCollection' ? truncated.features : [truncated]
+        const existing = opts.sourceUrl ? layersRef.current.find((l) => l.sourceUrl === opts.sourceUrl) : undefined
+        // Each import lands in its own new layer named after the file, created
+        // only once the data is known to hold real features (no phantom layer).
+        const layer: DrawLayer = existing ?? { ...makeLayer(layersRef.current.length, name), ...(opts.sourceUrl ? { sourceUrl: opts.sourceUrl } : {}) }
+        // parseFeatures keeps a feature's own properties.layerId (so a
+        // re-imported export lands back in its layers); a remote layer owns
+        // its features outright.
+        const newFeatures = parseFeatures(raw, layer.id).map((f) => (opts.sourceUrl ? { ...f, properties: { ...f.properties, layerId: layer.id } } : f))
+        if (newFeatures.length === 0) throw new Error(`"${name}" has no importable features.`)
+        if (!existing) {
+            layersRef.current = [...layersRef.current, layer]
+            setLayers((prev) => [...prev, layer])
+        }
+        setActiveLayerId(layer.id)
+        track("tools-drawing", { action: "import", features: newFeatures.length, format, remote: !!opts.sourceUrl })
+
+        // Accumulates on top of whatever is already drawn. draw.addFeatures()
+        // synchronously fires terra-draw's 'change', which useTerraDraw's
+        // listener turns into setFeatures(getSnapshot()) - so no second
+        // setFeatures on the success path, it would double-add.
+        if (draw) {
+            try {
+                if (existing) {
+                    const stale = draw.getSnapshot().filter((f) => f.properties?.layerId === layer.id).map((f) => f.id as string)
+                    if (stale.length) draw.removeFeatures(stale)
+                }
+                draw.addFeatures(newFeatures)
+            } catch (err) {
+                console.error('Error adding features:', err)
+                setFeatures((prev) => [...prev.filter((f) => !existing || f.properties?.layerId !== layer.id), ...newFeatures])
+            }
+        } else {
+            setFeatures((prev) => [...prev.filter((f) => !existing || f.properties?.layerId !== layer.id), ...newFeatures])
+        }
+
+        const map = mapRef.current?.getMap()
+        if (map) {
+            setTerraDrawVisibility(map, true)
+            setTerraDrawOpacity(map, 1)
+            if (opts.fit !== false) {
+                try {
+                    const bounds = bbox(geojson)
+                    if (bounds.length === 4 && !bounds.some(isNaN)) {
+                        map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 40, duration: 800 })
+                    }
+                } catch (err) { console.error('Zoom error:', err) }
+            }
+        }
+        return newFeatures.length
+    }, [draw, mapRef, setFeatures, setLayers, setActiveLayerId])
+}
+
 export function useTerraDraw(mapRef: RefObject<MapRef>) {
     const [draw, setDraw] = useState<TerraDraw | null>(null)
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
@@ -537,6 +621,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
         if (!persistVectorLayers || !hasHydrated) return
         const timer = setTimeout(() => {
             for (const layer of layers) {
+                if (layer.sourceUrl) continue // re-fetched on load, see DrawLayer.sourceUrl
                 const layerFeatures = features.filter((f) => (f.properties?.layerId ?? layers[0]?.id) === layer.id)
                 persistVectorLayerFeatures(layer.id, layerFeatures)
             }
@@ -740,6 +825,32 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
         }
 
     }, [mapRef, setFeatures])
+
+    // ?drawingUrl=<url> (repeatable): remote vector data loaded into the
+    // drawing at startup, one layer per URL - for links and iframes that
+    // point the app at someone else's data. Read straight off the address
+    // bar rather than declared in nuqs: it is an instruction, not state the
+    // app ever writes, and nuqs leaves unknown parameters in place, so the
+    // link stays shareable. The camera only follows the data when the link
+    // does not carry its own.
+    const importDrawing = useDrawingImport(draw, mapRef)
+    useEffect(() => {
+        if (!draw || hasLoadedDrawingUrls) return
+        hasLoadedDrawingUrls = true
+        const params = new URLSearchParams(window.location.search)
+        const urls = params.getAll("drawingUrl").filter(Boolean)
+        const fit = !params.has("lat") && !params.has("lng")
+        ;(async () => {
+            for (const url of urls) {
+                try {
+                    const { geojson, format } = await fetchVector(url)
+                    importDrawing(geojson, nameFromUrl(url), format, { sourceUrl: url, fit })
+                } catch (e) {
+                    console.error(`[TerraDraw] drawingUrl ${url}:`, e)
+                }
+            }
+        })()
+    }, [draw, importDrawing])
 
     return { draw, features, setFeatures }
 }
@@ -1438,336 +1549,47 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
         else downloadGeoJSON(features, 'drawings')
     }
 
+    const importDrawing = useDrawingImport(draw, mapRef)
+    const [importUrl, setImportUrl] = useState("")
+    const [isImportingUrl, setIsImportingUrl] = useState(false)
+    const afterImport = () => { setVisible(true); setOpacity(1) }
+
     const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
-        if (!file) return
-        const ext = file.name.split('.').pop()?.toLowerCase()
-        setImportError(null)
-
-        // Each import lands in its own new layer named after the file, rather than
-        // whatever layer happened to be selected — that made multi-file imports
-        // (or importing without first remembering to create/pick a layer) dump
-        // everything into one layer by default. Only actually created once we
-        // know the file produced real features (below) — otherwise a bad file
-        // used to leave a phantom empty layer behind.
-        const importLayer = makeLayer(layers.length, file.name.replace(/\.[^./]+$/, '') || file.name)
-
-        const reader = new FileReader()
-        const handleGeojson = (geojson: any) => {
-            // The file picker accepts a bare .json extension (for plain GeoJSON
-            // without a .geojson extension), which also matches unrelated exports
-            // like a bookmarks JSON — turf_truncate's own "Unknown Geometry Type"
-            // on anything that isn't shaped like GeoJSON is accurate but opaque,
-            // so check the obvious shape first and fail with a message that
-            // actually says what's wrong.
-            if (!geojson || (geojson.type !== 'FeatureCollection' && geojson.type !== 'Feature')) {
-                throw new Error(`"${file.name}" doesn't look like GeoJSON (expected a Feature or FeatureCollection) — wrong file selected?`)
-            }
-            const truncated = turf_truncate(geojson, { precision: 6, coordinates: 2 })
-            const raw = truncated.type === 'FeatureCollection' ? truncated.features : [truncated]
-            const newFeatures = parseFeatures(raw, importLayer.id)
-            if (newFeatures.length === 0) {
-                throw new Error(`"${file.name}" has no importable features.`)
-            }
-            setLayers((prev) => [...prev, importLayer])
-            setActiveLayerId(importLayer.id)
-            track("tools-drawing", { action: "import", features: newFeatures.length, format: ext })
-
-            // Accumulate on top of whatever's already drawn/imported instead of
-            // wiping it — importing a second file (or re-importing after a manual
-            // edit) used to draw.clear() first, silently discarding prior features.
-            if (draw) {
-                try {
-                    // draw.addFeatures() synchronously fires terra-draw's own 'change'
-                    // event (see terra-draw's Store.load -> _onChange, called before
-                    // addFeatures returns), which the 'change' listener in useTerraDraw
-                    // already handles by calling setFeatures(newDraw.getSnapshot()) —
-                    // an authoritative full resync that already includes newFeatures.
-                    // A second setFeatures(prev => [...prev, ...newFeatures]) here would
-                    // double-add every imported feature on top of that resync, since
-                    // both run synchronously in the same call stack.
-                    draw.addFeatures(newFeatures)
-                } catch (err) {
-                    console.error('Error adding features:', err)
-                    setFeatures((prev) => [...prev, ...newFeatures])
-                }
-            } else {
-                setFeatures((prev) => [...prev, ...newFeatures])
-            }
-
-            // Reset visibility & opacity on import
-            setVisible(true)
-            setOpacity(1)
-
-            const map = getMap()
-            if (map) {
-                setTerraDrawVisibility(map, true)
-                setTerraDrawOpacity(map, 1)
-                try {
-                    const bounds = bbox(geojson)
-                    if (bounds.length === 4 && !bounds.some(isNaN)) {
-                        map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 40, duration: 800 })
-                    }
-                } catch (err) { console.error('Zoom error:', err) }
-            }
-        }
-
-        // @loaders.gl has deep ESM/CJS issues that make it fundamentally broken in Vite's dev server regardless of config. Cut your losses and drop it — use sql.js directly instead, which is what GeoPackageLoader uses under the hood anyway.
-        if (ext === 'gpkg') {
-            const { load } = await import('@loaders.gl/core')
-            const { GeoPackageLoader } = await import('@loaders.gl/geopackage')
-
-            // load(file, GeoPackageLoader, { gis: { format: 'geojson' } })
-            //     // .then((tables: Record<string, any[]>) => {
-            //     .then((tables: any) => {
-            //         console.log({tables})
-            //         const features = Object.values(tables).flat()
-            //         handleGeojson({ type: 'FeatureCollection', features })
-            //     })
-            //     .catch((err) => console.error('GeoPackage import error:', err))
-
-
-            
-            // const data = await load(file, GeoPackageLoader, {
-            //     gis: { format: 'geojson' },
-            //     worker: false,
-            //     geopackage: {
-            //         sqlJsWorkerUrl: 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js'
-            //     }
-            // });
-            
-            // console.log('Raw loaded data:', data);
-
-            // let combinedFeatures: any[] = [];
-
-            // if (data && typeof data === 'object') {
-            // if ('shape' in data && data.shape === 'tables' && Array.isArray(data.tables)) {
-            //     for (const item of data.tables) {
-            //     if (item.table && Array.isArray(item.table.features)) {
-            //         combinedFeatures = [...combinedFeatures, ...item.table.features];
-            //     }
-            //     }
-            // } else {
-            //     const tables = Array.isArray(data) ? data : Object.values(data);
-            //     for (const table of tables) {
-            //     if (table && typeof table === 'object' && 'features' in table && Array.isArray(table.features)) {
-            //         combinedFeatures = [...combinedFeatures, ...table.features];
-            //     }
-            //     }
-            // }
-            // }
-
-            // if (combinedFeatures.length === 0) {
-            // throw new Error('No features found in GPKG.');
-            // }
-
-            // let fc = {
-            // type: 'FeatureCollection',
-            // features: combinedFeatures
-            // };
-
-            // // Check first feature coordinates to see if they need reprojection
-            // const firstFeature = combinedFeatures[0];
-            // if (firstFeature && firstFeature.geometry && firstFeature.geometry.coordinates) {
-            // const coords = firstFeature.geometry.type === 'Point' 
-            //     ? firstFeature.geometry.coordinates 
-            //     : firstFeature.geometry.type === 'LineString'
-            //     ? firstFeature.geometry.coordinates[0]
-            //     : firstFeature.geometry.coordinates[0][0];
-            
-            // console.log('Sample coordinates:', coords);
-            
-            // // If coordinates are large, they are likely EPSG:3857 (Web Mercator)
-            // if (Math.abs(coords[0]) > 180 || Math.abs(coords[1]) > 90) {
-            //     console.log('Detected non-WGS84 coordinates, attempting reprojection from EPSG:3857');
-            //     // Simple Web Mercator to WGS84 conversion if transformGeoJsonCoords doesn't handle it automatically
-            //     // loaders.gl transformGeoJsonCoords takes a transform function
-            //     fc.features = transformGeoJsonCoords(fc.features, (coord) => {
-            //     const x = coord[0];
-            //     const y = coord[1];
-            //     const lon = (x * 180) / 20037508.34;
-            //     let lat = (y * 180) / 20037508.34;
-            //     lat = (180 / Math.PI) * (2 * Math.atan(Math.exp((lat * Math.PI) / 180)) - Math.PI / 2);
-            //     return [lon, lat];
-            //     }) as any[];
-            // }
-            // }
-
-            
-        // --
-        // OR 
-        // --
-        // const { load } = await import('@loaders.gl/core')
-        // const { GeoPackageLoader } = await import('@loaders.gl/geopackage')
-
-        // const tables = await load(file, GeoPackageLoader, { gis: { format: 'geojson' } })
-        // const features = Object.values(tables).flat()
-        // handleGeojson({ type: 'FeatureCollection', features })
-
-        // if (ext === 'gpkg') {
-            
-            // try {
-            //     const data = await load(url, GeoPackageLoader);
-                
-            //     // loaders.gl geopackage loader usually returns an object with layers
-            //     // We need to check for CRS and reproject if needed.
-            //     // The structure depends on the geopackage file.
-                
-            //     const features = data.features || [];
-            //     const crs = data.crs || 'EPSG:4326';
-                
-            //     if (crs !== 'EPSG:4326') {
-            //     console.log(`Reprojecting from ${crs} to EPSG:4326`);
-                
-            //     return {
-            //         ...data,
-            //         features: features.map((f: any) => reprojectFeature(f, crs, 'EPSG:4326'))
-            //     };
-            //     }
-                
-            //     return data;
-            // } catch (error) {
-            //     console.error('Failed to load GPKG:', error);
-            //     throw error;
-            // }
-
-            // const initSqlJs = await loadSqlJs()
-            // const arrayBuffer = await file.arrayBuffer()
-            // console.log('[gpkg] file size:', arrayBuffer.byteLength)
-
-            // function getGpkgHeaderSize(geomBytes: Uint8Array): number {
-            //     // Byte 3 is flags: bits 1-3 encode envelope type
-            //     const flags = geomBytes[3]
-            //     const envelopeType = (flags >> 1) & 0x07
-            //     // Envelope sizes in bytes: 0=none, 1=bbox(32), 2=bbox+Z(48), 3=bbox+M(48), 4=bbox+ZM(64)
-            //     const envelopeBytes = [0, 32, 48, 48, 64][envelopeType] ?? 0
-            //     return 8 + envelopeBytes
-            // }
-
-            // const SQL = await initSqlJs({
-            //     locateFile: (f: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}`
-            // })
-            // const db = new SQL.Database(new Uint8Array(arrayBuffer))
-
-            // // Log all tables in the DB for debugging
-            // const allTables = db.exec(`SELECT name FROM sqlite_master WHERE type='table'`)
-            // console.log('[gpkg] all tables:', allTables[0]?.values.map((r: any) => r[0]))
-
-            // const tables = db.exec(`SELECT table_name, data_type FROM gpkg_contents`)
-            // console.log('[gpkg] gpkg_contents:', tables[0]?.values)
-
-            // const featureTables = db.exec(`SELECT table_name FROM gpkg_contents WHERE data_type='features'`)
-            // const tableNames: string[] = featureTables[0]?.values.map((r: any) => r[0]) ?? []
-            // console.log('[gpkg] feature tables:', tableNames)
-
-            // const allFeatures: any[] = []
-            // for (const table of tableNames) {
-            //     // Get the SRS for this table
-            //     const srsQuery = db.exec(
-            //         `SELECT gc.srs_id FROM gpkg_geometry_columns gc WHERE gc.table_name='${table}'`
-            //     )
-            //     const srsId: number = srsQuery[0]?.values[0]?.[0] as number ?? 4326
-            //     console.log('[gpkg] SRS for', table, ':', srsId)
-
-            //     const proj4String = await getProj4String(srsId)
-            //     if (srsId !== 4326 && !proj4String) {
-            //         console.warn('[gpkg] cannot reproject table', table, '— skipping')
-            //         continue
-            //     }
-
-
-            //     const rows = db.exec(`SELECT * FROM "${table}" LIMIT 3`)
-            //     if (!rows[0]) { console.warn('[gpkg] no rows in table:', table); continue }
-
-            //     const cols = rows[0].columns
-            //     console.log('[gpkg] columns in', table, ':', cols)
-
-            //     // Log the actual gpkg_geometry_columns to find the real geom column name
-            //     const geomColQuery = db.exec(
-            //         `SELECT column_name FROM gpkg_geometry_columns WHERE table_name='${table}'`
-            //     )
-            //     const geomColName: string = geomColQuery[0]?.values[0]?.[0] as string
-            //         ?? cols.find((c: string) => !['id', 'fid'].includes(c.toLowerCase()) && !c.toLowerCase().includes('_id'))
-            //         ?? cols[1]
-            //     console.log('[gpkg] geometry column for', table, ':', geomColName)
-
-            //     // Now fetch all rows
-            //     const allRows = db.exec(`SELECT * FROM "${table}"`)
-            //     if (!allRows[0]) continue
-
-            //     for (const row of allRows[0].values) {
-            //         const props: Record<string, any> = {}
-            //         allRows[0].columns.forEach((c: string, i: number) => { if (c !== geomColName) props[c] = row[i] })
-            //         const geomBytes: Uint8Array = row[allRows[0].columns.indexOf(geomColName)] as Uint8Array
-            //         const headerSize = getGpkgHeaderSize(geomBytes)
-            //         if (!geomBytes) { console.warn('[gpkg] null geom in row, props:', props); continue }
-
-            //         try {
-            //             // GeoPackage WKB header: 2 magic bytes + 1 version + 1 flags + 4 srs_id = 8 bytes minimum
-            //             // But if envelope is present, header is longer — read flags to get actual offset
-            //             const flags = geomBytes[3]
-            //             const envelopeType = (flags >> 1) & 0x07
-            //             const envelopeSizes = [0, 32, 48, 48, 64] // bytes for envelope types 0-4
-            //             const headerSize = 8 + (envelopeSizes[envelopeType] ?? 0)
-            //             console.log('[gpkg] geomBytes length:', geomBytes.length, 'flags:', flags, 'envelopeType:', envelopeType, 'headerSize:', headerSize)
-
-            //             const wkb = geomBytes.slice(headerSize)
-            //             const geojsonGeom = wkbToGeoJSON(wkb)
-            //             console.log('[gpkg] parsed geom type:', geojsonGeom?.type)
-            //             allFeatures.push({ type: 'Feature', geometry: geojsonGeom, properties: props })
-            //         } catch (err) {
-            //             console.error('[gpkg] wkb parse error:', err, 'bytes (hex):', Array.from(geomBytes.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' '))
-            //         }
-
-            //         try {
-            //             const wkb = geomBytes.slice(headerSize)
-            //             let geojsonGeom = wkbToGeoJSON(wkb)
-
-            //             // Reproject if needed
-            //             if (proj4String) {
-            //                 geojsonGeom = reprojectGeometry(geojsonGeom, proj4String)
-            //             }
-
-            //             allFeatures.push({ type: 'Feature', geometry: geojsonGeom, properties: props })
-            //         } catch (err) {
-            //             console.error('[gpkg] error:', err)
-            //         }
-            //     }
-            // }
-
-            // console.log('[gpkg] total features parsed:', allFeatures.length)
-            // db.close()
-            // handleGeojson({ type: 'FeatureCollection', features: allFeatures })
-
-            
-        } else if (ext === 'kml') {
-            reader.onload = (e) => {
-                try {
-                    const xml = new DOMParser().parseFromString(e.target?.result as string, 'text/xml')
-                    const geojson = toGeoJSON.kml(xml)
-                    handleGeojson(geojson)
-                } catch (err) {
-                    console.error('KML import error:', err)
-                    reportImportError(err instanceof Error ? err.message : `Failed to import "${file.name}".`)
-                }
-            }
-            reader.readAsText(file)
-        } else {
-            // Default: GeoJSON / JSON
-            reader.onload = (e) => {
-                try {
-                    const geojson = JSON.parse(e.target?.result as string)
-                    handleGeojson(geojson)
-                } catch (err) {
-                    console.error('Import error:', err)
-                    reportImportError(err instanceof Error ? err.message : `Failed to import "${file.name}".`)
-                }
-            }
-            reader.readAsText(file)
-        }
-
-        // reader.readAsText(file)
         if (fileInputRef.current) fileInputRef.current.value = ''
+        if (!file) return
+        setImportError(null)
+        try {
+            const format = vectorFormatFromName(file.name)
+            if (!format) throw new Error(`"${file.name}": unsupported format (GeoJSON, KML, GPX or FlatGeobuf expected).`)
+            const geojson = await parseVector(await file.arrayBuffer(), format)
+            importDrawing(geojson, file.name.replace(/\.[^./]+$/, '') || file.name, format)
+            afterImport()
+        } catch (err) {
+            console.error('Import error:', err)
+            reportImportError(err instanceof Error ? err.message : `Failed to import "${file.name}".`)
+        }
+    }
+
+    // Same funnel from a URL. Unlike ?drawingUrl= (see useTerraDraw) this is
+    // a one-off copy: the layer is persisted like any imported file and is
+    // not re-fetched on the next load.
+    const importFromUrl = async () => {
+        const url = importUrl.trim()
+        if (!url || isImportingUrl) return
+        setImportError(null)
+        setIsImportingUrl(true)
+        try {
+            const { geojson, format } = await fetchVector(url)
+            importDrawing(geojson, nameFromUrl(url), format)
+            afterImport()
+            setImportUrl("")
+        } catch (err) {
+            console.error('URL import error:', err)
+            reportImportError(`${nameFromUrl(url)} ${err instanceof Error ? err.message : "could not be imported"}`)
+        } finally {
+            setIsImportingUrl(false)
+        }
     }
 
     const clearDrawings = () => {
@@ -1796,7 +1618,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                             </Button>
                         }
                     />
-                    <TooltipContent><p>Import GeoJSON, KML, or GeoPackage</p></TooltipContent>
+                    <TooltipContent><p>Import a GeoJSON, KML, GPX or FlatGeobuf file</p></TooltipContent>
                 </Tooltip>
                 <div className="flex flex-[3] min-w-0">
                     <Tooltip>
@@ -1873,9 +1695,22 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                     <TooltipContent><p>Clear all vector drawings</p></TooltipContent>
                 </Tooltip>
             </div>
-            <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml" onChange={importFile} className="hidden" />
+            <input ref={fileInputRef} type="file" accept={VECTOR_FILE_ACCEPT} onChange={importFile} className="hidden" />
             {/* <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml,.gpkg" onChange={importFile} className="hidden" /> */}
             {/* <input ref={fileInputRef} type="file" accept=".geojson,.json" onChange={importGeoJSON} className="hidden" /> */}
+            <div className="flex items-center gap-2">
+                <Input
+                    value={importUrl}
+                    onChange={(e) => setImportUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") importFromUrl() }}
+                    placeholder="https://… .geojson, .kml, .gpx, .fgb, .shp"
+                    className="h-8 text-xs cursor-text min-w-0"
+                    aria-label="Import vector data from a URL"
+                />
+                <Button variant="outline" size="sm" onClick={importFromUrl} disabled={!importUrl.trim() || isImportingUrl} className="cursor-pointer shrink-0">
+                    {isImportingUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link className="h-4 w-4" />}
+                </Button>
+            </div>
             {importError && (
                 <p className="text-xs text-destructive">{importError}</p>
             )}
