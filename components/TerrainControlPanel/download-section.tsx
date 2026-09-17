@@ -9,7 +9,7 @@ import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
 import saveAs from "file-saver"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
-import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot } from "@/lib/controls-utils"
+import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot, snapshotMatchesViewA } from "@/lib/controls-utils"
 import { getClientExportSource, exportElevationClientSide } from "@/lib/client-export"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { mergeContourLines } from "@/lib/merge-contours"
@@ -137,8 +137,10 @@ export const DownloadSection: React.FC<{
       saveAs(blob, `${filename}.jpg`)
       track("actions-export", { kind: "screenshot", viewMode: state.viewMode })
 
-      // Generate world file if in 2D mode
-      if (state.viewMode === "2d") {
+      // Generate world file if in 2D mode - only when the image is view A's
+      // extent (single view or overlay split). A side-by-side / grid snapshot
+      // holds several extents, which no single world file can describe.
+      if (state.viewMode === "2d" && snapshotMatchesViewA(mapRef)) {
         const canvas = mapRef.current.getMap().getCanvas()
         const { clientWidth: width, clientHeight: height } = canvas
         const bounds = getMapBounds()

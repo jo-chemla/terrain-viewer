@@ -3834,7 +3834,9 @@ export function TerrainViewer() {
     // bottom overlay off this root with `absolute` — keeps them all glued to
     // one shared edge with no JS resize plumbing at all.
     <div className="fixed inset-0 overflow-hidden">
-      <div ref={splitContainerRef} className="absolute inset-0">
+      {/* data-snapshot-root: what the Snapshot tool captures (see
+          captureMapScreenshot) - every pane plus the pills/borders below. */}
+      <div ref={splitContainerRef} data-snapshot-root className="absolute inset-0">
         {paneLayouts.map((pane) => {
           const isBlendedOverlayPane = isOverlaySplit && pane.side === "B"
           return (

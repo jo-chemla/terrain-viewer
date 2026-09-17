@@ -15,6 +15,8 @@
 - Source Info card for custom terrain sources; COG viewer links (source.coop, GeoLibre); "None (overlays only)" basemap; per-source titiler pin for non-Mercator COGs on basemaps too.
 
 ### Bug Fixes
+- **Snapshot / Copy / Share capture every view**, not just view A: side-by-side, grid and overlay layouts are composited as shown on screen (wipe position, blend mode, opacity and colour matching included), with date pills, coloured borders and map controls, never the side panel. The 2D world file is written only when the image is a single extent (single view or overlay).
+- Drawing: click tolerance down from terra-draw's 40 px default to 8 px, so vertices can be placed close together when tracing fine features.
 - Editor Layer Index layers flagged as overlays now land on the overlay stack when added from the coverage click modal or the Add Basemap dialog, instead of being selected as a basemap the picker could not show; key-gated layers are greyed out in the modal and failures are logged rather than swallowed.
 
 # Changelog — National Terrain Library & Historical Export

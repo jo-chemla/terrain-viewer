@@ -180,20 +180,142 @@ export const templateLink = (link: string, lat: string, lng: string): string => 
 
 export const copyToClipboard = (text: string) => navigator.clipboard.writeText(text)
 
-import { domToBlob } from "modern-screenshot"
+import { domToBlob, domToCanvas } from "modern-screenshot"
 import type { MapRef } from "react-map-gl/maplibre"
 
 export type ImageFormat = "png" | "jpeg"
 
+/** The element holding every map pane (TerrainViewer's split container),
+ *  found from view A's map. Null outside the app's own layout. */
+export function getSnapshotRoot(mapRef: React.RefObject<MapRef | null>): HTMLElement | null {
+  return mapRef.current?.getMap().getContainer().closest<HTMLElement>("[data-snapshot-root]") ?? null
+}
+
+/** True when view A's canvas fills the whole snapshot, i.e. a single view or
+ *  the overlay split (both panes share one extent): only then does a world
+ *  file computed from view A's bounds describe the saved image. */
+export function snapshotMatchesViewA(mapRef: React.RefObject<MapRef | null>): boolean {
+  const root = getSnapshotRoot(mapRef)
+  const canvas = mapRef.current?.getMap().getCanvas()
+  if (!root || !canvas) return true
+  const r = root.getBoundingClientRect(), c = canvas.getBoundingClientRect()
+  return Math.abs(r.width - c.width) < 2 && Math.abs(r.height - c.height) < 2
+}
+
+const isHidden = (el: Element, stopAt: Element) => {
+  for (let n: Element | null = el; n && n !== stopAt; n = n.parentElement) {
+    const cs = getComputedStyle(n)
+    if (cs.display === "none" || cs.visibility === "hidden") return true
+  }
+  return false
+}
+
 /**
- * Captures the map canvas as an image Blob
+ * Every visible map view composited the way the screen shows them: each
+ * pane's canvases drawn at their on-screen rectangle, with the pane's own
+ * clip-path / mix-blend-mode / opacity (the overlay split's wipe and blend)
+ * and any CSS filter on the canvas itself (the "match colors" LUT). The DOM
+ * chrome inside the split container (date pills, coloured borders, pane
+ * dividers, maplibre controls, markers) is rendered on top by
+ * modern-screenshot; the sidebar and timeline live outside that container
+ * and are never part of it. The map canvases are drawn by hand rather than
+ * left to modern-screenshot because it cannot reproduce blend modes between
+ * cloned canvases, and re-encodes each one as a data URL.
+ */
+async function compositeViews(root: HTMLElement, withChrome: boolean): Promise<HTMLCanvasElement> {
+  const dpr = window.devicePixelRatio || 1
+  const rootRect = root.getBoundingClientRect()
+  const out = document.createElement("canvas")
+  out.width = Math.max(1, Math.round(rootRect.width * dpr))
+  out.height = Math.max(1, Math.round(rootRect.height * dpr))
+  const ctx = out.getContext("2d")!
+  // JPEG has no alpha, and unloaded tiles are transparent: paint the page
+  // background first so they do not come out black.
+  ctx.fillStyle = getComputedStyle(document.body).backgroundColor || "#ffffff"
+  ctx.fillRect(0, 0, out.width, out.height)
+
+  for (const pane of Array.from(root.children) as HTMLElement[]) {
+    const canvases = Array.from(pane.querySelectorAll("canvas")).filter((c) => !isHidden(c, root))
+    if (!canvases.length) continue
+    const paneRect = pane.getBoundingClientRect()
+    if (paneRect.width < 1 || paneRect.height < 1) continue
+    const paneStyle = getComputedStyle(pane)
+    if (paneStyle.display === "none" || paneStyle.visibility === "hidden") continue
+
+    ctx.save()
+    // clip-path: polygon(x% y%, ...) in the pane's own box.
+    const poly = /^polygon\((.+)\)$/.exec(paneStyle.clipPath)
+    if (poly) {
+      const toPx = (v: string, size: number) => (v.trim().endsWith("%") ? (parseFloat(v) / 100) * size : parseFloat(v))
+      ctx.beginPath()
+      poly[1].split(",").forEach((pt, i) => {
+        const [px, py] = pt.trim().split(/\s+/)
+        const x = (paneRect.left - rootRect.left + toPx(px, paneRect.width)) * dpr
+        const y = (paneRect.top - rootRect.top + toPx(py, paneRect.height)) * dpr
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+      })
+      ctx.closePath()
+      ctx.clip()
+    }
+    const blend = paneStyle.mixBlendMode
+    ctx.globalCompositeOperation = (blend && blend !== "normal" ? blend : "source-over") as GlobalCompositeOperation
+    const paneOpacity = parseFloat(paneStyle.opacity)
+
+    for (const c of canvases) {
+      if (!c.width || !c.height) continue
+      const r = c.getBoundingClientRect()
+      if (r.width < 1 || r.height < 1) continue
+      const cs = getComputedStyle(c)
+      ctx.globalAlpha = (Number.isFinite(paneOpacity) ? paneOpacity : 1) * (parseFloat(cs.opacity) || 0)
+      if (ctx.globalAlpha === 0) continue
+      ctx.filter = cs.filter && cs.filter !== "none" ? cs.filter : "none"
+      ctx.drawImage(c, (r.left - rootRect.left) * dpr, (r.top - rootRect.top) * dpr, r.width * dpr, r.height * dpr)
+    }
+    ctx.restore()
+  }
+
+  if (withChrome) {
+    try {
+      const chrome = await domToCanvas(root, {
+        width: rootRect.width, height: rootRect.height, scale: dpr, backgroundColor: null,
+        // Canvases are already drawn above; the split drag handle is a
+        // control, not part of the picture.
+        filter: (node) => !(node instanceof HTMLCanvasElement) && !(node instanceof Element && node.getAttribute("role") === "separator"),
+      })
+      ctx.globalCompositeOperation = "source-over"
+      ctx.globalAlpha = 1
+      ctx.filter = "none"
+      ctx.drawImage(chrome, 0, 0, out.width, out.height)
+    } catch (error) {
+      console.warn("Snapshot: map chrome (pills, controls) could not be rendered, saving the views alone:", error)
+    }
+  }
+  return out
+}
+
+/**
+ * Captures what the map area shows as an image Blob: a single view, or every
+ * view of a split / grid / overlay layout, with date pills and map controls
+ * (never the side panel).
  * @param format - 'png' (lossless, default) or 'jpeg' (lossy, faster, smaller)
  */
 export async function captureMapScreenshot(
   mapRef: React.RefObject<MapRef>,
-  format: ImageFormat = "png"
+  format: ImageFormat = "png",
+  { chrome = true }: { chrome?: boolean } = {},
 ): Promise<Blob | null> {
   if (!mapRef.current) return null
+
+  const root = getSnapshotRoot(mapRef)
+  if (root) {
+    try {
+      const canvas = await compositeViews(root, chrome)
+      return await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.95 : undefined))
+    } catch (error) {
+      console.error("Failed to composite the map views, falling back to view A:", error)
+    }
+  }
 
   try {
     const canvas = mapRef.current.getMap().getCanvas()

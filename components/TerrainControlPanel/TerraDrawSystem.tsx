@@ -598,6 +598,13 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
             try {
                 const adapter = new TerraDrawMapLibreGLAdapter({ map, renderBelowLayerId: undefined })
                 const modeStyles = buildModeStyles(layersRef)
+                // terra-draw's default pointerDistance is 40 px: any click that
+                // close to the previous vertex is swallowed and one that close
+                // to the closing point finishes the shape, which made fine
+                // features impossible to trace. 8 px while drawing; select keeps
+                // a slightly larger grab radius for vertex handles.
+                const DRAW_POINTER_DISTANCE = 8
+                const SELECT_POINTER_DISTANCE = 12
                 const newDraw = new TerraDraw({
                     adapter,
                     modes: [
@@ -614,12 +621,13 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
                                 arbitrary: { feature: {} },
                             },
                             styles: modeStyles.select,
+                            pointerDistance: SELECT_POINTER_DISTANCE,
                         }),
-                        new TerraDrawPointMode({ styles: modeStyles.point }),
-                        new TerraDrawLineStringMode({ styles: modeStyles.linestring }),
-                        new TerraDrawPolygonMode({ styles: modeStyles.polygon }),
-                        new TerraDrawRectangleMode({ styles: modeStyles.rectangle }),
-                        new TerraDrawCircleMode({ styles: modeStyles.circle }),
+                        new TerraDrawPointMode({ styles: modeStyles.point, pointerDistance: DRAW_POINTER_DISTANCE }),
+                        new TerraDrawLineStringMode({ styles: modeStyles.linestring, pointerDistance: DRAW_POINTER_DISTANCE }),
+                        new TerraDrawPolygonMode({ styles: modeStyles.polygon, pointerDistance: DRAW_POINTER_DISTANCE }),
+                        new TerraDrawRectangleMode({ styles: modeStyles.rectangle, pointerDistance: DRAW_POINTER_DISTANCE }),
+                        new TerraDrawCircleMode({ styles: modeStyles.circle, pointerDistance: DRAW_POINTER_DISTANCE }),
                     ],
                 })
                 newDraw.start()
