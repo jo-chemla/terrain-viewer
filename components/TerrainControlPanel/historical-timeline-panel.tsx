@@ -992,7 +992,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // bubble-phase listener saw it.
   useEffect(() => {
     const handler = (e: PointerEvent) => {
-      // A map pane's letter badge (TerrainViewer, data-timeline-side-select)
+      // A map pane's date pill (TerrainViewer, data-timeline-side-select)
       // picks the side the arrows act on, so it counts as a click "in" here.
       lastPointerInPanelRef.current = !!(panelElRef.current && e.target instanceof Node && panelElRef.current.contains(e.target))
         || (e.target instanceof Element && !!e.target.closest("[data-timeline-side-select]"))
@@ -1331,11 +1331,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 ctrlGroupDragRef.current = null
               }}
               className={cn(
-                "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing transition-transform",
+                "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing",
                 !bg && "bg-primary",
                 // The side the arrow keys act on (also picked from the map
-                // pane's own letter badge) reads bigger and sits on top.
-                dualMode && showingViews.length > 1 && side === activeSide && "scale-150 z-10 ring-1 ring-foreground/40",
+                // pane's own date pill): same size, one more circle around it.
+                dualMode && showingViews.length > 1 && side === activeSide && "z-10 outline outline-1 outline-offset-2 outline-foreground/70",
               )}
               style={{ left: `${handleLeftPctBySide[side]}%`, ...(bg ? { background: bg } : {}) }}
             >

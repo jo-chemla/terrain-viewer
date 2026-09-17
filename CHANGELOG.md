@@ -15,7 +15,7 @@
 - Source Info card for custom terrain sources; COG viewer links (source.coop, GeoLibre); "None" basemap, always offered; per-source titiler pin for non-Mercator COGs on basemaps too.
 
 ### Features
-- **Split views**: each pane gets a letter badge. Clicking it picks the view the timeline's arrow keys act on (its handle grows on the timeline); the button next to it swaps that view with A, where drawing and most tools work. A new timeline button reorders the views chronologically, undated basemaps last.
+- **Split views**: each pane's date pill names its view ("B: Bing · 1999-01-15"). Clicking the label picks the view the timeline's arrow keys act on (bold label, an extra circle around its timeline handle); the small arrows after the label swap that view with A, where drawing and most tools work. Neither the bold nor the arrows appear in snapshots. A new timeline button reorders the views chronologically, undated basemaps last.
 - **Remote data in links and iframes**: any view's terrain or basemap can be a URL (`?sourceB=https://…/dem.tif`, `?basemapSourceC=…`), and `?drawingUrl=` (repeatable) loads remote vector data into the Drawing tool. Drawing import also takes a URL, and now reads GPX, FlatGeobuf and (from a URL) Shapefile besides GeoJSON and KML.
 - Coverage overlays: sources under the cursor are listed finest resolution first.
 

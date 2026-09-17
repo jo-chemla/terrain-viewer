@@ -324,6 +324,11 @@ async function compositeViews(root: HTMLElement, withChrome: boolean, includeTim
     try {
       const chrome = await domToCanvas(root, {
         width: rootRect.width, height: rootRect.height, scale: dpr, backgroundColor: null,
+        // Selection emphasis (the bold label of the pane the timeline acts
+        // on) is interface state: every pill reads the same in the picture.
+        onCloneNode: (cloned) => {
+          if (cloned instanceof Element) cloned.querySelectorAll<HTMLElement>("[data-snapshot-plain]").forEach((el) => { el.style.fontWeight = "inherit" })
+        },
         // Canvases are already drawn above; the split drag handle is a
         // control, not part of the picture; and of maplibre's own controls
         // only the scale bar (and the attribution the imagery licences ask
