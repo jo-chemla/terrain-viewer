@@ -14,6 +14,9 @@
   ![OSM 3D buildings from OpenFreeMap Liberty over a Vantor post-event overlay](/docs/screenshots/osm-liberty-3d.jpg)
 - Source Info card for custom terrain sources; COG viewer links (source.coop, GeoLibre); "None (overlays only)" basemap; per-source titiler pin for non-Mercator COGs on basemaps too.
 
+### Bug Fixes
+- Editor Layer Index layers flagged as overlays now land on the overlay stack when added from the coverage click modal or the Add Basemap dialog, instead of being selected as a basemap the picker could not show; key-gated layers are greyed out in the modal and failures are logged rather than swallowed.
+
 # Changelog — National Terrain Library & Historical Export
 <!-- released: 2026-09-14 -->
 

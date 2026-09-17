@@ -90,14 +90,19 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       // what shows whichever layout is active (view A in split / grid).
       // ...and make sure the basemap layer is actually shown - adding one
       // with "Basemap" unticked in Visualization looked like a silent failure.
+      // An 'overlay'-role source (ELI flags some layers that way) is not in the
+      // basemap list at all: it goes onto the overlay stack instead.
       const show = state.showRasterBasemap ? {} : { showRasterBasemap: true }
-      if (newSource.linkedTerrainId) {
+      if (newSource.role === "overlay") {
+        const ids: string[] = state.overlayBasemapIds || []
+        setState({ ...show, overlayBasemapIds: ids.includes(newSource.id) ? ids : [...ids, newSource.id] })
+      } else if (newSource.linkedTerrainId) {
         setState({ ...show, basemapSource: newSource.id, basemapSourceA: newSource.id, sourceA: newSource.linkedTerrainId })
       } else {
         setState({ ...show, basemapSource: newSource.id, basemapSourceA: newSource.id })
       }
     }
-  }, [customBasemapSources, setCustomBasemapSources, setState, state.showRasterBasemap])
+  }, [customBasemapSources, setCustomBasemapSources, setState, state.showRasterBasemap, state.overlayBasemapIds])
 
   // Applies the Edit Basemap modal's opacity slider straight to the atom as
   // it drags — the modal itself only calls this while an existing source is

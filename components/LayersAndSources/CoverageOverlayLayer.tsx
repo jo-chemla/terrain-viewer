@@ -17,7 +17,7 @@ const MH_SOURCE_ID = "mapterhorn-coverage"
 const MH_FILL_ID = "mapterhorn-coverage-fill"
 const MH_LINE_ID = "mapterhorn-coverage-line"
 
-type Hit = { label: string; detail: string; url?: string; overlay?: string }
+type Hit = { label: string; detail: string; url?: string; overlay?: string; useAs?: "terrain" | "basemap" | "overlay"; needsKey?: boolean }
 
 /**
  * Draws the coverage overlays picked in Source Info (see
@@ -85,7 +85,8 @@ export const CoverageOverlayLayer: React.FC = () => {
                 : meta ? `${meta.resolution} m · ${meta.name} (${meta.producer}) · "${p.source}"`
                 : `national source "${p.source}"`,
               url: `https://mapterhorn.com/attribution/#${p.source}`, overlay: "mapterhorn" }
-          : { label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.url || undefined, overlay: p.overlay }
+          : { label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.url || undefined, overlay: p.overlay,
+              useAs: p.role === "overlay" ? "overlay" : coverageUseKind(p.overlay) ?? undefined, needsKey: p.needsKey === true || p.needsKey === "true" }
         const k = `${hit.label}|${hit.detail}`
         if (seen.has(k)) continue
         seen.add(k)
@@ -156,10 +157,11 @@ export const CoverageOverlayLayer: React.FC = () => {
                   <div className="font-medium truncate">{h.url ? <a href={h.url} target="_blank" rel="noopener noreferrer" className="underline">{h.label}</a> : h.label}</div>
                   <div className="text-xs text-muted-foreground">{h.detail}</div>
                 </div>
-                {h.overlay && coverageUseKind(h.overlay) && (
-                  <Button size="sm" variant="outline" className="h-7 shrink-0 cursor-pointer text-xs" title={`Select this ${coverageUseKind(h.overlay)} for view A`}
+                {h.overlay && h.useAs && (
+                  <Button size="sm" variant="outline" className="h-7 shrink-0 cursor-pointer text-xs" disabled={h.needsKey}
+                    title={h.needsKey ? "This layer needs an API key; add it from the Editor Layer Index search instead" : h.useAs === "overlay" ? "Add this overlay on top of the basemap" : `Select this ${h.useAs} for view A`}
                     onClick={() => { requestUse({ overlay: h.overlay!, nonce: Date.now() }); setClicked(null) }}>
-                    Use as {coverageUseKind(h.overlay)}
+                    Use as {h.useAs}
                   </Button>
                 )}
               </li>

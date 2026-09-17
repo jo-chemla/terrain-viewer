@@ -126,7 +126,8 @@ async function eliFeatures(id: string, layerId: string, label: string, url: stri
     const fc = await eli.loadCoverageFeatures([layer])
     const features: Feature[] = fc.features.map((f) => ({ ...f, properties: { ...f.properties,
       overlay: id, color: OVERLAY_COLORS.eli, hollow: false, opacity: 0.07, label, detail: "OSM Editor Layer Index footprint", url,
-      maxzoom: layer.maxzoom, tileSize: layer.tileSize || 256 } }))
+      maxzoom: layer.maxzoom, tileSize: layer.tileSize || 256,
+      role: layer.overlay ? "overlay" : "basemap", needsKey: layer.requiresKeys.length > 0 } }))
     return features.length ? { type: "FeatureCollection", features } : null
   } catch { return null }
 }
@@ -162,7 +163,7 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
       if (fc) return fc
     }
     if (!b.bounds) return empty
-    return one(id, rect(b.bounds), { color: OVERLAY_COLORS.yourBasemaps, label: b.name, detail: `Basemap (${b.type}) · declared bounds`, url: b.infoUrl ?? "", maxzoom: b.maxzoom })
+    return one(id, rect(b.bounds), { color: OVERLAY_COLORS.yourBasemaps, label: b.name, detail: `${b.role === "overlay" ? "Overlay" : "Basemap"} (${b.type}) · declared bounds`, url: b.infoUrl ?? "", maxzoom: b.maxzoom, role: b.role ?? "basemap" })
   }
   return empty
 }
