@@ -34,9 +34,9 @@ export const BUILTIN_BASEMAP_OPTIONS = [
   { value: "here", label: "HERE Satellite", shortLabel: "HERE" },
   { value: "googlesat", label: "Google Satellite", shortLabel: "Google Sat" },
   { value: "osm", label: "OpenStreetMap (OpenFreeMap Liberty)", shortLabel: "OSM" },
-  // Only offered while at least one overlay is stacked (or while selected):
-  // overlays alone, nothing underneath.
-  { value: "none", label: "None (overlays only)", shortLabel: "None" },
+  // Always offered: no basemap imagery at all, just the terrain viz modes
+  // and whatever overlays are stacked on top.
+  { value: "none", label: "None", shortLabel: "None" },
 ]
 
 // Lookup by id for the capture-date pill's compact source label — falls back
@@ -80,9 +80,8 @@ export const RasterBasemapSection: React.FC<{
   const visibleBuiltinOptions = useMemo(
     () => BUILTIN_BASEMAP_OPTIONS
       .filter((o) => !(o.value in KEY_GATED_BASEMAPS) || !!gatedKeyValues[o.value])
-      .filter((o) => state.historicalBeta || o.value !== "historical")
-      .filter((o) => o.value !== "none" || (state.overlayBasemapIds?.length ?? 0) > 0 || state.basemapSource === "none" || state.basemapSourceA === "none"),
-    [hereKey, mapboxKey, maptilerKey, planetKey, state.historicalBeta, state.overlayBasemapIds, state.basemapSource, state.basemapSourceA],
+      .filter((o) => state.historicalBeta || o.value !== "historical"),
+    [hereKey, mapboxKey, maptilerKey, planetKey, state.historicalBeta],
   )
 
   const basemapSourceOptions = useMemo(() => [

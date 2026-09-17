@@ -12,7 +12,7 @@
 - **OpenStreetMap is now OpenFreeMap's Liberty vector style** instead of raster tiles, with a 3D buildings toggle, following the basemap visibility and opacity controls.
 
   ![OSM 3D buildings from OpenFreeMap Liberty over a Vantor post-event overlay](/docs/screenshots/osm-liberty-3d.jpg)
-- Source Info card for custom terrain sources; COG viewer links (source.coop, GeoLibre); "None (overlays only)" basemap; per-source titiler pin for non-Mercator COGs on basemaps too.
+- Source Info card for custom terrain sources; COG viewer links (source.coop, GeoLibre); "None" basemap, always offered; per-source titiler pin for non-Mercator COGs on basemaps too.
 
 ### Bug Fixes
 - **Snapshot / Copy / Share capture every view**, not just view A: side-by-side, grid and overlay layouts are composited as shown on screen (wipe position, blend mode, opacity and colour matching included), with date pills, coloured borders and map controls, never the side panel. The strip under the open side panel is cropped off the right, so the subject stays centred. The 2D world file is written only when the image is a single extent (single view or overlay).
