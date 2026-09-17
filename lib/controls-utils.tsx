@@ -191,6 +191,24 @@ export function getSnapshotRoot(mapRef: React.RefObject<MapRef | null>): HTMLEle
   return mapRef.current?.getMap().getContainer().closest<HTMLElement>("[data-snapshot-root]") ?? null
 }
 
+/** Width of the strip the open side panel covers on the right of the map
+ *  area, measured from the panel itself (#tour-sidepanel). The maps run
+ *  underneath it and their camera padding centres the view in what is left
+ *  (see mapPaddingFor / getSidebarFootprintPx), so that strip is blank space
+ *  as far as a picture is concerned and the subject would sit off-centre with
+ *  it kept. Zero on mobile, where the panel covers nearly everything and no
+ *  padding is applied for it either. */
+function sidePanelCropPx(rootRect: DOMRect): number {
+  if (!window.matchMedia("(min-width: 640px)").matches) return 0
+  const panel = document.getElementById("tour-sidepanel")
+  if (!panel) return 0
+  const r = panel.getBoundingClientRect()
+  if (r.width < 1 || r.height < 1) return 0
+  const crop = rootRect.right - r.left
+  // Never crop more than half: a panel that wide is not a margin any more.
+  return crop > 0 && crop < rootRect.width / 2 ? crop : 0
+}
+
 /** True when view A's canvas fills the whole snapshot, i.e. a single view or
  *  the overlay split (both panes share one extent): only then does a world
  *  file computed from view A's bounds describe the saved image. */
@@ -199,6 +217,8 @@ export function snapshotMatchesViewA(mapRef: React.RefObject<MapRef | null>): bo
   const canvas = mapRef.current?.getMap().getCanvas()
   if (!root || !canvas) return true
   const r = root.getBoundingClientRect(), c = canvas.getBoundingClientRect()
+  // The right-hand crop (sidePanelCropPx) does not matter here: a world file
+  // is the top-left origin plus a pixel size, both unchanged by it.
   return Math.abs(r.width - c.width) < 2 && Math.abs(r.height - c.height) < 2
 }
 
@@ -226,7 +246,10 @@ async function compositeViews(root: HTMLElement, withChrome: boolean): Promise<H
   const dpr = window.devicePixelRatio || 1
   const rootRect = root.getBoundingClientRect()
   const out = document.createElement("canvas")
-  out.width = Math.max(1, Math.round(rootRect.width * dpr))
+  // Everything below is drawn at its on-screen position; a narrower output
+  // simply cuts the side panel's strip off the right.
+  const outWidthCss = rootRect.width - sidePanelCropPx(rootRect)
+  out.width = Math.max(1, Math.round(outWidthCss * dpr))
   out.height = Math.max(1, Math.round(rootRect.height * dpr))
   const ctx = out.getContext("2d")!
   // JPEG has no alpha, and unloaded tiles are transparent: paint the page
@@ -285,7 +308,7 @@ async function compositeViews(root: HTMLElement, withChrome: boolean): Promise<H
       ctx.globalCompositeOperation = "source-over"
       ctx.globalAlpha = 1
       ctx.filter = "none"
-      ctx.drawImage(chrome, 0, 0, out.width, out.height)
+      ctx.drawImage(chrome, 0, 0, Math.round(rootRect.width * dpr), out.height)
     } catch (error) {
       console.warn("Snapshot: map chrome (pills, controls) could not be rendered, saving the views alone:", error)
     }

@@ -626,6 +626,13 @@
 .terradraw-drawing-active .maplibregl-canvas {
   cursor: crosshair !important;
 }
+/* ...except while terra-draw itself asks for its `close` cursor: hovering the
+   point that finishes the line / closes the polygon. Its maplibre adapter
+   writes that as an inline `cursor: pointer` on the canvas, which the rule
+   above would otherwise flatten back to a crosshair. */
+.terradraw-drawing-active .maplibregl-canvas[style*="cursor: pointer"] {
+  cursor: pointer !important;
+}
 
 /* Nudge for a blocked action — e.g. clicking a pinned section's own collapse
    chevron (see PinToggle/VisualizationModesSection): the click is a no-op, and
