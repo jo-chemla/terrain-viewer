@@ -30,10 +30,26 @@ export const FIT_PADDING_RATIO = 0.12
  * themselves, so the new fence is evaluated against the relaxed rule rather
  * than snapping to stock behaviour for a frame. Pass null to release both.
  */
-export function applyBoundedView(map: maplibregl.Map, bounds: LngLatBoundsTuple | null): void {
+export function applyBoundedView(map: maplibregl.Map, rawBounds: LngLatBoundsTuple | null): void {
+  const bounds = sanitizeBounds(rawBounds)
   ;(map.transform as unknown as { setConstrainOverride?: (fn: unknown) => void })
     ?.setConstrainOverride?.(bounds ? underzoom.transformConstrain : null)
   map.setMaxBounds(bounds ? [[bounds[0], bounds[1]], [bounds[2], bounds[3]]] : null)
+}
+
+const MAX_LAT = 85.051129
+
+/** A footprint read from a file can poke past the world (GEDTM30's is
+ *  -180.00125..180.00125 by -65..85.00125): maplibre's constrain then
+ *  divides by an empty extent and throws inside setMaxBounds. Clamp to the
+ *  Mercator world, and treat a footprint that IS the world as no constraint. */
+export function sanitizeBounds(b: LngLatBoundsTuple | null): LngLatBoundsTuple | null {
+  if (!b || b.some((v) => !Number.isFinite(v))) return null
+  const west = Math.max(-180, Math.min(180, b[0])), east = Math.max(-180, Math.min(180, b[2]))
+  const south = Math.max(-MAX_LAT, Math.min(MAX_LAT, b[1])), north = Math.max(-MAX_LAT, Math.min(MAX_LAT, b[3]))
+  if (east - west < 1e-6 || north - south < 1e-6) return null
+  if (west <= -179.9 && east >= 179.9 && south <= -MAX_LAT + 0.1 && north >= MAX_LAT - 0.1) return null
+  return [west, south, east, north]
 }
 
 /** fitBounds padding in px for this map, clamped so it can't exceed the frame. */

@@ -182,6 +182,9 @@ export const HypsometricTintOptionsSection: React.FC<{
   // Symmetric: one magnitude M gives -M..+M, whichever handle or field moved
   // (curvature-options-section.tsx does the same for its diverging ramp).
   const symmetric = !!state.hypsoSymmetric
+  const magnitude = Math.max(Math.abs(state.minElevation ?? 0), Math.abs(state.maxElevation ?? 0))
+  const magnitudeMax = Math.max(Math.abs(sliderBounds.min), Math.abs(sliderBounds.max), 1)
+  const magnitudeStep = computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)
   const handleSliderChange = useCallback((values: number[]) => {
     // Ensure min doesn't exceed max
     const [newMin, newMax] = values
@@ -587,37 +590,64 @@ export const HypsometricTintOptionsSection: React.FC<{
                 </div>
               </div>
             </div>
+            {symmetric ? (
+              // One magnitude M for -M..+M, as the curvature section does for its
+              // diverging ramp (height above ground, elevation change).
+              <div className="flex-[2] flex items-center">
+                <DraftBoundInput
+                  value={magnitude}
+                  onCommit={(v) => setState({ minElevation: -Math.abs(v ?? 0), maxElevation: Math.abs(v ?? 0), customHypsoMinMax: true })}
+                  placeholder="± magnitude"
+                  className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                  step={magnitudeStep}
+                />
+              </div>
+            ) : (
+              <>
             <div className="flex-1 flex items-center">
-              <DraftBoundInput
-                value={state.minElevation}
-                onCommit={(v) => symmetric
-                  ? setState({ minElevation: -Math.abs(v ?? 0), maxElevation: Math.abs(v ?? 0), customHypsoMinMax: true })
-                  : setState({ minElevation: clampMinCommit(v, state.maxElevation), customHypsoMinMax: true })}
-                placeholder="Min"
-                className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
-              />
-            </div>
-            <div className="flex-1 flex items-center">
-              <DraftBoundInput
-                value={state.maxElevation}
-                onCommit={(v) => symmetric
-                  ? setState({ minElevation: -Math.abs(v ?? 0), maxElevation: Math.abs(v ?? 0), customHypsoMinMax: true })
-                  : setState({ maxElevation: clampMaxCommit(v, state.minElevation), customHypsoMinMax: true })}
-                placeholder="Max"
-                className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
-              />
-            </div>
+                  <DraftBoundInput
+                    value={state.minElevation}
+                    onCommit={(v) => setState({ minElevation: clampMinCommit(v, state.maxElevation), customHypsoMinMax: true })}
+                    placeholder="Min"
+                    className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                    step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
+                  />
+                </div>
+                <div className="flex-1 flex items-center">
+                  <DraftBoundInput
+                    value={state.maxElevation}
+                    onCommit={(v) => setState({ maxElevation: clampMaxCommit(v, state.minElevation), customHypsoMinMax: true })}
+                    placeholder="Max"
+                    className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                    step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
-          <HypsoDoubleRangeSlider
-            sliderBounds={sliderBounds}
-            sliderValues={sliderValues}
-            handleSliderChange={handleSliderChange}
-            state={state}
-            setState={setState}
-          />
+          {symmetric ? (
+            <div className="px-2">
+              <MobileSlider
+                sliderId="hypso:range"
+                // A magnitude of 0 collapses the range - floor it at the step.
+                min={magnitudeStep}
+                max={magnitudeMax}
+                step={magnitudeStep}
+                value={magnitude}
+                onValueChange={(v: number) => setState({ minElevation: -v, maxElevation: v, customHypsoMinMax: true })}
+                className="w-full cursor-pointer"
+              />
+            </div>
+          ) : (
+            <HypsoDoubleRangeSlider
+              sliderBounds={sliderBounds}
+              sliderValues={sliderValues}
+              handleSliderChange={handleSliderChange}
+              state={state}
+              setState={setState}
+            />
+          )}
 
         </div>
         )}
@@ -627,36 +657,35 @@ export const HypsometricTintOptionsSection: React.FC<{
             custom-ramp support), otherwise only once a custom Min/Max range
             is in play, same as before. */}
         {(isCustom || state.customHypsoMinMax) &&
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="hypso-symmetric"
-              checked={symmetric}
-              onCheckedChange={(checked) => {
-                const on = checked === true
-                const m = Math.max(Math.abs(state.minElevation ?? 0), Math.abs(state.maxElevation ?? 0)) || 1
-                setState(on ? { hypsoSymmetric: true, minElevation: -m, maxElevation: m, customHypsoMinMax: true } : { hypsoSymmetric: false })
-              }}
-              className="cursor-pointer"
-            />
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger render={<Label htmlFor="hypso-symmetric" className="text-sm font-medium cursor-pointer">Symmetric around 0</Label>} />
-                <TooltipContent><p>Min = −Max: one magnitude for a diverging ramp, for height-above-ground (DSM − DTM) or elevation-change grids</p></TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        }
-        {(isCustom || state.customHypsoMinMax) &&
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="invert-color-ramp"
-              checked={state.invertColorRamp || false}
-              onCheckedChange={(checked) => setState({ invertColorRamp: checked === true })}
-              className="cursor-pointer"
-            />
-            <Label htmlFor="invert-color-ramp" className="text-sm font-medium cursor-pointer">
-              Invert Color Ramp
-            </Label>
+          <div className="flex gap-2">
+            {!isCustom && (
+            <div className="flex flex-2 items-center gap-2">
+              <Checkbox
+                id="hypso-symmetric"
+                checked={symmetric}
+                onCheckedChange={(checked) => {
+                  const on = checked === true
+                  const m = Math.max(Math.abs(state.minElevation ?? 0), Math.abs(state.maxElevation ?? 0)) || magnitudeStep
+                  setState(on ? { hypsoSymmetric: true, minElevation: -m, maxElevation: m, customHypsoMinMax: true } : { hypsoSymmetric: false })
+                }}
+                className="cursor-pointer"
+              />
+              <Label htmlFor="hypso-symmetric" className="text-sm font-medium cursor-pointer" title="Min = −Max: one magnitude for a diverging ramp (height above ground, elevation change)">
+                Symmetric Range
+              </Label>
+            </div>
+            )}
+            <div className="flex flex-2 items-center gap-2">
+              <Checkbox
+                id="invert-color-ramp"
+                checked={state.invertColorRamp || false}
+                onCheckedChange={(checked) => setState({ invertColorRamp: checked === true })}
+                className="cursor-pointer"
+              />
+              <Label htmlFor="invert-color-ramp" className="text-sm font-medium cursor-pointer">
+                Invert Ramp
+              </Label>
+            </div>
           </div>
         }
 

@@ -17,7 +17,9 @@ import { sharedTileCache, fetchDecodedTile, type DecodedTile, type UpstreamEncod
  * Both operands are fetched through the same decoded-tile cache the viz
  * protocols use (cog://, titiler, TMS, float32dem:// all work), at the same
  * z/x/y, so the two grids line up pixel for pixel whatever their native
- * resolutions. A pixel missing from either side is written as 0.
+ * resolutions; an operand with no tile that deep is read from its nearest
+ * ancestor tile and upsampled bilinearly. A pixel missing from either side
+ * (nodata, or nothing within 6 zoom levels) is written as 0.
  *
  * URL: demdiff://<encA>/<encB>/<tileSize>/<encoded template A>/<encoded template B>/{z}/{x}/{y}
  */
@@ -35,6 +37,45 @@ export function buildDemDiffUrl(
 
 const fill = (u: string, z: number, x: number, y: number) => u.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
 
+/** An operand's tile at z/x/y, or - when the source has no tile that deep
+ *  (a 30 m DEM under a 0.5 m DSM) - the nearest ancestor that exists, with
+ *  the sub-window to read: the coarser side is then upsampled bilinearly
+ *  on the fly, up to 6 levels, instead of going missing above its maxzoom. */
+type Operand = { tile: DecodedTile; scale: number; ox: number; oy: number }
+async function fetchOperand(template: string, enc: UpstreamEncoding, z: number, x: number, y: number, signal: AbortSignal): Promise<Operand | null> {
+  for (let d = 0; d <= 6 && z - d >= 0; d++) {
+    const tile = await fetchDecodedTile(sharedTileCache, fill(template, z - d, x >> d, y >> d), enc, signal)
+    if (tile) {
+      const scale = 1 << d
+      return { tile, scale, ox: x - ((x >> d) << d), oy: y - ((y >> d) << d) }
+    }
+    if (signal.aborted) return null
+  }
+  return null
+}
+
+/** Bilinear sample of an operand at output pixel (row, col) of an n-px tile,
+ *  honouring the validity mask and the DEM sentinels. */
+function sampleOperand(op: Operand | null, row: number, col: number, n: number): number {
+  if (!op) return NaN
+  const { tile: t, scale, ox, oy } = op
+  // Position in the ancestor tile, in its own pixels.
+  const fx = ((col + 0.5) / n + ox) / scale * t.width - 0.5
+  const fy = ((row + 0.5) / n + oy) / scale * t.height - 0.5
+  const x0 = Math.max(0, Math.min(t.width - 1, Math.floor(fx))), y0 = Math.max(0, Math.min(t.height - 1, Math.floor(fy)))
+  const x1 = Math.min(t.width - 1, x0 + 1), y1 = Math.min(t.height - 1, y0 + 1)
+  const tx = Math.max(0, Math.min(1, fx - x0)), ty = Math.max(0, Math.min(1, fy - y0))
+  const at = (xx: number, yy: number) => {
+    const i = yy * t.width + xx
+    if (t.valid && !t.valid[i]) return NaN
+    const v = t.data[i]
+    return v < -1000 || v > 10000 ? NaN : v
+  }
+  const v00 = at(x0, y0), v10 = at(x1, y0), v01 = at(x0, y1), v11 = at(x1, y1)
+  if (![v00, v10, v01, v11].every(Number.isFinite)) return Number.isFinite(v00) ? v00 : NaN
+  return (v00 * (1 - tx) + v10 * tx) * (1 - ty) + (v01 * (1 - tx) + v11 * tx) * ty
+}
+
 export async function demDiffProtocol(
   params: { url: string },
   abortController: AbortController,
@@ -45,30 +86,15 @@ export async function demDiffProtocol(
   const z = parseInt(zS, 10), x = parseInt(xS, 10), y = parseInt(yS, 10)
   const n = parseInt(sizeStr, 10)
   const [a, b] = await Promise.all([
-    fetchDecodedTile(sharedTileCache, fill(decodeURIComponent(tplA), z, x, y), encA as UpstreamEncoding, abortController.signal),
-    fetchDecodedTile(sharedTileCache, fill(decodeURIComponent(tplB), z, x, y), encB as UpstreamEncoding, abortController.signal),
+    fetchOperand(decodeURIComponent(tplA), encA as UpstreamEncoding, z, x, y, abortController.signal),
+    fetchOperand(decodeURIComponent(tplB), encB as UpstreamEncoding, z, x, y, abortController.signal),
   ])
   if (abortController.signal.aborted) throw new Error("aborted")
 
-  // Nearest sample when an operand's tile size differs from the output's
-  // (a 512 px float32dem tile against 256 px TMS tiles).
-  // A sample is missing when the tile is, when titiler wrote it transparent
-  // (nodata), or when it decodes to a sentinel no real DEM holds (terrarium
-  // -32768 for RGB 0, terrainrgb -10000): those would otherwise produce
-  // 30 km "heights" along every nodata edge.
-  const sample = (t: DecodedTile | null, row: number, col: number): number => {
-    if (!t) return NaN
-    const r = Math.min(t.height - 1, Math.floor((row * t.height) / n))
-    const c = Math.min(t.width - 1, Math.floor((col * t.width) / n))
-    const i = r * t.width + c
-    if (t.valid && !t.valid[i]) return NaN
-    const v = t.data[i]
-    return v < -1000 || v > 10000 ? NaN : v
-  }
   const out = new Uint8ClampedArray(n * n * 4)
   for (let row = 0; row < n; row++) {
     for (let col = 0; col < n; col++) {
-      const va = sample(a, row, col), vb = sample(b, row, col)
+      const va = sampleOperand(a, row, col, n), vb = sampleOperand(b, row, col, n)
       const d = Number.isFinite(va) && Number.isFinite(vb) ? va - vb : 0
       const [r, g, bl, al] = elevationToTerrainrgb(d)
       const i = (row * n + col) * 4

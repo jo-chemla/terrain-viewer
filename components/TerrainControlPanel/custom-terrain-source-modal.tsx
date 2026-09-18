@@ -383,11 +383,11 @@ export const CustomTerrainSourceModal: React.FC<{
                     className="hidden"
                     onChange={handleLocalFileChange}
                   />
-                  <div className="flex items-center gap-2">
-                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="cursor-pointer">
+                  <div className="flex items-center gap-2 min-w-0 max-w-full overflow-hidden">
+                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="cursor-pointer shrink-0">
                       Choose file…
                     </Button>
-                    <span className="text-sm text-muted-foreground truncate min-w-0">
+                    <span className="text-sm text-muted-foreground truncate min-w-0 flex-1" title={localFileName ?? undefined}>
                       {localFileName ?? "No file selected"}
                     </span>
                   </div>

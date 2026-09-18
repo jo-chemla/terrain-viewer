@@ -16,7 +16,8 @@
 
 ### Features
 - **Derived terrain: DSM − DTM.** Add Terrain gains a "Difference of two sources" type: two loaded terrain sources subtracted tile by tile into a normalised height model (canopy, buildings, or change between two dates), usable as terrain and by every viz mode like any elevation source.
-- Hypsometric tint: **Symmetric around 0** (Min = −Max, one magnitude), like the curvature ramp, for height-above-ground and elevation-change grids.
+- Hypsometric tint: **Symmetric Range** (one magnitude, Min = −Max) with the same controls as the curvature ramp, for height-above-ground and elevation-change grids.
+- The difference source upsamples the coarser operand from its nearest ancestor tile (bilinear, up to 6 levels), so a 30 m DEM under a 0.5 m DSM keeps working past the DEM's own max zoom; a footprint that pokes past the world (GEDTM30) no longer crashes max-bounds.
 - `pmtiles://` tile archives as terrain/basemap tiles, and a first library entry using it: Smart Maps GEL, NASADEM 30 m as CC0 Terrain-RGB. Library entries already added to a browser now follow the shipped library's fixes on load (a GEDTM30 added before its nodata fix stayed broken).
 - Library: derived height-above-ground entries for France (IGN Lidar HD DSM − DTM) and the Netherlands (AHN DSM − DTM), which bring their operands along; and the Bhotekoshi 2026 flood reconstruction (geo-pera): post-event 0.5 m DSMs and 2 m elevation-change rasters for the Rasuwagadhi-Timure and Syabrubesi reaches, a ready-made before/after case, plus derived "post-event DSM − Mapterhorn" entries computed live in the browser. The difference source ignores nodata pixels on either side instead of turning them into 30 km spikes.
 - A titiler-pinned COG in another CRS (UTM, 4326) no longer fits to the wrong place or gets a wrong max-bounds box: its footprint is asked from titiler even when the global setting is the in-browser reader.

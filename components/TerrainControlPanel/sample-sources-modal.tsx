@@ -79,7 +79,7 @@ function kindOf(name: string): { label: string; title: string } | null {
   // close-range scans are surface models even though nothing in the name says so.
   // Derived normalised height models (DSM − DTM) and elevation-change rasters
   // are neither surface nor terrain: what stands on the ground, or what moved.
-  if (/DSM − DTM|height above ground|elevation change|\(dh\)/i.test(name)) return { label: "nDSM", title: "Height above ground or elevation change: a difference of two models, 0 is the ground (or no change)" }
+  if (/DSM − DTM|height above ground|elevation change|\(dh\)/i.test(name)) return { label: "nDSM", title: "nDSM, normalised digital surface model: DSM − DTM, the height of what stands on the ground (a CHM, canopy height model, over forest). Also used here for elevation-change grids: 0 is the ground, or no change" }
   if (/\(surface\)|\b(DSM|DOM|DMP|MNS)\b|FO_DSM|ArcticDEM|REMA|GLO-30|Amphipolis/i.test(name)) {
     return { label: "DSM", title: "Digital Surface Model: buildings and trees included" }
   }

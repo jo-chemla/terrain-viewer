@@ -81,6 +81,8 @@ Surveying national mapping agencies worldwide turns up two consistent traps.
 
 **`FORMAT=image/geotiff` on a WMS is usually a lie.** Germany's BKG, the UK Environment Agency, Portugal, Croatia, Ecuador and Canada's MRDEM all advertise it and all return an 8-bit RGB colour ramp — a picture of elevation, not elevation. The raw values live on **WCS** or on an **ArcGIS ImageServer**, never on the WMS. A related trap: ArcGIS estates usually expose `MapServer` (rendered) rather than `ImageServer` (raw), which is what rules out Slovakia, Colombia, Argentina and Australia.
 
+**Some excellent data sits behind a login.** NASA's High Mountain Asia 8 m DEM (HMA_DEM8m_MOS, stereo from commercial imagery, 2014–2016, 26–46 N by 67–103 E) is the natural pre-event reference for the Himalaya, and Mapterhorn does not carry it (its Nepal coverage is Copernicus GLO-30). It needs an Earthdata account, which the app cannot supply, so it is not in the library; download it and pick it as a local COG, or serve it yourself.
+
 Everything listed above was verified by decoding a real tile and checking it against a known summit or sea-level point before being added.
 
 ## How they are served
