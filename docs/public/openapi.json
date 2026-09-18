@@ -7,7 +7,16 @@
   },
   "servers": [
     {
-      "url": "https://jo-chemla.github.io/terrain-viewer"
+      "url": "/",
+      "description": "This deployment"
+    },
+    {
+      "url": "https://jo-chemla.github.io/terrain-viewer",
+      "description": "Public (terrain mode)"
+    },
+    {
+      "url": "https://historical-satellite.iconem.com",
+      "description": "Iconem (historical mode)"
     }
   ],
   "paths": {
@@ -176,6 +185,15 @@
             "description": "Instruction. Starts the product walkthrough.",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "bookmarksUrl",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks; pair with openSections=bookmarks.",
+            "schema": {
+              "type": "string"
             }
           },
           {

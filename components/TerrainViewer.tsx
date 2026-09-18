@@ -11,6 +11,7 @@ import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/Te
 
 import GeocoderControl from "./MapControls/GeocoderControl"
 import NavigationControlThemed from "./MapControls/NavigationControlThemed"
+import FullscreenControlThemed from "./MapControls/FullscreenControlThemed"
 import GeolocateControlThemed from "./MapControls/GeolocateControlThemed"
 import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, DEFAULT_SHAPE_INDEX_CUSTOM_STOPS, rampSessionOverridesAtom, type CustomRampStop } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
@@ -49,6 +50,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom } from "@/lib/layout-constants"
 import { ArrowLeftRight } from "lucide-react"
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
+import { bookmarksAtom, mergeImportedBookmarks, type Bookmark } from "@/lib/bookmarks"
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
@@ -1884,6 +1886,18 @@ export function TerrainViewer() {
       }
     }
 
+    // ?bookmarksUrl=<url>: a bookmarks JSON (the Bookmarks section's own
+    // export format, an array) fetched and merged by id into the visitor's
+    // bookmarks - a curated selection handed out by link, the bookmarks
+    // twin of ?project=. Pair with openSections=bookmarks to land on it.
+    const bookmarksUrl = searchParams.get("bookmarksUrl")
+    if (bookmarksUrl && /^https?:\/\//i.test(bookmarksUrl)) {
+      fetch(bookmarksUrl).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))).then((imported) => {
+        if (!Array.isArray(imported)) throw new Error("not a bookmarks array")
+        setBookmarks((prev) => mergeImportedBookmarks(prev, imported as Bookmark[]))
+      }).catch((e) => console.error(`[bookmarks] bookmarksUrl ${bookmarksUrl}:`, e))
+    }
+
     if (Object.keys(stateOverrides).length > 0) setState(stateOverrides)
 
     if (projectConfig?.initialSections) {
@@ -2001,6 +2015,7 @@ export function TerrainViewer() {
   // when nothing has been touched.
   const lastInteractedViewRef = useRef<ViewId>("A")
   const [timelineActiveSide, setTimelineActiveSide] = useAtom(timelineActiveSideAtom)
+  const setBookmarks = useSetAtom(bookmarksAtom)
 
   // A view's source given as a URL rather than an id, on ANY view:
   // ?terrainSourceB=https://host/dem.cog.tif, ?basemapSourceC=https://host/ortho.tif,
@@ -3658,6 +3673,9 @@ export function TerrainViewer() {
               )}
               {!activeProjectConfig?.hideMapControls?.includes("geolocate") && (
                 <GeolocateControlThemed position="top-left" />
+              )}
+              {!activeProjectConfig?.hideMapControls?.includes("fullscreen") && (
+                <FullscreenControlThemed position="top-left" />
               )}
 
             </>

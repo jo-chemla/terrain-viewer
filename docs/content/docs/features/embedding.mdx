@@ -64,6 +64,7 @@ These are read once on load and are never written by the app. They stay in the U
 | `openSections=a,b` / `closeSections=a,b` | Sidebar sections to expand or collapse on load (`general`, `terrainSource`, `hillshade`, `drawing`, …). |
 | `scrollTo=<section>` | Opens that section and scrolls the side panel to it, so a link can land on the hillshade light pad: `scrollTo=hillshade`. Section keys as above, or any element id. |
 | `startTour=true` | Starts the product walkthrough. |
+| `bookmarksUrl=<url>` | A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks: a curated selection handed out by link. Pair with `openSections=bookmarks` (or `scrollTo=bookmarks`) to land on it. |
 | `addSources`, `addTerrainUrl`, `addBasemapUrl`, `addOverlayUrl`, `drawingUrl`, `viaTitiler`, `terrainType`, `basemapType` | See above. |
 
 The side panel and the timeline are ordinary state: `sidebarCollapsed=true` and `historicalTimelineCollapsed=true`. Which sections are folded, and the panel's scroll position, are not in the URL beyond `openSections` / `closeSections` / `scrollTo`: they change constantly in a session and would churn the address bar.
@@ -105,7 +106,7 @@ Everything else in the URL is state: `lat`, `lng`, `zoom`, `pitch`, `bearing`, `
 | `initialSidebarOpen` | Whether the sidebar starts open. |
 | `hideSourcePanels` | Hides the terrain and basemap source pickers, for embeds that pin their sources. |
 | `hiddenSections` | Sidebar sections removed entirely (`contour`, `background`, `drawing`, `bookmarks`, `sourceInfo`, `openIn`, `projectImportExport`, `hillshadeAdvanced`, `shadows`, …). |
-| `hideMapControls` | Any of `geocoder`, `zoom`, `geolocate`, `minimap`, `scale`. |
+| `hideMapControls` | Any of `geocoder`, `zoom`, `geolocate`, `fullscreen`, `minimap`, `scale`. The fullscreen button (under geolocate) is there mainly for embeds. |
 | `initialSections` | Sections expanded or collapsed on load. |
 | `initialState` | Any state parameter, applied only where the URL does not already say otherwise. |
 | `customTerrainSources`, `customBasemapSources` | Sources merged by id into the visitor's lists. Same fields as a BYOD source: `url`, `type`, `maxzoom`, `bounds`, `cogViaTitiler`, `nodataFloor`, `role`, `opacity`, … |

@@ -40,7 +40,7 @@ export interface ProjectConfig {
   /** Map controls to omit entirely (not just visually hide) — "zoom" is MapLibre's
    *  NavigationControl (zoom + rotate buttons). For embeds that want a minimal,
    *  chrome-free map. Defaults to showing all of them. */
-  hideMapControls?: Array<"geocoder" | "zoom" | "geolocate" | "minimap" | "scale">
+  hideMapControls?: Array<"geocoder" | "zoom" | "geolocate" | "fullscreen" | "minimap" | "scale">
   /** Sidebar accordion sections to hide entirely — keys match TerrainControlPanel's
    *  SectionKey (e.g. "contour", "background", "drawing", ...). Distinct from
    *  hideSourcePanels (which only covers terrainSource/rasterBasemap): for "contour"

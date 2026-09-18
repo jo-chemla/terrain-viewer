@@ -85,6 +85,7 @@ const instructions = [
   { key: "closeSections", type: "array", items: "string", note: "Sidebar sections collapsed on load." },
   { key: "scrollTo", type: "string", note: "Section key (or element id) the side panel opens and scrolls to." },
   { key: "startTour", type: "boolean", note: "Starts the product walkthrough." },
+  { key: "bookmarksUrl", type: "string", note: "A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks; pair with openSections=bookmarks." },
 ];
 
 // ── stored settings ───────────────────────────────────────────────────────
@@ -130,7 +131,15 @@ const openapi = {
     version: "1",
     description: "Not an HTTP API: the viewer's URL. Every query parameter is state the app mirrors to the address bar (booleans, numbers, enums, lists) or an instruction read once on load. Lists are comma-separated unless marked repeatable.",
   },
-  servers: [{ url: "https://jo-chemla.github.io/terrain-viewer" }],
+  // Relative first: resolved against the docs' own origin, i.e. the same
+  // deployment's app root, so a request from the reference page stays
+  // same-origin (the app sends no CORS headers). The public deployments
+  // follow for copy-pasting.
+  servers: [
+    { url: "/", description: "This deployment" },
+    { url: "https://jo-chemla.github.io/terrain-viewer", description: "Public (terrain mode)" },
+    { url: "https://historical-satellite.iconem.com", description: "Iconem (historical mode)" },
+  ],
   paths: {
     "/": {
       get: {

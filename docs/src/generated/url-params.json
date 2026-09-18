@@ -3280,6 +3280,11 @@
       "key": "startTour",
       "type": "boolean",
       "note": "Starts the product walkthrough."
+    },
+    {
+      "key": "bookmarksUrl",
+      "type": "string",
+      "note": "A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks; pair with openSections=bookmarks."
     }
   ],
   "atoms": [
