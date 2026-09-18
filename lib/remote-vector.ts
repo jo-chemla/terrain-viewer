@@ -3,7 +3,7 @@ import * as toGeoJSON from "@tmcw/togeojson"
 
 /**
  * Vector data -> GeoJSON, for the Drawing tool's import (a picked file, a
- * pasted URL, or the ?drawingUrl= parameter). Data loading only: whatever
+ * pasted URL, or the drawingUrl state list). Data loading only: whatever
  * styling a KML or a style-carrying GeoJSON declares is ignored, features
  * take the colours of the drawing layer they land in.
  *
@@ -60,19 +60,6 @@ export async function parseVector(data: ArrayBuffer, format: VectorFormat): Prom
     return asCollection(await parse(data, FlatGeobufLoader, { flatgeobuf: { shape: "geojson-table" }, gis: { reproject: true, _targetCrs: "WGS84" } } as any))
   }
   throw new Error("a Shapefile can only be loaded from a URL (its .dbf and .prj are fetched alongside)")
-}
-
-/** Adds or removes one ?drawingUrl= entry in the address bar without a
- *  navigation. nuqs keeps parameters it does not own, so its next write
- *  leaves this in place. */
-export function setDrawingUrlParam(url: string, present: boolean): void {
-  const u = new URL(window.location.href)
-  const all = u.searchParams.getAll("drawingUrl")
-  const next = present ? (all.includes(url) ? all : [...all, url]) : all.filter((x) => x !== url)
-  if (next.length === all.length && next.every((x, i) => x === all[i])) return
-  u.searchParams.delete("drawingUrl")
-  for (const x of next) u.searchParams.append("drawingUrl", x)
-  window.history.replaceState(window.history.state, "", u.toString())
 }
 
 /** Layer name for a URL: its file name, without extension or query. */

@@ -8,7 +8,7 @@ import {
 } from 'terra-draw'
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
 import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, ChevronDown, Target, Link, Loader2 } from 'lucide-react'
-import { fetchVector, parseVector, nameFromUrl, vectorFormatFromName, setDrawingUrlParam, VECTOR_FILE_ACCEPT } from '@/lib/remote-vector'
+import { fetchVector, parseVector, nameFromUrl, vectorFormatFromName, VECTOR_FILE_ACCEPT } from '@/lib/remote-vector'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -475,9 +475,13 @@ function buildModeStyles(layersRef: { current: DrawLayer[] }) {
 
 //     return { draw, features, setFeatures }
 // }
-/** Set once the ?drawingUrl= parameters have been loaded (module-level for
- *  the same reason as hasHydratedVectorLayers: a remount must not reload). */
-let hasLoadedDrawingUrls = false
+/** The `drawingUrl` state field (nuqs, a list) mirrored into an atom so the
+ *  drawing system - which has no access to the URL state - can react to it
+ *  and add to it. TerrainControlPanel keeps the two in sync both ways. */
+export const drawingUrlsAtom = atom<string[]>([])
+/** URLs already fetched into a layer this session (module-level, like
+ *  hasHydratedVectorLayers: a remount must not refetch). */
+const loadedDrawingUrls = new Set<string>()
 
 /**
  * Adds a parsed GeoJSON to the drawing as its own layer - the one funnel for
@@ -828,31 +832,33 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
 
     }, [mapRef, setFeatures])
 
-    // ?drawingUrl=<url> (repeatable): remote vector data loaded into the
-    // drawing at startup, one layer per URL - for links and iframes that
-    // point the app at someone else's data. Read straight off the address
-    // bar rather than declared in nuqs: it is an instruction, not state the
-    // app ever writes, and nuqs leaves unknown parameters in place, so the
-    // link stays shareable. The camera only follows the data when the link
-    // does not carry its own.
+    // drawingUrl (state, a list of URLs): remote vector data loaded into the
+    // drawing, one layer per URL - for links and iframes that point the app
+    // at someone else's data. Every URL not yet fetched this session is
+    // fetched when it appears (on load, or when a link is imported with
+    // "Keep in the link"). The camera only follows the data when the link
+    // does not carry its own camera.
     const importDrawing = useDrawingImport(draw, mapRef)
+    const drawingUrls = useAtomValue(drawingUrlsAtom)
     useEffect(() => {
-        if (!draw || hasLoadedDrawingUrls) return
-        hasLoadedDrawingUrls = true
+        if (!draw) return
+        const pending = drawingUrls.filter((u) => u && !loadedDrawingUrls.has(u))
+        if (!pending.length) return
+        pending.forEach((u) => loadedDrawingUrls.add(u))
         const params = new URLSearchParams(window.location.search)
-        const urls = params.getAll("drawingUrl").filter(Boolean)
         const fit = !params.has("lat") && !params.has("lng")
         ;(async () => {
-            for (const url of urls) {
+            for (const url of pending) {
                 try {
                     const { geojson, format } = await fetchVector(url)
                     importDrawing(geojson, nameFromUrl(url), format, { sourceUrl: url, fit })
                 } catch (e) {
+                    loadedDrawingUrls.delete(url)
                     console.error(`[TerraDraw] drawingUrl ${url}:`, e)
                 }
             }
         })()
-    }, [draw, importDrawing])
+    }, [draw, drawingUrls, importDrawing])
 
     return { draw, features, setFeatures }
 }
@@ -1000,6 +1006,8 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
         setLayers(layers.map((l) => (l.id === layerId ? { ...l, hidden: hidden || undefined } : l)))
     }
 
+    const setDrawingUrls = useSetAtom(drawingUrlsAtom)
+
     const deleteLayer = (layerId: string) => {
         if (layers.length <= 1) return
         const idsToDelete = features.filter((f) => f.properties?.layerId === layerId).map((f) => f.id).filter(Boolean) as string[]
@@ -1009,7 +1017,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
         }
         const remaining = layers.filter((l) => l.id !== layerId)
         const gone = layers.find((l) => l.id === layerId)
-        if (gone?.sourceUrl) setDrawingUrlParam(gone.sourceUrl, false)
+        if (gone?.sourceUrl) { loadedDrawingUrls.delete(gone.sourceUrl); setDrawingUrls((prev) => prev.filter((u) => u !== gone.sourceUrl)) }
         setLayers(remaining)
         if (activeLayerId === layerId) setActiveLayerId(remaining[0].id)
         deletePersistedVectorLayer(layerId)
@@ -1226,7 +1234,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                 {layer.sourceUrl && (
                                     <Tooltip>
                                         <TooltipTrigger render={<span className="shrink-0 text-muted-foreground"><Link className="h-3 w-3" /></span>} />
-                                        <TooltipContent><p>Linked layer: re-fetched from {layer.sourceUrl} on every load (carried by the link's drawingUrl parameter), not stored in this browser</p></TooltipContent>
+                                        <TooltipContent><p>Linked layer: re-fetched from {layer.sourceUrl} on every load (listed in the link's drawingUrl parameter), not stored in this browser</p></TooltipContent>
                                     </Tooltip>
                                 )}
                                 {editMode ? (
@@ -1560,6 +1568,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
     }
 
     const importDrawing = useDrawingImport(draw, mapRef)
+    const setDrawingUrls = useSetAtom(drawingUrlsAtom)
     const [importUrl, setImportUrl] = useState("")
     const [isImportingUrl, setIsImportingUrl] = useState(false)
     const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false)
@@ -1596,7 +1605,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
         try {
             const { geojson, format } = await fetchVector(url)
             importDrawing(geojson, nameFromUrl(url), format, keepInLink ? { sourceUrl: url } : {})
-            if (keepInLink) setDrawingUrlParam(url, true)
+            if (keepInLink) { loadedDrawingUrls.add(url); setDrawingUrls((prev) => (prev.includes(url) ? prev : [...prev, url])) }
             afterImport()
             setImportUrl("")
             setIsUrlDialogOpen(false)
@@ -1715,22 +1724,6 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                         </PopoverContent>
                     </Popover>
                 </div>
-                <Tooltip>
-                    <TooltipTrigger
-                        render={
-                            <Button
-                                variant="outline"
-                                size="icon-sm"
-                                onClick={clearDrawings}
-                                disabled={features.length === 0}
-                                className="cursor-pointer shrink-0"
-                            >
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        }
-                    />
-                    <TooltipContent><p>Clear all vector drawings</p></TooltipContent>
-                </Tooltip>
             </div>
             <input ref={fileInputRef} type="file" accept={VECTOR_FILE_ACCEPT} onChange={importFile} className="hidden" />
             {/* <input ref={fileInputRef} type="file" accept=".geojson,.json,.kml,.gpkg" onChange={importFile} className="hidden" /> */}
@@ -1756,7 +1749,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                         <Checkbox id="td-url-keep" checked={keepInLink} onCheckedChange={(v) => setKeepInLink(v === true)} className="cursor-pointer mt-0.5" />
                         <Label htmlFor="td-url-keep" className="cursor-pointer flex flex-col items-start gap-0.5">
                             <span className="text-xs font-medium">Keep in the link</span>
-                            <span className="text-[11px] text-muted-foreground font-normal">Adds <code>drawingUrl=</code> to the address bar so a shared link or iframe loads this data; the layer is re-fetched on every load instead of stored.</span>
+                            <span className="text-[11px] text-muted-foreground font-normal">Adds it to the link's <code>drawingUrl</code> list so a shared link or iframe loads this data; the layer is re-fetched on every load instead of stored.</span>
                         </Label>
                     </div>
                     {importError && <p className="text-xs text-destructive">{importError}</p>}

@@ -335,6 +335,10 @@ export const QUERY_STATE_PARSERS = {
     // a shared link or an iframe can carry a closed panel while a plain
     // visit still remembers the visitor's own choice.
     sidebarCollapsed: parseAsBoolean.withDefault(false),
+    // Remote vector data in the Drawing tool, one layer per URL (comma-
+    // separated; nuqs encodes commas inside an item). Mirrored into
+    // drawingUrlsAtom by TerrainControlPanel; fetched by useTerraDraw.
+    drawingUrl: parseAsArrayOf(parseAsString).withDefault([]),
     // Whether the timeline's title/source-pills/resolution-chips header row
     // is shown (true) or the panel is in its minimal, track-only mode with
     // just a small floating cog+collapse chip (false). Lifted up (not local

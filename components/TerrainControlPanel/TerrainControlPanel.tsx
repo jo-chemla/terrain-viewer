@@ -33,7 +33,7 @@ import { BackgroundOptionsSection } from "./background-options-section"
 import { FooterSection } from "./footer-section"
 import { TooltipIconButton, MacroSeparator } from "./controls-components"
 
-import { useTerraDraw, TerraDrawSection } from "./TerraDrawSystem"
+import { useTerraDraw, TerraDrawSection, drawingUrlsAtom } from "./TerraDrawSystem"
 import {AnimationSection, parseAsSnapshot} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
 import { SunShadowCalculatorSection } from "./sun-shadow-calculator-section"
@@ -184,6 +184,23 @@ export function TerrainControlPanel({
     setState(updates, { shallow })
   }, [setState])
   const { draw } = useTerraDraw(mapRef)
+  // drawingUrl (state list) <-> drawingUrlsAtom, both ways: the URL seeds
+  // the atom, and a layer imported with "Keep in the link" or deleted in the
+  // Drawing panel writes back. Compared as strings so equal lists never loop.
+  const [drawingUrls, setDrawingUrls] = useAtom(drawingUrlsAtom)
+  const stateDrawingUrlKey = (state.drawingUrl as string[] | undefined ?? []).join("\n")
+  const atomDrawingUrlKey = drawingUrls.join("\n")
+  const drawingUrlSeededRef = useRef(false)
+  useEffect(() => {
+    if (!drawingUrlSeededRef.current) { drawingUrlSeededRef.current = true; setDrawingUrls(state.drawingUrl ?? []); return }
+    if (stateDrawingUrlKey !== atomDrawingUrlKey) setDrawingUrls(state.drawingUrl ?? [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateDrawingUrlKey])
+  useEffect(() => {
+    if (!drawingUrlSeededRef.current) return
+    if (stateDrawingUrlKey !== atomDrawingUrlKey) setState({ drawingUrl: drawingUrls })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atomDrawingUrlKey])
   const isMobile = useIsMobile()
   // Space re-toggles the last-clicked viz-mode checkbox even after a map drag
   // steals focus onto the maplibre canvas (wheel-zoom never did) — see the hook.

@@ -23,6 +23,13 @@ export const urlKeyOf = (stateKey: string): string => URL_KEYS[stateKey] ?? stat
  *  winning when both are present. Returns true when something changed. */
 export function migrateLegacyUrlKeys(params: URLSearchParams): boolean {
   let changed = false
+  // drawingUrl was once repeatable; it is a nuqs list now (one value,
+  // comma-separated, commas inside an item encoded).
+  const drawing = params.getAll("drawingUrl")
+  if (drawing.length > 1) {
+    params.set("drawingUrl", drawing.map((u) => u.replace(/,/g, "%2C")).join(","))
+    changed = true
+  }
   for (const [legacy, current] of Object.entries(LEGACY_URL_KEYS)) {
     if (!params.has(legacy)) continue
     if (!params.has(current)) params.set(current, params.get(legacy)!)
