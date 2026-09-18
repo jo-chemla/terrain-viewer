@@ -33,7 +33,14 @@ export async function demFixProtocol(
   const inner = unwrapDemFixUrl(params.url)
   if (!inner) throw new Error(`Invalid demfix protocol URL: ${params.url}`)
   const response = await fetch(inner, { signal: abortController.signal })
-  if (!response.ok) throw new Error(`Tile ${response.status}`)
+  if (!response.ok) {
+    // titiler answers 404 outside the file's footprint; MapLibre keeps a
+    // 404 quiet (no error event) only when the thrown error carries the
+    // status, so pass it on rather than a bare Error.
+    const err = new Error(`Tile ${response.status}`) as Error & { status: number }
+    err.status = response.status
+    throw err
+  }
   const bitmap = await createImageBitmap(await response.blob())
   const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
   const ctx = canvas.getContext("2d")!

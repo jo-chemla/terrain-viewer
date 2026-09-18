@@ -17,6 +17,7 @@
 ### Features
 - **Derived terrain: DSM − DTM.** Add Terrain gains a "Difference of two sources" type: two loaded terrain sources subtracted tile by tile into a normalised height model (canopy, buildings, or change between two dates), usable as terrain and by every viz mode like any elevation source.
 - Hypsometric tint: **Symmetric Range** (one magnitude, Min = −Max) with the same controls as the curvature ramp, for height-above-ground and elevation-change grids.
+- Client-computed viz modes and the difference source honour a source's titiler pin (they tried the in-browser reader on pinned files and got nothing), and pass the source's nodata to titiler.
 - Titiler-served terrain no longer shows 10 km cliffs and pits along nodata edges: its tiles pass through a small fix-up that refills transparent (nodata) pixels as flat 0 m, flagged so the app's own decoders still see holes.
 - In-browser COG reader: nodata cells are marked (alpha 254, value unchanged) so the difference source treats a local COG's holes as holes instead of 0 m.
 - GEDTM30 no longer crashes the map: a footprint spanning the full 360° of longitude reached MapLibre's max-bounds through the map's own prop and threw (reproduced on the served bundle); every max-bounds value is sanitised now. The difference source writes 0 where either side has no data (flagged for the app's own decoders), and the hypsometric tint paints the DEM floor transparent.

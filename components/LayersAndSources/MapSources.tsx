@@ -723,7 +723,13 @@ export const useClientDemUpstream = (
     // asks the geomatico protocol for a tile beyond the data it has, which can
     // render as a blank/degenerate tile instead of a harmless overzoom blur.
     const isCogLocal = customSource?.type === "cog-local"
-    const isCogRemote = customSource?.type === "cog" && useCogProtocol
+    // A source pinned to titiler (cogViaTitiler: non-Mercator file, or a host
+    // without CORS) must stay on titiler here too - the primary source honours
+    // the pin, and this resolver used to ignore it, so every client-computed
+    // mode (and the difference source) tried the in-browser reader instead:
+    // no CORS, no metadata, no tiles.
+    const useCogProtocolForSource = useCogProtocol && !customSource?.cogViaTitiler
+    const isCogRemote = customSource?.type === "cog" && useCogProtocolForSource
     const cogUrlForMetadata = isCogLocal
         ? resolveLocalFileUrl(localFileId(customSource!.url))
         : isCogRemote ? customSource!.url : null
@@ -816,11 +822,13 @@ export const useClientDemUpstream = (
         const built = buildRasterTileSource({
             url: customSource.url,
             type: customSource.type,
-            useCogProtocol,
+            useCogProtocol: useCogProtocolForSource,
             titilerEndpoint,
             isDem: true,
+            nodata: customSource,
+            titilerNodata: customSource.titilerNodata,
         })
-        const encoding = (customSource.type === "cog" && useCogProtocol
+        const encoding = (customSource.type === "cog" && useCogProtocolForSource
             ? (highResTerrain ? "terrarium" : "mapbox")
             : customSource.type === "terrarium"
             ? "terrarium"
@@ -836,7 +844,7 @@ export const useClientDemUpstream = (
         }
         return { template: built.tiles[0], encoding, tileSize: 256 }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [diffA, diffB, _nested, customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogRemote])
+    }, [diffA, diffB, _nested, customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, useCogProtocolForSource, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogRemote])
 
     // Same per-viewport real-coverage probe TerrainSources runs for the
     // primary elevation Source (see lib/tile-max-zoom.ts) — only actually
