@@ -208,17 +208,16 @@ const CopyUrlButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
 
 // ── IframeSnippet ────────────────────────────────────────────────────────
 // The current view as an <iframe>. The side panel has to be open to reach
-// this dialog, so the embed usually wants it closed: that is the one-shot
-// ?sidebar=closed parameter (see TerrainViewer's embed-config effect), not
-// state, so the visitor can still open it.
+// this dialog, so the embed usually wants it closed: the sidebarCollapsed
+// state field is overridden in the snippet's URL.
 
 const IframeSnippet: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
   const [hideSidebar, setHideSidebar] = useState(true)
   const [copied, setCopied] = useState(false)
   const snippet = useMemo(() => {
     const url = new URL(pageUrl)
-    url.searchParams.delete("sidebar")
-    if (hideSidebar) url.searchParams.set("sidebar", "closed")
+    url.searchParams.delete("sidebarCollapsed")
+    if (hideSidebar) url.searchParams.set("sidebarCollapsed", "true")
     return `<iframe src="${url.toString()}" width="100%" height="600" style="border: 0" allow="fullscreen; clipboard-write" loading="lazy"></iframe>`
   }, [pageUrl, hideSidebar])
   const handleCopy = useCallback(async () => {

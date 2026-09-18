@@ -330,6 +330,11 @@ export const QUERY_STATE_PARSERS = {
     // Whether the historical timeline's full bar (header + track) is
     // collapsed down to just the small floating clock-icon toggle button.
     historicalTimelineCollapsed: parseAsBoolean.withDefault(false),
+    // The side panel, folded. Mirrors isSidebarOpenAtom (localStorage, the
+    // UI's own source of truth) both ways - see the sync effects below - so
+    // a shared link or an iframe can carry a closed panel while a plain
+    // visit still remembers the visitor's own choice.
+    sidebarCollapsed: parseAsBoolean.withDefault(false),
     // Whether the timeline's title/source-pills/resolution-chips header row
     // is shown (true) or the panel is in its minimal, track-only mode with
     // just a small floating cog+collapse chip (false). Lifted up (not local
@@ -886,6 +891,18 @@ export function TerrainViewer() {
   // way tying the source's `enabled` directly to either flag would.
   const [tellsEverActivated, setTellsEverActivated] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
+  // sidebarCollapsed <-> isSidebarOpenAtom. On load the URL wins only when
+  // it says so explicitly (a default-valued field is absent from it); after
+  // that the atom drives the field, so the address bar always reflects the
+  // panel and a link copied from it reproduces it.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("sidebarCollapsed")) setIsSidebarOpen(!state.sidebarCollapsed)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    if (state.sidebarCollapsed !== !isSidebarOpen) setState({ sidebarCollapsed: !isSidebarOpen })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSidebarOpen])
   const historicalTimelinePanelHeightPx = useAtomValue(historicalTimelinePanelHeightAtom)
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
   const [, setSectionOpen] = useAtom(sectionOpenAtom)
@@ -1869,11 +1886,9 @@ export function TerrainViewer() {
       setSectionOpen((prev) => ({ ...prev, ...projectConfig.initialSections }))
     }
 
-    // ?sidebar=open|closed - one-shot, after the project preset so an
-    // explicit link wins (the fold state itself stays in localStorage).
-    const sidebarParam = searchParams.get("sidebar")
-    if (sidebarParam === "open" || sidebarParam === "closed") setIsSidebarOpen(sidebarParam === "open")
-    else if (typeof projectConfig?.initialSidebarOpen === "boolean") {
+    // An explicit sidebarCollapsed= in the link wins over the preset (the
+    // sync effect near isSidebarOpenAtom applies it).
+    if (typeof projectConfig?.initialSidebarOpen === "boolean" && !searchParams.has("sidebarCollapsed")) {
       setIsSidebarOpen(projectConfig.initialSidebarOpen)
     }
 

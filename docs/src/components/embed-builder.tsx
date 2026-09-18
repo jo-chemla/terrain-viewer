@@ -23,7 +23,7 @@ export function EmbedBuilder() {
   const [pasted, setPasted] = useState('');
   const [pasteError, setPasteError] = useState('');
 
-  const OWN = new Set(['sourceA', 'terrainSourceA', 'sourceB', 'terrainSourceB', 'basemapSource', 'basemapSourceA', 'drawingUrl', 'viaTitiler', 'viewMode', 'sidebar', 'splitStyle', 'showRasterBasemap']);
+  const OWN = new Set(['sourceA', 'terrainSourceA', 'sourceB', 'terrainSourceB', 'basemapSource', 'basemapSourceA', 'drawingUrl', 'viaTitiler', 'viewMode', 'sidebarCollapsed', 'splitStyle', 'showRasterBasemap']);
 
   // Populates the fields from a real terrain-viewer link, so a view set up
   // in the app can be turned into an iframe with only the embed options
@@ -40,7 +40,7 @@ export function EmbedBuilder() {
     setViaTitiler(['1', 'true'].includes(p.get('viaTitiler') ?? ''));
     const vm = p.get('viewMode');
     if (vm === '2d' || vm === '3d' || vm === 'globe') setViewMode(vm);
-    setSidebar(p.get('sidebar') !== 'closed');
+    setSidebar(p.get('sidebarCollapsed') !== 'true');
     setExtra(Array.from(p.entries()).filter(([k]) => !OWN.has(k)));
   };
 
@@ -58,7 +58,7 @@ export function EmbedBuilder() {
     for (const d of drawings.split(/\n/).map((s) => s.trim()).filter(isUrl)) p.append('drawingUrl', d);
     if (viaTitiler) p.set('viaTitiler', '1');
     p.set('viewMode', viewMode);
-    if (!sidebar) p.set('sidebar', 'closed');
+    if (!sidebar) p.set('sidebarCollapsed', 'true');
     for (const [k, v] of extra) if (!p.has(k)) p.append(k, v);
     return `${APP}?${p.toString()}`;
   }, [terrainA, terrainB, basemap, drawings, viaTitiler, viewMode, sidebar, extra]);

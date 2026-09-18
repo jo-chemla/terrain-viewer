@@ -1628,7 +1628,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
             <div className="flex items-center gap-2">
                 {/* Same split-button shape as Export: the main button is the
                     default (a file), the chevron holds the alternative (a URL). */}
-                <div className="flex flex-[2] min-w-0">
+                <div className="flex flex-1 min-w-0">
                     <Tooltip>
                         <TooltipTrigger
                             render={
@@ -1642,7 +1642,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                     <DropdownMenu>
                         <DropdownMenuTrigger
                             render={
-                                <Button variant="outline" size="sm" className="cursor-pointer rounded-l-none px-1.5 shrink-0" aria-label="Import options">
+                                <Button variant="outline" size="sm" className="cursor-pointer rounded-l-none px-1 shrink-0" aria-label="Import options">
                                     <ChevronDown className="h-4 w-4" />
                                 </Button>
                             }
@@ -1657,7 +1657,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
-                <div className="flex flex-[3] min-w-0">
+                <div className="flex flex-1 min-w-0">
                     <Tooltip>
                         <TooltipTrigger
                             render={
@@ -1684,7 +1684,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                                                 variant="outline"
                                                 size="sm"
                                                 disabled={features.length === 0}
-                                                className="cursor-pointer rounded-l-none px-1.5 shrink-0"
+                                                className="cursor-pointer rounded-l-none px-1 shrink-0"
                                                 aria-label="Export options"
                                             >
                                                 <ChevronDown className="h-4 w-4" />
