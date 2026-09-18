@@ -262,9 +262,11 @@ export const CustomTerrainSourceModal: React.FC<{
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto" showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>{editingSource ? "Edit Terrain Dataset" : "Add New Terrain Dataset"}</DialogTitle>
-          <DialogDescription>Add your own terrain data source from a TerrainRGB, Terrarium or COG endpoint.</DialogDescription>
+        {/* pr-8: the absolute close button below sits over the header's right
+            edge, and a long description ran underneath it. */}
+        <DialogHeader className="pr-8 min-w-0">
+          <DialogTitle className="break-words">{editingSource ? "Edit Terrain Dataset" : "Add New Terrain Dataset"}</DialogTitle>
+          <DialogDescription className="break-words">{editingSource ? "Change this terrain source's settings." : "Add your own terrain data: a COG, TerrainRGB or Terrarium tiles, a WMS, or a difference of two sources."}</DialogDescription>
         </DialogHeader>
         <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
         <div className="space-y-4">
