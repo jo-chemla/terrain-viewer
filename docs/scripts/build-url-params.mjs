@@ -103,7 +103,7 @@ for (const file of atomFiles) {
 }
 
 fs.mkdirSync(path.join(DOCS, "src/generated"), { recursive: true });
-fs.writeFileSync(path.join(DOCS, "src/generated/url-params.json"), JSON.stringify({ generatedAt: new Date().toISOString(), skipped, params, instructions, atoms }, null, 2));
+fs.writeFileSync(path.join(DOCS, "src/generated/url-params.json"), JSON.stringify({ skipped, params, instructions, atoms }, null, 2));
 
 // ── OpenAPI ───────────────────────────────────────────────────────────────
 const schemaOf = (p) => {
