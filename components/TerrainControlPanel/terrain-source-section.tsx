@@ -223,7 +223,10 @@ export const TerrainSourceSection: React.FC<{
     }
     if (!['cog', 'vrt'].includes(source.type)) return
     try {
-      if (useCogProtocolVsTitiler) {
+      // Per-source pin wins over the global toggle: the in-browser reader
+      // assumes EPSG:3857, so a titiler-pinned file (UTM, 4326...) would have
+      // its native-CRS bbox read as Mercator metres and fit to the wrong place.
+      if (useCogProtocolVsTitiler && !source.cogViaTitiler) {
         getCogMetadata(source.url).then(metadata => {
           if (metadata.bbox) attemptFitBounds(metadata.bbox, force)
         })

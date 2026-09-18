@@ -77,6 +77,9 @@ function kindOf(name: string): { label: string; title: string } | null {
   if (/bathymetr/i.test(name)) return { label: "Bathy", title: "Bathymetry: depth below sea level" }
   // Stereo-photogrammetric mosaics (ArcticDEM, REMA, Copernicus GLO-30) and
   // close-range scans are surface models even though nothing in the name says so.
+  // Derived normalised height models (DSM − DTM) and elevation-change rasters
+  // are neither surface nor terrain: what stands on the ground, or what moved.
+  if (/DSM − DTM|height above ground|elevation change|\(dh\)/i.test(name)) return { label: "nDSM", title: "Height above ground or elevation change: a difference of two models, 0 is the ground (or no change)" }
   if (/\(surface\)|\b(DSM|DOM|DMP|MNS)\b|FO_DSM|ArcticDEM|REMA|GLO-30|Amphipolis/i.test(name)) {
     return { label: "DSM", title: "Digital Surface Model: buildings and trees included" }
   }
@@ -147,8 +150,14 @@ export function SampleSourcesModal<T extends SampleLike>({
   const isOpen = (k: string) => openSections[k] ?? true
 
   const add = (entries: readonly T[]) => {
-    const ids = new Set(entries.map((s) => s.id))
-    setCurrent([...current.filter((s) => !ids.has(s.id)), ...entries])
+    // A "dem-diff" entry is nothing without its two operands: add those from
+    // the library too (unless already loaded), before it in the list.
+    const operands = entries.flatMap((s) => [(s as any).diffMinuendId, (s as any).diffSubtrahendId].filter(Boolean) as string[])
+      .filter((id, i, arr) => arr.indexOf(id) === i && !presentIds.has(id) && !entries.some((e) => e.id === id))
+      .map((id) => samples.find((s) => s.id === id)).filter((s): s is T => !!s)
+    const all = [...operands, ...entries]
+    const ids = new Set(all.map((s) => s.id))
+    setCurrent([...current.filter((s) => !ids.has(s.id)), ...all])
   }
   const remove = (entries: readonly T[]) => {
     const ids = new Set(entries.map((s) => s.id))
@@ -170,6 +179,7 @@ export function SampleSourcesModal<T extends SampleLike>({
             title={kind.title}
             className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${
               kind.label === "DSM" ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+              : kind.label === "nDSM" ? "bg-violet-500/15 text-violet-700 dark:text-violet-300"
               : kind.label === "Bathy" ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
               : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"}`}
           >

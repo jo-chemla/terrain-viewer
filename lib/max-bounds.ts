@@ -90,7 +90,8 @@ export async function resolveCustomSourceBounds(
 
   if (source.type === "cog" || source.type === "vrt") {
     try {
-      if (opts.useCogProtocolVsTitiler) {
+      // Per-source pin wins (see terrain-source-section.tsx's handleFitToBounds).
+      if (opts.useCogProtocolVsTitiler && !("cogViaTitiler" in source && source.cogViaTitiler)) {
         const metadata = await getCogMetadata(source.url)
         if (metadata?.bbox) return metadata.bbox as LngLatBoundsTuple
       } else {

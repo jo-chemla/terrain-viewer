@@ -1842,7 +1842,11 @@ export function TerrainViewer() {
         if (!value || missingTerrainIds.has(value)) return
         if (value in ((terrainSources as any) ?? {}) || customTerrainSources.some((s) => s.id === value)) return
         const sample = SAMPLE_TERRAIN_SOURCES.find((s) => s.id === value)
-        if (sample) { missingTerrainIds.add(sample.id); missingTerrain.push(sample) }
+        if (sample) {
+          // A derived (dem-diff) entry needs its operands loaded too.
+          for (const op of [sample.diffMinuendId, sample.diffSubtrahendId]) if (op) considerTerrain(op)
+          missingTerrainIds.add(sample.id); missingTerrain.push(sample)
+        }
       }
       for (const side of VIEW_IDS) considerTerrain(getUrlParam(searchParams, `source${side}`))
       for (const id of addSourceIds) considerTerrain(id)
@@ -2102,8 +2106,12 @@ export function TerrainViewer() {
       hasFramedUrlSourceRef.current = true
       const viewA = [stateAny.sourceA, state.basemapPerView ? state.basemapSourceA : state.basemapSource].find((v) => isUrl(v) && !v.includes("{z}"))
       if (viewA) {
-        getCogMetadata(viewA).then((metadata: any) => {
-          const bbox = metadata?.bbox
+        // A titiler-pinned file is not in Web Mercator: ask titiler for the
+        // WGS84 footprint instead of the in-browser reader.
+        const bounds: Promise<number[] | undefined> = cogViaTitiler
+          ? fetch(`${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(viewA)}`).then((r) => r.json()).then((g: any) => g?.bbox ?? g?.properties?.bounds)
+          : getCogMetadata(viewA).then((metadata: any) => metadata?.bbox)
+        bounds.then((bbox) => {
           if (!bbox) return
           const [west, south, east, north] = bbox
           const fit = () => mapRefs.A.current?.fitBounds([[west, south], [east, north]], { padding: 50, duration: 0 })

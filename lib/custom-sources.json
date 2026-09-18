@@ -177,6 +177,19 @@
             "infoUrl": "https://geoservices.ign.fr/lidarhd"
         },
         {
+            "id": "custom-fr-ign-lidarhd-nhm",
+            "name": "FRA - IGN Lidar HD DSM − DTM = height above ground 0.5m - derived",
+            "url": "diff://custom-ign-lidarhd-dsm-wms-raw-custom-ign-lidarhd-dtm-wms-raw",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-ign-lidarhd-dsm-wms-raw",
+            "diffSubtrahendId": "custom-ign-lidarhd-dtm-wms-raw",
+            "loadWithSamples": false,
+            "bounds": [-5.5, 41.0, 9.8, 51.5],
+            "resolutionM": 0.5,
+            "description": "Normalised height model of France from the two IGN Lidar HD WMS services, subtracted tile by tile in the browser (lib/demdiff-protocol.ts): the surface model minus the terrain model leaves canopy and buildings with the ground flattened to 0. Try a 0-40 m hypsometric ramp for canopy height. Both operands are added with it; each is a raw Float32 WMS, so expect the same request rate limits as either alone.",
+            "infoUrl": "https://geoservices.ign.fr/lidarhd"
+        },
+        {
             "id": "custom-fr-ign-rgealti-highres",
             "name": "FRA - IGN RGE ALTI 1-5m (mainland + overseas departments) - WMS raw Float32",
             "url": "data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES&STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514",
@@ -227,6 +240,66 @@
             "description": "The 2014-2016 Haiti Digital Terrain Model (World Bank / CNIGS / HaitiData, flown by IGN FI-IMAO), 1.5m bare earth over the whole country, hosted on OpenTopography as a VRT over 369 UInt16 GeoTIFF tiles in EPSG:32618 with nodata 0. Range requests and CORS work, but the VRT has no overviews and titiler.xyz answers HTTP 500 for any window below z12 - so it only renders when already zoomed in, and is kept out of Load Samples for that reason. Its titilerNodata is 0 because titiler cannot cast the default -999 to uint16. Verified: Citadelle Laferriere ridge 810-816 m (tile max 895 m). Licence not stated on the OpenTopography record (OTSDEM.082021.32618.1).",
             "resolutionM": 1.5,
             "infoUrl": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.082021.32618.1"
+        },
+        {
+            "id": "custom-np-bhotekoshi-dsm-rasuwagadhi",
+            "name": "NPL - Bhotekoshi 2026 post-event DSM 0.5m, Rasuwagadhi-Timure - COG",
+            "url": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/download/v1.1/bhotekoshi_dsm_rasuwagadhi-timure_0p5m_gapfilled.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -1000000,
+            "minzoom": 13,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [85.341, 28.231, 85.42, 28.311],
+            "resolutionM": 0.5,
+            "description": "Post-event surface of the Bhote Koshi border reach (corridor km 19.6-29.1) after the 2026 flood, a 0.5 m photogrammetric DSM from WorldView-3 stereo released by Vantor, gap-filled variant (small holes interpolated; larger cloud holes stay nodata). EPSG:32645 with EGM2008 heights, hence pinned to titiler. No overviews in the file, so titiler cannot serve windows below z13: minzoom 13. Nodata -1e6. Pair it with the 2 m dh raster below (elevation change against the pre-event NASA HMA 8 m reference) to read erosion and deposition. geo-pera, CC BY 4.0.",
+            "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
+        },
+        {
+            "id": "custom-np-bhotekoshi-dh-rasuwagadhi",
+            "name": "NPL - Bhotekoshi 2026 elevation change (dh) 2m, Rasuwagadhi-Timure - COG",
+            "url": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/download/v1.1/bhotekoshi_dh_rasuwagadhi-timure_2m.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -9999,
+            "minzoom": 12,
+            "maxzoom": 17,
+            "loadWithSamples": false,
+            "bounds": [85.341, 28.228, 85.423, 28.318],
+            "resolutionM": 2,
+            "description": "Not an elevation but a difference: post-event surface minus the pre-event terrain (NASA HMA 8 m, 2014-2016), 2 m, bias-corrected and artefact-masked, measured cells only. Load it as terrain and read it with a diverging hypsometric ramp around 0 (erosion negative, deposition positive) - the same kind of grid the app's own 'Difference of two sources' type produces. EPSG:32645, pinned to titiler; no overviews, minzoom 12. Nodata -9999. geo-pera, CC BY 4.0.",
+            "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
+        },
+        {
+            "id": "custom-np-bhotekoshi-dsm-syabrubesi",
+            "name": "NPL - Bhotekoshi 2026 post-event DSM 0.5m, Syabrubesi - COG",
+            "url": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/download/v1.1/bhotekoshi_dsm_syabrubesi_0p5m_gapfilled.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -1000000,
+            "minzoom": 13,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [85.294, 28.121, 85.365, 28.205],
+            "resolutionM": 0.5,
+            "description": "Post-event surface of the Bhote Koshi gorge and deposition reach (corridor km 35.6-45.9), same product as the Rasuwagadhi-Timure file. EPSG:32645, pinned to titiler, minzoom 13, nodata -1e6. geo-pera, CC BY 4.0.",
+            "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
+        },
+        {
+            "id": "custom-np-bhotekoshi-dh-syabrubesi",
+            "name": "NPL - Bhotekoshi 2026 elevation change (dh) 2m, Syabrubesi - COG",
+            "url": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/download/v1.1/bhotekoshi_dh_syabrubesi_2m.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -9999,
+            "minzoom": 12,
+            "maxzoom": 17,
+            "loadWithSamples": false,
+            "bounds": [85.279, 28.112, 85.365, 28.205],
+            "resolutionM": 2,
+            "description": "Elevation change of the Syabrubesi reach, the debris sheet with 4,329 censused boulders: post-event surface minus the pre-event NASA HMA 8 m terrain, 2 m. Read with a diverging ramp around 0. EPSG:32645, pinned to titiler, minzoom 12, nodata -9999. geo-pera, CC BY 4.0.",
+            "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
         },
         {
             "id": "custom-idn-big-demnas",
@@ -306,6 +379,19 @@
             "bounds": [3.2, 50.7, 7.3, 53.7],
             "description": "Actueel Hoogtebestand Nederland, nationwide 0.5m lidar. CC0. Verified: Vaalserberg 322.9 m (true 322), and real polder ground down to -9.6 m is preserved. Its no-data is +3.4e38 (POSITIVE Float32 max), caught by the sentinel-magnitude guard in lib/nodata.ts rather than by the floor.",
             "resolutionM": 0.5,
+            "infoUrl": "https://www.pdok.nl/introductie/-/article/actueel-hoogtebestand-nederland-ahn"
+        },
+        {
+            "id": "custom-nl-ahn-nhm",
+            "name": "NLD - AHN DSM − DTM = height above ground 0.5m - derived",
+            "url": "diff://custom-nl-ahn-dsm-custom-nl-ahn-dtm",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-nl-ahn-dsm",
+            "diffSubtrahendId": "custom-nl-ahn-dtm",
+            "loadWithSamples": false,
+            "bounds": [3.2, 50.7, 7.3, 53.7],
+            "resolutionM": 0.5,
+            "description": "Normalised height model of the Netherlands from the two AHN WCS services (surface minus terrain), subtracted tile by tile in the browser: buildings, trees and dykes' vegetation at their height above ground, the ground itself at 0. Both operands are added with it.",
             "infoUrl": "https://www.pdok.nl/introductie/-/article/actueel-hoogtebestand-nederland-ahn"
         },
         {
