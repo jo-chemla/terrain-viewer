@@ -6,17 +6,17 @@
 //   public/openapi.json            - the same state + instruction parameters
 //                                    as one GET operation, for the Scalar
 //                                    reference page (dev/url-api)
-// Run before `next dev` / `next build` (docs/package.json) and by the root
-// pre-commit hook (simple-git-hooks in package.json), which stages the two
-// files so a commit that changes a parameter also carries the regenerated
-// outputs; both are tracked in git. Plain regex over
+// Run before `next dev` / `next build` (docs/package.json) and by hand with
+// `pnpm run url-params` (root) when parameters change or before a release;
+// both outputs are tracked in git, and the deploy workflow warns when they
+// are stale. Plain regex over
 // the files; an entry that does not fit the one-line
 // `key: parseAsX(...).withDefault(...)` shape is skipped and counted.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Location-independent: run from the repo root by the pre-commit hook and
+// Location-independent: run from the repo root (`pnpm run url-params`) and
 // from docs/ by the docs scripts.
 const DOCS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ROOT = path.resolve(DOCS, "..");

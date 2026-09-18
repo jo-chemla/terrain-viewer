@@ -5,7 +5,7 @@ description: Every URL parameter the app reads, generated from the source at bui
 
 import { UrlParamsReference, InstructionParamsReference, StorageAtomsReference } from '@/components/url-params-reference';
 
-The tables on this page are generated from the app's source by `docs/scripts/build-url-params.mjs`, run before every docs build and by the repository's pre-commit hook, so they cannot drift. For how to compose a link or an iframe, see [Embedding & URL parameters](/features/embedding); for an interactive form over the same parameters, see [URL as an API](/dev/url-api).
+The tables on this page are generated from the app's source by `docs/scripts/build-url-params.mjs`, run before every docs build, so the deployed pages cannot drift (the tracked copies in git are refreshed by hand, `pnpm run url-params`, and may lag between releases). For how to compose a link or an iframe, see [Embedding & URL parameters](/features/embedding); for an interactive form over the same parameters, see [URL as an API](/dev/url-api).
 
 ## State parameters
 
