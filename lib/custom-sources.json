@@ -246,13 +246,12 @@
             "name": "NPL - Bhotekoshi 2026 post-event DSM 0.5m, Rasuwagadhi-Timure - COG",
             "url": "https://nextgis-web.prod.heritagewatch.ai/api/resource/2570/cog",
             "type": "cog",
-            "cogViaTitiler": true,
             "titilerNodata": -1000000,
             "maxzoom": 19,
             "loadWithSamples": false,
             "bounds": [85.341, 28.231, 85.42, 28.311],
             "resolutionM": 0.5,
-            "description": "Post-event surface of the Bhote Koshi border reach (corridor km 19.6-29.1) after the 2026 flood, a 0.5 m photogrammetric DSM from WorldView-3 stereo released by Vantor, gap-filled variant (small holes interpolated; larger cloud holes stay nodata). Served from Heritage Watch's NextGIS (a Web Mercator COG with overviews, converted from geo-pera's EPSG:32645 release file bhotekoshi_dsm_rasuwagadhi-timure_0p5m_gapfilled.tif); pinned to titiler because that server sends no CORS header. Nodata -1e6. Pair it with the 2 m dh raster below (elevation change against the pre-event NASA HMA 8 m reference) to read erosion and deposition. geo-pera, CC BY 4.0.",
+            "description": "Post-event surface of the Bhote Koshi border reach (corridor km 19.6-29.1) after the 2026 flood, a 0.5 m photogrammetric DSM from WorldView-3 stereo released by Vantor, gap-filled variant (small holes interpolated; larger cloud holes stay nodata). Served from Heritage Watch's NextGIS (a Web Mercator COG with overviews, converted from geo-pera's EPSG:32645 release file bhotekoshi_dsm_rasuwagadhi-timure_0p5m_gapfilled.tif); read directly by the in-browser reader (the server allows cross-origin requests from the app's hosts). Nodata -1e6. Pair it with the 2 m dh raster below (elevation change against the pre-event NASA HMA 8 m reference) to read erosion and deposition. geo-pera, CC BY 4.0.",
             "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
         },
         {
@@ -260,13 +259,12 @@
             "name": "NPL - Bhotekoshi 2026 elevation change (dh) 2m, Rasuwagadhi-Timure - COG",
             "url": "https://nextgis-web.prod.heritagewatch.ai/api/resource/2572/cog",
             "type": "cog",
-            "cogViaTitiler": true,
             "titilerNodata": -9999,
             "maxzoom": 17,
             "loadWithSamples": false,
             "bounds": [85.341, 28.228, 85.423, 28.318],
             "resolutionM": 2,
-            "description": "Not an elevation but a difference: post-event surface minus the pre-event terrain (NASA HMA 8 m, 2014-2016), 2 m, bias-corrected and artefact-masked, measured cells only. Load it as terrain and read it with a diverging hypsometric ramp around 0 (erosion negative, deposition positive) - the same kind of grid the app's own 'Difference of two sources' type produces. Web Mercator COG with overviews on Heritage Watch's NextGIS (from geo-pera's bhotekoshi_dh_rasuwagadhi-timure_2m.tif), pinned to titiler (no CORS header there for localhost). Nodata -9999. geo-pera, CC BY 4.0.",
+            "description": "Not an elevation but a difference: post-event surface minus the pre-event terrain (NASA HMA 8 m, 2014-2016), 2 m, bias-corrected and artefact-masked, measured cells only. Load it as terrain and read it with a diverging hypsometric ramp around 0 (erosion negative, deposition positive) - the same kind of grid the app's own 'Difference of two sources' type produces. Web Mercator COG with overviews on Heritage Watch's NextGIS (from geo-pera's bhotekoshi_dh_rasuwagadhi-timure_2m.tif), read directly by the in-browser reader (CORS is open to the app's hosts). Nodata -9999. geo-pera, CC BY 4.0.",
             "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
         },
         {
@@ -274,13 +272,12 @@
             "name": "NPL - Bhotekoshi 2026 post-event DSM 0.5m, Syabrubesi - COG",
             "url": "https://nextgis-web.prod.heritagewatch.ai/api/resource/2569/cog",
             "type": "cog",
-            "cogViaTitiler": true,
             "titilerNodata": -1000000,
             "maxzoom": 19,
             "loadWithSamples": false,
             "bounds": [85.294, 28.121, 85.365, 28.205],
             "resolutionM": 0.5,
-            "description": "Post-event surface of the Bhote Koshi gorge and deposition reach (corridor km 35.6-45.9), same product as the Rasuwagadhi-Timure file. Web Mercator COG with overviews on Heritage Watch's NextGIS (from geo-pera's bhotekoshi_dsm_syabrubesi_0p5m_gapfilled.tif), pinned to titiler (no CORS header there). Nodata -1e6. geo-pera, CC BY 4.0.",
+            "description": "Post-event surface of the Bhote Koshi gorge and deposition reach (corridor km 35.6-45.9), same product as the Rasuwagadhi-Timure file. Web Mercator COG with overviews on Heritage Watch's NextGIS (from geo-pera's bhotekoshi_dsm_syabrubesi_0p5m_gapfilled.tif), read directly by the in-browser reader (CORS is open to the app's hosts). Nodata -1e6. geo-pera, CC BY 4.0.",
             "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
         },
         {
@@ -288,7 +285,6 @@
             "name": "NPL - Bhotekoshi 2026 elevation change (dh) 2m, Syabrubesi - COG",
             "url": "https://nextgis-web.prod.heritagewatch.ai/api/resource/2571/cog",
             "type": "cog",
-            "cogViaTitiler": true,
             "titilerNodata": -9999,
             "maxzoom": 17,
             "loadWithSamples": false,
