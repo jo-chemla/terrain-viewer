@@ -23,6 +23,7 @@
 
 ### Bug Fixes
 - Synced views no longer stay apart after a layout change in 2D historical mode (2x1 to 4x2): the idle reconcile was skipped whenever a view had no terrain.
+- Picking, restyling, adding or stacking a basemap while the Basemap viz mode is off now turns it on, so the change is visible at once (the add paths already did; the pickers, opacity and overlay toggles did not).
 - The `Shift` / `Ctrl` tap toggles only fire on a quick tap (under half a second), so a modifier held while deciding what to do no longer toggles anything on release.
 - The side panel no longer stays transparent after a fast slider drag released off the slider (seen on Firefox / macOS).
 - **Snapshot / Copy / Share capture every view**, not just view A: side-by-side, grid and overlay layouts are composited as shown on screen (wipe position, blend mode, opacity and colour matching included), with date pills, coloured borders, the scale bar and attribution (no geocoder, zoom, compass or geolocate buttons), never the side panel. The strips under the open side panel and the historical timeline are cropped off, so the subject stays centred; "Include the timeline in snapshots", in the new **Export settings** fold of Download and Snapshot (with the download resolution cap), keeps the timeline in the picture instead. The 2D world file is written only when the image is a single extent (single view or overlay).

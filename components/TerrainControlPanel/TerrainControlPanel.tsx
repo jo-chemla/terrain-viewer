@@ -183,6 +183,17 @@ export function TerrainControlPanel({
   const setAppState = useCallback((updates: Record<string, unknown>, shallow = true) => {
     setState(updates, { shallow })
   }, [setState])
+  // Basemap section (terrain mode): any write that picks, restyles, adds or
+  // stacks a basemap while the Basemap viz mode is off also turns it on.
+  // Choosing imagery and seeing nothing change looked like a silent failure;
+  // the add paths already did this, the pickers and sliders did not.
+  // Historical mode always shows the basemap, so its section is left alone.
+  const setBasemapState = useCallback((updates: Record<string, unknown>, options?: { shallow?: boolean }) => {
+    const touchesBasemap = Object.keys(updates).some((k) =>
+      k.startsWith("basemapSource") || k.startsWith("rasterBasemap") || k === "overlayBasemapIds" || k === "basemapPerView")
+    if (touchesBasemap && !state.showRasterBasemap && !("showRasterBasemap" in updates)) setState({ ...updates, showRasterBasemap: true }, options)
+    else setState(updates, options)
+  }, [setState, state.showRasterBasemap])
   const { draw } = useTerraDraw(mapRef)
   // drawingUrl (state list) <-> drawingUrlsAtom, both ways: the URL seeds
   // the atom, and a layer imported with "Keep in the link" or deleted in the
@@ -630,7 +641,7 @@ export function TerrainControlPanel({
             {macroGroupOpen.Sources && (
               <>
                 <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
-                <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
+                <RasterBasemapSection state={state} setState={setBasemapState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
               </>
             )}
           </>
