@@ -49,6 +49,7 @@ import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
 import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom } from "@/lib/layout-constants"
 import { ArrowLeftRight } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
 import { bookmarksAtom, mergeImportedBookmarks, type Bookmark } from "@/lib/bookmarks"
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
@@ -4016,28 +4017,42 @@ export function TerrainViewer() {
         )}
         style={positionStyle}
       >
-        <span
-          data-snapshot-plain
-          data-timeline-side-select={selectable ? "" : undefined}
-          onClick={selectable ? () => setTimelineActiveSide(pane.side) : undefined}
-          title={selectable ? "Click to make the timeline's arrow keys act on this view" : undefined}
-          className={cn(selectable && "cursor-pointer", selected && "font-bold")}
-        >
-          {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
-          {label}
-        </span>
+        {selectable ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span data-snapshot-plain data-timeline-side-select="" onClick={() => setTimelineActiveSide(pane.side)} className={cn("cursor-pointer", selected && "font-bold")}>
+                  {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
+                  {label}
+                </span>
+              }
+            />
+            <TooltipContent><p>Click to make the timeline's arrow keys act on this view</p></TooltipContent>
+          </Tooltip>
+        ) : (
+          <span data-snapshot-plain className={cn(selected && "font-bold")}>
+            {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
+            {label}
+          </span>
+        )}
         {isSplit && (pane.side !== "A" || activeViewIds.length === 2) && (
-          <button
-            type="button"
-            data-snapshot-ignore
-            // On B-H: swap with A. On A, only with exactly two views (overlay,
-            // 2x1), where "the other one" is unambiguous.
-            onClick={() => { const other = pane.side === "A" ? activeViewIds.find((v) => v !== "A")! : pane.side; setState(permuteViewsUpdates(stateAny, [other, "A"], ["A", other])) }}
-            title={pane.side === "A" ? `Swap views A and ${activeViewIds.find((v) => v !== "A")}` : `Swap view ${pane.side} with view A (drawing and most tools work on view A)`}
-            className="cursor-pointer text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeftRight className="h-3 w-3" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  data-snapshot-ignore
+                  // On B-H: swap with A. On A, only with exactly two views (overlay,
+                  // 2x1), where "the other one" is unambiguous.
+                  onClick={() => { const other = pane.side === "A" ? activeViewIds.find((v) => v !== "A")! : pane.side; setState(permuteViewsUpdates(stateAny, [other, "A"], ["A", other])) }}
+                  className="cursor-pointer text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeftRight className="h-3 w-3" />
+                </button>
+              }
+            />
+            <TooltipContent><p>{pane.side === "A" ? `Swap views A and ${activeViewIds.find((v) => v !== "A")}` : `Swap view ${pane.side} with view A (drawing and most tools work on view A)`}</p></TooltipContent>
+          </Tooltip>
         )}
       </div>
     )

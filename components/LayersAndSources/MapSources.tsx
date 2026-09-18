@@ -728,12 +728,17 @@ export const useClientDemUpstream = (
             const a = diffA, b = diffB
             const mins = [a.minzoom, b.minzoom].filter((v): v is number => typeof v === "number")
             const maxs = [a.maxzoom, b.maxzoom].filter((v): v is number => typeof v === "number")
+            // maxzoom is the FINER operand's: the protocol upsamples the coarser
+            // one from its ancestor tiles (see demdiff-protocol.ts), so the
+            // difference keeps the detail of the finer side. With the coarser
+            // maxzoom maplibre stopped requesting tiles before the fallback
+            // could ever run.
             return {
                 template: buildDemDiffUrl(a, b, 256),
                 encoding: "mapbox" as const,
                 tileSize: 256,
                 ...(mins.length ? { minzoom: Math.max(...mins) } : {}),
-                ...(maxs.length ? { maxzoom: Math.min(...maxs) } : {}),
+                ...(maxs.length ? { maxzoom: Math.max(...maxs) } : {}),
             }
         }
         if (!customSource) {

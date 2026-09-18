@@ -8,6 +8,7 @@ import { coverageOverlaysAtom, loadCoverageFeatures, getMapterhornSourceMeta, co
 import { customBasemapSourcesAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-request"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 const SOURCE_ID = "coverage-overlays"
@@ -161,11 +162,19 @@ export const CoverageOverlayLayer: React.FC = () => {
                   <div className="text-xs text-muted-foreground">{h.detail}</div>
                 </div>
                 {h.overlay && h.useAs && (
-                  <Button size="sm" variant="outline" className="h-7 shrink-0 cursor-pointer text-xs" disabled={h.needsKey}
-                    title={h.needsKey ? "This layer needs an API key; add it from the Editor Layer Index search instead" : h.useAs === "overlay" ? "Add this overlay on top of the basemap" : `Select this ${h.useAs} for view A`}
-                    onClick={() => { requestUse({ overlay: h.overlay!, nonce: Date.now() }); setClicked(null) }}>
-                    Use as {h.useAs}
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <span className="shrink-0">
+                          <Button size="sm" variant="outline" className="h-7 cursor-pointer text-xs" disabled={h.needsKey}
+                            onClick={() => { requestUse({ overlay: h.overlay!, nonce: Date.now() }); setClicked(null) }}>
+                            Use as {h.useAs}
+                          </Button>
+                        </span>
+                      }
+                    />
+                    <TooltipContent><p>{h.needsKey ? "This layer needs an API key; add it from the Editor Layer Index search instead" : h.useAs === "overlay" ? "Add this overlay on top of the basemap" : `Select this ${h.useAs} for view A`}</p></TooltipContent>
+                  </Tooltip>
                 )}
               </li>
             ))}

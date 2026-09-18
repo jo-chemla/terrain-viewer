@@ -48,7 +48,10 @@ export function sanitizeBounds(b: LngLatBoundsTuple | null): LngLatBoundsTuple |
   const west = Math.max(-180, Math.min(180, b[0])), east = Math.max(-180, Math.min(180, b[2]))
   const south = Math.max(-MAX_LAT, Math.min(MAX_LAT, b[1])), north = Math.max(-MAX_LAT, Math.min(MAX_LAT, b[3]))
   if (east - west < 1e-6 || north - south < 1e-6) return null
-  if (west <= -179.9 && east >= 179.9 && south <= -MAX_LAT + 0.1 && north >= MAX_LAT - 0.1) return null
+  // A full longitude span is the case maplibre's constrain cannot handle
+  // (its lngRange maths divides by the wrapped width and returns null): a
+  // worldwide file constrains nothing horizontally, so constrain nothing.
+  if (east - west >= 359.9) return null
   return [west, south, east, north]
 }
 

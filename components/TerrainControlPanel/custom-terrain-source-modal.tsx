@@ -387,9 +387,10 @@ export const CustomTerrainSourceModal: React.FC<{
                     <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="cursor-pointer shrink-0">
                       Choose file…
                     </Button>
-                    <span className="text-sm text-muted-foreground truncate min-w-0 flex-1" title={localFileName ?? undefined}>
-                      {localFileName ?? "No file selected"}
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="text-sm text-muted-foreground truncate min-w-0 flex-1">{localFileName ?? "No file selected"}</span>} />
+                      {localFileName && <TooltipContent><p className="break-all max-w-xs">{localFileName}</p></TooltipContent>}
+                    </Tooltip>
                   </div>
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p>Must be:</p>

@@ -199,8 +199,8 @@ export const RasterBasemapSection: React.FC<{
                         <TooltipContent><p>Set all views to {label}</p></TooltipContent>
                       </Tooltip>
                       {value === "osm" && (
-                        <span className="flex items-center gap-1 shrink-0" title="Extruded 3D buildings (OpenFreeMap Liberty, from z14)">
-                          <span className="text-[10px] text-muted-foreground">3D</span>
+                        <span className="flex items-center gap-1 shrink-0">
+                          <Tooltip><TooltipTrigger render={<span className="text-[10px] text-muted-foreground cursor-default">3D</span>} /><TooltipContent><p>Extruded 3D buildings (OpenFreeMap Liberty, from z14)</p></TooltipContent></Tooltip>
                           <Switch checked={osmBuildings3d} onCheckedChange={setOsmBuildings3d} className="cursor-pointer scale-75" />
                         </span>
                       )}
@@ -233,8 +233,8 @@ export const RasterBasemapSection: React.FC<{
                         )}
                       </Label>
                       {value === "osm" && (
-                        <span className="flex items-center gap-1 shrink-0" title="Extruded 3D buildings (OpenFreeMap Liberty, from z14)">
-                          <span className="text-[10px] text-muted-foreground">3D</span>
+                        <span className="flex items-center gap-1 shrink-0">
+                          <Tooltip><TooltipTrigger render={<span className="text-[10px] text-muted-foreground cursor-default">3D</span>} /><TooltipContent><p>Extruded 3D buildings (OpenFreeMap Liberty, from z14)</p></TooltipContent></Tooltip>
                           <Switch checked={osmBuildings3d} onCheckedChange={setOsmBuildings3d} className="cursor-pointer scale-75" />
                         </span>
                       )}

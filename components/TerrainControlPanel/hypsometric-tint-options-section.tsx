@@ -638,6 +638,17 @@ export const HypsometricTintOptionsSection: React.FC<{
                 onValueChange={(v: number) => setState({ minElevation: -v, maxElevation: v, customHypsoMinMax: true })}
                 className="w-full cursor-pointer"
               />
+              {/* Same bound labels as the double slider: the left end is 0 by
+                  construction, the right end is the editable slider max. */}
+              <div className="flex items-center justify-between gap-2 mt-1">
+                <span className="h-6 py-1 text-xs text-muted-foreground w-16">0</span>
+                <DraftBoundInput
+                  value={state.hypsoSliderMaxBound}
+                  onCommit={(v) => setState({ hypsoSliderMaxBound: v })}
+                  placeholder="Max"
+                  className="h-6 py-1 px-0 text-xs text-muted-foreground bg-transparent border-0 outline-none focus:outline-none text-right w-16"
+                />
+              </div>
             </div>
           ) : (
             <HypsoDoubleRangeSlider
@@ -670,9 +681,12 @@ export const HypsometricTintOptionsSection: React.FC<{
                 }}
                 className="cursor-pointer"
               />
-              <Label htmlFor="hypso-symmetric" className="text-sm font-medium cursor-pointer" title="Min = −Max: one magnitude for a diverging ramp (height above ground, elevation change)">
-                Symmetric Range
-              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger render={<Label htmlFor="hypso-symmetric" className="text-sm font-medium cursor-pointer">Symmetric Range</Label>} />
+                  <TooltipContent><p>Min = −Max: one magnitude for a diverging ramp (height above ground, elevation change)</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             )}
             <div className="flex flex-2 items-center gap-2">
