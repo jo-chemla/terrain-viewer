@@ -3021,7 +3021,16 @@ export function TerrainViewer() {
         ])
         bounds = unionBounds(terrainBounds, rasterBounds)
       }
-      if (!cancelled) setResolvedMaxBounds(bounds ? bufferBounds(bounds, state.maxBoundsBuffer) : null)
+      // A fence the size of a single survey (the Bhotekoshi reaches are 8 km
+      // across) is unusable: even with underzoom's 60% slack the map cannot
+      // show the site in its valley. Below one degree of extent the fence is
+      // padded to a full extent on every side, on top of the user's buffer;
+      // national-scale footprints are left as they are.
+      const padded = (b: LngLatBoundsTuple): LngLatBoundsTuple => {
+        const span = Math.max(b[2] - b[0], b[3] - b[1])
+        return span < 1 ? bufferBounds(b, span) : b
+      }
+      if (!cancelled) setResolvedMaxBounds(bounds ? bufferBounds(padded(bounds), state.maxBoundsBuffer) : null)
     })()
 
     return () => { cancelled = true }
