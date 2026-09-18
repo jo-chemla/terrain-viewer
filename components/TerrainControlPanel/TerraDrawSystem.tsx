@@ -8,7 +8,7 @@ import {
 } from 'terra-draw'
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
 import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, ChevronDown, Target, Link, Loader2 } from 'lucide-react'
-import { fetchVector, parseVector, nameFromUrl, vectorFormatFromName, VECTOR_FILE_ACCEPT } from '@/lib/remote-vector'
+import { fetchVector, parseVector, nameFromUrl, vectorFormatFromName, setDrawingUrlParam, VECTOR_FILE_ACCEPT } from '@/lib/remote-vector'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -1008,6 +1008,8 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
             setFeatures((prev) => prev.filter((f) => f.properties?.layerId !== layerId))
         }
         const remaining = layers.filter((l) => l.id !== layerId)
+        const gone = layers.find((l) => l.id === layerId)
+        if (gone?.sourceUrl) setDrawingUrlParam(gone.sourceUrl, false)
         setLayers(remaining)
         if (activeLayerId === layerId) setActiveLayerId(remaining[0].id)
         deletePersistedVectorLayer(layerId)
@@ -1221,6 +1223,12 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                     <TooltipContent><p>{layer.hidden ? "Hidden — click to show" : "Shown — click to hide"}</p></TooltipContent>
                                 </Tooltip>
 
+                                {layer.sourceUrl && (
+                                    <Tooltip>
+                                        <TooltipTrigger render={<span className="shrink-0 text-muted-foreground"><Link className="h-3 w-3" /></span>} />
+                                        <TooltipContent><p>Linked layer: re-fetched from {layer.sourceUrl} on every load (carried by the link's drawingUrl parameter), not stored in this browser</p></TooltipContent>
+                                    </Tooltip>
+                                )}
                                 {editMode ? (
                                     <Input
                                         value={layer.name}
@@ -1555,6 +1563,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
     const [importUrl, setImportUrl] = useState("")
     const [isImportingUrl, setIsImportingUrl] = useState(false)
     const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false)
+    const [keepInLink, setKeepInLink] = useState(false)
     const afterImport = () => { setVisible(true); setOpacity(1) }
 
     const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1574,9 +1583,11 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
         }
     }
 
-    // Same funnel from a URL. Unlike ?drawingUrl= (see useTerraDraw) this is
-    // a one-off copy: the layer is persisted like any imported file and is
-    // not re-fetched on the next load.
+    // Same funnel from a URL. By default a one-off copy: the layer is
+    // persisted like any imported file and not re-fetched. "Keep in the
+    // link" instead makes it a ?drawingUrl= layer (see useTerraDraw): the
+    // address bar gains the parameter, so the link carries the data, and the
+    // layer is re-fetched on every load rather than stored.
     const importFromUrl = async () => {
         const url = importUrl.trim()
         if (!url || isImportingUrl) return
@@ -1584,7 +1595,8 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
         setIsImportingUrl(true)
         try {
             const { geojson, format } = await fetchVector(url)
-            importDrawing(geojson, nameFromUrl(url), format)
+            importDrawing(geojson, nameFromUrl(url), format, keepInLink ? { sourceUrl: url } : {})
+            if (keepInLink) setDrawingUrlParam(url, true)
             afterImport()
             setImportUrl("")
             setIsUrlDialogOpen(false)
@@ -1740,6 +1752,13 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                         className="cursor-text"
                         aria-label="URL of the vector data"
                     />
+                    <div className="flex items-start gap-2">
+                        <Checkbox id="td-url-keep" checked={keepInLink} onCheckedChange={(v) => setKeepInLink(v === true)} className="cursor-pointer mt-0.5" />
+                        <Label htmlFor="td-url-keep" className="cursor-pointer flex flex-col items-start gap-0.5">
+                            <span className="text-xs font-medium">Keep in the link</span>
+                            <span className="text-[11px] text-muted-foreground font-normal">Adds <code>drawingUrl=</code> to the address bar so a shared link or iframe loads this data; the layer is re-fetched on every load instead of stored.</span>
+                        </Label>
+                    </div>
                     {importError && <p className="text-xs text-destructive">{importError}</p>}
                     <div className="flex justify-end gap-2">
                         <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setIsUrlDialogOpen(false)} disabled={isImportingUrl}>Cancel</Button>

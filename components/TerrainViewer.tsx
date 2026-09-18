@@ -1993,6 +1993,27 @@ export function TerrainViewer() {
   //               COG bounds, once.
   const urlSourceKey = [...VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]), state.basemapSource, ...VIEW_IDS.map((side) => stateAny[`basemapSource${side}`])]
     .filter((v) => typeof v === "string" && /^https?:\/\//i.test(v)).join("\n")
+  // ?addTerrainUrl= / ?addBasemapUrl= (repeatable): COGs or tile templates
+  // registered in the BYOD lists without being selected anywhere - the
+  // URL twin of ?addSources= (library ids). Same id-is-the-URL rule as
+  // above, one-shot on load.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const isUrl = (v: string) => /^https?:\/\//i.test(v)
+    const cogViaTitiler = ["1", "true"].includes(params.get("viaTitiler") ?? "") ? true : undefined
+    const nameOf = (url: string) => { try { return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "") || new URL(url).hostname } catch { return url } }
+    const terrain = params.getAll("addTerrainUrl").filter(isUrl)
+    const basemap = params.getAll("addBasemapUrl").filter(isUrl)
+    if (terrain.length) setCustomTerrainSources((prev) => [...prev, ...terrain.filter((url) => !prev.some((s) => s.id === url)).map((url): CustomTerrainSource => {
+      const type = (params.get("terrainType") || (url.includes("{z}") ? "terrarium" : "cog")) as CustomTerrainSource["type"]
+      return { id: url, name: nameOf(url), url, type, description: "Loaded from a link", ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
+    })])
+    if (basemap.length) setCustomBasemapSources((prev) => [...prev, ...basemap.filter((url) => !prev.some((s) => s.id === url)).map((url): CustomBasemapSource => {
+      const type = (params.get("basemapType") || (url.includes("{z}") ? "tms" : "cog")) as CustomBasemapSource["type"]
+      return { id: url, name: nameOf(url), url, type, description: "Loaded from a link", ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
+    })])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const hasFramedUrlSourceRef = useRef(false)
   useEffect(() => {
     if (!urlSourceKey) return

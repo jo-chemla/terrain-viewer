@@ -62,6 +62,19 @@ export async function parseVector(data: ArrayBuffer, format: VectorFormat): Prom
   throw new Error("a Shapefile can only be loaded from a URL (its .dbf and .prj are fetched alongside)")
 }
 
+/** Adds or removes one ?drawingUrl= entry in the address bar without a
+ *  navigation. nuqs keeps parameters it does not own, so its next write
+ *  leaves this in place. */
+export function setDrawingUrlParam(url: string, present: boolean): void {
+  const u = new URL(window.location.href)
+  const all = u.searchParams.getAll("drawingUrl")
+  const next = present ? (all.includes(url) ? all : [...all, url]) : all.filter((x) => x !== url)
+  if (next.length === all.length && next.every((x, i) => x === all[i])) return
+  u.searchParams.delete("drawingUrl")
+  for (const x of next) u.searchParams.append("drawingUrl", x)
+  window.history.replaceState(window.history.state, "", u.toString())
+}
+
 /** Layer name for a URL: its file name, without extension or query. */
 export function nameFromUrl(url: string): string {
   try {
