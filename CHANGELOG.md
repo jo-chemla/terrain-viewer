@@ -17,6 +17,7 @@
 ### Features
 - **Derived terrain: DSM − DTM.** Add Terrain gains a "Difference of two sources" type: two loaded terrain sources subtracted tile by tile into a normalised height model (canopy, buildings, or change between two dates), usable as terrain and by every viz mode like any elevation source.
 - Hypsometric tint: **Symmetric Range** (one magnitude, Min = −Max) with the same controls as the curvature ramp, for height-above-ground and elevation-change grids.
+- The difference source takes an optional vertical offset (metres added to every difference), a co-registration knob for references that sit above or below the finer source.
 - The difference source's zoom ceiling is the finer operand's declared max zoom plus two levels (titiler-pinned operands used to contribute no range at all, so the coarser operand set the cap).
 - Map bounds: a source footprint under one degree across is padded by its own extent on every side before it fences the camera, so a single survey can still be seen in context (Settings → Map Bounds → None removes the fence entirely, and `maxBoundsMode=none` in a link).
 - Client-computed viz modes and the difference source honour a source's titiler pin (they tried the in-browser reader on pinned files and got nothing), and pass the source's nodata to titiler.

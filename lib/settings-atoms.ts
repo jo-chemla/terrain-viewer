@@ -140,6 +140,11 @@ export interface CustomTerrainSource {
    *  `url` is a synthetic "diff://<a>-<b>" tag. See lib/demdiff-protocol.ts. */
   diffMinuendId?: string
   diffSubtrahendId?: string
+  /** type "dem-diff": metres added to every difference - a co-registration
+   *  knob. A 30 m reference sits above a fine DSM in a gorge (it cannot
+   *  follow the floor), so post-event minus GLO-30 reads several metres
+   *  negative along a whole river; the offset moves the zero back. */
+  diffOffsetM?: number
   description?: string
   /** Overrides the auto-detected (or fallback 0-20) zoom range — useful for WMS
    *  sources where COG metadata detection doesn't apply. */

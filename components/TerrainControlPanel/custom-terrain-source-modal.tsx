@@ -58,6 +58,7 @@ export const CustomTerrainSourceModal: React.FC<{
   // type "dem-diff": the two operand terrain sources (see CustomTerrainSource.diffMinuendId).
   const [diffMinuendId, setDiffMinuendId] = useState("")
   const [diffSubtrahendId, setDiffSubtrahendId] = useState("")
+  const [diffOffset, setDiffOffset] = useState("")
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const isDemDiff = type === "dem-diff"
   // Operands: every built-in and custom terrain source except differences
@@ -114,6 +115,7 @@ export const CustomTerrainSourceModal: React.FC<{
       setLinkedBasemapId(editingSource.linkedBasemapId ?? "")
       setDiffMinuendId(editingSource.diffMinuendId ?? "")
       setDiffSubtrahendId(editingSource.diffSubtrahendId ?? "")
+      setDiffOffset(editingSource.diffOffsetM === undefined ? "" : String(editingSource.diffOffsetM))
       setBoundsWest(editingSource.bounds ? String(editingSource.bounds[0]) : "")
       setBoundsSouth(editingSource.bounds ? String(editingSource.bounds[1]) : "")
       setBoundsEast(editingSource.bounds ? String(editingSource.bounds[2]) : "")
@@ -147,6 +149,7 @@ export const CustomTerrainSourceModal: React.FC<{
       setLinkedBasemapId("")
       setDiffMinuendId("")
       setDiffSubtrahendId("")
+      setDiffOffset("")
       setBoundsWest("")
       setBoundsSouth("")
       setBoundsEast("")
@@ -222,7 +225,7 @@ export const CustomTerrainSourceModal: React.FC<{
     const parseEncoding = (v: string) => (!showEncodingFields || v === "" || !Number.isFinite(Number(v)) ? undefined : Number(v))
     onSave({
       id: editingSource?.id, name, url: isDemDiff ? `diff://${diffMinuendId}-${diffSubtrahendId}` : url, type: type as CustomTerrainSource["type"], description, maxzoom: parsedMaxzoom,
-      ...(isDemDiff ? { diffMinuendId, diffSubtrahendId } : {}),
+      ...(isDemDiff ? { diffMinuendId, diffSubtrahendId, diffOffsetM: diffOffset !== "" && Number.isFinite(Number(diffOffset)) ? Number(diffOffset) : undefined } : {}),
       linkedBasemapId: linkedBasemapId || undefined,
       bounds: parsedBounds,
       nodataFloor: parseNodata(nodataFloor),
@@ -235,7 +238,7 @@ export const CustomTerrainSourceModal: React.FC<{
       cogViaTitiler: showTitilerToggle && cogViaTitiler ? true : undefined,
     })
     onOpenChange(false)
-  }, [isDemDiff, diffReady, diffMinuendId, diffSubtrahendId, name, url, type, description, maxzoom, linkedBasemapId, boundsWest, boundsSouth, boundsEast, boundsNorth, nodataFloor, nodataFill, showNodataFields, redFactor, greenFactor, blueFactor, baseShift, showEncodingFields, cogViaTitiler, showTitilerToggle, editingSource, onSave, onOpenChange])
+  }, [isDemDiff, diffReady, diffMinuendId, diffSubtrahendId, diffOffset, name, url, type, description, maxzoom, linkedBasemapId, boundsWest, boundsSouth, boundsEast, boundsNorth, nodataFloor, nodataFill, showNodataFields, redFactor, greenFactor, blueFactor, baseShift, showEncodingFields, cogViaTitiler, showTitilerToggle, editingSource, onSave, onOpenChange])
 
   // COG/cog-local sources detect their own zoom range from file metadata via
   // geomatico (below) rather than needing a manual field — but MapSources.tsx's
@@ -378,6 +381,11 @@ export const CustomTerrainSourceModal: React.FC<{
                     </Select>
                   </div>
                   {diffMinuendId && diffMinuendId === diffSubtrahendId && <p className="text-xs text-destructive">Pick two different sources.</p>}
+                  <div className="space-y-2">
+                    <Label htmlFor="source-diff-offset">Vertical offset added to the result (m, optional)</Label>
+                    <Input id="source-diff-offset" type="number" step="0.1" placeholder="0" value={diffOffset} onChange={(e) => setDiffOffset(e.target.value)} className="cursor-text" />
+                    <p className="text-[11px] text-muted-foreground">Co-registration: a 30 m reference cannot follow a gorge floor and sits above a fine DSM there, so "post-event minus GLO-30" reads several metres negative along a whole river. Sample a stable spot (a road, bare rock) with the elevation picker on both sources and enter the difference here to move the zero back.</p>
+                  </div>
                   <p className="text-[11px] text-muted-foreground">Both sources are read at the same tile coordinates, so they line up whatever their native resolutions; the coarser one sets the useful detail. The two must be loaded in the app (built-in or in this list), not just any URL.</p>
                 </div>
               ) : type === "cog-local" ? (

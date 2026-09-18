@@ -26,16 +26,18 @@ import { sharedTileCache, fetchDecodedTile, type DecodedTile, type UpstreamEncod
  *
  * URL: demdiff://<encA>/<encB>/<tileSize>/<encoded template A>/<encoded template B>/{z}/{x}/{y}
  */
-const DEMDIFF_URL_RE = /^demdiff:\/\/(terrarium|mapbox)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
+const DEMDIFF_URL_RE = /^demdiff:\/\/(terrarium|mapbox)\/(terrarium|mapbox)\/(\d+)\/(-?[\d.]+)\/([^/]+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
 export function buildDemDiffUrl(
   minuend: { template: string; encoding: UpstreamEncoding },
   subtrahend: { template: string; encoding: UpstreamEncoding },
   tileSize: number,
+  /** Metres added to every difference (see CustomTerrainSource.diffOffsetM). */
+  offsetM = 0,
 ): string {
   // Embedded templates keep their own {z}/{x}/{y} percent-encoded so
   // maplibre's literal placeholder substitution only touches the trailing ones.
-  return `demdiff://${minuend.encoding}/${subtrahend.encoding}/${tileSize}/${encodeURIComponent(minuend.template)}/${encodeURIComponent(subtrahend.template)}/{z}/{x}/{y}`
+  return `demdiff://${minuend.encoding}/${subtrahend.encoding}/${tileSize}/${offsetM}/${encodeURIComponent(minuend.template)}/${encodeURIComponent(subtrahend.template)}/{z}/{x}/{y}`
 }
 
 const fill = (u: string, z: number, x: number, y: number) => u.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
@@ -85,9 +87,10 @@ export async function demDiffProtocol(
 ): Promise<{ data: Uint8Array }> {
   const m = params.url.match(DEMDIFF_URL_RE)
   if (!m) throw new Error(`Invalid demdiff protocol URL: ${params.url}`)
-  const [, encA, encB, sizeStr, tplA, tplB, zS, xS, yS] = m
+  const [, encA, encB, sizeStr, offsetStr, tplA, tplB, zS, xS, yS] = m
   const z = parseInt(zS, 10), x = parseInt(xS, 10), y = parseInt(yS, 10)
   const n = parseInt(sizeStr, 10)
+  const offset = parseFloat(offsetStr) || 0
   const [a, b] = await Promise.all([
     fetchOperand(decodeURIComponent(tplA), encA as UpstreamEncoding, z, x, y, abortController.signal),
     fetchOperand(decodeURIComponent(tplB), encB as UpstreamEncoding, z, x, y, abortController.signal),
@@ -105,7 +108,7 @@ export async function demDiffProtocol(
       // still see the cell as invalid - the same convention as the in-browser
       // COG reader's own tiles (makeElevationColorFunction in MapSources.tsx).
       const hole = !(Number.isFinite(va) && Number.isFinite(vb))
-      const [r, g, bl] = elevationToTerrainrgb(hole ? 0 : va - vb)
+      const [r, g, bl] = elevationToTerrainrgb(hole ? 0 : va - vb + offset)
       out[i] = r; out[i + 1] = g; out[i + 2] = bl; out[i + 3] = hole ? 254 : 255
     }
   }

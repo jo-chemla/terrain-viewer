@@ -752,7 +752,7 @@ export const useClientDemUpstream = (
             // maxzoom maplibre stopped requesting tiles before the fallback
             // could ever run.
             return {
-                template: buildDemDiffUrl(a, b, 256),
+                template: buildDemDiffUrl(a, b, 256, customSource.diffOffsetM ?? 0),
                 encoding: "mapbox" as const,
                 tileSize: 256,
                 ...(mins.length ? { minzoom: Math.max(...mins) } : {}),
