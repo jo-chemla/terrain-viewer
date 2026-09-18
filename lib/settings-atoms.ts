@@ -190,7 +190,7 @@ export interface CustomTerrainSource {
    *  Amphipolis scans) that shouldn't clutter everyone's list — they remain
    *  fully reachable, because the permalink importer in TerrainViewer.tsx looks
    *  sources up in the sample set by id regardless of this flag, so a shared
-   *  ?sourceA=<id> link still auto-adds them. */
+   *  ?terrainSourceA=<id> link still auto-adds them. */
   loadWithSamples?: boolean
   /** Always fetch this 'cog' source through titiler, ignoring the global
    *  in-browser-vs-titiler toggle. For COGs that are not in EPSG:3857: the

@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
-import { Share2, Check, ImageIcon, Loader2, Link, Scissors, AlertCircle, PanelRight } from "lucide-react"
+import { Share2, Check, ImageIcon, Loader2, Link, Scissors, AlertCircle, PanelRight, Code } from "lucide-react"
 import { track } from "@/lib/analytics"
 import { useAtom } from "jotai"
 // Same import-cycle shape as product-tour.tsx's — established/working here.
@@ -203,6 +203,49 @@ const CopyUrlButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
         </>
       )}
     </button>
+  )
+}
+
+// ── IframeSnippet ────────────────────────────────────────────────────────
+// The current view as an <iframe>. The side panel has to be open to reach
+// this dialog, so the embed usually wants it closed: that is the one-shot
+// ?sidebar=closed parameter (see TerrainViewer's embed-config effect), not
+// state, so the visitor can still open it.
+
+const IframeSnippet: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
+  const [hideSidebar, setHideSidebar] = useState(true)
+  const [copied, setCopied] = useState(false)
+  const snippet = useMemo(() => {
+    const url = new URL(pageUrl)
+    url.searchParams.delete("sidebar")
+    if (hideSidebar) url.searchParams.set("sidebar", "closed")
+    return `<iframe src="${url.toString()}" width="100%" height="600" style="border: 0" allow="fullscreen; clipboard-write" loading="lazy"></iframe>`
+  }, [pageUrl, hideSidebar])
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(snippet)
+      track("actions-share", { kind: "copy-iframe" })
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard denied */ }
+  }, [snippet])
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium">Embed as an iframe</span>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="share-iframe-hide-sidebar" className="text-xs text-muted-foreground cursor-pointer">Hide the side panel</Label>
+          <Switch id="share-iframe-hide-sidebar" checked={hideSidebar} onCheckedChange={setHideSidebar} className="cursor-pointer" />
+        </div>
+      </div>
+      <pre className="rounded-md bg-muted/40 border border-border px-3 py-2 text-[11px] leading-relaxed whitespace-pre-wrap break-all max-h-24 overflow-y-auto"><code>{snippet}</code></pre>
+      <button
+        onClick={handleCopy}
+        className="flex items-center justify-center gap-2 w-full rounded-md px-3 py-2 border border-border bg-background hover:bg-muted/40 text-xs font-medium transition-colors duration-150 cursor-pointer"
+      >
+        {copied ? <><Check className="h-3.5 w-3.5 text-green-400 shrink-0" /><span className="text-green-400">Iframe copied!</span></> : <><Code className="h-3.5 w-3.5 shrink-0" />Copy iframe code</>}
+      </button>
+    </div>
   )
 }
 
@@ -678,6 +721,8 @@ const ShareModal: React.FC<{
           <CopyUrlButton pageUrl={activeUrl} />
           <CopyUrlWithPanelsButton pageUrl={activeUrl} />
         </div>
+
+        <IframeSnippet pageUrl={activeUrl} />
 
         {/* Text preview */}
         <div className="rounded-md bg-muted/40 border border-border px-3 py-2 text-xs text-foreground/80 leading-relaxed">

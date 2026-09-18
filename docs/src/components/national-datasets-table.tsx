@@ -356,7 +356,7 @@ export function SubNationalTable() {
       </table>
       <p className="text-xs text-fd-muted-foreground">
         {rows.length} regional datasets. Kept out of <em>Load Sample Sources</em> so the list stays
-        national, but each remains importable with a <code>?sourceA=&lt;id&gt;</code> link.
+        national, but each remains importable with a <code>?terrainSourceA=&lt;id&gt;</code> link.
       </p>
     </div>
   );

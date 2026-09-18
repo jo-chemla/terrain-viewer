@@ -73,6 +73,24 @@ export const SECTION_KEYS = [
 ] as const
 
 export type SectionKey = (typeof SECTION_KEYS)[number]
+
+/** ?scrollTo= value -> DOM id (the product tour's anchors). */
+export const SCROLL_TARGETS: Record<string, string> = {
+  general: "tour-general-settings",
+  terrainSource: "tour-terrain-section",
+  rasterBasemap: "tour-basemap-section",
+  download: "tour-download-section",
+  visualizationModes: "tour-viz-modes",
+  hillshade: "tour-hillshade-section",
+  hypsometricTint: "tour-hypso-section",
+  lightingEffects: "tour-lighting-effects-section",
+  reliefVisualization: "tour-relief-visualization-section",
+  terrainAnalysis: "tour-terrain-analysis-section",
+  contour: "tour-contour-section",
+  tools: "tour-tools-group",
+  drawing: "tour-tools-group",
+  comparisonMix: "tour-historical-compare-blend",
+}
 type SectionOpenState = Record<SectionKey, boolean>
 
 // Exported for ShareSection's "Copy URL with panel state" — the copied link
@@ -301,6 +319,25 @@ export function TerrainControlPanel({
 
 
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
+
+  // ?scrollTo=<section key or DOM id> - one-shot: opens that section (when
+  // the value is a section key) and scrolls the panel to it, so a link can
+  // land on, say, the hillshade light pad. Targets resolve to the product
+  // tour's own ids (SCROLL_TARGETS), then to any element id.
+  useEffect(() => {
+    const target = new URLSearchParams(window.location.search).get("scrollTo")
+    if (!target) return
+    if ((SECTION_KEYS as readonly string[]).includes(target)) {
+      setSectionOpen((prev) => ({ ...prev, [target]: true }))
+      setIsSidebarOpen(true)
+    }
+    const t = setTimeout(() => {
+      const id = SCROLL_TARGETS[target] ?? target
+      document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" })
+    }, 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [macroGroupOpen, setMacroGroupOpen] = useAtom(macroGroupOpenAtom)
   const toggleMacroGroup = (key: MacroGroupKey) => setMacroGroupOpen((prev) => ({ ...prev, [key]: !prev[key] }))
 

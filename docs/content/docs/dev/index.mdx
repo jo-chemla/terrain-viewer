@@ -27,13 +27,13 @@ Nearly every sidebar control — viewport (lat/lng/zoom/pitch/bearing), active t
 - Copying the address bar URL always reproduces the exact current view for someone else.
 - [Bookmarks](/features/bookmarks) are really just a saved query string plus a thumbnail.
 - Embedding a specific configuration (e.g. in an iframe) is just linking to the right URL — see [Embedding & URL parameters](/features/embedding) for the full list, a live iframe and a link builder.
-- Any view's source can be a URL instead of an id: `?sourceA=https://host/dem.cog.tif`, `?sourceB=…`, `?basemapSource=https://host/ortho.tif`, `?basemapSourceC=https://tiles/{z}/{x}/{y}.png`. A tile template (`{z}`) is read as Terrarium terrain or a TMS basemap, anything else as a COG; `terrainType=` / `basemapType=` override that, `viaTitiler=1` routes COGs through titiler (needed when the file is not in Web Mercator), and a link without its own `lat`/`lng` is framed on view A's COG. The URL is the source's id, so the link is self-contained. The server must allow cross-origin range requests.
+- Any view's source can be a URL instead of an id: `?terrainSourceA=https://host/dem.cog.tif`, `?terrainSourceB=…`, `?basemapSource=https://host/ortho.tif`, `?basemapSourceC=https://tiles/{z}/{x}/{y}.png`. A tile template (`{z}`) is read as Terrarium terrain or a TMS basemap, anything else as a COG; `terrainType=` / `basemapType=` override that, `viaTitiler=1` routes COGs through titiler (needed when the file is not in Web Mercator), and a link without its own `lat`/`lng` is framed on view A's COG. The URL is the source's id, so the link is self-contained. The server must allow cross-origin range requests.
 - `?drawingUrl=https://host/features.geojson` (repeatable) loads remote vector data into the Drawing tool — see [Tools](/features/tools#drawing).
 
 A minimal iframe, two DEMs side by side with a vector overlay:
 
 ```html
-<iframe src="https://jo-chemla.github.io/terrain-viewer/?splitStyle=side-by-side&sourceA=https%3A%2F%2Fhost%2Fbefore.tif&sourceB=https%3A%2F%2Fhost%2Fafter.tif&drawingUrl=https%3A%2F%2Fhost%2Fsites.geojson"></iframe>
+<iframe src="https://jo-chemla.github.io/terrain-viewer/?splitStyle=side-by-side&terrainSourceA=https%3A%2F%2Fhost%2Fbefore.tif&terrainSourceB=https%3A%2F%2Fhost%2Fafter.tif&drawingUrl=https%3A%2F%2Fhost%2Fsites.geojson"></iframe>
 ```
 
 ```mermaid

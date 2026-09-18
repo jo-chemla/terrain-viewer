@@ -18,6 +18,7 @@ import { atomWithStorage } from "jotai/utils"
 import type { MapRef } from "react-map-gl/maplibre"
 import type maplibregl from "maplibre-gl"
 import { QUERY_STATE_PARSERS } from "@/components/TerrainViewer"
+import { migrateLegacyUrlKeys, urlKeyOf } from "@/lib/url-keys"
 
 export interface Bookmark {
   id: string
@@ -127,8 +128,12 @@ export function easeToBookmarkViewport(
 export function parseBookmarkSearch(search: string): Record<string, unknown> {
   const params = new URLSearchParams(search)
   const result: Record<string, unknown> = {}
+  // Saved strings predating the terrain-source URL key rename (see
+  // lib/url-keys.ts) still carry sourceA=: both spellings are read.
+  migrateLegacyUrlKeys(params)
   for (const [key, parser] of Object.entries(QUERY_STATE_PARSERS as Record<string, any>)) {
-    const raw = parser.type === "multi" ? params.getAll(key) : (params.get(key) ?? undefined)
+    const urlKey = urlKeyOf(key)
+    const raw = parser.type === "multi" ? params.getAll(urlKey) : (params.get(urlKey) ?? undefined)
     result[key] = parser.parseServerSide(raw)
   }
   return result

@@ -23,6 +23,14 @@ import "./styles/themes/index.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { startEmbedBridge } from "@/lib/embed-bridge"
+import { migrateLegacyUrlKeys } from "@/lib/url-keys"
+
+// Links written before the terrain-source URL keys were renamed carry
+// sourceA=..; rewrite them before nuqs reads the address bar.
+{
+  const url = new URL(window.location.href)
+  if (migrateLegacyUrlKeys(url.searchParams)) window.history.replaceState(window.history.state, "", url.toString())
+}
 
 // When iframed by an allowed meta-app wrapper (heritagewatch/anchise/localhost),
 // stream our URL state up to it once a second — see lib/embed-bridge.ts.
@@ -42,7 +50,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             "project",
             "appMode",
             "viewMode", "zoom", "lat", "lng", "pitch", "bearing",
-            "sourceA", "splitStyle", "gridLayout", "sourceB",
+            "terrainSourceA", "splitStyle", "gridLayout", "terrainSourceB",
             "showHillshade", "showColorRelief", "showRasterBasemap", "showContours", "showBackground",
           ];
 

@@ -48,6 +48,7 @@ import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
 import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom } from "@/lib/layout-constants"
 import { ArrowLeftRight } from "lucide-react"
+import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
@@ -916,6 +917,8 @@ export function TerrainViewer() {
 
   const [state, setState] = useQueryStates(QUERY_STATE_PARSERS,
   {
+    // sourceA..H are written as terrainSourceA..H (see lib/url-keys.ts).
+    urlKeys: URL_KEYS,
     history: 'replace', // push to remember past interactions, or replace to avoid cluttering history
     limitUrlUpdates: {
       method: 'throttle', // throttle or debounce debounce correctly fires only have paused setState, but flashes
@@ -1742,7 +1745,7 @@ export function TerrainViewer() {
         if (sample && !customTerrainSources.some((s) => s.id === value)) {
           setCustomTerrainSources((prev) => [...prev.filter((s) => s.id !== value), sample])
         }
-        if (!searchParams.has("sourceA")) stateOverrides.sourceA = value
+        if (getUrlParam(searchParams, "sourceA") === null) stateOverrides.sourceA = value
       } else {
         const embedId = "__embed_terrain__"
         const type = (state.terrainType || (value.includes("{z}") ? "terrarium" : "cog")) as CustomTerrainSource["type"]
@@ -1750,7 +1753,7 @@ export function TerrainViewer() {
           ...prev.filter((s) => s.id !== embedId),
           { id: embedId, name: "Embedded Terrain", url: value, type },
         ])
-        if (!searchParams.has("sourceA")) stateOverrides.sourceA = embedId
+        if (getUrlParam(searchParams, "sourceA") === null) stateOverrides.sourceA = embedId
       }
     }
     if (state.basemapUrl) {
@@ -1789,7 +1792,7 @@ export function TerrainViewer() {
     }
 
     // Per-view source ids referenced directly by the URL (a shared link like
-    // ?sourceB=custom-ign-lidarhd-dtm-wms-raw) that this browser doesn't
+    // ?terrainSourceB=custom-ign-lidarhd-dtm-wms-raw) that this browser doesn't
     // know: built-ins and localStorage custom sources cover the SENDER, but
     // a fresh visitor opening that link would just get a silently-empty
     // pane. If the unknown id exists in the sample library, seed it — merge
@@ -1816,7 +1819,7 @@ export function TerrainViewer() {
         const sample = SAMPLE_TERRAIN_SOURCES.find((s) => s.id === value)
         if (sample) { missingTerrainIds.add(sample.id); missingTerrain.push(sample) }
       }
-      for (const side of VIEW_IDS) considerTerrain(searchParams.get(`source${side}`))
+      for (const side of VIEW_IDS) considerTerrain(getUrlParam(searchParams, `source${side}`))
       for (const id of addSourceIds) considerTerrain(id)
       if (missingTerrain.length) {
         setCustomTerrainSources((prev) => [...prev.filter((s) => !missingTerrainIds.has(s.id)), ...missingTerrain])
@@ -1866,7 +1869,11 @@ export function TerrainViewer() {
       setSectionOpen((prev) => ({ ...prev, ...projectConfig.initialSections }))
     }
 
-    if (typeof projectConfig?.initialSidebarOpen === "boolean") {
+    // ?sidebar=open|closed - one-shot, after the project preset so an
+    // explicit link wins (the fold state itself stays in localStorage).
+    const sidebarParam = searchParams.get("sidebar")
+    if (sidebarParam === "open" || sidebarParam === "closed") setIsSidebarOpen(sidebarParam === "open")
+    else if (typeof projectConfig?.initialSidebarOpen === "boolean") {
       setIsSidebarOpen(projectConfig.initialSidebarOpen)
     }
 
@@ -1977,7 +1984,7 @@ export function TerrainViewer() {
   const [timelineActiveSide, setTimelineActiveSide] = useAtom(timelineActiveSideAtom)
 
   // A view's source given as a URL rather than an id, on ANY view:
-  // ?sourceB=https://host/dem.cog.tif, ?basemapSourceC=https://host/ortho.tif,
+  // ?terrainSourceB=https://host/dem.cog.tif, ?basemapSourceC=https://host/ortho.tif,
   // ?basemapSource=https://tiles/{z}/{x}/{y}.png. The URL itself becomes the
   // custom source's id, so the link stays self-contained (nothing to look up
   // in the sender's localStorage) and every resolver that finds a custom
@@ -1991,12 +1998,13 @@ export function TerrainViewer() {
   //               that are not in Web Mercator.
   //   camera      a link with no lat/lng of its own is framed on view A's
   //               COG bounds, once.
-  const urlSourceKey = [...VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]), state.basemapSource, ...VIEW_IDS.map((side) => stateAny[`basemapSource${side}`])]
+  const urlSourceKey = [...VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]), state.basemapSource, ...VIEW_IDS.map((side) => stateAny[`basemapSource${side}`]), ...(state.overlayBasemapIds ?? [])]
     .filter((v) => typeof v === "string" && /^https?:\/\//i.test(v)).join("\n")
-  // ?addTerrainUrl= / ?addBasemapUrl= (repeatable): COGs or tile templates
-  // registered in the BYOD lists without being selected anywhere - the
-  // URL twin of ?addSources= (library ids). Same id-is-the-URL rule as
-  // above, one-shot on load.
+  // ?addTerrainUrl= / ?addBasemapUrl= / ?addOverlayUrl= (repeatable): COGs
+  // or tile templates registered in the BYOD lists without being selected
+  // anywhere - the URL twin of ?addSources= (library ids). Same
+  // id-is-the-URL rule as above, one-shot on load. To ACTIVATE an overlay,
+  // name it in the overlayBasemapIds state field instead.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const isUrl = (v: string) => /^https?:\/\//i.test(v)
@@ -2004,14 +2012,19 @@ export function TerrainViewer() {
     const nameOf = (url: string) => { try { return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "") || new URL(url).hostname } catch { return url } }
     const terrain = params.getAll("addTerrainUrl").filter(isUrl)
     const basemap = params.getAll("addBasemapUrl").filter(isUrl)
+    const overlay = params.getAll("addOverlayUrl").filter(isUrl)
     if (terrain.length) setCustomTerrainSources((prev) => [...prev, ...terrain.filter((url) => !prev.some((s) => s.id === url)).map((url): CustomTerrainSource => {
       const type = (params.get("terrainType") || (url.includes("{z}") ? "terrarium" : "cog")) as CustomTerrainSource["type"]
       return { id: url, name: nameOf(url), url, type, description: "Loaded from a link", ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
     })])
-    if (basemap.length) setCustomBasemapSources((prev) => [...prev, ...basemap.filter((url) => !prev.some((s) => s.id === url)).map((url): CustomBasemapSource => {
+    const makeBasemap = (url: string, role: "basemap" | "overlay"): CustomBasemapSource => {
       const type = (params.get("basemapType") || (url.includes("{z}") ? "tms" : "cog")) as CustomBasemapSource["type"]
-      return { id: url, name: nameOf(url), url, type, description: "Loaded from a link", ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
-    })])
+      return { id: url, name: nameOf(url), url, type, role, description: "Loaded from a link", ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
+    }
+    if (basemap.length || overlay.length) setCustomBasemapSources((prev) => [...prev,
+      ...basemap.filter((url) => !prev.some((s) => s.id === url)).map((url) => makeBasemap(url, "basemap")),
+      ...overlay.filter((url) => !prev.some((s) => s.id === url)).map((url) => makeBasemap(url, "overlay")),
+    ])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const hasFramedUrlSourceRef = useRef(false)
@@ -2023,6 +2036,9 @@ export function TerrainViewer() {
     const nameOf = (url: string) => { try { return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "") || new URL(url).hostname } catch { return url } }
     const terrainUrls = Array.from(new Set(VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]).filter(isUrl)))
     const basemapUrls = Array.from(new Set([state.basemapSource, ...VIEW_IDS.map((side) => stateAny[`basemapSource${side}`])].filter(isUrl)))
+    // ?overlayBasemapIds=https://... (the active-overlays state field) can
+    // name a URL too: registered with the overlay role.
+    const overlayUrls = Array.from(new Set((state.overlayBasemapIds ?? []).filter(isUrl))).filter((u) => !basemapUrls.includes(u))
     if (terrainUrls.length) {
       setCustomTerrainSources((prev) => {
         const missing = terrainUrls.filter((url) => !prev.some((s) => s.id === url))
@@ -2033,14 +2049,17 @@ export function TerrainViewer() {
         })]
       })
     }
-    if (basemapUrls.length) {
+    if (basemapUrls.length || overlayUrls.length) {
       setCustomBasemapSources((prev) => {
-        const missing = basemapUrls.filter((url) => !prev.some((s) => s.id === url))
-        if (!missing.length) return prev
-        return [...prev, ...missing.map((url): CustomBasemapSource => {
+        const make = (url: string, role: "basemap" | "overlay"): CustomBasemapSource => {
           const type = (state.basemapType || (url.includes("{z}") ? "tms" : "cog")) as CustomBasemapSource["type"]
-          return { id: url, name: nameOf(url), url, type, description: "Loaded from a link", ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
-        })]
+          return { id: url, name: nameOf(url), url, type, role, description: "Loaded from a link", ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
+        }
+        const missing = [
+          ...basemapUrls.filter((url) => !prev.some((s) => s.id === url)).map((url) => make(url, "basemap")),
+          ...overlayUrls.filter((url) => !prev.some((s) => s.id === url)).map((url) => make(url, "overlay")),
+        ]
+        return missing.length ? [...prev, ...missing] : prev
       })
     }
     if (!hasFramedUrlSourceRef.current && !params.has("lat") && !params.has("lng")) {
