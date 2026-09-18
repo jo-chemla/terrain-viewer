@@ -3,6 +3,7 @@
 // independently-drifting implementations: the terrain-only `cogTileUrl` and an inline
 // COG-vs-titiler branch duplicated in RasterBasemapSource.
 import { appendNodataMarkers, type NodataConfig } from "./nodata"
+import { buildDemFixUrl } from "./demfix-protocol"
 
 export type RasterSourceType =
   | "dem-diff"
@@ -55,7 +56,7 @@ export function buildRasterTileSource(params: {
               isDem
                 ? // encodeURIComponent: a float32 sentinel like 3.4e38 stringifies as
                   // "3.4e+38", and a raw "+" in a query string is a space.
-                  `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${encodeURIComponent(String(titilerNodata ?? 0))}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
+                  buildDemFixUrl(`${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${encodeURIComponent(String(titilerNodata ?? 0))}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`)
                 : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?resampling=bilinear&reproject=bilinear&url=${encodeURIComponent(url)}`,
             ],
           }
@@ -67,7 +68,7 @@ export function buildRasterTileSource(params: {
       }
       return {
         tiles: [
-          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? -999}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}`,
+          buildDemFixUrl(`${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? -999}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}`),
         ],
       }
 
@@ -88,7 +89,7 @@ export function buildRasterTileSource(params: {
       // this app hand-rolling per-tile GetMap+bbox requests itself.
       return {
         tiles: [
-          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(`WMS:${url}`)}`,
+          buildDemFixUrl(`${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(`WMS:${url}`)}`),
         ],
       }
 
