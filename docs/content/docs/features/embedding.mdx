@@ -5,12 +5,12 @@ description: Everything the app shows is in its URL — how to compose a link or
 
 import { EmbedBuilder } from '@/components/embed-builder';
 import { ProjectConfigTable } from '@/components/project-config-table';
-import { UrlParamsReference, StorageAtomsReference } from '@/components/url-params-reference';
+import { InstructionParamsReference } from '@/components/url-params-reference';
 
 The whole application state lives in the query string: viewport, sources, every visualization toggle, split layout, historical dates. A link reproduces a view exactly, and an iframe is just that link in a `src`. The app sets no frame restrictions and is already embedded by the [Heritage Watch](https://app.heritagewatch.ai) and Anchise wrappers.
 
 <iframe
-  src="https://jo-chemla.github.io/terrain-viewer/?terrainSourceA=custom-ca-nrcan-mrdem30&drawingUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnvkelso%2Fnatural-earth-vector%2Fmaster%2Fgeojson%2Fne_110m_lakes.geojson&viewMode=3d&lat=51.05&lng=-115.3&zoom=8&sidebarCollapsed=true"
+  src="https://jo-chemla.github.io/terrain-viewer/?terrainSourceA=custom-ca-nrcan-mrdem30&drawingUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnvkelso%2Fnatural-earth-vector%2Fmaster%2Fgeojson%2Fne_110m_lakes.geojson&viewMode=3d&lat=51.05&lng=-115.3&zoom=8&sidebarCollapsed=true&historicalTimelineCollapsed=true&showCaptureDatePill=off"
   width="100%"
   height="480"
   style={{ border: 0, borderRadius: 8 }}
@@ -37,7 +37,7 @@ Any view's terrain or basemap can be given as a URL instead of an id. The URL be
 | `basemapSource=` / `basemapSourceA=` … `basemapSourceH=` | Basemap of a view (the unsuffixed one is the shared basemap when per-view basemaps are off). `{z}` means XYZ tiles, otherwise a COG. |
 | `terrainType=` / `basemapType=` | Override the type guess (`terrarium`, `terrainrgb`, `tms`, `wms`, `cog`, …). |
 | `viaTitiler=1` | Route URL COGs through titiler. Needed when the file is not in Web Mercator; the in-browser reader assumes EPSG:3857. |
-| `drawingUrl=` | Vector data loaded into the [Drawing](/features/tools#drawing) tool, one layer per URL. Repeat the parameter for several files. GeoJSON, KML, GPX, FlatGeobuf or Shapefile. Re-fetched on every load, never stored; the layer's name and colours are remembered. |
+| `drawingUrl=` | Vector data loaded into the [Drawing](/features/tools#drawing) tool, one layer per URL; several URLs comma-separated (a comma inside a URL as `%2C`). GeoJSON, KML, GPX, FlatGeobuf or Shapefile. Re-fetched on every load, never stored; the layer's name and colours are remembered. This one is state: importing from a URL with "Keep in the link" adds to it, deleting the layer removes from it. |
 
 A link without `lat`/`lng` is framed on view A's COG (its bounds are read from the file). The server hosting the data must allow cross-origin requests, and range requests for COGs. URLs inside the query string must be percent-encoded.
 
@@ -117,18 +117,10 @@ The exact interface, generated from `lib/project-config.ts` at build time:
 
 Presets are part of the deployed app, so adding one is a pull request. For a one-off, the URL parameters above cover most of the same ground.
 
-## Reference: every state parameter
+## All parameters that are not state
 
-Generated from the app's `QUERY_STATE_PARSERS` at build time. Booleans are `true`/`false`, lists are comma-separated, and a parameter at its default is omitted from the address bar. Inside `initialState` of a project preset the terrain keys are spelled `sourceA`…`sourceH` (the internal names); in the URL they are `terrainSourceA`…`terrainSourceH`, and the old spelling is still accepted.
+Everything the app reads from the URL that it never writes back, in one place. Read once on load and left in the URL, so the link stays shareable.
 
-<UrlParamsReference />
+<InstructionParamsReference />
 
-## Reference: stored settings (not in the URL)
-
-Settings that persist in the browser's localStorage rather than the link: API keys, beta flags, panel folds, export preferences. Generated from the app's `atomWithStorage` declarations.
-
-<StorageAtomsReference />
-
-## Mirroring the iframe's state
-
-When the app runs inside an iframe on an allow-listed host, it posts its query string to the parent window whenever it changes (`postMessage({ type: "meta-app:state", params })`), so the wrapper can keep its own address bar in sync and restore the view later. The host allow-list (`lib/embed-bridge.ts`) currently holds the Heritage Watch and Anchise domains plus localhost; other hosts get no messages, and nothing is ever sent to a wildcard origin.
+Everything else is state, mirrored to the address bar by nuqs as you use the app. The complete generated list, with types and defaults, and the settings that live in localStorage instead, are on the [State reference](/dev/state) page; the same parameters as an interactive form are on [URL as an API](/dev/url-api).

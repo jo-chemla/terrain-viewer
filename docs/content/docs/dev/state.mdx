@@ -1,0 +1,26 @@
+---
+title: State reference (URL & storage)
+description: Every URL parameter the app reads, generated from the source at build time — state parameters mirrored by nuqs, instruction parameters read once on load, and the settings kept in localStorage
+---
+
+import { UrlParamsReference, InstructionParamsReference, StorageAtomsReference } from '@/components/url-params-reference';
+
+The tables on this page are generated from the app's source by `docs/scripts/build-url-params.mjs` before every docs build, so they cannot drift. For how to compose a link or an iframe, see [Embedding & URL parameters](/features/embedding); for an interactive form over the same parameters, see [URL as an API](/dev/url-api).
+
+## State parameters
+
+Read and written by [nuqs](https://nuqs.dev) from `QUERY_STATE_PARSERS` in `components/TerrainViewer.tsx`. Booleans are `true`/`false`, lists are comma-separated, colours are hex, and a parameter at its default is omitted from the address bar. In the URL the terrain source keys are `terrainSourceA`…`terrainSourceH`; the same fields are `sourceA`…`sourceH` inside the code and inside a project preset's `initialState` (see `lib/url-keys.ts`), and the old URL spelling is still accepted.
+
+<UrlParamsReference />
+
+## Instruction parameters
+
+Read once on load, never written by the app, left in place in the URL. They either load something or apply a one-time setting.
+
+<InstructionParamsReference />
+
+## Stored settings (localStorage)
+
+jotai `atomWithStorage` atoms: API keys, beta flags, panel folds, export preferences, the BYOD source lists. None of these is in the URL; a [project export](/features/projects) carries a curated subset.
+
+<StorageAtomsReference />

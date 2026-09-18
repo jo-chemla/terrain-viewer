@@ -36,7 +36,7 @@ export function EmbedBuilder() {
     setTerrainA(p.get('terrainSourceA') ?? p.get('sourceA') ?? '');
     setTerrainB(p.get('terrainSourceB') ?? p.get('sourceB') ?? '');
     setBasemap(p.get('basemapSourceA') ?? p.get('basemapSource') ?? '');
-    setDrawings(p.getAll('drawingUrl').join('\n'));
+    setDrawings(p.getAll('drawingUrl').flatMap((v) => v.split(',')).map((u) => u.replace(/%2C/g, ',')).join('\n'));
     setViaTitiler(['1', 'true'].includes(p.get('viaTitiler') ?? ''));
     const vm = p.get('viewMode');
     if (vm === '2d' || vm === '3d' || vm === 'globe') setViewMode(vm);
@@ -55,7 +55,8 @@ export function EmbedBuilder() {
       p.set('basemapSource', basemap.trim());
       p.set('showRasterBasemap', 'true');
     }
-    for (const d of drawings.split(/\n/).map((s) => s.trim()).filter(isUrl)) p.append('drawingUrl', d);
+    const urls = drawings.split(/\n/).map((s) => s.trim()).filter(isUrl);
+    if (urls.length) p.set('drawingUrl', urls.map((u) => u.replace(/,/g, '%2C')).join(','));
     if (viaTitiler) p.set('viaTitiler', '1');
     p.set('viewMode', viewMode);
     if (!sidebar) p.set('sidebarCollapsed', 'true');

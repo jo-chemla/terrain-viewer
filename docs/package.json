@@ -3,13 +3,14 @@
   "version": "0.0.14",
   "private": true,
   "scripts": {
-    "build": "next build",
-    "dev": "next dev -p 3100",
+    "build": "node scripts/build-url-params.mjs && next build",
+    "dev": "node scripts/build-url-params.mjs && next dev -p 3100",
     "start": "serve out -l 3100",
     "types:check": "next typegen && tsc --noEmit",
     "lint": "eslint"
   },
   "dependencies": {
+    "@scalar/api-reference-react": "^0.9.68",
     "cnfast": "^0.1.0",
     "fumadocs-core": "16.14.3",
     "fumadocs-mdx": "15.2.3",

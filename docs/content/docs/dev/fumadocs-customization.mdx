@@ -1,0 +1,48 @@
+---
+title: Fumadocs customization
+description: What this documentation site adds on top of a stock Fumadocs install — components, generators, and the Next base-path fixes
+---
+
+The docs are a Next.js app under `docs/`, on [Fumadocs](https://fumadocs.dev) with the Base UI preset, exported statically and served by the main app under `/docs`. Everything below is what was added to the stock setup; the rest is Fumadocs as shipped.
+
+## Content components
+
+Used from MDX, registered in `docs/src/components/mdx.tsx` or imported per page.
+
+| Component | File | What it does |
+|---|---|---|
+| Lightbox | `lightbox.tsx`, `feature-lightbox.tsx` | Every prose image is click-to-open; the page's images form one loop with left/right arrow keys. `mdx.tsx` tags each `img` for it. |
+| Gallery | `gallery.tsx` | Multi-image rows with captions, grouped, sharing the page lightbox. |
+| VizModeGrid | `viz-mode-grid.tsx` | The visualization modes matrix with thumbnails and links into the app. |
+| Mermaid | `mermaid.tsx` | Client-side Mermaid diagrams from fenced blocks (`remarkMdxMermaid` in `source.config.ts`). |
+| NationalDatasetsTable | `national-datasets-table.tsx` | The national terrain sources page: a world map of coverage (`world-110m.json`, built by `scripts/build-world-110m.mjs`) plus the sortable table, both read from the app's `lib/custom-sources.json` at build time. |
+| EmbedBuilder | `embed-builder.tsx` | The link / iframe builder on the [Embedding](/features/embedding) page; can start from a pasted link. |
+| ProjectConfigTable | `project-config-table.tsx` | The `ProjectConfig` interface rendered from `lib/project-config.ts` with `fumadocs-typescript`'s `AutoTypeTable`, JSDoc included. |
+| UrlParamsReference, InstructionParamsReference, StorageAtomsReference | `url-params-reference.tsx` | The [state reference](/dev/state) tables, from `src/generated/url-params.json`. |
+| ScalarReference | `scalar-reference.tsx` | Scalar's API reference over the generated `openapi.json` ([URL as an API](/dev/url-api)). |
+
+## Generators (run before `next dev` / `next build`)
+
+- `scripts/build-url-params.mjs` scans `components/TerrainViewer.tsx` for the nuqs parsers, the atom files for `atomWithStorage`, and writes `src/generated/url-params.json` and `public/openapi.json`.
+- `scripts/build-world-110m.mjs` builds the simplified country outlines for the national datasets map.
+
+## Changelog
+
+`changelog-list.tsx` parses the repository's `CHANGELOG.md` (the same file the app's Settings dialog renders) into release entries, and `changelogToc()` builds the page's right-hand table of contents from the release headings, wired in `app/[...slug]/page.tsx`. Screenshots referenced from the changelog live in `public/screenshots/` and are served to the app too.
+
+## Shared source with the app
+
+Some pages are the single source of truth for text the app shows: `features/keyboard-shortcuts.mdx` and the visualization modes description are imported into the app with Vite's `?raw`, and the Vite dev server proxies `/docs` to this site while serving `/docs/content/` itself so those raw imports work in development.
+
+## Base-path fixes
+
+The site runs under `basePath: "/docs"`, which two stock pieces did not handle:
+
+- `page-actions.tsx` replaces Fumadocs' "Open in …" / "View as Markdown" menu, whose URLs dropped the base path.
+- `mdx.tsx` leaves root-relative links to static assets as plain anchors, so a link to a file the main app serves is not rewritten into the docs subtree.
+
+## Other
+
+- `provider.tsx` and `search.tsx`: the root provider and a static search index, since there is no server at runtime.
+- `source.config.ts`: `remark-math` + `rehype-katex` for equations (`dev/equations`), ordered so KaTeX runs before Shiki.
+- `app/global.css`: KaTeX styles and the lightbox cursor.

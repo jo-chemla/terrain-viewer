@@ -1,0 +1,11 @@
+---
+title: URL as an API (Scalar)
+description: The viewer's URL described as an OpenAPI document, browsed with Scalar — every parameter with the right control for its type
+full: true
+---
+
+import { ScalarReference } from '@/components/scalar-reference';
+
+The app has no HTTP API, but its URL behaves like one: a single `GET /` whose query parameters are the whole state. `docs/scripts/build-url-params.mjs` writes that as an OpenAPI 3.1 document, [`openapi.json`](/docs/openapi.json), from the same source scan as the [state reference](/dev/state), and Scalar renders it below. Booleans, numbers, enums and lists get the matching control; fill some in and copy the resulting URL from the request preview. The "send" button is meaningless here, and lists are comma-separated in one value unless the parameter is marked repeatable.
+
+<ScalarReference />
