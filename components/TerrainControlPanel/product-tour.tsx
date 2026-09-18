@@ -1155,6 +1155,11 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   // cancel the stale timer) the moment the persisted value actually arrives.
   useEffect(() => {
     if (hasSeenTour) return
+    // Never inside an iframe: an embed is someone else's page, and the tour
+    // would open over a small map for a visitor who did not ask for it.
+    // ?startTour=true (below) still works there. hasSeenTour is left alone,
+    // so the same browser still gets the tour on a direct first visit.
+    if (window.self !== window.top) return
     const t = setTimeout(() => {
       setHasSeenTour(true)
       setIsTourRequested(true)

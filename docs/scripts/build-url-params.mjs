@@ -121,7 +121,7 @@ const openapi = {
   info: {
     title: "terrain-viewer URL",
     version: "1",
-    description: "The application has no HTTP API: this document describes its URL. Every query parameter below is either a piece of state the app mirrors to the address bar (booleans, numbers, enums, lists) or an instruction read once on load. Fill the parameters in and open the resulting URL; the 'send' button is meaningless here. Lists are comma-separated unless marked as repeatable.",
+    description: "Not an HTTP API: the viewer's URL. Every query parameter is state the app mirrors to the address bar (booleans, numbers, enums, lists) or an instruction read once on load. Lists are comma-separated unless marked repeatable.",
   },
   servers: [{ url: "https://jo-chemla.github.io/terrain-viewer" }],
   paths: {

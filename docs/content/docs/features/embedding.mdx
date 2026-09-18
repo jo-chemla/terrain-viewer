@@ -7,10 +7,10 @@ import { EmbedBuilder } from '@/components/embed-builder';
 import { ProjectConfigTable } from '@/components/project-config-table';
 import { InstructionParamsReference } from '@/components/url-params-reference';
 
-The whole application state lives in the query string: viewport, sources, every visualization toggle, split layout, historical dates. A link reproduces a view exactly, and an iframe is just that link in a `src`. The app sets no frame restrictions and is already embedded by the [Heritage Watch](https://app.heritagewatch.ai) and Anchise wrappers.
+The whole application state lives in the query string: viewport, sources, every visualization toggle, split layout, historical dates. A link reproduces a view exactly, and an iframe is just that link in a `src`. Inside an iframe the product walkthrough never starts by itself (`startTour=true` still opens it). The app sets no frame restrictions and is already embedded by the [Heritage Watch](https://app.heritagewatch.ai) and Anchise wrappers.
 
 <iframe
-  src="https://jo-chemla.github.io/terrain-viewer/?terrainSourceA=custom-ca-nrcan-mrdem30&drawingUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnvkelso%2Fnatural-earth-vector%2Fmaster%2Fgeojson%2Fne_110m_lakes.geojson&viewMode=3d&lat=51.05&lng=-115.3&zoom=8&sidebarCollapsed=true&historicalTimelineCollapsed=true&showCaptureDatePill=off"
+  src="https://jo-chemla.github.io/terrain-viewer/?terrainSourceA=custom-ca-nrcan-mrdem30&drawingUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnvkelso%2Fnatural-earth-vector%2Fmaster%2Fgeojson%2Fne_110m_lakes.geojson&viewMode=3d&lat=51.05&lng=-115.3&zoom=8&sidebarCollapsed=true&historicalTimelineCollapsed=true&showCaptureDatePill=source-date"
   width="100%"
   height="480"
   style={{ border: 0, borderRadius: 8 }}

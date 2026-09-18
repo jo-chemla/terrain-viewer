@@ -19,6 +19,9 @@ export function ScalarReference() {
           showSidebar: false,
           layout: 'classic',
           theme: 'none',
+          // One operation: open it straight away rather than behind a fold.
+          defaultOpenAllTags: true,
+          expandAllResponses: true,
         }}
       />
     </div>
