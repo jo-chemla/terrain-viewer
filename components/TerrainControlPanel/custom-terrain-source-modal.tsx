@@ -13,8 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGr
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Switch } from "@/components/ui/switch"
-import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom, customTerrainLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
+import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom, customTerrainSourcesAtom, customTerrainLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { supportsNodataControls } from "@/lib/nodata"
+import { terrainSources } from "@/lib/terrain-sources"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
 import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
@@ -54,6 +55,18 @@ export const CustomTerrainSourceModal: React.FC<{
   // CustomTerrainSource.linkedBasemapId; the reverse Select lives in
   // custom-basemap-modal.tsx and either side is enough to link the pair.
   const [linkedBasemapId, setLinkedBasemapId] = useState("")
+  // type "dem-diff": the two operand terrain sources (see CustomTerrainSource.diffMinuendId).
+  const [diffMinuendId, setDiffMinuendId] = useState("")
+  const [diffSubtrahendId, setDiffSubtrahendId] = useState("")
+  const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const isDemDiff = type === "dem-diff"
+  // Operands: every built-in and custom terrain source except differences
+  // (one level only) and the source being edited.
+  const diffOperands = useMemo(() => [
+    ...Object.entries(terrainSources).filter(([, cfg]) => (cfg as any).encoding !== "3dtiles").map(([id, cfg]) => ({ id, name: (cfg as any).name as string })),
+    ...customTerrainSources.filter((s) => s.type !== "dem-diff" && s.id !== editingSource?.id).map((s) => ({ id: s.id, name: s.name })),
+  ], [customTerrainSources, editingSource?.id])
+  const diffReady = !!diffMinuendId && !!diffSubtrahendId && diffMinuendId !== diffSubtrahendId
   // [west, south, east, north] as free-text draft strings — mirrors
   // CustomTerrainSource.bounds, manually settable for sources (e.g. WMS) whose
   // extent can't be auto-detected the way COG metadata is.
@@ -93,6 +106,8 @@ export const CustomTerrainSourceModal: React.FC<{
       setDescription(editingSource.description || "")
       setMaxzoom(editingSource.maxzoom === undefined ? "" : String(editingSource.maxzoom))
       setLinkedBasemapId(editingSource.linkedBasemapId ?? "")
+      setDiffMinuendId(editingSource.diffMinuendId ?? "")
+      setDiffSubtrahendId(editingSource.diffSubtrahendId ?? "")
       setBoundsWest(editingSource.bounds ? String(editingSource.bounds[0]) : "")
       setBoundsSouth(editingSource.bounds ? String(editingSource.bounds[1]) : "")
       setBoundsEast(editingSource.bounds ? String(editingSource.bounds[2]) : "")
@@ -124,6 +139,8 @@ export const CustomTerrainSourceModal: React.FC<{
       setDescription("")
       setMaxzoom("")
       setLinkedBasemapId("")
+      setDiffMinuendId("")
+      setDiffSubtrahendId("")
       setBoundsWest("")
       setBoundsSouth("")
       setBoundsEast("")
@@ -185,7 +202,7 @@ export const CustomTerrainSourceModal: React.FC<{
   const showEncodingFields = type === "terrainrgb"
 
   const handleSave = useCallback(() => {
-    if (!name || !url) return
+    if (!name || (isDemDiff ? !diffReady : !url)) return
     const parsedMaxzoom = maxzoom === "" ? undefined : Number(maxzoom)
     const boundsValues = [boundsWest, boundsSouth, boundsEast, boundsNorth].map((v) => Number(v))
     // All four or none — a partial bounds box isn't meaningful, so treat it the
@@ -198,7 +215,8 @@ export const CustomTerrainSourceModal: React.FC<{
     const parseNodata = (v: string) => (!showNodataFields || v === "" || !Number.isFinite(Number(v)) ? undefined : Number(v))
     const parseEncoding = (v: string) => (!showEncodingFields || v === "" || !Number.isFinite(Number(v)) ? undefined : Number(v))
     onSave({
-      id: editingSource?.id, name, url, type: type as CustomTerrainSource["type"], description, maxzoom: parsedMaxzoom,
+      id: editingSource?.id, name, url: isDemDiff ? `diff://${diffMinuendId}-${diffSubtrahendId}` : url, type: type as CustomTerrainSource["type"], description, maxzoom: parsedMaxzoom,
+      ...(isDemDiff ? { diffMinuendId, diffSubtrahendId } : {}),
       linkedBasemapId: linkedBasemapId || undefined,
       bounds: parsedBounds,
       nodataFloor: parseNodata(nodataFloor),
@@ -211,7 +229,7 @@ export const CustomTerrainSourceModal: React.FC<{
       cogViaTitiler: showTitilerToggle && cogViaTitiler ? true : undefined,
     })
     onOpenChange(false)
-  }, [name, url, type, description, maxzoom, linkedBasemapId, boundsWest, boundsSouth, boundsEast, boundsNorth, nodataFloor, nodataFill, showNodataFields, redFactor, greenFactor, blueFactor, baseShift, showEncodingFields, cogViaTitiler, showTitilerToggle, editingSource, onSave, onOpenChange])
+  }, [isDemDiff, diffReady, diffMinuendId, diffSubtrahendId, name, url, type, description, maxzoom, linkedBasemapId, boundsWest, boundsSouth, boundsEast, boundsNorth, nodataFloor, nodataFill, showNodataFields, redFactor, greenFactor, blueFactor, baseShift, showEncodingFields, cogViaTitiler, showTitilerToggle, editingSource, onSave, onOpenChange])
 
   // COG/cog-local sources detect their own zoom range from file metadata via
   // geomatico (below) rather than needing a manual field — but MapSources.tsx's
@@ -268,6 +286,7 @@ export const CustomTerrainSourceModal: React.FC<{
                 stac: "STAC catalogue search (beta)",
                 "wms-raw": "WMS (raw Float32 elevation)",
                 tilejson: "TileJSON",
+                "dem-diff": "Difference of two sources (DSM − DTM)",
                 vrt: `VRT${useCogProtocol ? " (titiler mode only)" : ""}`,
               }}
             >
@@ -296,6 +315,10 @@ export const CustomTerrainSourceModal: React.FC<{
                     VRT{useCogProtocol ? " (titiler mode only)" : ""}
                   </SelectItem>
                 </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Derived</SelectLabel>
+                  <SelectItem value="dem-diff">Difference of two sources (DSM − DTM)</SelectItem>
+                </SelectGroup>
                 {!editingSource && (
                   <SelectGroup>
                     <SelectLabel>Search a catalogue</SelectLabel>
@@ -319,7 +342,37 @@ export const CustomTerrainSourceModal: React.FC<{
             />
           ) : (
             <>
-              {type === "cog-local" ? (
+              {isDemDiff ? (
+                <div className="space-y-3">
+                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground space-y-1">
+                    <p className="font-medium text-foreground">A normalised height model: every tile of the first source minus the same tile of the second.</p>
+                    <p>A surface model (DSM: canopy, roofs) minus a terrain model (DTM: bare ground) gives the height of what stands on the ground, with the ground itself flattened: 0 is bare earth, 25 m is a 25 m tree. Any two sources can be subtracted, e.g. two dates of the same survey for change.</p>
+                    <p>The result is a terrain source like any other: 3D terrain shows those heights, and hillshade, hypsometric tint (try a 0–40 m ramp), slope, contours and the rest read the difference as elevation. Where either source has no data the difference is 0.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="source-diff-a">First source (minuend, e.g. a DSM) *</Label>
+                    <Select value={diffMinuendId || "none"} onValueChange={(v: any) => setDiffMinuendId(v === "none" ? "" : v)} items={Object.fromEntries([["none", "Choose…"], ...diffOperands.map((o) => [o.id, o.name])])}>
+                      <SelectTrigger id="source-diff-a" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent className="w-[var(--anchor-width)]">
+                        <SelectItem value="none">Choose…</SelectItem>
+                        {diffOperands.map((o) => <SelectItem key={o.id} value={o.id}><span className="truncate">{o.name}</span></SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="source-diff-b">Second source (subtrahend, e.g. a DTM) *</Label>
+                    <Select value={diffSubtrahendId || "none"} onValueChange={(v: any) => setDiffSubtrahendId(v === "none" ? "" : v)} items={Object.fromEntries([["none", "Choose…"], ...diffOperands.map((o) => [o.id, o.name])])}>
+                      <SelectTrigger id="source-diff-b" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent className="w-[var(--anchor-width)]">
+                        <SelectItem value="none">Choose…</SelectItem>
+                        {diffOperands.map((o) => <SelectItem key={o.id} value={o.id}><span className="truncate">{o.name}</span></SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {diffMinuendId && diffMinuendId === diffSubtrahendId && <p className="text-xs text-destructive">Pick two different sources.</p>}
+                  <p className="text-[11px] text-muted-foreground">Both sources are read at the same tile coordinates, so they line up whatever their native resolutions; the coarser one sets the useful detail. The two must be loaded in the app (built-in or in this list), not just any URL.</p>
+                </div>
+              ) : type === "cog-local" ? (
                 <div className="space-y-2">
                   <Label htmlFor="source-local-file">COG file *</Label>
                   <input
@@ -596,7 +649,7 @@ export const CustomTerrainSourceModal: React.FC<{
               </Collapsible>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="cursor-pointer">Cancel</Button>
-                <Button onClick={handleSave} disabled={!name || !url} className="cursor-pointer">{editingSource ? "Save Changes" : "Add Source"}</Button>
+                <Button onClick={handleSave} disabled={!name || (isDemDiff ? !diffReady : !url)} className="cursor-pointer">{editingSource ? "Save Changes" : "Add Source"}</Button>
               </div>
             </>
           )}

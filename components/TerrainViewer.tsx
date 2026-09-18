@@ -60,6 +60,7 @@ import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
 import { slopeProtocol } from '@/lib/slope-protocol'
+import { demDiffProtocol } from '@/lib/demdiff-protocol'
 import { aspectProtocol } from '@/lib/aspect-protocol'
 import { triProtocol } from '@/lib/tri-protocol'
 import { curvatureProtocol, CURVATURE_ENCODE_SCALE } from '@/lib/curvature-protocol'
@@ -1512,6 +1513,7 @@ export function TerrainViewer() {
     maplibregl.addProtocol('cog-contour', cogContourProtocol)
     maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
     maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
+    maplibregl.addProtocol('demdiff', withTileResultCache(demDiffProtocol))
     maplibregl.addProtocol('aspect', withTileResultCache(aspectProtocol))
     maplibregl.addProtocol('tri', withTileResultCache(triProtocol))
     maplibregl.addProtocol('curvature', withTileResultCache(curvatureProtocol))

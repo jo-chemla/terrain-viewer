@@ -5,6 +5,7 @@
 import { appendNodataMarkers, type NodataConfig } from "./nodata"
 
 export type RasterSourceType =
+  | "dem-diff"
   | "cog"
   | "vrt"
   | "tilejson"
@@ -42,6 +43,11 @@ export function buildRasterTileSource(params: {
       return { url }
 
     case "cog":
+      // reproject=bilinear: titiler's `resampling` only covers the read (overview
+      // decimation); the warp from the file's CRS to Web Mercator has its own
+      // kernel, `reproject`, and it defaults to nearest - which drew every 30 m
+      // cell of an EPSG:4674/4326 DEM as a cross-hatched staircase at z13+
+      // (measured: second-difference roughness 2.6 m nearest vs 0.27 m bilinear).
       return useCogProtocol
         ? { url: `cog://${url}${isDem ? "#dem" : ""}` }
         : {
@@ -49,8 +55,8 @@ export function buildRasterTileSource(params: {
               isDem
                 ? // encodeURIComponent: a float32 sentinel like 3.4e38 stringifies as
                   // "3.4e+38", and a raw "+" in a query string is a space.
-                  `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${encodeURIComponent(String(titilerNodata ?? 0))}&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
-                : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(url)}`,
+                  `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${encodeURIComponent(String(titilerNodata ?? 0))}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
+                : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?resampling=bilinear&reproject=bilinear&url=${encodeURIComponent(url)}`,
             ],
           }
 
@@ -61,7 +67,7 @@ export function buildRasterTileSource(params: {
       }
       return {
         tiles: [
-          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? -999}&resampling=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}`,
+          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? -999}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}`,
         ],
       }
 
@@ -82,7 +88,7 @@ export function buildRasterTileSource(params: {
       // this app hand-rolling per-tile GetMap+bbox requests itself.
       return {
         tiles: [
-          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(`WMS:${url}`)}`,
+          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(`WMS:${url}`)}`,
         ],
       }
 

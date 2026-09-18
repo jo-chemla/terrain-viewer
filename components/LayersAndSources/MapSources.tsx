@@ -14,6 +14,7 @@ import { elevationToTerrainrgb, elevationToTerrarium, resolveCustomEncoding } fr
 import { resolveNodata, isSentinel } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
+import { buildDemDiffUrl } from "@/lib/demdiff-protocol"
 import { buildAspectProtocolUrl } from "@/lib/aspect-protocol"
 import { buildTriProtocolUrl } from "@/lib/tri-protocol"
 import { buildCurvatureProtocolUrl, type CurvatureMode } from "@/lib/curvature-protocol"
@@ -178,6 +179,11 @@ export const TerrainSources = memo(({
 
     const { data: metadata } = useCogMetadata(isCogProtocol ? resolvedCogUrl : null)
     const tilejsonMetadata = useTilejsonMetadata(isTilejson ? customSource.url : null)
+    // "dem-diff" (DSM minus DTM, lib/demdiff-protocol.ts): its tiles are the
+    // difference of two other sources' tiles, resolved the way the client-side
+    // viz modes resolve any upstream - so the primary terrain and every viz
+    // mode read the same derived grid.
+    const diffUpstream = useClientDemUpstream(source, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
     const { minzoom, maxzoom: detectedMaxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
     // A custom source's explicit maxzoom (e.g. WMS sources without COG metadata to auto-detect from)
     // wins over both the metadata-detected value and the 0-20 fallback.
@@ -217,6 +223,17 @@ export const TerrainSources = memo(({
     }, [isCogProtocol, resolvedCogUrl, highResTerrain, metadata?.scale, metadata?.offset, metadata?.noData, customSource?.nodataFloor, customSource?.nodataFill])
 
     const sourceConfig: RasterDEMSourceSpecification | null | undefined = useMemo(() => {
+        if (customSource?.type === "dem-diff") {
+            if (!diffUpstream) return null
+            return {
+                type: "raster-dem",
+                tileSize: 256,
+                tiles: [diffUpstream.template],
+                encoding: "mapbox",
+                minzoom: diffUpstream.minzoom ?? 0,
+                maxzoom: diffUpstream.maxzoom ?? 20,
+            }
+        }
         if (customSource) {
             // For COG protocol, wait for metadata before rendering (this also covers a
             // local file not (re-)picked yet this session — resolvedCogUrl is null,
@@ -273,7 +290,7 @@ export const TerrainSources = memo(({
             ...base.sourceConfig,
             tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
         }
-    }, [customSource, source, useCogProtocolForSource, titilerEndpoint, highResTerrain, effectiveMinzoom, maxzoom, isCogProtocol, isCogLocal, resolvedCogUrl, isTilejson, tilejsonMetadata, mapboxKey, maptilerKey, metadata])
+    }, [diffUpstream, customSource, source, useCogProtocolForSource, titilerEndpoint, highResTerrain, effectiveMinzoom, maxzoom, isCogProtocol, isCogLocal, resolvedCogUrl, isTilejson, tilejsonMetadata, mapboxKey, maptilerKey, metadata])
 
     // A source's declared maxzoom (sourceConfig.maxzoom) isn't always backed by
     // real coverage at every location — most visibly Mapterhorn, which declares
@@ -663,9 +680,22 @@ export const useClientDemUpstream = (
     // maxzoom while the point-sample cleanly falls back to a lower, real one.
     latProp?: number,
     lngProp?: number,
-) => {
+    /** Internal: set when resolving one operand of a "dem-diff" source, so a
+     *  difference of differences stops at one level (hooks below are called
+     *  conditionally on this, which is stable per call site). */
+    _nested = false,
+): ClientDemUpstream | null => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const [highResTerrain] = useAtom(highResTerrainAtom)
+    // A "dem-diff" source is the difference of two other sources' tiles (see
+    // lib/demdiff-protocol.ts): resolve both operands with this same hook and
+    // wrap their templates. Operands that are themselves differences resolve
+    // to null.
+    const diffSource = !_nested ? customTerrainSources.find((s) => s.id === terrainSource && s.type === "dem-diff") : undefined
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const diffA: ClientDemUpstream | null = _nested ? null : useClientDemUpstream(diffSource?.diffMinuendId ?? "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, latProp, lngProp, true)
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const diffB: ClientDemUpstream | null = _nested ? null : useClientDemUpstream(diffSource?.diffSubtrahendId ?? "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, latProp, lngProp, true)
     // Callers that pass lat/lng win; everyone else probes at the primary
     // viewport centre (see viewportCenterAtom), so no viz source is left with
     // a declared maxzoom the tiles at this location cannot honour.
@@ -693,6 +723,19 @@ export const useClientDemUpstream = (
     const cogZoomRange = useMemo(() => zoomRangeFromMetadata(cogMetadata), [cogMetadata])
 
     const baseUpstream = useMemo<ClientDemUpstream | null>(() => {
+        if (customSource?.type === "dem-diff") {
+            if (_nested || !diffA || !diffB) return null
+            const a = diffA, b = diffB
+            const mins = [a.minzoom, b.minzoom].filter((v): v is number => typeof v === "number")
+            const maxs = [a.maxzoom, b.maxzoom].filter((v): v is number => typeof v === "number")
+            return {
+                template: buildDemDiffUrl(a, b, 256),
+                encoding: "mapbox" as const,
+                tileSize: 256,
+                ...(mins.length ? { minzoom: Math.max(...mins) } : {}),
+                ...(maxs.length ? { maxzoom: Math.min(...maxs) } : {}),
+            }
+        }
         if (!customSource) {
             const builtin = (terrainSources as any)[terrainSource as TerrainSource]
             if (!builtin || builtin.encoding === "3dtiles") return null
@@ -780,7 +823,7 @@ export const useClientDemUpstream = (
         }
         return { template: built.tiles[0], encoding, tileSize: 256 }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogRemote])
+    }, [diffA, diffB, _nested, customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogRemote])
 
     // Same per-viewport real-coverage probe TerrainSources runs for the
     // primary elevation Source (see lib/tile-max-zoom.ts) — only actually

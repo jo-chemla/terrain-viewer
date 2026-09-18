@@ -150,7 +150,7 @@ export const useSourceConfig = () => {
     const customSource = customTerrainSources.find((s) => s.id === sourceKey)
     if (!customSource) return null
 
-    if (customSource.type === "wms-raw" || customSource.type === "tilejson" || customSource.type === "stac" || customSource.type === "mosaicjson") {
+    if (customSource.type === "wms-raw" || customSource.type === "tilejson" || customSource.type === "stac" || customSource.type === "mosaicjson" || customSource.type === "dem-diff") {
       // wms-raw's float32 GetMap URL and tilejson's manifest link are not
       // {z}/{x}/{y} tile pyramids buildGdalWmsXml can wrap; stac/mosaicjson need
       // server-side GDAL mosaicking this app doesn't build a URL for at all.

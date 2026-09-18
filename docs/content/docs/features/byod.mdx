@@ -29,6 +29,12 @@ Both dialogs can search catalogues instead of taking a URL:
 
 Where a source has data is what [Coverage Overlays](/features/coverage-overlays) show, on the map, before you load it.
 
+## Derived terrain: the difference of two sources (DSM − DTM)
+
+**Add Terrain → Difference of two sources** makes a terrain source out of two others, subtracted tile by tile. The canonical case is a **normalised height model**: a surface model (DSM, which includes canopy and roofs) minus a terrain model (DTM, bare ground) leaves the height of what stands on the ground, with the ground flattened away — 0 is bare earth, 25 m is a 25 m tree, whatever the terrain underneath. Two dates of the same survey give a change map the same way.
+
+The result is a terrain source like any other. Select it for a view and 3D terrain shows the object heights, hillshade lights their edges, a hypsometric ramp over 0–40 m is a canopy-height map, and slope, contours and every other mode read the difference as if it were elevation. Both operands must already be loaded (built-in or in the Bring-Your-Own-Data list); they are read at the same tile coordinates, so they line up whatever their native resolutions, and the coarser one sets the useful detail. Where either side has no data the difference is 0. The operands can be anything the app reads — COGs, tiles, WMS — but not another difference.
+
 ## Local (offline) COG terrain sources
 
 Two ways to use a COG that lives on your own disk, without uploading it anywhere:
