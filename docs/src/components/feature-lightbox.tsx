@@ -1,40 +1,32 @@
+import Link from 'next/link';
+
 export interface Feature {
   title: string;
   body: string;
   image: string;
   alt: string;
+  /** Docs page the card opens (basePath-relative, as next/link expects). */
+  href: string;
 }
 
-/** Click-to-lightbox via the page's shared LightboxProvider (see
- *  (home)/page.tsx and lightbox.tsx) — looping left/right arrow-key
- *  navigation across every feature image/video. */
+/** The home page's feature cards: each one is a link to its docs page
+ *  (image, title and text alike), not a lightbox - the page is the point.
+ *  Stills only, no video: the home page has to come up fast. */
 export function FeatureGrid({ features }: { features: Feature[] }) {
   return (
     <div className="grid gap-10 sm:grid-cols-2">
       {features.map((f) => (
-        <div key={f.title} className="flex flex-col gap-3">
-          {f.image.endsWith('.mp4') ? (
-            <video
-              src={f.image}
-              autoPlay
-              loop
-              muted
-              playsInline
-              data-lightbox=""
-              className="w-full cursor-zoom-in rounded-xl border object-cover transition-opacity hover:opacity-90"
-            />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={f.image}
-              alt={f.alt}
-              data-lightbox=""
-              className="w-full cursor-zoom-in rounded-xl border object-cover transition-opacity hover:opacity-90"
-            />
-          )}
-          <h2 className="text-lg font-semibold">{f.title}</h2>
+        <Link key={f.title} href={f.href} className="group flex flex-col gap-3 no-underline">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={f.image}
+            alt={f.alt}
+            loading="lazy"
+            className="w-full rounded-xl border object-cover transition-opacity group-hover:opacity-90"
+          />
+          <h2 className="text-lg font-semibold group-hover:underline">{f.title}</h2>
           <p className="text-sm text-fd-muted-foreground">{f.body}</p>
-        </div>
+        </Link>
       ))}
     </div>
   );

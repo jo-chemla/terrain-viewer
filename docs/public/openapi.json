@@ -11,12 +11,12 @@
       "description": "This deployment"
     },
     {
-      "url": "https://jo-chemla.github.io/terrain-viewer",
-      "description": "Public (terrain mode)"
+      "url": "https://terrain-viewer.iconem.com",
+      "description": "terrain-viewer.iconem.com"
     },
     {
       "url": "https://historical-satellite.iconem.com",
-      "description": "Iconem (historical mode)"
+      "description": "historical-satellite.iconem.com (historical mode)"
     }
   ],
   "paths": {
@@ -183,6 +183,15 @@
             "in": "query",
             "required": false,
             "description": "Instruction. Starts the product walkthrough.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "bookmarksGallery",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. Opens the Bookmarks gallery modal on arrival.",
             "schema": {
               "type": "boolean"
             }

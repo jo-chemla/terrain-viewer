@@ -417,6 +417,13 @@ export const BookmarksSection: React.FC<{
   const [activeBookmarkId, setActiveBookmarkId] = useAtom(activeBookmarkIdAtom)
   const [isSaving, setIsSaving] = useState(false)
   const [isGalleryOpen, setIsGalleryOpen] = useState(false)
+  // ?bookmarksGallery=true - one-shot: open the gallery modal on arrival
+  // (a moment after mount, so ?bookmarksUrl= bookmarks have landed).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("bookmarksGallery") !== "true") return
+    const t = setTimeout(() => setIsGalleryOpen(true), 800)
+    return () => clearTimeout(t)
+  }, [])
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
   // Gates the rename/delete buttons on every row — same "Edit layer names…"

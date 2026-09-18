@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from 'react';
 
-const APP = 'https://jo-chemla.github.io/terrain-viewer/';
+const APPS = {
+  'https://terrain-viewer.iconem.com/': 'terrain-viewer.iconem.com',
+  'https://historical-satellite.iconem.com/': 'historical-satellite.iconem.com (historical mode by default)',
+} as const;
 const isUrl = (v: string) => /^https?:\/\//i.test(v);
 
 // Builds a terrain-viewer link / iframe from a few fields, the way the
@@ -17,6 +20,7 @@ export function EmbedBuilder() {
   const [viewMode, setViewMode] = useState<'2d' | '3d' | 'globe'>('3d');
   const [sidebar, setSidebar] = useState(true);
   const [height, setHeight] = useState(560);
+  const [app, setApp] = useState<string>(Object.keys(APPS)[0]);
   // Everything in a pasted link that the fields above do not model (camera,
   // viz toggles, dates, ...) is kept verbatim and re-emitted.
   const [extra, setExtra] = useState<[string, string][]>([]);
@@ -33,6 +37,7 @@ export function EmbedBuilder() {
     let u: URL;
     try { u = new URL(value.trim()); } catch { setPasteError('Not a URL'); return; }
     const p = u.searchParams;
+    if (u.origin + '/' in APPS) setApp(u.origin + '/');
     setTerrainA(p.get('terrainSourceA') ?? p.get('sourceA') ?? '');
     setTerrainB(p.get('terrainSourceB') ?? p.get('sourceB') ?? '');
     setBasemap(p.get('basemapSourceA') ?? p.get('basemapSource') ?? '');
@@ -61,8 +66,8 @@ export function EmbedBuilder() {
     p.set('viewMode', viewMode);
     if (!sidebar) p.set('sidebarCollapsed', 'true');
     for (const [k, v] of extra) if (!p.has(k)) p.append(k, v);
-    return `${APP}?${p.toString()}`;
-  }, [terrainA, terrainB, basemap, drawings, viaTitiler, viewMode, sidebar, extra]);
+    return `${app}?${p.toString()}`;
+  }, [app, terrainA, terrainB, basemap, drawings, viaTitiler, viewMode, sidebar, extra]);
 
   const iframe = `<iframe\n  src="${url}"\n  width="100%" height="${height}"\n  style="border: 0"\n  allow="fullscreen; clipboard-write"\n  loading="lazy"\n></iframe>`;
 
@@ -80,7 +85,7 @@ export function EmbedBuilder() {
             onChange={(e) => setPasted(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') parseLink(pasted); }}
             onBlur={() => { if (pasted.trim()) parseLink(pasted); }}
-            placeholder="https://jo-chemla.github.io/terrain-viewer/?lat=…"
+            placeholder="https://terrain-viewer.iconem.com/?lat=…"
           />
           {pasteError && <p className="text-xs text-red-500">{pasteError}</p>}
           {extra.length > 0 && <p className="text-[11px] text-fd-muted-foreground">{extra.length} other parameter{extra.length === 1 ? '' : 's'} carried over from the link ({extra.map(([k]) => k).slice(0, 8).join(', ')}{extra.length > 8 ? ', …' : ''}).</p>}
@@ -104,6 +109,12 @@ export function EmbedBuilder() {
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" checked={viaTitiler} onChange={(e) => setViaTitiler(e.target.checked)} /> COGs through titiler (not Web Mercator)</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={sidebar} onChange={(e) => setSidebar(e.target.checked)} /> Side panel open at start</label>
+        </div>
+        <div>
+          <label className={label}>Deployment</label>
+          <select className={field} value={app} onChange={(e) => setApp(e.target.value)}>
+            {Object.entries(APPS).map(([url, name]) => <option key={url} value={url}>{name}</option>)}
+          </select>
         </div>
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <label className="flex items-center gap-2">View

@@ -10,7 +10,7 @@ import { InstructionParamsReference } from '@/components/url-params-reference';
 The whole application state lives in the query string: viewport, sources, every visualization toggle, split layout, historical dates. A link reproduces a view exactly, and an iframe is just that link in a `src`. Inside an iframe the product walkthrough never starts by itself (`startTour=true` still opens it). The app sets no frame restrictions and is already embedded by the [Heritage Watch](https://app.heritagewatch.ai) and Anchise wrappers.
 
 <iframe
-  src="https://jo-chemla.github.io/terrain-viewer/?terrainSourceA=custom-ca-nrcan-mrdem30&drawingUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnvkelso%2Fnatural-earth-vector%2Fmaster%2Fgeojson%2Fne_110m_lakes.geojson&viewMode=3d&lat=51.05&lng=-115.3&zoom=8&sidebarCollapsed=true&historicalTimelineCollapsed=true&showCaptureDatePill=source-date"
+  src="https://terrain-viewer.iconem.com/?terrainSourceA=custom-ca-nrcan-mrdem30&drawingUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnvkelso%2Fnatural-earth-vector%2Fmaster%2Fgeojson%2Fne_110m_lakes.geojson&viewMode=3d&lat=51.05&lng=-115.3&zoom=8&sidebarCollapsed=true&historicalTimelineCollapsed=true&showCaptureDatePill=source-date"
   width="100%"
   height="480"
   style={{ border: 0, borderRadius: 8 }}
@@ -64,7 +64,8 @@ These are read once on load and are never written by the app. They stay in the U
 | `openSections=a,b` / `closeSections=a,b` | Sidebar sections to expand or collapse on load (`general`, `terrainSource`, `hillshade`, `drawing`, …). |
 | `scrollTo=<section>` | Opens that section and scrolls the side panel to it, so a link can land on the hillshade light pad: `scrollTo=hillshade`. Section keys as above, or any element id. |
 | `startTour=true` | Starts the product walkthrough. |
-| `bookmarksUrl=<url>` | A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks: a curated selection handed out by link. Pair with `openSections=bookmarks` (or `scrollTo=bookmarks`) to land on it. |
+| `bookmarksGallery=true` | Opens the Bookmarks gallery modal on arrival. |
+| `bookmarksUrl=<url>` | A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks: a curated selection handed out by link. Pair with `bookmarksGallery=true`, or `openSections=bookmarks` / `scrollTo=bookmarks`, to land on it. |
 | `addSources`, `addTerrainUrl`, `addBasemapUrl`, `addOverlayUrl`, `drawingUrl`, `viaTitiler`, `terrainType`, `basemapType` | See above. |
 
 The side panel and the timeline are ordinary state: `sidebarCollapsed=true` and `historicalTimelineCollapsed=true`. Which sections are folded, and the panel's scroll position, are not in the URL beyond `openSections` / `closeSections` / `scrollTo`: they change constantly in a session and would churn the address bar.

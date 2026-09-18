@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { FeatureGrid } from '@/components/feature-lightbox';
-import { LightboxProvider } from '@/components/lightbox';
 
 // Plain public/-relative string paths, explicitly prefixed with the app's
 // own basePath ("/docs", see next.config.mjs) — unlike next/link's href,
@@ -15,24 +14,29 @@ const FEATURES = [
     body: 'Hillshade, hypsometric tinting, contours, slope/aspect/curvature, TRI/TPI/roughness, LRM, Sky-View Factor, Openness, and mound (tell) detection.',
     image: '/docs/screenshots/terrain-viewer.jpg',
     alt: 'Sky-View Factor relief visualization',
+    href: '/features/visualization-modes',
   },
   {
     title: 'Light-Direction XYPad',
     body: 'Drag a 2D pad to set Hillshade/Phong illumination azimuth and elevation together, bound to real sun position and day/night constraints.',
-    image: '/docs/screenshots/hillshade-direction.mp4',
-    alt: 'Dragging the XYPad to set light direction',
+    // A still, not the .mp4 it used to be: the home page must come up fast.
+    image: '/docs/screenshots/viz-modes/hillshade.jpg',
+    alt: 'Hillshade lit from the direction set on the XYPad',
+    href: '/features/sun-position',
   },
   {
     title: 'Historical Imagery',
     body: 'Browse decades of historical satellite imagery (Wayback, HLS, Google Earth Historical, Planet) along a draggable timeline, per view.',
     image: '/docs/screenshots/historical-timeline.jpg',
     alt: 'Scrubbing the historical imagery timeline',
+    href: '/features/basemaps-and-historical',
   },
   {
     title: 'Split Screen & N-Map Compare',
     body: 'Side-by-side, overlay/blend, or up to an 8-view grid to compare terrain sources, basemaps, or historical dates against each other.',
     image: '/docs/screenshots/n-grid.jpg',
     alt: 'Comparing basemap sources side-by-side',
+    href: '/features/split-modes',
   },
 ];
 
@@ -72,9 +76,7 @@ export default function HomePage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-16">
-        <LightboxProvider>
-          <FeatureGrid features={FEATURES} />
-        </LightboxProvider>
+        <FeatureGrid features={FEATURES} />
       </section>
 
       <section className="border-t">
