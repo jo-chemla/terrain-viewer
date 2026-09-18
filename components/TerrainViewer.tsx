@@ -2031,6 +2031,10 @@ export function TerrainViewer() {
   // when nothing has been touched.
   const lastInteractedViewRef = useRef<ViewId>("A")
   const [timelineActiveSide, setTimelineActiveSide] = useAtom(timelineActiveSideAtom)
+  // Dev-only handle for poking the live maps and state from the console or
+  // an automated browser (window.__tv): the agent preview cannot render a
+  // style, but map instances and state exist, so constraints can be checked.
+  if (import.meta.env.DEV) (window as any).__tv = { mapRefs, state, setState }
   const setBookmarks = useSetAtom(bookmarksAtom)
 
   // A view's source given as a URL rather than an id, on ANY view:

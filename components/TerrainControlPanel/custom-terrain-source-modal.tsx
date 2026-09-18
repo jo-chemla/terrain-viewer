@@ -67,6 +67,12 @@ export const CustomTerrainSourceModal: React.FC<{
     ...customTerrainSources.filter((s) => s.type !== "dem-diff" && s.id !== editingSource?.id).map((s) => ({ id: s.id, name: s.name })),
   ], [customTerrainSources, editingSource?.id])
   const diffReady = !!diffMinuendId && !!diffSubtrahendId && diffMinuendId !== diffSubtrahendId
+  // The trigger shows the label from `items`; a 90-character library name
+  // there widened the whole dialog past its max width (the value span does
+  // not shrink inside Base UI's trigger), so the trigger gets a clipped label
+  // and the list keeps the full one.
+  const shortLabel = (n: string) => (n.length > 48 ? n.slice(0, 47) + "…" : n)
+  const diffItems = Object.fromEntries([["none", "Choose…"], ...diffOperands.map((o) => [o.id, shortLabel(o.name)])])
   // [west, south, east, north] as free-text draft strings — mirrors
   // CustomTerrainSource.bounds, manually settable for sources (e.g. WMS) whose
   // extent can't be auto-detected the way COG metadata is.
@@ -353,7 +359,7 @@ export const CustomTerrainSourceModal: React.FC<{
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="source-diff-a">First source (minuend, e.g. a DSM) *</Label>
-                    <Select value={diffMinuendId || "none"} onValueChange={(v: any) => setDiffMinuendId(v === "none" ? "" : v)} items={Object.fromEntries([["none", "Choose…"], ...diffOperands.map((o) => [o.id, o.name])])}>
+                    <Select value={diffMinuendId || "none"} onValueChange={(v: any) => setDiffMinuendId(v === "none" ? "" : v)} items={diffItems}>
                       <SelectTrigger id="source-diff-a" className="cursor-pointer w-full min-w-0 overflow-hidden [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:truncate"><SelectValue /></SelectTrigger>
                       <SelectContent className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)]">
                         <SelectItem value="none">Choose…</SelectItem>
@@ -363,7 +369,7 @@ export const CustomTerrainSourceModal: React.FC<{
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="source-diff-b">Second source (subtrahend, e.g. a DTM) *</Label>
-                    <Select value={diffSubtrahendId || "none"} onValueChange={(v: any) => setDiffSubtrahendId(v === "none" ? "" : v)} items={Object.fromEntries([["none", "Choose…"], ...diffOperands.map((o) => [o.id, o.name])])}>
+                    <Select value={diffSubtrahendId || "none"} onValueChange={(v: any) => setDiffSubtrahendId(v === "none" ? "" : v)} items={diffItems}>
                       <SelectTrigger id="source-diff-b" className="cursor-pointer w-full min-w-0 overflow-hidden [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:truncate"><SelectValue /></SelectTrigger>
                       <SelectContent className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)]">
                         <SelectItem value="none">Choose…</SelectItem>
