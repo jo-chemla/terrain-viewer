@@ -61,7 +61,15 @@ const makeElevationColorFunction = (
     const raw = pixel[0]
     const elevation = offset + raw * scale
     const isHole = isSentinel(raw) || raw === noData || (nodata ? elevation <= nodata.floor : false)
-    color.set(encode(isHole ? (nodata?.fill ?? 0) : elevation))
+    if (!isHole) { color.set(encode(elevation)); return }
+    // A hole keeps its fill value for MapLibre (which reads RGB only: the
+    // terrain stays flat there rather than dropping to the -10000 m floor),
+    // but is written with alpha 254 so this app's own decoders
+    // (fetchDecodedTile's validity mask) can tell it from real data - the
+    // difference source (lib/demdiff-protocol.ts) used to read a local COG's
+    // nodata as 0 m and subtract the other operand from nothing.
+    const [r, g, b] = encode(nodata?.fill ?? 0)
+    color.set([r, g, b, 254])
 }
 
 // -------------------------
