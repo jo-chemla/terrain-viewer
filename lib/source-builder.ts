@@ -47,7 +47,9 @@ export function buildRasterTileSource(params: {
         : {
             tiles: [
               isDem
-                ? `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? 0}&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
+                ? // encodeURIComponent: a float32 sentinel like 3.4e38 stringifies as
+                  // "3.4e+38", and a raw "+" in a query string is a space.
+                  `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${encodeURIComponent(String(titilerNodata ?? 0))}&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`
                 : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(url)}`,
             ],
           }
