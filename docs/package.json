@@ -13,6 +13,7 @@
     "cnfast": "^0.1.0",
     "fumadocs-core": "16.14.3",
     "fumadocs-mdx": "15.2.3",
+    "fumadocs-typescript": "^5.4.1",
     "fumadocs-ui": "npm:@fumadocs/base-ui@16.14.3",
     "katex": "^0.18.4",
     "lucide-react": "^1.28.0",

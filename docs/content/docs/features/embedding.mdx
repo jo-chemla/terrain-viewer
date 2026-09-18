@@ -4,11 +4,13 @@ description: Everything the app shows is in its URL — how to compose a link or
 ---
 
 import { EmbedBuilder } from '@/components/embed-builder';
+import { ProjectConfigTable } from '@/components/project-config-table';
+import { UrlParamsReference, StorageAtomsReference } from '@/components/url-params-reference';
 
 The whole application state lives in the query string: viewport, sources, every visualization toggle, split layout, historical dates. A link reproduces a view exactly, and an iframe is just that link in a `src`. The app sets no frame restrictions and is already embedded by the [Heritage Watch](https://app.heritagewatch.ai) and Anchise wrappers.
 
 <iframe
-  src="https://jo-chemla.github.io/terrain-viewer/?terrainSourceA=custom-ca-nrcan-mrdem30&drawingUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnvkelso%2Fnatural-earth-vector%2Fmaster%2Fgeojson%2Fne_110m_lakes.geojson&viewMode=3d&lat=51.05&lng=-115.3&zoom=8&project=example-embed"
+  src="https://jo-chemla.github.io/terrain-viewer/?terrainSourceA=custom-ca-nrcan-mrdem30&drawingUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnvkelso%2Fnatural-earth-vector%2Fmaster%2Fgeojson%2Fne_110m_lakes.geojson&viewMode=3d&lat=51.05&lng=-115.3&zoom=8&sidebar=closed"
   width="100%"
   height="480"
   style={{ border: 0, borderRadius: 8 }}
@@ -21,7 +23,7 @@ The whole application state lives in the query string: viewport, sources, every 
 
 ## Builder
 
-Fill in a terrain (and optionally a second one, a basemap and vector data), copy the iframe.
+Fill in a terrain (and optionally a second one, a basemap and vector data), copy the iframe. Or paste a link copied from the app's Share dialog to start from an existing view. The Share dialog itself also offers the iframe snippet, with a switch to hide the side panel.
 
 <EmbedBuilder />
 
@@ -46,9 +48,9 @@ The parameters above **select** a source for a view. To make sources **available
 | Parameter | Meaning |
 |---|---|
 | `addSources=id1,id2` | Library entries by id, terrain or basemap. |
-| `addTerrainUrl=` / `addBasemapUrl=` | URL sources, repeatable. `viaTitiler`, `terrainType` and `basemapType` apply to them too. |
+| `addTerrainUrl=` / `addBasemapUrl=` / `addOverlayUrl=` | URL sources, repeatable. `viaTitiler`, `terrainType` and `basemapType` apply to them too. |
 
-So a typical embed points `sourceA` at one COG and lists the alternatives with `addTerrainUrl`. Overlays (a basemap stacked on top of the active one) can only be declared through a [project preset](#project-presets) today, by giving a basemap source `"role": "overlay"`.
+So a typical embed points `terrainSourceA` at one COG and lists the alternatives with `addTerrainUrl`. Overlays, basemaps stacked on top of the active one, follow the same pattern: `addOverlayUrl=` makes one available, and the state field `overlayBasemapIds=` (a comma-separated list, which may hold URLs directly) is what turns overlays on.
 
 The older `terrainUrl=` / `basemapUrl=` parameters still work; they only target view A and register the source under a fixed id.
 
@@ -59,9 +61,13 @@ These are read once on load and are never written by the app. They stay in the U
 | Parameter | Meaning |
 |---|---|
 | `project=<id>` | A named preset (see below): hidden panels, initial state, bundled sources. |
+| `sidebar=open` / `sidebar=closed` | Whether the side panel starts open. The visitor can still toggle it; the choice is not stored. |
 | `openSections=a,b` / `closeSections=a,b` | Sidebar sections to expand or collapse on load (`general`, `terrainSource`, `hillshade`, `drawing`, …). |
+| `scrollTo=<section>` | Opens that section and scrolls the side panel to it, so a link can land on the hillshade light pad: `scrollTo=hillshade`. Section keys as above, or any element id. |
 | `startTour=true` | Starts the product walkthrough. |
-| `addSources`, `addTerrainUrl`, `addBasemapUrl`, `drawingUrl`, `viaTitiler`, `terrainType`, `basemapType` | See above. |
+| `addSources`, `addTerrainUrl`, `addBasemapUrl`, `addOverlayUrl`, `drawingUrl`, `viaTitiler`, `terrainType`, `basemapType` | See above. |
+
+The timeline's collapsed state is ordinary state (`historicalTimelineCollapsed=true`). The side panel's scroll position and fold state are not in the URL beyond the parameters above: they change constantly in a session and would churn the address bar.
 
 Everything else in the URL is state: `lat`, `lng`, `zoom`, `pitch`, `bearing`, `viewMode` (`2d`/`3d`/`globe`), `appMode` (`terrain`/`historical`), `splitStyle` (`off`/`overlay`/`side-by-side`), `gridLayout`, `showHillshade`, `showRasterBasemap`, `date`/`dateA`…, and so on. The quickest way to learn a parameter's name is to set it in the sidebar and read the address bar.
 
@@ -106,7 +112,23 @@ Everything else in the URL is state: `lat`, `lng`, `zoom`, `pitch`, `bearing`, `
 | `customTerrainSources`, `customBasemapSources` | Sources merged by id into the visitor's lists. Same fields as a BYOD source: `url`, `type`, `maxzoom`, `bounds`, `cogViaTitiler`, `nodataFloor`, `role`, `opacity`, … |
 | `initialBounds`, `autoZoomToSource` | Fly to a known bbox, or to the bbox read from a COG (`sourceA` or `basemapSource`). |
 
+The exact interface, generated from `lib/project-config.ts` at build time:
+
+<ProjectConfigTable />
+
 Presets are part of the deployed app, so adding one is a pull request. For a one-off, the URL parameters above cover most of the same ground.
+
+## Reference: every state parameter
+
+Generated from the app's `QUERY_STATE_PARSERS` at build time. Booleans are `true`/`false`, lists are comma-separated, and a parameter at its default is omitted from the address bar. Inside `initialState` of a project preset the terrain keys are spelled `sourceA`…`sourceH` (the internal names); in the URL they are `terrainSourceA`…`terrainSourceH`, and the old spelling is still accepted.
+
+<UrlParamsReference />
+
+## Reference: stored settings (not in the URL)
+
+Settings that persist in the browser's localStorage rather than the link: API keys, beta flags, panel folds, export preferences. Generated from the app's `atomWithStorage` declarations.
+
+<StorageAtomsReference />
 
 ## Mirroring the iframe's state
 
