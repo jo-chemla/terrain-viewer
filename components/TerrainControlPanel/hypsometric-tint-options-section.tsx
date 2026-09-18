@@ -183,7 +183,9 @@ export const HypsometricTintOptionsSection: React.FC<{
   // (curvature-options-section.tsx does the same for its diverging ramp).
   const symmetric = !!state.hypsoSymmetric
   const magnitude = Math.max(Math.abs(state.minElevation ?? 0), Math.abs(state.maxElevation ?? 0))
-  const magnitudeMax = Math.max(Math.abs(sliderBounds.min), Math.abs(sliderBounds.max), 1)
+  // The magnitude slider runs 0..slider max (the editable bound under its
+  // right end); the double slider's own min bound plays no part here.
+  const magnitudeMax = Math.max(Math.abs(sliderBounds.max), 1)
   const magnitudeStep = computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)
   const handleSliderChange = useCallback((values: number[]) => {
     // Ensure min doesn't exceed max
@@ -634,7 +636,7 @@ export const HypsometricTintOptionsSection: React.FC<{
                 min={magnitudeStep}
                 max={magnitudeMax}
                 step={magnitudeStep}
-                value={magnitude}
+                value={Math.min(magnitude, magnitudeMax)}
                 onValueChange={(v: number) => setState({ minElevation: -v, maxElevation: v, customHypsoMinMax: true })}
                 className="w-full cursor-pointer"
               />

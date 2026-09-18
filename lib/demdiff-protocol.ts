@@ -19,7 +19,13 @@ import { sharedTileCache, fetchDecodedTile, type DecodedTile, type UpstreamEncod
  * z/x/y, so the two grids line up pixel for pixel whatever their native
  * resolutions; an operand with no tile that deep is read from its nearest
  * ancestor tile and upsampled bilinearly. A pixel missing from either side
- * (nodata, or nothing within 6 zoom levels) is written as 0.
+ * (nodata, or nothing within 6 zoom levels) is a hole: written transparent
+ * with the Terrain-RGB floor, -10000 m, the same value a transparent titiler
+ * nodata pixel decodes to (MapLibre's DEM decoder ignores alpha and the
+ * browser premultiplies it to RGB 0). The hypsometric tint paints anything
+ * at that floor transparent (see DEM_HOLE_M in MapLayers.tsx); hillshade
+ * shows a rim at hole edges and 3D terrain a pit, which is what any DEM with
+ * nodata does in this app.
  *
  * URL: demdiff://<encA>/<encB>/<tileSize>/<encoded template A>/<encoded template B>/{z}/{x}/{y}
  */
@@ -95,9 +101,9 @@ export async function demDiffProtocol(
   for (let row = 0; row < n; row++) {
     for (let col = 0; col < n; col++) {
       const va = sampleOperand(a, row, col, n), vb = sampleOperand(b, row, col, n)
-      const d = Number.isFinite(va) && Number.isFinite(vb) ? va - vb : 0
-      const [r, g, bl, al] = elevationToTerrainrgb(d)
       const i = (row * n + col) * 4
+      if (!(Number.isFinite(va) && Number.isFinite(vb))) { out[i] = 0; out[i + 1] = 0; out[i + 2] = 0; out[i + 3] = 0; continue }
+      const [r, g, bl, al] = elevationToTerrainrgb(va - vb)
       out[i] = r; out[i + 1] = g; out[i + 2] = bl; out[i + 3] = al
     }
   }

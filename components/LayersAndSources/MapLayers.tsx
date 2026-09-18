@@ -925,7 +925,7 @@ export const computeColorReliefPaint = ({
     }
     return {
       "color-relief-opacity": colorReliefOpacity,
-      "color-relief-color": colors,
+      "color-relief-color": withHoleStop(colors),
     }
   }
 
@@ -952,8 +952,25 @@ export const computeColorReliefPaint = ({
 
   return {
     "color-relief-opacity": colorReliefOpacity,
-    "color-relief-color": colors,
+    "color-relief-color": withHoleStop(colors),
   }
+}
+
+/** Terrain-RGB's floor, -10000 m: what a transparent (nodata) DEM pixel
+ *  decodes to, whether titiler wrote it or the difference source did. No
+ *  real elevation is anywhere near it (the Dead Sea is -430 m). */
+export const DEM_HOLE_M = -10000
+
+/** Paints the DEM floor transparent so nodata reads as a hole in the
+ *  hypsometric tint instead of the ramp's lowest colour: two stops are
+ *  prepended (hole, then the same colour as the first real stop just above
+ *  it) when the ramp does not already reach down there. */
+function withHoleStop(colors: any[]): any[] {
+  if (!Array.isArray(colors) || colors[0] !== "interpolate" || colors.length < 7) return colors
+  const firstValue = colors[3]
+  if (typeof firstValue !== "number" || firstValue <= DEM_HOLE_M + 1) return colors
+  const firstColor = colors[4]
+  return [...colors.slice(0, 3), DEM_HOLE_M, "rgba(0, 0, 0, 0)", DEM_HOLE_M + 0.5, firstColor, ...colors.slice(3)]
 }
 
 export type PlaneSlicerConfig = {
