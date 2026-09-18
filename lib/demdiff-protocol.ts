@@ -52,11 +52,18 @@ export async function demDiffProtocol(
 
   // Nearest sample when an operand's tile size differs from the output's
   // (a 512 px float32dem tile against 256 px TMS tiles).
+  // A sample is missing when the tile is, when titiler wrote it transparent
+  // (nodata), or when it decodes to a sentinel no real DEM holds (terrarium
+  // -32768 for RGB 0, terrainrgb -10000): those would otherwise produce
+  // 30 km "heights" along every nodata edge.
   const sample = (t: DecodedTile | null, row: number, col: number): number => {
     if (!t) return NaN
     const r = Math.min(t.height - 1, Math.floor((row * t.height) / n))
     const c = Math.min(t.width - 1, Math.floor((col * t.width) / n))
-    return t.data[r * t.width + c]
+    const i = r * t.width + c
+    if (t.valid && !t.valid[i]) return NaN
+    const v = t.data[i]
+    return v < -1000 || v > 10000 ? NaN : v
   }
   const out = new Uint8ClampedArray(n * n * 4)
   for (let row = 0; row < n; row++) {

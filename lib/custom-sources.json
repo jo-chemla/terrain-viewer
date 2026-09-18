@@ -302,6 +302,42 @@
             "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
         },
         {
+            "id": "custom-np-bhotekoshi-change-rasuwagadhi-vs-mapterhorn",
+            "name": "NPL - Bhotekoshi 2026 change: post-event DSM − Mapterhorn (GLO-30), Rasuwagadhi-Timure - derived",
+            "url": "diff://custom-np-bhotekoshi-dsm-rasuwagadhi-mapterhorn",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-np-bhotekoshi-dsm-rasuwagadhi",
+            "diffSubtrahendId": "mapterhorn",
+            "loadWithSamples": false,
+            "bounds": [
+                85.341,
+                28.231,
+                85.42,
+                28.311
+            ],
+            "resolutionM": 30,
+            "description": "The app's own before/after: the 0.5 m post-event surface minus Mapterhorn, which over Nepal is Copernicus GLO-30 (a 2011-2015 surface model) - subtracted tile by tile in the browser. Coarser and noisier than geo-pera's bias-corrected 2 m dh raster (the pre-event side is 30 m and a different vintage), but computed live from two independent sources, which is the point. Read with a symmetric hypsometric ramp around 0; usable from z13, where the DSM starts serving.",
+            "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
+        },
+        {
+            "id": "custom-np-bhotekoshi-change-syabrubesi-vs-mapterhorn",
+            "name": "NPL - Bhotekoshi 2026 change: post-event DSM − Mapterhorn (GLO-30), Syabrubesi - derived",
+            "url": "diff://custom-np-bhotekoshi-dsm-syabrubesi-mapterhorn",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-np-bhotekoshi-dsm-syabrubesi",
+            "diffSubtrahendId": "mapterhorn",
+            "loadWithSamples": false,
+            "bounds": [
+                85.294,
+                28.121,
+                85.365,
+                28.205
+            ],
+            "resolutionM": 30,
+            "description": "Same live difference for the Syabrubesi debris sheet: post-event 0.5 m DSM minus Mapterhorn (GLO-30). Symmetric hypsometric ramp around 0; from z13.",
+            "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
+        },
+        {
             "id": "custom-idn-big-demnas",
             "name": "IDN - BIG DEMNAS ~8m - ImageServer raw Float32",
             "url": "geoservices.big.go.id/raster/rest/services/DEMNAS/DEM_Indonesia/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=514,514&format=tiff&pixelType=F32&bandIds=0&noData=-9999&noDataInterpretation=esriNoDataMatchAny&f=image",
@@ -513,6 +549,18 @@
             "description": "OpenLandMap / OpenGeoHub's global 30m terrain model, one 432 GB COG (1.3 million x 540 thousand pixels, 11 overviews) with CORS * and range requests. Like ANADEM it is an AI terrain model: Copernicus GLO-30 is a SURFACE model (it measures canopy and roofs), and this is machine-learning corrected towards bare earth using ALOS and GEDI spaceborne LiDAR. Mapterhorn only carries the GLO-30 surface where it has no national data, so anywhere outside its 32 countries this is the better ground model - same grid, but the terrain rather than the treetops. EPSG:4326, pinned to titiler; titiler.xyz answers HTTP 500 for z4-z5 windows of this file, hence minzoom 6. Nodata +3.4e38, and it MUST be passed to titiler (titilerNodata): with the default nodata=0 override the sentinel reaches the terrainrgb encoder on every tile that touches the sea and titiler answers 500 (larger than 256 ** 3), so the whole coastline was missing. Verified: Mont Blanc 4805.6 m, Everest 8742 m (3x3 max). CC BY 4.0, Zenodo 15689805.",
             "resolutionM": 30,
             "infoUrl": "https://github.com/openlandmap/GEDTM30"
+        },
+        {
+            "id": "custom-global-smartmaps-gel",
+            "name": "Global - Smart Maps GEL NASADEM 30m Terrain-RGB z2-12 (CC0) - PMTiles",
+            "url": "pmtiles://https://data.source.coop/smartmaps/gel/gel.pmtiles/{z}/{x}/{y}",
+            "type": "terrainrgb",
+            "loadWithSamples": false,
+            "minzoom": 2,
+            "maxzoom": 12,
+            "resolutionM": 30,
+            "description": "UN Smart Maps Group's Global Elevation Tiles: NASADEM (SRTM completed with ASTER GDEM and ALOS, 30 m, 60N-56S) at z6-12 and ISCGM Global Map at z2-5, as Mapbox Terrain-RGB WebP tiles in one 182 GB PMTiles archive on source.coop. Read through the app's pmtiles:// protocol (range requests into the archive, no tile server). CC0, which is its reason to exist: a worldwide DEM with no attribution or licence constraints, for redistribution and derived products. Coarser and older than Mapterhorn; useful when the licence matters.",
+            "infoUrl": "https://source.coop/smartmaps/gel"
         },
         {
             "id": "custom-openwaters-seascape",

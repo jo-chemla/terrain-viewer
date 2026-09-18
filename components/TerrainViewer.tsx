@@ -61,6 +61,7 @@ import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
 import { slopeProtocol } from '@/lib/slope-protocol'
 import { demDiffProtocol } from '@/lib/demdiff-protocol'
+import { Protocol as PmtilesProtocol } from 'pmtiles'
 import { aspectProtocol } from '@/lib/aspect-protocol'
 import { triProtocol } from '@/lib/tri-protocol'
 import { curvatureProtocol, CURVATURE_ENCODE_SCALE } from '@/lib/curvature-protocol'
@@ -766,6 +767,9 @@ export const QUERY_STATE_PARSERS = {
     // section.tsx) overrides that and stops adapting to the theme.
     contourColor: parseAsString.withDefault(""),
     customHypsoMinMax: parseAsBoolean.withDefault(false),
+    // Min/Max mirrored around 0 (one magnitude), like the curvature ramp:
+    // for height-above-ground or elevation-change grids (DSM − DTM, dh).
+    hypsoSymmetric: parseAsBoolean.withDefault(false),
     minElevation: parseAsFloat.withDefault(0),
     maxElevation: parseAsFloat.withDefault(8100),
     hypsoSliderMinBound: parseAsFloat.withDefault(-8000),
@@ -1514,6 +1518,9 @@ export function TerrainViewer() {
     maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
     maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
     maplibregl.addProtocol('demdiff', withTileResultCache(demDiffProtocol))
+    // pmtiles://<archive url>/{z}/{x}/{y} - tile pyramids in one range-read
+    // archive (e.g. the Smart Maps GEL Terrain-RGB library entry).
+    maplibregl.addProtocol('pmtiles', new PmtilesProtocol().tile)
     maplibregl.addProtocol('aspect', withTileResultCache(aspectProtocol))
     maplibregl.addProtocol('tri', withTileResultCache(triProtocol))
     maplibregl.addProtocol('curvature', withTileResultCache(curvatureProtocol))
@@ -2065,6 +2072,32 @@ export function TerrainViewer() {
       ...basemap.filter((url) => !prev.some((s) => s.id === url)).map((url) => makeBasemap(url, "basemap")),
       ...overlay.filter((url) => !prev.some((s) => s.id === url)).map((url) => makeBasemap(url, "overlay")),
     ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // A library entry, once added, is a copy in localStorage: fixes shipped
+  // later in lib/custom-sources.json (a nodata sentinel, a titiler pin, a
+  // zoom floor) never reached it, so e.g. GEDTM30 stayed broken for anyone
+  // who had added it before its fix. Library-managed entries (same id as a
+  // library entry) are refreshed from the library once per load; the pairing
+  // fields, which the user sets, are kept.
+  useEffect(() => {
+    const refresh = <T extends { id: string }>(list: T[], library: T[], keep: (keyof T)[]): T[] | null => {
+      let changed = false
+      const next = list.map((s) => {
+        const lib = library.find((l) => l.id === s.id)
+        if (!lib) return s
+        const merged = { ...lib } as T
+        for (const k of keep) if (s[k] !== undefined) merged[k] = s[k]
+        if (JSON.stringify(merged) === JSON.stringify(s)) return s
+        changed = true
+        return merged
+      })
+      return changed ? next : null
+    }
+    const t = refresh(customTerrainSources, SAMPLE_TERRAIN_SOURCES, ["linkedBasemapId"])
+    if (t) setCustomTerrainSources(t)
+    const b = refresh(customBasemapSources, SAMPLE_BASEMAP_SOURCES, ["linkedTerrainId", "opacity"])
+    if (b) setCustomBasemapSources(b)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const hasFramedUrlSourceRef = useRef(false)

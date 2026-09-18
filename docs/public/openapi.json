@@ -3335,6 +3335,16 @@
             }
           },
           {
+            "name": "hypsoSymmetric",
+            "in": "query",
+            "required": false,
+            "description": "State. Min/Max mirrored around 0 (one magnitude), like the curvature ramp: for height-above-ground or elevation-change grids (DSM − DTM, dh).",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
             "name": "minElevation",
             "in": "query",
             "required": false,

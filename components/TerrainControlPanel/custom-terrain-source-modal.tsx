@@ -352,8 +352,8 @@ export const CustomTerrainSourceModal: React.FC<{
                   <div className="space-y-2">
                     <Label htmlFor="source-diff-a">First source (minuend, e.g. a DSM) *</Label>
                     <Select value={diffMinuendId || "none"} onValueChange={(v: any) => setDiffMinuendId(v === "none" ? "" : v)} items={Object.fromEntries([["none", "Choose…"], ...diffOperands.map((o) => [o.id, o.name])])}>
-                      <SelectTrigger id="source-diff-a" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent className="w-[var(--anchor-width)]">
+                      <SelectTrigger id="source-diff-a" className="cursor-pointer w-full min-w-0 overflow-hidden [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:truncate"><SelectValue /></SelectTrigger>
+                      <SelectContent className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)]">
                         <SelectItem value="none">Choose…</SelectItem>
                         {diffOperands.map((o) => <SelectItem key={o.id} value={o.id}><span className="truncate">{o.name}</span></SelectItem>)}
                       </SelectContent>
@@ -362,8 +362,8 @@ export const CustomTerrainSourceModal: React.FC<{
                   <div className="space-y-2">
                     <Label htmlFor="source-diff-b">Second source (subtrahend, e.g. a DTM) *</Label>
                     <Select value={diffSubtrahendId || "none"} onValueChange={(v: any) => setDiffSubtrahendId(v === "none" ? "" : v)} items={Object.fromEntries([["none", "Choose…"], ...diffOperands.map((o) => [o.id, o.name])])}>
-                      <SelectTrigger id="source-diff-b" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent className="w-[var(--anchor-width)]">
+                      <SelectTrigger id="source-diff-b" className="cursor-pointer w-full min-w-0 overflow-hidden [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:truncate"><SelectValue /></SelectTrigger>
+                      <SelectContent className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)]">
                         <SelectItem value="none">Choose…</SelectItem>
                         {diffOperands.map((o) => <SelectItem key={o.id} value={o.id}><span className="truncate">{o.name}</span></SelectItem>)}
                       </SelectContent>

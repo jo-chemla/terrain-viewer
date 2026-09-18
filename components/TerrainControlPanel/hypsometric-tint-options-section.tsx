@@ -179,13 +179,21 @@ export const HypsometricTintOptionsSection: React.FC<{
     max: state.hypsoSliderMaxBound ?? Math.ceil(rampBounds.max)
   }), [state.hypsoSliderMinBound, state.hypsoSliderMaxBound, rampBounds])
 
+  // Symmetric: one magnitude M gives -M..+M, whichever handle or field moved
+  // (curvature-options-section.tsx does the same for its diverging ramp).
+  const symmetric = !!state.hypsoSymmetric
   const handleSliderChange = useCallback((values: number[]) => {
     // Ensure min doesn't exceed max
     const [newMin, newMax] = values
+    if (symmetric) {
+      const m = Math.max(Math.abs(newMin), Math.abs(newMax))
+      setState({ minElevation: -m, maxElevation: m, customHypsoMinMax: true })
+      return
+    }
     const clampedMin = Math.min(newMin, newMax)
     const clampedMax = Math.max(newMin, newMax)
     setState({ minElevation: clampedMin, maxElevation: clampedMax, customHypsoMinMax: true })
-  }, [setState])
+  }, [setState, symmetric])
 
   // SET ELEVATION
   //
@@ -582,7 +590,9 @@ export const HypsometricTintOptionsSection: React.FC<{
             <div className="flex-1 flex items-center">
               <DraftBoundInput
                 value={state.minElevation}
-                onCommit={(v) => setState({ minElevation: clampMinCommit(v, state.maxElevation), customHypsoMinMax: true })}
+                onCommit={(v) => symmetric
+                  ? setState({ minElevation: -Math.abs(v ?? 0), maxElevation: Math.abs(v ?? 0), customHypsoMinMax: true })
+                  : setState({ minElevation: clampMinCommit(v, state.maxElevation), customHypsoMinMax: true })}
                 placeholder="Min"
                 className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                 step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
@@ -591,7 +601,9 @@ export const HypsometricTintOptionsSection: React.FC<{
             <div className="flex-1 flex items-center">
               <DraftBoundInput
                 value={state.maxElevation}
-                onCommit={(v) => setState({ maxElevation: clampMaxCommit(v, state.minElevation), customHypsoMinMax: true })}
+                onCommit={(v) => symmetric
+                  ? setState({ minElevation: -Math.abs(v ?? 0), maxElevation: Math.abs(v ?? 0), customHypsoMinMax: true })
+                  : setState({ maxElevation: clampMaxCommit(v, state.minElevation), customHypsoMinMax: true })}
                 placeholder="Max"
                 className="h-8 py-1 px-2 text-sm w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                 step={computeStep(state.hypsoSliderMinBound, state.hypsoSliderMaxBound)}
@@ -614,6 +626,26 @@ export const HypsometricTintOptionsSection: React.FC<{
             polarity swap over its own stops, same as every other viz mode's
             custom-ramp support), otherwise only once a custom Min/Max range
             is in play, same as before. */}
+        {(isCustom || state.customHypsoMinMax) &&
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="hypso-symmetric"
+              checked={symmetric}
+              onCheckedChange={(checked) => {
+                const on = checked === true
+                const m = Math.max(Math.abs(state.minElevation ?? 0), Math.abs(state.maxElevation ?? 0)) || 1
+                setState(on ? { hypsoSymmetric: true, minElevation: -m, maxElevation: m, customHypsoMinMax: true } : { hypsoSymmetric: false })
+              }}
+              className="cursor-pointer"
+            />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger render={<Label htmlFor="hypso-symmetric" className="text-sm font-medium cursor-pointer">Symmetric around 0</Label>} />
+                <TooltipContent><p>Min = −Max: one magnitude for a diverging ramp, for height-above-ground (DSM − DTM) or elevation-change grids</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        }
         {(isCustom || state.customHypsoMinMax) &&
           <div className="flex items-center gap-2">
             <Checkbox

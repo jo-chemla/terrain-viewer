@@ -1,5 +1,6 @@
 import { elevationToTerrarium } from "./elevation-encoding"
 import { cogProtocol } from "@geomatico/maplibre-cog-protocol"
+import { PMTiles } from "pmtiles"
 import { float32demProtocol } from "./float32dem-protocol"
 
 // Shared scaffolding behind the `aspect://`, `tri://` and `curvature://` maplibre
@@ -23,7 +24,12 @@ import { float32demProtocol } from "./float32dem-protocol"
 
 export type UpstreamEncoding = "terrarium" | "mapbox"
 
-export type DecodedTile = { data: Float32Array; width: number; height: number }
+/** `valid` is only present when the tile had transparent pixels (titiler
+ *  writes nodata as alpha 0): 1 where the sample is real, 0 where it is not.
+ *  The elevation array itself is left as decoded, so the neighbourhood
+ *  kernels keep their edge-replication behaviour; consumers that must not
+ *  mix nodata into arithmetic (lib/demdiff-protocol.ts) check the mask. */
+export type DecodedTile = { data: Float32Array; width: number; height: number; valid?: Uint8Array }
 
 // -------------------------
 // Decoded-tile LRU cache — shared by every normal-derived protocol (slope, aspect,
@@ -97,7 +103,23 @@ function tileBBoxEPSG3857(x: number, y: number, z: number): string {
 // using the tile's own (z, x, y) — encoded as the URL's trailing /{z}/{x}/{y}
 // segments by buildWmsRawUpstreamTemplate in MapSources.tsx — before handing the
 // resolved GetMap URL to float32demProtocol.
+// One PMTiles reader per archive (it caches the directory), for the
+// `pmtiles://<archive>/{z}/{x}/{y}` templates the terrainrgb/terrarium
+// library entries can carry (e.g. Smart Maps GEL).
+const pmtilesReaders = new Map<string, PMTiles>()
+async function loadPmtilesBitmap(url: string): Promise<ImageBitmap | null> {
+  const m = url.match(/^pmtiles:\/\/(.+)\/(\d+)\/(\d+)\/(\d+)$/)
+  if (!m) return null
+  const [, archive, z, x, y] = m
+  let reader = pmtilesReaders.get(archive)
+  if (!reader) { reader = new PMTiles(archive); pmtilesReaders.set(archive, reader) }
+  const tile = await reader.getZxy(Number(z), Number(x), Number(y))
+  if (!tile?.data) return null
+  return createImageBitmap(new Blob([tile.data]))
+}
+
 async function loadTileBitmap(url: string, signal: AbortSignal): Promise<ImageBitmap | null> {
+  if (url.startsWith("pmtiles://")) return loadPmtilesBitmap(url)
   if (url.startsWith("cog://")) {
     const result = await cogProtocol({ url, type: "image" } as any)
     return (result as any).data as ImageBitmap
@@ -136,13 +158,18 @@ export async function fetchDecodedTile(
     const { data, width, height } = ctx.getImageData(0, 0, bitmap.width, bitmap.height)
 
     const elevations = new Float32Array(width * height)
+    let valid: Uint8Array | undefined
     for (let i = 0; i < width * height; i++) {
       const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2]
       elevations[i] = encoding === "terrarium"
         ? (r * 256 + g + b / 256) - 32768
         : -10000 + (r * 256 * 256 + g * 256 + b) * 0.1
+      if (data[i * 4 + 3] < 255) {
+        if (!valid) valid = new Uint8Array(width * height).fill(1)
+        valid[i] = 0
+      }
     }
-    return { data: elevations, width, height }
+    return valid ? { data: elevations, width, height, valid } : { data: elevations, width, height }
   }
 
   const promise = (async (): Promise<DecodedTile | null> => {

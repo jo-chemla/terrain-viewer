@@ -3035,6 +3035,16 @@
       "note": ""
     },
     {
+      "key": "hypsoSymmetric",
+      "stateKey": "hypsoSymmetric",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Min/Max mirrored around 0 (one magnitude), like the curvature ramp: for height-above-ground or elevation-change grids (DSM − DTM, dh)."
+    },
+    {
       "key": "minElevation",
       "stateKey": "minElevation",
       "type": "number",
