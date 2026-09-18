@@ -239,7 +239,11 @@ export const TerrainSources = memo(({
                 tiles: [diffUpstream.template],
                 encoding: "mapbox",
                 minzoom: diffUpstream.minzoom ?? 0,
-                maxzoom: diffUpstream.maxzoom ?? 20,
+                // Two levels past the finer operand's native pyramid: the camera
+                // ceiling follows this (effectiveMaxZoom in TerrainViewer), and
+                // the protocol upsamples from ancestor tiles for anything an
+                // operand cannot serve, so over-requesting costs nothing.
+                maxzoom: Math.min(22, (diffUpstream.maxzoom ?? 20) + 2),
             }
         }
         if (customSource) {
@@ -842,7 +846,15 @@ export const useClientDemUpstream = (
                 ...(isCogRemote ? { minzoom: cogZoomRange.minzoom, maxzoom: cogZoomRange.maxzoom } : {}),
             }
         }
-        return { template: built.tiles[0], encoding, tileSize: 256 }
+        // A titiler-served COG/VRT/WMS has no metadata-derived pyramid here,
+        // but the source's own declared zoom range still applies (a library
+        // DSM at maxzoom 19); without it the difference source inherited the
+        // other operand's ceiling and stopped requesting tiles too early.
+        return {
+            template: built.tiles[0], encoding, tileSize: 256,
+            ...(customSource.minzoom !== undefined ? { minzoom: customSource.minzoom } : {}),
+            ...(customSource.maxzoom !== undefined ? { maxzoom: customSource.maxzoom } : {}),
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [diffA, diffB, _nested, customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, useCogProtocolForSource, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogRemote])
 
