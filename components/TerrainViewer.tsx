@@ -56,7 +56,7 @@ import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName
 import { cn } from "@/lib/utils"
 
 import maplibregl from 'maplibre-gl'
-import { applyBoundedView } from '@/lib/underzoom'
+import { applyBoundedView, sanitizeBounds } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
@@ -2956,7 +2956,14 @@ export function TerrainViewer() {
   // "Fit to bounds" button, just constraining pan/zoom instead of one-shot flying
   // the camera. Re-resolves whenever the active source or mode/buffer changes;
   // stale in-flight resolutions are dropped via the `cancelled` flag.
-  const [resolvedMaxBounds, setResolvedMaxBounds] = useState<LngLatBoundsTuple | null>(null)
+  const [resolvedMaxBounds, setResolvedMaxBoundsRaw] = useState<LngLatBoundsTuple | null>(null)
+  // Every max-bounds value goes through sanitizeBounds here, not only in
+  // applyBoundedView: react-map-gl also feeds this to the <Map maxBounds>
+  // prop, and a box spanning the full 360 degrees of longitude (GEDTM30's
+  // footprint) makes MapLibre's constrain throw inside setMaxBounds - verified
+  // on the served bundle: 360 throws, 359.9 does not, and the raw footprint
+  // silently corrupts the zoom instead.
+  const setResolvedMaxBounds = useCallback((b: LngLatBoundsTuple | null) => setResolvedMaxBoundsRaw(sanitizeBounds(b)), [])
 
   // maxBounds on its own is unusably strict for a country-shaped extent: maplibre
   // refuses to zoom out past the point where the bounds fill the viewport, so a
