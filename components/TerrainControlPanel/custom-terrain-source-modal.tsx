@@ -373,7 +373,7 @@ export const CustomTerrainSourceModal: React.FC<{
                   <p className="text-[11px] text-muted-foreground">Both sources are read at the same tile coordinates, so they line up whatever their native resolutions; the coarser one sets the useful detail. The two must be loaded in the app (built-in or in this list), not just any URL.</p>
                 </div>
               ) : type === "cog-local" ? (
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0 max-w-full overflow-hidden">
                   <Label htmlFor="source-local-file">COG file *</Label>
                   <input
                     ref={fileInputRef}
@@ -388,7 +388,7 @@ export const CustomTerrainSourceModal: React.FC<{
                       Choose file…
                     </Button>
                     <Tooltip>
-                      <TooltipTrigger render={<span className="text-sm text-muted-foreground truncate min-w-0 flex-1">{localFileName ?? "No file selected"}</span>} />
+                      <TooltipTrigger render={<span className="block text-sm text-muted-foreground truncate min-w-0 flex-1 max-w-full">{localFileName ?? "No file selected"}</span>} />
                       {localFileName && <TooltipContent><p className="break-all max-w-xs">{localFileName}</p></TooltipContent>}
                     </Tooltip>
                   </div>
