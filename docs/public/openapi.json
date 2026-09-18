@@ -1,0 +1,3486 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "terrain-viewer URL",
+    "version": "1",
+    "description": "Not an HTTP API: the viewer's URL. Every query parameter is state the app mirrors to the address bar (booleans, numbers, enums, lists) or an instruction read once on load. Lists are comma-separated unless marked repeatable."
+  },
+  "servers": [
+    {
+      "url": "https://jo-chemla.github.io/terrain-viewer"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Open the viewer",
+        "operationId": "openViewer",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. A named preset from lib/projects.json: hidden panels, initial state, bundled sources.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "terrainUrl",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. View A's terrain as a URL, registered under a fixed id (older form of terrainSourceA=https://…).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "basemapUrl",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. View A's basemap as a URL (older form of basemapSource=https://…).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "terrainType",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. Type of URL terrain sources (cog, terrarium, terrainrgb, wms-raw, tilejson …) instead of the {z} guess.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "basemapType",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. Type of URL basemap sources (cog, tms, wms, wmts, tilejson) instead of the {z} guess.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "viaTitiler",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. Route URL COGs through titiler (files not in Web Mercator).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "addSources",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. Library entries (by id) made available in the BYOD lists without being selected.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "addTerrainUrl",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. URL terrain sources made available without being selected (repeat the parameter).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "addBasemapUrl",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. URL basemaps made available without being selected (repeat the parameter).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "addOverlayUrl",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. URL overlays made available; overlayBasemapIds (state) turns overlays on.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "openSections",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. Sidebar sections expanded on load (general, terrainSource, hillshade, drawing …).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "closeSections",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. Sidebar sections collapsed on load.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "scrollTo",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. Section key (or element id) the side panel opens and scrolls to.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startTour",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. Starts the product walkthrough.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "required": false,
+            "description": "State. Embed/project convenience params: `project` looks up a named preset in lib/projects.json (see lib/project-config.ts); terrainUrl/basemapUrl let an embedder point straight at a raw tile/COG URL withou…",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "terrainUrl",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "basemapUrl",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "terrainType",
+            "in": "query",
+            "required": false,
+            "description": "State. Explicit source type for terrainUrl/basemapUrl when it's a raw URL (not an existing source id) — type can't always be inferred from the URL shape alone (e.g.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "basemapType",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "viewMode",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "2d",
+                "globe",
+                "3d"
+              ],
+              "default": "3d"
+            }
+          },
+          {
+            "name": "appMode",
+            "in": "query",
+            "required": false,
+            "description": "State. Which sidebar layout the ModePicker (TerrainControlPanel.tsx) shows — \"historical\" strips it down to just basemap browsing.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "terrain",
+                "historical"
+              ],
+              "default": "terrain"
+            }
+          },
+          {
+            "name": "splitStyle",
+            "in": "query",
+            "required": false,
+            "description": "State. Master split control — replaces the old plain splitScreen boolean.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "off",
+                "overlay",
+                "side-by-side"
+              ],
+              "default": "off"
+            }
+          },
+          {
+            "name": "gridLayout",
+            "in": "query",
+            "required": false,
+            "description": "State. Only meaningful once splitStyle !== \"off\"; \"overlay\" always behaves as \"2x1\" regardless of this value (see the splitContainer render below).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "2x1",
+                "3x1",
+                "4x1",
+                "1x2",
+                "2x2",
+                "3x2",
+                "4x2"
+              ],
+              "default": "2x1"
+            }
+          },
+          {
+            "name": "splitBlendMode",
+            "in": "query",
+            "required": false,
+            "description": "State. \"overlay\"-only: pane B's CSS mix-blend-mode + opacity against pane A.",
+            "schema": {
+              "type": "string",
+              "default": "normal"
+            }
+          },
+          {
+            "name": "splitBlendModeEnabled",
+            "in": "query",
+            "required": false,
+            "description": "State. Lets a picked blend mode be toggled off (falls back to plain \"normal\") without losing/resetting it — a quick way to flip back and forth between a blended and a plain overlay comparison for the same p…",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "overlayOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "splitRatio",
+            "in": "query",
+            "required": false,
+            "description": "State. Split gutter position (overlay clip boundary / side-by-side divider) as a 0-1 ratio of the available width.",
+            "schema": {
+              "type": "number",
+              "default": 0.5
+            }
+          },
+          {
+            "name": "matchColorsToA",
+            "in": "query",
+            "required": false,
+            "description": "State. \"overlay\"-only: \"Match Colors (View A as reference)\" — live-samples both panes' CURRENTLY RENDERED canvases (whatever tiles are actually loaded in the viewport, re-sampled at most once/second) and re…",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "matchColorsColorSpace",
+            "in": "query",
+            "required": false,
+            "description": "State. Which color space the matching above is computed/applied in — \"rgb\" (default) is a live CSS filter; the others are a real per-pixel JS conversion, capped to a low working resolution (see HistogramMat…",
+            "schema": {
+              "type": "string",
+              "default": "rgb"
+            }
+          },
+          {
+            "name": "showCaptureDatePill",
+            "in": "query",
+            "required": false,
+            "description": "State. Compare and Blend's \"Show Capture Date\" toggle — a small per-view pill for whichever views are actually on a dated historical source.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "off",
+                "date",
+                "source-date\" as const"
+              ],
+              "default": "auto"
+            }
+          },
+          {
+            "name": "terrainSourceC",
+            "in": "query",
+            "required": false,
+            "description": "State. C-H only ever matter for gridLayout \"2x2\"/\"3x1\"/\"3x2\"/\"4x1\"/\"4x2\" — same shape as sourceA/B, just extra slots so bigger grids need no schema change.",
+            "schema": {
+              "type": "string",
+              "default": "aws"
+            }
+          },
+          {
+            "name": "terrainSourceD",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "mapterhorn"
+            }
+          },
+          {
+            "name": "terrainSourceE",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "maptiler"
+            }
+          },
+          {
+            "name": "terrainSourceF",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "aws"
+            }
+          },
+          {
+            "name": "terrainSourceG",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "mapterhorn"
+            }
+          },
+          {
+            "name": "terrainSourceH",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "maptiler"
+            }
+          },
+          {
+            "name": "basemapPerView",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "basemapSourceA",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "esri"
+            }
+          },
+          {
+            "name": "basemapSourceB",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "google"
+            }
+          },
+          {
+            "name": "basemapSourceC",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "esri"
+            }
+          },
+          {
+            "name": "basemapSourceD",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "google"
+            }
+          },
+          {
+            "name": "basemapSourceE",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "esri"
+            }
+          },
+          {
+            "name": "basemapSourceF",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "google"
+            }
+          },
+          {
+            "name": "basemapSourceG",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "esri"
+            }
+          },
+          {
+            "name": "basemapSourceH",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "google"
+            }
+          },
+          {
+            "name": "overlayBasemapIds",
+            "in": "query",
+            "required": false,
+            "description": "State. 'overlay'-role custom basemap sources currently stacked on top of the active basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B, only meaningful in split-or-radio basemap mode…",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "State. The ONE scrubbed date (epoch ms) for whichever concrete historical source is active on this side (historicalActiveSource(A/B) below) — Wayback/HLS/GE-Historical/Planet/EOX-S2/Bing all share this sing…",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "dateA",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "dateB",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "dateC",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "dateD",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "dateE",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "dateF",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "dateG",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "dateH",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "historicalActiveSource",
+            "in": "query",
+            "required": false,
+            "description": "State. Which concrete underlying source (wayback/hls/ge-historical/planet/ eox-s2) actually renders when basemapSource(A/B) === \"historical\" — the sidebar only ever exposes one combined \"Historical Imagery\"…",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "hls",
+                "ge-historical",
+                "planet",
+                "eox-s2\" as const"
+              ],
+              "default": "wayback"
+            }
+          },
+          {
+            "name": "historicalActiveSourceA",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "hls",
+                "ge-historical",
+                "planet",
+                "eox-s2\" as const"
+              ],
+              "default": "wayback"
+            }
+          },
+          {
+            "name": "historicalActiveSourceB",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "hls",
+                "ge-historical",
+                "planet",
+                "eox-s2\" as const"
+              ],
+              "default": "wayback"
+            }
+          },
+          {
+            "name": "historicalActiveSourceC",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "hls",
+                "ge-historical",
+                "planet",
+                "eox-s2\" as const"
+              ],
+              "default": "wayback"
+            }
+          },
+          {
+            "name": "historicalActiveSourceD",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "hls",
+                "ge-historical",
+                "planet",
+                "eox-s2\" as const"
+              ],
+              "default": "wayback"
+            }
+          },
+          {
+            "name": "historicalActiveSourceE",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "hls",
+                "ge-historical",
+                "planet",
+                "eox-s2\" as const"
+              ],
+              "default": "wayback"
+            }
+          },
+          {
+            "name": "historicalActiveSourceF",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "hls",
+                "ge-historical",
+                "planet",
+                "eox-s2\" as const"
+              ],
+              "default": "wayback"
+            }
+          },
+          {
+            "name": "historicalActiveSourceG",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "hls",
+                "ge-historical",
+                "planet",
+                "eox-s2\" as const"
+              ],
+              "default": "wayback"
+            }
+          },
+          {
+            "name": "historicalActiveSourceH",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "hls",
+                "ge-historical",
+                "planet",
+                "eox-s2\" as const"
+              ],
+              "default": "wayback"
+            }
+          },
+          {
+            "name": "timelineSources",
+            "in": "query",
+            "required": false,
+            "description": "State. Which historical sources' ticks are aggregated onto the shared timeline (pill toggles in historical-timeline-panel.tsx) — independent of which single source is actually \"active\"/rendered on the map.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "wayback",
+                "ge-historical",
+                "bing"
+              ]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "timelineSourcesA",
+            "in": "query",
+            "required": false,
+            "description": "State. Per-side variants of timelineSources above — only meaningful when both basemapPerView AND splitStyle!==\"off\" are on (dualMode) AND the timeline's sync toggle is off, letting each active view aggregat…",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "wayback",
+                "ge-historical",
+                "bing"
+              ]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "timelineSourcesB",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "wayback",
+                "ge-historical",
+                "bing"
+              ]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "timelineSourcesC",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "wayback",
+                "ge-historical",
+                "bing"
+              ]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "timelineSourcesD",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "wayback",
+                "ge-historical",
+                "bing"
+              ]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "timelineSourcesE",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "wayback",
+                "ge-historical",
+                "bing"
+              ]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "timelineSourcesF",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "wayback",
+                "ge-historical",
+                "bing"
+              ]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "timelineSourcesG",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "wayback",
+                "ge-historical",
+                "bing"
+              ]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "timelineSourcesH",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "wayback",
+                "ge-historical",
+                "bing"
+              ]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "historicalTimelineCollapsed",
+            "in": "query",
+            "required": false,
+            "description": "State. Whether the historical timeline's full bar (header + track) is collapsed down to just the small floating clock-icon toggle button.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "sidebarCollapsed",
+            "in": "query",
+            "required": false,
+            "description": "State. The side panel, folded.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "drawingUrl",
+            "in": "query",
+            "required": false,
+            "description": "State. Remote vector data in the Drawing tool, one layer per URL (comma- separated; nuqs encodes commas inside an item).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "historicalControlsExpanded",
+            "in": "query",
+            "required": false,
+            "description": "State. Whether the timeline's title/source-pills/resolution-chips header row is shown (true) or the panel is in its minimal, track-only mode with just a small floating cog+collapse chip (false).",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "resolutionClasses",
+            "in": "query",
+            "required": false,
+            "description": "State. Resolution-class filter alongside the source pills above — \"vhr\" (Wayback/GE Historical/Bing, sub-meter-ish) vs \"medium\" (HLS's 10-30m Landsat/Sentinel-2, Planet's ~4.7m monthly mosaic) — see SOURCE_…",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "vhr",
+                "medium"
+              ]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "colorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State. colorRamp: parseAsString.withDefault(\"mby\"),",
+            "schema": {
+              "type": "string",
+              "default": "mby"
+            }
+          },
+          {
+            "name": "customStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "customStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showHillshade",
+            "in": "query",
+            "required": false,
+            "description": "State. Native MapLibre Hillshade — its own independent viz mode, entirely separate from \"Lighting Effects\" (Matcap/Phong) below.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "hillshadeOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "showLightingEffects",
+            "in": "query",
+            "required": false,
+            "description": "State. \"Lighting Effects\" viz mode — master toggle/opacity, housing two sub-modes: Matcap first, Phong second (see lighting-effects-options-section.tsx).",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "lightingEffectsOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "showMatcap",
+            "in": "query",
+            "required": false,
+            "description": "State. \"Matcap\" sub-mode (lib/matcap-protocol.ts) — a plain raster overlay (draped over 3D terrain the same automatic way the raster basemap is) that looks up color from a material-capture image using the s…",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "matcapOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "matcapTextureId",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_MATCAP_ID"
+            }
+          },
+          {
+            "name": "matcapRotationDeg",
+            "in": "query",
+            "required": false,
+            "description": "State. \"Sphere Rotation\" — spins the matcap lookup independently of the map's own bearing (a raster tile is baked once per z/x/y, so it can't track live bearing the way a real-time GPU shader could).",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "matcapRenderer",
+            "in": "query",
+            "required": false,
+            "description": "State. \"raster\" (default): lib/matcap-protocol.ts's plain raster-tile pipeline — drapes correctly over 3D terrain exaggeration AND globe, but every rotation/exaggeration change costs a real tile refetch.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "raster",
+                "live\" as const"
+              ],
+              "default": "live"
+            }
+          },
+          {
+            "name": "matcapLightRelativeToCamera",
+            "in": "query",
+            "required": false,
+            "description": "State. \"Light Anchor\", ported from Phong's phongLightRelativeToCamera — only meaningful in \"live\" (2D Fast): off (Absolute) samples the material by the tile-space normal, pinned to compass directions and id…",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "showPhong",
+            "in": "query",
+            "required": false,
+            "description": "State. \"Phong\" sub-mode (lib/phong-protocol.ts) — a plain raster overlay doing real ambient+diffuse+specular shading from a compass-fixed light (state.illuminationDir/illuminationAlt below — the same fields…",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "phongOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "phongDiffuseStrength",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.8
+            }
+          },
+          {
+            "name": "phongSpecularStrength",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.2
+            }
+          },
+          {
+            "name": "phongLightRelativeToCamera",
+            "in": "query",
+            "required": false,
+            "description": "State. Off (default — briefly flipped to Camera on 2026-08-20, reverted the same day on the user's follow-up): illuminationDir is a compass azimuth, fixed to the world, matching maplibre's own hillshade ill…",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "phongRenderer",
+            "in": "query",
+            "required": false,
+            "description": "State. \"raster\" (default): lib/phong-protocol.ts's plain raster-tile pipeline — drapes correctly over 3D terrain exaggeration AND globe, but every light/strength/exaggeration change costs a real tile refetc…",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "raster",
+                "live\" as const"
+              ],
+              "default": "live"
+            }
+          },
+          {
+            "name": "showShadows",
+            "in": "query",
+            "required": false,
+            "description": "State. \"Shadows\" sub-mode (lib/shadow-protocol.ts) — a plain binary raster mask: for each pixel, marches toward the sun's actual azimuth (state.illuminationDir/illuminationAlt below — same shared light as H…",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "shadowOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.6
+            }
+          },
+          {
+            "name": "shadowRadiusPx",
+            "in": "query",
+            "required": false,
+            "description": "State. \"Search Radius\" — same convention as SVF/Openness: how many same-zoom pixels the single ray marches outward looking for an obstruction.",
+            "schema": {
+              "type": "number",
+              "default": 32
+            }
+          },
+          {
+            "name": "lightUseDatetime",
+            "in": "query",
+            "required": false,
+            "description": "State. \"Datetime-based\" light: when on, illuminationDir/illuminationAlt are driven from a physically-plausible sun position (see lib/solar-position.ts) computed from the viewport-center lat/lng + these day-…",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "lightTimeMode",
+            "in": "query",
+            "required": false,
+            "description": "State. Which clock convention lightTimeOfDay is expressed in — \"local\": the real civil wall-clock time at the viewport lat/lng, including that location's actual DST rules (see lib/timezone.ts); \"utc\": UTC d…",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "local",
+                "utc\" as const"
+              ],
+              "default": "local"
+            }
+          },
+          {
+            "name": "showColorRelief",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "colorReliefOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.35
+            }
+          },
+          {
+            "name": "showTerrainAnalysis",
+            "in": "query",
+            "required": false,
+            "description": "State. Master toggles for what used to be one merged \"Slope and More\" viz mode, now split into Terrain Analysis (surface derivatives + neighborhood statistics: Slope/Aspect/Curvature/Det Hessian/Blobness/TP…",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "terrainAnalysisOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State. Master opacity for Terrain Analysis — composites (multiplies) with each sub-mode's own opacity below, rather than replacing it.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "showReliefVisualization",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "reliefVisualizationOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "showSlope",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "slopeOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "slopeColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "slope-plantopo"
+            }
+          },
+          {
+            "name": "slopeSourceMode",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "plantopo",
+                "client"
+              ],
+              "default": "client"
+            }
+          },
+          {
+            "name": "slopeMinDegrees",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "slopeMaxDegrees",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 55
+            }
+          },
+          {
+            "name": "slopeInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "slopeCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State. Only read when slopeColorRamp === \"custom\" — see computeColorReliefPaint's dedicated branch for that ramp id in MapLayers.tsx.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "slopeCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State. When the custom ramp is selected, render its stops as hard discrete bands (each color holds until the next stop) instead of a continuous gradient.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showAspect",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "aspectOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.5
+            }
+          },
+          {
+            "name": "aspectColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "aspect-compass"
+            }
+          },
+          {
+            "name": "aspectMinDegrees",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "aspectMaxDegrees",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 360
+            }
+          },
+          {
+            "name": "aspectShiftDegrees",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "aspectInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "aspectCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "aspectCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showTri",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "triOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "triColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "tri-default"
+            }
+          },
+          {
+            "name": "triMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "triMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 50
+            }
+          },
+          {
+            "name": "triInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "triCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "triCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showCurvature",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "curvatureOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "curvatureMode",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "combined",
+                "profile",
+                "plan",
+                "det-hessian",
+                "casorati",
+                "shape-index"
+              ],
+              "default": "combined"
+            }
+          },
+          {
+            "name": "curvatureColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "curvature-diverging"
+            }
+          },
+          {
+            "name": "curvatureMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": -20
+            }
+          },
+          {
+            "name": "curvatureMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "curvatureInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "curvatureSymmetric",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "curvatureCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "curvatureCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showTpi",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "tpiOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "tpiColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "tpi-diverging"
+            }
+          },
+          {
+            "name": "tpiMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": -20
+            }
+          },
+          {
+            "name": "tpiMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "tpiInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "tpiSymmetric",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "tpiCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "tpiCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showLrm",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "lrmOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "lrmColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "lrm-diverging"
+            }
+          },
+          {
+            "name": "lrmMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": -20
+            }
+          },
+          {
+            "name": "lrmMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "lrmInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "lrmSymmetric",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "lrmRadius",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 16
+            }
+          },
+          {
+            "name": "lrmCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "lrmCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showRoughness",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "roughnessOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "roughnessColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "roughness-default"
+            }
+          },
+          {
+            "name": "roughnessMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "roughnessMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 50
+            }
+          },
+          {
+            "name": "roughnessInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "roughnessCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "roughnessCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showShapeIndex",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "shapeIndexOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "shapeIndexColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "custom"
+            }
+          },
+          {
+            "name": "shapeIndexMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": -1
+            }
+          },
+          {
+            "name": "shapeIndexMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "shapeIndexInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "shapeIndexSymmetric",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "shapeIndexCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SHAPE_INDEX_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "shapeIndexCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "showBlobness",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "blobnessOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "blobnessColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "blobness-default"
+            }
+          },
+          {
+            "name": "blobnessMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "blobnessMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 50
+            }
+          },
+          {
+            "name": "blobnessInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "blobnessCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "blobnessCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showEigenRatio",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "eigenRatioOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "eigenRatioColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "eigen-ratio-default"
+            }
+          },
+          {
+            "name": "eigenRatioMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "eigenRatioMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 100
+            }
+          },
+          {
+            "name": "eigenRatioInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "eigenRatioCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "eigenRatioCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showOrientation",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "orientationOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "orientationColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "orientation-default"
+            }
+          },
+          {
+            "name": "orientationMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "orientationMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 180
+            }
+          },
+          {
+            "name": "orientationInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "orientationCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "orientationCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showSvf",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "svfOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "svfColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "svf-default"
+            }
+          },
+          {
+            "name": "svfMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "svfMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 100
+            }
+          },
+          {
+            "name": "svfInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "svfRadius",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 8
+            }
+          },
+          {
+            "name": "svfPrecision",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "precise",
+                "fast"
+              ],
+              "default": "precise"
+            }
+          },
+          {
+            "name": "svfCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "svfCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showOpenness",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "opennessOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "opennessColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "openness-default"
+            }
+          },
+          {
+            "name": "opennessMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": -15
+            }
+          },
+          {
+            "name": "opennessMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 15
+            }
+          },
+          {
+            "name": "opennessInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "opennessSymmetric",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "opennessRadius",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 8
+            }
+          },
+          {
+            "name": "opennessMode",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "positive",
+                "negative"
+              ],
+              "default": "positive"
+            }
+          },
+          {
+            "name": "opennessPrecision",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "precise",
+                "fast"
+              ],
+              "default": "precise"
+            }
+          },
+          {
+            "name": "opennessCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "opennessCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showLocalDominance",
+            "in": "query",
+            "required": false,
+            "description": "State. Local Dominance (Hesse 2016) — Relief Visualization mode, see lib/local-dominance-protocol.ts.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "localDominanceOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "localDominanceColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "local-dominance-default"
+            }
+          },
+          {
+            "name": "localDominanceMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": -5
+            }
+          },
+          {
+            "name": "localDominanceMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 15
+            }
+          },
+          {
+            "name": "localDominanceInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "localDominanceSymmetric",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "localDominanceMinRadius",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 8
+            }
+          },
+          {
+            "name": "localDominanceMaxRadius",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 32
+            }
+          },
+          {
+            "name": "localDominanceCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "localDominanceCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showPlaneSlicer",
+            "in": "query",
+            "required": false,
+            "description": "State. Plane Slicer — Tools: Elevation Picker sub-section.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "planeSlicerReferenceMode",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "absolute",
+                "lrm"
+              ],
+              "default": "absolute"
+            }
+          },
+          {
+            "name": "planeSlicerValue",
+            "in": "query",
+            "required": false,
+            "description": "State. Absolute and LRM keep independent threshold values — the two reference frames have wildly different natural ranges (metres of real elevation vs.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "planeSlicerValueLrm",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "planeSlicerSide",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "above",
+                "below"
+              ],
+              "default": "below"
+            }
+          },
+          {
+            "name": "planeSlicerColor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "#3388ff"
+            }
+          },
+          {
+            "name": "planeSlicerOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.6
+            }
+          },
+          {
+            "name": "elevationPickerReferenceMode",
+            "in": "query",
+            "required": false,
+            "description": "State. Same Absolute/LRM reference as Plane Slicer, for the Elevation Picker's point/profile sampling itself (lib/elevation-query.ts) — \"LRM\" here has no 3D-mesh equivalent (map.queryTerrainElevation() only…",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "absolute",
+                "lrm"
+              ],
+              "default": "absolute"
+            }
+          },
+          {
+            "name": "tellsBeta",
+            "in": "query",
+            "required": false,
+            "description": "State. Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't clutter Visualization Modes for everyone by default.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "sunShadowBeta",
+            "in": "query",
+            "required": false,
+            "description": "State. Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "historicalBeta",
+            "in": "query",
+            "required": false,
+            "description": "State. Same opt-in-beta gate as tellsBeta above, for the historical-imagery basemaps (Wayback/HLS/GE Historical/Planet) + bottom timeline panel.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "showTellsDetector",
+            "in": "query",
+            "required": false,
+            "description": "State. Master on/off (Visualization Modes' \"Tells (Mound Detector)\" checkbox) — gates the sidebar's Mound Candidates section as well as the map layer.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "tellsMarkersVisible",
+            "in": "query",
+            "required": false,
+            "description": "State. Mound Candidates section's own \"Show mound candidates\" checkbox — a pure paint-visibility toggle for markers already being computed, independent of showTellsDetector so it can't also collapse the sec…",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "tellsStyle",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "outline",
+                "byBlobness",
+                "byPlan",
+                "byDetHessian",
+                "byLrm"
+              ],
+              "default": "outline"
+            }
+          },
+          {
+            "name": "tellsOutlineColor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#ef4444"
+            }
+          },
+          {
+            "name": "tellsScaleMarkers",
+            "in": "query",
+            "required": false,
+            "description": "State. Only meaningful with tellMeasureScale on: draw each marker at tellsScaleMultiplier x its measured diameter (real-world meters, zoom-scaled) instead of fixed px.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "tellsScaleMultiplier",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": "TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT"
+            }
+          },
+          {
+            "name": "tellSize",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 100
+            }
+          },
+          {
+            "name": "tellRadius",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 4
+            }
+          },
+          {
+            "name": "tellMinRelief",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1.5
+            }
+          },
+          {
+            "name": "tellBlobnessMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "tellPlanMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "tellDetHessianMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "tellMeasureScale",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "tellVetoResolution",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "fine",
+                "coarse"
+              ],
+              "default": "coarse"
+            }
+          },
+          {
+            "name": "tellsFrozen",
+            "in": "query",
+            "required": false,
+            "description": "State. \"Frozen\" pins the currently-computed candidates in place (snapshotted into a plain geojson source, see the tellsFrozenSnapshot state and TellsSource's frozen/frozenSnapshot props below) so panning/zo…",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showContoursAndGraticules",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showContours",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "showContourLabels",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "showGraticules",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showRasterBasemap",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showBackground",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "matchThemeColors",
+            "in": "query",
+            "required": false,
+            "description": "State. Sky/horizon/fog colors for the Background + Fog/Sky mode (background- options-section.tsx) — URL-shareable state like every other viz-mode field, not a localStorage preference (was previously a plain…",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "skyColor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#80ccff"
+            }
+          },
+          {
+            "name": "skyHorizonBlend",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.5
+            }
+          },
+          {
+            "name": "horizonColor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#ccddff"
+            }
+          },
+          {
+            "name": "horizonFogBlend",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.5
+            }
+          },
+          {
+            "name": "fogColor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#fcf0dd"
+            }
+          },
+          {
+            "name": "fogGroundBlend",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.2
+            }
+          },
+          {
+            "name": "backgroundLayerActive",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "rasterBasemapOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State. Viz-mode master opacity (the \"Raster Basemap\" checkbox's own slider) — composites (multiplies) with basemapSourceOpacity below for the single/split basemap layer, same pattern as Slope-and-More's mas…",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "basemapSourceOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State. Basemap-solo opacity (the \"Basemap Opacity\" slider inside the Basemap Source section) — only affects the single/split basemap layer, not overlays.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "exaggeration",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "required": false,
+            "description": "State. Whole-earth start, the same view handleGoHome resets to and historical mode already used.",
+            "schema": {
+              "type": "number",
+              "default": 21.4208
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "zoom",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1.52
+            }
+          },
+          {
+            "name": "pitch",
+            "in": "query",
+            "required": false,
+            "description": "State. -- try getting out of pitch 0 loop in 3d pitch: parseAsFloat.withDefault(60.001),",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "bearing",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "hillshadeMethod",
+            "in": "query",
+            "required": false,
+            "description": "State. --",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "standard",
+                "combined",
+                "igor",
+                "basic",
+                "aspect-multidir",
+                "multidir-colors"
+              ],
+              "default": "combined"
+            }
+          },
+          {
+            "name": "illuminationDir",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 315
+            }
+          },
+          {
+            "name": "illuminationAlt",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 45
+            }
+          },
+          {
+            "name": "shadowColor",
+            "in": "query",
+            "required": false,
+            "description": "State. shadowColor: parseAsString.withDefault(\"#000000\"), highlightColor: parseAsString.withDefault(\"#FFFFFF\"), accentColor: parseAsString.withDefault(\"#808080\"),",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#000000"
+            }
+          },
+          {
+            "name": "highlightColor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#FFFFFF"
+            }
+          },
+          {
+            "name": "accentColor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#808080"
+            }
+          },
+          {
+            "name": "hillshadeExag",
+            "in": "query",
+            "required": false,
+            "description": "State. graticuleColor: parseAsString.withDefault(\"#000\"), graticuleColor: parseAsString, // don't use default to sync with theme",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "contourReferenceMode",
+            "in": "query",
+            "required": false,
+            "description": "State. Absolute (\"real altitude\") vs LRM (\"height above/below the local neighborhood mean\") — same reference concept Plane Slicer introduced (PLANE_SLICER_REFERENCE_MODES above), applied to what the contour…",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "absolute",
+                "lrm"
+              ],
+              "default": "absolute"
+            }
+          },
+          {
+            "name": "contourMinor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 50
+            }
+          },
+          {
+            "name": "contourMajor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 200
+            }
+          },
+          {
+            "name": "contourMinorLrm",
+            "in": "query",
+            "required": false,
+            "description": "State. Absolute and LRM keep independent interval values, same reasoning as planeSlicerValue/planeSlicerValueLrm — LRM's natural range (roughly ±100m of local relief) is much narrower than real elevation's,…",
+            "schema": {
+              "type": "number",
+              "default": 5
+            }
+          },
+          {
+            "name": "contourMajorLrm",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 20
+            }
+          },
+          {
+            "name": "contourWeight",
+            "in": "query",
+            "required": false,
+            "description": "State. Multiplies both major and minor contour line-width — default (1) keeps today's major-vs-minor ratio, 2/4 make both proportionally bolder.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "contourColor",
+            "in": "query",
+            "required": false,
+            "description": "State. Contour line / graticule colors — empty string means \"auto\" (theme-adaptive: the contour lines fall back to translucent black/white by theme, the grid to themeAntiColor).",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "customHypsoMinMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "minElevation",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "maxElevation",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 8100
+            }
+          },
+          {
+            "name": "hypsoSliderMinBound",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": -8000
+            }
+          },
+          {
+            "name": "hypsoSliderMaxBound",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 5000
+            }
+          },
+          {
+            "name": "graticuleWidth",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "graticuleColor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "showGraticuleLabels",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "graticuleDensity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "minimapMinimized",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "invertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State. Keyframe/360 animation state (animDuration, animLoopMode, animSmoothCamera, animPlaying, animPlaying360, animPose1, animPose2Delta) lives in its own nuqs hook inside CameraUtilities.tsx, not in this …",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "maxBoundsMode",
+            "in": "query",
+            "required": false,
+            "description": "State. Max map bounds (Settings > Map Bounds) — constrains pan/zoom rather than a one-shot camera fly like the smart-zoom/fit-to-bounds features above.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "none",
+                "terrain",
+                "raster",
+                "union",
+                "custom"
+              ],
+              "default": "terrain"
+            }
+          },
+          {
+            "name": "maxBoundsBuffer",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "maxBoundsWest",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": -180
+            }
+          },
+          {
+            "name": "maxBoundsSouth",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": -85
+            }
+          },
+          {
+            "name": "maxBoundsEast",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 180
+            }
+          },
+          {
+            "name": "maxBoundsNorth",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 85
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The application page."
+          }
+        }
+      }
+    }
+  }
+}

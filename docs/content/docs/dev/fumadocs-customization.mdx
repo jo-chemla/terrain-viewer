@@ -23,7 +23,7 @@ Used from MDX, registered in `docs/src/components/mdx.tsx` or imported per page.
 
 ## Generators (run before `next dev` / `next build`)
 
-- `scripts/build-url-params.mjs` scans `components/TerrainViewer.tsx` for the nuqs parsers, the atom files for `atomWithStorage`, and writes `src/generated/url-params.json` and `public/openapi.json`.
+- `scripts/build-url-params.mjs` scans `components/TerrainViewer.tsx` for the nuqs parsers, the atom files for `atomWithStorage`, and writes `src/generated/url-params.json` and `public/openapi.json`. Both outputs are tracked in git, and a pre-commit hook (`simple-git-hooks`, configured in the root `package.json`, installed by `pnpm install`) regenerates and stages them, so a commit that changes a parameter carries the matching spec. `pnpm run url-params` runs it by hand.
 - `scripts/build-world-110m.mjs` builds the simplified country outlines for the national datasets map.
 
 ## Changelog

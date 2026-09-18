@@ -71,6 +71,10 @@ See `.claude/memory/camera-sync.md` for a full summary of the PR #10 fixes (elev
 
 Key rule: **never issue a programmatic camera command while a pointer is held.** Use `map.transform.*` setters directly — they don't call `stop()`.
 
+## Generated URL reference + pre-commit hook
+
+`docs/scripts/build-url-params.mjs` scans `QUERY_STATE_PARSERS` and the `atomWithStorage` atoms and writes `docs/src/generated/url-params.json` and `docs/public/openapi.json` (both tracked). A pre-commit hook (`simple-git-hooks`, root `package.json`, installed by `pnpm install`) regenerates and stages them. If a commit fails in the hook, run `pnpm run url-params` and read its error.
+
 ## Docs site
 
 `docs/content/docs/` — MDX source. Some files are also imported `?raw` into the main app (e.g. Keyboard Shortcuts, Visualization Modes) as a single source of truth. The proxy in `vite.config.ts` handles `/docs/content/` bypass so Vite serves the raw module instead of proxying to Next.js.

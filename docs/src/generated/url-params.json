@@ -1,0 +1,3624 @@
+{
+  "generatedAt": "2026-09-18T08:58:28.187Z",
+  "skipped": 5,
+  "params": [
+    {
+      "key": "project",
+      "stateKey": "project",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": "Embed/project convenience params: `project` looks up a named preset in lib/projects.json (see lib/project-config.ts); terrainUrl/basemapUrl let an embedder point straight at a raw tile/COG URL withou…"
+    },
+    {
+      "key": "terrainUrl",
+      "stateKey": "terrainUrl",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": ""
+    },
+    {
+      "key": "basemapUrl",
+      "stateKey": "basemapUrl",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": ""
+    },
+    {
+      "key": "terrainType",
+      "stateKey": "terrainType",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": "Explicit source type for terrainUrl/basemapUrl when it's a raw URL (not an existing source id) — type can't always be inferred from the URL shape alone (e.g."
+    },
+    {
+      "key": "basemapType",
+      "stateKey": "basemapType",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": ""
+    },
+    {
+      "key": "viewMode",
+      "stateKey": "viewMode",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "2d",
+        "globe",
+        "3d"
+      ],
+      "default": "3d",
+      "defaultSource": "\"3d\"",
+      "note": ""
+    },
+    {
+      "key": "appMode",
+      "stateKey": "appMode",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "terrain",
+        "historical"
+      ],
+      "default": "terrain",
+      "defaultSource": "\"terrain\"",
+      "note": "Which sidebar layout the ModePicker (TerrainControlPanel.tsx) shows — \"historical\" strips it down to just basemap browsing."
+    },
+    {
+      "key": "splitStyle",
+      "stateKey": "splitStyle",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "off",
+        "overlay",
+        "side-by-side"
+      ],
+      "default": "off",
+      "defaultSource": "\"off\"",
+      "note": "Master split control — replaces the old plain splitScreen boolean."
+    },
+    {
+      "key": "gridLayout",
+      "stateKey": "gridLayout",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "2x1",
+        "3x1",
+        "4x1",
+        "1x2",
+        "2x2",
+        "3x2",
+        "4x2"
+      ],
+      "default": "2x1",
+      "defaultSource": "\"2x1\"",
+      "note": "Only meaningful once splitStyle !== \"off\"; \"overlay\" always behaves as \"2x1\" regardless of this value (see the splitContainer render below)."
+    },
+    {
+      "key": "splitBlendMode",
+      "stateKey": "splitBlendMode",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "normal",
+      "defaultSource": "\"normal\"",
+      "note": "\"overlay\"-only: pane B's CSS mix-blend-mode + opacity against pane A."
+    },
+    {
+      "key": "splitBlendModeEnabled",
+      "stateKey": "splitBlendModeEnabled",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Lets a picked blend mode be toggled off (falls back to plain \"normal\") without losing/resetting it — a quick way to flip back and forth between a blended and a plain overlay comparison for the same p…"
+    },
+    {
+      "key": "overlayOpacity",
+      "stateKey": "overlayOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "splitRatio",
+      "stateKey": "splitRatio",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.5,
+      "defaultSource": "0.5",
+      "note": "Split gutter position (overlay clip boundary / side-by-side divider) as a 0-1 ratio of the available width."
+    },
+    {
+      "key": "matchColorsToA",
+      "stateKey": "matchColorsToA",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "\"overlay\"-only: \"Match Colors (View A as reference)\" — live-samples both panes' CURRENTLY RENDERED canvases (whatever tiles are actually loaded in the viewport, re-sampled at most once/second) and re…"
+    },
+    {
+      "key": "matchColorsColorSpace",
+      "stateKey": "matchColorsColorSpace",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "rgb",
+      "defaultSource": "\"rgb\"",
+      "note": "Which color space the matching above is computed/applied in — \"rgb\" (default) is a live CSS filter; the others are a real per-pixel JS conversion, capped to a low working resolution (see HistogramMat…"
+    },
+    {
+      "key": "showCaptureDatePill",
+      "stateKey": "showCaptureDatePill",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "auto",
+        "off",
+        "date",
+        "source-date\" as const"
+      ],
+      "default": "auto",
+      "defaultSource": "\"auto\"",
+      "note": "Compare and Blend's \"Show Capture Date\" toggle — a small per-view pill for whichever views are actually on a dated historical source."
+    },
+    {
+      "key": "terrainSourceC",
+      "stateKey": "sourceC",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "aws",
+      "defaultSource": "\"aws\"",
+      "note": "C-H only ever matter for gridLayout \"2x2\"/\"3x1\"/\"3x2\"/\"4x1\"/\"4x2\" — same shape as sourceA/B, just extra slots so bigger grids need no schema change."
+    },
+    {
+      "key": "terrainSourceD",
+      "stateKey": "sourceD",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "mapterhorn",
+      "defaultSource": "\"mapterhorn\"",
+      "note": ""
+    },
+    {
+      "key": "terrainSourceE",
+      "stateKey": "sourceE",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "maptiler",
+      "defaultSource": "\"maptiler\"",
+      "note": ""
+    },
+    {
+      "key": "terrainSourceF",
+      "stateKey": "sourceF",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "aws",
+      "defaultSource": "\"aws\"",
+      "note": ""
+    },
+    {
+      "key": "terrainSourceG",
+      "stateKey": "sourceG",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "mapterhorn",
+      "defaultSource": "\"mapterhorn\"",
+      "note": ""
+    },
+    {
+      "key": "terrainSourceH",
+      "stateKey": "sourceH",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "maptiler",
+      "defaultSource": "\"maptiler\"",
+      "note": ""
+    },
+    {
+      "key": "basemapPerView",
+      "stateKey": "basemapPerView",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "basemapSourceA",
+      "stateKey": "basemapSourceA",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "esri",
+      "defaultSource": "\"esri\"",
+      "note": ""
+    },
+    {
+      "key": "basemapSourceB",
+      "stateKey": "basemapSourceB",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "google",
+      "defaultSource": "\"google\"",
+      "note": ""
+    },
+    {
+      "key": "basemapSourceC",
+      "stateKey": "basemapSourceC",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "esri",
+      "defaultSource": "\"esri\"",
+      "note": ""
+    },
+    {
+      "key": "basemapSourceD",
+      "stateKey": "basemapSourceD",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "google",
+      "defaultSource": "\"google\"",
+      "note": ""
+    },
+    {
+      "key": "basemapSourceE",
+      "stateKey": "basemapSourceE",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "esri",
+      "defaultSource": "\"esri\"",
+      "note": ""
+    },
+    {
+      "key": "basemapSourceF",
+      "stateKey": "basemapSourceF",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "google",
+      "defaultSource": "\"google\"",
+      "note": ""
+    },
+    {
+      "key": "basemapSourceG",
+      "stateKey": "basemapSourceG",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "esri",
+      "defaultSource": "\"esri\"",
+      "note": ""
+    },
+    {
+      "key": "basemapSourceH",
+      "stateKey": "basemapSourceH",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "google",
+      "defaultSource": "\"google\"",
+      "note": ""
+    },
+    {
+      "key": "overlayBasemapIds",
+      "stateKey": "overlayBasemapIds",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": "'overlay'-role custom basemap sources currently stacked on top of the active basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B, only meaningful in split-or-radio basemap mode…"
+    },
+    {
+      "key": "date",
+      "stateKey": "date",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "The ONE scrubbed date (epoch ms) for whichever concrete historical source is active on this side (historicalActiveSource(A/B) below) — Wayback/HLS/GE-Historical/Planet/EOX-S2/Bing all share this sing…"
+    },
+    {
+      "key": "dateA",
+      "stateKey": "dateA",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "dateB",
+      "stateKey": "dateB",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "dateC",
+      "stateKey": "dateC",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "dateD",
+      "stateKey": "dateD",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "dateE",
+      "stateKey": "dateE",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "dateF",
+      "stateKey": "dateF",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "dateG",
+      "stateKey": "dateG",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "dateH",
+      "stateKey": "dateH",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "historicalActiveSource",
+      "stateKey": "historicalActiveSource",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "wayback",
+        "hls",
+        "ge-historical",
+        "planet",
+        "eox-s2\" as const"
+      ],
+      "default": "wayback",
+      "defaultSource": "\"wayback\"",
+      "note": "Which concrete underlying source (wayback/hls/ge-historical/planet/ eox-s2) actually renders when basemapSource(A/B) === \"historical\" — the sidebar only ever exposes one combined \"Historical Imagery\"…"
+    },
+    {
+      "key": "historicalActiveSourceA",
+      "stateKey": "historicalActiveSourceA",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "wayback",
+        "hls",
+        "ge-historical",
+        "planet",
+        "eox-s2\" as const"
+      ],
+      "default": "wayback",
+      "defaultSource": "\"wayback\"",
+      "note": ""
+    },
+    {
+      "key": "historicalActiveSourceB",
+      "stateKey": "historicalActiveSourceB",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "wayback",
+        "hls",
+        "ge-historical",
+        "planet",
+        "eox-s2\" as const"
+      ],
+      "default": "wayback",
+      "defaultSource": "\"wayback\"",
+      "note": ""
+    },
+    {
+      "key": "historicalActiveSourceC",
+      "stateKey": "historicalActiveSourceC",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "wayback",
+        "hls",
+        "ge-historical",
+        "planet",
+        "eox-s2\" as const"
+      ],
+      "default": "wayback",
+      "defaultSource": "\"wayback\"",
+      "note": ""
+    },
+    {
+      "key": "historicalActiveSourceD",
+      "stateKey": "historicalActiveSourceD",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "wayback",
+        "hls",
+        "ge-historical",
+        "planet",
+        "eox-s2\" as const"
+      ],
+      "default": "wayback",
+      "defaultSource": "\"wayback\"",
+      "note": ""
+    },
+    {
+      "key": "historicalActiveSourceE",
+      "stateKey": "historicalActiveSourceE",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "wayback",
+        "hls",
+        "ge-historical",
+        "planet",
+        "eox-s2\" as const"
+      ],
+      "default": "wayback",
+      "defaultSource": "\"wayback\"",
+      "note": ""
+    },
+    {
+      "key": "historicalActiveSourceF",
+      "stateKey": "historicalActiveSourceF",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "wayback",
+        "hls",
+        "ge-historical",
+        "planet",
+        "eox-s2\" as const"
+      ],
+      "default": "wayback",
+      "defaultSource": "\"wayback\"",
+      "note": ""
+    },
+    {
+      "key": "historicalActiveSourceG",
+      "stateKey": "historicalActiveSourceG",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "wayback",
+        "hls",
+        "ge-historical",
+        "planet",
+        "eox-s2\" as const"
+      ],
+      "default": "wayback",
+      "defaultSource": "\"wayback\"",
+      "note": ""
+    },
+    {
+      "key": "historicalActiveSourceH",
+      "stateKey": "historicalActiveSourceH",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "wayback",
+        "hls",
+        "ge-historical",
+        "planet",
+        "eox-s2\" as const"
+      ],
+      "default": "wayback",
+      "defaultSource": "\"wayback\"",
+      "note": ""
+    },
+    {
+      "key": "timelineSources",
+      "stateKey": "timelineSources",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [
+        "wayback",
+        "ge-historical",
+        "bing"
+      ],
+      "defaultSource": "[\"wayback\", \"ge-historical\", \"bing\"]",
+      "note": "Which historical sources' ticks are aggregated onto the shared timeline (pill toggles in historical-timeline-panel.tsx) — independent of which single source is actually \"active\"/rendered on the map."
+    },
+    {
+      "key": "timelineSourcesA",
+      "stateKey": "timelineSourcesA",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [
+        "wayback",
+        "ge-historical",
+        "bing"
+      ],
+      "defaultSource": "[\"wayback\", \"ge-historical\", \"bing\"]",
+      "note": "Per-side variants of timelineSources above — only meaningful when both basemapPerView AND splitStyle!==\"off\" are on (dualMode) AND the timeline's sync toggle is off, letting each active view aggregat…"
+    },
+    {
+      "key": "timelineSourcesB",
+      "stateKey": "timelineSourcesB",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [
+        "wayback",
+        "ge-historical",
+        "bing"
+      ],
+      "defaultSource": "[\"wayback\", \"ge-historical\", \"bing\"]",
+      "note": ""
+    },
+    {
+      "key": "timelineSourcesC",
+      "stateKey": "timelineSourcesC",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [
+        "wayback",
+        "ge-historical",
+        "bing"
+      ],
+      "defaultSource": "[\"wayback\", \"ge-historical\", \"bing\"]",
+      "note": ""
+    },
+    {
+      "key": "timelineSourcesD",
+      "stateKey": "timelineSourcesD",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [
+        "wayback",
+        "ge-historical",
+        "bing"
+      ],
+      "defaultSource": "[\"wayback\", \"ge-historical\", \"bing\"]",
+      "note": ""
+    },
+    {
+      "key": "timelineSourcesE",
+      "stateKey": "timelineSourcesE",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [
+        "wayback",
+        "ge-historical",
+        "bing"
+      ],
+      "defaultSource": "[\"wayback\", \"ge-historical\", \"bing\"]",
+      "note": ""
+    },
+    {
+      "key": "timelineSourcesF",
+      "stateKey": "timelineSourcesF",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [
+        "wayback",
+        "ge-historical",
+        "bing"
+      ],
+      "defaultSource": "[\"wayback\", \"ge-historical\", \"bing\"]",
+      "note": ""
+    },
+    {
+      "key": "timelineSourcesG",
+      "stateKey": "timelineSourcesG",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [
+        "wayback",
+        "ge-historical",
+        "bing"
+      ],
+      "defaultSource": "[\"wayback\", \"ge-historical\", \"bing\"]",
+      "note": ""
+    },
+    {
+      "key": "timelineSourcesH",
+      "stateKey": "timelineSourcesH",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [
+        "wayback",
+        "ge-historical",
+        "bing"
+      ],
+      "defaultSource": "[\"wayback\", \"ge-historical\", \"bing\"]",
+      "note": ""
+    },
+    {
+      "key": "historicalTimelineCollapsed",
+      "stateKey": "historicalTimelineCollapsed",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Whether the historical timeline's full bar (header + track) is collapsed down to just the small floating clock-icon toggle button."
+    },
+    {
+      "key": "sidebarCollapsed",
+      "stateKey": "sidebarCollapsed",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "The side panel, folded."
+    },
+    {
+      "key": "drawingUrl",
+      "stateKey": "drawingUrl",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": "Remote vector data in the Drawing tool, one layer per URL (comma- separated; nuqs encodes commas inside an item)."
+    },
+    {
+      "key": "historicalControlsExpanded",
+      "stateKey": "historicalControlsExpanded",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Whether the timeline's title/source-pills/resolution-chips header row is shown (true) or the panel is in its minimal, track-only mode with just a small floating cog+collapse chip (false)."
+    },
+    {
+      "key": "resolutionClasses",
+      "stateKey": "resolutionClasses",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [
+        "vhr",
+        "medium"
+      ],
+      "defaultSource": "[\"vhr\", \"medium\"]",
+      "note": "Resolution-class filter alongside the source pills above — \"vhr\" (Wayback/GE Historical/Bing, sub-meter-ish) vs \"medium\" (HLS's 10-30m Landsat/Sentinel-2, Planet's ~4.7m monthly mosaic) — see SOURCE_…"
+    },
+    {
+      "key": "colorRamp",
+      "stateKey": "colorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "mby",
+      "defaultSource": "\"mby\"",
+      "note": "colorRamp: parseAsString.withDefault(\"mby\"),"
+    },
+    {
+      "key": "customStops",
+      "stateKey": "customStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "customStopsDiscrete",
+      "stateKey": "customStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showHillshade",
+      "stateKey": "showHillshade",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Native MapLibre Hillshade — its own independent viz mode, entirely separate from \"Lighting Effects\" (Matcap/Phong) below."
+    },
+    {
+      "key": "hillshadeOpacity",
+      "stateKey": "hillshadeOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "showLightingEffects",
+      "stateKey": "showLightingEffects",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "\"Lighting Effects\" viz mode — master toggle/opacity, housing two sub-modes: Matcap first, Phong second (see lighting-effects-options-section.tsx)."
+    },
+    {
+      "key": "lightingEffectsOpacity",
+      "stateKey": "lightingEffectsOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "showMatcap",
+      "stateKey": "showMatcap",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "\"Matcap\" sub-mode (lib/matcap-protocol.ts) — a plain raster overlay (draped over 3D terrain the same automatic way the raster basemap is) that looks up color from a material-capture image using the s…"
+    },
+    {
+      "key": "matcapOpacity",
+      "stateKey": "matcapOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "matcapTextureId",
+      "stateKey": "matcapTextureId",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_MATCAP_ID",
+      "defaultSource": "DEFAULT_MATCAP_ID",
+      "note": ""
+    },
+    {
+      "key": "matcapRotationDeg",
+      "stateKey": "matcapRotationDeg",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "\"Sphere Rotation\" — spins the matcap lookup independently of the map's own bearing (a raster tile is baked once per z/x/y, so it can't track live bearing the way a real-time GPU shader could)."
+    },
+    {
+      "key": "matcapRenderer",
+      "stateKey": "matcapRenderer",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "raster",
+        "live\" as const"
+      ],
+      "default": "live",
+      "defaultSource": "\"live\"",
+      "note": "\"raster\" (default): lib/matcap-protocol.ts's plain raster-tile pipeline — drapes correctly over 3D terrain exaggeration AND globe, but every rotation/exaggeration change costs a real tile refetch."
+    },
+    {
+      "key": "matcapLightRelativeToCamera",
+      "stateKey": "matcapLightRelativeToCamera",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "\"Light Anchor\", ported from Phong's phongLightRelativeToCamera — only meaningful in \"live\" (2D Fast): off (Absolute) samples the material by the tile-space normal, pinned to compass directions and id…"
+    },
+    {
+      "key": "showPhong",
+      "stateKey": "showPhong",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "\"Phong\" sub-mode (lib/phong-protocol.ts) — a plain raster overlay doing real ambient+diffuse+specular shading from a compass-fixed light (state.illuminationDir/illuminationAlt below — the same fields…"
+    },
+    {
+      "key": "phongOpacity",
+      "stateKey": "phongOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "phongDiffuseStrength",
+      "stateKey": "phongDiffuseStrength",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.8,
+      "defaultSource": "0.8",
+      "note": ""
+    },
+    {
+      "key": "phongSpecularStrength",
+      "stateKey": "phongSpecularStrength",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.2,
+      "defaultSource": "0.2",
+      "note": ""
+    },
+    {
+      "key": "phongLightRelativeToCamera",
+      "stateKey": "phongLightRelativeToCamera",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Off (default — briefly flipped to Camera on 2026-08-20, reverted the same day on the user's follow-up): illuminationDir is a compass azimuth, fixed to the world, matching maplibre's own hillshade ill…"
+    },
+    {
+      "key": "phongRenderer",
+      "stateKey": "phongRenderer",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "raster",
+        "live\" as const"
+      ],
+      "default": "live",
+      "defaultSource": "\"live\"",
+      "note": "\"raster\" (default): lib/phong-protocol.ts's plain raster-tile pipeline — drapes correctly over 3D terrain exaggeration AND globe, but every light/strength/exaggeration change costs a real tile refetc…"
+    },
+    {
+      "key": "showShadows",
+      "stateKey": "showShadows",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "\"Shadows\" sub-mode (lib/shadow-protocol.ts) — a plain binary raster mask: for each pixel, marches toward the sun's actual azimuth (state.illuminationDir/illuminationAlt below — same shared light as H…"
+    },
+    {
+      "key": "shadowOpacity",
+      "stateKey": "shadowOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.6,
+      "defaultSource": "0.6",
+      "note": ""
+    },
+    {
+      "key": "shadowRadiusPx",
+      "stateKey": "shadowRadiusPx",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 32,
+      "defaultSource": "32",
+      "note": "\"Search Radius\" — same convention as SVF/Openness: how many same-zoom pixels the single ray marches outward looking for an obstruction."
+    },
+    {
+      "key": "lightUseDatetime",
+      "stateKey": "lightUseDatetime",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "\"Datetime-based\" light: when on, illuminationDir/illuminationAlt are driven from a physically-plausible sun position (see lib/solar-position.ts) computed from the viewport-center lat/lng + these day-…"
+    },
+    {
+      "key": "lightTimeMode",
+      "stateKey": "lightTimeMode",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "local",
+        "utc\" as const"
+      ],
+      "default": "local",
+      "defaultSource": "\"local\"",
+      "note": "Which clock convention lightTimeOfDay is expressed in — \"local\": the real civil wall-clock time at the viewport lat/lng, including that location's actual DST rules (see lib/timezone.ts); \"utc\": UTC d…"
+    },
+    {
+      "key": "showColorRelief",
+      "stateKey": "showColorRelief",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "colorReliefOpacity",
+      "stateKey": "colorReliefOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.35,
+      "defaultSource": "0.35",
+      "note": ""
+    },
+    {
+      "key": "showTerrainAnalysis",
+      "stateKey": "showTerrainAnalysis",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Master toggles for what used to be one merged \"Slope and More\" viz mode, now split into Terrain Analysis (surface derivatives + neighborhood statistics: Slope/Aspect/Curvature/Det Hessian/Blobness/TP…"
+    },
+    {
+      "key": "terrainAnalysisOpacity",
+      "stateKey": "terrainAnalysisOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": "Master opacity for Terrain Analysis — composites (multiplies) with each sub-mode's own opacity below, rather than replacing it."
+    },
+    {
+      "key": "showReliefVisualization",
+      "stateKey": "showReliefVisualization",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "reliefVisualizationOpacity",
+      "stateKey": "reliefVisualizationOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "showSlope",
+      "stateKey": "showSlope",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "slopeOpacity",
+      "stateKey": "slopeOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "slopeColorRamp",
+      "stateKey": "slopeColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "slope-plantopo",
+      "defaultSource": "\"slope-plantopo\"",
+      "note": ""
+    },
+    {
+      "key": "slopeSourceMode",
+      "stateKey": "slopeSourceMode",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "plantopo",
+        "client"
+      ],
+      "default": "client",
+      "defaultSource": "\"client\"",
+      "note": ""
+    },
+    {
+      "key": "slopeMinDegrees",
+      "stateKey": "slopeMinDegrees",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "slopeMaxDegrees",
+      "stateKey": "slopeMaxDegrees",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 55,
+      "defaultSource": "55",
+      "note": ""
+    },
+    {
+      "key": "slopeInvertColorRamp",
+      "stateKey": "slopeInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "slopeCustomStops",
+      "stateKey": "slopeCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": "Only read when slopeColorRamp === \"custom\" — see computeColorReliefPaint's dedicated branch for that ramp id in MapLayers.tsx."
+    },
+    {
+      "key": "slopeCustomStopsDiscrete",
+      "stateKey": "slopeCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "When the custom ramp is selected, render its stops as hard discrete bands (each color holds until the next stop) instead of a continuous gradient."
+    },
+    {
+      "key": "showAspect",
+      "stateKey": "showAspect",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "aspectOpacity",
+      "stateKey": "aspectOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.5,
+      "defaultSource": "0.5",
+      "note": ""
+    },
+    {
+      "key": "aspectColorRamp",
+      "stateKey": "aspectColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "aspect-compass",
+      "defaultSource": "\"aspect-compass\"",
+      "note": ""
+    },
+    {
+      "key": "aspectMinDegrees",
+      "stateKey": "aspectMinDegrees",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "aspectMaxDegrees",
+      "stateKey": "aspectMaxDegrees",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 360,
+      "defaultSource": "360",
+      "note": ""
+    },
+    {
+      "key": "aspectShiftDegrees",
+      "stateKey": "aspectShiftDegrees",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "aspectInvertColorRamp",
+      "stateKey": "aspectInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "aspectCustomStops",
+      "stateKey": "aspectCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "aspectCustomStopsDiscrete",
+      "stateKey": "aspectCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showTri",
+      "stateKey": "showTri",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "triOpacity",
+      "stateKey": "triOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "triColorRamp",
+      "stateKey": "triColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "tri-default",
+      "defaultSource": "\"tri-default\"",
+      "note": ""
+    },
+    {
+      "key": "triMin",
+      "stateKey": "triMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "triMax",
+      "stateKey": "triMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 50,
+      "defaultSource": "50",
+      "note": ""
+    },
+    {
+      "key": "triInvertColorRamp",
+      "stateKey": "triInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "triCustomStops",
+      "stateKey": "triCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "triCustomStopsDiscrete",
+      "stateKey": "triCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showCurvature",
+      "stateKey": "showCurvature",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "curvatureOpacity",
+      "stateKey": "curvatureOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "curvatureMode",
+      "stateKey": "curvatureMode",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "combined",
+        "profile",
+        "plan",
+        "det-hessian",
+        "casorati",
+        "shape-index"
+      ],
+      "default": "combined",
+      "defaultSource": "\"combined\"",
+      "note": ""
+    },
+    {
+      "key": "curvatureColorRamp",
+      "stateKey": "curvatureColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "curvature-diverging",
+      "defaultSource": "\"curvature-diverging\"",
+      "note": ""
+    },
+    {
+      "key": "curvatureMin",
+      "stateKey": "curvatureMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": -20,
+      "defaultSource": "-20",
+      "note": ""
+    },
+    {
+      "key": "curvatureMax",
+      "stateKey": "curvatureMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 20,
+      "defaultSource": "20",
+      "note": ""
+    },
+    {
+      "key": "curvatureInvertColorRamp",
+      "stateKey": "curvatureInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "curvatureSymmetric",
+      "stateKey": "curvatureSymmetric",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "curvatureCustomStops",
+      "stateKey": "curvatureCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "curvatureCustomStopsDiscrete",
+      "stateKey": "curvatureCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showTpi",
+      "stateKey": "showTpi",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "tpiOpacity",
+      "stateKey": "tpiOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "tpiColorRamp",
+      "stateKey": "tpiColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "tpi-diverging",
+      "defaultSource": "\"tpi-diverging\"",
+      "note": ""
+    },
+    {
+      "key": "tpiMin",
+      "stateKey": "tpiMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": -20,
+      "defaultSource": "-20",
+      "note": ""
+    },
+    {
+      "key": "tpiMax",
+      "stateKey": "tpiMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 20,
+      "defaultSource": "20",
+      "note": ""
+    },
+    {
+      "key": "tpiInvertColorRamp",
+      "stateKey": "tpiInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "tpiSymmetric",
+      "stateKey": "tpiSymmetric",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "tpiCustomStops",
+      "stateKey": "tpiCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "tpiCustomStopsDiscrete",
+      "stateKey": "tpiCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showLrm",
+      "stateKey": "showLrm",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "lrmOpacity",
+      "stateKey": "lrmOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "lrmColorRamp",
+      "stateKey": "lrmColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "lrm-diverging",
+      "defaultSource": "\"lrm-diverging\"",
+      "note": ""
+    },
+    {
+      "key": "lrmMin",
+      "stateKey": "lrmMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": -20,
+      "defaultSource": "-20",
+      "note": ""
+    },
+    {
+      "key": "lrmMax",
+      "stateKey": "lrmMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 20,
+      "defaultSource": "20",
+      "note": ""
+    },
+    {
+      "key": "lrmInvertColorRamp",
+      "stateKey": "lrmInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "lrmSymmetric",
+      "stateKey": "lrmSymmetric",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "lrmRadius",
+      "stateKey": "lrmRadius",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 16,
+      "defaultSource": "16",
+      "note": ""
+    },
+    {
+      "key": "lrmCustomStops",
+      "stateKey": "lrmCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "lrmCustomStopsDiscrete",
+      "stateKey": "lrmCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showRoughness",
+      "stateKey": "showRoughness",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "roughnessOpacity",
+      "stateKey": "roughnessOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "roughnessColorRamp",
+      "stateKey": "roughnessColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "roughness-default",
+      "defaultSource": "\"roughness-default\"",
+      "note": ""
+    },
+    {
+      "key": "roughnessMin",
+      "stateKey": "roughnessMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "roughnessMax",
+      "stateKey": "roughnessMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 50,
+      "defaultSource": "50",
+      "note": ""
+    },
+    {
+      "key": "roughnessInvertColorRamp",
+      "stateKey": "roughnessInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "roughnessCustomStops",
+      "stateKey": "roughnessCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "roughnessCustomStopsDiscrete",
+      "stateKey": "roughnessCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showShapeIndex",
+      "stateKey": "showShapeIndex",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "shapeIndexOpacity",
+      "stateKey": "shapeIndexOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "shapeIndexColorRamp",
+      "stateKey": "shapeIndexColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "custom",
+      "defaultSource": "\"custom\"",
+      "note": ""
+    },
+    {
+      "key": "shapeIndexMin",
+      "stateKey": "shapeIndexMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": -1,
+      "defaultSource": "-1",
+      "note": ""
+    },
+    {
+      "key": "shapeIndexMax",
+      "stateKey": "shapeIndexMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1",
+      "note": ""
+    },
+    {
+      "key": "shapeIndexInvertColorRamp",
+      "stateKey": "shapeIndexInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "shapeIndexSymmetric",
+      "stateKey": "shapeIndexSymmetric",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "shapeIndexCustomStops",
+      "stateKey": "shapeIndexCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SHAPE_INDEX_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SHAPE_INDEX_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "shapeIndexCustomStopsDiscrete",
+      "stateKey": "shapeIndexCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "showBlobness",
+      "stateKey": "showBlobness",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "blobnessOpacity",
+      "stateKey": "blobnessOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "blobnessColorRamp",
+      "stateKey": "blobnessColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "blobness-default",
+      "defaultSource": "\"blobness-default\"",
+      "note": ""
+    },
+    {
+      "key": "blobnessMin",
+      "stateKey": "blobnessMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "blobnessMax",
+      "stateKey": "blobnessMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 50,
+      "defaultSource": "50",
+      "note": ""
+    },
+    {
+      "key": "blobnessInvertColorRamp",
+      "stateKey": "blobnessInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "blobnessCustomStops",
+      "stateKey": "blobnessCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "blobnessCustomStopsDiscrete",
+      "stateKey": "blobnessCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showEigenRatio",
+      "stateKey": "showEigenRatio",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "eigenRatioOpacity",
+      "stateKey": "eigenRatioOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "eigenRatioColorRamp",
+      "stateKey": "eigenRatioColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "eigen-ratio-default",
+      "defaultSource": "\"eigen-ratio-default\"",
+      "note": ""
+    },
+    {
+      "key": "eigenRatioMin",
+      "stateKey": "eigenRatioMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "eigenRatioMax",
+      "stateKey": "eigenRatioMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 100,
+      "defaultSource": "100",
+      "note": ""
+    },
+    {
+      "key": "eigenRatioInvertColorRamp",
+      "stateKey": "eigenRatioInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "eigenRatioCustomStops",
+      "stateKey": "eigenRatioCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "eigenRatioCustomStopsDiscrete",
+      "stateKey": "eigenRatioCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showOrientation",
+      "stateKey": "showOrientation",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "orientationOpacity",
+      "stateKey": "orientationOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "orientationColorRamp",
+      "stateKey": "orientationColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "orientation-default",
+      "defaultSource": "\"orientation-default\"",
+      "note": ""
+    },
+    {
+      "key": "orientationMin",
+      "stateKey": "orientationMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "orientationMax",
+      "stateKey": "orientationMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 180,
+      "defaultSource": "180",
+      "note": ""
+    },
+    {
+      "key": "orientationInvertColorRamp",
+      "stateKey": "orientationInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "orientationCustomStops",
+      "stateKey": "orientationCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "orientationCustomStopsDiscrete",
+      "stateKey": "orientationCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showSvf",
+      "stateKey": "showSvf",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "svfOpacity",
+      "stateKey": "svfOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "svfColorRamp",
+      "stateKey": "svfColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "svf-default",
+      "defaultSource": "\"svf-default\"",
+      "note": ""
+    },
+    {
+      "key": "svfMin",
+      "stateKey": "svfMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "svfMax",
+      "stateKey": "svfMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 100,
+      "defaultSource": "100",
+      "note": ""
+    },
+    {
+      "key": "svfInvertColorRamp",
+      "stateKey": "svfInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "svfRadius",
+      "stateKey": "svfRadius",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 8,
+      "defaultSource": "8",
+      "note": ""
+    },
+    {
+      "key": "svfPrecision",
+      "stateKey": "svfPrecision",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "precise",
+        "fast"
+      ],
+      "default": "precise",
+      "defaultSource": "\"precise\"",
+      "note": ""
+    },
+    {
+      "key": "svfCustomStops",
+      "stateKey": "svfCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "svfCustomStopsDiscrete",
+      "stateKey": "svfCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showOpenness",
+      "stateKey": "showOpenness",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "opennessOpacity",
+      "stateKey": "opennessOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "opennessColorRamp",
+      "stateKey": "opennessColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "openness-default",
+      "defaultSource": "\"openness-default\"",
+      "note": ""
+    },
+    {
+      "key": "opennessMin",
+      "stateKey": "opennessMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": -15,
+      "defaultSource": "-15",
+      "note": ""
+    },
+    {
+      "key": "opennessMax",
+      "stateKey": "opennessMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 15,
+      "defaultSource": "15",
+      "note": ""
+    },
+    {
+      "key": "opennessInvertColorRamp",
+      "stateKey": "opennessInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "opennessSymmetric",
+      "stateKey": "opennessSymmetric",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "opennessRadius",
+      "stateKey": "opennessRadius",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 8,
+      "defaultSource": "8",
+      "note": ""
+    },
+    {
+      "key": "opennessMode",
+      "stateKey": "opennessMode",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "positive",
+        "negative"
+      ],
+      "default": "positive",
+      "defaultSource": "\"positive\"",
+      "note": ""
+    },
+    {
+      "key": "opennessPrecision",
+      "stateKey": "opennessPrecision",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "precise",
+        "fast"
+      ],
+      "default": "precise",
+      "defaultSource": "\"precise\"",
+      "note": ""
+    },
+    {
+      "key": "opennessCustomStops",
+      "stateKey": "opennessCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "opennessCustomStopsDiscrete",
+      "stateKey": "opennessCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showLocalDominance",
+      "stateKey": "showLocalDominance",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Local Dominance (Hesse 2016) — Relief Visualization mode, see lib/local-dominance-protocol.ts."
+    },
+    {
+      "key": "localDominanceOpacity",
+      "stateKey": "localDominanceOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "localDominanceColorRamp",
+      "stateKey": "localDominanceColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "local-dominance-default",
+      "defaultSource": "\"local-dominance-default\"",
+      "note": ""
+    },
+    {
+      "key": "localDominanceMin",
+      "stateKey": "localDominanceMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": -5,
+      "defaultSource": "-5",
+      "note": ""
+    },
+    {
+      "key": "localDominanceMax",
+      "stateKey": "localDominanceMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 15,
+      "defaultSource": "15",
+      "note": ""
+    },
+    {
+      "key": "localDominanceInvertColorRamp",
+      "stateKey": "localDominanceInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "localDominanceSymmetric",
+      "stateKey": "localDominanceSymmetric",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "localDominanceMinRadius",
+      "stateKey": "localDominanceMinRadius",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 8,
+      "defaultSource": "8",
+      "note": ""
+    },
+    {
+      "key": "localDominanceMaxRadius",
+      "stateKey": "localDominanceMaxRadius",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 32,
+      "defaultSource": "32",
+      "note": ""
+    },
+    {
+      "key": "localDominanceCustomStops",
+      "stateKey": "localDominanceCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "localDominanceCustomStopsDiscrete",
+      "stateKey": "localDominanceCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showPlaneSlicer",
+      "stateKey": "showPlaneSlicer",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Plane Slicer — Tools: Elevation Picker sub-section."
+    },
+    {
+      "key": "planeSlicerReferenceMode",
+      "stateKey": "planeSlicerReferenceMode",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "absolute",
+        "lrm"
+      ],
+      "default": "absolute",
+      "defaultSource": "\"absolute\"",
+      "note": ""
+    },
+    {
+      "key": "planeSlicerValue",
+      "stateKey": "planeSlicerValue",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "Absolute and LRM keep independent threshold values — the two reference frames have wildly different natural ranges (metres of real elevation vs."
+    },
+    {
+      "key": "planeSlicerValueLrm",
+      "stateKey": "planeSlicerValueLrm",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "planeSlicerSide",
+      "stateKey": "planeSlicerSide",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "above",
+        "below"
+      ],
+      "default": "below",
+      "defaultSource": "\"below\"",
+      "note": ""
+    },
+    {
+      "key": "planeSlicerColor",
+      "stateKey": "planeSlicerColor",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "#3388ff",
+      "defaultSource": "\"#3388ff\"",
+      "note": ""
+    },
+    {
+      "key": "planeSlicerOpacity",
+      "stateKey": "planeSlicerOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.6,
+      "defaultSource": "0.6",
+      "note": ""
+    },
+    {
+      "key": "elevationPickerReferenceMode",
+      "stateKey": "elevationPickerReferenceMode",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "absolute",
+        "lrm"
+      ],
+      "default": "absolute",
+      "defaultSource": "\"absolute\"",
+      "note": "Same Absolute/LRM reference as Plane Slicer, for the Elevation Picker's point/profile sampling itself (lib/elevation-query.ts) — \"LRM\" here has no 3D-mesh equivalent (map.queryTerrainElevation() only…"
+    },
+    {
+      "key": "tellsBeta",
+      "stateKey": "tellsBeta",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't clutter Visualization Modes for everyone by default."
+    },
+    {
+      "key": "sunShadowBeta",
+      "stateKey": "sunShadowBeta",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator."
+    },
+    {
+      "key": "historicalBeta",
+      "stateKey": "historicalBeta",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Same opt-in-beta gate as tellsBeta above, for the historical-imagery basemaps (Wayback/HLS/GE Historical/Planet) + bottom timeline panel."
+    },
+    {
+      "key": "showTellsDetector",
+      "stateKey": "showTellsDetector",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Master on/off (Visualization Modes' \"Tells (Mound Detector)\" checkbox) — gates the sidebar's Mound Candidates section as well as the map layer."
+    },
+    {
+      "key": "tellsMarkersVisible",
+      "stateKey": "tellsMarkersVisible",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Mound Candidates section's own \"Show mound candidates\" checkbox — a pure paint-visibility toggle for markers already being computed, independent of showTellsDetector so it can't also collapse the sec…"
+    },
+    {
+      "key": "tellsStyle",
+      "stateKey": "tellsStyle",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "outline",
+        "byBlobness",
+        "byPlan",
+        "byDetHessian",
+        "byLrm"
+      ],
+      "default": "outline",
+      "defaultSource": "\"outline\"",
+      "note": ""
+    },
+    {
+      "key": "tellsOutlineColor",
+      "stateKey": "tellsOutlineColor",
+      "type": "color",
+      "items": null,
+      "enum": null,
+      "default": "#ef4444",
+      "defaultSource": "\"#ef4444\"",
+      "note": ""
+    },
+    {
+      "key": "tellsScaleMarkers",
+      "stateKey": "tellsScaleMarkers",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Only meaningful with tellMeasureScale on: draw each marker at tellsScaleMultiplier x its measured diameter (real-world meters, zoom-scaled) instead of fixed px."
+    },
+    {
+      "key": "tellsScaleMultiplier",
+      "stateKey": "tellsScaleMultiplier",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": "TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT",
+      "defaultSource": "TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT",
+      "note": ""
+    },
+    {
+      "key": "tellSize",
+      "stateKey": "tellSize",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 100,
+      "defaultSource": "100",
+      "note": ""
+    },
+    {
+      "key": "tellRadius",
+      "stateKey": "tellRadius",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 4,
+      "defaultSource": "4",
+      "note": ""
+    },
+    {
+      "key": "tellMinRelief",
+      "stateKey": "tellMinRelief",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1.5,
+      "defaultSource": "1.5",
+      "note": ""
+    },
+    {
+      "key": "tellBlobnessMin",
+      "stateKey": "tellBlobnessMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "tellPlanMin",
+      "stateKey": "tellPlanMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "tellDetHessianMin",
+      "stateKey": "tellDetHessianMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "tellMeasureScale",
+      "stateKey": "tellMeasureScale",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "tellVetoResolution",
+      "stateKey": "tellVetoResolution",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "fine",
+        "coarse"
+      ],
+      "default": "coarse",
+      "defaultSource": "\"coarse\"",
+      "note": ""
+    },
+    {
+      "key": "tellsFrozen",
+      "stateKey": "tellsFrozen",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "\"Frozen\" pins the currently-computed candidates in place (snapshotted into a plain geojson source, see the tellsFrozenSnapshot state and TellsSource's frozen/frozenSnapshot props below) so panning/zo…"
+    },
+    {
+      "key": "showContoursAndGraticules",
+      "stateKey": "showContoursAndGraticules",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showContours",
+      "stateKey": "showContours",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "showContourLabels",
+      "stateKey": "showContourLabels",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "showGraticules",
+      "stateKey": "showGraticules",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showRasterBasemap",
+      "stateKey": "showRasterBasemap",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "showBackground",
+      "stateKey": "showBackground",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "matchThemeColors",
+      "stateKey": "matchThemeColors",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Sky/horizon/fog colors for the Background + Fog/Sky mode (background- options-section.tsx) — URL-shareable state like every other viz-mode field, not a localStorage preference (was previously a plain…"
+    },
+    {
+      "key": "skyColor",
+      "stateKey": "skyColor",
+      "type": "color",
+      "items": null,
+      "enum": null,
+      "default": "#80ccff",
+      "defaultSource": "\"#80ccff\"",
+      "note": ""
+    },
+    {
+      "key": "skyHorizonBlend",
+      "stateKey": "skyHorizonBlend",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.5,
+      "defaultSource": "0.5",
+      "note": ""
+    },
+    {
+      "key": "horizonColor",
+      "stateKey": "horizonColor",
+      "type": "color",
+      "items": null,
+      "enum": null,
+      "default": "#ccddff",
+      "defaultSource": "\"#ccddff\"",
+      "note": ""
+    },
+    {
+      "key": "horizonFogBlend",
+      "stateKey": "horizonFogBlend",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.5,
+      "defaultSource": "0.5",
+      "note": ""
+    },
+    {
+      "key": "fogColor",
+      "stateKey": "fogColor",
+      "type": "color",
+      "items": null,
+      "enum": null,
+      "default": "#fcf0dd",
+      "defaultSource": "\"#fcf0dd\"",
+      "note": ""
+    },
+    {
+      "key": "fogGroundBlend",
+      "stateKey": "fogGroundBlend",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.2,
+      "defaultSource": "0.2",
+      "note": ""
+    },
+    {
+      "key": "backgroundLayerActive",
+      "stateKey": "backgroundLayerActive",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "rasterBasemapOpacity",
+      "stateKey": "rasterBasemapOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": "Viz-mode master opacity (the \"Raster Basemap\" checkbox's own slider) — composites (multiplies) with basemapSourceOpacity below for the single/split basemap layer, same pattern as Slope-and-More's mas…"
+    },
+    {
+      "key": "basemapSourceOpacity",
+      "stateKey": "basemapSourceOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": "Basemap-solo opacity (the \"Basemap Opacity\" slider inside the Basemap Source section) — only affects the single/split basemap layer, not overlays."
+    },
+    {
+      "key": "exaggeration",
+      "stateKey": "exaggeration",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1",
+      "note": ""
+    },
+    {
+      "key": "lat",
+      "stateKey": "lat",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 21.4208,
+      "defaultSource": "21.4208",
+      "note": "Whole-earth start, the same view handleGoHome resets to and historical mode already used."
+    },
+    {
+      "key": "lng",
+      "stateKey": "lng",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "zoom",
+      "stateKey": "zoom",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1.52,
+      "defaultSource": "1.52",
+      "note": ""
+    },
+    {
+      "key": "pitch",
+      "stateKey": "pitch",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "-- try getting out of pitch 0 loop in 3d pitch: parseAsFloat.withDefault(60.001),"
+    },
+    {
+      "key": "bearing",
+      "stateKey": "bearing",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "hillshadeMethod",
+      "stateKey": "hillshadeMethod",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "standard",
+        "combined",
+        "igor",
+        "basic",
+        "aspect-multidir",
+        "multidir-colors"
+      ],
+      "default": "combined",
+      "defaultSource": "\"combined\"",
+      "note": "--"
+    },
+    {
+      "key": "illuminationDir",
+      "stateKey": "illuminationDir",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 315,
+      "defaultSource": "315",
+      "note": ""
+    },
+    {
+      "key": "illuminationAlt",
+      "stateKey": "illuminationAlt",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 45,
+      "defaultSource": "45",
+      "note": ""
+    },
+    {
+      "key": "shadowColor",
+      "stateKey": "shadowColor",
+      "type": "color",
+      "items": null,
+      "enum": null,
+      "default": "#000000",
+      "defaultSource": "\"#000000\"",
+      "note": "shadowColor: parseAsString.withDefault(\"#000000\"), highlightColor: parseAsString.withDefault(\"#FFFFFF\"), accentColor: parseAsString.withDefault(\"#808080\"),"
+    },
+    {
+      "key": "highlightColor",
+      "stateKey": "highlightColor",
+      "type": "color",
+      "items": null,
+      "enum": null,
+      "default": "#FFFFFF",
+      "defaultSource": "\"#FFFFFF\"",
+      "note": ""
+    },
+    {
+      "key": "accentColor",
+      "stateKey": "accentColor",
+      "type": "color",
+      "items": null,
+      "enum": null,
+      "default": "#808080",
+      "defaultSource": "\"#808080\"",
+      "note": ""
+    },
+    {
+      "key": "hillshadeExag",
+      "stateKey": "hillshadeExag",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": "graticuleColor: parseAsString.withDefault(\"#000\"), graticuleColor: parseAsString, // don't use default to sync with theme"
+    },
+    {
+      "key": "contourReferenceMode",
+      "stateKey": "contourReferenceMode",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "absolute",
+        "lrm"
+      ],
+      "default": "absolute",
+      "defaultSource": "\"absolute\"",
+      "note": "Absolute (\"real altitude\") vs LRM (\"height above/below the local neighborhood mean\") — same reference concept Plane Slicer introduced (PLANE_SLICER_REFERENCE_MODES above), applied to what the contour…"
+    },
+    {
+      "key": "contourMinor",
+      "stateKey": "contourMinor",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 50,
+      "defaultSource": "50",
+      "note": ""
+    },
+    {
+      "key": "contourMajor",
+      "stateKey": "contourMajor",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 200,
+      "defaultSource": "200",
+      "note": ""
+    },
+    {
+      "key": "contourMinorLrm",
+      "stateKey": "contourMinorLrm",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 5,
+      "defaultSource": "5",
+      "note": "Absolute and LRM keep independent interval values, same reasoning as planeSlicerValue/planeSlicerValueLrm — LRM's natural range (roughly ±100m of local relief) is much narrower than real elevation's,…"
+    },
+    {
+      "key": "contourMajorLrm",
+      "stateKey": "contourMajorLrm",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 20,
+      "defaultSource": "20",
+      "note": ""
+    },
+    {
+      "key": "contourWeight",
+      "stateKey": "contourWeight",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1",
+      "note": "Multiplies both major and minor contour line-width — default (1) keeps today's major-vs-minor ratio, 2/4 make both proportionally bolder."
+    },
+    {
+      "key": "contourColor",
+      "stateKey": "contourColor",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": "Contour line / graticule colors — empty string means \"auto\" (theme-adaptive: the contour lines fall back to translucent black/white by theme, the grid to themeAntiColor)."
+    },
+    {
+      "key": "customHypsoMinMax",
+      "stateKey": "customHypsoMinMax",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "minElevation",
+      "stateKey": "minElevation",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "maxElevation",
+      "stateKey": "maxElevation",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 8100,
+      "defaultSource": "8100",
+      "note": ""
+    },
+    {
+      "key": "hypsoSliderMinBound",
+      "stateKey": "hypsoSliderMinBound",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": -8000,
+      "defaultSource": "-8000",
+      "note": ""
+    },
+    {
+      "key": "hypsoSliderMaxBound",
+      "stateKey": "hypsoSliderMaxBound",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 5000,
+      "defaultSource": "5000",
+      "note": ""
+    },
+    {
+      "key": "graticuleWidth",
+      "stateKey": "graticuleWidth",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "graticuleColor",
+      "stateKey": "graticuleColor",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": ""
+    },
+    {
+      "key": "showGraticuleLabels",
+      "stateKey": "showGraticuleLabels",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "graticuleDensity",
+      "stateKey": "graticuleDensity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "minimapMinimized",
+      "stateKey": "minimapMinimized",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": ""
+    },
+    {
+      "key": "invertColorRamp",
+      "stateKey": "invertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Keyframe/360 animation state (animDuration, animLoopMode, animSmoothCamera, animPlaying, animPlaying360, animPose1, animPose2Delta) lives in its own nuqs hook inside CameraUtilities.tsx, not in this …"
+    },
+    {
+      "key": "maxBoundsMode",
+      "stateKey": "maxBoundsMode",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "none",
+        "terrain",
+        "raster",
+        "union",
+        "custom"
+      ],
+      "default": "terrain",
+      "defaultSource": "\"terrain\"",
+      "note": "Max map bounds (Settings > Map Bounds) — constrains pan/zoom rather than a one-shot camera fly like the smart-zoom/fit-to-bounds features above."
+    },
+    {
+      "key": "maxBoundsBuffer",
+      "stateKey": "maxBoundsBuffer",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "maxBoundsWest",
+      "stateKey": "maxBoundsWest",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": -180,
+      "defaultSource": "-180",
+      "note": ""
+    },
+    {
+      "key": "maxBoundsSouth",
+      "stateKey": "maxBoundsSouth",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": -85,
+      "defaultSource": "-85",
+      "note": ""
+    },
+    {
+      "key": "maxBoundsEast",
+      "stateKey": "maxBoundsEast",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 180,
+      "defaultSource": "180",
+      "note": ""
+    },
+    {
+      "key": "maxBoundsNorth",
+      "stateKey": "maxBoundsNorth",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 85,
+      "defaultSource": "85",
+      "note": ""
+    }
+  ],
+  "instructions": [
+    {
+      "key": "project",
+      "type": "string",
+      "note": "A named preset from lib/projects.json: hidden panels, initial state, bundled sources."
+    },
+    {
+      "key": "terrainUrl",
+      "type": "string",
+      "note": "View A's terrain as a URL, registered under a fixed id (older form of terrainSourceA=https://…)."
+    },
+    {
+      "key": "basemapUrl",
+      "type": "string",
+      "note": "View A's basemap as a URL (older form of basemapSource=https://…)."
+    },
+    {
+      "key": "terrainType",
+      "type": "string",
+      "note": "Type of URL terrain sources (cog, terrarium, terrainrgb, wms-raw, tilejson …) instead of the {z} guess."
+    },
+    {
+      "key": "basemapType",
+      "type": "string",
+      "note": "Type of URL basemap sources (cog, tms, wms, wmts, tilejson) instead of the {z} guess."
+    },
+    {
+      "key": "viaTitiler",
+      "type": "boolean",
+      "note": "Route URL COGs through titiler (files not in Web Mercator)."
+    },
+    {
+      "key": "addSources",
+      "type": "array",
+      "items": "string",
+      "note": "Library entries (by id) made available in the BYOD lists without being selected."
+    },
+    {
+      "key": "addTerrainUrl",
+      "type": "array",
+      "items": "string",
+      "repeatable": true,
+      "note": "URL terrain sources made available without being selected (repeat the parameter)."
+    },
+    {
+      "key": "addBasemapUrl",
+      "type": "array",
+      "items": "string",
+      "repeatable": true,
+      "note": "URL basemaps made available without being selected (repeat the parameter)."
+    },
+    {
+      "key": "addOverlayUrl",
+      "type": "array",
+      "items": "string",
+      "repeatable": true,
+      "note": "URL overlays made available; overlayBasemapIds (state) turns overlays on."
+    },
+    {
+      "key": "openSections",
+      "type": "array",
+      "items": "string",
+      "note": "Sidebar sections expanded on load (general, terrainSource, hillshade, drawing …)."
+    },
+    {
+      "key": "closeSections",
+      "type": "array",
+      "items": "string",
+      "note": "Sidebar sections collapsed on load."
+    },
+    {
+      "key": "scrollTo",
+      "type": "string",
+      "note": "Section key (or element id) the side panel opens and scrolls to."
+    },
+    {
+      "key": "startTour",
+      "type": "boolean",
+      "note": "Starts the product walkthrough."
+    }
+  ],
+  "atoms": [
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "mapboxKey",
+      "default": "import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ?? \"\"",
+      "note": "These were hardcoded literals committed here — all moved to local, gitignored VITE_*_API_KEY / VITE_MAPBOX_ACCESS_TOKEN vars (see .env) instead, same pattern as hereKeyAtom below."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "googleKey",
+      "default": "import.meta.env.VITE_GOOGLE_API_KEY ?? \"\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "mapzenKey",
+      "default": "\"mapzen-xxxxxxx\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "maptilerKey",
+      "default": "import.meta.env.VITE_MAPTILER_API_KEY ?? \"\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "hereKey",
+      "default": "import.meta.env.VITE_HERE_API_KEY ?? \"\"",
+      "note": "Unlike mapbox/maptiler/google above, no public demo key is committed here — HERE requires a paid account, so its default comes from a local, gitignored VITE_HERE_API_KEY (see .env) instead of a hardc…"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "planetKey",
+      "default": "import.meta.env.VITE_PLANET_API_KEY ?? \"\"",
+      "note": "Same gating pattern as hereKeyAtom — Planet's monthly mosaics require a paid account, so \"planet\" only appears as a Basemap option (raster-basemap- section.tsx) once a real key is set, from a local V…"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "titilerEndpoint",
+      "default": "\"https://titiler.xyz\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "customBasemapLastType",
+      "default": "\"qms\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "osmBuildings3d",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "customTerrainLastType",
+      "default": "\"cog\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "maxResolution",
+      "default": "4096",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "useCogProtocolVsTitiler",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "useClientExport",
+      "default": "true",
+      "note": "DTM export mode: client-side (browser range-reads/tile-mosaic, no titiler, no server-side size limit) vs the original titiler-based export — see lib/client-export.ts."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "colorRampType",
+      "default": "'classic'",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "licenseFilter",
+      "default": "'open-distribute' ",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "highResTerrain",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "cacheVizTiles",
+      "default": "true",
+      "note": "Gates lib/tile-result-cache.ts — the LRU of finished viz-mode tile bytes that makes re-toggling a mode instant instead of recomputing every visible tile."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "terrainAnalysisAdvanced",
+      "default": "true",
+      "note": "Basic/Advanced toggle, one per section (Terrain Analysis / Relief Visualization — terrain-analysis-section.tsx / relief-visualization-section.tsx): in \"basic\" mode each sub-mode collapses to just its…"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "reliefVisualizationAdvanced",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "lightingEffectsAdvanced",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "hasSeenTour",
+      "default": "false",
+      "note": "Guided product tour (components/TerrainControlPanel/product-tour.tsx)."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "customTerrainSources",
+      "default": "[]",
+      "note": "getOnInit: true reads localStorage synchronously on first render instead of the jotai default (hardcoded `[]` on first paint, real value applied post-mount via onMount)."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "isByodOpen",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "customThemes",
+      "default": "[]",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "customBasemapSources",
+      "default": "[]",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "isBasemapByodOpen",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "isHillshadeXYPadOpen",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "bookmarksListHeight",
+      "default": "null",
+      "note": "User-dragged height (px) of the Bookmarks list's scroll area (bookmarks-section.tsx's drag handle below it) — null means \"use the default max-h-64 clamp\"."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "collapsedBookmarkGroups",
+      "default": "[]",
+      "note": "Ids of \"project\" (root) bookmarks whose children are currently folded away — bookmarks-section.tsx's file-tree-style collapse."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "bookmarksViewMode",
+      "default": "\"list\"",
+      "note": "Sidebar bookmarks list presentation — \"list\" (default: the original tree of project rows with children indented beneath) or \"grid\" (flattened thumbnail tiles, a compact in-panel cousin of the gallery…"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "bookmarksGalleryViewMode",
+      "default": "\"grid\"",
+      "note": "Gallery MODAL presentation — \"grid\" (default: the original thumbnail cards) or \"list\" (compact rows: small thumbnail left, project + view name right)."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "vizModePinned",
+      "default": "true",
+      "note": "Pins Visualization Modes open through \"Fold all sections\" (TerrainControlPanel.tsx) — that's the master on/off switchboard for every viz layer, so folding it away along with everything else hides the…"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "appMode",
+      "default": "\"terrain\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "isTransparentUi",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "isExportSettingsOpen",
+      "default": "false",
+      "note": "Download and Snapshot's own \"Export settings\" fold (see download-section.tsx)."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "snapshotIncludeTimeline",
+      "default": "false",
+      "note": "Snapshot / Copy / Share: keep the historical timeline in the picture, or (default) crop the strip it covers off the bottom - see captureMapScreenshot."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "anim-render-quality",
+      "default": "'normal'",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "anim-fps",
+      "default": "60",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "anim-target-size-mb",
+      "default": "''",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "lastSeenChangelogAt",
+      "default": "\"2026-08-01\"",
+      "note": "ISO date (\"YYYY-MM-DD\") of the newest changelog entry's `<!-- released -->` marker the user has already seen — see lib/changelog.ts."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "changelogView",
+      "default": "\"changes\"",
+      "note": "\"changes\" (just what's new since last visit) vs \"full\" (every entry) — always defaults to \"changes\", regardless of whether there's currently anything unseen."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "betaEnabled",
+      "default": "{ tells: false, sunShadow: true, historical: true, stacSear…",
+      "note": "Mirrors of TerrainViewer's tellsBeta/sunShadowBeta/historicalBeta nuqs fields (the actual gates the app reads) — those live in the URL so a `?tellsBeta=true` link still works, but with no localStorag…"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "galleryFlattenGroups",
+      "default": "true",
+      "note": "Bookmarks gallery modal: on (default) flattens every group's cards into one continuous grid (each card's label prefixed with its project name) so nothing but the real bookmark count determines how mu…"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "galleryShowFeatured",
+      "default": "true",
+      "note": "Bookmarks gallery modal: whether the read-only Featured/preset strip (see lib/preset-bookmarks.ts) shows as its own section at the top of the gallery, alongside the visitor's own saved bookmarks."
+    },
+    {
+      "file": "lib/layout-constants.ts",
+      "key": "splitRatio",
+      "default": "0.5",
+      "note": "Draggable A/B split-screen divider — persisted (like isSidebarOpenAtom) since it's a user layout preference, not per-session UI state."
+    },
+    {
+      "file": "lib/layout-constants.ts",
+      "key": "colorizeMapBorders",
+      "default": "false",
+      "note": "Outlines each active map pane in its resolved side color (SIDE_COLORS, overridden by sideColorOverridesAtom) — purely cosmetic, off by default so it doesn't surprise anyone not using the comparison/g…"
+    },
+    {
+      "file": "lib/layout-constants.ts",
+      "key": "colorizeMapBordersInset",
+      "default": "true",
+      "note": "Whether that border sits inset 3px from the pane edge (default, reads as a frame) or flush against it — dropping the inset doubles the stroke width (border-2 -> border-4) so a flush border doesn't re…"
+    },
+    {
+      "file": "lib/layout-constants.ts",
+      "key": "isComparisonMixAdvancedOpen",
+      "default": "false",
+      "note": "Compare and Blend section's own \"Advanced\" (capture date / colorize borders / side colors) collapsible — persisted like every other section-local collapse toggle (isBasemapByodOpenAtom etc."
+    },
+    {
+      "file": "components/TerrainControlPanel/TerrainControlPanel.tsx",
+      "key": "isSidebarOpen",
+      "default": "true",
+      "note": "--- Persisted state ---"
+    },
+    {
+      "file": "components/TerrainControlPanel/TerrainControlPanel.tsx",
+      "key": "sectionOpen",
+      "default": "DEFAULT_OPEN_STATE",
+      "note": ""
+    },
+    {
+      "file": "components/TerrainControlPanel/TerrainControlPanel.tsx",
+      "key": "sidebarScroll",
+      "default": "0",
+      "note": ""
+    },
+    {
+      "file": "components/TerrainControlPanel/TerraDrawSystem.tsx",
+      "key": "drawingExportPerLayer",
+      "default": "false",
+      "note": "exportGeoJSON toggle (TerraDrawActions below): off (default) exports every layer's features flattened into one FeatureCollection — the existing behavior, and still the right default for \"keep drawing…"
+    },
+    {
+      "file": "components/TerrainControlPanel/TerraDrawSystem.tsx",
+      "key": "drawingExportScope",
+      "default": "null",
+      "note": ""
+    },
+    {
+      "file": "components/TerrainControlPanel/TerraDrawSystem.tsx",
+      "key": "drawingLayers",
+      "default": "[DEFAULT_LAYER]",
+      "note": "Layer metadata (id/name/color/stroke width) is small enough to persist directly in localStorage — this doubles as the list of layer ids whose *geometry* gets hydrated from OPFS on mount (see hydrateP…"
+    },
+    {
+      "file": "components/TerrainControlPanel/TerraDrawSystem.tsx",
+      "key": "activeLayerId",
+      "default": "DEFAULT_LAYER.id",
+      "note": ""
+    },
+    {
+      "file": "components/TerrainControlPanel/TerraDrawSystem.tsx",
+      "key": "persistVectorLayers",
+      "default": "true",
+      "note": ""
+    }
+  ]
+}

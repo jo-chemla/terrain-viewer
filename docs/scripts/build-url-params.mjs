@@ -6,13 +6,20 @@
 //   public/openapi.json            - the same state + instruction parameters
 //                                    as one GET operation, for the Scalar
 //                                    reference page (dev/url-api)
-// Run before `next dev` / `next build` (see package.json). Plain regex over
+// Run before `next dev` / `next build` (docs/package.json) and by the root
+// pre-commit hook (simple-git-hooks in package.json), which stages the two
+// files so a commit that changes a parameter also carries the regenerated
+// outputs; both are tracked in git. Plain regex over
 // the files; an entry that does not fit the one-line
 // `key: parseAsX(...).withDefault(...)` shape is skipped and counted.
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(process.cwd(), "..");
+// Location-independent: run from the repo root by the pre-commit hook and
+// from docs/ by the docs scripts.
+const DOCS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = path.resolve(DOCS, "..");
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 const clip = (s, n = 200) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 const firstSentence = (lines) => (lines.join(" ").split(/(?<=\.)\s/)[0] ?? "").trim();
@@ -95,8 +102,8 @@ for (const file of atomFiles) {
   });
 }
 
-fs.mkdirSync(path.join(process.cwd(), "src/generated"), { recursive: true });
-fs.writeFileSync(path.join(process.cwd(), "src/generated/url-params.json"), JSON.stringify({ generatedAt: new Date().toISOString(), skipped, params, instructions, atoms }, null, 2));
+fs.mkdirSync(path.join(DOCS, "src/generated"), { recursive: true });
+fs.writeFileSync(path.join(DOCS, "src/generated/url-params.json"), JSON.stringify({ generatedAt: new Date().toISOString(), skipped, params, instructions, atoms }, null, 2));
 
 // ── OpenAPI ───────────────────────────────────────────────────────────────
 const schemaOf = (p) => {
@@ -135,6 +142,6 @@ const openapi = {
     },
   },
 };
-fs.mkdirSync(path.join(process.cwd(), "public"), { recursive: true });
-fs.writeFileSync(path.join(process.cwd(), "public/openapi.json"), JSON.stringify(openapi, null, 2));
+fs.mkdirSync(path.join(DOCS, "public"), { recursive: true });
+fs.writeFileSync(path.join(DOCS, "public/openapi.json"), JSON.stringify(openapi, null, 2));
 console.log(`url-params: ${params.length} state (${skipped} skipped), ${instructions.length} instruction, ${atoms.length} stored`);
