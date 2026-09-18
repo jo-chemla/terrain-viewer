@@ -178,7 +178,7 @@
         },
         {
             "id": "custom-fr-ign-lidarhd-nhm",
-            "name": "FRA - IGN Lidar HD DSM − DTM = height above ground 0.5m - derived",
+            "name": "FRA - nDSM IGN Lidar HD DSM − DTM 0.5m - derived",
             "url": "diff://custom-ign-lidarhd-dsm-wms-raw-custom-ign-lidarhd-dtm-wms-raw",
             "type": "dem-diff",
             "diffMinuendId": "custom-ign-lidarhd-dsm-wms-raw",
@@ -258,16 +258,15 @@
         {
             "id": "custom-np-bhotekoshi-dh-rasuwagadhi",
             "name": "NPL - Bhotekoshi 2026 elevation change (dh) 2m, Rasuwagadhi-Timure - COG",
-            "url": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/download/v1.1/bhotekoshi_dh_rasuwagadhi-timure_2m.tif",
+            "url": "https://nextgis-web.prod.heritagewatch.ai/api/resource/2572/cog",
             "type": "cog",
             "cogViaTitiler": true,
             "titilerNodata": -9999,
-            "minzoom": 12,
             "maxzoom": 17,
             "loadWithSamples": false,
             "bounds": [85.341, 28.228, 85.423, 28.318],
             "resolutionM": 2,
-            "description": "Not an elevation but a difference: post-event surface minus the pre-event terrain (NASA HMA 8 m, 2014-2016), 2 m, bias-corrected and artefact-masked, measured cells only. Load it as terrain and read it with a diverging hypsometric ramp around 0 (erosion negative, deposition positive) - the same kind of grid the app's own 'Difference of two sources' type produces. EPSG:32645, pinned to titiler; no overviews, minzoom 12. Nodata -9999. geo-pera, CC BY 4.0.",
+            "description": "Not an elevation but a difference: post-event surface minus the pre-event terrain (NASA HMA 8 m, 2014-2016), 2 m, bias-corrected and artefact-masked, measured cells only. Load it as terrain and read it with a diverging hypsometric ramp around 0 (erosion negative, deposition positive) - the same kind of grid the app's own 'Difference of two sources' type produces. Web Mercator COG with overviews on Heritage Watch's NextGIS (from geo-pera's bhotekoshi_dh_rasuwagadhi-timure_2m.tif), pinned to titiler (no CORS header there for localhost). Nodata -9999. geo-pera, CC BY 4.0.",
             "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
         },
         {
@@ -300,7 +299,7 @@
         },
         {
             "id": "custom-np-bhotekoshi-change-rasuwagadhi-vs-mapterhorn",
-            "name": "NPL - Bhotekoshi 2026 change: post-event DSM − Mapterhorn (GLO-30), Rasuwagadhi-Timure - derived",
+            "name": "NPL - nDSM Bhotekoshi 2026: post-event DSM − Mapterhorn (GLO-30), Rasuwagadhi-Timure - derived",
             "url": "diff://custom-np-bhotekoshi-dsm-rasuwagadhi-mapterhorn",
             "type": "dem-diff",
             "diffMinuendId": "custom-np-bhotekoshi-dsm-rasuwagadhi",
@@ -318,7 +317,7 @@
         },
         {
             "id": "custom-np-bhotekoshi-change-syabrubesi-vs-mapterhorn",
-            "name": "NPL - Bhotekoshi 2026 change: post-event DSM − Mapterhorn (GLO-30), Syabrubesi - derived",
+            "name": "NPL - nDSM Bhotekoshi 2026: post-event DSM − Mapterhorn (GLO-30), Syabrubesi - derived",
             "url": "diff://custom-np-bhotekoshi-dsm-syabrubesi-mapterhorn",
             "type": "dem-diff",
             "diffMinuendId": "custom-np-bhotekoshi-dsm-syabrubesi",
@@ -416,7 +415,7 @@
         },
         {
             "id": "custom-nl-ahn-nhm",
-            "name": "NLD - AHN DSM − DTM = height above ground 0.5m - derived",
+            "name": "NLD - nDSM AHN DSM − DTM 0.5m - derived",
             "url": "diff://custom-nl-ahn-dsm-custom-nl-ahn-dtm",
             "type": "dem-diff",
             "diffMinuendId": "custom-nl-ahn-dsm",
