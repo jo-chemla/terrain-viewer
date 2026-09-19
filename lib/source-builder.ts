@@ -30,6 +30,7 @@ export type RasterSourceType =
   | "wmts"
   | "wms-raw"
   | "lerc"
+  | "quantized-mesh"
 
 export function buildRasterTileSource(params: {
   url: string
@@ -100,6 +101,13 @@ export function buildRasterTileSource(params: {
       // anonymously from a ~2.5 km overview, so the tile pyramid is the only
       // way to reach real resolution.
       return { tiles: [`lerc://${url.replace(/^https?:\/\//, "")}`] }
+
+    case "quantized-mesh":
+      // Cesium terrain TINs, rasterised to a grid in the browser (see
+      // lib/quantized-mesh-protocol.ts). The tile placeholders stay maplibre's
+      // own Web Mercator ones; the protocol maps them onto quantized mesh's
+      // geographic tiling itself, since the two schemes do not line up.
+      return { tiles: [`quantized-mesh://${url.replace(/^https?:\/\//, "")}`] }
 
     case "wms-raw":
       if (useCogProtocol) {

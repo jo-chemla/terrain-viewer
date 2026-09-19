@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, titilerEndpointAtom,
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, cesiumIonKeyAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom,
   customThemesAtom,
@@ -314,6 +314,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [maptilerKey, setMaptilerKey] = useAtom(maptilerKeyAtom)
   const [hereKey, setHereKey] = useAtom(hereKeyAtom)
   const [planetKey, setPlanetKey] = useAtom(planetKeyAtom)
+  const [cesiumIonKey, setCesiumIonKey] = useAtom(cesiumIonKeyAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
   const [apiKeysViewMode, setApiKeysViewMode] = useState<"individual" | "batch">("individual")
@@ -1010,6 +1011,21 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   />
                   <p className="text-xs text-muted-foreground">
                     Unlocks Planet Monthly Mosaics as a historical Basemap option — hidden until set.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cesium-ion-key">Cesium ion Access Token</Label>
+                  <PasswordInput
+                    id="cesium-ion-key"
+                    value={cesiumIonKey}
+                    onChange={(e: any) => setCesiumIonKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Unlocks Cesium World Terrain (and any ion terrain asset) as a Terrain source — hidden until set.
+                    Every ion asset is 401 without a token; a free one is at{" "}
+                    <a href="https://ion.cesium.com/tokens" target="_blank" rel="noopener noreferrer" className="underline">ion.cesium.com/tokens</a>.
                   </p>
                 </div>
               </>

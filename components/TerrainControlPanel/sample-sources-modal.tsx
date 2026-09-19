@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react"
 import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, Search, Library, type LucideIcon } from "lucide-react"
 import { STAC_PRESETS } from "@/lib/stac-presets"
+import { useAtom } from "jotai"
+import { disabledStacPresetsAtom } from "@/lib/settings-atoms"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -124,6 +126,21 @@ export function SampleSourcesModal<T extends SampleLike>({
    *  links. */
   onBrowseStac?: (presetId: string) => void
 }) {
+  // Which catalogues the Add dialog's own picker offers. Stored as the
+  // exclusions (see disabledStacPresetsAtom) so a catalogue added in a later
+  // release shows up rather than being silently absent.
+  const [disabledStac, setDisabledStac] = useAtom(disabledStacPresetsAtom)
+  const stacOff = useMemo(() => new Set(disabledStac), [disabledStac])
+  // Functional update, not a read of `disabledStac`: two rows toggled in the
+  // same tick would otherwise both start from the pre-update value and the
+  // second would silently undo the first.
+  const setStacEnabled = (ids: string[], on: boolean) => {
+    setDisabledStac((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) (on ? next.delete(id) : next.add(id))
+      return [...next]
+    })
+  }
   const presentIds = useMemo(() => new Set(current.map((s) => s.id)), [current])
   const lastGlobal = useMemo(() => samples.reduce((acc, s, i) => (s.name.startsWith("Global - ") ? i : acc), -1), [samples])
   // "api": the grid the live service streams (what this viewer renders);
@@ -372,9 +389,21 @@ export function SampleSourcesModal<T extends SampleLike>({
                 <CollapsibleTrigger className="flex items-center gap-1.5 flex-1 min-w-0 py-1 cursor-pointer text-left">
                   <Library className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="text-sm font-bold">
-                    Catalogues <span className="font-normal text-muted-foreground">· {catalogues.length}</span>
+                    Catalogues <span className="font-normal text-muted-foreground">· {catalogues.filter((p) => !stacOff.has(p.id)).length}/{catalogues.length}</span>
                   </span>
                 </CollapsibleTrigger>
+                <span className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Offer every catalogue"
+                    disabled={catalogues.every((p) => !stacOff.has(p.id))}
+                    onClick={() => setStacEnabled(catalogues.map((p) => p.id), true)}>
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Hide every catalogue"
+                    disabled={catalogues.every((p) => stacOff.has(p.id))}
+                    onClick={() => setStacEnabled(catalogues.map((p) => p.id), false)}>
+                    <Minus className="h-3.5 w-3.5" />
+                  </Button>
+                </span>
                 <CollapsibleTrigger className="cursor-pointer p-1">
                   <ChevronDown className={`h-4 w-4 transition-transform ${isOpen("catalogues") ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
@@ -382,7 +411,8 @@ export function SampleSourcesModal<T extends SampleLike>({
               <CollapsibleContent>
                 <p className="text-xs text-muted-foreground pt-1">
                   Searchable archives rather than single datasets — per-scene DEMs and imagery, found by area and date.
-                  Browse opens the catalogue search with that endpoint selected.
+                  <b>Browse</b> opens the catalogue search with that endpoint selected; the <b>+/−</b> decides whether it
+                  is offered in that search&rsquo;s own picker at all, so a list you never use can be trimmed down.
                 </p>
                 <div className="pl-2 divide-y divide-border/50">
                   {catalogues.map((p) => (
@@ -401,6 +431,16 @@ export function SampleSourcesModal<T extends SampleLike>({
                         title={onBrowseStac ? `Search ${p.name} over the current view` : "Catalogue search is off (Settings → Beta)"}
                         onClick={() => onBrowseStac?.(p.id)}>
                         <Search className="h-3.5 w-3.5" /> Browse
+                      </Button>
+                      <Button
+                        variant={stacOff.has(p.id) ? "secondary" : "outline"}
+                        size="icon-sm"
+                        className="cursor-pointer shrink-0"
+                        aria-label={stacOff.has(p.id) ? `Offer ${p.name} in the catalogue picker` : `Hide ${p.name} from the catalogue picker`}
+                        title={stacOff.has(p.id) ? "Hidden from the catalogue picker — click to offer it" : "Offered in the catalogue picker — click to hide it"}
+                        onClick={() => setStacEnabled([p.id], stacOff.has(p.id))}
+                      >
+                        {stacOff.has(p.id) ? <Plus className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
                       </Button>
                     </div>
                   ))}

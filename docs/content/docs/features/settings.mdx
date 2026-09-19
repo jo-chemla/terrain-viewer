@@ -54,7 +54,9 @@ Defaults are `{ tells: false, sunShadow: true, historical: true, stacSearch: …
 
 ## API Keys
 
-One field per provider — Mapbox access token, MapTiler, HERE Maps, Planet — stored in `localStorage` and **never** put in a URL or a shared link. Everything the app ships by default is keyless; these only unlock those providers' own basemaps and terrain.
+One field per provider — Mapbox access token, MapTiler, HERE Maps, Planet, **Cesium ion** — stored in `localStorage` and **never** put in a URL or a shared link. Everything the app ships by default is keyless; these only unlock those providers' own basemaps and terrain.
+
+The ion token is the one that gates a *terrain* source rather than a basemap: every Cesium ion asset answers 401 without it, so [Cesium World Terrain](/dev/quantized-mesh-protocol) and any private ion asset stay unreachable until it is set. A free token is at [ion.cesium.com/tokens](https://ion.cesium.com/tokens).
 
 <Callout type="warn">
 Keys are stored unencrypted in your browser, like any client-side app. Do not paste a key with billing exposure you would not accept on a shared machine.

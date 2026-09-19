@@ -3355,6 +3355,18 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "cesiumIonKey",
+      "default": "import.meta.env.VITE_CESIUM_ION_TOKEN ?? \"\"",
+      "note": "Cesium ion access token."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "disabledStacPresets",
+      "default": "[]",
+      "note": "STAC catalogues the visitor has switched OFF in the Library's Catalogues section: stored as the exclusions rather than the inclusions so a preset added in a later release is on by default instead of …"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "titilerEndpoint",
       "default": "\"https://titiler.xyz\"",
       "note": ""

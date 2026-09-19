@@ -2,6 +2,8 @@ import type React from "react"
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { STAC_PRESETS, remembered, type StacPreset } from "@/lib/stac-presets"
+import { useAtomValue } from "jotai"
+import { disabledStacPresetsAtom } from "@/lib/settings-atoms"
 import { Search, Plus, Check, Loader2, ExternalLink, CalendarDays } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -180,7 +182,18 @@ export const StacSearchPanel: React.FC<{
   onSave: (source: StacSaveSource) => void
   mapRef?: React.RefObject<MapRef | null>
 }> = ({ target, onSave, mapRef }) => {
-  const presets = useMemo(() => STAC_PRESETS.filter((p) => p.target === "both" || p.target === target), [target])
+  // Catalogues switched off in the Library's Catalogues section are left out
+  // here - that section is where the list is curated. A catalogue that is
+  // still the remembered choice stays listed even when hidden, so seeding it
+  // from a Browse click (or reopening on a stale selection) cannot leave the
+  // picker pointing at nothing.
+  const disabledStac = useAtomValue(disabledStacPresetsAtom)
+  const presets = useMemo(() => {
+    const off = new Set(disabledStac)
+    const kept = STAC_PRESETS.filter((p) => (p.target === "both" || p.target === target)
+      && (!off.has(p.id) || p.id === remembered[target]?.presetId))
+    return kept.length ? kept : STAC_PRESETS.filter((p) => p.target === "both" || p.target === target)
+  }, [target, disabledStac])
   const prev = remembered[target]
   const [presetId, setPresetId] = useState(prev?.presetId ?? presets[0].id)
   const [customUrl, setCustomUrl] = useState(prev?.customUrl ?? "")

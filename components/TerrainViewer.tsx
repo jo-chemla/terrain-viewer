@@ -18,7 +18,7 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  viewportCenterAtom, activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
+  viewportCenterAtom, activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -63,6 +63,7 @@ import { float32demProtocol } from '@/lib/float32dem-protocol'
 import { slopeProtocol } from '@/lib/slope-protocol'
 import { demDiffProtocol } from '@/lib/demdiff-protocol'
 import { lercProtocol } from '@/lib/lerc-protocol'
+import { quantizedMeshProtocol, setCesiumIonToken } from '@/lib/quantized-mesh-protocol'
 import { Protocol as PmtilesProtocol } from 'pmtiles'
 import { aspectProtocol } from '@/lib/aspect-protocol'
 import { triProtocol } from '@/lib/tri-protocol'
@@ -1532,6 +1533,9 @@ export function TerrainViewer() {
     // lerc://<arcgis tiled elevation service>/tile/{z}/{y}/{x} - Esri's own
     // float raster codec, decoded to Terrarium in the browser.
     maplibregl.addProtocol('lerc', withTileResultCache(lercProtocol))
+    // quantized-mesh://ion/<asset>/<token>/{z}/{x}/{y} - Cesium terrain TINs
+    // rasterised to Terrarium; see lib/quantized-mesh-protocol.ts.
+    maplibregl.addProtocol('quantized-mesh', withTileResultCache(quantizedMeshProtocol))
     // pmtiles://<archive url>/{z}/{x}/{y} - tile pyramids in one range-read
     // archive (e.g. the Smart Maps GEL Terrain-RGB library entry).
     maplibregl.addProtocol('pmtiles', new PmtilesProtocol().tile)
@@ -1566,6 +1570,12 @@ export function TerrainViewer() {
 
   // Keep the module-level cache flag in sync with the persisted Settings switch
   // (protocol handlers run outside React, so they can't read the atom directly).
+  // The Cesium ion account token is handed to the protocol module rather than
+  // templated into tile URLs: a protocol URL is also the tile cache's key, and
+  // shows up in devtools and error messages. See lib/quantized-mesh-protocol.ts.
+  const [cesiumIonKey] = useAtom(cesiumIonKeyAtom)
+  useEffect(() => { setCesiumIonToken(cesiumIonKey) }, [cesiumIonKey])
+
   const [cacheVizTiles] = useAtom(cacheVizTilesAtom)
   useEffect(() => {
     setTileResultCacheEnabled(cacheVizTiles)

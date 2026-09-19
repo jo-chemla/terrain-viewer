@@ -15,6 +15,7 @@
     "lighting-effects",
     "wms-float32-protocol",
     "lerc-protocol",
+    "quantized-mesh-protocol",
     "demdiff-protocol",
     "vendored-protocols",
     "tile-caches",

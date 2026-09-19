@@ -1,0 +1,81 @@
+---
+title: Quantized Mesh Protocol
+description: quantized-mesh:// — rasterising Cesium's terrain TINs into Terrarium tiles, the geographic-to-Mercator tile mapping, and why the meshing libraries do not help
+---
+
+`quantized-mesh://` (`lib/quantized-mesh-protocol.ts`) consumes **Cesium terrain** — the [quantized-mesh-1.0](https://github.com/CesiumGS/quantized-mesh) format — as an ordinary MapLibre `raster-dem` source, so 3D terrain and every [visualization mode](/features/visualization-modes) treat it like any other DEM.
+
+It is the most involved of the protocols here, because unlike [LERC](/dev/lerc-protocol) or [float32dem](/dev/wms-float32-protocol) the source is not a grid at all.
+
+## The direction the meshing libraries do *not* go
+
+Worth stating first, because the obvious tools are the wrong ones.
+
+**pymartini** and **pydelatin** — and their JavaScript ports [`@mapbox/martini`](https://github.com/mapbox/martini) and [`delatin`](https://github.com/mapbox/delatin) — are *terrain mesh generation* tools. They take a **raster heightmap and produce a TIN**. That is what a titiler-style service uses to *serve* quantized mesh from a DEM, and it is why titiler's own algorithm list (`hillshade`, `slope`, `contours`, `terrarium`, `terrainrgb`, …) contains no quantized-mesh entry: the meshing lives in a separate extension, and it points the other way.
+
+Consuming a TIN needs the inverse — **mesh → raster** — which is plain triangle rasterisation. No package ships it because it is a loop, and that loop is `rasterise()` in this file.
+
+`@loaders.gl/terrain`'s `QuantizedMeshLoader` does the *decoding*, which is the part that genuinely benefits from a library.
+
+## Two URL shapes
+
+```
+quantized-mesh://ion/<assetId>/{z}/{x}/{y}     a Cesium ion asset
+quantized-mesh://<host+path>/{z}/{x}/{y}       any other service
+```
+
+`{z}/{x}/{y}` are MapLibre's own **Web Mercator** coordinates. Quantized mesh is tiled geographically, so the mapping happens inside the protocol rather than in the template — see below.
+
+<Callout type="warn">
+The ion **account token is not in the URL.** A protocol URL is also the [tile cache](/dev/tile-caches) key, and it surfaces in devtools, logs and error messages. The token is held in the module and written by `setCesiumIonToken` from a `cesiumIonKeyAtom` effect in `TerrainViewer`; changing it clears the resolved per-asset endpoints.
+</Callout>
+
+An ion asset needs two calls: `api.cesium.com/v1/assets/<id>/endpoint` returns a tile base URL plus a **short-lived** access token. That pair is cached per asset and re-resolved once on a 401, so an expired session token recovers without a reload.
+
+## The tile mapping
+
+Quantized mesh uses the **geographic** tiling scheme: EPSG:4326, TMS row order (row 0 at the south), and level *L* holds **2^(L+1) × 2^L** tiles over the whole −180…180 / −90…90 world. Two consequences:
+
+- **Level.** A Mercator tile at zoom *z* spans 360/2^z degrees of longitude; a geographic tile at level *L* spans 360/2^(L+1). They match when **L = z − 1**.
+- **Count.** A geographic tile is square *in degrees*, while a Mercator tile is shorter in latitude than in longitude. So one output tile usually falls inside a single source tile, and sometimes straddles two. Both are fetched and rasterised into the same output buffer.
+
+## Rasterising
+
+The trick that keeps this cheap is `QuantizedMeshLoader`'s `bounds` option. The mesh's vertices are normalised within their tile; passing the tile's own geographic rectangle maps them straight to **(lon, lat, height)**:
+
+```ts
+QuantizedMeshLoader.parseSync(buf, {
+  "quantized-mesh": { bounds: [b.west, b.south, b.east, b.north], skirtHeight: null },
+})
+```
+
+The Mercator projection then costs one operation *per vertex* rather than a resampling pass over every pixel:
+
+```ts
+px[v] = ((lon - out.west) / lonSpan) * TILE_SIZE
+py[v] = ((out.northY - lat2merc(lat)) / ySpan) * TILE_SIZE
+```
+
+Each triangle is then scan-converted over its pixel bounding box with barycentric weights, interpolating height. Forward rasterisation is deliberate: the alternative — asking, per output pixel, which triangle contains it — is a point-in-TIN query over thousands of triangles, and would also have to do the projection per pixel instead of per vertex.
+
+A small negative tolerance (`-1e-6`) on the barycentric test keeps shared edges from leaving unwritten seams between adjacent triangles.
+
+Pixels no triangle covered are **holes**: 0 m with alpha 254, the [app-wide convention](/dev/demdiff-protocol). A tile with no coverage at all throws a 404, which MapLibre treats as an ordinary absent tile.
+
+## Cesium World Terrain: measured
+
+| | |
+|---|---|
+| asset | ion `1`, `layer.json` reports `quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326`, max level **15** |
+| a z13 output tile over Innsbruck | 0% holes, 614.3 – 2076.5 m, ~1.9 s cold |
+| **datum** | **ELLIPSOIDAL** |
+
+The datum is the finding worth carrying. Six points across one tile read **+48.1 m mean** against an orthometric reference (spread 22.8 m, which is sampling noise between two models in steep ground). That is the alpine geoid separation almost exactly — so Cesium World Terrain behaves like [ArcticDEM and REMA](/features/terrain-sources), and *unlike* the Esri LERC sources, which measured −0.6 m on the same points and are orthometric.
+
+In practice: summits read roughly 50 m high in the Alps, and the offset varies by tens of metres around the world. Fine for shape and shading, wrong for absolute heights unless you correct it.
+
+## Is it worth using?
+
+Honest answer: usually not, over [`lerc://`](/dev/lerc-protocol). Cesium World Terrain tops out at level 15 — comparable to the z16 the keyless Esri services already reach — from a broadly similar blend of public sources, and it needs a token *and* a geoid correction.
+
+Where it earns its place is **ion-hosted private assets**: terrain you or your organisation uploaded to ion, which nothing else in this app can reach. The protocol takes any asset id, so that is a matter of pointing a custom source at `ion/<your asset>`.

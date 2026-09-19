@@ -491,6 +491,15 @@
             "infoUrl": "https://www.arcgis.com/home/item.html?id=7029fb60158543ad845c7e1527af11e4"
         },
         {
+            "id": "custom-global-cesium-world-terrain",
+            "name": "Global - Cesium World Terrain (quantized mesh, ellipsoidal) - needs an ion token",
+            "url": "ion/1",
+            "type": "quantized-mesh",
+            "maxzoom": 16,
+            "description": "Cesium ion asset 1, the terrain CesiumJS uses by default, consumed here as an ordinary raster-dem source: the quantized-mesh TIN is rasterised tile by tile in the browser (see /dev/quantized-mesh-protocol), so every viz mode and 3D terrain treat it like any other DEM. REQUIRES a Cesium ion access token in Settings -> API Keys: every ion asset answers 401 without one. Heights are ELLIPSOIDAL, like ArcticDEM and REMA and unlike the Esri LERC sources: measured +48.1 m mean against an orthometric reference across six points near Innsbruck, which is the alpine geoid separation, so summits read about 50 m high in the Alps. Native tiling is geographic (EPSG:4326, TMS) to level 15, which the protocol maps onto Web Mercator tiles itself. Attribution per the ion endpoint's own attributions list; check your ion plan's terms before publishing.",
+            "infoUrl": "https://cesium.com/platform/cesium-ion/content/cesium-world-terrain/"
+        },
+        {
             "id": "custom-sam-anadem",
             "name": "Global - ANADEM AI bare-earth DTM from the GLO-30 DSM, South America 30m - single COG",
             "url": "https://opentopography.s3.sdsc.edu/raster/ANADEM/ANADEM_be/anadem_v1_compressed_COG.tif",

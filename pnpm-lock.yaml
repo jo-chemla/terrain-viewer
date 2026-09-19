@@ -34,6 +34,9 @@ importers:
       '@loaders.gl/shapefile':
         specifier: ^4.5.1
         version: 4.5.1(@loaders.gl/core@4.4.3)(geotiff@2.1.3)
+      '@loaders.gl/terrain':
+        specifier: ^4.5.1
+        version: 4.5.1(@loaders.gl/core@4.4.3)
       '@loaders.gl/wms':
         specifier: ^4.3.4
         version: 4.4.3(@loaders.gl/core@4.4.3)
@@ -726,6 +729,11 @@ packages:
     peerDependencies:
       '@loaders.gl/core': ~4.4.0
 
+  '@loaders.gl/images@4.5.1':
+    resolution: {integrity: sha512-GM6bvndRnHwkNYcA3tPkqRpDRYXpQcQgLk6p3OFB4mzIDytsBFqJzhQLiEqwLbICQZt3XL7Rs5hIXghy6w0Mhg==}
+    peerDependencies:
+      '@loaders.gl/core': ~4.4.0
+
   '@loaders.gl/loader-utils@4.4.3':
     resolution: {integrity: sha512-5yt1OqZPYR3d+xFAqtzSKO24Hd7019KqN+iOWp7XBKPQBS+sAEhAnmSTnO1axo45IEi14J3FhMDk+ndqBoSKEQ==}
 
@@ -750,6 +758,11 @@ packages:
 
   '@loaders.gl/shapefile@4.5.1':
     resolution: {integrity: sha512-2r6EAsVUNQ9aKebeh4xYKxm0/fuHHHR0oQpWfQb9kfYr0yUgNi+Zd0ZO4adODKVBO0kOTdS/Tx90dpiGJxSGTg==}
+    peerDependencies:
+      '@loaders.gl/core': ~4.4.0
+
+  '@loaders.gl/terrain@4.5.1':
+    resolution: {integrity: sha512-PX6IuRUcey36s2M+Oa2fbVSFhxhqQMXHQVwCtmg6xC0gbnxSM79IKh5gVnuq/XDPZrh02LPYUzzN1C2xHxYfLQ==}
     peerDependencies:
       '@loaders.gl/core': ~4.4.0
 
@@ -781,6 +794,9 @@ packages:
   '@mapbox/jsonlint-lines-primitives@2.0.3':
     resolution: {integrity: sha512-0SElaV0uMxEnxzBhhX9WTuPyUeMsAN/SS0i16tjuba4/mio63MG9khjC1a0JAiPGXAwvwm4UfHJURCN7nyudQg==}
     engines: {node: '>= 22'}
+
+  '@mapbox/martini@0.2.0':
+    resolution: {integrity: sha512-7hFhtkb0KTLEls+TRw/rWayq5EeHtTaErgm/NskVoXmtgAQu/9D299aeyj6mzAR/6XUnYRp2lU+4IcrYRFjVsQ==}
 
   '@mapbox/point-geometry@0.1.0':
     resolution: {integrity: sha512-6j56HdLTwWGO0fJPlrZtdU/B13q8Uwmo18Ck2GnGgN9PCFyKTZ3UbXeEdRFh18i9XQ92eH2VdtpJHpBD3aripQ==}
@@ -5187,6 +5203,11 @@ snapshots:
       '@loaders.gl/core': 4.4.3
       '@loaders.gl/loader-utils': 4.4.3(@loaders.gl/core@4.4.3)
 
+  '@loaders.gl/images@4.5.1(@loaders.gl/core@4.4.3)':
+    dependencies:
+      '@loaders.gl/core': 4.4.3
+      '@loaders.gl/loader-utils': 4.5.1(@loaders.gl/core@4.4.3)
+
   '@loaders.gl/loader-utils@4.4.3(@loaders.gl/core@4.4.3)':
     dependencies:
       '@loaders.gl/schema': 4.4.3
@@ -5240,6 +5261,14 @@ snapshots:
     transitivePeerDependencies:
       - geotiff
 
+  '@loaders.gl/terrain@4.5.1(@loaders.gl/core@4.4.3)':
+    dependencies:
+      '@loaders.gl/core': 4.4.3
+      '@loaders.gl/images': 4.5.1(@loaders.gl/core@4.4.3)
+      '@loaders.gl/loader-utils': 4.5.1(@loaders.gl/core@4.4.3)
+      '@loaders.gl/schema': 4.5.1
+      '@mapbox/martini': 0.2.0
+
   '@loaders.gl/wkt@4.4.3(@loaders.gl/core@4.4.3)':
     dependencies:
       '@loaders.gl/core': 4.4.3
@@ -5273,6 +5302,8 @@ snapshots:
       fast-xml-parser: 5.10.1
 
   '@mapbox/jsonlint-lines-primitives@2.0.3': {}
+
+  '@mapbox/martini@0.2.0': {}
 
   '@mapbox/point-geometry@0.1.0': {}
 

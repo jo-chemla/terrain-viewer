@@ -26,6 +26,7 @@
     "@loaders.gl/flatgeobuf": "^4.5.1",
     "@loaders.gl/geopackage": "^4.3.4",
     "@loaders.gl/shapefile": "^4.5.1",
+    "@loaders.gl/terrain": "^4.5.1",
     "@loaders.gl/wms": "^4.3.4",
     "@mapbox/vector-tile": "2.0.4",
     "@maplibre/maplibre-gl-geocoder": "1.9.4",

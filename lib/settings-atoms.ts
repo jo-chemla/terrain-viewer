@@ -47,6 +47,17 @@ export const hereKeyAtom = atomWithStorage("hereKey", import.meta.env.VITE_HERE_
 // section.tsx) once a real key is set, from a local VITE_PLANET_API_KEY or
 // pasted into Settings.
 export const planetKeyAtom = atomWithStorage("planetKey", import.meta.env.VITE_PLANET_API_KEY ?? "")
+// Cesium ion access token. Every ion asset is 401 without one, so the
+// quantized-mesh terrain entries stay hidden until this is set - the same
+// gating as hereKeyAtom and planetKeyAtom above. The token is exchanged for a
+// short-lived per-asset tile token by lib/quantized-mesh-protocol.ts; neither
+// ever goes into a URL or a shared link.
+export const cesiumIonKeyAtom = atomWithStorage("cesiumIonKey", import.meta.env.VITE_CESIUM_ION_TOKEN ?? "")
+
+// STAC catalogues the visitor has switched OFF in the Library's Catalogues
+// section: stored as the exclusions rather than the inclusions so a preset
+// added in a later release is on by default instead of silently missing.
+export const disabledStacPresetsAtom = atomWithStorage<string[]>("disabledStacPresets", [])
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 
 /** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.
@@ -133,7 +144,7 @@ export interface CustomTerrainSource {
    *  lib/local-file-store.ts) rather than a real URL — the actual File only
    *  lives in-memory for the current session. */
   url: string
-  type: "cog" | "cog-local" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson' | 'wms-raw' | 'tilejson' | 'dem-diff' | 'lerc'
+  type: "cog" | "cog-local" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson' | 'wms-raw' | 'tilejson' | 'dem-diff' | 'lerc' | 'quantized-mesh'
   /** type "dem-diff" only: the two terrain source ids (built-in or custom, not
    *  another difference) whose per-tile difference this source is - the
    *  minuend (DSM) minus the subtrahend (DTM): a normalised height model.

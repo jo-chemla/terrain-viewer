@@ -70,26 +70,13 @@ function ensureLerc() {
 
 ## Quantized mesh, for comparison
 
-Cesium's **quantized mesh** is the obvious neighbouring format, and it is reachable — but only with a token, and it is not a drop-in the way LERC is.
+Cesium's quantized mesh is now supported too — see [Quantized Mesh Protocol](/dev/quantized-mesh-protocol). The short version of how they differ:
 
-Measured against Cesium ion asset 1 (Cesium World Terrain) with a personal ion token:
+| | `lerc://` (Esri) | `quantized-mesh://` (Cesium ion) |
+|---|---|---|
+| Source shape | a real raster grid | a TIN, rasterised here |
+| Token | none | required; every ion asset is 401 without one |
+| Datum | **orthometric** (−0.6 m measured) | **ellipsoidal** (+48.1 m measured) |
+| Practical ceiling | z16 | level 15 |
 
-| | |
-|---|---|
-| endpoint | `api.cesium.com/v1/assets/1/endpoint` → 200, `Access-Control-Allow-Origin: *`, returns a tile base URL plus a short-lived `accessToken` |
-| without a token | **401** on every asset; the old AGI world-terrain service is gone (404), and MapTiler's quantized mesh needs its own key |
-| `layer.json` | `format: quantized-mesh-1.0`, `scheme: tms`, **`projection: EPSG:4326`**, max level **15**, extensions `watermask` / `metadata` / `octvertexnormals` |
-| a real tile | z9 over Innsbruck: 16 kB, 1276 vertices, min 583.9 m / max 2820.6 m — correct |
-
-So a `quantized-mesh://` protocol is buildable. Two things make it a real piece of work rather than a wrapper:
-
-- **It is a TIN, not a grid.** `raster-dem` needs a regular grid, so each mesh has to be rasterised: project every vertex into the output tile's pixel space and scan-convert the triangles with barycentric height interpolation. Forward rasterisation is the right direction — a per-pixel point-in-TIN query would be far slower, and projecting per vertex makes the reprojection fall out for free.
-- **The tiling scheme is geographic, not Web Mercator.** Level *L* is 2^(L+1) × 2^L tiles over the full −180…180 / −90…90 extent, TMS row order. A Mercator tile therefore maps to one or two source tiles at roughly level *z−1*, and the latitude mapping is non-linear within them.
-
-Decoding itself is the easy part: `@loaders.gl/terrain` ships `QuantizedMeshLoader`, and this app already depends on loaders.gl 4.x for the vector formats. The header is also trivial to read directly — centre, min/max height and vertex count are a fixed 92-byte prefix.
-
-<Callout>
-Because every source is token-gated, this would need an **ion access token field** in Settings → API Keys, stored like the Mapbox and MapTiler keys and never put in a URL — not a token committed to the repo.
-</Callout>
-
-Whether it is worth it is a judgement call: Cesium World Terrain tops out at level 15 (comparable to the z16 the LERC services already reach) and is a broadly similar blend, so the gain over `lerc://` is mostly access to ion-hosted *private* assets rather than better global terrain.
+For global terrain the LERC services are the easier choice. Quantized mesh earns its place for ion-hosted private assets.
