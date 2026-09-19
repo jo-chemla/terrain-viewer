@@ -9,8 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   isByodOpenAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
   titilerEndpointAtom, useCogProtocolVsTitilerAtom, mapboxKeyAtom, maptilerKeyAtom,
-  type CustomTerrainSource
-} from "@/lib/settings-atoms"
+  type CustomTerrainSource, terrainLibraryOpenAtom } from "@/lib/settings-atoms"
 import { terrainSources } from "@/lib/terrain-sources"
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { deletePersistedCogFile } from "@/lib/opfs-file-store"
@@ -47,7 +46,7 @@ export const TerrainSourceSection: React.FC<{
   const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false)
   const [editingSource, setEditingSource] = useState<CustomTerrainSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
-  const [isSampleModalOpen, setIsSampleModalOpen] = useState(false)
+  const [isSampleModalOpen, setIsSampleModalOpen] = useAtom(terrainLibraryOpenAtom)
   const [batchEditJson, setBatchEditJson] = useState("")
   const [batchEditError, setBatchEditError] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)

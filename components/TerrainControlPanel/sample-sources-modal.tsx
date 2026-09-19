@@ -302,7 +302,7 @@ export function SampleSourcesModal<T extends SampleLike>({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[88vh] flex flex-col overflow-hidden">
+      <DialogContent id="tour-source-library" className="sm:max-w-3xl max-h-[88vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>

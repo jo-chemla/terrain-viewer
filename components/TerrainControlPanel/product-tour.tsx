@@ -1,14 +1,14 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { Coachmark, useCoachmark } from "coachmark"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { track } from "@/lib/analytics"
 import {
   hasSeenTourAtom, isTourOpenAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
-  isHillshadeXYPadOpenAtom, type AppMode,
-} from "@/lib/settings-atoms"
+  isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom } from "@/lib/settings-atoms"
+import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import { isSidebarOpenAtom, sectionOpenAtom, macroGroupOpenAtom } from "./TerrainControlPanel"
 import { colorizeMapBordersAtom, isComparisonMixAdvancedOpenAtom } from "@/lib/layout-constants"
 
@@ -57,6 +57,8 @@ type TourActions = {
   setColorizeMapBorders: (v: boolean) => void
   comparisonMixAdvancedOpen: boolean
   setComparisonMixAdvancedOpen: (v: boolean) => void
+  setTerrainLibraryOpen: (v: boolean) => void
+  setCoverageOverlays: (ids: string[]) => void
 }
 
 // Every nuqs `state` key any prepare function below ever writes — snapshotted
@@ -189,6 +191,22 @@ function prepareTerrainTools(a: TourActions) {
   // stays on, but its own expanded section would otherwise add unrelated
   // height above the Tools group this step actually spotlights).
   a.setSectionOpen((prev) => ({ ...prev, hillshade: false, ...Object.fromEntries(TOOL_SECTION_KEYS.map((k) => [k, false])) }))
+}
+
+// The Library modal covers the panel, so the terrain section underneath is
+// left as the BYOD step set it up: only the modal is new.
+function prepareTerrainLibrary(a: TourActions) {
+  a.setTerrainLibraryOpen(true)
+}
+
+// Source Info is a Tools section, so the Tools group has to be open (and the
+// other tool sections closed, as prepareTerrainTools does) before its
+// coverage picker can be spotlighted. Mapterhorn's own coverage is turned on
+// so the step has something to point at on the map.
+function prepareCoverageOverlays(a: TourActions) {
+  prepareTerrainTools(a)
+  a.setSectionOpen((prev) => ({ ...prev, sourceInfo: true }))
+  a.setCoverageOverlays(["mapterhorn"])
 }
 
 // Same single-setState-call merging as prepareTerrainBase above, via
@@ -532,6 +550,36 @@ const TERRAIN_STEPS: TourStepDef[] = [
     scrollIntoView: false,
   },
   {
+    key: "terrain-library", domId: "tour-source-library", side: "left", align: "center",
+    title: "The Terrain Library",
+    description: (
+      <>
+        <p className="pb-2">A curated list of elevation data you can load in one click — no URL to find, no account to create. Around fifty datasets: national mapping agencies (IGN, swisstopo, Kartverket, USGS 3DEP…), global products, and single surveys.</p>
+        <ul className="list-disc pl-4 space-y-1.5">
+          <li>Each row is graded against the built-in Mapterhorn terrain — <span className="font-semibold text-foreground">Finer</span>, <span className="font-semibold text-foreground">New</span> where Mapterhorn has no national data, or <span className="font-semibold text-foreground">Coarser</span>.</li>
+          <li><span className="font-semibold text-foreground">DTM</span> is bare ground, <span className="font-semibold text-foreground">DSM</span> includes buildings and trees, <span className="font-semibold text-foreground">nDSM</span> is their difference.</li>
+          <li>The basemap side has its own Library button, with imagery instead of elevation.</li>
+        </ul>
+      </>
+    ),
+    onEnter: prepareTerrainLibrary,
+    scrollIntoView: false,
+  },
+  {
+    key: "coverage-overlays", domId: "tour-coverage-overlays", side: "left", align: "start",
+    title: "Where does a source actually have data?",
+    description: (
+      <>
+        <p className="pb-2">Source Info → <span className="font-semibold text-foreground">Coverage overlays</span> draws the footprint of any dataset on the map, whether or not it is loaded — so a blank area can be told apart from a slow one before you switch source.</p>
+        <p className="pb-2">Mapterhorn's own coverage is on now: each patch is the national dataset it ingested there, hollow where it falls back to global 30 m. Hover for the resolution and producer, click for a link and a "use this source" button.</p>
+        <p>The whole terrain and basemap libraries can be drawn the same way, as can the OpenStreetMap imagery index.</p>
+      </>
+    ),
+    onEnter: prepareCoverageOverlays,
+    scrollBlock: "start",
+    scrollIntoView: false,
+  },
+  {
     key: "split-mode", domId: "tour-split-mode", side: "left", align: "center",
     title: "Split / Compare Mode",
     description: (
@@ -864,6 +912,8 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   const [rvAdvanced, setRvAdvanced] = useAtom(reliefVisualizationAdvancedAtom)
   const [colorizeMapBorders, setColorizeMapBorders] = useAtom(colorizeMapBordersAtom)
   const [comparisonMixAdvancedOpen, setComparisonMixAdvancedOpen] = useAtom(isComparisonMixAdvancedOpenAtom)
+  const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
+  const setCoverageOverlays = useSetAtom(coverageOverlaysAtom)
 
   const [open, setOpen] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -920,6 +970,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     taAdvanced, setTaAdvanced, rvAdvanced, setRvAdvanced,
     colorizeMapBorders, setColorizeMapBorders,
     comparisonMixAdvancedOpen, setComparisonMixAdvancedOpen,
+    setTerrainLibraryOpen, setCoverageOverlays,
   }
 
   // One stable ref-shaped object per step (across every branch — see
@@ -982,6 +1033,9 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     if (!step) return
     const generation = ++transitionGenerationRef.current
     setIsTransitioning(true)
+    // The Library modal covers the panel: every other step has to start with
+    // it closed, whichever direction the visitor came from.
+    if (step.key !== "terrain-library") setTerrainLibraryOpen(false)
     step.onEnter?.(actionsRef.current)
     void waitForTarget(step.domId).then(() => {
       scrollTargetIntoView(step.scrollTargetId ?? step.domId, step.scrollBlock)

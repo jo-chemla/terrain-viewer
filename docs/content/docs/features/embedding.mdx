@@ -65,6 +65,8 @@ These are read once on load and are never written by the app. They stay in the U
 | `scrollTo=<section>` | Opens that section and scrolls the side panel to it, so a link can land on the hillshade light pad: `scrollTo=hillshade`. Section keys as above, or any element id. |
 | `startTour=true` | Starts the product walkthrough. |
 | `bookmarksGallery=true` | Opens the Bookmarks gallery modal on arrival. |
+| `openLibrary=terrain` / `basemap` / `both` | Opens the [Library](/features/terrain-sources) modal, the curated list of national and global datasets, on arrival. |
+| `coverageOverlays=mapterhorn,library` | Draws those [coverage footprints](/features/coverage-overlays) on the map and opens Source Info, where the picker lives. A group key (`mapterhorn`, `library`, `basemapLibrary`, `eli`, `yourTerrain`, `yourBasemaps`) expands to its leaves; a single leaf id (`lib:<id>`, `blib:<id>`, `terrain:<id>`, `basemap:<id>`, `eli:<id>`) works too. |
 | `bookmarksUrl=<url>` | A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks: a curated selection handed out by link. Pair with `bookmarksGallery=true`, or `openSections=bookmarks` / `scrollTo=bookmarks`, to land on it. |
 | `addSources`, `addTerrainUrl`, `addBasemapUrl`, `addOverlayUrl`, `drawingUrl`, `viaTitiler`, `terrainType`, `basemapType` | See above. |
 

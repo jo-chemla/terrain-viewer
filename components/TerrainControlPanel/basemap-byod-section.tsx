@@ -12,8 +12,7 @@ import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/gri
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
-  type CustomBasemapSource
-} from "@/lib/settings-atoms"
+  type CustomBasemapSource, basemapLibraryOpenAtom } from "@/lib/settings-atoms"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -35,7 +34,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const [isAddBasemapModalOpen, setIsAddBasemapModalOpen] = useState(false)
   const [editingBasemap, setEditingBasemap] = useState<CustomBasemapSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
-  const [isSampleModalOpen, setIsSampleModalOpen] = useState(false)
+  const [isSampleModalOpen, setIsSampleModalOpen] = useAtom(basemapLibraryOpenAtom)
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
 
   // Resolves a basemap source's paired terrain NAME for CustomSourceDetails'

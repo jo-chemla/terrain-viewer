@@ -105,6 +105,27 @@ export const SplitPill: React.FC<{
     }
   }, [applyRatio, onOpacityChange])
 
+  // The gutter (and the pill) sit over the map and would otherwise swallow
+  // the wheel: scrolling right on the seam did nothing instead of zooming.
+  // The event is replayed on whatever map canvas is under the cursor - a
+  // real WheelEvent, so maplibre's own scroll-zoom handler (bound on the
+  // canvas container) treats it exactly like a scroll over the map.
+  const forwardWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    const previous = el.style.pointerEvents
+    el.style.pointerEvents = "none"
+    const under = document.elementFromPoint(e.clientX, e.clientY)
+    el.style.pointerEvents = previous
+    const target = under?.closest?.(".maplibregl-canvas-container") ?? null
+    if (!target) return
+    e.preventDefault()
+    target.dispatchEvent(new WheelEvent("wheel", {
+      deltaX: e.deltaX, deltaY: e.deltaY, deltaZ: e.deltaZ, deltaMode: e.deltaMode,
+      clientX: e.clientX, clientY: e.clientY, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey,
+      metaKey: e.metaKey, altKey: e.altKey, bubbles: true, cancelable: true,
+    }))
+  }, [])
+
   const handlePillPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation()
     e.currentTarget.releasePointerCapture(e.pointerId)
@@ -120,6 +141,7 @@ export const SplitPill: React.FC<{
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onWheel={forwardWheel}
         className="absolute inset-y-0 z-10 w-8 -translate-x-1/2 cursor-col-resize touch-none select-none"
         style={{ left: `${leftPercent ?? ratio * 100}%`, transition: leftTransition }}
       >
@@ -127,6 +149,7 @@ export const SplitPill: React.FC<{
           onPointerDown={handlePillPointerDown}
           onPointerMove={handlePillPointerMove}
           onPointerUp={handlePillPointerUp}
+          onWheel={forwardWheel}
           className={cn(
             "absolute left-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-background shadow-md transition-shadow cursor-move touch-none",
             isDragging ? "border-primary shadow-lg" : "border-primary/70",
@@ -144,6 +167,7 @@ export const SplitPill: React.FC<{
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onWheel={forwardWheel}
       className={cn(
         // Absolute (not a flex "gap" item) — every pane is absolutely
         // positioned now (see TerrainViewer.tsx's paneLayouts), so this

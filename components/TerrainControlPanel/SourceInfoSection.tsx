@@ -313,7 +313,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
   // Leaves selected earlier that no longer have a leaf (ELI view changed) stay
   // selected and drawn; they only lose their pill label.
   return (
-    <div className="space-y-1.5">
+    <div id="tour-coverage-overlays" className="space-y-1.5 scroll-mt-[100px]">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-medium">Coverage overlays</Label>
         <Popover open={open} onOpenChange={setOpen}>

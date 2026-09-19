@@ -20,8 +20,7 @@ import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   viewportCenterAtom, activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
-  type CustomTerrainSource, type CustomBasemapSource,
-} from "@/lib/settings-atoms"
+  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
 import { withSlowTileStats, resetSlowTileProgress } from "@/lib/tile-timing-stats"
@@ -52,6 +51,7 @@ import { ArrowLeftRight } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
 import { bookmarksAtom, mergeImportedBookmarks, type Bookmark } from "@/lib/bookmarks"
+import { coverageOverlaysAtom, coverageGroups } from "@/lib/coverage-overlays"
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
@@ -1914,6 +1914,34 @@ export function TerrainViewer() {
       }).catch((e) => console.error(`[bookmarks] bookmarksUrl ${bookmarksUrl}:`, e))
     }
 
+    // ?openLibrary=terrain|basemap - opens that Library modal (the curated
+    // list of national and global datasets) on arrival.
+    const openLibrary = searchParams.get("openLibrary")
+    if (openLibrary === "terrain" || openLibrary === "both") setTerrainLibraryOpen(true)
+    if (openLibrary === "basemap" || openLibrary === "both") setBasemapLibraryOpen(true)
+
+    // ?coverageOverlays=mapterhorn,library,... - draws those coverage
+    // footprints (Source Info -> Coverage overlays) on arrival. Accepts a
+    // group key (mapterhorn, library, basemapLibrary, eli, yourTerrain,
+    // yourBasemaps), which expands to that group's leaves, or a single leaf
+    // id (lib:<id>, blib:<id>, terrain:<id>, basemap:<id>, eli:<id>). The
+    // Source Info section is opened with them: the picker lives there, and
+    // footprints with no visible origin are a puzzle.
+    const coverageTokens = (searchParams.get("coverageOverlays") ?? "").split(",").map((t) => t.trim()).filter(Boolean)
+    if (coverageTokens.length) {
+      const groups = coverageGroups({ terrains: customTerrainSources, basemaps: customBasemapSources, eliInView: [] })
+      const ids = new Set<string>()
+      for (const token of coverageTokens) {
+        const group = groups.find((g) => g.key === token)
+        if (group) for (const leaf of group.leaves) ids.add(leaf.id)
+        else ids.add(token)
+      }
+      if (ids.size) {
+        setCoverageOverlays([...ids])
+        setSectionOpen((prev) => ({ ...prev, sourceInfo: true }))
+      }
+    }
+
     if (Object.keys(stateOverrides).length > 0) setState(stateOverrides)
 
     if (projectConfig?.initialSections) {
@@ -2036,6 +2064,9 @@ export function TerrainViewer() {
   // style, but map instances and state exist, so constraints can be checked.
   if (import.meta.env.DEV) (window as any).__tv = { mapRefs, state, setState }
   const setBookmarks = useSetAtom(bookmarksAtom)
+  const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
+  const setBasemapLibraryOpen = useSetAtom(basemapLibraryOpenAtom)
+  const setCoverageOverlays = useSetAtom(coverageOverlaysAtom)
 
   // A view's source given as a URL rather than an id, on ANY view:
   // ?terrainSourceB=https://host/dem.cog.tif, ?basemapSourceC=https://host/ortho.tif,

@@ -368,6 +368,12 @@ export const isExportSettingsOpenAtom = atomWithStorage("isExportSettingsOpen", 
 // getOnInit: read through getDefaultStore() there, possibly before any
 // component has mounted the atom.
 export const snapshotIncludeTimelineAtom = atomWithStorage("snapshotIncludeTimeline", false, undefined, { getOnInit: true })
+// The two "Library" modals (SampleSourcesModal) - session state, shared so
+// the ?openLibrary= parameter and the product tour can open them from
+// outside the sections that own the buttons.
+export const terrainLibraryOpenAtom = atom(false)
+export const basemapLibraryOpenAtom = atom(false)
+
 export const activeSliderAtom = atom<string | null>(null)
 
 
