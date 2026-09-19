@@ -55,6 +55,24 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
       encoding: "terrarium",
     },
   },
+  esri: {
+    name: "Esri World Elevation - LERC",
+    link: "https://www.arcgis.com/home/item.html?id=0c69ba5a5d254118841d43f03aa3e97d",
+    description: "Esri's global best-available blend (Vantor, Airbus DS, USGS, NGA, NASA, CGIAR, GEBCO, LINZ, Ordnance Survey and others), TopoBathy variant: land AND seafloor as one continuous surface, so a hypsometric ramp or a 3D view reads across a coastline instead of stopping at it. Served as LERC - Esri's own float raster codec - and decoded in the browser by lerc:// (see /dev/lerc-protocol). Orthometric, keyless, CORS-open; check Esri's Terms of Use before publishing with it.",
+    encoding: "terrarium",
+    sourceConfig: {
+      type: "raster-dem",
+      // The tile pyramid, NOT exportImage: that endpoint only answers
+      // anonymously from a ~2.5 km overview. ArcGIS orders the placeholders
+      // z/y/x, which maplibre substitutes the same as any other order.
+      tiles: ["lerc://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/TopoBathy3D/ImageServer/tile/{z}/{y}/{x}"],
+      tileSize: 256,
+      // The service declares LOD 16; past that every pixel comes back masked,
+      // so maplibre should overzoom the last real parent instead.
+      maxzoom: 16,
+      encoding: "terrarium",
+    },
+  },
   // mapzen: {
   //   name: "Mapzen Terrarium (also on AWS, discontinued on mapzen)",
   //   link: "https://www.mapzen.com/blog/terrain-tile-service/",

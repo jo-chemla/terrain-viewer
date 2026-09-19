@@ -94,7 +94,7 @@ function sourceKindOf(sourceA: string): ProvenanceSourceKind | null {
  *  Mapterhorn have a per-tile provenance lookup; every custom source has at
  *  least its own metadata card. */
 export function isProvenanceSource(sourceA: string): boolean {
-  return sourceKindOf(sourceA) !== null || (sourceA !== "aws" && sourceA !== "mapterhorn" && sourceA !== "mapbox" && sourceA !== "maptiler" && !!sourceA)
+  return sourceKindOf(sourceA) !== null || (sourceA !== "aws" && sourceA !== "mapterhorn" && sourceA !== "mapbox" && sourceA !== "maptiler" && sourceA !== "esri" && !!sourceA)
 }
 
 const MOVE_DEBOUNCE_MS = 400

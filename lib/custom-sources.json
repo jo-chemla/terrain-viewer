@@ -301,12 +301,7 @@
             "diffMinuendId": "custom-np-bhotekoshi-dsm-rasuwagadhi",
             "diffSubtrahendId": "mapterhorn",
             "loadWithSamples": false,
-            "bounds": [
-                85.341,
-                28.231,
-                85.42,
-                28.311
-            ],
+            "bounds": [85.341, 28.231, 85.42, 28.311],
             "resolutionM": 30,
             "description": "The app's own before/after: the 0.5 m post-event surface minus Mapterhorn, which over Nepal is Copernicus GLO-30 (a 2011-2015 surface model) - subtracted tile by tile in the browser. Coarser and noisier than geo-pera's bias-corrected 2 m dh raster (the pre-event side is 30 m and a different vintage), but computed live from two independent sources, which is the point. Read with a symmetric hypsometric ramp around 0; usable from z13, where the DSM starts serving.",
             "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
@@ -319,12 +314,7 @@
             "diffMinuendId": "custom-np-bhotekoshi-dsm-syabrubesi",
             "diffSubtrahendId": "mapterhorn",
             "loadWithSamples": false,
-            "bounds": [
-                85.294,
-                28.121,
-                85.365,
-                28.205
-            ],
+            "bounds": [85.294, 28.121, 85.365, 28.205],
             "resolutionM": 30,
             "description": "Same live difference for the Syabrubesi debris sheet: post-event 0.5 m DSM minus Mapterhorn (GLO-30). Symmetric hypsometric ramp around 0; from z13.",
             "infoUrl": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1"
@@ -493,21 +483,12 @@
         },
         {
             "id": "custom-global-esri-terrain3d",
-            "name": "Global - Esri World Elevation 3D (best available) - LERC tiles",
+            "name": "Global - Esri World Elevation 3D (land only, ocean at 0 m) - LERC",
             "url": "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer/tile/{z}/{y}/{x}",
             "type": "lerc",
             "maxzoom": 16,
-            "description": "Esri's global best-available elevation blend (Vantor, Airbus DS, USGS, NGA, NASA, CGIAR, GEBCO, Land Information New Zealand, Ordnance Survey and others), served as LERC-compressed float tiles - Esri's own raster codec, decoded in the browser by lerc:// and re-encoded as Terrarium. Verified ORTHOMETRIC, not ellipsoidal: six points across an Innsbruck tile average -0.6 m against a reference DEM (spread 18 m, which is terrain sampling noise between two models in steep ground), so unlike ArcticDEM/REMA it needs no geoid correction. Ocean reads a flat 0 m; use the TopoBathy entry for real bathymetry. Real data to z16-17 worldwide (the service declares LOD 16); beyond that every pixel comes back masked, which lerc:// writes as flat 0 m with alpha 254 rather than a pit. NOTE the service's exportImage endpoint is useless anonymously - it only ever answers from a ~2.5 km overview (WorldDTM_OV256), rendering an alpine valley as a smooth ramp even with an explicit fine pixelSize. The /tile pyramid is the only anonymous route to real resolution. LICENCE: this is an Esri ArcGIS service. It answers without a token and with CORS open, but Esri's Terms of Use contemplate use with ArcGIS products; consuming it from a non-Esri client is not clearly granted. Check before relying on it in anything published.",
+            "description": "The land-only variant of the Esri blend that ships as the built-in \"Esri World Elevation\" source: identical on land, but the ocean reads a flat 0 m instead of the seafloor. Worth choosing when a coastline should be a hard edge - a hypsometric ramp keyed to land relief is wrecked by a -7000 m trench sharing its range. Verified ORTHOMETRIC, not ellipsoidal: six points across an Innsbruck tile average -0.6 m against a reference DEM (spread 18 m, which is terrain sampling noise between two models in steep ground), so unlike ArcticDEM/REMA it needs no geoid correction. Ocean reads a flat 0 m; use the TopoBathy entry for real bathymetry. Real data to z16-17 worldwide (the service declares LOD 16); beyond that every pixel comes back masked, which lerc:// writes as flat 0 m with alpha 254 rather than a pit. NOTE the service's exportImage endpoint is useless anonymously - it only ever answers from a ~2.5 km overview (WorldDTM_OV256), rendering an alpine valley as a smooth ramp even with an explicit fine pixelSize. The /tile pyramid is the only anonymous route to real resolution. LICENCE: this is an Esri ArcGIS service. It answers without a token and with CORS open, but Esri's Terms of Use contemplate use with ArcGIS products; consuming it from a non-Esri client is not clearly granted. Check before relying on it in anything published.",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=7029fb60158543ad845c7e1527af11e4"
-        },
-        {
-            "id": "custom-global-esri-topobathy3d",
-            "name": "Global - Esri World TopoBathy 3D (land + seafloor) - LERC tiles",
-            "url": "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/TopoBathy3D/ImageServer/tile/{z}/{y}/{x}",
-            "type": "lerc",
-            "maxzoom": 16,
-            "description": "The same blend as the Terrain3D entry but with the seafloor instead of a flat 0 m ocean - one continuous surface from summit to trench, which makes a hypsometric ramp or a 3D view read across a coastline instead of stopping at it. Verified over the western Pacific: -6963 m to -1078 m in a single z8 tile. The bathymetric component is GEBCO-grade (roughly 450 m cells) where nothing finer exists, so deep zooms over open ocean are interpolation, not measurement. Same decoding, same orthometric datum and same z16 practical ceiling as Terrain3D. LICENCE: this is an Esri ArcGIS service. It answers without a token and with CORS open, but Esri's Terms of Use contemplate use with ArcGIS products; consuming it from a non-Esri client is not clearly granted. Check before relying on it in anything published.",
-            "infoUrl": "https://www.arcgis.com/home/item.html?id=0c69ba5a5d254118841d43f03aa3e97d"
         },
         {
             "id": "custom-sam-anadem",
@@ -553,7 +534,7 @@
             "url": "https://s3.opengeohub.org/global/dtm/v1.2/gedtm_rf_m_30m_s_20060101_20151231_go_epsg.4326.3855_v1.2.tif",
             "type": "cog",
             "cogViaTitiler": true,
-            "titilerNodata": 3.4e38,
+            "titilerNodata": 3.4e+38,
             "minzoom": 6,
             "maxzoom": 15,
             "description": "OpenLandMap / OpenGeoHub's global 30m terrain model, one 432 GB COG (1.3 million x 540 thousand pixels, 11 overviews) with CORS * and range requests. Like ANADEM it is an AI terrain model: Copernicus GLO-30 is a SURFACE model (it measures canopy and roofs), and this is machine-learning corrected towards bare earth using ALOS and GEDI spaceborne LiDAR. Mapterhorn only carries the GLO-30 surface where it has no national data, so anywhere outside its 32 countries this is the better ground model - same grid, but the terrain rather than the treetops. EPSG:4326, pinned to titiler; titiler.xyz answers HTTP 500 for z4-z5 windows of this file, hence minzoom 6. Nodata +3.4e38, and it MUST be passed to titiler (titilerNodata): with the default nodata=0 override the sentinel reaches the terrainrgb encoder on every tile that touches the sea and titiler answers 500 (larger than 256 ** 3), so the whole coastline was missing. Verified: Mont Blanc 4805.6 m, Everest 8742 m (3x3 max). CC BY 4.0, Zenodo 15689805.",
@@ -854,12 +835,7 @@
             "url": "https://geoservice.dlr.de/eoc/elevation/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=TDM90_DEM&STYLES=tdm-topo&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true",
             "type": "wms",
             "maxzoom": 12,
-            "bounds": [
-                -180,
-                -85,
-                180,
-                84
-            ],
+            "bounds": [-180, -85, 180, 84],
             "description": "DLR's global TanDEM-X 90 m DEM, rendered server-side as a hypsometric topographic map. Radar interferometry from the twin TerraSAR-X/TanDEM-X satellites (2010-2014), so it is a surface model that sees through cloud and covers the whole land surface homogeneously - useful as a relief backdrop where no imagery or national DEM exists. CORS echoes the Origin, keyless. The DEM itself is NOT usable as terrain here: the WMS only hands out an 8/16-bit rendering, and the real float32 grid is a form-gated zip download. Swap STYLES=tdm-topo for tdm-dem (grey elevation), tdm-bathy or tdm-contour. (c) DLR, free for scientific use, see https://geoservice.dlr.de/web/dataguide/tdm90/",
             "infoUrl": "https://geoservice.dlr.de/web/datasets/tdm90_dem"
         },
@@ -869,12 +845,7 @@
             "url": "https://geoservice.dlr.de/eoc/elevation/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=TDM_POLARDEM90_ANT_HSM&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true",
             "type": "wms",
             "maxzoom": 12,
-            "bounds": [
-                -180,
-                -85,
-                180,
-                -60
-            ],
+            "bounds": [-180, -85, 180, -60],
             "description": "Multidirectional hillshade of DLR's TanDEM-X PolarDEM 90 m of Antarctica - the one continent with almost no usable optical basemap, where a shaded relief is the only readable backdrop. Pairs with the PGC REMA 2 m terrain source in the Library. Keyless, CORS echoes the Origin. (c) DLR.",
             "infoUrl": "https://geoservice.dlr.de/web/datasets/tdm_polardem90_ant"
         },

@@ -3,7 +3,7 @@
 // raster *basemap* imagery option) were never actually populated in
 // terrainSources below — narrowed to match reality instead of the two ghost
 // members Record<TerrainSource, TerrainSourceConfig> silently never enforced.
-export type TerrainSource = "mapterhorn" | "maptiler" | "aws" | "mapbox"
+export type TerrainSource = "mapterhorn" | "maptiler" | "aws" | "mapbox" | "esri"
 
 
 export const HILLSHADE_METHODS = [

@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ChevronDown, Plus, Edit, Library, RotateCcw, Lightbulb } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   isByodOpenAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
   titilerEndpointAtom, useCogProtocolVsTitilerAtom, mapboxKeyAtom, maptilerKeyAtom,
-  type CustomTerrainSource, terrainLibraryOpenAtom } from "@/lib/settings-atoms"
+  type CustomTerrainSource, terrainLibraryOpenAtom, customTerrainLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { terrainSources } from "@/lib/terrain-sources"
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { deletePersistedCogFile } from "@/lib/opfs-file-store"
@@ -26,6 +26,7 @@ import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
 import { SampleSourcesModal } from "./sample-sources-modal"
+import { seedStacPreset } from "@/lib/stac-presets"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { TooltipButton } from "./controls-components"
 import { JsonEditor } from "@/components/ui/json-editor"
@@ -44,9 +45,24 @@ export const TerrainSourceSection: React.FC<{
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false)
+  const setLastTerrainType = useSetAtom(customTerrainLastTypeAtom)
+  const stacSearchBeta = useAtomValue(stacSearchBetaEnabledAtom)
   const [editingSource, setEditingSource] = useState<CustomTerrainSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
   const [isSampleModalOpen, setIsSampleModalOpen] = useAtom(terrainLibraryOpenAtom)
+  // Handing off from the Library to the Add dialog's catalogue tab is done
+  // SEQUENTIALLY rather than by opening the second while the first is still
+  // up: overlapping dialog transitions are the shape of problem that left
+  // ?openLibrary=both unusable, and one closing cleanly before the next opens
+  // costs nothing. NOT verified in a real browser - the agent preview never
+  // runs these transitions (no requestAnimationFrame), so every dialog reads
+  // opacity 0 there whatever the state actually is.
+  const [pendingStacBrowse, setPendingStacBrowse] = useState(false)
+  useEffect(() => {
+    if (!pendingStacBrowse || isSampleModalOpen) return
+    const t = setTimeout(() => { setPendingStacBrowse(false); setIsAddSourceModalOpen(true) }, 220)
+    return () => clearTimeout(t)
+  }, [pendingStacBrowse, isSampleModalOpen])
   const [batchEditJson, setBatchEditJson] = useState("")
   const [batchEditError, setBatchEditError] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -378,6 +394,20 @@ export const TerrainSourceSection: React.FC<{
         open={isSampleModalOpen}
         onOpenChange={setIsSampleModalOpen}
         title="Terrain dataset library"
+        stacTarget="terrain"
+        onBrowseStac={!stacSearchBeta ? undefined : (presetId) => {
+        // The Add dialog reads its own type back from the "last type" atom
+        // when it opens for a NEW source, so pointing that at "stac" is all it
+        // takes to land on the catalogue tab - no extra prop, no second path
+        // through the dialog's reset effect. seedStacPreset picks the
+        // catalogue itself. Off when the beta flag is off, since the tab would
+        // not be there to land on.
+          seedStacPreset("terrain", presetId)
+          setLastTerrainType("stac")
+          setEditingSource(null)
+          setIsSampleModalOpen(false)
+          setPendingStacBrowse(true)
+        }}
         samples={SAMPLE_TERRAIN_SOURCES as CustomTerrainSource[]}
         current={customTerrainSources}
         setCurrent={(next) => {

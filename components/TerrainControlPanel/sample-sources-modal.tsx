@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
-import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, Search, type LucideIcon } from "lucide-react"
+import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, Search, Library, type LucideIcon } from "lucide-react"
+import { STAC_PRESETS } from "@/lib/stac-presets"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -106,6 +107,7 @@ function kindOf(name: string): { label: string; title: string } | null {
  */
 export function SampleSourcesModal<T extends SampleLike>({
   open, onOpenChange, title, samples, current, setCurrent, compareToMapterhorn = false,
+  stacTarget, onBrowseStac,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -114,6 +116,13 @@ export function SampleSourcesModal<T extends SampleLike>({
   current: T[]
   setCurrent: (next: T[]) => void
   compareToMapterhorn?: boolean
+  /** Which half of the STAC preset list the Catalogues section offers. Omit
+   *  to leave the section out entirely. */
+  stacTarget?: "terrain" | "basemap"
+  /** Hands the chosen catalogue back so the caller can close this dialog and
+   *  open the Add dialog on its STAC tab. Omit and the section is read-only
+   *  links. */
+  onBrowseStac?: (presetId: string) => void
 }) {
   const presentIds = useMemo(() => new Set(current.map((s) => s.id)), [current])
   const lastGlobal = useMemo(() => samples.reduce((acc, s, i) => (s.name.startsWith("Global - ") ? i : acc), -1), [samples])
@@ -163,6 +172,17 @@ export function SampleSourcesModal<T extends SampleLike>({
     const ids = new Set(entries.map((s) => s.id))
     setCurrent(current.filter((s) => !ids.has(s.id)))
   }
+  // Catalogues are not datasets: a STAC endpoint is a search over thousands of
+  // scenes, so it cannot be "added" the way a single URL can. Listing them here
+  // anyway is the point - this dialog is where you look for data, and having to
+  // know that per-scene DEMs live behind a tab of a different dialog is a
+  // discoverability failure. The row hands you off instead of adding.
+  const catalogues = useMemo(
+    () => (!stacTarget ? [] : STAC_PRESETS.filter((p) => (p.target === "both" || p.target === stacTarget)
+      && (!q || `${p.name} ${p.group} ${p.note ?? ""}`.toLowerCase().includes(q)))),
+    [stacTarget, q],
+  )
+
   const loadAllSet = samples.filter((s) => s.loadWithSamples !== false)
   const loadedCount = samples.filter((s) => presentIds.has(s.id)).length
 
@@ -345,6 +365,49 @@ export function SampleSourcesModal<T extends SampleLike>({
                 )
               })
             : renderSections("better", "")}
+
+          {catalogues.length > 0 && (
+            <Collapsible open={isOpen("catalogues")} onOpenChange={(o) => setOpenSections((p) => ({ ...p, catalogues: o }))}>
+              <div className="flex items-center gap-1 border-b-2">
+                <CollapsibleTrigger className="flex items-center gap-1.5 flex-1 min-w-0 py-1 cursor-pointer text-left">
+                  <Library className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="text-sm font-bold">
+                    Catalogues <span className="font-normal text-muted-foreground">· {catalogues.length}</span>
+                  </span>
+                </CollapsibleTrigger>
+                <CollapsibleTrigger className="cursor-pointer p-1">
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isOpen("catalogues") ? "rotate-180" : ""}`} />
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent>
+                <p className="text-xs text-muted-foreground pt-1">
+                  Searchable archives rather than single datasets — per-scene DEMs and imagery, found by area and date.
+                  Browse opens the catalogue search with that endpoint selected.
+                </p>
+                <div className="pl-2 divide-y divide-border/50">
+                  {catalogues.map((p) => (
+                    <div key={p.id} className="flex items-center gap-2 min-w-0 py-1">
+                      <span className="flex-1 min-w-0 text-sm truncate" title={p.note ?? p.name}>{p.name}</span>
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 bg-sky-500/15 text-sky-700 dark:text-sky-300">
+                        {p.group}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0 w-16 text-right">{p.kind}</span>
+                      <a href={p.url} target="_blank" rel="noopener noreferrer" title="Catalogue endpoint"
+                        className="shrink-0 text-muted-foreground hover:text-foreground">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                      <Button variant="secondary" size="sm" className="cursor-pointer shrink-0 h-8"
+                        disabled={!onBrowseStac}
+                        title={onBrowseStac ? `Search ${p.name} over the current view` : "Catalogue search is off (Settings → Beta)"}
+                        onClick={() => onBrowseStac?.(p.id)}>
+                        <Search className="h-3.5 w-3.5" /> Browse
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </div>
       </DialogContent>
     </Dialog>

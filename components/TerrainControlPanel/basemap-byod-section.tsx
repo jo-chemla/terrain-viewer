@@ -1,6 +1,6 @@
 import type React from "react"
-import { useState, useCallback, useRef } from "react"
-import { useAtom } from "jotai"
+import { useState, useCallback, useRef, useEffect } from "react"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ChevronDown, Plus, Edit, Library } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -12,7 +12,7 @@ import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/gri
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
-  type CustomBasemapSource, basemapLibraryOpenAtom } from "@/lib/settings-atoms"
+  type CustomBasemapSource, basemapLibraryOpenAtom, customBasemapLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -20,6 +20,7 @@ import { CustomBasemapModal } from "./custom-basemap-modal"
 import { BasemapBatchEditModal } from "./basemap-batch-edit-modal"
 import { CustomSourceDetails } from "./custom-source-details"
 import { SampleSourcesModal } from "./sample-sources-modal"
+import { seedStacPreset } from "@/lib/stac-presets"
 import { shouldZoomToBounds } from "@/lib/controls-utils"
 import { resolveLinkedTerrainId } from "@/lib/linked-sources"
 
@@ -32,9 +33,24 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [isAddBasemapModalOpen, setIsAddBasemapModalOpen] = useState(false)
+  const setLastBasemapType = useSetAtom(customBasemapLastTypeAtom)
+  const stacSearchBeta = useAtomValue(stacSearchBetaEnabledAtom)
   const [editingBasemap, setEditingBasemap] = useState<CustomBasemapSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
   const [isSampleModalOpen, setIsSampleModalOpen] = useAtom(basemapLibraryOpenAtom)
+  // Handing off from the Library to the Add dialog's catalogue tab is done
+  // SEQUENTIALLY rather than by opening the second while the first is still
+  // up: overlapping dialog transitions are the shape of problem that left
+  // ?openLibrary=both unusable, and one closing cleanly before the next opens
+  // costs nothing. NOT verified in a real browser - the agent preview never
+  // runs these transitions (no requestAnimationFrame), so every dialog reads
+  // opacity 0 there whatever the state actually is.
+  const [pendingStacBrowse, setPendingStacBrowse] = useState(false)
+  useEffect(() => {
+    if (!pendingStacBrowse || isSampleModalOpen) return
+    const t = setTimeout(() => { setPendingStacBrowse(false); setIsAddBasemapModalOpen(true) }, 220)
+    return () => clearTimeout(t)
+  }, [pendingStacBrowse, isSampleModalOpen])
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
 
   // Resolves a basemap source's paired terrain NAME for CustomSourceDetails'
@@ -339,6 +355,20 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         open={isSampleModalOpen}
         onOpenChange={setIsSampleModalOpen}
         title="Basemap library"
+        stacTarget="basemap"
+        onBrowseStac={!stacSearchBeta ? undefined : (presetId) => {
+        // The Add dialog reads its own type back from the "last type" atom
+        // when it opens for a NEW source, so pointing that at "stac" is all it
+        // takes to land on the catalogue tab - no extra prop, no second path
+        // through the dialog's reset effect. seedStacPreset picks the
+        // catalogue itself. Off when the beta flag is off, since the tab would
+        // not be there to land on.
+          seedStacPreset("basemap", presetId)
+          setLastBasemapType("stac")
+          setEditingBasemap(null)
+          setIsSampleModalOpen(false)
+          setPendingStacBrowse(true)
+        }}
         samples={SAMPLE_BASEMAP_SOURCES as CustomBasemapSource[]}
         current={customBasemapSources}
         setCurrent={(next) => {

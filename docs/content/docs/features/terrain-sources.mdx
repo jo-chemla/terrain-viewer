@@ -1,6 +1,6 @@
 ---
 title: Terrain and Basemap Sources
-description: The built-in DEM tile sources (Mapterhorn, Mapbox, MapTiler, AWS Terrain Tiles) and worldwide basemap providers
+description: The built-in DEM tile sources (Mapterhorn, Mapbox, MapTiler, AWS Terrain Tiles, Esri World Elevation) and worldwide basemap providers
 ---
 
 The **Sources** group in the sidebar covers two independent pickers — **Terrain** (the DEM driving elevation/relief/exaggeration) and **Basemap** (the imagery draped on top, or shown as Raster Basemap) — see [Overview → Sidebar groups](/overview#sidebar-groups) for where this sits relative to the rest of the app. Both accept your own sources too, not just the built-ins below — see [Bring Your Own Data](/features/byod).
@@ -40,6 +40,18 @@ A composite of multiple high-resolution DEMs curated by MapTiler's geodata team 
 The original open Tilezen/Joerd dataset (built by Mapzen, continuing as an AWS Open Data Registry mirror after Mapzen's shutdown) — the only built-in source with genuine **ocean bathymetry**: land elevation (SRTM at mid/high zoom, GMTED2010 at low zoom) is blended with global ETOPO1 bathymetry everywhere water replaces a zero-elevation gap, plus regional high-resolution inserts (US 3DEP/NED, ArcticDEM, EU-DEM, Canada's CDEM, and more). No API key needed.
 
 <Callout title="Which dataset is actually under my cursor?" type="info">
+### Esri World Elevation — LERC
+
+Esri's global best-available blend (Vantor, Airbus DS, USGS, NGA, NASA, CGIAR, GEBCO, Land Information New Zealand, Ordnance Survey and others), in its **TopoBathy** form: land *and* seafloor as one continuous surface, so a hypsometric ramp or a 3D view reads across a coastline instead of stopping at it. The second built-in with real bathymetry, alongside AWS Terrain Tiles.
+
+No API key. Unlike the others it is not an RGB packing at all — it streams **LERC**, Esri's own float raster codec, decoded in the browser by [`lerc://`](/dev/lerc-protocol). Heights are orthometric (measured at −0.6 m mean against a reference DEM), and real data runs to about z16.
+
+A land-only variant, with the ocean flat at 0 m rather than the seafloor, is in the [Library](#the-library) — worth choosing when a coastline should be a hard edge, since a −7000 m trench sharing the range wrecks a ramp keyed to land relief.
+
+<Callout type="warn">
+These are Esri ArcGIS services. They answer without a token and with CORS open, but Esri's Terms of Use contemplate use with ArcGIS products, and consuming them from a non-Esri client is not clearly granted — worth checking before relying on one in anything published.
+</Callout>
+
 The **Source Info** tool (Tools group in the sidebar) hints at exactly that for the terrain/basemap that's currently exposed at your viewport — e.g. which of Mapterhorn's composited national LiDAR datasets is active at that location (vs. its global Copernicus GLO-30 fallback), or which date/release the active ESRI imagery resolves to. Handy for knowing whether you're looking at a genuinely high-resolution local dataset or a coarser global default.
 </Callout>
 

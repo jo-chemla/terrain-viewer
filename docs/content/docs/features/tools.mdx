@@ -84,6 +84,8 @@ Seventeen presets ship, grouped by what they hold:
 
 Or paste any catalogue URL: a `.json` is crawled as a static catalog, anything else is treated as a STAC API.
 
+The same list is also in the **Library**, under **Catalogues** — a catalogue cannot be "added" the way a single dataset URL can, so its row offers **Browse**, which closes the Library and opens this tab with that endpoint already selected. That is the entry point worth remembering: the Library is where you look for data, and per-scene DEMs (EarthDEM strips, ArcticDEM strips, OpenTopography's rasters) only exist behind a search.
+
 What the panel does for you:
 
 - **Two access shapes, one UI.** A STAC **API** is paged through its `/search` endpoint with bbox and datetime; a **static** catalog has no search, so its child links are crawled breadth-first and filtered to the view. Static crawls of deeply nested archives (Umbra's year-nested tree, for instance) are slow by nature — the progress line says where it is.
