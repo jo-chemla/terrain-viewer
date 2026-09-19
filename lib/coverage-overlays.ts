@@ -1,4 +1,5 @@
 import { atom } from "jotai"
+import { createParser } from "nuqs"
 import type { FeatureCollection, Feature, Polygon } from "geojson"
 import customSources from "./custom-sources.json"
 import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
@@ -24,7 +25,7 @@ import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
  *                  library entry, from its declared bounds (or the ELI polygon
  *                  for a basemap added from the index).
  *
- * The selection is session-only (not persisted, not in the URL). GeoJSON
+ * The selection is shared state (parseAsCoverageOverlays below). GeoJSON
  * feature properties are flat so the map layer can read them: overlay, label,
  * detail, color, hollow, url.
  */
@@ -83,6 +84,57 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
   // "Your …" groups stay listed even when empty (the tree shows "None").
   return groups.filter((g) => g.leaves.length > 0 || g.key.startsWith("your"))
 }
+
+/** The groups whose membership is fixed at build time, so a pure parser can
+ *  fold them: these are the two that would otherwise bury a link, the terrain
+ *  library being 45 footprints and 1.3 kB of ids on its own. Must stay in step
+ *  with the leaf ids coverageGroups() builds for the same two groups. The
+ *  other three groups (eli, yourTerrain, yourBasemaps) name sources that only
+ *  exist in this session, so there is nothing stable to fold them into and
+ *  their leaf ids are what a link has to carry; TerrainViewer's arrival effect
+ *  still accepts their group keys on the way in, where the runtime list is
+ *  known. */
+const STATIC_GROUP_LEAVES: Record<string, string[]> = {
+  library: TERRAIN_LIB.filter((s) => s.bounds).map((s) => `lib:${s.id}`),
+  basemapLibrary: BASEMAP_LIB.filter((s) => s.bounds).map((s) => `blib:${s.id}`),
+}
+
+/** Coverage overlays in the URL, folded to group keys wherever a group is
+ *  wholly selected: ?coverageOverlays=mapterhorn,library rather than the 45
+ *  lib: ids it stands for. Round-trips - ticking the Terrain library's own
+ *  checkbox puts `library` in the link, unticking one entry spills the other
+ *  44 out - so a hand-written link and one the app produced read the same. */
+export const parseAsCoverageOverlays = createParser<string[]>({
+  parse(value) {
+    const out: string[] = []
+    for (const token of value.split(",").map((t) => t.trim()).filter(Boolean)) {
+      for (const id of STATIC_GROUP_LEAVES[token] ?? [token]) if (!out.includes(id)) out.push(id)
+    }
+    return out
+  },
+  serialize(ids) {
+    const have = new Set(ids)
+    // leaf id -> the group key standing in for it. A group key takes the
+    // position of the group's first leaf rather than being hoisted to the
+    // front, so parse(serialize(x)) is x itself and not a reordering of it -
+    // otherwise nuqs's eq sees a change on every round trip through the URL.
+    const folded = new Map<string, string>()
+    for (const [key, leaves] of Object.entries(STATIC_GROUP_LEAVES)) {
+      if (leaves.length && leaves.every((l) => have.has(l))) for (const l of leaves) folded.set(l, key)
+    }
+    const out: string[] = []
+    for (const id of ids) {
+      const key = folded.get(id)
+      if (!key) out.push(id)
+      else if (!out.includes(key)) out.push(key)
+    }
+    return out.join(",")
+  },
+  // Arrays are rebuilt on every parse, so nuqs's default identity check would
+  // see every read as a change and loop against the mirror in
+  // TerrainControlPanel.
+  eq: (a, b) => a.length === b.length && a.every((v, i) => v === b[i]),
+}).withDefault([])
 
 const rect = (b: number[]): Polygon => ({
   type: "Polygon",

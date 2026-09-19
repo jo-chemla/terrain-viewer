@@ -731,9 +731,8 @@
       "type": "array",
       "items": "string",
       "enum": null,
-      "default": [],
-      "defaultSource": "[]",
-      "note": "Coverage footprints drawn on the map (Source Info -> Coverage overlays), as leaf ids."
+      "defaultSource": "",
+      "note": "Coverage footprints drawn on the map (Source Info -> Coverage overlays)."
     },
     {
       "key": "drawingUrl",

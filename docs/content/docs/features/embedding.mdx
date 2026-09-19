@@ -66,6 +66,8 @@ These are read once on load and are never written by the app. They stay in the U
 | `startTour=true` | Starts the product walkthrough. |
 | `bookmarksGallery=true` | Opens the Bookmarks gallery modal on arrival. |
 | `openLibrary=terrain` / `basemap` | Opens that [Library](/features/terrain-sources) modal, the curated list of national and global datasets, on arrival. One or the other: they are both dialogs. |
+
+`coverageOverlays` is ordinary [state](/dev/state), not an instruction — but it is worth knowing that it folds whole groups to a key, so `?coverageOverlays=mapterhorn,library` is a complete, hand-writable link rather than a wall of ids. See [Coverage overlays](/features/coverage-overlays).
 | `bookmarksUrl=<url>` | A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks: a curated selection handed out by link. Pair with `bookmarksGallery=true`, or `openSections=bookmarks` / `scrollTo=bookmarks`, to land on it. |
 | `addSources`, `addTerrainUrl`, `addBasemapUrl`, `addOverlayUrl`, `drawingUrl`, `viaTitiler`, `terrainType`, `basemapType` | See above. |
 

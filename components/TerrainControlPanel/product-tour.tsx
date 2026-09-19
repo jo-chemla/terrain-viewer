@@ -59,6 +59,7 @@ type TourActions = {
   comparisonMixAdvancedOpen: boolean
   setComparisonMixAdvancedOpen: (v: boolean) => void
   setTerrainLibraryOpen: (v: boolean) => void
+  coverageOverlays: string[]
   setCoverageOverlays: (ids: string[]) => void
 }
 
@@ -922,7 +923,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   const [colorizeMapBorders, setColorizeMapBorders] = useAtom(colorizeMapBordersAtom)
   const [comparisonMixAdvancedOpen, setComparisonMixAdvancedOpen] = useAtom(isComparisonMixAdvancedOpenAtom)
   const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
-  const setCoverageOverlays = useSetAtom(coverageOverlaysAtom)
+  const [coverageOverlays, setCoverageOverlays] = useAtom(coverageOverlaysAtom)
 
   const [open, setOpen] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -979,7 +980,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     taAdvanced, setTaAdvanced, rvAdvanced, setRvAdvanced,
     colorizeMapBorders, setColorizeMapBorders,
     comparisonMixAdvancedOpen, setComparisonMixAdvancedOpen,
-    setTerrainLibraryOpen, setCoverageOverlays,
+    setTerrainLibraryOpen, coverageOverlays, setCoverageOverlays,
   }
 
   // One stable ref-shaped object per step (across every branch — see
@@ -1014,6 +1015,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     rvAdvanced: boolean
     colorizeMapBorders: boolean
     comparisonMixAdvancedOpen: boolean
+    coverageOverlays: string[]
     stateFields: Record<string, unknown>
   }>(null)
 
@@ -1043,8 +1045,11 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     const generation = ++transitionGenerationRef.current
     setIsTransitioning(true)
     // The Library modal covers the panel: every other step has to start with
-    // it closed, whichever direction the visitor came from.
+    // it closed, whichever direction the visitor came from. The coverage
+    // footprints are the same kind of loan - drawn for one step only, and
+    // left on the map (and in the link) for the rest of the visit otherwise.
     if (step.key !== "terrain-library") setTerrainLibraryOpen(false)
+    if (step.key !== "coverage-overlays") setCoverageOverlays([])
     step.onEnter?.(actionsRef.current)
     void waitForTarget(step.domId).then(() => {
       scrollTargetIntoView(step.scrollTargetId ?? step.domId, step.scrollBlock)
@@ -1090,6 +1095,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       rvAdvanced: a.rvAdvanced,
       colorizeMapBorders: a.colorizeMapBorders,
       comparisonMixAdvancedOpen: a.comparisonMixAdvancedOpen,
+      coverageOverlays: a.coverageOverlays,
       stateFields: Object.fromEntries(TOUR_STATE_KEYS.map((k) => [k, a.state[k]])),
     }
     track("app-tour", { action: "start" })
@@ -1118,6 +1124,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       a.setRvAdvanced(snap.rvAdvanced)
       a.setColorizeMapBorders(snap.colorizeMapBorders)
       a.setComparisonMixAdvancedOpen(snap.comparisonMixAdvancedOpen)
+      a.setCoverageOverlays(snap.coverageOverlays)
       snapshotRef.current = null
     }
     setStepIndex(0)

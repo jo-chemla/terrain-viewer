@@ -61,6 +61,7 @@ for (const raw of block.split("\n")) {
   else if (parser === "parseAsInteger") type = "integer";
   else if (parser === "parseAsStringLiteral") { enumValues = literals(arg); type = enumValues ? "enum" : "string"; }
   else if (parser === "parseAsArrayOf") { type = "array"; items = (arg ?? "parseAsString").replace("parseAs", "").toLowerCase(); }
+  else if (parser === "parseAsCoverageOverlays") { type = "array"; items = "string"; }
   else if (parser === "parseAsColor") type = "color";
   else if (parser === "parseAsCustomRampStops") type = "ramp-stops";
   let defaultValue;

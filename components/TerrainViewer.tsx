@@ -51,7 +51,7 @@ import { ArrowLeftRight } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
 import { bookmarksAtom, mergeImportedBookmarks, type Bookmark } from "@/lib/bookmarks"
-import { coverageOverlaysAtom, coverageGroups } from "@/lib/coverage-overlays"
+import { coverageOverlaysAtom, coverageGroups, parseAsCoverageOverlays } from "@/lib/coverage-overlays"
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
@@ -341,11 +341,14 @@ export const QUERY_STATE_PARSERS = {
     // visit still remembers the visitor's own choice.
     sidebarCollapsed: parseAsBoolean.withDefault(false),
     // Coverage footprints drawn on the map (Source Info -> Coverage
-    // overlays), as leaf ids. Mirrored into coverageOverlaysAtom by
-    // TerrainControlPanel, so the picker stays the source of truth in the UI
-    // while the selection is shareable. A link may use a group key instead
-    // (mapterhorn, library, ...): the once-only effect below expands it.
-    coverageOverlays: parseAsArrayOf(parseAsString).withDefault([]),
+    // overlays). Mirrored into coverageOverlaysAtom by TerrainControlPanel,
+    // so the picker stays the source of truth in the UI while the selection
+    // is shareable. The parser folds a wholly-selected build-time group back
+    // to its key on the way out (library, basemapLibrary) and expands it on
+    // the way in; the session-only groups (eli, yourTerrain, yourBasemaps)
+    // can only be expanded with the runtime lists, which the once-only
+    // effect below does.
+    coverageOverlays: parseAsCoverageOverlays,
     // Remote vector data in the Drawing tool, one layer per URL (comma-
     // separated; nuqs encodes commas inside an item). Mirrored into
     // drawingUrlsAtom by TerrainControlPanel; fetched by useTerraDraw.
@@ -1926,11 +1929,11 @@ export function TerrainViewer() {
     if (openLibrary === "terrain") setTerrainLibraryOpen(true)
     else if (openLibrary === "basemap") setBasemapLibraryOpen(true)
 
-    // coverageOverlays is ordinary state (leaf ids), but a link may name a
-    // whole group instead - mapterhorn, library, basemapLibrary, eli,
-    // yourTerrain, yourBasemaps - which is expanded to its leaves once, here.
-    // Source Info is opened with them: the picker lives there, and footprints
-    // with no visible origin are a puzzle.
+    // parseAsCoverageOverlays has already expanded the build-time groups
+    // (library, basemapLibrary) by the time this runs; what is left for here
+    // is the three groups whose membership only exists at runtime - eli,
+    // yourTerrain, yourBasemaps - and opening Source Info, since the picker
+    // lives there and footprints with no visible origin are a puzzle.
     const coverageTokens = (searchParams.get("coverageOverlays") ?? "").split(",").map((t) => t.trim()).filter(Boolean)
     if (coverageTokens.length) {
       const groups = coverageGroups({ terrains: customTerrainSources, basemaps: customBasemapSources, eliInView: [] })

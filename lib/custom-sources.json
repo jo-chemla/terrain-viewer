@@ -831,6 +831,36 @@
             "description": "Pre-colored global land cover map (tree cover, cropland, built-up, water, etc. per the official ESA WorldCover legend), served as standard XYZ tiles by Terrascope's mapproxy — CORS-open, no API key. CC BY 4.0, see https://esa-worldcover.org"
         },
         {
+            "id": "custom-basemap-dlr-tandemx-topo",
+            "name": "Global - DLR TanDEM-X 90m Topography (radar relief)",
+            "url": "https://geoservice.dlr.de/eoc/elevation/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=TDM90_DEM&STYLES=tdm-topo&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true",
+            "type": "wms",
+            "maxzoom": 12,
+            "bounds": [
+                -180,
+                -85,
+                180,
+                84
+            ],
+            "description": "DLR's global TanDEM-X 90 m DEM, rendered server-side as a hypsometric topographic map. Radar interferometry from the twin TerraSAR-X/TanDEM-X satellites (2010-2014), so it is a surface model that sees through cloud and covers the whole land surface homogeneously - useful as a relief backdrop where no imagery or national DEM exists. CORS echoes the Origin, keyless. The DEM itself is NOT usable as terrain here: the WMS only hands out an 8/16-bit rendering, and the real float32 grid is a form-gated zip download. Swap STYLES=tdm-topo for tdm-dem (grey elevation), tdm-bathy or tdm-contour. (c) DLR, free for scientific use, see https://geoservice.dlr.de/web/dataguide/tdm90/",
+            "infoUrl": "https://geoservice.dlr.de/web/datasets/tdm90_dem"
+        },
+        {
+            "id": "custom-basemap-dlr-polardem-ant-hillshade",
+            "name": "ATA - DLR TanDEM-X PolarDEM 90m Antarctica (hillshade)",
+            "url": "https://geoservice.dlr.de/eoc/elevation/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=TDM_POLARDEM90_ANT_HSM&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true",
+            "type": "wms",
+            "maxzoom": 12,
+            "bounds": [
+                -180,
+                -85,
+                180,
+                -60
+            ],
+            "description": "Multidirectional hillshade of DLR's TanDEM-X PolarDEM 90 m of Antarctica - the one continent with almost no usable optical basemap, where a shaded relief is the only readable backdrop. Pairs with the PGC REMA 2 m terrain source in the Library. Keyless, CORS echoes the Origin. (c) DLR.",
+            "infoUrl": "https://geoservice.dlr.de/web/datasets/tdm_polardem90_ant"
+        },
+        {
             "id": "nasa-gibs-merra2-wind-speed",
             "name": "Global - NASA GIBS Surface Wind Speed (MERRA-2, monthly)",
             "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MERRA2_Surface_Wind_Speed_Monthly/default/default/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png",

@@ -17,7 +17,8 @@
 ### Features
 - Scrolling over the split gutter or its pill zooms the map underneath instead of doing nothing.
 - The automatic map-bounds fence is never tighter than about a degree: a single survey's own footprint stopped zoom-out four times too early and pinned panning to the site.
-- Coverage overlays are now part of the shared link (`coverageOverlays`), and a link may name a whole group (`mapterhorn`, `library`, …) which is expanded on arrival. `?openLibrary=terrain|basemap` opens the dataset Library. The product tour gained a step for each.
+- Coverage overlays are now part of the shared link (`coverageOverlays`), folded to group keys: a wholly-ticked group travels as `library` rather than as the 45 ids it stands for, and spills back out when one is unticked. `?openLibrary=terrain|basemap` opens the dataset Library. The product tour gained a step for each, and no longer leaves its demonstration footprints on the map when it moves on.
+- Two keyless global relief basemaps from DLR's TanDEM-X: the 90 m radar DEM rendered as topography worldwide, and a multidirectional hillshade of PolarDEM Antarctica — the one continent with no usable optical backdrop.
 - Titiler-served terrain no longer decodes and re-encodes every tile in the browser: titiler flattens nodata itself (`nodata_height`), which also drops the alpha channel — same flat holes, ~9% smaller tiles, one decode instead of three.
 - The walkthrough no longer starts by itself over a shared link: a visitor who followed a link came for that view, not a tour.
 - **Derived terrain: DSM − DTM** (docs: [nDSM and Comparison](/docs/features/ndsm-and-comparison)). Add Terrain gains a "Difference of two sources" type: two loaded terrain sources subtracted tile by tile into a normalised height model (canopy, buildings, or change between two dates), usable as terrain and by every viz mode like any elevation source.

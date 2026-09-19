@@ -7,7 +7,11 @@ description: See where each terrain or basemap source actually has data, before 
 
 The **Source Info** section of the sidebar has a **Coverage overlays** picker. It draws the footprint of sources on every map view, so a blank area can be told apart from a slow one, and so you can see which national dataset or which imagery layer covers the place you are looking at *before* loading it.
 
-The selection is part of the shared link (`coverageOverlays`, a list of leaf ids), so a view you send keeps its footprints. A link may also name a whole group, which is expanded once on arrival: `?coverageOverlays=mapterhorn,library` draws Mapterhorn's own coverage and every terrain-library footprint, and opens Source Info where the picker lives. The group keys are `mapterhorn`, `library`, `basemapLibrary`, `eli`, `yourTerrain` and `yourBasemaps`.
+The selection is part of the shared link (`coverageOverlays`), so a view you send keeps its footprints, and Source Info opens with it so the footprints have a visible origin.
+
+A whole group is carried as its **group key**, not as its members: ticking the Terrain library writes `?coverageOverlays=library`, not the 45 ids it stands for. Untick one entry and the other 44 spill out, because there is no longer a group to name. The foldable group keys are `library` and `basemapLibrary` — the two whose membership is fixed at build time. `mapterhorn` is a single footprint and always travels as itself.
+
+The other three groups — `eli`, `yourTerrain`, `yourBasemaps` — name sources that only exist in your session, so a link carries their ids rather than the group key. You can still *write* those keys by hand: `?coverageOverlays=yourTerrain` is expanded against whatever is loaded when the link opens.
 
 ## What is offered
 

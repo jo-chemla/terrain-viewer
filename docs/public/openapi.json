@@ -1006,7 +1006,7 @@
             "name": "coverageOverlays",
             "in": "query",
             "required": false,
-            "description": "State. Coverage footprints drawn on the map (Source Info -> Coverage overlays), as leaf ids.",
+            "description": "State. Coverage footprints drawn on the map (Source Info -> Coverage overlays).",
             "schema": {
               "type": "array",
               "items": {
