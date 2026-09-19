@@ -62,6 +62,7 @@ import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
 import { slopeProtocol } from '@/lib/slope-protocol'
 import { demDiffProtocol } from '@/lib/demdiff-protocol'
+import { lercProtocol } from '@/lib/lerc-protocol'
 import { Protocol as PmtilesProtocol } from 'pmtiles'
 import { aspectProtocol } from '@/lib/aspect-protocol'
 import { triProtocol } from '@/lib/tri-protocol'
@@ -1528,6 +1529,9 @@ export function TerrainViewer() {
     maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
     maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
     maplibregl.addProtocol('demdiff', withTileResultCache(demDiffProtocol))
+    // lerc://<arcgis tiled elevation service>/tile/{z}/{y}/{x} - Esri's own
+    // float raster codec, decoded to Terrarium in the browser.
+    maplibregl.addProtocol('lerc', withTileResultCache(lercProtocol))
     // pmtiles://<archive url>/{z}/{x}/{y} - tile pyramids in one range-read
     // archive (e.g. the Smart Maps GEL Terrain-RGB library entry).
     maplibregl.addProtocol('pmtiles', new PmtilesProtocol().tile)

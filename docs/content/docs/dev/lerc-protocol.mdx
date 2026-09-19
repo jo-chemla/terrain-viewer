@@ -1,0 +1,76 @@
+---
+title: ArcGIS LERC Elevation Protocol
+description: lerc:// — decoding Esri's float raster codec into Terrarium tiles, and why the tile pyramid is the only anonymous way into an ArcGIS elevation service
+---
+
+`lerc://` (`lib/lerc-protocol.ts`) consumes **ArcGIS tiled elevation services**, which serve real float rasters compressed with [LERC](https://github.com/Esri/lerc) — Esri's open, Apache-2.0 raster codec — rather than any RGB packing. It decodes a tile to metres and re-encodes it as Terrarium, so MapLibre gets an ordinary `raster-dem` tile and nothing downstream needs to know.
+
+The motivating sources are Esri's two global blends, both in the [Library](/features/terrain-sources):
+
+| Service | What it is |
+|---|---|
+| `WorldElevation3D/Terrain3D` | best-available land elevation, ocean flat at 0 m |
+| `WorldElevation3D/TopoBathy3D` | the same, with the seafloor instead — one surface from summit to trench |
+
+## The URL
+
+```
+lerc://<host+path, no scheme>/tile/{z}/{y}/{x}
+```
+
+ArcGIS orders the tile placeholders **z/y/x**, not z/x/y. That needs no special handling: MapLibre substitutes each placeholder wherever it finds it, so the service's own native ordering is simply what you paste.
+
+## Use the tile pyramid, not `exportImage`
+
+This is the trap worth documenting, because the wrong endpoint *appears* to work.
+
+The same `ImageServer` exposes `exportImage`, which is what the [float32dem](/dev/wms-float32-protocol) sources use elsewhere and the obvious thing to reach for. Anonymously, it only ever answers from a coarse overview — the response names its own catalog item, `WorldDTM_OV256`, roughly 2.5 km/px. Passing an explicit fine `pixelSize` does not change it.
+
+The symptom is a raster that decodes cleanly, has plausible-looking values, and is completely wrong: a 2 km window over the Alps came back as a smooth north–south ramp from 948 m to 963 m where the real range is 577–2216 m.
+
+`/tile/{z}/{y}/{x}` serves the real pyramid, keyless, with `Access-Control-Allow-Origin: *`.
+
+## 257 × 257
+
+ArcGIS elevation tiles are **257 × 257**, not 256: one extra row and column so neighbouring tiles share an edge of vertices. MapLibre's `raster-dem` wants a plain square tile of its declared size, so the protocol drops the shared edge rather than resampling — it is the first cell of the next tile, and MapLibre backfills tile borders from neighbours anyway.
+
+## Holes
+
+LERC carries a validity mask alongside the pixels (`mask`, or a per-band `bandMasks`), plus an optional `noDataValue`. A pixel failing any of those is written as **0 m with alpha 254** — the app-wide convention described in [Derived Terrain Protocol](/dev/demdiff-protocol): MapLibre ignores alpha and draws flat ground, while this app's own decoders read the cell as invalid. A transparent pixel would premultiply to the Terrain-RGB floor and dig a 10 km pit.
+
+Beyond a service's real coverage the whole tile comes back masked, so it renders flat rather than as a crater — but declaring the source's `maxzoom` is still better, since MapLibre then overzooms the last real parent instead of fetching empty tiles. Both shipped entries declare **16**, matching the service's own `tileInfo.lods`.
+
+## Datum
+
+Measured, not assumed: six points across an Innsbruck tile average **−0.6 m** against a reference DEM, with an 18 m spread that is ordinary sampling noise between two models in steep ground. The values are **orthometric** — unlike ArcticDEM and REMA, no geoid correction is wanted.
+
+## Loading
+
+Both the decoder (~64 kB) and its wasm (~117 kB) are pulled in on the **first `lerc://` tile and never before**. The protocol is registered at startup like every other, but almost no session uses an ArcGIS elevation service, so a static import would put all of it in the initial bundle:
+
+```ts
+let lercReady: Promise<typeof LercDecode> | null = null
+function ensureLerc() {
+  if (!lercReady) {
+    lercReady = import("lerc")
+      .then(async (m) => { if (!m.isLoaded()) await m.load({ locateFile: () => lercWasmUrl }); return m.decode })
+      .catch((e) => { lercReady = null; throw e })
+  }
+  return lercReady
+}
+```
+
+`lercWasmUrl` comes from `import "lerc/lerc-wasm.wasm?url"`, which Vite compiles to a string constant and emits as a hashed asset. The package's own loader looks for the wasm next to the script, which is wrong for any bundled build.
+
+<Callout type="warn">
+**Licence.** These are Esri ArcGIS services. They answer without a token and with CORS open, but Esri's Terms of Use contemplate use with ArcGIS products; consuming them from a non-Esri client is not clearly granted. The Library entries say so, and it is worth checking before relying on one in anything published.
+</Callout>
+
+## Quantized mesh, for comparison
+
+The obvious neighbouring format is Cesium's **quantized mesh** — and it is not currently worth a protocol, for two reasons that are unlikely to change soon:
+
+- **There is no open endpoint.** Cesium ion returns 401 without an access token for every asset, the old AGI world-terrain service is gone (404), and MapTiler's quantized mesh needs a key.
+- **The conversion throws away the point.** Quantized mesh is a TIN with camera-driven level of detail. MapLibre's `raster-dem` terrain wants a regular grid, so a protocol would have to rasterise each mesh back to a grid — which discards exactly the adaptive triangulation that makes the format worth having.
+
+Decoding itself would be easy if a source appeared: `@loaders.gl/terrain` ships `QuantizedMeshLoader`, and this app already depends on loaders.gl 4.x for the vector formats.

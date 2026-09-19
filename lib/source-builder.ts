@@ -29,6 +29,7 @@ export type RasterSourceType =
   | "wms"
   | "wmts"
   | "wms-raw"
+  | "lerc"
 
 export function buildRasterTileSource(params: {
   url: string
@@ -89,6 +90,16 @@ export function buildRasterTileSource(params: {
           `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? -999}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}${forClientDecode ? '' : TITILER_FLAT_NODATA}`,
         ],
       }
+
+    case "lerc":
+      // An ArcGIS tiled elevation service: LERC-compressed float rasters, one
+      // per tile, decoded in the browser (lib/lerc-protocol.ts). The template
+      // keeps its own placeholders - ArcGIS orders them z/y/x, which maplibre
+      // substitutes the same as any other order. There is no titiler
+      // alternative: the service's exportImage endpoint only answers
+      // anonymously from a ~2.5 km overview, so the tile pyramid is the only
+      // way to reach real resolution.
+      return { tiles: [`lerc://${url.replace(/^https?:\/\//, "")}`] }
 
     case "wms-raw":
       if (useCogProtocol) {

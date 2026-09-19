@@ -837,7 +837,10 @@ export const useClientDemUpstream = (
         })
         const encoding = (customSource.type === "cog" && useCogProtocolForSource
             ? (highResTerrain ? "terrarium" : "mapbox")
-            : customSource.type === "terrarium"
+            // lerc:// re-encodes the decoded floats as Terrarium (its fractional
+            // byte resolves to ~4 mm, against Terrain-RGB's 10 cm step), so the
+            // viz-mode decoders have to be told that rather than assuming mapbox.
+            : customSource.type === "terrarium" || customSource.type === "lerc"
             ? "terrarium"
             : "mapbox") as "terrarium" | "mapbox"
 

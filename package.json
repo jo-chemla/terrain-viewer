@@ -50,6 +50,7 @@
     "geotiff": "^2.x",
     "jiti": "2.7.0",
     "jotai": "2.20.2",
+    "lerc": "^4.2.0",
     "lightningcss": "1.33.0",
     "lucide-react": "^0.454.0",
     "maplibre-contour": "0.1.0",

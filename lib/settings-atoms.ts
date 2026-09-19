@@ -133,7 +133,7 @@ export interface CustomTerrainSource {
    *  lib/local-file-store.ts) rather than a real URL — the actual File only
    *  lives in-memory for the current session. */
   url: string
-  type: "cog" | "cog-local" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson' | 'wms-raw' | 'tilejson' | 'dem-diff'
+  type: "cog" | "cog-local" | "terrainrgb" | "terrarium" | "vrt" | 'stac' | 'mosaicjson' | 'wms-raw' | 'tilejson' | 'dem-diff' | 'lerc'
   /** type "dem-diff" only: the two terrain source ids (built-in or custom, not
    *  another difference) whose per-tile difference this source is - the
    *  minuend (DSM) minus the subtrahend (DTM): a normalised height model.

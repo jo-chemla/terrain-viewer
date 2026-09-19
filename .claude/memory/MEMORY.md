@@ -13,3 +13,4 @@
 - [URL-loaded data and split-view helpers](url-loaded-data.md) — URL-as-source-id on any view, drawingUrl, remote vector parsing, permuteViewsUpdates, timelineActiveSideAtom; unverified in a browser
 - [Titiler DEM gotchas](titiler-dem-gotchas.md) — pass the file nodata, reproject=bilinear for the warp, maxzoom decides who upsamples; how the DSM − DTM derived source (demdiff://) is wired
 - [Sprint handoff 2026-09-19](handoff-2026-09-19.md) — snapshot compositing, URL API and docs generators, derived terrain (dem-diff), titiler DEM fixes, Bhotekoshi on NextGIS: shipped, unverified, deferred, gotchas
+- [Library browse entries (deferred idea)](library-browse-entries-idea.md) — Library rows that open the Add modal on a preset tab instead of resolving to one URL; why EarthDEM needs it.

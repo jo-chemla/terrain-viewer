@@ -492,6 +492,24 @@
             "infoUrl": "https://www.usgs.gov/3d-elevation-program"
         },
         {
+            "id": "custom-global-esri-terrain3d",
+            "name": "Global - Esri World Elevation 3D (best available) - LERC tiles",
+            "url": "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer/tile/{z}/{y}/{x}",
+            "type": "lerc",
+            "maxzoom": 16,
+            "description": "Esri's global best-available elevation blend (Vantor, Airbus DS, USGS, NGA, NASA, CGIAR, GEBCO, Land Information New Zealand, Ordnance Survey and others), served as LERC-compressed float tiles - Esri's own raster codec, decoded in the browser by lerc:// and re-encoded as Terrarium. Verified ORTHOMETRIC, not ellipsoidal: six points across an Innsbruck tile average -0.6 m against a reference DEM (spread 18 m, which is terrain sampling noise between two models in steep ground), so unlike ArcticDEM/REMA it needs no geoid correction. Ocean reads a flat 0 m; use the TopoBathy entry for real bathymetry. Real data to z16-17 worldwide (the service declares LOD 16); beyond that every pixel comes back masked, which lerc:// writes as flat 0 m with alpha 254 rather than a pit. NOTE the service's exportImage endpoint is useless anonymously - it only ever answers from a ~2.5 km overview (WorldDTM_OV256), rendering an alpine valley as a smooth ramp even with an explicit fine pixelSize. The /tile pyramid is the only anonymous route to real resolution. LICENCE: this is an Esri ArcGIS service. It answers without a token and with CORS open, but Esri's Terms of Use contemplate use with ArcGIS products; consuming it from a non-Esri client is not clearly granted. Check before relying on it in anything published.",
+            "infoUrl": "https://www.arcgis.com/home/item.html?id=7029fb60158543ad845c7e1527af11e4"
+        },
+        {
+            "id": "custom-global-esri-topobathy3d",
+            "name": "Global - Esri World TopoBathy 3D (land + seafloor) - LERC tiles",
+            "url": "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/TopoBathy3D/ImageServer/tile/{z}/{y}/{x}",
+            "type": "lerc",
+            "maxzoom": 16,
+            "description": "The same blend as the Terrain3D entry but with the seafloor instead of a flat 0 m ocean - one continuous surface from summit to trench, which makes a hypsometric ramp or a 3D view read across a coastline instead of stopping at it. Verified over the western Pacific: -6963 m to -1078 m in a single z8 tile. The bathymetric component is GEBCO-grade (roughly 450 m cells) where nothing finer exists, so deep zooms over open ocean are interpolation, not measurement. Same decoding, same orthometric datum and same z16 practical ceiling as Terrain3D. LICENCE: this is an Esri ArcGIS service. It answers without a token and with CORS open, but Esri's Terms of Use contemplate use with ArcGIS products; consuming it from a non-Esri client is not clearly granted. Check before relying on it in anything published.",
+            "infoUrl": "https://www.arcgis.com/home/item.html?id=0c69ba5a5d254118841d43f03aa3e97d"
+        },
+        {
             "id": "custom-sam-anadem",
             "name": "Global - ANADEM AI bare-earth DTM from the GLO-30 DSM, South America 30m - single COG",
             "url": "https://opentopography.s3.sdsc.edu/raster/ANADEM/ANADEM_be/anadem_v1_compressed_COG.tif",

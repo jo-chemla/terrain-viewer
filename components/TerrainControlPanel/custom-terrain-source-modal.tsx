@@ -248,7 +248,7 @@ export const CustomTerrainSourceModal: React.FC<{
   // already worked, silently, before this. VRT has no such detection at all — it
   // streams through titiler, which doesn't report back a native zoom — so it falls
   // back to the same generic 0-20 range as WMS/TMS/TileJSON unless overridden here.
-  const showMaxzoomField = type === "wms-raw" || type === "terrainrgb" || type === "terrarium" || type === "tilejson" || type === "cog" || type === "cog-local"
+  const showMaxzoomField = type === "wms-raw" || type === "terrainrgb" || type === "terrarium" || type === "tilejson" || type === "cog" || type === "cog-local" || type === "lerc"
 
   const isCogType = type === "cog" || type === "cog-local"
   const cogUrlForMetadata = !isCogType ? null : type === "cog-local" ? resolveLocalFileUrl(localFileId(url)) : (url || null)
@@ -267,6 +267,9 @@ export const CustomTerrainSourceModal: React.FC<{
   let helper_text = ""
   if (type === "terrarium" || type === "terrainrgb") helper_text = "/{z}/{x}/{y}.png"
   else if (type === "wms-raw") helper_text = "BBOX={bbox-epsg-3857}"
+  // ArcGIS orders the tile placeholders z/y/x, not z/x/y - maplibre substitutes
+  // each one wherever it appears, so the native order is what to paste.
+  else if (type === "lerc") helper_text = ".../ImageServer/tile/{z}/{y}/{x}"
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -296,6 +299,7 @@ export const CustomTerrainSourceModal: React.FC<{
                 "wms-picker": "WMS (list layers)",
                 stac: "STAC catalogue search (beta)",
                 "wms-raw": "WMS (raw Float32 elevation)",
+                "lerc": "ArcGIS tiled elevation (LERC)",
                 tilejson: "TileJSON",
                 "dem-diff": "Difference of two sources (DSM − DTM)",
                 vrt: `VRT${useCogProtocol ? " (titiler mode only)" : ""}`,
@@ -318,6 +322,7 @@ export const CustomTerrainSourceModal: React.FC<{
                   <SelectItem value="terrarium">TMS (Terrarium)</SelectItem>
                   <SelectItem value="terrainrgb">TMS (TerrainRGB)</SelectItem>
                   <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
+                  <SelectItem value="lerc">ArcGIS tiled elevation (LERC)</SelectItem>
                   <SelectItem value="tilejson">TileJSON</SelectItem>
                   {/* VRT only streams through titiler (GDAL's vsicurl driver) — the
                       geomatico cog:// protocol reads a real COG file directly and can't
