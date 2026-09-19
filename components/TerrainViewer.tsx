@@ -62,7 +62,6 @@ import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
 import { slopeProtocol } from '@/lib/slope-protocol'
 import { demDiffProtocol } from '@/lib/demdiff-protocol'
-import { demFixProtocol } from '@/lib/demfix-protocol'
 import { Protocol as PmtilesProtocol } from 'pmtiles'
 import { aspectProtocol } from '@/lib/aspect-protocol'
 import { triProtocol } from '@/lib/tri-protocol'
@@ -341,6 +340,12 @@ export const QUERY_STATE_PARSERS = {
     // a shared link or an iframe can carry a closed panel while a plain
     // visit still remembers the visitor's own choice.
     sidebarCollapsed: parseAsBoolean.withDefault(false),
+    // Coverage footprints drawn on the map (Source Info -> Coverage
+    // overlays), as leaf ids. Mirrored into coverageOverlaysAtom by
+    // TerrainControlPanel, so the picker stays the source of truth in the UI
+    // while the selection is shareable. A link may use a group key instead
+    // (mapterhorn, library, ...): the once-only effect below expands it.
+    coverageOverlays: parseAsArrayOf(parseAsString).withDefault([]),
     // Remote vector data in the Drawing tool, one layer per URL (comma-
     // separated; nuqs encodes commas inside an item). Mirrored into
     // drawingUrlsAtom by TerrainControlPanel; fetched by useTerraDraw.
@@ -1520,7 +1525,6 @@ export function TerrainViewer() {
     maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
     maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
     maplibregl.addProtocol('demdiff', withTileResultCache(demDiffProtocol))
-    maplibregl.addProtocol('demfix', withTileResultCache(demFixProtocol))
     // pmtiles://<archive url>/{z}/{x}/{y} - tile pyramids in one range-read
     // archive (e.g. the Smart Maps GEL Terrain-RGB library entry).
     maplibregl.addProtocol('pmtiles', new PmtilesProtocol().tile)
@@ -1915,18 +1919,18 @@ export function TerrainViewer() {
     }
 
     // ?openLibrary=terrain|basemap - opens that Library modal (the curated
-    // list of national and global datasets) on arrival.
+    // list of national and global datasets) on arrival. Deliberately one or
+    // the other: they are both dialogs, and two stacked leaves the one
+    // underneath unreachable behind the other's backdrop.
     const openLibrary = searchParams.get("openLibrary")
-    if (openLibrary === "terrain" || openLibrary === "both") setTerrainLibraryOpen(true)
-    if (openLibrary === "basemap" || openLibrary === "both") setBasemapLibraryOpen(true)
+    if (openLibrary === "terrain") setTerrainLibraryOpen(true)
+    else if (openLibrary === "basemap") setBasemapLibraryOpen(true)
 
-    // ?coverageOverlays=mapterhorn,library,... - draws those coverage
-    // footprints (Source Info -> Coverage overlays) on arrival. Accepts a
-    // group key (mapterhorn, library, basemapLibrary, eli, yourTerrain,
-    // yourBasemaps), which expands to that group's leaves, or a single leaf
-    // id (lib:<id>, blib:<id>, terrain:<id>, basemap:<id>, eli:<id>). The
-    // Source Info section is opened with them: the picker lives there, and
-    // footprints with no visible origin are a puzzle.
+    // coverageOverlays is ordinary state (leaf ids), but a link may name a
+    // whole group instead - mapterhorn, library, basemapLibrary, eli,
+    // yourTerrain, yourBasemaps - which is expanded to its leaves once, here.
+    // Source Info is opened with them: the picker lives there, and footprints
+    // with no visible origin are a puzzle.
     const coverageTokens = (searchParams.get("coverageOverlays") ?? "").split(",").map((t) => t.trim()).filter(Boolean)
     if (coverageTokens.length) {
       const groups = coverageGroups({ terrains: customTerrainSources, basemaps: customBasemapSources, eliInView: [] })
@@ -1937,7 +1941,7 @@ export function TerrainViewer() {
         else ids.add(token)
       }
       if (ids.size) {
-        setCoverageOverlays([...ids])
+        stateOverrides.coverageOverlays = [...ids]
         setSectionOpen((prev) => ({ ...prev, sourceInfo: true }))
       }
     }
@@ -2066,7 +2070,7 @@ export function TerrainViewer() {
   const setBookmarks = useSetAtom(bookmarksAtom)
   const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
   const setBasemapLibraryOpen = useSetAtom(basemapLibraryOpenAtom)
-  const setCoverageOverlays = useSetAtom(coverageOverlaysAtom)
+
 
   // A view's source given as a URL rather than an id, on ANY view:
   // ?terrainSourceB=https://host/dem.cog.tif, ?basemapSourceC=https://host/ortho.tif,

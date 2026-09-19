@@ -34,6 +34,7 @@ import { FooterSection } from "./footer-section"
 import { TooltipIconButton, MacroSeparator } from "./controls-components"
 
 import { useTerraDraw, TerraDrawSection, drawingUrlsAtom } from "./TerraDrawSystem"
+import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import {AnimationSection, parseAsSnapshot} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
 import { SunShadowCalculatorSection } from "./sun-shadow-calculator-section"
@@ -212,6 +213,23 @@ export function TerrainControlPanel({
     if (stateDrawingUrlKey !== atomDrawingUrlKey) setState({ drawingUrl: drawingUrls })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [atomDrawingUrlKey])
+  // coverageOverlays (state list) <-> coverageOverlaysAtom, both ways: the
+  // URL seeds the picker and the picker writes back, so a selection made in
+  // Source Info is shareable. Same shape as drawingUrl above.
+  const [coverageOverlays, setCoverageOverlays] = useAtom(coverageOverlaysAtom)
+  const stateCoverageKey = (state.coverageOverlays as string[] | undefined ?? []).join("\n")
+  const atomCoverageKey = coverageOverlays.join("\n")
+  const coverageSeededRef = useRef(false)
+  useEffect(() => {
+    if (!coverageSeededRef.current) { coverageSeededRef.current = true; setCoverageOverlays(state.coverageOverlays ?? []); return }
+    if (stateCoverageKey !== atomCoverageKey) setCoverageOverlays(state.coverageOverlays ?? [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateCoverageKey])
+  useEffect(() => {
+    if (!coverageSeededRef.current) return
+    if (stateCoverageKey !== atomCoverageKey) setState({ coverageOverlays })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atomCoverageKey])
   const isMobile = useIsMobile()
   // Space re-toggles the last-clicked viz-mode checkbox even after a map drag
   // steals focus onto the maplibre canvas (wheel-zoom never did) — see the hook.

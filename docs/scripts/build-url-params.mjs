@@ -86,8 +86,7 @@ const instructions = [
   { key: "scrollTo", type: "string", note: "Section key (or element id) the side panel opens and scrolls to." },
   { key: "startTour", type: "boolean", note: "Starts the product walkthrough." },
   { key: "bookmarksGallery", type: "boolean", note: "Opens the Bookmarks gallery modal on arrival." },
-  { key: "openLibrary", type: "string", note: "terrain | basemap | both - opens that Library modal (the curated dataset list) on arrival." },
-  { key: "coverageOverlays", type: "array", items: "string", note: "Coverage footprints drawn on arrival: a group key (mapterhorn, library, basemapLibrary, eli, yourTerrain, yourBasemaps) or a single leaf id; opens Source Info with them." },
+  { key: "openLibrary", type: "string", note: "terrain | basemap - opens that Library modal (the curated dataset list) on arrival." },
   { key: "bookmarksUrl", type: "string", note: "A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks; pair with openSections=bookmarks." },
 ];
 

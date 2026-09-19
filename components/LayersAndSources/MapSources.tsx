@@ -831,6 +831,9 @@ export const useClientDemUpstream = (
             isDem: true,
             nodata: customSource,
             titilerNodata: customSource.titilerNodata,
+            // This hook feeds decoders in this app (fetchDecodedTile), which
+            // read titiler's nodata mask as a validity flag.
+            forClientDecode: true,
         })
         const encoding = (customSource.type === "cog" && useCogProtocolForSource
             ? (highResTerrain ? "terrarium" : "mapbox")

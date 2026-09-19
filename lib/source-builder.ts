@@ -3,7 +3,20 @@
 // independently-drifting implementations: the terrain-only `cogTileUrl` and an inline
 // COG-vs-titiler branch duplicated in RasterBasemapSource.
 import { appendNodataMarkers, type NodataConfig } from "./nodata"
-import { buildDemFixUrl } from "./demfix-protocol"
+
+// titiler's terrainrgb algorithm can encode masked (nodata) pixels as a
+// chosen height instead of leaving them transparent - a transparent pixel is
+// premultiplied to RGB 0 on decode, i.e. the Terrain-RGB floor, -10000 m,
+// which drew a 10 km cliff and a pit along every nodata edge. `nodata_height`
+// does server-side, for free, what this app used to do by decoding and
+// re-encoding every tile in the browser (the retired demfix:// protocol);
+// `return_mask=false` then drops the now-pointless alpha channel (~9%
+// smaller tiles, measured on a Bhotekoshi tile).
+//
+// Omitted when the app decodes the tile itself (the client-side viz modes
+// and the difference source, see `forClientDecode`): those need the mask to
+// tell a hole from real ground, and they decode the tile anyway.
+const TITILER_FLAT_NODATA = `&algorithm_params=${encodeURIComponent(JSON.stringify({ nodata_height: 0 }))}&return_mask=false`
 
 export type RasterSourceType =
   | "dem-diff"
@@ -34,8 +47,13 @@ export function buildRasterTileSource(params: {
   /** titiler `nodata=` override for the cog/vrt titiler branches; see
    *  CustomTerrainSource.titilerNodata. Unset keeps the historical defaults. */
   titilerNodata?: number
+  /** True when THIS app decodes the returned tile (client viz modes, the
+   *  difference source) rather than handing it to maplibre: titiler then
+   *  keeps its nodata mask, which those decoders read as a validity flag.
+   *  See TITILER_FLAT_NODATA. */
+  forClientDecode?: boolean
 }): { url: string } | { tiles: string[]; scheme?: "xyz" | "tms" } {
-  const { url, type, useCogProtocol, titilerEndpoint, scheme, isDem, nodata, titilerNodata } = params
+  const { url, type, useCogProtocol, titilerEndpoint, scheme, isDem, nodata, titilerNodata, forClientDecode } = params
 
   switch (type) {
     case "tilejson":
@@ -56,7 +74,7 @@ export function buildRasterTileSource(params: {
               isDem
                 ? // encodeURIComponent: a float32 sentinel like 3.4e38 stringifies as
                   // "3.4e+38", and a raw "+" in a query string is a space.
-                  buildDemFixUrl(`${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${encodeURIComponent(String(titilerNodata ?? 0))}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}`)
+                  `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${encodeURIComponent(String(titilerNodata ?? 0))}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}${forClientDecode ? '' : TITILER_FLAT_NODATA}`
                 : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?resampling=bilinear&reproject=bilinear&url=${encodeURIComponent(url)}`,
             ],
           }
@@ -68,7 +86,7 @@ export function buildRasterTileSource(params: {
       }
       return {
         tiles: [
-          buildDemFixUrl(`${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? -999}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}`),
+          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? -999}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}${forClientDecode ? '' : TITILER_FLAT_NODATA}`,
         ],
       }
 
@@ -89,7 +107,7 @@ export function buildRasterTileSource(params: {
       // this app hand-rolling per-tile GetMap+bbox requests itself.
       return {
         tiles: [
-          buildDemFixUrl(`${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(`WMS:${url}`)}`),
+          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(`WMS:${url}`)}${forClientDecode ? '' : TITILER_FLAT_NODATA}`,
         ],
       }
 

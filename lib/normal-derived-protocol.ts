@@ -1,7 +1,6 @@
 import { elevationToTerrarium } from "./elevation-encoding"
 import { cogProtocol } from "@geomatico/maplibre-cog-protocol"
 import { PMTiles } from "pmtiles"
-import { unwrapDemFixUrl } from "./demfix-protocol"
 import { float32demProtocol } from "./float32dem-protocol"
 
 // Shared scaffolding behind the `aspect://`, `tri://` and `curvature://` maplibre
@@ -120,10 +119,6 @@ async function loadPmtilesBitmap(url: string): Promise<ImageBitmap | null> {
 }
 
 async function loadTileBitmap(url: string, signal: AbortSignal): Promise<ImageBitmap | null> {
-  // demfix:// only refills nodata for MapLibre; this decoder keeps alpha as
-  // its validity mask, so it reads the titiler tile directly.
-  const unwrapped = url.startsWith("demfix://") ? unwrapDemFixUrl(url) : null
-  if (unwrapped) url = unwrapped
   if (url.startsWith("pmtiles://")) return loadPmtilesBitmap(url)
   if (url.startsWith("cog://")) {
     const result = await cogProtocol({ url, type: "image" } as any)

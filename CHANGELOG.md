@@ -17,7 +17,9 @@
 ### Features
 - Scrolling over the split gutter or its pill zooms the map underneath instead of doing nothing.
 - The automatic map-bounds fence is never tighter than about a degree: a single survey's own footprint stopped zoom-out four times too early and pinned panning to the site.
-- `?openLibrary=terrain|basemap|both` opens the dataset Library on arrival, and `?coverageOverlays=mapterhorn,library` draws coverage footprints and opens Source Info. The product tour gained a step for each.
+- Coverage overlays are now part of the shared link (`coverageOverlays`), and a link may name a whole group (`mapterhorn`, `library`, …) which is expanded on arrival. `?openLibrary=terrain|basemap` opens the dataset Library. The product tour gained a step for each.
+- Titiler-served terrain no longer decodes and re-encodes every tile in the browser: titiler flattens nodata itself (`nodata_height`), which also drops the alpha channel — same flat holes, ~9% smaller tiles, one decode instead of three.
+- The walkthrough no longer starts by itself over a shared link: a visitor who followed a link came for that view, not a tour.
 - **Derived terrain: DSM − DTM** (docs: [nDSM and Comparison](/docs/features/ndsm-and-comparison)). Add Terrain gains a "Difference of two sources" type: two loaded terrain sources subtracted tile by tile into a normalised height model (canopy, buildings, or change between two dates), usable as terrain and by every viz mode like any elevation source.
 - Hypsometric tint: **Symmetric Range** (one magnitude, Min = −Max) with the same controls as the curvature ramp, for height-above-ground and elevation-change grids.
 - The difference source takes an optional vertical offset (metres added to every difference), a co-registration knob for references that sit above or below the finer source.

@@ -7,7 +7,7 @@ description: See where each terrain or basemap source actually has data, before 
 
 The **Source Info** section of the sidebar has a **Coverage overlays** picker. It draws the footprint of sources on every map view, so a blank area can be told apart from a slow one, and so you can see which national dataset or which imagery layer covers the place you are looking at *before* loading it.
 
-A link can turn them on directly: `?coverageOverlays=mapterhorn,library` draws Mapterhorn's own coverage and every terrain-library footprint, and opens Source Info where the picker lives. See [Embedding & URL parameters](/features/embedding).
+The selection is part of the shared link (`coverageOverlays`, a list of leaf ids), so a view you send keeps its footprints. A link may also name a whole group, which is expanded once on arrival: `?coverageOverlays=mapterhorn,library` draws Mapterhorn's own coverage and every terrain-library footprint, and opens Source Info where the picker lives. The group keys are `mapterhorn`, `library`, `basemapLibrary`, `eli`, `yourTerrain` and `yourBasemaps`.
 
 ## What is offered
 

@@ -9,6 +9,7 @@ import {
   hasSeenTourAtom, isTourOpenAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
   isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom } from "@/lib/settings-atoms"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
+import customSources from "@/lib/custom-sources.json"
 import { isSidebarOpenAtom, sectionOpenAtom, macroGroupOpenAtom } from "./TerrainControlPanel"
 import { colorizeMapBordersAtom, isComparisonMixAdvancedOpenAtom } from "@/lib/layout-constants"
 
@@ -178,6 +179,12 @@ function prepareReliefVisualizationOnly(a: TourActions) {
 // coming in. Includes terrain-only keys (elevationPicker/animation) even
 // though the historical branch's own Tools step never renders those
 // sections — an unused sectionOpen key is harmless.
+// Every terrain-library footprint, for the coverage step. Read from the
+// shipped library rather than coverageGroups() so it needs no map context.
+const TERRAIN_LIBRARY_COVERAGE_IDS: string[] = (customSources.SAMPLE_TERRAIN_SOURCES as { id: string; bounds?: number[] }[])
+  .filter((s) => s.bounds)
+  .map((s) => `lib:${s.id}`)
+
 const TOOL_SECTION_KEYS = ["drawing", "elevationPicker", "sunShadowCalculator", "animation", "sourceInfo"] as const
 
 // Hillshade only — the Tools step isn't about any viz mode, so this clears
@@ -206,7 +213,9 @@ function prepareTerrainLibrary(a: TourActions) {
 function prepareCoverageOverlays(a: TourActions) {
   prepareTerrainTools(a)
   a.setSectionOpen((prev) => ({ ...prev, sourceInfo: true }))
-  a.setCoverageOverlays(["mapterhorn"])
+  // Mapterhorn's own coverage plus every terrain-library footprint: the two
+  // halves of the question "is there better data here than the default?".
+  a.setCoverageOverlays(["mapterhorn", ...TERRAIN_LIBRARY_COVERAGE_IDS])
 }
 
 // Same single-setState-call merging as prepareTerrainBase above, via
@@ -571,8 +580,8 @@ const TERRAIN_STEPS: TourStepDef[] = [
     description: (
       <>
         <p className="pb-2">Source Info → <span className="font-semibold text-foreground">Coverage overlays</span> draws the footprint of any dataset on the map, whether or not it is loaded — so a blank area can be told apart from a slow one before you switch source.</p>
-        <p className="pb-2">Mapterhorn's own coverage is on now: each patch is the national dataset it ingested there, hollow where it falls back to global 30 m. Hover for the resolution and producer, click for a link and a "use this source" button.</p>
-        <p>The whole terrain and basemap libraries can be drawn the same way, as can the OpenStreetMap imagery index.</p>
+        <p className="pb-2">Two are on now. <span className="font-semibold text-foreground">Mapterhorn</span>: each patch is the national dataset the default terrain ingested there, hollow where it falls back to global 30 m. <span className="font-semibold text-foreground">Terrain library</span>: every dataset from the Library you just saw, loaded or not.</p>
+        <p>Where they overlap, the library has an alternative to the default — hover for the resolution and producer, click for a link and a "use this source" button. Basemaps and the OpenStreetMap imagery index can be drawn the same way.</p>
       </>
     ),
     onEnter: prepareCoverageOverlays,
@@ -1207,6 +1216,16 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   // re-showing the tour on every reload despite it being marked seen.
   // Depending on the real value lets the effect re-run (and its cleanup
   // cancel the stale timer) the moment the persisted value actually arrives.
+  // The query string as it was on arrival, captured before the app's own
+  // nuqs writes (a first map settle commits lat/lng/zoom within a second) can
+  // make a plain visit look like a shared link.
+  const arrivedWithParamsRef = useRef<boolean | null>(null)
+  if (arrivedWithParamsRef.current === null && typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search)
+    params.delete("startTour")
+    arrivedWithParamsRef.current = [...params.keys()].length > 0
+  }
+
   useEffect(() => {
     if (hasSeenTour) return
     // Never inside an iframe: an embed is someone else's page, and the tour
@@ -1214,6 +1233,12 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     // ?startTour=true (below) still works there. hasSeenTour is left alone,
     // so the same browser still gets the tour on a direct first visit.
     if (window.self !== window.top) return
+    // Never over a shared link either. The visitor followed it to see one
+    // particular view; the tour would set up its own state on top (it is
+    // restored on close, but only the fields TOUR_STATE_KEYS lists) and bury
+    // what they came for behind a coachmark. A bare visit to the app still
+    // gets it, and ?startTour=true still forces it.
+    if (arrivedWithParamsRef.current) return
     const t = setTimeout(() => {
       setHasSeenTour(true)
       setIsTourRequested(true)

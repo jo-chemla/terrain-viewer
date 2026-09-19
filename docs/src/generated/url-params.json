@@ -726,6 +726,16 @@
       "note": "The side panel, folded."
     },
     {
+      "key": "coverageOverlays",
+      "stateKey": "coverageOverlays",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": "Coverage footprints drawn on the map (Source Info -> Coverage overlays), as leaf ids."
+    },
+    {
       "key": "drawingUrl",
       "stateKey": "drawingUrl",
       "type": "array",
@@ -3299,13 +3309,7 @@
     {
       "key": "openLibrary",
       "type": "string",
-      "note": "terrain | basemap | both - opens that Library modal (the curated dataset list) on arrival."
-    },
-    {
-      "key": "coverageOverlays",
-      "type": "array",
-      "items": "string",
-      "note": "Coverage footprints drawn on arrival: a group key (mapterhorn, library, basemapLibrary, eli, yourTerrain, yourBasemaps) or a single leaf id; opens Source Info with them."
+      "note": "terrain | basemap - opens that Library modal (the curated dataset list) on arrival."
     },
     {
       "key": "bookmarksUrl",

@@ -200,25 +200,10 @@
             "name": "openLibrary",
             "in": "query",
             "required": false,
-            "description": "Instruction. terrain | basemap | both - opens that Library modal (the curated dataset list) on arrival.",
+            "description": "Instruction. terrain | basemap - opens that Library modal (the curated dataset list) on arrival.",
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "coverageOverlays",
-            "in": "query",
-            "required": false,
-            "description": "Instruction. Coverage footprints drawn on arrival: a group key (mapterhorn, library, basemapLibrary, eli, yourTerrain, yourBasemaps) or a single leaf id; opens Source Info with them.",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": []
-            },
-            "style": "form",
-            "explode": false
           },
           {
             "name": "bookmarksUrl",
@@ -1016,6 +1001,21 @@
               "type": "boolean",
               "default": false
             }
+          },
+          {
+            "name": "coverageOverlays",
+            "in": "query",
+            "required": false,
+            "description": "State. Coverage footprints drawn on the map (Source Info -> Coverage overlays), as leaf ids.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
           },
           {
             "name": "drawingUrl",
