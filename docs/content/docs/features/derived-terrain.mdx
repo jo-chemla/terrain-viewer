@@ -1,0 +1,45 @@
+---
+title: Derived terrain (DSM − DTM, change detection)
+description: A terrain source made from two others, subtracted tile by tile — normalised surface models (nDSM, canopy height), and elevation change between two surveys — with the caveats on references and datums
+---
+
+**Add Terrain → Difference of two sources** makes a terrain source out of two others: every tile of the first (the minuend) minus the same tile of the second (the subtrahend), computed in the browser as the tiles are requested. The result behaves like any elevation source, so every visualization mode reads the difference as if it were terrain. Two families of use, one mechanism.
+
+![The Edit Terrain Dataset dialog for a difference source: the two operand pickers, the vertical offset field and the explanation panel, over a hypsometric difference map](/screenshots/byod-difference-dsm-dtm.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">The dialog — any two loaded terrain sources (built-in or your own) as operands, an optional vertical offset, and the explanation panel; behind it, a difference rendered with a symmetric hypsometric ramp.</p>
+
+## Height above ground: nDSM and CHM
+
+A **DSM** (digital surface model) records the first thing a sensor sees from above: canopy, roofs, bridges. A **DTM** (digital terrain model) is the bare ground under all that. Their difference,
+
+```
+nDSM = DSM − DTM
+```
+
+is the **normalised DSM**: the height of what stands on the ground, with the ground itself flattened to 0. A 25 m tree reads 25 m whether it grows in a valley or on a ridge; a building reads its own height; open ground reads 0. Over forest the same grid is called a **CHM**, canopy height model. Hypsometric tint over 0–40 m is the natural rendering (tick **Symmetric Range** for grids that can go negative), hillshade lights the edges of buildings and stands, and 3D terrain extrudes them.
+
+It only works when both models come from the **same survey**, or at least the same epoch and the same vertical reference: the ground must not have moved between the two, or the difference mixes objects with change. National lidar programmes publish both products from one flight, which is why the library ships ready-made pairs:
+
+- **France** — IGN Lidar HD DSM − DTM, 0.5 m
+- **Netherlands** — AHN DSM − DTM, 0.5 m
+
+Adding one of these from the library brings its two operands along. Where a country publishes only a DTM (Switzerland's 10 m COG, the US 3DEP service) there is nothing to subtract yet; a DSM tile found through the STAC search can serve as the other operand.
+
+## Change detection: two surveys, two dates
+
+Subtract the **same kind of model at two dates** and the difference is what moved in between: erosion negative, deposition positive, a collapsed building negative, a new one positive. This is the classic DEM-of-difference of geomorphology and damage assessment, and a diverging symmetric ramp around 0 is the way to read it. The library's Nepal entries are an example: the Bhotekoshi 2026 post-event DSM minus Mapterhorn, which over Nepal is Copernicus GLO-30, a pre-event surface.
+
+The result is only as good as the two inputs agree where nothing changed, and three things break that agreement:
+
+- **Vertical datum.** Both models must share the same height reference, or the whole map is offset by the geoid separation, tens of metres in the Himalaya. Ellipsoidal (WGS84) heights against orthometric (EGM96, EGM2008, a national datum) is the usual trap; even EGM96 against EGM2008 differs by up to a metre or two in places. Check the metadata of both before trusting a sign.
+- **Resolution.** A coarse reference cannot follow fine terrain: a 30 m grid averages a gorge floor with its walls and sits several metres above the true floor, so a fine post-event surface minus a 30 m reference reads negative along a whole river, mud or not. Sampled on the Bhotekoshi Syabrubesi reach, post-event 0.5 m DSM minus a 30 m reference was 1.5 to 12 m below geo-pera's bias-corrected 2 m change raster, which was built against an 8 m pre-event terrain. The difference is honest about the data; the reference is the weak side.
+- **Co-registration.** A horizontal shift between the two turns every slope into a false change, positive on one side and negative on the other. Nothing in the app corrects that; look for the tell-tale paired stripes along ridges before reading the numbers.
+
+The dialog's **vertical offset** is added to every difference and is meant for the first two problems when they reduce to a constant: sample a stable spot, a road or bare rock, with the elevation picker on both sources and enter the difference to move the zero back. It cannot fix a bias that varies with the terrain, which the resolution problem does. For a quantitative change map prefer a published, corrected product, such as geo-pera's `dh` rasters in the library, which are exactly that.
+
+## How it is computed
+
+Both operands are fetched at the same tile coordinates through the same decoded-tile cache the visualization modes use, so they line up pixel for pixel whatever their native resolutions; COGs, tile pyramids, WMS and titiler-served files all work as operands, but not another difference. When an operand has no tile at the requested zoom, its nearest ancestor tile is read and upsampled bilinearly, so a 30 m grid under a 0.5 m DSM keeps working to the DSM's own zoom, and the source's zoom ceiling is the finer operand's plus two levels. Where either side has no data the difference is written as 0, flagged so the app's decoders still treat it as a hole, and the terrain stays flat there rather than falling into a pit. The output is an ordinary Terrain-RGB tile, which is what lets hillshade, hypsometric tint, slope, contours and 3D terrain consume it unchanged; the implementation is `lib/demdiff-protocol.ts`.
+
+Library entries, and the URL parameters that select or add sources, work for derived sources like any other — see [Bring Your Own Data](/features/byod) and [Embedding & URL parameters](/features/embedding).

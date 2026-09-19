@@ -15,7 +15,7 @@
 - Source Info card for custom terrain sources; COG viewer links (source.coop, GeoLibre); "None" basemap, always offered; per-source titiler pin for non-Mercator COGs on basemaps too.
 
 ### Features
-- **Derived terrain: DSM − DTM.** Add Terrain gains a "Difference of two sources" type: two loaded terrain sources subtracted tile by tile into a normalised height model (canopy, buildings, or change between two dates), usable as terrain and by every viz mode like any elevation source.
+- **Derived terrain: DSM − DTM** (docs: [Derived terrain](/docs/features/derived-terrain)). Add Terrain gains a "Difference of two sources" type: two loaded terrain sources subtracted tile by tile into a normalised height model (canopy, buildings, or change between two dates), usable as terrain and by every viz mode like any elevation source.
 - Hypsometric tint: **Symmetric Range** (one magnitude, Min = −Max) with the same controls as the curvature ramp, for height-above-ground and elevation-change grids.
 - The difference source takes an optional vertical offset (metres added to every difference), a co-registration knob for references that sit above or below the finer source.
 - The difference source's zoom ceiling is the finer operand's declared max zoom plus two levels (titiler-pinned operands used to contribute no range at all, so the coarser operand set the cap).
