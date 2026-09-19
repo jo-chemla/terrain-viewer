@@ -3056,14 +3056,17 @@ export function TerrainViewer() {
         ])
         bounds = unionBounds(terrainBounds, rasterBounds)
       }
-      // A fence the size of a single survey (the Bhotekoshi reaches are 8 km
-      // across) is unusable: even with underzoom's 60% slack the map cannot
-      // show the site in its valley. Below one degree of extent the fence is
-      // padded to a full extent on every side, on top of the user's buffer;
-      // national-scale footprints are left as they are.
+      // An automatic fence is never tighter than MIN_FENCE_SPAN_DEG across.
+      // The size of a single survey (the Bhotekoshi reaches are 8 km) is
+      // unusable: measured on a 0.24 deg box, zooming out stopped at z10.9
+      // and panning was pinned to the site, so the valley around it could
+      // never be seen. A degree (~110 km) still fences the camera to the
+      // region while leaving the subject in context. "custom" bounds are the
+      // user's own numbers and are never widened.
+      const MIN_FENCE_SPAN_DEG = 1
       const padded = (b: LngLatBoundsTuple): LngLatBoundsTuple => {
         const span = Math.max(b[2] - b[0], b[3] - b[1])
-        return span < 1 ? bufferBounds(b, span) : b
+        return span < MIN_FENCE_SPAN_DEG ? bufferBounds(b, (MIN_FENCE_SPAN_DEG - span) / 2) : b
       }
       if (!cancelled) setResolvedMaxBounds(bounds ? bufferBounds(padded(bounds), state.maxBoundsBuffer) : null)
     })()
