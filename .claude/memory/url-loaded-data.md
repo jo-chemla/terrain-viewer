@@ -4,13 +4,13 @@ description: How remote data enters through URL params (URL-as-source-id on any 
 type: project
 ---
 
-Added 2026-09-17.
+Added 2026-09-17, amended 2026-09-19 (see [[handoff-2026-09-19]] for the later state: terrainSourceA..H URL keys, sidebarCollapsed, scrollTo, bookmarksUrl).
 
 **URL as a view's source.** `?sourceB=https://…tif`, `?basemapSourceC=…`, `?basemapSource=…` work on every view. The URL *is* the custom source's id (reactive effect `urlSourceKey` in `TerrainViewer.tsx`), so links are self-contained and every `find((s) => s.id === …)` resolver is untouched. `{z}` means terrarium / tms, anything else a COG; `terrainType` / `basemapType` override; one-shot `viaTitiler=1` sets `cogViaTitiler`. `terrainUrl` / `basemapUrl` (view A only, fixed `__embed_*__` id) predate this and were left alone.
 
 **Why:** an id that only exists in the sender's localStorage makes a shared or iframed link render blank (terrain) or Google (basemap) for everyone else.
 
-**`?drawingUrl=` (repeatable)** is read off the address bar in `useTerraDraw`, not declared in nuqs: it is an instruction, and nuqs leaves unknown params in place. Layers it creates carry `DrawLayer.sourceUrl`; they are skipped by OPFS hydration and persistence and refilled (same layer id, so name and colours survive) on every load. A URL pasted in the Drawing panel is a one-off copy, persisted like a file import.
+**`drawingUrl`** became a nuqs list field (comma-separated; legacy repeated params are migrated in `lib/url-keys.ts`), mirrored into `drawingUrlsAtom` for the drawing system by `TerrainControlPanel`. Layers it creates carry `DrawLayer.sourceUrl`; they are skipped by OPFS hydration and persistence and refilled (same layer id, so name and colours survive) on every load. A URL pasted in the Drawing panel is a one-off copy, persisted like a file import.
 
 **Parsing** lives in `lib/remote-vector.ts`: GeoJSON, KML and GPX via `@tmcw/togeojson`, FlatGeobuf and Shapefile via loaders.gl with dynamic imports. Both loaders were verified in Node only. `TerraDrawSystem.tsx` still carries an old comment that loaders.gl breaks Vite's dev server; if the dynamic imports fail in dev, add the two packages to `optimizeDeps.exclude` in `vite.config.ts` like core and geopackage. The dead commented-out GeoPackage import was removed with the `importFile` rewrite (git history has it).
 
