@@ -14,6 +14,13 @@
     "lrm",
     "lighting-effects",
     "wms-float32-protocol",
+    "demdiff-protocol",
+    "vendored-protocols",
+    "tile-caches",
+    "---Map and UI internals---",
+    "camera-sync",
+    "map-bounds-and-underzoom",
+    "product-tour",
     "---Historical---",
     "esri-wayback",
     "ge-historical"

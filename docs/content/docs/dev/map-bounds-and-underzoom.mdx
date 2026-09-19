@@ -1,0 +1,78 @@
+---
+title: Map Bounds and Underzoom
+description: Fencing the camera to a dataset's footprint without making the dataset impossible to see — maplibre-xy's Underzoom, the 1-degree floor, and the footprints that crash constrain
+---
+
+The **Map bounds constraints** setting (see [Settings](/features/settings)) fences the camera to the footprint of whatever is loaded, so you cannot pan off a national dataset into an empty world. Two things make that harder than calling `setMaxBounds`.
+
+## Problem 1: MapLibre's constrain will not let you see a country
+
+MapLibre's own constrain insists the bounds **cover the viewport**. On a wide screen a tall country can therefore never be seen whole: the moment the bounds stop filling the frame horizontally, you are pulled back in.
+
+[maplibre-xy](https://github.com/maplibre/maplibre-xy)'s `Underzoom` relaxes that to "the bounds may shrink to `extendScale` of the viewport before I pull you back in". `lib/underzoom.ts` holds a single shared instance:
+
+```ts
+export const underzoom = new Underzoom(maplibregl, { extendScale: 0.6, extendPan: 0.2 })
+```
+
+**0.6 is deliberate, not a default.** At 1.0 the bounds may shrink to exactly the viewport and no further — which silently cancels any `fitBounds` padding, because the constrain immediately zooms back in to re-fill the frame. At 0.6 a country may occupy 60% of the viewport, which leaves room for the ~12% per-side padding the source picker asks for (`FIT_PADDING_RATIO`) and still leaves margin beyond it.
+
+The instance is shared because two places need it and their timing differs: `TerrainViewer` applies it whenever the resolved bounds change, and the terrain source picker applies it a beat **earlier** — before its own `fitBounds`, which runs synchronously from the click while the `TerrainViewer` effect only re-resolves a tick later.
+
+`applyBoundedView` sets the relaxed constrain *first*, then the bounds, so the new fence is evaluated against the relaxed rule rather than snapping to stock behaviour for a frame:
+
+```ts
+map.transform.setConstrainOverride?.(bounds ? underzoom.transformConstrain : null)
+map.setMaxBounds(bounds ? [[bounds[0], bounds[1]], [bounds[2], bounds[3]]] : null)
+```
+
+## Problem 2: some footprints crash `setMaxBounds`
+
+A footprint read out of a file is not guaranteed to be a sane box. GEDTM30's is `-180.00125 … 180.00125` by `-65 … 85.00125` — a hair past the world on three sides.
+
+MapLibre's constrain then divides by an empty or wrapped extent and throws inside `setMaxBounds`, which in practice presented as the map going blank with `Cannot read properties of null (reading '0')`.
+
+`sanitizeBounds` is the guard:
+
+- clamp longitude to ±180 and latitude to ±85.051129 (the Mercator limit);
+- return `null` for a degenerate box (span below 1e-6);
+- return `null` for a span of **≥ 359.9°** — a worldwide file constrains nothing horizontally, and MapLibre's `lngRange` maths cannot handle the full-width case.
+
+<Callout type="warn">
+`<Map maxBounds>` is a **second path** into MapLibre's constrain, separate from `applyBoundedView`. Sanitising in only one of them leaves the other able to throw. Sanitise at the state setter so both are covered.
+</Callout>
+
+## Problem 3: a survey-sized fence is a cage
+
+The footprint of a single survey is far too tight to be useful as a camera fence. Measured on a 0.24° box (the Bhotekoshi reaches are about 8 km across): zooming out stopped at **z10.9** and panning was pinned to the site, so the valley around it could never be seen at all.
+
+An automatic fence is therefore never tighter than `MIN_FENCE_SPAN_DEG = 1` — about 110 km, which still fences the camera to the region while leaving the subject in context:
+
+```ts
+const padded = (b: LngLatBoundsTuple): LngLatBoundsTuple => {
+  const span = Math.max(b[2] - b[0], b[3] - b[1])
+  return span < MIN_FENCE_SPAN_DEG ? bufferBounds(b, (MIN_FENCE_SPAN_DEG - span) / 2) : b
+}
+```
+
+With the floor applied, the same box zooms out to **z8.95**.
+
+`"custom"` bounds are the user's own numbers and are **never** widened. `"none"` releases the fence entirely — both the `maxBounds` and the constrain override.
+
+## Resolving the bounds
+
+`lib/max-bounds.ts` resolves the tuple for each mode using the same per-source-type detection as "fit to bounds" in the source picker: a static `bounds` field, a TileJSON manifest fetch, or COG metadata via geomatico's protocol or titiler.
+
+| Mode | Fence |
+|---|---|
+| `none` | released |
+| `terrain` (default) | the terrain source's footprint |
+| `raster` | the basemap's footprint |
+| `union` | both, unioned (`unionBounds`) |
+| `custom` | the numbers typed in Settings, unpadded |
+
+`staticBoundsFor` deserves a note. Library entries are **copied into localStorage on first use**, so a copy saved before a shipped entry gained its `bounds` would stay boundless forever. It therefore falls back to the shipped definition by id. Both this and the picker's fit must agree — which is why it is one shared helper and not two lookups. The symptom when they disagreed was memorable: "fit to bounds" did nothing while `maxBounds` still correctly fenced the right country.
+
+## Padding
+
+`fitPaddingFor` returns the `fitBounds` padding in pixels for a given map: `FIT_PADDING_RATIO` (0.12) of the shorter viewport side, floored at 20 px and capped at just under half the frame so it can never exceed the container.

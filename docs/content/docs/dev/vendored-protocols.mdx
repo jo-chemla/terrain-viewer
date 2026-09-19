@@ -1,0 +1,68 @@
+---
+title: PMTiles and COG Contours
+description: The two protocols this app registers but does not compute — a third-party archive reader and a worker-backed contour generator
+---
+
+Most of the schemes in `lib/*-protocol.ts` are this app's own per-pixel maths. Two are not: `pmtiles://` is a third-party handler registered as-is, and `cog-contour://` is a thin main-thread shim over [maplibre-contour](https://github.com/onthegomap/maplibre-contour) running in a dedicated worker. Both are documented here together because in both cases the interesting part is the *wiring*, not the algorithm.
+
+Neither is wrapped in [`withTileResultCache`](/dev/tile-caches) — each has its own reason, given below.
+
+## `pmtiles://`
+
+```ts
+import { Protocol as PmtilesProtocol } from 'pmtiles'
+maplibregl.addProtocol('pmtiles', new PmtilesProtocol().tile)
+```
+
+That is the whole integration. [PMTiles](https://docs.protomaps.com/pmtiles/) is a single-file tile pyramid read over HTTP range requests: one archive on static hosting, no tile server, no directory of millions of files. The handler resolves `pmtiles://<archive url>/{z}/{x}/{y}` by reading the archive's directory and then the one tile it needs.
+
+A URL source of `type: "pmtiles"` in the BYOD lists builds exactly that. The motivating library entry is **Smart Maps GEL** — NASADEM at 30 m as Terrain-RGB, z2–12, CC0, in one archive.
+
+Two consequences worth knowing:
+
+- **The host must serve range requests and CORS.** A PMTiles archive on a host that ignores `Range` will download the entire file to read one tile. This is the single most common reason a PMTiles URL "doesn't work".
+- **No result caching by us.** The protocol's own directory cache already avoids re-reading the archive header, and its output is raw archived bytes rather than something we computed, so there is nothing for our LRU to save.
+
+Elevation archives are ordinary Terrain-RGB or Terrarium once unwrapped, so everything downstream — hillshade, the [viz-mode protocols](/dev/terrain-analysis-pipeline), [derived terrain](/dev/demdiff-protocol) — treats them like any other tiled DEM.
+
+## `cog-contour://`
+
+Contours over a normal tiled DEM are handled by maplibre-contour's own `DemSource`. That path breaks for a **BYOD COG** — a local file, or a remote one reached through a custom fetch — for a specific and unfixable reason:
+
+<Callout type="warn">
+maplibre-contour's worker configuration travels over `postMessage`, which cannot carry a function. A custom `fetch` — which is exactly what reading a local `File` handle or an authenticated remote COG requires — can never reach its worker.
+</Callout>
+
+So `cog-contour://` runs its own worker instead. The split is:
+
+- **`lib/cog-contour-protocol.ts`** (main thread) — parse the tile request out of the URL, `postMessage` it to the worker with a numeric request id, resolve the pending promise when the matching response arrives. Nothing heavier than a round trip happens here.
+- **`lib/cog-contour-worker.ts`** — owns the COG reader and the contour generation, and returns MVT bytes.
+
+The worker is created lazily on first use and kept for the session. Requests are correlated by an incrementing id held in a `Map`, so several tiles can be in flight at once:
+
+```ts
+worker.onmessage = (e: MessageEvent<CogContourResponse>) => {
+  const entry = pending.get(e.data.id)
+  if (!entry) return
+  pending.delete(e.data.id)
+  if (e.data.error) entry.reject(new Error(e.data.error))
+  else entry.resolve(e.data.data!)
+}
+```
+
+### Options
+
+`CogContourOptions` mirrors maplibre-contour's own `GlobalContourTileOptions` closely enough that its documentation applies:
+
+| Option | Meaning |
+|---|---|
+| `thresholds` | zoom → `[minor, major]` elevation intervals |
+| `multiplier` | unit conversion (metres → feet) |
+| `extent`, `buffer` | MVT tile geometry |
+| `overzoom` | how far past the source's maxzoom to keep generating |
+| `contourLayer`, `elevationKey`, `levelKey` | names in the emitted vector tile, which the style then references |
+| `subsampleBelow` | skip DEM pixels at low zoom, where full resolution buys nothing |
+
+### Why no result cache
+
+Contour output is already produced off the main thread, so the cost the result LRU exists to avoid — a blocking recompute on re-toggle — is not paid here in the same way. Wrapping it would also mean holding MVT bytes in the same 96 MB budget as the far more expensive raster modes, which is a poor trade.

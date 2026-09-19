@@ -1,0 +1,85 @@
+---
+title: Settings
+description: The Settings dialog — appearance, caching, storage, beta features, API keys, map bounds and project presets
+---
+
+Settings opens from the cog in the sidebar header. Everything in it is a **collapsible section**, and the header's fold/unfold control collapses or expands all of them at once. Unlike most of the app, nothing here is in the URL: these are preferences for *you*, kept in `localStorage`, not settings you share in a link. (The one exception is Map bounds, which is shareable — see below.)
+
+## What's New — Changelog
+
+The [changelog](/changelog) inline, so a new release can be read without leaving the map. Opens by itself once after a version bump.
+
+## Appearance
+
+- **Transparent UI** — the sidebar and panels become translucent over the map. Good for screenshots and for working on a small screen; slightly harder to read over busy imagery.
+- **Colour theme** — light, dark, or follow the system.
+
+Neither affects [snapshots](/features/export-and-share): the export composites the map and its pills, not the panel chrome.
+
+## Keyboard Shortcuts
+
+The full list, rendered from the same source as the [Keyboard Shortcuts](/features/keyboard-shortcuts) page — one file, two places, so they cannot drift apart.
+
+## Visualization Modes
+
+Reference copy of the [visualization modes](/features/visualization-modes) descriptions, again from the shared source, for looking up what a mode actually computes without losing your place on the map.
+
+## Streaming Settings
+
+COG streaming behaviour — how aggressively remote COGs are read, and the **Cache computed viz-mode tiles** switch.
+
+That switch is worth understanding: viz modes are computed per pixel in the browser, and MapLibre discards a source's tiles whenever the layer using it is hidden. Without the cache, toggling a mode off and back on recomputes everything — measured at about 1.2 s for LRM over a z13 viewport. With it, re-toggling is near-instant, at a cost of up to 96 MB. Turning it off also frees whatever is already held. Details in [Tile Caches](/dev/tile-caches); the full page is [Streaming Settings](/features/streaming-settings).
+
+## Browser Local Storage Persistence
+
+Two independent switches over what survives a reload:
+
+- **Local COG files** — remember local files between sessions. The file handle is kept, not the file, so the browser may still ask permission again.
+- **Vector layers (TerraDraw)** — remember drawn and imported layers between sessions. See [Tools](/features/tools).
+
+Both default to on. Turn them off on a shared machine, or when a big local file is making startup slow.
+
+## Beta
+
+Features that work but are not finished, or are expensive enough to be opt-in:
+
+| Flag | What it unlocks |
+|---|---|
+| **Tells (mound candidates) detection** | the `tells` mode, plus Difference-of-Gaussians of the LRM, plan curvature / divergence and det-Hessian |
+| **Sun Shadow Calculator** | the reverse-solve tool in [Tools](/features/tools) |
+| **Historical imagery sources** | the [historical timeline](/features/basemaps-and-historical) and its providers |
+| **STAC catalogue search** | the [STAC search](/features/tools) tab in both Add dialogs |
+
+Defaults are `{ tells: false, sunShadow: true, historical: true, stacSearch: … }`. Each flag is mirrored to a nuqs field (`tellsBeta`, `sunShadowBeta`, `historicalBeta`) which is what the app actually reads — so a link can enable one for a visitor without changing their own stored preference.
+
+## API Keys
+
+One field per provider — Mapbox access token, MapTiler, HERE Maps, Planet — stored in `localStorage` and **never** put in a URL or a shared link. Everything the app ships by default is keyless; these only unlock those providers' own basemaps and terrain.
+
+<Callout type="warn">
+Keys are stored unencrypted in your browser, like any client-side app. Do not paste a key with billing exposure you would not accept on a shared machine.
+</Callout>
+
+## Map bounds constraints
+
+How far you can pan and zoom out — a fence around whatever is loaded, so you cannot drift off a national dataset into empty world.
+
+| Mode | Fence |
+|---|---|
+| **None** | released entirely |
+| **Terrain** *(default)* | the terrain source's footprint |
+| **Raster** | the basemap's footprint |
+| **Union** | both together |
+| **Custom** | numbers you type, used exactly |
+
+An automatic fence is never tighter than about **1° (~110 km)** even when the dataset is much smaller. A single survey's own footprint makes an unusable cage: measured on an 8 km site, zoom-out stopped at z10.9 and panning was pinned to the site, so the valley around it could never be seen. Custom bounds are your own numbers and are never widened.
+
+This one *is* shareable, as `maxBoundsMode` (and the custom tuple) — see [Embedding & URL parameters](/features/embedding). The mechanics are in [Map Bounds and Underzoom](/dev/map-bounds-and-underzoom).
+
+## Save Project Preset
+
+Captures the current configuration as a named preset — hidden panels, initial state, bundled sources — for the `?project=` parameter. See [Projects](/features/projects).
+
+## Resources
+
+Two reading lists rather than settings: [MapLibre GL features](/resources/maplibre) this app leans on, and the [topography, geomorphometry and hydrology](/resources/geomorphometry) literature behind the visualization modes.

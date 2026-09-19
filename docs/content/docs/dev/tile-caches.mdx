@@ -1,0 +1,76 @@
+---
+title: Tile Caches
+description: The two caches every custom protocol sits on, and the ArrayBuffer detachment rule that governs both
+---
+
+Every custom protocol in this app sits on two caches, and one hard rule about buffer ownership. Getting the rule wrong produces a `DataCloneError` that only appears on the *second* view of a tile, which is a miserable thing to debug from first principles.
+
+## The two caches
+
+| | `sharedTileCache` | `tileResultCache` |
+|---|---|---|
+| Holds | **decoded** upstream DEM tiles (float arrays + validity mask) | **finished** protocol output bytes (PNG or MVT) |
+| Keyed on | upstream tile URL + encoding | the full protocol URL |
+| Lives in | `lib/normal-derived-protocol.ts` | `lib/tile-result-cache.ts` |
+| Saves | the network fetch and the decode | the per-pixel computation |
+| Budget | per-entry, by decoded size | 96 MB LRU |
+
+They are complementary. `sharedTileCache` is why turning on Slope after Hillshade does not re-download anything. `tileResultCache` is why turning Slope back *off and on again* is instant.
+
+## Why the result cache exists
+
+MapLibre releases a source's tiles when the layer using it goes `visibility: none` — which is what a sub-mode checkbox does — and when the source unmounts entirely, which is what the master viz-mode toggle does. Re-showing a mode therefore re-runs the whole per-pixel computation for every visible tile, even though the decoded upstream DEM is still sitting in `sharedTileCache`.
+
+No network, but measured **~1.2 s of recompute for LRM over a z13 viewport**. Caching the finished bytes makes re-toggling near-instant.
+
+It is gated by **Cache computed viz-mode tiles** in [Settings](/features/settings) (`cacheVizTilesAtom`, synced through `setTileResultCacheEnabled`). Turning it off also frees everything already held — the point of turning it off is reclaiming memory, not merely stopping new inserts.
+
+## The rule: always clone before you store, always clone before you hand out
+
+MapLibre **transfers** a protocol response's `ArrayBuffer` to its worker, which detaches it on this side. So:
+
+- Handing out the cache's own retained buffer detaches *the cache's copy too*. The next hit on that key tries to transfer an already-detached buffer and throws `DataCloneError: ArrayBuffer ... already detached`.
+- Storing the same object you are about to return has the same problem from the other direction: the buffer you kept is dead before the first hit can use it.
+
+`withTileResultCache` therefore calls `.slice()` on both sides:
+
+```ts
+const hit = lru.get(params.url)
+if (hit) {
+  lru.delete(params.url); lru.set(params.url, hit)  // refresh LRU recency
+  return { data: hit.slice() }                      // independent copy out
+}
+const result = await inner(params, abortController)
+if (result?.data instanceof Uint8Array) put(params.url, result.data.slice())  // independent copy in
+return result
+```
+
+<Callout type="warn">
+This applies to any cache you add that holds bytes destined for MapLibre, not just this one. If you are storing an `ArrayBuffer` or a `Uint8Array` that a protocol handler will return, clone it.
+</Callout>
+
+## Wrapping a protocol
+
+Registration in `TerrainViewer.tsx` is where the composition happens:
+
+```ts
+maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
+maplibregl.addProtocol('svf', withTileResultCache(withSlowTileStats('svf', svfProtocol)))
+```
+
+Note the nesting on the second line: `withSlowTileStats` composes **inside** `withTileResultCache`, so it measures the real ray-marching cost rather than a cache hit. If it wrapped the outside, the statistics would flatter the expensive modes exactly as they got faster.
+
+Two protocols are deliberately **not** wrapped:
+
+- **`cog-contour`** — its output is vector tiles produced in a dedicated worker, and the worker round trip already amortises; see [PMTiles and COG Contours](/dev/vendored-protocols).
+- **`pmtiles`** — it is a third-party handler doing range reads against an archive, with its own caching.
+
+## Correctness comes from the key, not from invalidation
+
+There is no invalidation logic in either cache, and there does not need to be. `buildProtocolUrl` encodes the upstream template, the encoding, the tile size, **every mode parameter** and the tile coordinate into the protocol URL. Change the sun azimuth, the LRM kernel radius, the difference offset — it is a different key, so a stale tile is not served; the old entry simply ages out of the LRU.
+
+This is worth preserving when you add a parameter to a mode: if it affects the output and it is not in the URL, you have introduced a stale-tile bug that no amount of cache-clearing will fix.
+
+## Inspecting it
+
+In dev builds, `window.__tileResultCacheStats()` reports `{ enabled, entries, totalBytes, hits, misses }`. It is exposed as a global deliberately — importing the module from the console gets a different HMR-versioned instance with its own empty cache.

@@ -1,0 +1,84 @@
+---
+title: Derived Terrain Protocol
+description: demdiff:// — subtracting one elevation source from another, tile by tile, and the alpha-254 convention that keeps holes flat
+---
+
+`demdiff://` (`lib/demdiff-protocol.ts`) is the engine behind the **Difference of two sources** terrain type — the feature side is documented in [nDSM and Comparison](/features/ndsm-and-comparison). It takes two elevation sources and emits a third that is their difference, as an ordinary Terrain-RGB tile, so every downstream consumer (3D terrain, hillshade, hypsometric tint, slope, contours, the elevation picker, the GeoTIFF export) treats the result exactly like any other DEM.
+
+## The URL
+
+```
+demdiff://<encA>/<encB>/<tileSize>/<offsetM>/<template A>/<template B>/{z}/{x}/{y}
+```
+
+Both operand templates are percent-encoded inside the URL, so MapLibre's literal `{z}/{x}/{y}` substitution only touches the trailing coordinates and never the embedded ones. `buildDemDiffUrl()` assembles it.
+
+Because the whole configuration lives in the URL, the [tile result cache](/dev/tile-caches) keys on it for free: change the offset, or either operand, and it is a different key — a stale difference can never be served.
+
+## Why both operands are fetched at the same z/x/y
+
+The two sources are fetched through `fetchDecodedTile` — the same decoded-tile cache the viz-mode protocols use, so `cog://`, titiler, plain TMS and `float32dem://` all work as operands — and at the **same tile coordinate**. That is what makes the subtraction meaningful: two tiles at the same z/x/y cover the same ground and the same pixel grid, whatever the sources' native resolutions. No reprojection, no resampling to a common grid, no alignment step.
+
+## Ancestor-tile upsampling
+
+The interesting case is a 0.5 m DSM minus a 30 m reference. Above the coarse source's maxzoom there is no tile to fetch, and the naive result is that the difference simply stops existing exactly where it is most useful.
+
+`fetchOperand` walks up instead: it tries `z`, then `z-1`, `z-2`, … up to **6 levels**, and returns the first ancestor that exists together with the sub-window to read:
+
+```ts
+type Operand = { tile: DecodedTile; scale: number; ox: number; oy: number }
+```
+
+`sampleOperand` then reads that window **bilinearly**, so the coarse side is smoothly upsampled on the fly rather than blocking into 30 m steps. Six levels is 64× — enough to put a GLO-30 reference under a half-metre drone survey.
+
+<Callout type="warn">
+Upsampling a coarse operand does not create detail it never had. A canopy-height model made against a 30 m reference is only as good as that reference: it is right in the mean and wrong in the detail, which is why the feature page insists on comparing like with like where you can.
+</Callout>
+
+## Holes, and why they are alpha 254
+
+A pixel is a hole when either operand is missing it — nodata, masked, outside coverage, or nothing found within six zoom levels. The obvious encoding is "write transparent and let the consumer work it out", and it is wrong in a way that is worth stating plainly, because the same trap is laid in three different places in this app.
+
+**MapLibre's DEM decoder ignores alpha, and the browser premultiplies it.** A transparent pixel is premultiplied to RGB `0,0,0` on decode, which in Terrain-RGB is the floor, **−10 000 m**. A single transparent pixel is a 10 km pit; a nodata edge is a 10 km cliff along the whole boundary.
+
+So a hole is written as **0 m in the colour channels with alpha 254**:
+
+```ts
+const hole = !(Number.isFinite(va) && Number.isFinite(vb))
+const [r, g, bl] = elevationToTerrainrgb(hole ? 0 : va - vb + offset)
+out[i] = r; out[i + 1] = g; out[i + 2] = bl; out[i + 3] = hole ? 254 : 255
+```
+
+MapLibre reads the colour channels, sees flat ground and draws nothing dramatic. This app's own decoders read the alpha and know the cell is invalid. 254 is chosen because it is fully opaque for every practical purpose while still being distinguishable from the 255 that every real pixel carries.
+
+### The same convention, three places
+
+| Where | What writes alpha 254 |
+|---|---|
+| `lib/demdiff-protocol.ts` | a pixel missing from either operand |
+| `makeElevationColorFunction` in `MapSources.tsx` | the in-browser COG reader's own nodata, which would otherwise land as opaque 0 m and read as real sea-level ground |
+| titiler-served DEMs | *not* used — titiler flattens nodata server-side instead, see below |
+
+If you add a fourth path that produces elevation tiles, it has to honour this or it will either dig pits or invent ground.
+
+### Titiler does it server-side
+
+Titiler-backed sources do not need the convention at all, because titiler's `terrainrgb` algorithm can encode masked pixels at a chosen height:
+
+```
+&algorithm_params={"nodata_height":0}&return_mask=false
+```
+
+This is the same flattening, done once on the server, for free — it replaced an earlier client-side `demfix://` wrapper that decoded and re-encoded every tile in the browser. Dropping the now-pointless alpha channel also makes the tiles about 9% smaller. See `TITILER_FLAT_NODATA` in `lib/source-builder.ts`.
+
+The client-side viz modes and `demdiff://` itself still request the mask (`forClientDecode: true`), because they read alpha as a validity flag and are decoding the tile anyway.
+
+## Zoom range
+
+A derived source's zoom range is not its own — it is derived from the operands, and the ceiling follows **the finer operand + 2**. Overzooming past the finer source by a couple of levels is what lets 3D terrain stay smooth when you push in; going further would only invent bilinear detail on both sides at once.
+
+A titiler-served operand contributes no zoom range of its own, which once silently capped a difference at the coarse side's maxzoom — worth remembering when a difference mysteriously stops refining.
+
+## Output
+
+The per-pixel loop writes into a `Uint8ClampedArray`, draws it to an `OffscreenCanvas` via `putImageData`, and converts to a PNG blob. That is what MapLibre receives — a bog-standard Terrain-RGB tile with no trace of how it was made.

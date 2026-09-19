@@ -1,9 +1,11 @@
 ---
 title: "Tools (Drawing, Elevation Picker, Anim)"
-description: Drawing, Elevation Picker, and Animation — map-based utilities independent of any visualization mode
+description: Drawing, Elevation Picker, Sun/Shadow Calculator, Animation, and the catalogue searches that find new data
 ---
 
-A grab bag of map-based utilities in the sidebar's Tools group, independent of whichever visualization modes are active. (Sun/Shadow Calculator and Source Info also live in this group — see [Sun Position](/features/sun-position) and [Terrain and Basemap Sources](/features/terrain-sources) respectively.)
+A grab bag of map-based utilities in the sidebar's Tools group, independent of whichever visualization modes are active. Source Info also lives in that group — it is documented with the [coverage overlays](/features/coverage-overlays) it contains.
+
+The last two sections below are not in the Tools group at all: they are the **catalogue searches**, tabs inside the Add Terrain and Add Basemap dialogs. They are here because they are tools in every sense that matters — they are how you find data you do not already have a URL for.
 
 ## Drawing
 
@@ -37,6 +39,25 @@ Click anywhere on the terrain to read off its elevation, sourced from the same a
 
 <p className="text-sm text-fd-muted-foreground italic">Elevation Picker — Line Profile (two points, color-graded by elevation) + Plane Slicer flood-fill — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?viewMode=3d&zoom=12.23&lat=46.0523&lng=7.6461&pitch=26&bearing=-21.4&showHillshade=true&hillshadeOpacity=1&exaggeration=1&showPlaneSlicer=true&planeSlicerOpacity=0.5&planeSlicerValue=3023" target="_blank" rel="noopener noreferrer">open in app ↗</a> (camera/Plane Slicer state only — the two picked points aren't URL-reproducible, pick them on the map yourself)</p>
 
+## Sun and Shadow Calculator
+
+Beta — enable **Sun Shadow Calculator** under Settings → Beta.
+
+The rest of the app points the light and shows you the shadow. This tool runs it backwards: **give it a shadow and it tells you the time**.
+
+Click the **base** of something whose height you know — a tower, a pole, a building corner — then click the **tip of its shadow**, and type the height. Those three numbers fully determine a light direction: the azimuth comes from the base→tip bearing, reversed (light arrives from the opposite side of the shadow), and the elevation angle from the height-to-length ratio. `inverseSunPosition` then back-solves that direction to a day of year and a time of day, corrected to local time for the clicked location.
+
+Two directions of use:
+
+- **Forward** — pick a point and a date/time, and see where its shadow falls.
+- **Reverse** — pick base, tip and height, and read off when the photograph was taken.
+
+The answer is written into the **same** shared light fields the [Sun Position](/features/sun-position) control uses (`illuminationDir`, `illuminationAlt`, `lightDayOfYear`, `lightTimeOfDay`), so Hillshade, Phong and cast Shadows all snap to the solved light at once. It is not a separate lighting model — it is another way of setting the one light.
+
+<Callout>
+A solar azimuth/elevation pair does not map to a single instant: the same sun position recurs twice a year, and the day/time pair the solver returns is one of a small family. Use it to narrow a season and an hour, not to timestamp to the minute.
+</Callout>
+
 ## Animation
 
 Fly the camera along a scripted path through the scene — set keyframe camera poses and interpolate between them, exportable as a rendered fly-through. Available in Terrain mode; Historical mode's own Tools group drops it since there's no single continuous elevation surface to fly a smooth camera path over.
@@ -45,3 +66,49 @@ Fly the camera along a scripted path through the scene — set keyframe camera p
 <img src="/docs/screenshots/tools/animation.jpg" alt="The Animation panel" style={{ maxWidth: 288, width: "100%", display: "block", marginLeft: "auto", marginRight: "auto" }} />
 
 <p className="text-sm text-fd-muted-foreground italic">Animation — panel only</p>
+
+## STAC search
+
+Beta — enable **STAC catalogue search** under Settings → Beta. A tab in both the **Add Terrain** and **Add Basemap** dialogs.
+
+[STAC](https://stacspec.org/) is the standard index for cloud-native imagery and elevation. This tab searches a catalogue for scenes over your current view and adds the COG assets it finds as sources, with no download step.
+
+Seventeen presets ship, grouped by what they hold:
+
+| Group | Catalogues |
+|---|---|
+| **Mixed** | OpenAerialMap, Earth Search (AWS/Element 84), eoAPI demo, NASA VEDA, swisstopo |
+| **Imagery** | LINZ New Zealand, Maxar and Vantor open-data disaster events, Planet disaster releases, Umbra and Capella open SAR, Lower Saxony orthophotos, SPOT Canada |
+| **Elevation** | OpenTopography raster DEMs, LINZ elevation, Polar Geospatial Center (ArcticDEM, REMA, EarthDEM) |
+| **Registries** | federated collection discovery (MAAP) |
+
+Or paste any catalogue URL: a `.json` is crawled as a static catalog, anything else is treated as a STAC API.
+
+What the panel does for you:
+
+- **Two access shapes, one UI.** A STAC **API** is paged through its `/search` endpoint with bbox and datetime; a **static** catalog has no search, so its child links are crawled breadth-first and filtered to the view. Static crawls of deeply nested archives (Umbra's year-nested tree, for instance) are slow by nature — the progress line says where it is.
+- **Filters** — date range, current view only, cloud cover.
+- **Web Mercator first.** Assets already in EPSG:3857 sort ahead of the rest, because they load directly; anything else is pinned to [titiler](/features/byod) automatically rather than failing quietly.
+- **Terrain is filtered to single-band elevation rasters**, so the terrain dialog does not offer you an RGB quicklook as a DEM.
+- Collections offering a `xyz` web-map-link can be added as a tile source directly, without picking an item at all.
+
+Your last catalogue, collection and filters are remembered per target, so reopening the tab resumes where you left off.
+
+<Callout type="warn">
+A catalogue has to send CORS headers to be usable from a browser at all, regardless of how open its licence is. CNES GEODES, for example, answers 200 with 66 collections and no `Access-Control-Allow-Origin` — unreachable from any client-side app.
+</Callout>
+
+## Basemap catalogue search
+
+Two more tabs in the **Add Basemap** dialog, for imagery rather than elevation.
+
+**NextGIS QMS** — searches [qms.nextgis.com](https://qms.nextgis.com/), a community index of public map services. Only `tms` and `wms` entries can become a MapLibre raster source directly, so those are what the list shows; each result carries its zoom range and a permalink into the QMS browser.
+
+**OSM Editor Layer Index** — the imagery catalogue behind iD, JOSM and Rapid: roughly 1,500 aerial, map and historic sources, most of them national or regional agency services **with their licence recorded**. It ships bundled (bumped weekly) rather than fetched, so it works offline and cannot break when an upstream index moves.
+
+- Filter by text, by category (aerial, map, historic map, OSM-based, historic aerial, QA, elevation), or to **layers covering the current view**.
+- "Best" layers are starred, as the OSM editors mark them.
+- Licence and attribution follow the layer into [Source Info](/features/coverage-overlays), along with a permalink to the index entry.
+- An entry's real coverage polygon — not a bounding box — can be drawn as a [coverage overlay](/features/coverage-overlays).
+
+An index entry declares whether it is a **basemap or an overlay**, and that role is honoured on add: an overlay-role layer joins the overlay list rather than silently replacing your basemap.

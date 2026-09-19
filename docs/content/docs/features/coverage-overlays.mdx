@@ -5,7 +5,23 @@ description: See where each terrain or basemap source actually has data, before 
 
 ![Coverage overlays: Mapterhorn's per-country sources, the terrain library bounds and Editor Layer Index footprints over Europe, with the hover list](/screenshots/coverage-overlays.jpg)
 
-The **Source Info** section of the sidebar has a **Coverage overlays** picker. It draws the footprint of sources on every map view, so a blank area can be told apart from a slow one, and so you can see which national dataset or which imagery layer covers the place you are looking at *before* loading it.
+## Source Info
+
+**Source Info** is the Tools-group section that answers "what am I actually looking at?" for whatever is loaded right now. For each active terrain source and basemap it shows:
+
+- the dataset's name, provider and **licence**, with attribution text ready to copy;
+- its **resolution** — a declared native grid where the dataset states one, otherwise the ground size of one pixel at its maximum zoom *at the current latitude* (`z19 ≈ 30 cm/px`), which is the only honest figure a tile service can give;
+- the **endpoint** actually being requested, and a link to the dataset's own page;
+- for COGs, links to open the same file in an external viewer (source.coop, GeoLibre);
+- and the coverage picker described below.
+
+Sources that arrived from a catalogue keep their provenance: an [Editor Layer Index](/features/tools) layer carries its index entry and licence, a STAC item carries its collection.
+
+It is also where a source found under the cursor can be **switched into view A** in one click — the hover list below sorts what covers a point by increasing ground sample distance, so the sharpest dataset available there is first.
+
+## Coverage overlays
+
+The Source Info section has a **Coverage overlays** picker. It draws the footprint of sources on every map view, so a blank area can be told apart from a slow one, and so you can see which national dataset or which imagery layer covers the place you are looking at *before* loading it.
 
 The selection is part of the shared link (`coverageOverlays`), so a view you send keeps its footprints, and Source Info opens with it so the footprints have a visible origin.
 

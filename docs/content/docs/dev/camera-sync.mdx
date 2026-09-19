@@ -1,0 +1,108 @@
+---
+title: Camera Sync
+description: Keeping up to eight map views on one camera — elevation as the sixth parameter, the idle settle, and the rules that keep gestures intact
+---
+
+Up to eight views ([Split and Grid modes](/features/split-modes)) share one camera. Every view is a real `<Map>` with its own WebGL context, its own tile cache and its own terrain; the one you drag is the source of truth and the rest are copied from it in `handleViewMove` (`components/TerrainViewer.tsx`).
+
+This page is the summary of a long debugging arc. Line numbers cited are from **maplibre-gl 5.24** (`maplibre-gl-dev.js`) and are given so a future reader can re-check them against a newer version rather than take this on faith.
+
+<Callout type="warn">
+**The one rule that matters most: never issue a programmatic camera command while a pointer is held.** If you must change something camera-adjacent mid-gesture, use `map.transform.*` setters directly — they do not call `stop()`. The reason is Fix 5 below.
+</Callout>
+
+## Elevation is the sixth camera parameter
+
+`transform.elevation` — the altitude of the camera's *target point*, read via `Map#getCameraTargetElevation`, written via `map.transform.setElevation` — sits alongside center, zoom, bearing, pitch and roll. Two views agreeing on all five of the others but disagreeing on this one **draw the same ground at different screen heights**.
+
+Almost every symptom in this area turned out to be that parameter going unsynced, stale, or corrected too bluntly.
+
+MapLibre updates it by two different rules mid-gesture:
+
+- The **dragged** view: `Map#_elevationFreeze` is set on the first drag frame (`:68642`) and cleared only when the gesture finishes (`:68694`). Elevation is frozen at drag-start altitude.
+- Every **synced** view: driven by `jumpTo`, which re-resolves elevation against its own terrain as its first act (`:69328`) — so it tracks live ground under the moving center.
+
+Left alone, the dragged pane and the followers diverge for the length of every drag.
+
+**The fix:** `handleViewMove` reads `getCameraTargetElevation()` from the moved view and forwards it as `jumpTo({ ..., elevation })`. `jumpTo` applies an explicit `elevation` option *after* its own automatic re-resolve (`:69333`), so it wins. `elevation` is a documented public `CameraOptions` field, not a private hook.
+
+## The idle settle
+
+**Symptom:** about 500 ms after mouseup the camera jumped slightly — in a single view too, so not a sync problem.
+
+The camera's target has drifted off the ground after a pan across terrain, and something has to put it back. The obvious move is wrong:
+
+- `transform.setElevation(ground)` moves the *target* while leaving the camera where it is — a lurch by however much the elevation was off, which crossing real terrain can make thousands of metres.
+
+**The fix:** `transform.recalculateZoomAndCenter(terrain)` (`:55548`, `:56232`) holds the **camera position** fixed and solves for the center and zoom that put the target back on the ground along the same view ray. Nothing moves on screen.
+
+Two guards make it safe:
+
+1. **`ELEVATION_SETTLE_EPSILON_M = 1`** — only fires when the height is genuinely stale. Without it, every settle re-derives center and zoom, so the focus point walks off target on each Off/Overlay/Side switch (a confirmed regression, not a theory). It also guarantees termination: without an epsilon the idle → `jumpTo` → idle loop runs forever, moving by a hair each time.
+2. **`lastInteractedViewRef`** — set from `onPointerDownCapture` on the pane div. Only the view you last touched is re-anchored; every other view is copied from it wholesale. In overlay mode `clip-path` clips hit-testing too, so a press left of the wipe resolves to A and right of it to B, which is exactly what you want.
+
+## `easeTo` leaves `_elevationFreeze` stuck on
+
+This is an upstream wart worth knowing about, because it produces symptoms far from its cause.
+
+`Camera._prepareElevation` sets `Map#_elevationFreeze = true` **unconditionally** (`:69552`). `_finalizeElevation` is the only thing that clears it, and it runs **only when `options.freezeElevation` was passed** (`:69524`). A completed interactive drag on that map is the only other clearer.
+
+So a plain `easeTo` — the padding ease this app runs when the sidebar or timeline opens, for instance — leaves the flag stuck on forever. The flag suppresses MapLibre's own per-frame reclamp (`:73822`).
+
+Consequences, all fixed by passing `freezeElevation: true` on that `easeTo`:
+
+- The very first drag after load jumped, because camera height sat at sea level from before any DEM tiles existed, and the drag computed against a plane thousands of metres too low.
+- The two panes ended up in different internal states depending on which one you had last dragged.
+
+## Per-map state must not be keyed by view id
+
+`centerClampedToGround` (default `true`) re-resolves camera height every rendered frame (`:73822`) — the visible bob/climb effect — and is disabled once terrain settles.
+
+The bug: "have we disabled it yet" was tracked in a ref keyed by **view id**. A view id outlives the map behind it — toggling split off and on again builds a brand-new `<Map>` for view B — so the id-keyed flag reported "already done" for a map that had never had it done.
+
+The fix was to read `map.getCenterClampedToGround()` live and delete the ref.
+
+**Rule:** any per-map-instance state in `TerrainViewer` must not be keyed by view id. Key it by the map object (a `WeakMap`), or read it back off the map.
+
+## Programmatic commands eat gestures
+
+`jumpTo` and `easeTo` both begin with `Map#stop()` → `handlers.stop(false)` → `handler.reset()` on every input handler (`:68486`).
+
+Issue one while a pointer is already down but has not moved yet — so `isMoving()` is still false and an idle can fire — and the gesture is silently eaten. The vulnerable window is *pointer-down-but-not-yet-moved*, which is exactly what a press-pause-drag does.
+
+**The fix:** `pointerDownRef`, tracked on `window` in the capture phase so a release outside the map still clears it. `resettleTerrainElevation` returns early while it is set. The epsilon from the settle removes most of the opportunity anyway, but the guard is what makes it correct rather than unlikely.
+
+## `setTerrain` is expensive
+
+`setTerrain` constructs a new `Terrain` plus `RenderToTexture`, drops the render-to-texture tile cache (`:72673`), and does not destruct the old pair. Calling it on every idle produced visible blinking and leaked.
+
+Two causes, both fixed:
+
+- The elevation settle used to call `setTerrain()` on every idle. It no longer calls it at all.
+- `applyTerrain` stacked `sourcedata` listeners — the effect re-ran on every `mapLoaded` change and each run that found no source yet added another listener. It now de-registers its pending listener before re-adding, tracked in a `WeakMap` keyed by map.
+
+`applyTerrain` also skips `setTerrain` entirely when the bound source **object** and the exaggeration already match. Compare the object via `map.terrain?.tileManager?.getSource()`, **not** the id — a source can be remounted under the same id with different tiles.
+
+## Dead ends — do not re-derive these
+
+| Approach | Why it failed |
+|---|---|
+| Persistent `idle` listener re-affirming `setTerrain(getTerrain())` | Rebuilds Terrain + RTT and drops the cache on every idle → blinking and leaks |
+| Padding gated on `gridConfig.cols > 1` / `rows > 1` | Wrong: a lone pane also needs padding to center under the sidebar |
+| Overlay panes forced to `right: 0` | The constraint is *identical value*, not zero — zero jumps the camera on Off ↔ Overlay |
+| `recalculateZoomAndCenter` on every settle, no epsilon | Focus point walks off target on every mode switch, never converges |
+| `transform.setElevation(ground)` as the settle | Preserves center but lurches by the full elevation error |
+| Per-view independent re-derivation | Each view's answer depends on its own DEM, so panes drift apart |
+| Chasing individual elevation-reset call sites one at a time | Whack-a-mole; the stuck `_elevationFreeze` was the shared root cause |
+
+## Testing checklist
+
+There is no automated coverage for any of this — it is all gesture and frame timing. Work through the list by hand after touching `handleViewMove`, `applyTerrain` or the settle:
+
+1. First drag after load — no jump.
+2. Pan across a big elevation change — no lurch ~500 ms after mouseup.
+3. Off → Overlay → Side → Off — the same peak stays framed, the focus point does not drift.
+4. Drag each pane in turn (especially B) in Overlay and Side — the others follow, no bob.
+5. Press and hold, pause, then drag — the gesture is not eaten, in both panes.
+6. Toggle the sidebar and the timeline — panes glide together, and the split pill stays 1:1 with the pointer.
+7. Terrain load — no blinking.

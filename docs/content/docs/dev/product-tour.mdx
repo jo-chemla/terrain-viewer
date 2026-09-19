@@ -1,0 +1,130 @@
+---
+title: Product Tour (Coachmark)
+description: How the walkthrough drives the real app — step preparation, the state snapshot, the spotlight-dismiss problem, and what the coachmark library does and does not give you
+---
+
+The [walkthrough](/features/walkthrough) is not a slideshow over screenshots. Every step **reconfigures the live app** — switches app mode, opens sections, turns viz modes on, sets a split layout — and then spotlights a real control that you can actually click. That is what makes it useful and also what makes it delicate.
+
+Everything lives in `components/TerrainControlPanel/product-tour.tsx`.
+
+## The library
+
+The tour is built on [`coachmark`](https://github.com/sglza/coachmark) (v0.1.1), itself built on Base UI's Popover. It ships fourteen parts:
+
+`Root` · `Trigger` · `Backdrop` · `Step` · `Positioner` · `Popup` · `Arrow` · `Title` · `Description` · `Stepper` · `Next` · `Previous` · `Close` · `Viewport`
+
+plus a `useCoachmark()` hook returning:
+
+```ts
+{ stepIndex, stepCount, isFirstStep, isLastStep,
+  next, previous, goTo, close, finish, transitioning, motionState }
+```
+
+Two things are worth stating because they are easy to assume otherwise:
+
+- **`Stepper` is the only progress primitive, and it is headless.** It renders a `<div>` (`data-slot="coachmark-stepper"`) and hands you the render state; we currently render `Step 3 of 18` into it. There is no built-in dot pagination, step-title list or navigator sidebar — that chrome is ours to build if we want it.
+- **`Viewport` is not progress.** It is an animated content container that publishes `--popup-width` / `--popup-height` so the popup can resize smoothly between steps. We do not currently use it.
+
+`Root` is driven **fully controlled** here (`open`, `stepIndex`, `onStepChange`), which matters: it means even the library's own `goTo()` routes through our `handleStepChange` and therefore through `goToIndex` below. An uncontrolled integration would bypass all step preparation.
+
+## Steps and branches
+
+A `TourStepDef` carries a `key`, a `domId` to spotlight, copy, placement hints (`side`, `align`, `spotlightPadding`, `spotlightRadius`), and an `onEnter` that prepares the app.
+
+The tour forks once:
+
+```ts
+const ALL_STEPS = [...GENERAL_STEPS, BRANCH_STEP, ...TERRAIN_STEPS, ...HISTORICAL_STEPS]
+getStepsForBranch("terrain")    // GENERAL (5) + BRANCH (1) + TERRAIN (12)    = 18 steps
+getStepsForBranch("historical") // GENERAL (5) + BRANCH (1) + HISTORICAL (6)  = 12 steps
+```
+
+`ALL_STEPS` exists separately from `activeSteps` for one reason: refs are allocated once for **every** step across both branches, so switching branch never has to allocate. Anything iterating steps for display should use `activeSteps`, not `ALL_STEPS`.
+
+## `goToIndex` — the only way to move
+
+```ts
+const goToIndex = useCallback((newIndex: number) => {
+  const step = activeSteps[newIndex]
+  if (!step) return
+  const generation = ++transitionGenerationRef.current
+  setIsTransitioning(true)
+  if (step.key !== "terrain-library") setTerrainLibraryOpen(false)
+  if (step.key !== "coverage-overlays") setCoverageOverlays([])
+  step.onEnter?.(actionsRef.current)
+  void waitForTarget(step.domId)
+    .then(() => scrollTargetIntoView(...))
+    .then(() => waitForStableRect(step.domId))
+    .then(() => {
+      if (transitionGenerationRef.current !== generation) return
+      resolveAllRefs(); setStepIndex(newIndex); setOpen(true); setIsTransitioning(false)
+    })
+}, [activeSteps, resolveAllRefs])
+```
+
+Four things are load-bearing:
+
+1. **Prepare, then wait for the DOM.** `onEnter` may mount a section that did not exist a frame ago. Committing the index before the target exists positions the popup against nothing.
+2. **`waitForStableRect`.** The target can exist but still be moving (a collapsible animating open). Coachmark positions against a settled rectangle only.
+3. **Generation guard.** `Next` clicked twice, or Coachmark's own internal transition firing mid-chain, would otherwise let a stale chain commit its index after a newer one. Only the chain whose generation is still current commits.
+4. **Return what the step borrowed.** The Library modal covers the panel, so every other step must start with it closed. Coverage footprints are the same kind of loan — drawn for one step and otherwise left on the map, and in the link, for the rest of the visit. Both are cleared here, on entering any step that is not their own.
+
+<Callout type="warn">
+If you add a step that turns something global on — an overlay, a modal, a drawn layer — add the matching "clear unless this is that step" line here. There is no `onLeave`; this is the leave hook.
+</Callout>
+
+## The state snapshot
+
+A visitor's own configuration must survive the tour. `start()` snapshots before the first step runs; `closeAndRestore()` puts it back on Finish **and** on abandon.
+
+```ts
+snapshotRef.current = {
+  isSidebarOpen, sectionOpen, macroGroupOpen, hillshadeXYPadOpen,
+  taAdvanced, rvAdvanced, colorizeMapBorders, comparisonMixAdvancedOpen,
+  coverageOverlays,
+  stateFields: Object.fromEntries(TOUR_STATE_KEYS.map((k) => [k, a.state[k]])),
+}
+```
+
+`TOUR_STATE_KEYS` is the list of every nuqs `state` key any `onEnter` ever writes — including fields `switchAppMode`'s own historical-mode nudge touches internally. It is restored verbatim regardless of which branch was actually visited, so the restore cannot depend on the path taken.
+
+**If you write a new state key from a prepare function, add it to `TOUR_STATE_KEYS`.** Nothing enforces it, and the failure mode is silent: the visitor's setting is quietly replaced by the tour's.
+
+The tour deliberately **never moves the camera**. A shared link's viewport survives it untouched.
+
+## Auto-start
+
+The tour starts by itself once, on a first visit, flipping `hasSeenTour` immediately so a reload cannot re-trigger it. It is suppressed when the arrival URL carries **any** parameter:
+
+```ts
+const params = new URLSearchParams(window.location.search)
+params.delete("startTour")
+arrivedWithParamsRef.current = [...params.keys()].length > 0
+```
+
+Someone who followed a shared link came for that view, not for a tour. `hasSeenTour` is deliberately left alone in that case, so they still get the walkthrough on a later bare visit. `?startTour=true` always forces it, parameters or not, and does not require a first visit.
+
+## The spotlight-dismiss problem
+
+Coachmark's spotlight cutout lets clicks reach the live control underneath — that is the entire point. But that control is part of the app's own DOM, not the popover's, so Base UI's dismiss-on-outside-press logic cannot tell it apart from clicking anywhere else, and closes the tour.
+
+The mitigation has two layers:
+
+- **Containment.** A press inside the current step's target element, or inside some other portaled popup it opened (`PORTAL_CONTENT_SELECTOR` — a Select or colour-picker listbox renders to `document.body`, a *sibling* of the target, not a descendant), counts as "interacting with the lesson".
+- **A time window.** `lastLiveInteractionAtRef` is kept warm by a passive capture-phase listener on `pointerdown`, `focusin` and `click`. A dismiss within 1500 ms of a press inside our territory is treated as part of that same interaction. This catches the cases containment cannot — picking a Select item closes the listbox first, so by the time the outside-press check runs there may be nothing left to match.
+
+<Callout>
+This is a mitigation, not a fix. Coachmark sets its internal `presentedOpen` to false **synchronously** before our callback runs, so even when we decline to close, it has to notice the mismatch and re-run its open sequence — briefly visible as a flicker rather than a clean no-op. A real fix means patching coachmark's dismiss wiring, which its public props do not expose.
+</Callout>
+
+## Two positioning details
+
+**Full-screen steps.** The map-viewport and branch-choice steps have no real element to anchor to — they target a 1 px invisible fixed anchor. floating-ui positions off that single point as an *edge*, not a centre, and a post-hoc CSS shift does not survive its collision-avoidance pass. Those steps override placement entirely with `!fixed !inset-4 !m-auto !h-fit !w-fit !transform-none`, the classic trick for centring a fixed element of unknown size, plus a `max-h` so a long popup scrolls instead of overflowing.
+
+**Scroll ownership.** Coachmark's own `scrollIntoView` stays enabled globally. Disabling it was tried twice and each time reproduced a stale-anchor regression on the Hypsometric step. Our `scrollTargetIntoView` runs first and completes synchronously, so it always wins the race; Coachmark then finds nothing to do. Only steps whose `scrollTargetId` deliberately redirects our scroll elsewhere opt out per-step.
+
+## Keyboard
+
+`←` / `→` look up the **rendered** Back/Next button (`[data-tour-nav]`) and click it, rather than re-deriving what Next should do. That way the last-step Finish, the disabled first-step Back and the branch buttons can never drift out of sync with the click path. Ignored while typing in an input, textarea, select or contenteditable.
+
+`Coachmark.Next`'s built-in last-step shortcut is bypassed for the same reason — the final step renders a `Coachmark.Close` instead, so finishing and abandoning both route through `closeAndRestore` and are told apart on the analytics side by step vs steps.

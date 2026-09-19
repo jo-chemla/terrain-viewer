@@ -103,3 +103,13 @@ The algorithm is ported from Iconem/historical-satellite's standalone [histogram
 
 </Accordion>
 </Accordions>
+
+## Telling the views apart
+
+Match Colors makes the panes agree; these make them distinguishable again. Both live under Compare and Blend → **Advanced**, and both are off by default.
+
+- **Colorize map borders** outlines each active pane in its own side colour. Purely cosmetic, and genuinely useful once you are past two panes — in a 2×2 grid, "which one was C?" stops being a question, and it pairs with the view letter each date pill already carries.
+- **Inset** (the default) draws that border 3 px in from the pane edge, so it reads as a frame. Turning it off puts the border flush against the edge and doubles its stroke width, so a flush border does not read as thinner or weaker than an inset one.
+- Each side's colour can be **overridden individually**, from the same Advanced block. The override is shared between a pane's border and its timeline pill, so the two never disagree about what colour view C is.
+
+These are local preferences (`colorizeMapBorders`, `colorizeMapBordersInset`, `sideColorOverrides`), not part of the shared link — a link carries what the views *show*, not how you chose to frame them. Like the other pane chrome they are **excluded from [snapshots](/features/export-and-share)**, so a composite never comes out with a stray coloured frame around each tile.
