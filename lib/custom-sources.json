@@ -86,6 +86,16 @@
             "infoUrl": "https://www.swisstopo.admin.ch/en/height-model-swissaltiregio"
         },
         {
+            "id": "custom-ch-swisstopo-terrain3d-qm",
+            "name": "CHE - swisstopo Terrain 3D (quantized mesh, keyless)",
+            "url": "3d.geo.admin.ch/ch.swisstopo.terrain.3d/v1/20250101",
+            "type": "quantized-mesh",
+            "maxzoom": 18,
+            "bounds": [5.9, 45.8, 10.5, 47.8],
+            "description": "swisstopo's own Cesium terrain, and the one open quantized-mesh service worth having: no token, CORS open, and measured down to level 18 over the Matterhorn where Cesium World Terrain runs out around 13-14. Built from swissALTI3D, so it is the same lineage as the swissALTI Regio COG in this library but as a TIN. The mesh is rasterised per tile in the browser (see /dev/quantized-mesh-protocol). Heights are ELLIPSOIDAL, as the quantized-mesh format requires - roughly +38 m against an orthometric reference on a coarse check, consistent with the ~49 m Swiss geoid separation - so absolute values read high while shape and shading are right. MapLibre's own 3D-terrain example uses this same endpoint.",
+            "infoUrl": "https://www.swisstopo.admin.ch/en/height-model-swissalti3d"
+        },
+        {
             "id": "custom-cz-cuzk-dmp05",
             "name": "CZE - CUZK DMP 0.5m (surface) - ImageServer raw Float32",
             "url": "ags.cuzk.gov.cz/arcgis2/rest/services/dmp/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=514,514&format=tiff&pixelType=F32&noData=-9999&noDataInterpretation=esriNoDataMatchAny&f=image",
@@ -489,15 +499,6 @@
             "maxzoom": 16,
             "description": "The land-only variant of the Esri blend that ships as the built-in \"Esri World Elevation\" source: identical on land, but the ocean reads a flat 0 m instead of the seafloor. Worth choosing when a coastline should be a hard edge - a hypsometric ramp keyed to land relief is wrecked by a -7000 m trench sharing its range. Verified ORTHOMETRIC, not ellipsoidal: six points across an Innsbruck tile average -0.6 m against a reference DEM (spread 18 m, which is terrain sampling noise between two models in steep ground), so unlike ArcticDEM/REMA it needs no geoid correction. Ocean reads a flat 0 m; use the TopoBathy entry for real bathymetry. Real data to z16-17 worldwide (the service declares LOD 16); beyond that every pixel comes back masked, which lerc:// writes as flat 0 m with alpha 254 rather than a pit. NOTE the service's exportImage endpoint is useless anonymously - it only ever answers from a ~2.5 km overview (WorldDTM_OV256), rendering an alpine valley as a smooth ramp even with an explicit fine pixelSize. The /tile pyramid is the only anonymous route to real resolution. LICENCE: this is an Esri ArcGIS service. It answers without a token and with CORS open, but Esri's Terms of Use contemplate use with ArcGIS products; consuming it from a non-Esri client is not clearly granted. Check before relying on it in anything published.",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=7029fb60158543ad845c7e1527af11e4"
-        },
-        {
-            "id": "custom-global-cesium-world-terrain",
-            "name": "Global - Cesium World Terrain (quantized mesh, ellipsoidal) - needs an ion token",
-            "url": "ion/1",
-            "type": "quantized-mesh",
-            "maxzoom": 16,
-            "description": "Cesium ion asset 1, the terrain CesiumJS uses by default, consumed here as an ordinary raster-dem source: the quantized-mesh TIN is rasterised tile by tile in the browser (see /dev/quantized-mesh-protocol), so every viz mode and 3D terrain treat it like any other DEM. REQUIRES a Cesium ion access token in Settings -> API Keys: every ion asset answers 401 without one. Heights are ELLIPSOIDAL, like ArcticDEM and REMA and unlike the Esri LERC sources: measured +48.1 m mean against an orthometric reference across six points near Innsbruck, which is the alpine geoid separation, so summits read about 50 m high in the Alps. Native tiling is geographic (EPSG:4326, TMS) to level 15, which the protocol maps onto Web Mercator tiles itself. Attribution per the ion endpoint's own attributions list; check your ion plan's terms before publishing.",
-            "infoUrl": "https://cesium.com/platform/cesium-ion/content/cesium-world-terrain/"
         },
         {
             "id": "custom-sam-anadem",

@@ -20,6 +20,8 @@ yarn-error.log*
 
 # env files
 .env*
+# ...but the documented template is tracked, so the variable list is discoverable
+!.env.example
 
 # vercel
 .vercel

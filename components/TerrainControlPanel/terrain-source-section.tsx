@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback, useRef, useEffect, useMemo } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ChevronDown, Plus, Edit, Library, RotateCcw, Lightbulb } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   isByodOpenAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
-  titilerEndpointAtom, useCogProtocolVsTitilerAtom, mapboxKeyAtom, maptilerKeyAtom,
+  titilerEndpointAtom, useCogProtocolVsTitilerAtom, mapboxKeyAtom, maptilerKeyAtom, cesiumIonKeyAtom,
   type CustomTerrainSource, terrainLibraryOpenAtom, customTerrainLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { terrainSources } from "@/lib/terrain-sources"
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
@@ -68,6 +68,7 @@ export const TerrainSourceSection: React.FC<{
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [useCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
   const [mapboxKey] = useAtom(mapboxKeyAtom)
+  const [cesiumIonKey] = useAtom(cesiumIonKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
 
   // Mapbox/MapTiler terrain need a real access token/key (see getTilesUrl's
@@ -77,9 +78,19 @@ export const TerrainSourceSection: React.FC<{
   const visibleTerrainSources = useMemo(
     () => Object.entries(terrainSources).filter(([key]) => (
       (key !== "mapbox" || !!mapboxKey) && (key !== "maptiler" || !!maptilerKey)
+      // Every Cesium ion asset is 401 without a token, so the entry would just
+      // be a broken row until one is set - same gating as the two above.
+      && (key !== "cesium" || !!cesiumIonKey)
     )),
-    [mapboxKey, maptilerKey],
+    [mapboxKey, maptilerKey, cesiumIonKey],
   )
+
+  // Derived sources are a different kind of thing from a dataset you loaded -
+  // they are two of your OWN sources subtracted (see /features/ndsm-and-comparison)
+  // - and they read as clutter mixed into the same flat list. Pulled out under
+  // their own heading, which only appears when there is at least one.
+  const plainTerrainSources = useMemo(() => customTerrainSources.filter((s) => s.type !== "dem-diff"), [customTerrainSources])
+  const ndsmTerrainSources = useMemo(() => customTerrainSources.filter((s) => s.type === "dem-diff"), [customTerrainSources])
 
   const linkCallback = useCallback((link: string) => () => window.open(templateLink(link, state.lat, state.lng), "_blank"), [state.lat, state.lng])
 
@@ -355,24 +366,34 @@ export const TerrainSourceSection: React.FC<{
             {customTerrainSources.length > 0 && (
               state.splitStyle !== "off" ? (
                 <div className="space-y-1.5">
-                  {customTerrainSources.map((source) => (
-                    <div key={source.id} className="flex items-center gap-2 min-w-0">
-                      <SourceGridToggle
-                        gridLayout={effectiveGridLayout}
-                        isActive={(side) => state[sourceFieldName(side)] === source.id}
-                        onSelect={(side) => selectTerrainSide(side, source.id)}
-                      />
-                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, linkedSourceName: linkedBasemapName(source) }} />
-                    </div>
+                  {[...plainTerrainSources, ...ndsmTerrainSources].map((source, i) => (
+                    <Fragment key={source.id}>
+                      {i === plainTerrainSources.length && ndsmTerrainSources.length > 0 && (
+                        <GroupHeading>nDSM and Comparison</GroupHeading>
+                      )}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <SourceGridToggle
+                          gridLayout={effectiveGridLayout}
+                          isActive={(side) => state[sourceFieldName(side)] === source.id}
+                          onSelect={(side) => selectTerrainSide(side, source.id)}
+                        />
+                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, linkedSourceName: linkedBasemapName(source) }} />
+                      </div>
+                    </Fragment>
                   ))}
                 </div>
               ) : (
                 <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">
-                  {customTerrainSources.map((source) => (
-                    <div key={source.id} className="flex items-center gap-2 min-w-0">
-                      <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
-                      <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
-                    </div>
+                  {[...plainTerrainSources, ...ndsmTerrainSources].map((source, i) => (
+                    <Fragment key={source.id}>
+                      {i === plainTerrainSources.length && ndsmTerrainSources.length > 0 && (
+                        <GroupHeading>nDSM and Comparison</GroupHeading>
+                      )}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
+                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
+                      </div>
+                    </Fragment>
                   ))}
                 </RadioGroup>
               )

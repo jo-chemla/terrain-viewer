@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react"
 import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, Search, Library, type LucideIcon } from "lucide-react"
 import { STAC_PRESETS } from "@/lib/stac-presets"
-import { useAtom } from "jotai"
-import { disabledStacPresetsAtom } from "@/lib/settings-atoms"
+import { useAtom, useAtomValue } from "jotai"
+import { disabledStacPresetsAtom, savedStacCatalogsAtom } from "@/lib/settings-atoms"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -194,10 +194,16 @@ export function SampleSourcesModal<T extends SampleLike>({
   // anyway is the point - this dialog is where you look for data, and having to
   // know that per-scene DEMs live behind a tab of a different dialog is a
   // discoverability failure. The row hands you off instead of adding.
+  const savedCatalogs = useAtomValue(savedStacCatalogsAtom)
   const catalogues = useMemo(
-    () => (!stacTarget ? [] : STAC_PRESETS.filter((p) => (p.target === "both" || p.target === stacTarget)
+    () => (!stacTarget ? [] : [
+      ...STAC_PRESETS,
+      // Catalogues the visitor pasted into the search and kept. Same rows, same
+      // Browse, same on/off - the only difference is where they came from.
+      ...savedCatalogs.map((c) => ({ ...c, group: "Yours" as const, note: "Added by you." })),
+    ].filter((p) => (p.target === "both" || p.target === stacTarget)
       && (!q || `${p.name} ${p.group} ${p.note ?? ""}`.toLowerCase().includes(q)))),
-    [stacTarget, q],
+    [stacTarget, q, savedCatalogs],
   )
 
   const loadAllSet = samples.filter((s) => s.loadWithSamples !== false)

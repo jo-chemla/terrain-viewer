@@ -12,7 +12,8 @@ export interface StacPreset {
   kind: "api" | "static" | "discovery"
   /** Which modal offers it: imagery-only catalogues are pointless for terrain. */
   target: "basemap" | "terrain" | "both"
-  group: "Imagery" | "Elevation" | "Mixed" | "Registries"
+  /** "Yours" is reserved for catalogues the visitor saved themselves. */
+  group: "Imagery" | "Elevation" | "Mixed" | "Registries" | "Yours"
   note?: string
 }
 

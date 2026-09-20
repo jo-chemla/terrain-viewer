@@ -73,6 +73,21 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
       encoding: "terrarium",
     },
   },
+  cesium: {
+    name: "Cesium World Terrain - quantized mesh",
+    link: "https://cesium.com/platform/cesium-ion/content/cesium-world-terrain/",
+    description: "Cesium ion asset 1, the terrain CesiumJS uses by default, consumed as an ordinary elevation source: the quantized-mesh TIN is rasterised per tile in the browser (see /dev/quantized-mesh-protocol). Heights are ELLIPSOIDAL - measured +48.1 m against an orthometric reference near Innsbruck, the alpine geoid separation - so summits read about 50 m high. Hidden until a Cesium ion token is set in Settings, since every ion asset is 401 without one.",
+    encoding: "terrarium",
+    sourceConfig: {
+      type: "raster-dem",
+      // The account token is NOT templated in: it lives in the protocol module
+      // (a protocol URL is also the tile cache's key). See setCesiumIonToken.
+      tiles: ["quantized-mesh://ion/1/{z}/{x}/{y}"],
+      tileSize: 256,
+      maxzoom: 16,
+      encoding: "terrarium",
+    },
+  },
   // mapzen: {
   //   name: "Mapzen Terrarium (also on AWS, discontinued on mapzen)",
   //   link: "https://www.mapzen.com/blog/terrain-tile-service/",

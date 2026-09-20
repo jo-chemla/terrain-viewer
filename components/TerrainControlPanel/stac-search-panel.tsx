@@ -2,8 +2,8 @@ import type React from "react"
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { STAC_PRESETS, remembered, type StacPreset } from "@/lib/stac-presets"
-import { useAtomValue } from "jotai"
-import { disabledStacPresetsAtom } from "@/lib/settings-atoms"
+import { useAtomValue, useAtom } from "jotai"
+import { disabledStacPresetsAtom, savedStacCatalogsAtom, type SavedStacCatalog } from "@/lib/settings-atoms"
 import { Search, Plus, Check, Loader2, ExternalLink, CalendarDays } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -188,12 +188,14 @@ export const StacSearchPanel: React.FC<{
   // from a Browse click (or reopening on a stale selection) cannot leave the
   // picker pointing at nothing.
   const disabledStac = useAtomValue(disabledStacPresetsAtom)
+  const [savedCatalogs, setSavedCatalogs] = useAtom(savedStacCatalogsAtom)
   const presets = useMemo(() => {
     const off = new Set(disabledStac)
-    const kept = STAC_PRESETS.filter((p) => (p.target === "both" || p.target === target)
+    const all = [...STAC_PRESETS, ...savedCatalogs.map((c) => ({ ...c, group: "Yours" as const, note: "Added by you." }))]
+    const kept = all.filter((p) => (p.target === "both" || p.target === target)
       && (!off.has(p.id) || p.id === remembered[target]?.presetId))
-    return kept.length ? kept : STAC_PRESETS.filter((p) => p.target === "both" || p.target === target)
-  }, [target, disabledStac])
+    return kept.length ? kept : all.filter((p) => p.target === "both" || p.target === target)
+  }, [target, disabledStac, savedCatalogs])
   const prev = remembered[target]
   const [presetId, setPresetId] = useState(prev?.presetId ?? presets[0].id)
   const [customUrl, setCustomUrl] = useState(prev?.customUrl ?? "")
@@ -375,7 +377,30 @@ export const StacSearchPanel: React.FC<{
         </SelectContent>
       </Select>
       {presetId === "custom" && (
-        <Input placeholder="https://…/v1 (API) or https://…/catalog.json (static)" value={customUrl} onChange={(e) => setCustomUrl(e.target.value)} className="cursor-text" />
+        <div className="flex items-center gap-2">
+          <Input placeholder="https://…/v1 (API) or https://…/catalog.json (static)" value={customUrl} onChange={(e) => setCustomUrl(e.target.value)} className="cursor-text" />
+          <Button
+            variant="secondary"
+            size="sm"
+            className="cursor-pointer shrink-0"
+            disabled={!customUrl.trim() || savedCatalogs.some((c) => c.url === trimSlash(customUrl.trim()))}
+            title="Remember this catalogue — it joins this list and the Library's Catalogues section"
+            onClick={() => {
+              const url = trimSlash(customUrl.trim())
+              const entry: SavedStacCatalog = {
+                id: `saved:${url}`,
+                name: (() => { try { return new URL(url).host } catch { return url } })(),
+                url,
+                kind: /\.json($|\?)/i.test(url) ? "static" : "api",
+                target: "both",
+              }
+              setSavedCatalogs((prev) => prev.some((c) => c.url === url) ? prev : [...prev, entry])
+              setPresetId(entry.id)
+            }}
+          >
+            Save
+          </Button>
+        </div>
       )}
       {catalog.note && <p className="text-[11px] text-muted-foreground">{catalog.note}</p>}
       {browserUrl && (

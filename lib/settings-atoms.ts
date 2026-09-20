@@ -64,6 +64,12 @@ export const cesiumDetailOffsetAtom = atomWithStorage("cesiumDetailOffset", 1)
 // section: stored as the exclusions rather than the inclusions so a preset
 // added in a later release is on by default instead of silently missing.
 export const disabledStacPresetsAtom = atomWithStorage<string[]>("disabledStacPresets", [])
+
+// Catalogue endpoints the visitor pasted into the STAC search. Kept so they
+// survive a reload and can be listed in the Library beside the shipped ones -
+// a URL typed once and lost on refresh is barely a feature.
+export interface SavedStacCatalog { id: string; name: string; url: string; kind: "api" | "static"; target: "basemap" | "terrain" | "both" }
+export const savedStacCatalogsAtom = atomWithStorage<SavedStacCatalog[]>("savedStacCatalogs", [])
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 
 /** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.
