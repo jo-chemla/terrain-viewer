@@ -62,7 +62,79 @@ Each triangle is then scan-converted over its pixel bounding box with barycentri
 The rasteriser is **not** the expensive part, which is worth knowing before anyone reaches for a GPU implementation. A tile at this size carries a few thousand triangles and scan-converts in single-digit milliseconds; what used to make this protocol take about a second per tile was the PNG encode every protocol ended with. See [Tile Caches](/dev/tile-caches#handing-tiles-to-maplibre). With that gone the protocol is network-bound.
 </Callout>
 
-A small negative tolerance (`-1e-6`) on the barycentric test keeps shared edges from leaving unwritten seams between adjacent triangles.
+### The scan-conversion, step by step
+
+The loop is short but every line of it is load-bearing, so here it is in full.
+
+**1. Project once, per vertex.** Before touching a triangle, all vertices are
+converted to the output tile's pixel space and cached in two `Float32Array`s.
+Doing this per triangle instead would repeat the work for every triangle a
+vertex belongs to — six on average in a TIN.
+
+**2. Signed area as the guard and the divisor.** For each triangle:
+
+```ts
+const area = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay)
+if (area === 0 || !Number.isFinite(area)) continue
+const inv = 1 / area
+```
+
+Twice the signed area. Zero means the three points are collinear — a
+degenerate triangle covers no pixels, and dividing by it would produce `NaN`
+weights that then fail the containment test in unpredictable ways. Its
+reciprocal is taken once and reused, because a division per pixel is
+meaningfully slower than a multiply.
+
+Note that the sign is *not* checked: back-facing triangles are rasterised
+too. A TIN has no consistent winding after projection, and discarding by
+winding would punch holes.
+
+**3. Bounding box, clipped to the tile.** Only pixels inside the triangle's
+own box are visited, clamped to the tile so a triangle straddling the edge
+costs nothing extra:
+
+```ts
+const x0 = Math.max(0, Math.floor(Math.min(ax, bx, cx)))
+const x1 = Math.min(TILE_SIZE - 1, Math.ceil(Math.max(ax, bx, cx)))
+```
+
+This is what keeps the cost proportional to *area covered* rather than
+triangles × pixels. A tile of a few thousand triangles scan-converts in single
+-digit milliseconds.
+
+**4. Barycentric weights at the pixel centre.** For each candidate pixel, the
+same cross-product form as the area, evaluated against `(col + 0.5, row + 0.5)`:
+
+```ts
+const w0 = ((bx - cxPix) * (cy - cyPix) - (cx - cxPix) * (by - cyPix)) * inv
+const w1 = ((cx - cxPix) * (ay - cyPix) - (ax - cxPix) * (cy - cyPix)) * inv
+const w2 = 1 - w0 - w1
+if (w0 < -1e-6 || w1 < -1e-6 || w2 < -1e-6) continue
+heights[i] = w0 * az + w1 * bz + w2 * cz
+```
+
+The **pixel centre**, not its corner, is what makes a pixel belong to exactly
+one triangle in the common case. `w2` is derived rather than computed, since
+the three weights sum to 1 by definition — one fewer cross product per pixel.
+
+All three non-negative means the point is inside. The weights are then the
+interpolation coefficients for free: a plane through three heights, evaluated
+at that pixel. That is what makes this linear interpolation across the
+triangle rather than nearest-vertex.
+
+**5. The `-1e-6` tolerance.** Two triangles sharing an edge produce weights
+that are exactly zero on that edge *in exact arithmetic*. In floating point
+one of them lands at `-1e-9` and neither claims the pixel, leaving a
+one-pixel unwritten seam along every shared edge — which a hillshade turns
+into a visible wireframe. The tolerance is large enough to absorb that error
+and small enough that a pixel genuinely outside a triangle is still rejected.
+The cost is that edge pixels may be written twice, by both neighbours; they
+agree to within rounding, so the second write is harmless.
+
+**6. `filled` is a separate array.** Height 0 is a perfectly valid elevation,
+so "was this pixel written" cannot be inferred from the height buffer. The
+parallel `Uint8Array` is what the hole pass reads afterwards to decide between
+a real 0 m and an untouched pixel.
 
 Pixels no triangle covered are **holes**: 0 m with alpha 254, the [app-wide convention](/dev/demdiff-protocol). A tile with no coverage at all throws a 404, which MapLibre treats as an ordinary absent tile.
 

@@ -3373,6 +3373,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "savedStacCatalogs",
+      "default": "[]",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "titilerEndpoint",
       "default": "\"https://titiler.xyz\"",
       "note": ""
