@@ -53,6 +53,12 @@ export const planetKeyAtom = atomWithStorage("planetKey", import.meta.env.VITE_P
 // short-lived per-asset tile token by lib/quantized-mesh-protocol.ts; neither
 // ever goes into a URL or a shared link.
 export const cesiumIonKeyAtom = atomWithStorage("cesiumIonKey", import.meta.env.VITE_CESIUM_ION_TOKEN ?? "")
+// Extra quantized-mesh levels to fetch per tile. A mesh is adaptively
+// tessellated, so matching the output tile's angular width leaves far fewer
+// vertices than pixels (measured: 436 for 65536 px, which is the visible
+// faceting). +1 is the first value that resolves real terrain, at 4 requests
+// per tile; each further step is 4x the requests. See lib/quantized-mesh-protocol.ts.
+export const cesiumDetailOffsetAtom = atomWithStorage("cesiumDetailOffset", 1)
 
 // STAC catalogues the visitor has switched OFF in the Library's Catalogues
 // section: stored as the exclusions rather than the inclusions so a preset

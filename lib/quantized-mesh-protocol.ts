@@ -39,6 +39,33 @@ const MAX_LAT = 85.051129
 /** Cesium World Terrain stops here; deeper requests just repeat the last level. */
 const DEFAULT_MAX_LEVEL = 15
 
+/**
+ * Extra geographic levels to fetch beyond the one whose tiles are the same
+ * angular width as the output tile.
+ *
+ * Matching the width is NOT enough, because a quantized mesh is adaptively
+ * tessellated: it carries however many vertices the terrain needed, not one
+ * per output pixel. Measured over Innsbruck, for one z13 output tile
+ * (256x256 = 65536 px):
+ *
+ *   offset 0  ->  1 source tile,   436 vertices  ->  150 px per vertex
+ *   offset +1 ->  4 source tiles, 6852 vertices  ->  9.6 px per vertex
+ *
+ * Offset 0 is what the first version shipped, and it is exactly the visible
+ * faceting it produced - big flat triangles beside a smooth LERC source. +1
+ * is the default because it is the first value that resolves real terrain,
+ * at 4 requests per tile. +2 is 16 requests for about 2.4 px per vertex,
+ * worth it only where the asset has data that deep: Cesium World Terrain runs
+ * out around level 13-14 in most places and 404s below that, which the
+ * coarser-fallback in the fetch loop absorbs. Negative values trade detail
+ * for fewer requests.
+ */
+const DEFAULT_DETAIL_OFFSET = 1
+let detailOffset = DEFAULT_DETAIL_OFFSET
+export function setQuantizedMeshDetailOffset(levels: number) {
+  detailOffset = Math.max(-3, Math.min(3, Math.round(levels)))
+}
+
 // --------------------------------------------------------------- mercator
 const lat2merc = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (Math.max(-MAX_LAT, Math.min(MAX_LAT, lat)) * Math.PI) / 360))
 const merc2lat = (y: number) => (2 * Math.atan(Math.exp(y)) - Math.PI / 2) * (180 / Math.PI)
@@ -196,24 +223,15 @@ export async function quantizedMeshProtocol(
   const out = mercTileBounds(z, x, y)
   const northY = lat2merc(out.north), southY = lat2merc(out.south)
 
-  // Geographic level whose tiles are the same angular width as this Mercator
-  // tile. In latitude a geographic tile is square in degrees while a Mercator
-  // one is shorter, so the output usually falls inside one source tile and
-  // sometimes straddles two.
-  const level = Math.max(0, Math.min(DEFAULT_MAX_LEVEL, z - 1))
-  const span = 360 / 2 ** (level + 1)
-  const colMin = Math.floor((out.west + 180) / span)
-  const colMax = Math.floor((out.east - 1e-9 + 180) / span)
-  const rowMin = Math.floor((out.south + 90) / span)
-  const rowMax = Math.floor((out.north - 1e-9 + 90) / span)
-
   const heights = new Float32Array(TILE_SIZE * TILE_SIZE)
   const filled = new Uint8Array(TILE_SIZE * TILE_SIZE)
 
-  const jobs: { col: number; row: number }[] = []
-  for (let col = colMin; col <= colMax; col++) for (let row = rowMin; row <= rowMax; row++) jobs.push({ col, row })
+  // z - 1 is the level whose tiles are the same angular WIDTH as this Mercator
+  // tile; detailOffset buys the tessellation that width alone does not (see
+  // DEFAULT_DETAIL_OFFSET).
+  const wantedLevel = Math.max(0, Math.min(DEFAULT_MAX_LEVEL, z - 1 + detailOffset))
 
-  const loadOne = async (col: number, row: number, retried = false): Promise<void> => {
+  const loadOne = async (level: number, col: number, row: number, retried = false): Promise<void> => {
     const url = `${base}${level}/${col}/${row}.terrain?v=1.2.0`
     let buf: ArrayBuffer | null
     try {
@@ -223,7 +241,7 @@ export async function quantizedMeshProtocol(
       if (e instanceof TokenExpired && ion && !retried) {
         const ep = await resolveIon(ion[1], ionAccountToken, true)
         base = ep.base; auth = ep.token
-        return loadOne(col, row, true)
+        return loadOne(level, col, row, true)
       }
       throw e
     }
@@ -238,8 +256,22 @@ export async function quantizedMeshProtocol(
     rasterise(mesh.attributes.POSITION.value, mesh.indices.value, { west: out.west, east: out.east, northY, southY }, heights, filled)
   }
 
-  await Promise.all(jobs.map(({ col, row }) => loadOne(col, row)))
-  if (abortController.signal.aborted) throw new Error("aborted")
+  // An asset's deepest levels exist only where it has data that fine;
+  // elsewhere every tile at that level 404s. Rather than render a hole, step
+  // back up a level at a time until something answers - the same fallback
+  // maplibre does itself for an ordinary tile pyramid.
+  for (let level = wantedLevel; level >= 0 && level >= wantedLevel - 4; level--) {
+    const span = 360 / 2 ** (level + 1)
+    const colMin = Math.floor((out.west + 180) / span)
+    const colMax = Math.floor((out.east - 1e-9 + 180) / span)
+    const rowMin = Math.floor((out.south + 90) / span)
+    const rowMax = Math.floor((out.north - 1e-9 + 90) / span)
+    const jobs: { col: number; row: number }[] = []
+    for (let col = colMin; col <= colMax; col++) for (let row = rowMin; row <= rowMax; row++) jobs.push({ col, row })
+    await Promise.all(jobs.map(({ col, row }) => loadOne(level, col, row)))
+    if (abortController.signal.aborted) throw new Error("aborted")
+    if (filled.some((v) => v)) break
+  }
   if (!filled.some((v) => v)) throw new TileNotFound(params.url)
 
   const rgba = new Uint8ClampedArray(TILE_SIZE * TILE_SIZE * 4)

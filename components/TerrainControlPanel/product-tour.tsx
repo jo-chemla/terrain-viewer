@@ -1301,8 +1301,13 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
         if (btn instanceof HTMLElement && !btn.hasAttribute("disabled")) { e.preventDefault(); btn.click() }
       }
     }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
+    // CAPTURE phase, deliberately. The Library step opens a dialog that stops
+    // keydown propagation before it reaches window, so a bubble-phase listener
+    // never ran there at all and Back/Next were dead for that whole step -
+    // measured, not guessed: the event simply never arrived. Capture runs
+    // top-down, before anything downstream can swallow it.
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
   }, [open])
 
   const buttonBase = "cursor-pointer"
