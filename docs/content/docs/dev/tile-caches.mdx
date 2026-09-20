@@ -9,7 +9,7 @@ Every custom protocol in this app sits on two caches, and one hard rule about bu
 
 | | `sharedTileCache` | `tileResultCache` |
 |---|---|---|
-| Holds | **decoded** upstream DEM tiles (float arrays + validity mask) | **finished** protocol output bytes (PNG or MVT) |
+| Holds | **decoded** upstream DEM tiles (float arrays + validity mask) | **finished** protocol output (an `ImageBitmap`, or MVT bytes) |
 | Keyed on | upstream tile URL + encoding | the full protocol URL |
 | Lives in | `lib/normal-derived-protocol.ts` | `lib/tile-result-cache.ts` |
 | Saves | the network fetch and the decode | the per-pixel computation |
@@ -21,9 +21,29 @@ They are complementary. `sharedTileCache` is why turning on Slope after Hillshad
 
 MapLibre releases a source's tiles when the layer using it goes `visibility: none` — which is what a sub-mode checkbox does — and when the source unmounts entirely, which is what the master viz-mode toggle does. Re-showing a mode therefore re-runs the whole per-pixel computation for every visible tile, even though the decoded upstream DEM is still sitting in `sharedTileCache`.
 
-No network, but measured **~1.2 s of recompute for LRM over a z13 viewport**. Caching the finished bytes makes re-toggling near-instant.
+No network, but measured **~1.2 s of recompute for LRM over a z13 viewport**. Caching the finished tile makes re-toggling near-instant.
 
 It is gated by **Cache computed viz-mode tiles** in [Settings](/features/settings) (`cacheVizTilesAtom`, synced through `setTileResultCacheEnabled`). Turning it off also frees everything already held — the point of turning it off is reclaiming memory, not merely stopping new inserts.
+
+## Handing tiles to maplibre
+
+Protocols return an **`ImageBitmap`**, not encoded bytes. maplibre supports this directly — its image request checks for one before falling back to decoding a buffer:
+
+```js
+if (response.data instanceof HTMLImageElement || isImageBitmap(response.data)) {
+    // User using addProtocol can directly return HTMLImageElement/ImageBitmap type
+    onSuccess(response);
+}
+```
+
+Every protocol used to finish with `OffscreenCanvas.convertToBlob({type: "image/png"})` instead, which was by far the most expensive thing any of them did — and entirely wasted, since maplibre decoded the PNG straight back to a bitmap. Measured over 15 runs on one 256×256 tile:
+
+| | median |
+|---|---|
+| `convertToBlob` → PNG | **99 ms** (about half the runs ~1000 ms) |
+| `createImageBitmap` | **0.1 ms** |
+
+End to end that took `quantized-mesh://` from ~1000 ms to 3–97 ms per tile and `lerc://` from ~1100 ms to 66–233 ms, both now bounded by the network rather than by us. `lib/tile-image.ts` is the shared tail; it keeps the PNG path as a fallback for environments without `createImageBitmap`.
 
 ## The rule: always clone before you store, always clone before you hand out
 
@@ -32,16 +52,19 @@ MapLibre **transfers** a protocol response's `ArrayBuffer` to its worker, which 
 - Handing out the cache's own retained buffer detaches *the cache's copy too*. The next hit on that key tries to transfer an already-detached buffer and throws `DataCloneError: ArrayBuffer ... already detached`.
 - Storing the same object you are about to return has the same problem from the other direction: the buffer you kept is dead before the first hit can use it.
 
-`withTileResultCache` therefore calls `.slice()` on both sides:
+A bitmap is the same story from the other end: maplibre may `close()` what it is given, so the cache keeps its **own** clone and hands out a further clone on every hit. Bitmaps are also sized as `width × height × 4` and `close()`d on eviction — their memory is invisible to the GC, so without that the 96 MB budget would be fiction.
+
+`withTileResultCache` therefore clones on both sides:
 
 ```ts
 const hit = lru.get(params.url)
 if (hit) {
-  lru.delete(params.url); lru.set(params.url, hit)  // refresh LRU recency
-  return { data: hit.slice() }                      // independent copy out
+  lru.delete(params.url); lru.set(params.url, hit)   // refresh LRU recency
+  return { data: isBitmap(hit) ? await createImageBitmap(hit) : hit.slice() }
 }
 const result = await inner(params, abortController)
-if (result?.data instanceof Uint8Array) put(params.url, result.data.slice())  // independent copy in
+if (result?.data instanceof Uint8Array) put(params.url, result.data.slice())
+else if (result?.data && isBitmap(result.data)) put(params.url, await createImageBitmap(result.data))
 return result
 ```
 

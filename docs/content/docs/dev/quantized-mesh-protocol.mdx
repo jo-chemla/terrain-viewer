@@ -58,6 +58,10 @@ py[v] = ((out.northY - lat2merc(lat)) / ySpan) * TILE_SIZE
 
 Each triangle is then scan-converted over its pixel bounding box with barycentric weights, interpolating height. Forward rasterisation is deliberate: the alternative — asking, per output pixel, which triangle contains it — is a point-in-TIN query over thousands of triangles, and would also have to do the projection per pixel instead of per vertex.
 
+<Callout>
+The rasteriser is **not** the expensive part, which is worth knowing before anyone reaches for a GPU implementation. A tile at this size carries a few thousand triangles and scan-converts in single-digit milliseconds; what used to make this protocol take about a second per tile was the PNG encode every protocol ended with. See [Tile Caches](/dev/tile-caches#handing-tiles-to-maplibre). With that gone the protocol is network-bound.
+</Callout>
+
 A small negative tolerance (`-1e-6`) on the barycentric test keeps shared edges from leaving unwritten seams between adjacent triangles.
 
 Pixels no triangle covered are **holes**: 0 m with alpha 254, the [app-wide convention](/dev/demdiff-protocol). A tile with no coverage at all throws a 404, which MapLibre treats as an ordinary absent tile.
@@ -67,7 +71,7 @@ Pixels no triangle covered are **holes**: 0 m with alpha 254, the [app-wide conv
 | | |
 |---|---|
 | asset | ion `1`, `layer.json` reports `quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326`, max level **15** |
-| a z13 output tile over Innsbruck | 0% holes, 614.3 – 2076.5 m, ~1.9 s cold |
+| a z13 output tile over Innsbruck | 0% holes, 614.3 – 2076.5 m, 3–97 ms warm |
 | **datum** | **ELLIPSOIDAL** |
 
 The datum is the finding worth carrying. Six points across one tile read **+48.1 m mean** against an orthometric reference (spread 22.8 m, which is sampling noise between two models in steep ground). That is the alpine geoid separation almost exactly — so Cesium World Terrain behaves like [ArcticDEM and REMA](/features/terrain-sources), and *unlike* the Esri LERC sources, which measured −0.6 m on the same points and are orthometric.
