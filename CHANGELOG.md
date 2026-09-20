@@ -1,3 +1,24 @@
+# Changelog — Esri & Cesium Global Terrain, Faster Tiles
+<!-- released: 2026-09-20 -->
+
+#### TL;DR
+- **Esri World Elevation** is now a built-in terrain source — land *and* seafloor as one continuous surface, so a hypsometric ramp reads across a coastline instead of stopping at it. The second built-in with real bathymetry. Keyless, orthometric, and streamed as LERC (Esri's float raster codec) decoded in the browser. A land-only twin, with the ocean flat at 0 m, is in the Library.
+- **Cesium World Terrain** joins the Library through a new quantized-mesh reader: the triangle mesh is rasterised per tile into an ordinary elevation source, so 3D terrain and every visualization mode treat it like any other DEM. Needs a Cesium ion token (Settings → API Keys); its heights are ellipsoidal, about +48 m in the Alps.
+- **Tiles render around 10× faster.** Every custom protocol now hands MapLibre an `ImageBitmap` instead of a PNG it immediately decoded again — 99 ms median down to 0.1 ms on the encode alone. This is not specific to the new sources: hillshade, LRM, SVF, the difference source and the WMS elevation services all got it.
+
+### Features
+- The **Library** lists catalogues beside datasets. **Browse** opens the catalogue search on that endpoint, and a **+/−** on each row decides whether the search offers it at all.
+- **Settings → API Keys** gains a Cesium ion token and a terrain-detail control for it.
+- Docs: new dev pages for [LERC](/docs/dev/lerc-protocol), [quantized mesh](/docs/dev/quantized-mesh-protocol), [derived terrain](/docs/dev/demdiff-protocol), [tile caches](/docs/dev/tile-caches), [PMTiles & COG contours](/docs/dev/vendored-protocols), [camera sync](/docs/dev/camera-sync), [map bounds](/docs/dev/map-bounds-and-underzoom), [the product tour](/docs/dev/product-tour) and [layer order](/docs/dev/layer-order), plus a [Settings](/docs/features/settings) page.
+
+### Fixes
+- A Library LERC or quantized-mesh source was decoded with the wrong encoding, reading 832 354 m in the elevation picker with the hillshade and hypsometric ramp wrecked to match.
+- Cesium terrain fetched one level too coarse, which showed as large flat facets: a mesh is adaptively tessellated, so matching the tile width alone left 436 vertices for 65 536 pixels.
+- Tour Back/Next arrow keys did nothing on the Library step — the dialog swallowed the keypress before the tour saw it.
+- The walkthrough no longer leaves its demonstration coverage footprints on the map.
+
+---
+
 # Changelog — Catalogue Search, Coverage Overlays & OSM Vector
 <!-- released: 2026-09-16 -->
 

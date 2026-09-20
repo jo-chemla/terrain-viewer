@@ -3361,6 +3361,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "cesiumDetailOffset",
+      "default": "1",
+      "note": "Extra quantized-mesh levels to fetch per tile."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "disabledStacPresets",
       "default": "[]",
       "note": "STAC catalogues the visitor has switched OFF in the Library's Catalogues section: stored as the exclusions rather than the inclusions so a preset added in a later release is on by default instead of …"

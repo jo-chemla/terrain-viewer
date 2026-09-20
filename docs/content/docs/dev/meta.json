@@ -23,6 +23,7 @@
     "camera-sync",
     "map-bounds-and-underzoom",
     "product-tour",
+    "layer-order",
     "---Historical---",
     "esri-wayback",
     "ge-historical"

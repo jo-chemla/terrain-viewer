@@ -1,0 +1,67 @@
+---
+title: Layer Order and Slots
+description: Why every layer is inserted beforeId an invisible placeholder, and the order those placeholders are in
+---
+
+Up to two dozen layers can be on the map at once — a basemap, overlays, a hypsometric tint, a dozen terrain-analysis modes, hillshade, matcap, Phong, cast shadows, contours, the plane slicer. They have a **required draw order**, and most of them come and go as you toggle modes.
+
+MapLibre has no concept of a layer's "place": `addLayer(layer, beforeId)` inserts relative to a layer that must **already exist**. So the obvious approach — insert each layer before whichever one happens to be above it — fails the moment the layer above is switched off. The reference disappears, the insert falls back to the top of the stack, and the order silently scrambles depending on the sequence you happened to toggle things in.
+
+## The fix: pre-attached empty slots
+
+`LayerOrderSlots` (`components/LayersAndSources/MapLayers.tsx`) renders **one invisible `background` layer per slot**, once, always, in the intended order:
+
+```tsx
+<Layer id={LAYER_SLOTS.BASEMAP} type="background" paint={{ "background-opacity": 0 }} />
+```
+
+A `background` layer at zero opacity draws nothing and costs nothing measurable, but it **exists**, permanently, at a known position. Every real layer then inserts against its own slot:
+
+```tsx
+<Layer beforeId={LAYER_SLOTS.HILLSHADE} id="hillshade-layer" type="hillshade" … />
+```
+
+The reference can never be missing, so the order is stable no matter which modes are on, what order they were enabled in, or how many times they have been toggled. A layer that is off is simply `visibility: "none"` — or unmounted — and its slot holds the gap.
+
+<Callout>
+This is the same trick as a CSS `order` index or a sentinel node in a linked list: rather than ordering the things themselves, order a set of fixed anchors and attach to those.
+</Callout>
+
+## The order
+
+Bottom of the stack first — later entries draw **on top**:
+
+| # | Slot | What lands there |
+|---|---|---|
+| 1 | `BACKGROUND` | the flat background colour |
+| 2 | `BASEMAP` | the raster basemap / historical imagery |
+| 3 | `OVERLAYS` | overlay-role sources stacked on the basemap |
+| 4 | `COLOR_RELIEF` | hypsometric tint |
+| 5–18 | `SLOPE` · `ASPECT` · `TRI` · `CURVATURE` · `TPI` · `LRM` · `ROUGHNESS` · `SHAPE_INDEX` · `BLOBNESS` · `EIGEN_RATIO` · `ORIENTATION` · `SVF` · `OPENNESS` · `LOCAL_DOMINANCE` | the terrain-analysis and relief-visualization modes |
+| 19 | `HILLSHADE` | hillshade |
+| 20 | `MATCAP` | matcap shading |
+| 21 | `PHONG` | Phong shading |
+| 22 | `SHADOWS` | cast shadows |
+| 23 | `CONTOURS` | contour lines and graticules |
+| 24 | `TELLS` | mound-candidate detection |
+| 25 | `PLANE_SLICER` | the elevation-threshold plane |
+
+The reasoning behind the grouping:
+
+- **Imagery at the bottom.** Everything else is an interpretation *of* the terrain and should be able to shade what is underneath it.
+- **Hypsometric tint below the analysis modes**, because it is a colour wash that the modes' own colour ramps need to sit over rather than under.
+- **Analysis modes as one block**, all mutually exclusive in practice, so their relative order rarely matters — but fixing it means a screenshot is reproducible when two *are* on together.
+- **Shading above colour** (hillshade, matcap, Phong, shadows). These are multiply-style luminance layers; their whole job is to darken whatever colour has accumulated below. Put them underneath and they get painted over.
+- **Line work above shading** (contours, graticules). A contour line has to stay readable over the darkest hillshade.
+- **Tells and the plane slicer last**, because they are analytical call-outs — you want them visible over everything, not blended into it.
+
+## Rules when adding a layer
+
+1. **Add a slot** to `LAYER_SLOTS` and a corresponding `<Layer>` in `LayerOrderSlots`, in the position you want. Do not reuse a neighbour's slot: the neighbour may be unmounted.
+2. **Always pass `beforeId`.** A layer without one goes on top of everything, which looks right exactly until someone enables a second mode.
+3. **Prefer `visibility: "none"` to unmounting** for a layer that toggles often — it keeps MapLibre's tile cache for that source. See [Tile Caches](/dev/tile-caches) for what unmounting actually costs.
+4. **`<Layer source>` is immutable.** react-map-gl ignores runtime changes to the `source` prop; key the element to force a remount when the source changes.
+
+## The one case that needs more
+
+`geogrid-maplibre-gl` (graticules) inserts its own layers itself rather than through react-map-gl, and it does so `beforeId` the `CONTOURS` slot. On a fresh style the slot may not exist yet at the moment it runs, so `GraticuleLayer` checks for it and defers until it is there. Any third-party plugin that adds layers directly needs the same guard — the slot is a promise this app keeps, not one MapLibre enforces.
