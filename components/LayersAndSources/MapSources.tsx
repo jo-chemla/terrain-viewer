@@ -4,7 +4,7 @@ import { Source } from "react-map-gl/maplibre"
 import { useAtom, useAtomValue } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
-import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
+import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
 import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { probeMaxZoomAt } from "@/lib/tile-max-zoom"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
@@ -15,6 +15,7 @@ import { resolveNodata, isSentinel } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
 import { buildDemDiffUrl } from "@/lib/demdiff-protocol"
+import { withQuantizedMeshDetail } from "@/lib/quantized-mesh-protocol"
 import { buildAspectProtocolUrl } from "@/lib/aspect-protocol"
 import { buildTriProtocolUrl } from "@/lib/tri-protocol"
 import { buildCurvatureProtocolUrl, type CurvatureMode } from "@/lib/curvature-protocol"
@@ -162,6 +163,7 @@ export const TerrainSources = memo(({
     lng: number
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
+    const cesiumDetailOffset = useAtomValue(cesiumDetailOffsetAtom)
     const [highResTerrain] = useAtom(highResTerrainAtom)
     // Unused directly — read so this component re-renders when a local COG file
     // is (re-)picked (see custom-source-details.tsx's "Re-select file…" flow).
@@ -297,7 +299,7 @@ export const TerrainSources = memo(({
                 maxzoom,
                 encoding: customEncoding ? 'custom' : encoding,
                 ...(customEncoding ?? {}),
-                ...built,
+                ...("tiles" in built ? { ...built, tiles: built.tiles.map((t) => withQuantizedMeshDetail(t, cesiumDetailOffset)) } : built),
             }
         }
 
@@ -306,7 +308,10 @@ export const TerrainSources = memo(({
         if (!base) return null
         return {
             ...base.sourceConfig,
-            tiles: [builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey)],
+            // The Cesium built-in is a quantized-mesh template; stamping the
+            // detail offset into it is what makes changing that setting
+            // actually refetch - the URL is maplibre's own dedupe key.
+            tiles: [withQuantizedMeshDetail(builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey), cesiumDetailOffset)],
         }
     }, [diffUpstream, customSource, source, useCogProtocolForSource, titilerEndpoint, highResTerrain, effectiveMinzoom, maxzoom, isCogProtocol, isCogLocal, resolvedCogUrl, isTilejson, tilejsonMetadata, mapboxKey, maptilerKey, metadata])
 
@@ -422,6 +427,7 @@ export const RasterBasemapSource = memo(({
     onZoomRangeChange?: (range: { minzoom: number; maxzoom: number; isCustom: boolean }) => void
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
+    const cesiumDetailOffset = useAtomValue(cesiumDetailOffsetAtom)
     // Unused directly — read so this component re-renders when a local COG file
     // is (re-)picked (see custom-source-details.tsx's "Re-select file…" flow).
     useAtomValue(localFileVersionAtom)
@@ -574,6 +580,7 @@ export const OverlayBasemapSources = memo(({
     titilerEndpoint: string
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
+    const cesiumDetailOffset = useAtomValue(cesiumDetailOffsetAtom)
     // Unused directly — read so this component re-renders when a local COG file
     // is (re-)picked (see custom-source-details.tsx's "Re-select file…" flow).
     useAtomValue(localFileVersionAtom)
@@ -704,6 +711,7 @@ export const useClientDemUpstream = (
     _nested = false,
 ): ClientDemUpstream | null => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
+    const cesiumDetailOffset = useAtomValue(cesiumDetailOffsetAtom)
     const [highResTerrain] = useAtom(highResTerrainAtom)
     // A "dem-diff" source is the difference of two other sources' tiles (see
     // lib/demdiff-protocol.ts): resolve both operands with this same hook and
@@ -863,7 +871,7 @@ export const useClientDemUpstream = (
         // DSM at maxzoom 19); without it the difference source inherited the
         // other operand's ceiling and stopped requesting tiles too early.
         return {
-            template: built.tiles[0], encoding, tileSize: 256,
+            template: withQuantizedMeshDetail(built.tiles[0], cesiumDetailOffset), encoding, tileSize: 256,
             ...(customSource.minzoom !== undefined ? { minzoom: customSource.minzoom } : {}),
             ...(customSource.maxzoom !== undefined ? { maxzoom: customSource.maxzoom } : {}),
         }

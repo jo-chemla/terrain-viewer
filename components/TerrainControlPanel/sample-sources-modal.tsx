@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, Search, Library, type LucideIcon } from "lucide-react"
 import { STAC_PRESETS } from "@/lib/stac-presets"
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom } from "jotai"
 import { disabledStacPresetsAtom, savedStacCatalogsAtom } from "@/lib/settings-atoms"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -194,7 +194,21 @@ export function SampleSourcesModal<T extends SampleLike>({
   // anyway is the point - this dialog is where you look for data, and having to
   // know that per-scene DEMs live behind a tab of a different dialog is a
   // discoverability failure. The row hands you off instead of adding.
-  const savedCatalogs = useAtomValue(savedStacCatalogsAtom)
+  const [savedCatalogs, setSavedCatalogs] = useAtom(savedStacCatalogsAtom)
+  const [newCatalogUrl, setNewCatalogUrl] = useState("")
+  const addCatalogue = () => {
+    const url = newCatalogUrl.trim().replace(/\/+$/, "")
+    if (!url) return
+    setSavedCatalogs((prev) => prev.some((c) => c.url === url) ? prev : [...prev, {
+      id: `saved:${url}`,
+      name: (() => { try { return new URL(url).host } catch { return url } })(),
+      url,
+      // A .json path is a static catalog to crawl; anything else is an API root.
+      kind: /\.json($|\?)/i.test(url) ? "static" : "api",
+      target: "both",
+    }])
+    setNewCatalogUrl("")
+  }
   const catalogues = useMemo(
     () => (!stacTarget ? [] : [
       ...STAC_PRESETS,
@@ -421,6 +435,26 @@ export function SampleSourcesModal<T extends SampleLike>({
                   is offered in that search&rsquo;s own picker at all, so a list you never use can be trimmed down.
                 </p>
                 <div className="pl-2 divide-y divide-border/50">
+                  {/* Adding one here rather than only from inside the search:
+                      the Library is where you go looking for data, so "I have a
+                      catalogue URL" belongs in the same place as "I want one of
+                      yours". */}
+                  <div className="flex items-center gap-2 py-1">
+                    <Input
+                      value={newCatalogUrl}
+                      onChange={(e) => setNewCatalogUrl(e.target.value)}
+                      placeholder="Add a catalogue: https://…/v1 or https://…/catalog.json"
+                      className="cursor-text h-8 flex-1"
+                      onKeyDown={(e) => { if (e.key === "Enter") addCatalogue() }}
+                    />
+                    <Button
+                      variant="secondary" size="sm" className="cursor-pointer shrink-0 h-8"
+                      disabled={!newCatalogUrl.trim()}
+                      onClick={addCatalogue}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add
+                    </Button>
+                  </div>
                   {catalogues.map((p) => (
                     <div key={p.id} className="flex items-center gap-2 min-w-0 py-1">
                       <span className="flex-1 min-w-0 text-sm truncate" title={p.note ?? p.name}>{p.name}</span>

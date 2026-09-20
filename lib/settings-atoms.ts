@@ -78,6 +78,13 @@ export const savedStacCatalogsAtom = atomWithStorage<SavedStacCatalog[]>("savedS
 // drawing tools. hasSeenTourAtom stays the separate "has the intro ever
 // auto-started" flag; this is about completion, not first contact.
 export const tourProgressAtom = atomWithStorage<Record<string, boolean>>("tourProgress", {})
+
+// One-shot request to open a side-panel section and scroll to it. Written by
+// anything that wants to send the visitor somewhere (the map's viz-mode GoTo
+// button today), consumed and cleared by TerrainControlPanel - the same
+// open-then-scroll the ?scrollTo= parameter already did, reachable at runtime.
+// Session-only: it is an action, not a preference.
+export const revealSectionAtom = atom<string | null>(null)
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 
 /** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.

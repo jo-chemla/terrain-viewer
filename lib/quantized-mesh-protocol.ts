@@ -66,6 +66,35 @@ export function setQuantizedMeshDetailOffset(levels: number) {
   detailOffset = Math.max(-3, Math.min(3, Math.round(levels)))
 }
 
+/** Stamps the current offset into a quantized-mesh template.
+ *
+ *  The offset cannot live only in this module: a protocol URL is the tile
+ *  cache's key AND what maplibre dedupes tiles by, so changing a module
+ *  variable left every already-fetched tile in place and the setting appeared
+ *  to do nothing. Putting it in the URL makes a change a different source. */
+export function withQuantizedMeshDetail(template: string, levels: number): string {
+  return template.startsWith("quantized-mesh://") ? `${template}?d=${Math.round(levels)}` : template
+}
+
+/** Extra levels on top of the configured offset, by output zoom.
+ *
+ *  Cesium World Terrain is nearly empty at low levels - measured over the Alps,
+ *  one tile carries 23-48 vertices at levels 2-5 against ~1300 at level 9 - so
+ *  a fixed +1 that looks right at z13 leaves a handful of huge facets at z4.
+ *  The deficit shrinks as zoom rises, so the boost tapers out. Measured
+ *  Laplacian roughness for the same tile, offset 1 -> 2 -> 3:
+ *
+ *    z6   129 -> 268 -> 328      (37 ms -> 114 ms -> 171 ms)
+ *    z8    27 ->  41 ->  52
+ *
+ *  Going deeper still is not an option at low zoom: the source tiles needed to
+ *  cover one output tile grow as 4^k, and below about z4 that is thousands. */
+function zoomBoost(z: number): number {
+  if (z <= 6) return 2
+  if (z <= 9) return 1
+  return 0
+}
+
 // --------------------------------------------------------------- mercator
 const lat2merc = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (Math.max(-MAX_LAT, Math.min(MAX_LAT, lat)) * Math.PI) / 360))
 const merc2lat = (y: number) => (2 * Math.atan(Math.exp(y)) - Math.PI / 2) * (180 / Math.PI)
@@ -203,7 +232,9 @@ export async function quantizedMeshProtocol(
   params: { url: string },
   abortController: AbortController,
 ): Promise<{ data: TileImage }> {
-  const rest = params.url.replace(/^quantized-mesh:\/\//, "")
+  const [pathPart, queryPart] = params.url.replace(/^quantized-mesh:\/\//, "").split("?")
+  const rest = pathPart
+  const urlDetail = new URLSearchParams(queryPart ?? "").get("d")
   const m = rest.match(/^(.*)\/(\d+)\/(-?\d+)\/(-?\d+)$/)
   if (!m) throw new Error(`Invalid quantized-mesh URL: ${params.url}`)
   const [, prefix, zS, xS, yS] = m
@@ -229,7 +260,8 @@ export async function quantizedMeshProtocol(
   // z - 1 is the level whose tiles are the same angular WIDTH as this Mercator
   // tile; detailOffset buys the tessellation that width alone does not (see
   // DEFAULT_DETAIL_OFFSET).
-  const wantedLevel = Math.max(0, Math.min(DEFAULT_MAX_LEVEL, z - 1 + detailOffset))
+  const configured = urlDetail !== null && Number.isFinite(Number(urlDetail)) ? Number(urlDetail) : detailOffset
+  const wantedLevel = Math.max(0, Math.min(DEFAULT_MAX_LEVEL, z - 1 + configured + zoomBoost(z)))
 
   const loadOne = async (level: number, col: number, row: number, retried = false): Promise<void> => {
     const url = `${base}${level}/${col}/${row}.terrain?v=1.2.0`

@@ -369,7 +369,7 @@ export const TerrainSourceSection: React.FC<{
                   {[...plainTerrainSources, ...ndsmTerrainSources].map((source, i) => (
                     <Fragment key={source.id}>
                       {i === plainTerrainSources.length && ndsmTerrainSources.length > 0 && (
-                        <GroupHeading>nDSM and Comparison</GroupHeading>
+                        <GroupHeading className="normal-case">nDSM and Comparison</GroupHeading>
                       )}
                       <div className="flex items-center gap-2 min-w-0">
                         <SourceGridToggle
@@ -387,7 +387,7 @@ export const TerrainSourceSection: React.FC<{
                   {[...plainTerrainSources, ...ndsmTerrainSources].map((source, i) => (
                     <Fragment key={source.id}>
                       {i === plainTerrainSources.length && ndsmTerrainSources.length > 0 && (
-                        <GroupHeading>nDSM and Comparison</GroupHeading>
+                        <GroupHeading className="normal-case">nDSM and Comparison</GroupHeading>
                       )}
                       <div className="flex items-center gap-2 min-w-0">
                         <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />

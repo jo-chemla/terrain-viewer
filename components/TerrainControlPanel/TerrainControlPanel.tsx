@@ -7,7 +7,7 @@ import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home, 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom, type AppMode } from "@/lib/settings-atoms"
+import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom, type AppMode, revealSectionAtom } from "@/lib/settings-atoms"
 import { useCoverageUseRequest } from "@/lib/use-coverage-use-request"
 import { ProductTour } from "./product-tour"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -384,7 +384,24 @@ export function TerrainControlPanel({
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
   const [macroGroupOpen, setMacroGroupOpen] = useAtom(macroGroupOpenAtom)
+  // revealSectionAtom: the runtime twin of ?scrollTo=. Opens the section (and
+  // the macro group it lives in, or it would open inside something collapsed),
+  // then scrolls to its anchor once it has actually mounted.
+  const [revealSection, setRevealSection] = useAtom(revealSectionAtom)
+  useEffect(() => {
+    if (!revealSection) return
+    setIsSidebarOpen(true)
+    setMacroGroupOpen((prev) => ({ ...prev, Options: true }))
+    setSectionOpen((prev) => ({ ...prev, [revealSection]: true }))
+    const id = SCROLL_TARGETS[revealSection] ?? revealSection
+    const t = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" })
+      setRevealSection(null)
+    }, 120)
+    return () => clearTimeout(t)
+  }, [revealSection, setRevealSection, setIsSidebarOpen, setMacroGroupOpen, setSectionOpen])
   const toggleMacroGroup = (key: MacroGroupKey) => setMacroGroupOpen((prev) => ({ ...prev, [key]: !prev[key] }))
 
   // Mound Candidates (Detectors) only shows in the sidebar while both its

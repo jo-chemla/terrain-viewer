@@ -348,7 +348,10 @@ export const StacSearchPanel: React.FC<{
   const collectionItems = useMemo(() => Object.fromEntries([["__all__", allLabel], ...collections.map((c) => [c.id, c.title || c.id])]), [collections, allLabel])
   const browserUrl = catalog.url ? `https://radiantearth.github.io/stac-browser/#/external/${catalog.url.replace(/^https?:\/\//, "")}` : ""
   const stacMapUrl = catalog.url ? `https://developmentseed.org/stac-map/?href=${encodeURIComponent(catalog.url)}` : ""
-  const groups = ["Elevation", "Mixed", "Imagery", "Registries"] as const
+  // "Yours" first - a catalogue you saved yourself is the one you are most
+  // likely reaching for, and leaving it out of this list (as the first version
+  // did) filtered saved catalogues out of the picker entirely.
+  const groups = ["Yours", "Elevation", "Mixed", "Imagery", "Registries"] as const
   const selectItems = Object.fromEntries([["custom", "Custom catalog URL…"], ...presets.map((p) => [p.id, p.name])])
 
   return (

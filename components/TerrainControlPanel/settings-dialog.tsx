@@ -686,6 +686,31 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           )}
 
           <CollapsibleSection title="Streaming Settings" openAtom={isSettingsStreamingOpenAtom} contentClassName="space-y-2 pt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="cesium-detail">Cesium terrain detail (levels)</Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      id="cesium-detail"
+                      type="number"
+                      min={-3}
+                      max={3}
+                      step={1}
+                      value={cesiumDetailOffset}
+                      onChange={(e) => setCesiumDetailOffset(Math.max(-3, Math.min(3, Number(e.target.value) || 0)))}
+                      className="cursor-text w-24"
+                    />
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {4 ** Math.max(0, cesiumDetailOffset)} request{4 ** Math.max(0, cesiumDetailOffset) === 1 ? "" : "s"} per tile
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Quantized mesh is adaptively tessellated, so a tile carries however many vertices the terrain
+                    needed rather than one per pixel — matching the tile width alone gave 436 vertices for 65 536
+                    pixels, which is what made it look faceted. <b>+1</b> (the default) is the first value that
+                    resolves real terrain. Each further step is 4× the requests, and only helps where the asset has
+                    data that deep; negative values trade detail for fewer requests.
+                  </p>
+                </div>
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">COG Streaming Settings</Label>
               <SegmentedToggle
@@ -1030,31 +1055,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="cesium-detail">Cesium terrain detail (levels)</Label>
-                  <div className="flex items-center gap-3">
-                    <Input
-                      id="cesium-detail"
-                      type="number"
-                      min={-3}
-                      max={3}
-                      step={1}
-                      value={cesiumDetailOffset}
-                      onChange={(e) => setCesiumDetailOffset(Math.max(-3, Math.min(3, Number(e.target.value) || 0)))}
-                      className="cursor-text w-24"
-                    />
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {4 ** Math.max(0, cesiumDetailOffset)} request{4 ** Math.max(0, cesiumDetailOffset) === 1 ? "" : "s"} per tile
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Quantized mesh is adaptively tessellated, so a tile carries however many vertices the terrain
-                    needed rather than one per pixel — matching the tile width alone gave 436 vertices for 65 536
-                    pixels, which is what made it look faceted. <b>+1</b> (the default) is the first value that
-                    resolves real terrain. Each further step is 4× the requests, and only helps where the asset has
-                    data that deep; negative values trade detail for fewer requests.
-                  </p>
-                </div>
               </>
             )}
           </CollapsibleSection>
