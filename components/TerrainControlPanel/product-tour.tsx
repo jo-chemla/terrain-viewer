@@ -303,6 +303,10 @@ interface TourStepDef {
   // ISN'T — set on each branch's own last step (see the render logic's
   // `otherBranch` for how the target branch is derived).
   offerOtherBranch?: boolean
+  // Renders "straight to Terrain / Historical" links under the normal row.
+  // Set on the FIRST step so someone who already knows the app can skip the
+  // five-step intro instead of clicking Next through it.
+  offerSkipToBranch?: boolean
 }
 
 // ─── Step groups ────────────────────────────────────────────────────────────
@@ -318,6 +322,7 @@ interface TourStepDef {
 const GENERAL_STEPS: TourStepDef[] = [
   {
     key: "map", domId: MAP_ANCHOR_ID, side: "bottom", align: "center",
+    offerSkipToBranch: true,
     fullScreenSpotlight: true, spotlightRadius: 24,
     title: "The Map Viewport",
     description: (
@@ -1617,6 +1622,27 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2 pt-1">
+                    {step.offerSkipToBranch && (
+                      <div className="flex flex-col gap-1 pb-1">
+                        <p className="text-[11px] text-muted-foreground">Been here before? Jump straight to:</p>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => chooseBranch("terrain")}
+                            className={cn(buttonVariants({ variant: "outline", size: "sm" }), buttonBase, "flex-1 h-auto whitespace-normal py-1 leading-snug")}
+                          >
+                            Terrain tools
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => chooseBranch("historical")}
+                            className={cn(buttonVariants({ variant: "outline", size: "sm" }), buttonBase, "flex-1 h-auto whitespace-normal py-1 leading-snug")}
+                          >
+                            Historical imagery
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {step.offerOtherBranch && otherBranch && (
                       <button
                         type="button"
