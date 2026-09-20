@@ -1,3 +1,4 @@
+import type { TileImage } from "./tile-image"
 // Client-side archaeological "tell mound" candidate detector, registered as the
 // `tells://` maplibre custom protocol. Ported from a standalone Python/GPU
 // tell-detection pipeline (AI-AFG-tells-detection), reusing this app's existing
@@ -229,7 +230,7 @@ function measureHalfMaxRadiusPx(
 export async function tellsProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const match = params.url.match(TELLS_PATH_RE)
   if (!match) throw new Error(`Invalid tells protocol URL: ${params.url}`)
   const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr, query] = match

@@ -2,6 +2,7 @@ import { elevationToTerrarium } from "./elevation-encoding"
 import { cogProtocol } from "@geomatico/maplibre-cog-protocol"
 import { PMTiles } from "pmtiles"
 import { float32demProtocol } from "./float32dem-protocol"
+import { toTileImage, type TileImage } from "./tile-image"
 
 // Shared scaffolding behind the `aspect://`, `tri://` and `curvature://` maplibre
 // custom protocols — the same tile-fetch/neighbor-stitch/re-encode pipeline
@@ -131,8 +132,11 @@ async function loadTileBitmap(url: string, signal: AbortSignal): Promise<ImageBi
     const bbox = tileBBoxEPSG3857(Number(xStr), Number(yStr), Number(zStr))
     const resolvedUrl = decodeURIComponent(encodedWmsUrl).replace("{bbox-epsg-3857}", bbox)
     const result = await float32demProtocol({ url: `float32dem://${resolvedUrl}` }, { signal } as AbortController)
-    const blob = new Blob([result.data.buffer as ArrayBuffer], { type: "image/png" })
-    return createImageBitmap(blob)
+    // float32dem:// hands back a bitmap now (see lib/tile-image.ts), which is
+    // exactly what this wants - the round trip through PNG bytes was pure loss
+    // on both sides.
+    if (result.data instanceof Uint8Array) return createImageBitmap(new Blob([result.data.buffer as ArrayBuffer], { type: "image/png" }))
+    return result.data
   }
   const response = await fetch(url, { signal })
   if (!response.ok) return null
@@ -365,7 +369,7 @@ export interface RunNormalDerivedProtocolParams {
  *  and calls `computeValue` once per output pixel. */
 export async function runNormalDerivedProtocol(
   params: RunNormalDerivedProtocolParams,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const { url, urlRegex, abortController, cache, computeValue } = params
   const match = url.match(urlRegex)
   if (!match) throw new Error(`Invalid normal-derived protocol URL: ${url}`)
@@ -418,11 +422,7 @@ export async function runNormalDerivedProtocol(
     }
   }
 
-  const canvas = new OffscreenCanvas(n, n)
-  const ctx = canvas.getContext("2d")!
-  ctx.putImageData(new ImageData(outData, n, n), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: await toTileImage(outData, n, n) }
 }
 
 export interface RunWindowedProtocolParams {
@@ -457,7 +457,7 @@ export function yieldToMainThread(): Promise<void> {
  *  to an arbitrary halo instead of always fetching/exposing a fixed 3x3 window. */
 export async function runWindowedProtocol(
   params: RunWindowedProtocolParams,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const { url, urlRegex, abortController, cache, halo, computeValue } = params
   const match = url.match(urlRegex)
   if (!match) throw new Error(`Invalid normal-derived protocol URL: ${url}`)
@@ -502,11 +502,7 @@ export async function runWindowedProtocol(
     }
   }
 
-  const canvas = new OffscreenCanvas(n, n)
-  const ctx = canvas.getContext("2d")!
-  ctx.putImageData(new ImageData(outData, n, n), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: await toTileImage(outData, n, n) }
 }
 
 /** Ported from lib/slope-protocol.ts's Horn-kernel dx/dy — shared by aspect (which

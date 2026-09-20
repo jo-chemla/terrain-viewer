@@ -16,6 +16,7 @@
 
 import { type UpstreamEncoding, buildProtocolUrl } from "./normal-derived-protocol"
 import { runHorizonAngleProtocol, type HorizonPrecision } from "./horizon-angle"
+import type { TileImage } from "./tile-image"
 
 const SVF_URL_RE = /^svf:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\?r=(\d+)&precision=(precise|fast)$/
 
@@ -36,7 +37,7 @@ function aggregateSvf(angles: number[]): number {
 export async function svfProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const match = params.url.match(SVF_URL_RE)
   if (!match) throw new Error(`Invalid SVF protocol URL: ${params.url}`)
   const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr, radiusStr, precisionRaw] = match

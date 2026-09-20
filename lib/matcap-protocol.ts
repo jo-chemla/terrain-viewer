@@ -23,6 +23,7 @@
 import { computeNormalPixels } from "./normals-protocol"
 import { buildProtocolUrl, formatUrlNumber, type UpstreamEncoding } from "./normal-derived-protocol"
 import { computeMatcapPixelsGPU } from "./gpu-matcap-compute"
+import { toTileImage, type TileImage } from "./tile-image"
 
 const MATCAP_URL_RE = /^matcap:\/\/([^/]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
@@ -131,7 +132,7 @@ async function shadeMatcapCPU(
 export async function matcapProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const match = params.url.match(MATCAP_URL_RE)
   if (!match) throw new Error(`Invalid matcap protocol URL: ${params.url}`)
   const [, encodedMatcapUrl, rotationDegStr, exaggerationStr, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr] = match
@@ -156,12 +157,9 @@ export async function matcapProtocol(
     ?? (await shadeMatcapCPU(normalPixels, n, matcapUrl, rotationRad, exaggeration))
   if (abortController.signal.aborted || myParamsKey !== __currentParamsKey) throw new DOMException("Aborted", "AbortError")
 
-  const canvas = new OffscreenCanvas(n, n)
-  const ctx = canvas.getContext("2d")!
-  ctx.putImageData(new ImageData(out as unknown as Uint8ClampedArray<ArrayBuffer>, n, n), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  // Re-check after the async PNG encode too — a fast-fire rotation drag can
-  // supersede this exact request while convertToBlob was still pending.
+  const image = await toTileImage(out as unknown as Uint8ClampedArray<ArrayBuffer>, n)
+  // Re-check after the async encode too — a fast-fire rotation drag can
+  // supersede this exact request while the encode was still pending.
   if (abortController.signal.aborted || myParamsKey !== __currentParamsKey) throw new DOMException("Aborted", "AbortError")
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: image }
 }

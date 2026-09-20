@@ -1,5 +1,6 @@
 import { elevationToTerrainrgb } from "./elevation-encoding"
 import { sharedTileCache, fetchDecodedTile, type DecodedTile, type UpstreamEncoding } from "./normal-derived-protocol"
+import { toTileImage, type TileImage } from "./tile-image"
 
 /**
  * `demdiff://` - a derived DEM that is the difference of two elevation
@@ -84,7 +85,7 @@ function sampleOperand(op: Operand | null, row: number, col: number, n: number):
 export async function demDiffProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const m = params.url.match(DEMDIFF_URL_RE)
   if (!m) throw new Error(`Invalid demdiff protocol URL: ${params.url}`)
   const [, encA, encB, sizeStr, offsetStr, tplA, tplB, zS, xS, yS] = m
@@ -112,8 +113,5 @@ export async function demDiffProtocol(
       out[i] = r; out[i + 1] = g; out[i + 2] = bl; out[i + 3] = hole ? 254 : 255
     }
   }
-  const canvas = new OffscreenCanvas(n, n)
-  canvas.getContext("2d")!.putImageData(new ImageData(out, n, n), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: await toTileImage(out, n, n) }
 }

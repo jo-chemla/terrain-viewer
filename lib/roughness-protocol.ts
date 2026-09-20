@@ -8,6 +8,7 @@
 import {
   sharedTileCache, runNormalDerivedProtocol, buildProtocolUrl, type UpstreamEncoding,
 } from "./normal-derived-protocol"
+import type { TileImage } from "./tile-image"
 
 const ROUGHNESS_URL_RE = /^roughness:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
@@ -18,7 +19,7 @@ export function buildRoughnessProtocolUrl(upstreamTileTemplate: string, encoding
 export async function roughnessProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   return runNormalDerivedProtocol({
     url: params.url,
     urlRegex: ROUGHNESS_URL_RE,

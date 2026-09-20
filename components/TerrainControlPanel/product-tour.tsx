@@ -1285,7 +1285,14 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       const isTyping = el instanceof HTMLElement && (
         el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable
       )
-      if (isTyping) return
+      // ...but an EMPTY text box has nothing for an arrow key to do, and the
+      // Library step opens a dialog that autofocuses its filter box - which
+      // silently ate Back/Next for that whole step. Only defer to the field
+      // once there is actually text in it to move a caret through.
+      const emptyTextBox = el instanceof HTMLInputElement
+        && (el.type === "text" || el.type === "search" || el.type === "")
+        && el.value === ""
+      if (isTyping && !emptyTextBox) return
       if (e.key === "ArrowRight") {
         const btn = document.querySelector('[data-tour-nav="next"]')
         if (btn instanceof HTMLElement) { e.preventDefault(); btn.click() }

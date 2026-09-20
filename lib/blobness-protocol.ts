@@ -35,6 +35,7 @@
 import {
   sharedTileCache, runWindowedProtocol, buildProtocolUrl, RAD_TO_DEG, type UpstreamEncoding,
 } from "./normal-derived-protocol"
+import type { TileImage } from "./tile-image"
 
 export type BlobnessMode = "blobness" | "eigen-ratio" | "orientation"
 
@@ -137,7 +138,7 @@ function computeBlobnessOrientation(sample: (dr: number, dc: number) => number, 
 export async function blobnessProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const modeMatch = params.url.match(BLOBNESS_URL_RE)
   const mode = (modeMatch?.[7] as BlobnessMode) ?? "blobness"
 

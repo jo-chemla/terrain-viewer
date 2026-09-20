@@ -1,5 +1,6 @@
 import { elevationToTerrainrgb } from "./elevation-encoding"
 import { sharedTileCache, fetchDecodedTile as fetchDecodedTileShared } from "./normal-derived-protocol"
+import { toTileImage, type TileImage } from "./tile-image"
 
 // Client-side slope-angle tile computation, registered as the `slope://` maplibre
 // custom protocol — a from-scratch equivalent of PlanTopo's server-side slope-server
@@ -76,7 +77,7 @@ const RAD_TO_DEG = 180 / Math.PI
 export async function slopeProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const match = params.url.match(SLOPE_URL_RE)
   if (!match) throw new Error(`Invalid slope protocol URL: ${params.url}`)
   const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr] = match
@@ -181,9 +182,5 @@ export async function slopeProtocol(
     }
   }
 
-  const canvas = new OffscreenCanvas(n, n)
-  const ctx = canvas.getContext("2d")!
-  ctx.putImageData(new ImageData(outData, n, n), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: await toTileImage(outData, n, n) }
 }

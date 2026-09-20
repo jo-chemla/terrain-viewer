@@ -270,7 +270,13 @@ export const TerrainSources = memo(({
                 // float32demProtocol (float32dem-protocol.ts) re-encodes the WMS-raw
                 // GeoTIFF as Terrarium (not Terrain-RGB) for its ~4mm vs 10cm precision —
                 // must match here or maplibre would misdecode every pixel.
-                : customSource.type === 'terrarium' || customSource.type === 'wms-raw' ? 'terrarium'
+                // lerc:// and quantized-mesh:// re-encode to Terrarium too (same
+                // reason as wms-raw: ~4 mm vs Terrain-RGB's 10 cm). Missing them
+                // here made a library LERC source read 832354 m in the elevation
+                // picker - Terrarium bytes decoded with Terrain-RGB's factors -
+                // with the hillshade and hypsometric ramp wrecked to match.
+                : customSource.type === 'terrarium' || customSource.type === 'wms-raw'
+                  || customSource.type === 'lerc' || customSource.type === 'quantized-mesh' ? 'terrarium'
                 : 'mapbox'  // terrainrgb
             // Custom RGB packing, for plain tile pyramids that use neither named
             // encoding — e.g. Mexico's INEGI, which is Terrain-RGB's factors with

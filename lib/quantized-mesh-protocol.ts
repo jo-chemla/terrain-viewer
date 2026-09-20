@@ -1,4 +1,5 @@
 import { QuantizedMeshLoader } from "@loaders.gl/terrain"
+import { toTileImage, type TileImage } from "./tile-image"
 
 /**
  * `quantized-mesh://` - Cesium terrain (quantized-mesh-1.0) as an ordinary
@@ -174,7 +175,7 @@ function rasterise(
 export async function quantizedMeshProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const rest = params.url.replace(/^quantized-mesh:\/\//, "")
   const m = rest.match(/^(.*)\/(\d+)\/(-?\d+)\/(-?\d+)$/)
   if (!m) throw new Error(`Invalid quantized-mesh URL: ${params.url}`)
@@ -255,8 +256,5 @@ export async function quantizedMeshProtocol(
     rgba[i * 4 + 3] = hole ? 254 : 255
   }
 
-  const canvas = new OffscreenCanvas(TILE_SIZE, TILE_SIZE)
-  canvas.getContext("2d")!.putImageData(new ImageData(rgba, TILE_SIZE, TILE_SIZE), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: await toTileImage(rgba, TILE_SIZE, TILE_SIZE) }
 }

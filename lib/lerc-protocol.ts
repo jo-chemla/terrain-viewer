@@ -5,6 +5,7 @@ import type { decode as LercDecode } from "lerc"
 // it compiles to a string constant, and the 117 kB wasm is only fetched when
 // something actually calls load().
 import lercWasmUrl from "lerc/lerc-wasm.wasm?url"
+import { toTileImage, type TileImage } from "./tile-image"
 
 /**
  * `lerc://` - ArcGIS **tiled elevation services**, which serve LERC-compressed
@@ -55,7 +56,7 @@ class TileNotFound extends Error {
 export async function lercProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const url = `https://${params.url.replace(/^lerc:\/\//, "")}`
   const decode = await ensureLerc()
 
@@ -106,8 +107,5 @@ export async function lercProtocol(
     }
   }
 
-  const canvas = new OffscreenCanvas(size, size)
-  canvas.getContext("2d")!.putImageData(new ImageData(rgba, size, size), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: await toTileImage(rgba, size, size) }
 }

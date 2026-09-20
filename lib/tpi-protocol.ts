@@ -8,6 +8,7 @@
 import {
   sharedTileCache, runNormalDerivedProtocol, buildProtocolUrl, type UpstreamEncoding,
 } from "./normal-derived-protocol"
+import type { TileImage } from "./tile-image"
 
 const TPI_URL_RE = /^tpi:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
@@ -18,7 +19,7 @@ export function buildTpiProtocolUrl(upstreamTileTemplate: string, encoding: Upst
 export async function tpiProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   return runNormalDerivedProtocol({
     url: params.url,
     urlRegex: TPI_URL_RE,

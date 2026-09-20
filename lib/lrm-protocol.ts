@@ -28,6 +28,7 @@ import {
   sharedTileCache, fetchDecodedTile, fetchPaddedElevationGrid, bilinearSamplePadded,
   buildProtocolUrl, type UpstreamEncoding, type DecodedTile,
 } from "./normal-derived-protocol"
+import { toTileImage, type TileImage } from "./tile-image"
 
 const LRM_URL_RE = /^lrm:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\?k=(\d+)$/
 
@@ -103,7 +104,7 @@ export function buildLrmProtocolUrl(
 export async function lrmProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const match = params.url.match(LRM_URL_RE)
   if (!match) throw new Error(`Invalid LRM protocol URL: ${params.url}`)
   const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr, kStr] = match
@@ -183,11 +184,7 @@ export async function lrmProtocol(
     }
   }
 
-  const canvas = new OffscreenCanvas(n, n)
-  const ctx = canvas.getContext("2d")!
-  ctx.putImageData(new ImageData(outData, n, n), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: await toTileImage(outData, n, n) }
 }
 
 /** `fetchTileBlob` override for lib/tile-mosaic.ts's `fetchTileMosaic` — calls

@@ -12,6 +12,7 @@
 
 import { atom, getDefaultStore } from "jotai"
 import type { HorizonPrecision } from "./horizon-angle"
+import type { TileImage } from "./tile-image"
 
 export type SlowVizMode = "svf" | "openness" | "local-dominance"
 
@@ -96,7 +97,7 @@ function precisionFromUrl(url: string): HorizonPrecision | undefined {
  *  instead of assuming everything is strictly sequential — that's what
  *  fixed the estimate being too conservative. */
 export function withSlowTileStats<
-  T extends (params: { url: string }, abortController: AbortController) => Promise<{ data: Uint8Array }>,
+  T extends (params: { url: string }, abortController: AbortController) => Promise<{ data: TileImage }>,
 >(mode: SlowVizMode, inner: T): T {
   const wrapped = async (params: { url: string }, abortController: AbortController) => {
     const key = statsKey(mode, precisionFromUrl(params.url))

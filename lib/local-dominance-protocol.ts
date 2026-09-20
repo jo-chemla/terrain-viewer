@@ -32,6 +32,7 @@ import {
 } from "./normal-derived-protocol"
 import { elevationToTerrarium } from "./elevation-encoding"
 import { RAD_TO_DEG } from "./horizon-angle"
+import { toTileImage, type TileImage } from "./tile-image"
 
 const LD_URL_RE = /^local-dominance:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\?rmin=(\d+)&rmax=(\d+)$/
 
@@ -70,7 +71,7 @@ export function buildLocalDominanceProtocolUrl(
 export async function localDominanceProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const match = params.url.match(LD_URL_RE)
   if (!match) throw new Error(`Invalid Local Dominance protocol URL: ${params.url}`)
   const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr, rminStr, rmaxStr] = match
@@ -162,9 +163,5 @@ export async function localDominanceProtocol(
     }
   }
 
-  const canvas = new OffscreenCanvas(n, n)
-  const ctx = canvas.getContext("2d")!
-  ctx.putImageData(new ImageData(outData, n, n), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: await toTileImage(outData, n, n) }
 }

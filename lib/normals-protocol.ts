@@ -26,6 +26,7 @@ import {
   type UpstreamEncoding, type ElevationWindow, type PaddedElevationGrid,
 } from "./normal-derived-protocol"
 import { computeNormalPixelsGPU } from "./gpu-normal-compute"
+import { toTileImage, type TileImage } from "./tile-image"
 
 const NORMALS_URL_RE = /^normals:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
@@ -184,7 +185,7 @@ export function computeNormalPixels(
 export async function normalsProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const match = params.url.match(NORMALS_URL_RE)
   if (!match) throw new Error(`Invalid normals protocol URL: ${params.url}`)
   const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr] = match
@@ -202,14 +203,11 @@ export async function normalsProtocol(
   // out of order.
   if (abortController.signal.aborted) throw new DOMException("Aborted", "AbortError")
 
-  const canvas = new OffscreenCanvas(n, n)
-  const ctx = canvas.getContext("2d")!
   // Cast: this TS lib version's ImageData overload wants Uint8ClampedArray<ArrayBuffer>
   // specifically, not the more general <ArrayBufferLike> a fresh typed array
   // is inferred as — a real ArrayBuffer backs it either way at runtime.
-  ctx.putImageData(new ImageData(pixels as unknown as Uint8ClampedArray<ArrayBuffer>, n, n), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
+  const image = await toTileImage(pixels as unknown as Uint8ClampedArray<ArrayBuffer>, n)
   if (abortController.signal.aborted) throw new DOMException("Aborted", "AbortError")
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: image }
 }
 

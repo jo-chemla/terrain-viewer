@@ -1,5 +1,6 @@
 import { fromArrayBuffer, type GeoTIFFImage } from "geotiff"
 import { NODATA_FILL_PARAM, NODATA_FLOOR_PARAM, resolveNodata, isSentinel } from "./nodata"
+import { toTileImage, type TileImage } from "./tile-image"
 
 /**
  * geotiff's readRasters, tolerant of SPARSE tiled/stripped files. ArcGIS
@@ -240,7 +241,7 @@ function boxDownsample(src: ArrayLike<number>, width: number, height: number, fa
 export async function float32demProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   let url = "https://" + params.url.replace(/^float32dem:\/\//, "")
 
   // Captured before any marker rewriting, since the WCS 2.0 branch below removes
@@ -362,9 +363,5 @@ export async function float32demProtocol(
     rgbaData[i * 4 + 3] = 255
   }
 
-  const canvas = new OffscreenCanvas(width, height)
-  const ctx = canvas.getContext("2d")!
-  ctx.putImageData(new ImageData(rgbaData, width, height), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: await toTileImage(rgbaData, width, height) }
 }

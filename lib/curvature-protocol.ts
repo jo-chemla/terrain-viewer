@@ -35,6 +35,7 @@
 import {
   sharedTileCache, runNormalDerivedProtocol, buildProtocolUrl, type UpstreamEncoding, type ElevationWindow,
 } from "./normal-derived-protocol"
+import type { TileImage } from "./tile-image"
 
 export type CurvatureMode = "combined" | "profile" | "plan" | "det-hessian" | "casorati" | "shape-index"
 
@@ -133,7 +134,7 @@ export const CURVATURE_ENCODE_SCALE = 1000
 export async function curvatureProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const modeMatch = params.url.match(CURVATURE_URL_RE)
   const mode = (modeMatch?.[7] as CurvatureMode) ?? "combined"
 

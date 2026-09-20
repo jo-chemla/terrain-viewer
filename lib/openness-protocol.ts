@@ -22,6 +22,7 @@
 
 import { type UpstreamEncoding, buildProtocolUrl } from "./normal-derived-protocol"
 import { runHorizonAngleProtocol, RAD_TO_DEG, type HorizonPrecision } from "./horizon-angle"
+import type { TileImage } from "./tile-image"
 
 export type OpennessMode = "positive" | "negative"
 
@@ -45,7 +46,7 @@ function aggregateOpenness(angles: number[]): number {
 export async function opennessProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const match = params.url.match(OPENNESS_URL_RE)
   if (!match) throw new Error(`Invalid Openness protocol URL: ${params.url}`)
   const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr, radiusStr, modeRaw, precisionRaw] = match

@@ -8,6 +8,7 @@ import {
   sharedTileCache, runNormalDerivedProtocol, buildProtocolUrl, hornGradient, RAD_TO_DEG,
   type UpstreamEncoding,
 } from "./normal-derived-protocol"
+import type { TileImage } from "./tile-image"
 
 const ASPECT_URL_RE = /^aspect:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
@@ -18,7 +19,7 @@ export function buildAspectProtocolUrl(upstreamTileTemplate: string, encoding: U
 export async function aspectProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   return runNormalDerivedProtocol({
     url: params.url,
     urlRegex: ASPECT_URL_RE,

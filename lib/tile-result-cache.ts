@@ -15,7 +15,15 @@
 
 const MAX_BYTES = 96 * 1024 * 1024
 
-const lru = new Map<string, Uint8Array>()
+// An entry is whatever the protocol produced: raw PNG bytes, or - the normal
+// case now - an ImageBitmap (see lib/tile-image.ts for why the PNG encode was
+// dropped). Bitmaps are held as OUR OWN clone and handed out as further
+// clones, for the same ownership reason the byte path calls .slice().
+type CacheEntry = Uint8Array | ImageBitmap
+const isBitmap = (v: CacheEntry): v is ImageBitmap => typeof ImageBitmap !== "undefined" && v instanceof ImageBitmap
+const sizeOf = (v: CacheEntry) => (isBitmap(v) ? v.width * v.height * 4 : v.byteLength)
+
+const lru = new Map<string, CacheEntry>()
 let totalBytes = 0
 let enabled = true
 
@@ -40,23 +48,30 @@ export function setTileResultCacheEnabled(on: boolean) {
   // Disabling also frees everything already held — the point of turning it
   // off is reclaiming memory, not just stopping new inserts.
   if (!on) {
+    for (const v of lru.values()) if (isBitmap(v)) v.close()
     lru.clear()
     totalBytes = 0
   }
 }
 
-function put(key: string, data: Uint8Array) {
-  if (data.byteLength > MAX_BYTES / 4) return
+function put(key: string, data: CacheEntry) {
+  const bytes = sizeOf(data)
+  if (bytes > MAX_BYTES / 4) return
   const prev = lru.get(key)
   if (prev) {
-    totalBytes -= prev.byteLength
+    totalBytes -= sizeOf(prev)
+    if (isBitmap(prev)) prev.close()
     lru.delete(key)
   }
   lru.set(key, data)
-  totalBytes += data.byteLength
+  totalBytes += bytes
   while (totalBytes > MAX_BYTES) {
     const oldest = lru.keys().next().value as string
-    totalBytes -= lru.get(oldest)!.byteLength
+    const evicted = lru.get(oldest)!
+    totalBytes -= sizeOf(evicted)
+    // A bitmap holds memory the GC cannot see, so eviction has to say so
+    // explicitly or the budget is fiction.
+    if (isBitmap(evicted)) evicted.close()
     lru.delete(oldest)
   }
 }
@@ -66,7 +81,7 @@ function put(key: string, data: Uint8Array) {
  *  passthrough returns the inner result untouched so extra response fields
  *  (cacheControl etc.) survive on a miss. */
 export function withTileResultCache<
-  T extends (params: { url: string }, abortController: AbortController) => Promise<{ data: Uint8Array }>,
+  T extends (params: { url: string }, abortController: AbortController) => Promise<{ data: Uint8Array | ImageBitmap }>,
 >(inner: T): T {
   const wrapped = async (params: { url: string }, abortController: AbortController) => {
     if (!enabled) return inner(params, abortController)
@@ -81,7 +96,9 @@ export function withTileResultCache<
       // detach OUR copy too, so the next hit on this key tries to transfer
       // an already-detached buffer ("DataCloneError: ArrayBuffer ... already
       // detached"). .slice() hands over an independent copy every time.
-      return { data: hit.slice() }
+      // A bitmap is the same story: maplibre may close what it is given, so
+      // every hit gets its own clone and the cache keeps the original.
+      return { data: isBitmap(hit) ? await createImageBitmap(hit) : hit.slice() }
     }
     misses++
     const result = await inner(params, abortController)
@@ -90,6 +107,7 @@ export function withTileResultCache<
     // so the LRU must retain its own independent copy rather than that same
     // object, or the very first future hit on this key would already be dead.
     if (result?.data instanceof Uint8Array) put(params.url, result.data.slice())
+    else if (result?.data && isBitmap(result.data)) put(params.url, await createImageBitmap(result.data))
     return result
   }
   return wrapped as T

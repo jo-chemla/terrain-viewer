@@ -23,6 +23,7 @@
 import { computeNormalPixels } from "./normals-protocol"
 import { buildProtocolUrl, formatUrlNumber, type UpstreamEncoding } from "./normal-derived-protocol"
 import { computePhongPixelsGPU } from "./gpu-phong-compute"
+import { toTileImage, type TileImage } from "./tile-image"
 
 const PHONG_URL_RE = /^phong:\/\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
@@ -119,7 +120,7 @@ function shadePhongCPU(
 export async function phongProtocol(
   params: { url: string },
   abortController: AbortController,
-): Promise<{ data: Uint8Array }> {
+): Promise<{ data: TileImage }> {
   const match = params.url.match(PHONG_URL_RE)
   if (!match) throw new Error(`Invalid phong protocol URL: ${params.url}`)
   const [, diffuseStr, specularStr, lightDirStr, lightAltStr, exaggerationStr, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr] = match
@@ -185,12 +186,9 @@ export async function phongProtocol(
     ?? shadePhongCPU(normalPixels, n, diffuseStrength, specularStrength, lightVec, exaggeration)
   if (abortController.signal.aborted || myParamsKey !== __currentParamsKey) throw new DOMException("Aborted", "AbortError")
 
-  const canvas = new OffscreenCanvas(n, n)
-  const ctx = canvas.getContext("2d")!
-  ctx.putImageData(new ImageData(out as unknown as Uint8ClampedArray<ArrayBuffer>, n, n), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  // Re-check after the async PNG encode too — a fast-fire light-direction
-  // drag can supersede this exact request while convertToBlob was pending.
+  const image = await toTileImage(out as unknown as Uint8ClampedArray<ArrayBuffer>, n)
+  // Re-check after the async encode too — a fast-fire light-direction
+  // drag can supersede this exact request while the encode was pending.
   if (abortController.signal.aborted || myParamsKey !== __currentParamsKey) throw new DOMException("Aborted", "AbortError")
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  return { data: image }
 }

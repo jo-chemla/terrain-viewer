@@ -1,3 +1,4 @@
+import type { TileImage } from "./tile-image"
 // Shared "horizon angle" ray-marching core behind both svf-protocol.ts and
 // openness-protocol.ts — Sky View Factor and (positive/negative) Openness are
 // both built from the same underlying quantity (Yokoyama et al. 2002; Zakšek et
@@ -181,7 +182,7 @@ export interface RunHorizonAngleProtocolParams {
   aggregate: (angles: number[]) => number
 }
 
-export async function runHorizonAngleProtocol(params: RunHorizonAngleProtocolParams): Promise<{ data: Uint8Array }> {
+export async function runHorizonAngleProtocol(params: RunHorizonAngleProtocolParams): Promise<{ data: TileImage }> {
   const { upstreamTemplate, encoding, n, z, x, y, signal, radiusPx, precision, sign, aggregate } = params
 
   const upstreamUrl = (tz: number, tx: number, ty: number) =>

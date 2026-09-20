@@ -107,7 +107,10 @@ export function buildRasterTileSource(params: {
       // lib/quantized-mesh-protocol.ts). The tile placeholders stay maplibre's
       // own Web Mercator ones; the protocol maps them onto quantized mesh's
       // geographic tiling itself, since the two schemes do not line up.
-      return { tiles: [`quantized-mesh://${url.replace(/^https?:\/\//, "")}`] }
+      // The placeholders are appended here rather than stored on the source:
+      // an ion entry's url is just "ion/<assetId>", and a bare
+      // quantized-mesh://ion/1 has no tile for the protocol to resolve.
+      return { tiles: [`quantized-mesh://${url.replace(/^https?:\/\//, "").replace(/\/$/, "")}${/\{z\}/.test(url) ? "" : "/{z}/{x}/{y}"}`] }
 
     case "wms-raw":
       if (useCogProtocol) {
