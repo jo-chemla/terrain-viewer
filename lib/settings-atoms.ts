@@ -70,6 +70,14 @@ export const disabledStacPresetsAtom = atomWithStorage<string[]>("disabledStacPr
 // a URL typed once and lost on refresh is barely a feature.
 export interface SavedStacCatalog { id: string; name: string; url: string; kind: "api" | "static"; target: "basemap" | "terrain" | "both" }
 export const savedStacCatalogsAtom = atomWithStorage<SavedStacCatalog[]>("savedStacCatalogs", [])
+
+// Which walkthroughs have been finished, by branch key. The level-2 tours
+// (tools / byod / ndsm) are offered once EITHER level-1 branch is done -
+// terrain and historical are alternatives, not a sequence, so requiring both
+// would push a terrain-only visitor through the historical tour to unlock the
+// drawing tools. hasSeenTourAtom stays the separate "has the intro ever
+// auto-started" flag; this is about completion, not first contact.
+export const tourProgressAtom = atomWithStorage<Record<string, boolean>>("tourProgress", {})
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 
 /** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.

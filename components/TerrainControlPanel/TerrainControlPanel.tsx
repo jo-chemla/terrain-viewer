@@ -730,19 +730,28 @@ export function TerrainControlPanel({
           <MacroSeparator label="Tools" isOpen={macroGroupOpen.Tools} onToggle={() => toggleMacroGroup("Tools")} />
           {macroGroupOpen.Tools && (
             <>
-              <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
+              {/* Wrappers only exist to give the level-2 Tools walkthrough a
+                  stable anchor per tool (product-tour.tsx's TOOLS_STEPS). */}
+              <div id="tour-drawing-section" className="scroll-mt-[100px]">
+                <TerraDrawSection draw={draw} mapRef={mapRef} isOpen={sectionOpen.drawing} onOpenChange={toggle("drawing")} />
+              </div>
               {/* Elevation Picker reads elevation off the active terrain (DEM)
                   source — meaningless in historical mode, which has none. */}
               {!historicalMode && !hiddenSections.includes("elevationPicker") && (
-                <ElevationPickerSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
+                <div id="tour-elevation-picker-section" className="scroll-mt-[100px]">
+                  <ElevationPickerSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
+                </div>
               )}
               {!hiddenSections.includes("sunShadowCalculator") && state.sunShadowBeta && (
-                <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
+                <div id="tour-sun-shadow-section" className="scroll-mt-[100px]">
+                  <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
+                </div>
               )}
               {/* Camera-pose animation has no meaning without a terrain/DEM
                   scene to fly a camera through — historical mode is a flat 2D
                   basemap view only. */}
               {!historicalMode && (
+                <div id="tour-animation-section" className="scroll-mt-[100px]">
                 <AnimationSection
                   mapRef={mapRef}
                   isOpen={sectionOpen.animation}
@@ -752,6 +761,7 @@ export function TerrainControlPanel({
                   setAppStateSafe={setAppState}
                   withSeparator={!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap)}
                 />
+                </div>
               )}
               {/* Shows terrain-source provenance (mapterhorn/another DEM,
                   meaningless in historical mode) AND/OR basemap attribution

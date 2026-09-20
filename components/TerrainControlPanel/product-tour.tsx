@@ -6,7 +6,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { track } from "@/lib/analytics"
 import {
-  hasSeenTourAtom, isTourOpenAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
+  hasSeenTourAtom, isTourOpenAtom, tourProgressAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
   isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom } from "@/lib/settings-atoms"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import customSources from "@/lib/custom-sources.json"
@@ -36,7 +36,7 @@ const MAP_ANCHOR_ID = "tour-map-anchor"
 // handleOpenChange's outside-press exemption below.
 const PORTAL_CONTENT_SELECTOR = '[data-slot="select-content"], [data-slot="popover-content"], [data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"]'
 
-type TourBranch = "terrain" | "historical" | null
+type TourBranch = "terrain" | "historical" | "tools" | "byod" | "ndsm" | null
 
 type TourActions = {
   state: any
@@ -704,16 +704,156 @@ const HISTORICAL_STEPS: TourStepDef[] = [
   HISTORICAL_DOCS_STEP,
 ]
 
+// ─── Level 2 ────────────────────────────────────────────────────────────────
+//
+// Short, self-contained follow-ups, offered once either level-1 branch is
+// finished. They reuse prepareTerrainTools/prepareTerrainBase so the panel is
+// in a known shape, and each opens exactly the one section it is about.
+
+function prepareOneTool(a: TourActions, key: string) {
+  prepareTerrainTools(a)
+  a.setSectionOpen((prev) => ({
+    ...prev,
+    ...Object.fromEntries(TOOL_SECTION_KEYS.map((k) => [k, k === key])),
+  }))
+}
+
+const TOOLS_STEPS: TourStepDef[] = [
+  {
+    key: "l2-drawing", domId: "tour-drawing-section", side: "left", align: "start",
+    onEnter: (a) => prepareOneTool(a, "drawing"),
+    title: "Drawing",
+    description: (
+      <>
+        <p className="pb-2">Sketch on the map, or bring geometry in: GeoJSON, KML, GPX, FlatGeobuf and Shapefile, from a file or from a URL.</p>
+        <p>Layers are named and styled separately, and the loop button steps through one layer&rsquo;s features one at a time, framing each — useful for reviewing an imported inventory of sites.</p>
+      </>
+    ),
+  },
+  {
+    key: "l2-elevation-picker", domId: "tour-elevation-picker-section", side: "left", align: "start",
+    onEnter: (a) => prepareOneTool(a, "elevationPicker"),
+    title: "Elevation Picker",
+    description: (
+      <>
+        <p className="pb-2">Click the terrain to read its height off whichever DEM is active. A second click measures the distance and the drop between the two.</p>
+        <p>It also draws a full profile along a line — straight, or following a real routed path — and the Plane Slicer paints everything above or below a chosen altitude.</p>
+      </>
+    ),
+  },
+  {
+    key: "l2-sun-shadow", domId: "tour-sun-shadow-section", side: "left", align: "start",
+    onEnter: (a) => prepareOneTool(a, "sunShadowCalculator"),
+    title: "Sun and Shadow Calculator",
+    description: (
+      <>
+        <p className="pb-2">The rest of the app points the light and shows you the shadow. This runs it backwards: click something&rsquo;s base, then the tip of its shadow, type its height, and it solves for the date and time.</p>
+        <p>The answer is written into the same light every other mode reads, so hillshade and cast shadows snap to it.</p>
+      </>
+    ),
+  },
+  {
+    key: "l2-animation", domId: "tour-animation-section", side: "left", align: "start",
+    onEnter: (a) => prepareOneTool(a, "animation"),
+    title: "Animation",
+    description: <p>Set keyframe camera poses and interpolate between them for a fly-through. Terrain mode only — historical mode has no continuous surface to fly over.</p>,
+  },
+]
+
+const BYOD_STEPS: TourStepDef[] = [
+  {
+    key: "l2-byod-add", domId: "tour-byod-terrain-row", side: "left", align: "center",
+    onEnter: (a) => { prepareTerrainBase(a); a.setSectionOpen((prev) => ({ ...prev, terrainSource: true })) },
+    title: "Your own elevation data",
+    description: (
+      <>
+        <p className="pb-2"><b>Add Terrain</b> takes far more than a tile URL: a Cloud-Optimized GeoTIFF (remote or straight off your disk), a WMS or WCS that serves raw float elevation, an ArcGIS tiled service, Cesium quantized mesh, or a TileJSON.</p>
+        <p>Anything not already in Web Mercator is routed through titiler automatically.</p>
+      </>
+    ),
+  },
+  {
+    key: "l2-byod-library", domId: "tour-source-library", side: "left", align: "center",
+    onEnter: prepareTerrainLibrary,
+    title: "The Library, and catalogues",
+    description: (
+      <>
+        <p className="pb-2">Dozens of national and global datasets, graded against the built-in Mapterhorn so you can see at a glance where one is genuinely finer.</p>
+        <p>Below them sit <b>Catalogues</b>: searchable archives rather than single datasets. <b>Browse</b> opens the catalogue search over your current view — that is where per-scene DEMs live, and you can save your own endpoint there too.</p>
+      </>
+    ),
+  },
+  {
+    key: "l2-byod-coverage", domId: "tour-coverage-overlays", side: "left", align: "center",
+    onEnter: prepareCoverageOverlays,
+    title: "Where does it actually have data?",
+    description: <p>Before loading anything, draw its footprint. Mapterhorn&rsquo;s own coverage shows which national source it used where; the library footprints show what else is available there. The selection travels in the link.</p>,
+  },
+]
+
+const NDSM_STEPS: TourStepDef[] = [
+  {
+    key: "l2-ndsm-add", domId: "tour-byod-terrain-row", side: "left", align: "center",
+    onEnter: (a) => { prepareTerrainBase(a); a.setSectionOpen((prev) => ({ ...prev, terrainSource: true })) },
+    title: "Subtracting one source from another",
+    description: (
+      <>
+        <p className="pb-2">In <b>Add Terrain</b>, the <b>Difference of two sources</b> type subtracts two loaded terrain sources tile by tile.</p>
+        <p>A surface model minus a terrain model gives a <b>normalised height model</b>: 0 is bare earth and 25 m is a 25 m tree, whatever the hill underneath. Two dates of the same place give change instead.</p>
+      </>
+    ),
+  },
+  {
+    key: "l2-ndsm-list", domId: "tour-terrain-section", side: "left", align: "start",
+    onEnter: (a) => { prepareTerrainBase(a); a.setSectionOpen((prev) => ({ ...prev, terrainSource: true })) },
+    title: "They get their own group",
+    description: <p>Derived sources are listed under <b>nDSM and Comparison</b>, separate from the datasets you loaded — they are made of two of those, not fetched from anywhere.</p>,
+  },
+  {
+    key: "l2-ndsm-ramp", domId: "tour-hypso-section", side: "left", align: "start",
+    // Deliberately light: only the hypsometric switch plus opening its own
+    // section. Re-running prepareTerrainBase here remounted half the panel
+    // under the transition and the step never settled - it sat on the
+    // previous step until the next click finished the tour outright.
+    onEnter: (a) => {
+      a.setState({ showColorRelief: true, colorReliefOpacity: 1, hillshadeOpacity: 0.3 })
+      a.setSectionOpen((prev) => ({ ...prev, hypsometricTint: true }))
+    },
+    title: "Reading the result",
+    description: (
+      <>
+        <p className="pb-2">A difference is elevation as far as everything else is concerned, so every mode works on it — a hypsometric ramp from 0 to 40 m is a canopy-height map.</p>
+        <p>For change detection use the ramp&rsquo;s <b>Symmetric Range</b>, which centres zero so gain and loss read as opposite colours.</p>
+      </>
+    ),
+  },
+]
+
 // The full union, for building/resolving target refs — every possible step's
 // DOM id gets resolved on every transition regardless of which branch is
 // actually active (cheap: just N getElementById calls), so switching
 // branches (or going Back into one after picking the other) never hits an
 // unresolved target.
-const ALL_STEPS: TourStepDef[] = [...GENERAL_STEPS, BRANCH_STEP, ...TERRAIN_STEPS, ...HISTORICAL_STEPS]
+const ALL_STEPS: TourStepDef[] = [...GENERAL_STEPS, BRANCH_STEP, ...TERRAIN_STEPS, ...HISTORICAL_STEPS, ...TOOLS_STEPS, ...BYOD_STEPS, ...NDSM_STEPS]
+
+/** The level-2 tours. Unlike the level-1 branches these do NOT replay the
+ *  general intro: they are entered by someone who has already finished one,
+ *  either from the end of it or from the sidebar button, so starting over at
+ *  "The Map Viewport" would be a tax rather than a help. Each is short and
+ *  self-contained, and they are deliberately unordered with respect to each
+ *  other - a menu, not a chain. */
+export const LEVEL2_TOURS = [
+  { key: "tools" as const, label: "The Tools", blurb: "Drawing, the elevation picker, the sun/shadow calculator and the animation path." },
+  { key: "byod" as const, label: "Bring Your Own Data", blurb: "Load a COG, a WMS elevation service or a catalogue search as a terrain source." },
+  { key: "ndsm" as const, label: "nDSM and Comparison", blurb: "Subtract one source from another: canopy height, building height, change between two dates." },
+]
 
 function getStepsForBranch(branch: TourBranch): TourStepDef[] {
   if (branch === "terrain") return [...GENERAL_STEPS, BRANCH_STEP, ...TERRAIN_STEPS]
   if (branch === "historical") return [...GENERAL_STEPS, BRANCH_STEP, ...HISTORICAL_STEPS]
+  if (branch === "tools") return TOOLS_STEPS
+  if (branch === "byod") return BYOD_STEPS
+  if (branch === "ndsm") return NDSM_STEPS
   return [...GENERAL_STEPS, BRANCH_STEP]
 }
 
@@ -913,6 +1053,11 @@ interface ProductTourProps {
 
 export function ProductTour({ state, setState, switchAppMode }: ProductTourProps) {
   const [hasSeenTour, setHasSeenTour] = useAtom(hasSeenTourAtom)
+  // Completion, per branch. Level-2 tours unlock once EITHER level-1 branch is
+  // done: terrain and historical are alternatives, so requiring both would make
+  // a terrain-only visitor sit through the historical tour to reach the tools.
+  const [tourProgress, setTourProgress] = useAtom(tourProgressAtom)
+  const level1Done = !!(tourProgress.terrain || tourProgress.historical)
   const [isTourRequested, setIsTourRequested] = useAtom(isTourOpenAtom)
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [sectionOpen, setSectionOpen] = useAtom(sectionOpenAtom)
@@ -1065,9 +1210,15 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   // The branch-choice step's two buttons — unlike goToIndex, this can't rely
   // on `activeSteps` (still the pre-choice list until React re-renders with
   // the new `branch` state), so it computes the post-choice list directly.
-  const chooseBranch = useCallback((next: "terrain" | "historical") => {
+  // chooseBranch is defined below this effect; a ref keeps the deep-link
+  // handler from depending on declaration order.
+  const startLevel2Ref = useRef<((k: Exclude<TourBranch, null>) => void) | null>(null)
+
+  const chooseBranch = useCallback((next: Exclude<TourBranch, null>) => {
     const steps = getStepsForBranch(next)
-    const targetIndex = GENERAL_STEPS.length + 1
+    // A level-2 tour is its own whole list and starts at 0; the level-1
+    // branches continue after the shared intro and the fork.
+    const targetIndex = (next === "terrain" || next === "historical") ? GENERAL_STEPS.length + 1 : 0
     const step = steps[targetIndex]
     const generation = ++transitionGenerationRef.current
     setIsTransitioning(true)
@@ -1079,11 +1230,16 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       if (transitionGenerationRef.current !== generation) return
       resolveAllRefs()
       setStepIndex(targetIndex)
+      // Harmless when the tour is already up (the branch-choice case), and
+      // required when a level-2 tour is entered cold from ?startTour=<key>.
+      setOpen(true)
       setIsTransitioning(false)
     })
   }, [resolveAllRefs])
 
-  const start = useCallback(() => {
+  /** Capture the visitor's own configuration, once, before any step touches
+   *  it. Both start() and a direct level-2 entry need this. */
+  const ensureSnapshot = useCallback(() => {
     if (snapshotRef.current) return
     const a = actionsRef.current
     snapshotRef.current = {
@@ -1098,10 +1254,21 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       coverageOverlays: a.coverageOverlays,
       stateFields: Object.fromEntries(TOUR_STATE_KEYS.map((k) => [k, a.state[k]])),
     }
+  }, [])
+
+  const start = useCallback(() => {
+    if (snapshotRef.current) return
+    ensureSnapshot()
     track("app-tour", { action: "start" })
     setBranch(null)
     goToIndex(0)
-  }, [goToIndex])
+  }, [goToIndex, ensureSnapshot])
+
+  startLevel2Ref.current = (k) => {
+    ensureSnapshot()
+    track("app-tour", { action: "start", branch: k })
+    chooseBranch(k)
+  }
 
   const handleStepChange = useCallback((newIndex: number) => {
     goToIndex(newIndex)
@@ -1111,6 +1278,9 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     // Finish and abandon both land here (the last step's Finish button is a
     // Coachmark.Close) — step vs steps tells them apart on the dashboard.
     track("app-tour", { action: "close", step: stepIndex + 1, steps: activeSteps.length, branch: branch ?? "none" })
+    // Reaching the last step counts as finishing that branch; abandoning in the
+    // middle does not, so a level-2 tour is not unlocked by skipping level 1.
+    if (branch && stepIndex === activeSteps.length - 1) setTourProgress((prev) => ({ ...prev, [branch]: true }))
     setOpen(false)
     const snap = snapshotRef.current
     const a = actionsRef.current
@@ -1131,7 +1301,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     setBranch(null)
     setIsTourRequested(false)
     setHasSeenTour(true)
-  }, [setIsTourRequested, setHasSeenTour, stepIndex, activeSteps.length, branch])
+  }, [setIsTourRequested, setHasSeenTour, setTourProgress, stepIndex, activeSteps.length, branch])
 
   // Coachmark's spotlight cutout lets clicks reach the actual live control
   // underneath it (that's the whole point of a spotlight) — but that control
@@ -1263,9 +1433,15 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   useEffect(() => {
     if (typeof window === "undefined") return
     const params = new URLSearchParams(window.location.search)
-    if (params.get("startTour") !== "true") return
+    const requested = params.get("startTour")
+    // "true" is the whole walkthrough from the top; a level-2 key jumps
+    // straight into that one (?startTour=tools|byod|ndsm), which is what the
+    // docs link to and what makes a single tour shareable on its own.
+    const level2 = LEVEL2_TOURS.find((t) => t.key === requested)?.key
+    if (requested !== "true" && !level2) return
     const t = setTimeout(() => {
-      setIsTourRequested(true)
+      if (level2) startLevel2Ref.current?.(level2)
+      else setIsTourRequested(true)
       params.delete("startTour")
       const query = params.toString()
       window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`)
@@ -1449,6 +1625,25 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
                       >
                         Continue to {otherBranch === "historical" ? "Historical Satellite mode" : "the Terrain tools"} →
                       </button>
+                    )}
+                    {/* Level 2, offered at the end of EITHER level-1 branch (and
+                        only once one is finished). A menu rather than a chain:
+                        these three are independent of each other. */}
+                    {step.offerOtherBranch && level1Done && (
+                      <div className="flex flex-col gap-1 pt-1 border-t">
+                        <p className="text-[11px] text-muted-foreground pt-1">Go deeper on one thing:</p>
+                        {LEVEL2_TOURS.map((t) => (
+                          <button
+                            key={t.key}
+                            type="button"
+                            title={t.blurb}
+                            onClick={() => chooseBranch(t.key)}
+                            className={cn(buttonVariants({ variant: "outline", size: "sm" }), buttonBase, "w-full h-auto whitespace-normal py-1.5 text-left leading-snug justify-start")}
+                          >
+                            {tourProgress[t.key] ? "✓ " : ""}{t.label} →
+                          </button>
+                        ))}
+                      </div>
                     )}
                     <div className="flex items-center justify-between gap-3">
                       <Coachmark.Close className={cn(buttonVariants({ variant: "ghost", size: "sm" }), buttonBase)}>
