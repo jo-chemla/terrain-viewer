@@ -363,41 +363,42 @@ export const TerrainSourceSection: React.FC<{
               </div>
             </TooltipProvider>
 
-            {customTerrainSources.length > 0 && (
-              state.splitStyle !== "off" ? (
-                <div className="space-y-1.5">
-                  {[...plainTerrainSources, ...ndsmTerrainSources].map((source, i) => (
-                    <Fragment key={source.id}>
-                      {i === plainTerrainSources.length && ndsmTerrainSources.length > 0 && (
-                        <GroupHeading className="normal-case">nDSM and Comparison</GroupHeading>
-                      )}
-                      <div className="flex items-center gap-2 min-w-0">
-                        <SourceGridToggle
-                          gridLayout={effectiveGridLayout}
-                          isActive={(side) => state[sourceFieldName(side)] === source.id}
-                          onSelect={(side) => selectTerrainSide(side, source.id)}
-                        />
-                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, linkedSourceName: linkedBasemapName(source) }} />
-                      </div>
-                    </Fragment>
-                  ))}
+            {customTerrainSources.length > 0 && (() => {
+              // The nDSM entries used to be appended to the same flat list with
+              // the heading injected mid-stream by index. They now render inside
+              // their own wrapper so the group is a real element: the
+              // walkthrough spotlights it (tour-ndsm-group), and the heading and
+              // its rows can no longer drift apart.
+              const isSplit = state.splitStyle !== "off"
+              const rowFor = (source: CustomTerrainSource) => (
+                <div key={source.id} className="flex items-center gap-2 min-w-0">
+                  {isSplit ? (
+                    <SourceGridToggle
+                      gridLayout={effectiveGridLayout}
+                      isActive={(side) => state[sourceFieldName(side)] === source.id}
+                      onSelect={(side) => selectTerrainSide(side, source.id)}
+                    />
+                  ) : (
+                    <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
+                  )}
+                  <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, ...(isSplit ? {} : { onSelect: selectTerrainA }), linkedSourceName: linkedBasemapName(source) }} />
                 </div>
-              ) : (
-                <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">
-                  {[...plainTerrainSources, ...ndsmTerrainSources].map((source, i) => (
-                    <Fragment key={source.id}>
-                      {i === plainTerrainSources.length && ndsmTerrainSources.length > 0 && (
-                        <GroupHeading className="normal-case">nDSM and Comparison</GroupHeading>
-                      )}
-                      <div className="flex items-center gap-2 min-w-0">
-                        <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
-                        <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
-                      </div>
-                    </Fragment>
-                  ))}
-                </RadioGroup>
               )
-            )}
+              const body = (
+                <>
+                  {plainTerrainSources.map(rowFor)}
+                  {ndsmTerrainSources.length > 0 && (
+                    <div id="tour-ndsm-group" className="space-y-1.5 scroll-mt-[100px]">
+                      <GroupHeading className="normal-case">nDSM and Comparison</GroupHeading>
+                      {ndsmTerrainSources.map(rowFor)}
+                    </div>
+                  )}
+                </>
+              )
+              return isSplit
+                ? <div className="space-y-1.5">{body}</div>
+                : <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">{body}</RadioGroup>
+            })()}
           </CollapsibleContent>
         </Collapsible>
 

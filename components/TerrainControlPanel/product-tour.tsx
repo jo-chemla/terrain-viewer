@@ -83,6 +83,12 @@ type TourActions = {
    *  visitor's terrain sources and make it active. Anything this ADDS is
    *  removed again on close — the tour does not get to leave sources behind. */
   loadLibrarySource: (id: string) => void
+  /** Run `fn` a beat later, but only if the tour is still sitting on `stepKey`.
+   *  For a demo whose payload is only legible once tiles have arrived —
+   *  placing it into a half-loaded map is worse than placing it late. The
+   *  guard is what keeps a late callback from leaving picks behind on a step
+   *  that has already been left, or after the tour has closed. */
+  deferForStep: (stepKey: string, ms: number, fn: () => void) => void
 }
 
 // Every nuqs `state` key any prepare function below ever writes — snapshotted
@@ -235,10 +241,18 @@ const TOOL_SECTION_KEYS = ["drawing", "elevationPicker", "sunShadowCalculator", 
  *  because below ~1.2 the map is smaller than the viewport and the footprints
  *  float on a background instead of covering it. */
 const WORLD = { lat: 20, lng: 5, zoom: 1.5, pitch: 0, bearing: 0 }
-/** Zermatt valley, Matterhorn on the right. Framing taken from a link the
- *  Matterhorn / Mont Cervin area actually reads well at — wide enough to hold
- *  both Zermatt and the summit, which is what the elevation profile needs. */
-const ZERMATT = { lat: 45.9948, lng: 7.6453, zoom: 11.85, pitch: 55, bearing: -150 }
+/** Zermatt valley looking at the Matterhorn, tilted and turned so the 2 777 m
+ *  the profile climbs is visible AS relief rather than as a number. Framing
+ *  taken from a view that reads well in the app, not derived. */
+const ZERMATT = { lat: 46.0038, lng: 7.6892, zoom: 12.8, pitch: 40.1, bearing: -56.1 }
+/** The two picks for that step: Zermatt town to the Matterhorn summit.
+ *  8.56 km apart, +2 777.3 m. Elevations are deliberately left null — the
+ *  section samples them off whichever DEM is loaded, so the numbers are real
+ *  rather than typed in here (measured 1 606.5 m and 4 383.8 m on Mapterhorn). */
+const ZERMATT_PICKS = [
+  { lng: 7.748280, lat: 46.020926, elevation: null },
+  { lng: 7.657986, lat: 45.976327, elevation: null },
+]
 /** The Mapterhorn massif, centred rather than off in a corner. */
 const MATTERHORN = { lat: 45.9597, lng: 7.5941, zoom: 11.85, pitch: 0, bearing: 0 }
 /** Tour Montparnasse: 210 m, standing alone, so its shadow is unambiguous —
@@ -832,24 +846,20 @@ const TOOLS_STEPS: TourStepDef[] = [
     key: "l2-elevation-picker", domId: "tour-elevation-picker-section", side: "left", align: "start",
     onEnter: (a) => {
       prepareOneTool(a, "elevationPicker")
-      // Hoernli ridge to the Matterhorn summit: ~1400 m of gain over ~3 km, so
-      // the delta and the profile both have something to say. Elevations are
-      // left null on purpose - the section samples whatever is missing from
-      // the ACTIVE DEM, so the numbers are real and match whichever source is
-      // loaded rather than being typed in here.
+      // Tilted, not nadir: the whole point of this pair is 2.8 km of vertical,
+      // which a top-down view flattens away entirely. Imagery on, so the valley
+      // and the ridge read as terrain rather than as a hillshade.
       a.setCamera(ZERMATT)
-      a.setState({ showPlaneSlicer: true, planeSlicerReferenceMode: "absolute",
+      a.setState({ showRasterBasemap: true, rasterBasemapOpacity: 1,
+        showPlaneSlicer: true, planeSlicerReferenceMode: "absolute",
         planeSlicerSide: "below", planeSlicerValue: 2100, planeSlicerOpacity: 0.45 })
       a.setElevationPickerActive(true)
-      a.setElevationPickerPoints([
-        { lng: 7.7491, lat: 46.0207, elevation: null },  // Zermatt, ~1600 m
-        { lng: 7.6585, lat: 45.9766, elevation: null },  // Matterhorn summit, 4478 m
-      ])
+      a.setElevationPickerPoints(ZERMATT_PICKS)
     },
     title: "Elevation Picker",
     description: (
       <>
-        <p className="pb-2">Two points are already placed, from Zermatt up to the Matterhorn summit — the panel is reading their heights off whichever DEM is loaded, with the distance, the <b>&Delta; elevation</b> and a full profile along the line.</p>
+        <p className="pb-2">Two points are already placed, from <b>Zermatt</b> up to the <b>Matterhorn summit</b> — the panel is reading their heights off whichever DEM is loaded. On Mapterhorn that is 1 606.5 m and 4 383.8 m: <b>8.56 km</b> apart, <b>&Delta; +2 777.3 m</b>, with a full profile along the line.</p>
         <p className="pb-2">Normally you place them by clicking; a second click measures against the first. The profile can follow a straight line or a real routed path.</p>
         <p>The blue wash is the <b>Plane Slicer</b>, flooding everything below 2 100 m — the same tool, independent of the two points.</p>
       </>
@@ -872,13 +882,21 @@ const TOOLS_STEPS: TourStepDef[] = [
       a.setSunShadowActive(true)
       a.setSunShadowMode("reverse")
       a.setSunShadowHeight(210)  // Tour Montparnasse, roof height
-      // Read off the Esri World Imagery capture itself: the tower's base and
-      // the tip of the shadow it casts in that frame. ~227 m long on a 210 m
-      // tower, bearing ~344 deg, which solves to a sun around 43 deg altitude
-      // in the SSE - a near-midday capture, roughly equinox.
-      a.setSunShadowPicks({
-        base: { lng: 2.321549, lat: 48.842027, elevation: null },
-        tip: { lng: 2.320672, lat: 48.843986, elevation: null },
+      // Placed a beat LATE, on purpose. The two picks and the white edge drawn
+      // between them are the whole demonstration, and dropping them onto a map
+      // that is still fetching z16 imagery put them over blank tiles - by the
+      // time the aerial arrived the eye had already moved on, and the line
+      // between base and tip was never seen against the shadow it traces.
+      // deferForStep drops the placement entirely if the step is left first.
+      a.deferForStep("l2-sun-shadow", 1200, () => {
+        // Read off the Esri World Imagery capture itself: the tower's base and
+        // the tip of the shadow it casts in that frame. ~227 m long on a 210 m
+        // tower, bearing ~344 deg, which solves to a sun around 43 deg altitude
+        // in the SSE - a near-midday capture, roughly equinox.
+        a.setSunShadowPicks({
+          base: { lng: 2.321549, lat: 48.842027, elevation: null },
+          tip: { lng: 2.320672, lat: 48.843986, elevation: null },
+        })
       })
     },
     title: "Sun and Shadow Calculator",
@@ -959,7 +977,11 @@ const BYOD_STEPS: TourStepDef[] = [
     ),
   },
   {
-    key: "l2-ndsm-list", domId: "tour-terrain-section", side: "left", align: "start",
+    // Targets the nDSM group itself (tour-ndsm-group, the wrapper around the
+    // heading and its derived rows in terrain-source-section.tsx) rather than
+    // the whole terrain section — the group IS the lesson here, and
+    // spotlighting the entire section buried it among a dozen plain sources.
+    key: "l2-ndsm-list", domId: "tour-ndsm-group", side: "left", align: "center",
     onEnter: (a) => {
       prepareTerrainBase(a)
       a.setSectionOpen((prev) => ({ ...prev, terrainSource: true }))
@@ -968,12 +990,21 @@ const BYOD_STEPS: TourStepDef[] = [
       // all three are removed again on close.
       a.loadLibrarySource(IGN_NDSM_ID)
       a.setCamera(PARIS_NDSM)
+      // The ramp is set HERE, not only on the next step, because that is where
+      // the difference first renders — left on whatever range the previous
+      // step had, a 0–40 m building-height signal reads as one flat colour.
+      a.setState({
+        showColorRelief: true, colorReliefOpacity: 1, hillshadeOpacity: 0.3,
+        customHypsoMinMax: true, hypsoSymmetric: false,
+        minElevation: 0, maxElevation: 40,
+        hypsoSliderMinBound: -10, hypsoSliderMaxBound: 60,
+      })
     },
-    title: "They get their own group",
+    title: "nDSM and Comparison",
     description: (
       <>
-        <p className="pb-2">Loaded for real: <b>IGN Lidar HD DSM − DTM</b> at 0.5 m, over central Paris. Both operands were added with it — a difference is made of two sources, not fetched from anywhere.</p>
-        <p>Derived sources are listed under <b>nDSM and Comparison</b>, separate from the datasets you loaded.</p>
+        <p className="pb-2">Derived sources get their own group, below the datasets you loaded — <b>IGN Lidar HD DSM − DTM</b> at 0.5 m over central Paris is in it now, and both operands came with it.</p>
+        <p>This is also where you make one: <b>Add Terrain → Difference of two sources</b> puts a new entry here, from any two sources already in the list above. Pick the group&rsquo;s own entry to render the difference instead of either input.</p>
       </>
     ),
   },
@@ -1289,6 +1320,17 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
   // jumpTo, not flyTo: a step's popup is positioned against a settled layout,
   // and a multi-second animated fly would have the coachmark describing a view
   // the visitor cannot see yet.
+  // Which step onEnter last ran for. Set BEFORE onEnter (not from stepIndex,
+  // which only commits after the settle) so a deferred callback scheduled
+  // inside that onEnter can check it. Cleared on close.
+  const currentStepKeyRef = useRef<string | undefined>(undefined)
+  const deferForStep = useCallback((stepKey: string, ms: number, fn: () => void) => {
+    setTimeout(() => {
+      if (currentStepKeyRef.current !== stepKey) return
+      fn()
+    }, ms)
+  }, [])
+
   const cameraMovedRef = useRef(false)
   const setCamera = useCallback((c: { lat: number; lng: number; zoom: number; pitch?: number; bearing?: number }) => {
     cameraMovedRef.current = true
@@ -1371,6 +1413,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     setElevationPickerActive, setElevationPickerPoints,
     setSunShadowActive, setSunShadowMode, setSunShadowPicks, setSunShadowHeight, setOrbit,
     setCamera, requestHypsoAutoRange: () => setHypsoAutoRangeRequest((n) => n + 1),
+    deferForStep,
     loadLibrarySource,
   }
 
@@ -1444,7 +1487,14 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     }
     if (enteringKey !== "l2-sun-shadow") { setSunShadowActive(false); setSunShadowPicks({ base: null, tip: null }) }
     if (enteringKey !== "l2-animation") setOrbit(false)
-  }, [setTerrainLibraryOpen, setCoverageOverlays, setElevationPickerActive, setElevationPickerPoints, setState, setSunShadowActive, setSunShadowPicks, setOrbit])
+    // The hypsometric auto-range POLLS for decoded tiles (up to ~6 s), so a
+    // request made on the coverage step could still be in flight two steps
+    // later and rewrite the ramp under whatever is on screen then - observed
+    // live: a whole-world -426..2553 m range landing on the Paris nDSM step.
+    // Zero is the cancel: the effect early-returns on a falsy nonce, so its
+    // cleanup aborts the pending poll.
+    if (enteringKey !== "coverage-overlays" && enteringKey !== "l2-byod-coverage") setHypsoAutoRangeRequest(0)
+  }, [setTerrainLibraryOpen, setCoverageOverlays, setElevationPickerActive, setElevationPickerPoints, setState, setSunShadowActive, setSunShadowPicks, setOrbit, setHypsoAutoRangeRequest])
 
   // Moves to `newIndex` within the CURRENT branch's step list: runs that
   // step's own onEnter (forcing whatever sidebar/section/mode state its
@@ -1457,6 +1507,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     if (!step) return
     const generation = ++transitionGenerationRef.current
     setIsTransitioning(true)
+    currentStepKeyRef.current = step.key
     returnStepLoans(step.key)
     step.onEnter?.(actionsRef.current)
     void waitForTarget(step.domId).then(() => {
@@ -1492,6 +1543,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     const generation = ++transitionGenerationRef.current
     setIsTransitioning(true)
     setBranch(next)
+    currentStepKeyRef.current = step?.key
     returnStepLoans(step?.key)
     step?.onEnter?.(actionsRef.current)
     void waitForTarget(step?.domId ?? "").then(() => {
@@ -1590,6 +1642,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
       setCustomTerrainSources((prev) => prev.filter((s) => !borrowed.has(s.id)))
       borrowedSourceIdsRef.current = []
     }
+    currentStepKeyRef.current = undefined
     setStepIndex(0)
     setBranch(null)
     setIsTourRequested(false)
