@@ -150,6 +150,44 @@ The datum is the finding worth carrying. Six points across one tile read **+48.1
 
 In practice: summits read roughly 50 m high in the Alps, and the offset varies by tens of metres around the world. Fine for shape and shading, wrong for absolute heights unless you correct it.
 
+## Compared with MapLibre's own example
+
+MapLibre merged an official quantized-mesh terrain example in
+[#7958](https://github.com/maplibre/maplibre-gl-js/pull/7958) (August 2026, against the still-open
+[#4493](https://github.com/maplibre/maplibre-gl-js/issues/4493)). It uses the
+[`maplibre-gl-3dtiles-terrain`](https://www.npmjs.com/package/maplibre-gl-3dtiles-terrain) plugin, and it is
+worth knowing how it differs — it is the closest thing to a reference implementation, and it is better than
+this one in two specific places.
+
+| | `maplibre-gl-3dtiles-terrain` | this app |
+|---|---|---|
+| Mesh → raster | **inverse**: per output pixel, `mercatorPixelToLngLat` then a point-in-TIN query against a bucketed index (`buildTriangleIndex`, `multiMeshElevationAt`) | **forward**: scan-convert each triangle over its own pixel box |
+| Reprojection | per **pixel** | per **vertex**, via `QuantizedMeshLoader`'s `bounds` |
+| Which levels exist | reads `layer.json`'s `available` ranges (`collectAvailableTiles`) | discovers by 404 and steps back a level |
+| Decoding | in a **worker**, transferable ImageBitmaps | main thread |
+| Caching | decoded **mesh + index** LRU | finished-tile LRU only ([tile caches](/dev/tile-caches)) |
+| Output | Terrarium (`packTerrarium`) | Terrarium |
+
+**Where theirs is better, and worth taking:**
+
+1. **The availability walk.** Reading `available` means never firing a request for a level that does not
+   exist, instead of learning by 404. (It is not a universal fix: swisstopo's `layer.json` carries no
+   `available` array at all, so the blind fallback is still needed as a backstop.)
+2. **A decoded-mesh cache.** At detail offset +1 four adjacent output tiles share source tiles, and this
+   app re-decodes each one. That is a real, measurable win left on the table.
+
+**Where this one is better:**
+
+1. **Forward rasterisation needs no index.** Theirs builds a spatial index per tile and then queries it once
+   per pixel; ours visits only the pixels a triangle actually covers, with no structure to build.
+2. **Projection per vertex, not per pixel.** A tile has a few thousand vertices and 65 536 pixels.
+3. **Integration.** ion endpoint resolution and token handling, the alpha-254 hole convention shared with
+   every other elevation path, the shared tile cache, and returning an `ImageBitmap` rather than encoded
+   bytes.
+
+Their worker matters less than it sounds now that the PNG encode is gone — the scan-conversion itself is
+single-digit milliseconds, and the protocol is network-bound.
+
 ## Is it worth using?
 
 Honest answer: usually not, over [`lerc://`](/dev/lerc-protocol). Cesium World Terrain tops out at level 15 — comparable to the z16 the keyless Esri services already reach — from a broadly similar blend of public sources, and it needs a token *and* a geoid correction.

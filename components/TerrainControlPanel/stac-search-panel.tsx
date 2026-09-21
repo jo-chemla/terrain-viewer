@@ -499,7 +499,33 @@ export const StacSearchPanel: React.FC<{
       <div ref={resultsRef} className="max-h-[65vh] overflow-y-auto overflow-x-hidden space-y-1 scroll-mt-2">
         {!loading && items.length === 0 && !error && <p className="text-sm text-muted-foreground py-3 text-center">No results yet.</p>}
         {!loading && items.length > 0 && ordered.every((it) => !cogAssets(it).length) && (
-          <p className="text-sm text-muted-foreground py-3 text-center">{items.length} items, none with a {target === "terrain" ? "single-band elevation" : "COG"} asset.</p>
+          <p className="text-sm text-muted-foreground py-3 text-center">
+            {items.length} items, none with a {target === "terrain" ? "single-band elevation" : "COG"} asset.
+            {target === "terrain" && (
+              <>
+                <br />
+                <span className="text-xs">
+                  {(() => {
+                    // Say WHY, because "none" on a catalog you know has DEMs is
+                    // otherwise a dead end. The three reasons are: nothing was a
+                    // COG at all, everything was multi-band (an RGB ortho), or
+                    // the items carried many rasters and none read as elevation.
+                    let cogs = 0, multiband = 0
+                    for (const it of items) {
+                      for (const [key, a] of Object.entries(it.assets ?? {})) {
+                        if (!isCog(a)) continue
+                        cogs++
+                        if (!usableForTerrain(key, a)) multiband++
+                      }
+                    }
+                    if (!cogs) return "No COG assets at all — this page of results may be quicklooks or archives."
+                    if (multiband === cogs) return `All ${cogs} COG assets are multi-band (RGB imagery), so none can be elevation.`
+                    return `${cogs} COG assets, but none reads as elevation by key, title or role. A /search across ALL collections returns one page ordered by the API — elevation items may simply be further in, so try the specific collection.`
+                  })()}
+                </span>
+              </>
+            )}
+          </p>
         )}
         {ordered.map((it) => {
           const assets = cogAssets(it)
