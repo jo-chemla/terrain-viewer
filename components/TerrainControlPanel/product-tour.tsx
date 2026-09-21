@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { track } from "@/lib/analytics"
 import {
   hasSeenTourAtom, isTourOpenAtom, tourProgressAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
-  elevationPickerActiveAtom, elevationPickerPointsAtom, sunShadowActiveAtom, sunShadowModeAtom, sunShadowPicksAtom, sunShadowHeightAtom, type PickedLngLat,
+  elevationPickerActiveAtom, elevationPickerPointsAtom, sunShadowActiveAtom, sunShadowModeAtom, sunShadowPicksAtom, sunShadowHeightAtom, orbitRequestAtom, type PickedLngLat,
   isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom } from "@/lib/settings-atoms"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import customSources from "@/lib/custom-sources.json"
@@ -70,6 +70,7 @@ type TourActions = {
   setSunShadowMode: (m: "forward" | "reverse") => void
   setSunShadowPicks: (p: { base: PickedLngLat | null; tip: PickedLngLat | null }) => void
   setSunShadowHeight: (m: number) => void
+  setOrbit: (v: boolean) => void
 }
 
 // Every nuqs `state` key any prepare function below ever writes — snapshotted
@@ -792,7 +793,11 @@ const TOOLS_STEPS: TourStepDef[] = [
       prepareOneTool(a, "sunShadowCalculator")
       // Tour Montparnasse: 210 m, standing alone, so its shadow is
       // unambiguous - the one building in Paris this actually works on.
-      a.setState(MONTPARNASSE)
+      // A shadow is only checkable against imagery that shows it, so the
+      // aerial basemap goes on for this step - on a vector or hillshade
+      // backdrop there is nothing to match the picked tip against.
+      a.setState({ ...MONTPARNASSE, showRasterBasemap: true, rasterBasemapOpacity: 1,
+        basemapSource: "esri", basemapSourceA: "esri" })
       a.setSunShadowActive(true)
       a.setSunShadowMode("reverse")
       a.setSunShadowHeight(210)  // Tour Montparnasse, roof height
@@ -805,7 +810,7 @@ const TOOLS_STEPS: TourStepDef[] = [
     description: (
       <>
         <p className="pb-2">The rest of the app points the light and shows you the shadow. This runs it <b>backwards</b>.</p>
-        <p className="pb-2">Placed for you: the base of the <b>Tour Montparnasse</b> and the tip of a shadow falling south-east, and its 210 m height. The solver turns those three numbers into a date and a time — the bearing gives the azimuth, the height-to-length ratio gives the sun&rsquo;s elevation.</p>
+        <p className="pb-2">Placed on the aerial imagery: the base of the <b>Tour Montparnasse</b>, the tip of a shadow falling south-east, and its 210 m height. The solver turns those three numbers into a date and a time — the bearing gives the azimuth, the height-to-length ratio gives the sun&rsquo;s elevation.</p>
         <p>The answer is written into the same light every other mode reads, so hillshade and cast shadows snap to it.</p>
       </>
     ),
@@ -816,13 +821,18 @@ const TOOLS_STEPS: TourStepDef[] = [
       prepareOneTool(a, "animation")
       // Parked on the Matterhorn, tilted, so "orbit this" is an obvious thing
       // to want rather than an abstraction.
+      // Actually spin, rather than parking the camera and describing a spin.
+      // animPlaying360 is ordinary state, so it is snapshotted with everything
+      // else and stops when the tour closes.
       a.setState({ ...MATTERHORN, pitch: 62, bearing: -35 })
+      a.setOrbit(true)
     },
     title: "Animation",
     description: (
       <>
-        <p className="pb-2">Set keyframe camera poses and interpolate between them for a fly-through, exportable as a rendered video.</p>
-        <p>The camera is parked on the Matterhorn and tilted — a good first keyframe. Add a second with a different bearing and you have an orbit. Terrain mode only: historical mode has no continuous surface to fly over.</p>
+        <p className="pb-2">It is orbiting the Matterhorn now — that is the <b>360°</b> button, one click, no keyframes needed.</p>
+        <p className="pb-2">For anything else, set keyframe camera poses and interpolate between them, exportable as a rendered video at a chosen size and frame rate.</p>
+        <p>Terrain mode only: historical mode has no continuous surface to fly over.</p>
       </>
     ),
   },
@@ -1143,6 +1153,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   const setSunShadowMode = useSetAtom(sunShadowModeAtom)
   const setSunShadowPicks = useSetAtom(sunShadowPicksAtom)
   const setSunShadowHeight = useSetAtom(sunShadowHeightAtom)
+  const setOrbit = useSetAtom(orbitRequestAtom)
 
   const [open, setOpen] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -1201,7 +1212,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     comparisonMixAdvancedOpen, setComparisonMixAdvancedOpen,
     setTerrainLibraryOpen, coverageOverlays, setCoverageOverlays,
     setElevationPickerActive, setElevationPickerPoints,
-    setSunShadowActive, setSunShadowMode, setSunShadowPicks, setSunShadowHeight,
+    setSunShadowActive, setSunShadowMode, setSunShadowPicks, setSunShadowHeight, setOrbit,
   }
 
   // One stable ref-shaped object per step (across every branch — see
@@ -1279,6 +1290,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       setState({ showPlaneSlicer: false })
     }
     if (step.key !== "l2-sun-shadow") { setSunShadowActive(false); setSunShadowPicks({ base: null, tip: null }) }
+    if (step.key !== "l2-animation") setOrbit(false)
     step.onEnter?.(actionsRef.current)
     void waitForTarget(step.domId).then(() => {
       scrollTargetIntoView(step.scrollTargetId ?? step.domId, step.scrollBlock)
@@ -1381,6 +1393,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       a.setCoverageOverlays(snap.coverageOverlays)
       a.setElevationPickerActive(false); a.setElevationPickerPoints([])
       a.setSunShadowActive(false); a.setSunShadowPicks({ base: null, tip: null })
+      a.setOrbit(false)
       snapshotRef.current = null
     }
     setStepIndex(0)

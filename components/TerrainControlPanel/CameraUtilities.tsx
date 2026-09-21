@@ -34,8 +34,9 @@ import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, GroupHeading } from "./controls-components"
 import { atomWithStorage } from "jotai/utils"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
 import { track } from "@/lib/analytics"
+import { orbitRequestAtom } from "@/lib/settings-atoms"
 
 // import { type AppSnapshot, type CameraPose, encodeSnapshot, decodeSnapshot } from "@/lib/pose-codec"
 // import { animEngine, spinEngine, fovEngine } from "@/lib/animation-engine"
@@ -645,6 +646,11 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
   const setSmoothCamera = (v: boolean) => setAnimParams({ animSmoothCamera: v })
   const setPlaying = (v: boolean) => setAnimParams({ animPlaying: v })
   const setSpinning = (v: boolean) => setAnimParams({ animPlaying360: v })
+  // The walkthrough's animation step asks for the orbit through this atom
+  // (see orbitRequestAtom): animPlaying360 lives in this component's own
+  // query-state map, out of reach of the tour's setState.
+  const orbitRequest = useAtomValue(orbitRequestAtom)
+  useEffect(() => { setSpinning(orbitRequest) }, [orbitRequest])
   const setPose1 = (v: AppSnapshot | null) => {
     // Re-deriving pose1 keeps the existing pose2 delta, which shifts pose2's
     // absolute position along with it — that's the inherent trade-off of

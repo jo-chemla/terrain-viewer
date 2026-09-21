@@ -101,6 +101,10 @@ export const sunShadowModeAtom = atom<"forward" | "reverse">("forward")
 /** Object height for the reverse solve, in metres. Lifted so the walkthrough
  *  can present a complete worked example rather than a half-filled form. */
 export const sunShadowHeightAtom = atom(10)
+/** Requests the 360-degree orbit. AnimationSection owns animPlaying360 in its
+ *  OWN useQueryStates map, which TerrainViewer's setState does not write - so
+ *  the walkthrough asks through here instead of silently doing nothing. */
+export const orbitRequestAtom = atom(false)
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 
 /** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.

@@ -208,6 +208,13 @@ export const StacSearchPanel: React.FC<{
   const [endDate, setEndDate] = useState(() => prev?.endDate ?? isoDate(new Date()))
   const [viewportOnly, setViewportOnly] = useState(prev?.viewportOnly ?? true)
   const [items, setItems] = useState<StacItem[]>(prev?.items ?? [])
+  // A STAC /search answers one page. Asking for "all collections" therefore
+  // returns whichever 50 items the server ordered first, which over a mixed
+  // catalog is usually imagery - the elevation items exist but are further in.
+  // Keeping the `next` link lets the visitor page through instead of
+  // concluding the catalog has none.
+  const [nextPage, setNextPage] = useState<StacLink | null>(null)
+  const [paging, setPaging] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [added, setAdded] = useState<Set<string>>(() => new Set())
@@ -262,8 +269,35 @@ export const StacSearchPanel: React.FC<{
     return (col?.links ?? []).filter((l) => l.rel === "xyz" && /\{z\}/.test(l.href)).map((l) => ({ href: l.href.startsWith("//") ? `https:${l.href}` : l.href, title: l.title || l.href.replace(/^https?:\/\//, "").split(/[/?]/)[0] }))
   }, [collections, collectionId])
 
+  /** Fetch the next page and append it. `untilUsable` keeps going until the
+   *  page yields something this target can actually add, or the cap is hit -
+   *  which is the difference between "this catalog has no DEMs" and "the DEMs
+   *  are on page 4". */
+  const loadMore = useCallback(async (untilUsable = false) => {
+    setPaging(true)
+    try {
+      let link: StacLink | null = nextPage
+      for (let page = 0; link && page < 12; page++) {
+        const asAny = link as StacLink & { method?: string; body?: unknown }
+        const data: { features?: StacItem[]; links?: StacLink[] } = asAny.method === "POST"
+          ? await fetchJson(asAny.href, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(asAny.body ?? {}) })
+          : await fetchJson(asAny.href)
+        const fresh = data.features ?? []
+        setItems((prev) => [...prev, ...fresh])
+        link = data.links?.find((l) => l.rel === "next") ?? null
+        setNextPage(link)
+        if (!untilUsable) break
+        if (fresh.some((it) => cogAssetsRef.current(it).length)) break
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPaging(false)
+    }
+  }, [nextPage])
+
   const runSearch = useCallback(async () => {
-    setLoading(true); setError(""); setItems([])
+    setLoading(true); setError(""); setItems([]); setNextPage(null)
     try {
       const map = mapRef?.current?.getMap()
       const b = viewportOnly && map ? map.getBounds() : null
@@ -283,6 +317,7 @@ export const StacSearchPanel: React.FC<{
         const data = maxCloud === null ? await post(body)
           : await post({ ...body, query: { "eo:cloud_cover": { lte: maxCloud } } }).catch(() => post(body))
         setItems((data.features ?? []).filter(cloudOk))
+        setNextPage((data as { links?: StacLink[] }).links?.find((l) => l.rel === "next") ?? null)
       } else if (catalog.kind === "discovery") {
         // Collection search only: items live on the upstream API. The
         // collection's `items` link is an OGC Features endpoint that takes
@@ -307,6 +342,9 @@ export const StacSearchPanel: React.FC<{
     }
   }, [catalog, collectionId, collections, startDate, endDate, viewportOnly, anyDate, maxCloud, mapRef])
 
+  // Held in a ref so the pager below can ask "was this page usable" without
+  // depending on a function that is redefined every render.
+  const cogAssetsRef = useRef<(it: StacItem) => [string, StacAsset][]>(() => [])
   const cogAssets = (it: StacItem) => {
     let assets = Object.entries(it.assets ?? {}).filter(([key, a]) => isCog(a) && (target !== "terrain" || usableForTerrain(key, a)))
     if (target === "terrain") {
@@ -320,6 +358,8 @@ export const StacSearchPanel: React.FC<{
     if (only3857) assets = assets.filter(([, a]) => epsgOf(it, a) === 3857)
     return assets
   }
+  cogAssetsRef.current = cogAssets
+
   // Web Mercator assets first (they stream in-browser), then other known
   // projections (titiler), then assets whose projection is unknown; DEM-looking
   // items first for terrain.
@@ -518,10 +558,28 @@ export const StacSearchPanel: React.FC<{
                         if (!usableForTerrain(key, a)) multiband++
                       }
                     }
-                    if (!cogs) return "No COG assets at all — this page of results may be quicklooks or archives."
-                    if (multiband === cogs) return `All ${cogs} COG assets are multi-band (RGB imagery), so none can be elevation.`
-                    return `${cogs} COG assets, but none reads as elevation by key, title or role. A /search across ALL collections returns one page ordered by the API — elevation items may simply be further in, so try the specific collection.`
+                    if (!cogs) return "No COG assets on this page — they may be quicklooks or archives."
+                    if (multiband === cogs) return `All ${cogs} COG assets on this page are multi-band (RGB imagery), so none can be elevation.`
+                    return `${cogs} COG assets on this page, but none reads as elevation by key, title or role.`
                   })()}
+                </span>
+              </>
+            )}
+            {nextPage && (
+              <>
+                <br />
+                <span className="text-xs">
+                  This is <b>one page</b> of results — a search across all collections returns whatever the
+                  server ordered first, which on a mixed catalog is usually imagery. Elevation items may simply
+                  be further in. Page on, or pick the specific collection.
+                </span>
+                <span className="mt-2 flex items-center justify-center gap-2">
+                  <Button size="sm" variant="outline" className="cursor-pointer" disabled={paging} onClick={() => loadMore(false)}>
+                    {paging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Load next page
+                  </Button>
+                  <Button size="sm" variant="secondary" className="cursor-pointer" disabled={paging} onClick={() => loadMore(true)}>
+                    {paging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Keep loading until a match
+                  </Button>
                 </span>
               </>
             )}
