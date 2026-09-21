@@ -11,6 +11,7 @@ import saveAs from "file-saver"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
 import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot, snapshotMatchesViewA } from "@/lib/controls-utils"
+import { pushToast } from "@/components/ui/toast"
 import { Switch } from "@/components/ui/switch"
 import { getClientExportSource, exportElevationClientSide } from "@/lib/client-export"
 import { downloadGeoJSON } from "@/lib/download-geojson"
@@ -166,11 +167,25 @@ export const DownloadSection: React.FC<{
       const blob = await captureMapScreenshot(mapRef, "jpeg")
       if (!blob) {
         console.error("Failed to capture screenshot")
+        pushToast({
+          key: "snapshot",
+          title: "Snapshot failed",
+          body: "The map canvas could not be read. This usually means the WebGL context was lost — reload and try again.",
+        })
         return
       }
-      
+
       saveAs(blob, `${filename}.jpg`)
       track("actions-export", { kind: "screenshot", viewMode: state.viewMode })
+      // A download that the browser files away without a visible prompt leaves
+      // no sign it worked, and the name is generated rather than chosen — so
+      // say what was written, including the world file below when there is one.
+      const wroteWorldFile = state.viewMode === "2d" && snapshotMatchesViewA(mapRef)
+      pushToast({
+        key: "snapshot",
+        title: "Snapshot saved",
+        body: `${filename}.jpg${wroteWorldFile ? ` + ${filename}.jgw (world file)` : ""}`,
+      })
 
       // Generate world file if in 2D mode - only when the image is view A's
       // extent (single view or overlay split). A side-by-side / grid snapshot
@@ -194,6 +209,11 @@ export const DownloadSection: React.FC<{
       }
     } catch (error) {
       console.error("Failed to download screenshot:", error)
+      pushToast({
+        key: "snapshot",
+        title: "Snapshot failed",
+        body: error instanceof Error ? error.message : String(error),
+      })
     }
   }, [mapRef, state.viewMode, getMapBounds])
 

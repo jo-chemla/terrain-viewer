@@ -84,15 +84,23 @@ export const registerLocalFileAtom = atom(null, (get, set, { id, file }: { id: s
  *  Silently skips ids OPFS never had (never persisted, evicted, or OPFS
  *  unsupported) — those still fall through to the existing
  *  "Re-select file…" affordance. */
-export async function hydrateAllPersistedCogs(ids: string[], onHydrated: (id: string) => void): Promise<void> {
+export async function hydrateAllPersistedCogs(ids: string[], onHydrated: (id: string) => void): Promise<string[]> {
+  const missing: string[] = []
   for (const id of ids) {
     if (files.has(id)) continue
     const file = await readPersistedCogFile(id)
     if (file) {
       registerLocalFileCore(id, file)
       onHydrated(id)
+    } else {
+      // Returned (rather than just skipped) so the caller can SAY so. A source
+      // whose bytes are gone renders nothing at all, and the only clue was a
+      // "Re-select file…" link further down a collapsed panel — which reads as
+      // the app having broken, not as the browser having reclaimed the file.
+      missing.push(id)
     }
   }
+  return missing
 }
 
 /** This session's blob: URL for a `local://<id>` source, or null if the file

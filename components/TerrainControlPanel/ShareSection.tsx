@@ -25,6 +25,7 @@ import {
 import { FaLinkedin } from "react-icons/fa6";
 import { TooltipButton } from "./controls-components"
 import { captureMapScreenshot, copyBlobToClipboard } from "@/lib/controls-utils"
+import { pushToast } from "@/components/ui/toast"
 
 // ── config — swap these for your self-hosted Zipline or Dub.co instance ──────
 
@@ -178,7 +179,11 @@ const CopyUrlButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // clipboard denied
+      pushToast({
+        key: "clipboard",
+        title: "Could not copy to the clipboard",
+        body: "The browser refused the write — this usually means the page is not focused, or clipboard permission is blocked. Select the text and copy it by hand.",
+      })
     }
   }, [pageUrl])
 
@@ -226,7 +231,13 @@ const IframeSnippet: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
       track("actions-share", { kind: "copy-iframe" })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch { /* clipboard denied */ }
+    } catch {
+      pushToast({
+        key: "clipboard",
+        title: "Could not copy to the clipboard",
+        body: "The browser refused the write — this usually means the page is not focused, or clipboard permission is blocked. Select the text and copy it by hand.",
+      })
+    }
   }, [snippet])
   return (
     <div className="space-y-2">
@@ -279,7 +290,11 @@ const CopyUrlWithPanelsButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => 
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // clipboard denied
+      pushToast({
+        key: "clipboard",
+        title: "Could not copy to the clipboard",
+        body: "The browser refused the write — this usually means the page is not focused, or clipboard permission is blocked. Select the text and copy it by hand.",
+      })
     }
   }, [pageUrl, sectionOpen])
 
@@ -371,7 +386,11 @@ const ShortUrlDisplay: React.FC<{ shortUrl: string }> = ({ shortUrl }) => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // denied
+      pushToast({
+        key: "clipboard",
+        title: "Could not copy to the clipboard",
+        body: "The browser refused the write — this usually means the page is not focused, or clipboard permission is blocked. Select the text and copy it by hand.",
+      })
     }
   }, [shortUrl])
 

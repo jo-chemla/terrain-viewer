@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useControl, Marker, MarkerProps, ControlPosition } from 'react-map-gl/maplibre';
 import { Search, X } from 'lucide-react';
+import { outsideFence } from '@/lib/max-bounds';
+import { pushToast } from '@/components/ui/toast';
 import MaplibreGeocoder, {
   MaplibreGeocoderApi,
   MaplibreGeocoderOptions,
@@ -247,7 +249,7 @@ export default function GeocoderControl({
   const [icons, setIcons] = useState<{ container?: HTMLElement; clearButton?: HTMLElement }>({});
 
   const geocoder = useControl<MaplibreGeocoder>(
-    ({ mapLib }) => {
+    ({ map, mapLib }) => {
       const ctrl = new MaplibreGeocoder(geocoderApi, {
         ...props,
         localGeocoder: coordinatesGeocoder,
@@ -341,6 +343,27 @@ export default function GeocoderControl({
           );
         } else {
           setMarkerEl(null);
+        }
+
+        // Searching for somewhere outside the Map Bounds fence looks broken:
+        // the geocoder accepts the pick, drops a marker, and maplibre then
+        // clamps the flight back inside the fence, so you end up where you
+        // already were with no explanation. Say which fence it was, and where
+        // to turn it off. The bounds themselves are left alone — silently
+        // widening them would undo a constraint the user chose.
+        const fenceBox = result?.bbox as [number, number, number, number] | undefined;
+        const targetBounds: [number, number, number, number] | null = fenceBox
+          ? [fenceBox[0], fenceBox[1], fenceBox[2], fenceBox[3]]
+          : location
+            ? [location[0], location[1], location[0], location[1]]
+            : null;
+        if (targetBounds && outsideFence(map?.getMap?.(), targetBounds)) {
+          pushToast({
+            key: "geocoder-outside-fence",
+            title: "That result is outside the map bounds",
+            body: `“${result?.place_name ?? result?.text ?? "The result"}” is outside the current bounds constraint, so the map cannot fly there. Settings → Map bounds constraints → None releases it.`,
+            duration: 7000,
+          });
         }
       });
 

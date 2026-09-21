@@ -112,3 +112,21 @@ export async function resolveCustomSourceBounds(
   // metadata fetch here — treated as unbounded (worldwide), same as "none".
   return null
 }
+
+/** Does `target` fall (even partly) outside the fence currently applied to
+ *  `map`? Used to explain a fly-to that will visibly not arrive: maplibre
+ *  clamps the camera to `maxBounds` silently, so asking to go somewhere
+ *  outside it just leaves you where you were with no reason given. */
+export function outsideFence(
+  map: { getMaxBounds?: () => { getWest(): number; getSouth(): number; getEast(): number; getNorth(): number } | null } | null | undefined,
+  target: LngLatBoundsTuple,
+): boolean {
+  const fence = map?.getMaxBounds?.()
+  if (!fence) return false
+  const [west, south, east, north] = target
+  // Any overlap at all counts as reachable — a fly-to to a partly-visible
+  // extent still lands somewhere useful. Only a target with NO intersection
+  // is worth interrupting for.
+  return west > fence.getEast() || east < fence.getWest()
+    || south > fence.getNorth() || north < fence.getSouth()
+}

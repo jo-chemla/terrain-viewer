@@ -8,7 +8,8 @@ import Map, {
   AttributionControl,
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
-import { ToastHost } from "@/components/ui/toast"
+import { ToastHost, pushToast } from "@/components/ui/toast"
+import { ensureTitilerReachable, needsTitiler } from "@/lib/titiler-health"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
 import NavigationControlThemed from "./MapControls/NavigationControlThemed"
@@ -894,13 +895,26 @@ export function TerrainViewer() {
   // live by the normal pick flow (custom-terrain-source-modal.tsx /
   // custom-basemap-modal.tsx), not through this path.
   useEffect(() => {
-    const ids = [...customTerrainSources, ...customBasemapSources]
-      .filter((s) => s.type === "cog-local")
-      .map((s) => localFileId(s.url))
+    const all = [...customTerrainSources, ...customBasemapSources].filter((s) => s.type === "cog-local")
+    const ids = all.map((s) => localFileId(s.url))
     if (ids.length === 0) return
     let cancelled = false
-    hydrateAllPersistedCogs(ids, () => {
+    void hydrateAllPersistedCogs(ids, () => {
       if (!cancelled) bumpLocalFileVersion((v) => v + 1)
+    }).then((missing) => {
+      // Persistence keeps the BYTES in OPFS, best-effort — the browser can
+      // evict them under storage pressure, the file can have been cleared from
+      // Settings, or persistence can simply have been off when it was picked.
+      // Either way the source is still listed and now renders nothing, so say
+      // which ones and what to do about it.
+      if (cancelled || missing.length === 0) return
+      const names = all.filter((s) => missing.includes(localFileId(s.url))).map((s) => s.name)
+      pushToast({
+        key: "local-cog-not-restored",
+        title: missing.length === 1 ? "A local file could not be restored" : `${missing.length} local files could not be restored`,
+        body: `${names.slice(0, 3).join(", ")}${names.length > 3 ? `, +${names.length - 3} more` : ""} — the browser no longer has the bytes. Use “Re-select file…” on the source to pick it again.`,
+        duration: 9000,
+      })
     })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3101,6 +3115,22 @@ export function TerrainViewer() {
     state.maxBoundsMode, state.maxBoundsBuffer, state.maxBoundsWest, state.maxBoundsSouth, state.maxBoundsEast, state.maxBoundsNorth,
     state.sourceA, activeBasemapSourceA, customTerrainSources, customBasemapSources, useCogProtocolVsTitiler, titilerEndpoint,
   ])
+
+  // A source that is not already Web Mercator has its tiles reprojected by
+  // titiler, inside a plain tile URL template. When the endpoint is down or
+  // mistyped the layer simply renders nothing and the console fills with failed
+  // tile requests — the source itself is usually fine, and nothing in the UI
+  // ever says so. Probe /healthz once per endpoint when such a source becomes
+  // active. See lib/titiler-health.ts.
+  useEffect(() => {
+    const active = [
+      customTerrainSources.find((s) => s.id === state.sourceA),
+      customBasemapSources.find((s) => s.id === activeBasemapSourceA),
+    ]
+    if (active.some((s) => needsTitiler(s, useCogProtocolVsTitiler))) {
+      void ensureTitilerReachable(titilerEndpoint)
+    }
+  }, [state.sourceA, activeBasemapSourceA, customTerrainSources, customBasemapSources, useCogProtocolVsTitiler, titilerEndpoint])
 
   // Phong's raster ("3D Slow") tile source is expensive to refetch, so its
   // consumed light direction is decoupled from the raw illuminationDir/
