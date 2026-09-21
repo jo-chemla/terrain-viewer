@@ -646,11 +646,6 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
   const setSmoothCamera = (v: boolean) => setAnimParams({ animSmoothCamera: v })
   const setPlaying = (v: boolean) => setAnimParams({ animPlaying: v })
   const setSpinning = (v: boolean) => setAnimParams({ animPlaying360: v })
-  // The walkthrough's animation step asks for the orbit through this atom
-  // (see orbitRequestAtom): animPlaying360 lives in this component's own
-  // query-state map, out of reach of the tour's setState.
-  const orbitRequest = useAtomValue(orbitRequestAtom)
-  useEffect(() => { setSpinning(orbitRequest) }, [orbitRequest])
   const setPose1 = (v: AppSnapshot | null) => {
     // Re-deriving pose1 keeps the existing pose2 delta, which shifts pose2's
     // absolute position along with it — that's the inherent trade-off of
@@ -880,6 +875,33 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
   const toggleSpin = useCallback(() => {
     spinning ? triggerStopSpin() : doStartSpin()
   }, [spinning, triggerStopSpin, doStartSpin])
+
+  // The walkthrough's animation step asks for the orbit through this atom (see
+  // orbitRequestAtom): animPlaying360 lives in this component's OWN
+  // query-state map, out of reach of the tour's setState.
+  //
+  // It has to go through doStartSpin, not setSpinning. Setting the flag alone
+  // was the first attempt and it is exactly wrong: animPlaying360 is what the
+  // button RENDERS from, so the button showed "playing" while the rAF engine
+  // that actually turns the bearing had never been started. Live it read as a
+  // stuck button over a motionless map.
+  //
+  // Declared here rather than beside setSpinning because doStartSpin and
+  // triggerStopSpin are defined further down.
+  const orbitRequest = useAtomValue(orbitRequestAtom)
+  const sawFirstOrbitRequestRef = useRef(false)
+  useEffect(() => {
+    // Skip the mount pass. The mount-sync effect above resumes a spin that the
+    // URL says is running; this one firing with its initial `false` would stop
+    // it again a tick later, so reloading an animPlaying360=true link would
+    // spin for one frame and stop.
+    if (!sawFirstOrbitRequestRef.current) { sawFirstOrbitRequestRef.current = true; return }
+    if (orbitRequest) { if (!spinEngine.isRunning()) doStartSpin() }
+    else triggerStopSpin()
+    // `spinning` is deliberately NOT a dependency: this effect reacts to the
+    // REQUEST, not to the flag it ends up setting, or stopping the spin by
+    // hand mid-step would immediately restart it.
+  }, [orbitRequest, doStartSpin, triggerStopSpin])
 
   // ═══ Video export ═════════════════════════════════════════════════════════
   const handleExportVideo = useCallback(async () => {

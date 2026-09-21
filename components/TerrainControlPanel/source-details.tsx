@@ -13,24 +13,10 @@ export const SourceDetails: React.FC<{
     <Label htmlFor={`source-${sourceKey}`} className={`flex-1 text-sm truncate min-w-0 ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
       {config.name}
     </Label>
-    {config.datum === "ellipsoidal" && (
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300 cursor-help">
-              ellipsoidal
-            </span>
-          }
-        />
-        <TooltipContent>
-          <p className="max-w-[260px]">
-            Heights are above the WGS84 <b>ellipsoid</b>, not the geoid — about <b>+49 m</b> in the Alps, and
-            anywhere from −107 m to +85 m worldwide. Almost every other source here is orthometric
-            (&ldquo;above sea level&rdquo;). Load the EGM96 geoid entry from the Library to see the offset itself.
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    )}
+    {/* No datum badge here. An "ellipsoidal" pill next to the name read as a
+     *  warning on a source that is not wrong, just referenced differently, and
+     *  it crowded a row that already carries two icon buttons. The fact still
+     *  lives in the source info dialog (i) and in the Terrain Sources docs. */}
     <SourceInfoDialog sourceKey={sourceKey} config={config} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} state={state} />
     <Tooltip>
       <TooltipTrigger

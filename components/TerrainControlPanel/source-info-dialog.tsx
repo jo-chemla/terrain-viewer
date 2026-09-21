@@ -124,6 +124,20 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
             <span className="font-semibold">Encoding Type:</span> {config.encoding}
           </div>
 
+          {/* Vertical datum, shown only when it is the surprising one. Almost
+           *  every source here is orthometric, so saying so on all of them is
+           *  noise; an ellipsoidal source reads tens of metres off "sea level"
+           *  and that is worth one line. */}
+          {config.datum === "ellipsoidal" && (
+            <div>
+              <span className="font-semibold">Vertical datum:</span> ellipsoidal — heights are above the
+              WGS84 <b>ellipsoid</b>, not the geoid: about <b>+49&nbsp;m</b> in the Alps, and anywhere from
+              −107&nbsp;m to +85&nbsp;m worldwide. Almost every other source here is orthometric
+              (&ldquo;above sea level&rdquo;). Load an EGM96/EGM2008 geoid entry from the Library to see the
+              offset itself.
+            </div>
+          )}
+
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="font-semibold">GDAL & TMS Access:</span>

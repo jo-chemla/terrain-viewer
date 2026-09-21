@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Slider } from "@/components/ui/slider"
 import {
-  colorRampTypeAtom, licenseFilterAtom, activeSliderAtom
+  colorRampTypeAtom, licenseFilterAtom, activeSliderAtom, hypsoAutoRangeRequestAtom
 } from "@/lib/settings-atoms"
 import { colorRamps, extractStops, colorRampsFlat, buildCustomRampColors, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 // import { Section, TooltipIconButton } from "./controls-components"
@@ -322,9 +322,33 @@ export const HypsometricTintOptionsSection: React.FC<{
         hypsoSliderMinBound,
         hypsoSliderMaxBound,
       })
-    } , 
+    } ,
     [mapRef, state.minElevation, state.maxElevation]
   )
+
+  // Remote trigger for the same thing the "Set from viewport" button does —
+  // used by the walkthrough, which flies somewhere and then wants the ramp to
+  // fit what is actually on screen.
+  //
+  // It has to POLL rather than read once: the request arrives right after a
+  // camera move, and getLoadedTilesElevationRange() only sees tiles that have
+  // finished decoding. Reading immediately would find nothing (or the previous
+  // viewport's tiles) and silently keep the old range. Stops at the first
+  // answer, or gives up after ~6 s rather than looping forever over ocean,
+  // where there genuinely is no DEM tile to read.
+  const autoRangeRequest = useAtom(hypsoAutoRangeRequestAtom)[0]
+  useEffect(() => {
+    if (!autoRangeRequest) return
+    let cancelled = false
+    let tries = 0
+    const tick = () => {
+      if (cancelled) return
+      if (getLoadedTilesElevationRange()) { setElevFromLoadedTiles(); return }
+      if (++tries < 20) timer = setTimeout(tick, 300)
+    }
+    let timer = setTimeout(tick, 300)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [autoRangeRequest, getLoadedTilesElevationRange, setElevFromLoadedTiles])
 
   // All hooks (useRef, useEffect, useCallback, useMemo, useAtom etc) must be above that early return statement
   if (!state.showColorRelief) return null

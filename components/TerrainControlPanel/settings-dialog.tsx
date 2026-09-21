@@ -498,21 +498,26 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // from Batch always commits whatever text is currently there.
   const handleApiKeysViewModeChange = useCallback((mode: "individual" | "batch") => {
     if (mode === "batch") {
-      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`].join("\n"))
+      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`, `CESIUM_ION_TOKEN=${cesiumIonKey}`].join("\n"))
     } else {
       batchApiKeys.split("\n").forEach((line) => {
-        const [key, value] = line.split("=")
+        // Split on the FIRST "=" only: a base64 token can legitimately carry
+        // "=" padding, and split("=") would silently truncate it.
+        const eq = line.indexOf("=")
+        const key = eq === -1 ? "" : line.slice(0, eq)
+        const value = eq === -1 ? "" : line.slice(eq + 1)
         if (key && value) {
           if (key.trim() === "MAPBOX_ACCESS_TOKEN") setMapboxKey(value.trim())
           if (key.trim() === "MAPTILER_API_KEY") setMaptilerKey(value.trim())
           if (key.trim() === "HERE_API_KEY") setHereKey(value.trim())
           if (key.trim() === "PLANET_API_KEY") setPlanetKey(value.trim())
           if (key.trim() === "GOOGLE_API_KEY") setGoogleKey(value.trim())
+          if (key.trim() === "CESIUM_ION_TOKEN") setCesiumIonKey(value.trim())
         }
       })
     }
     setApiKeysViewMode(mode)
-  }, [batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey])
+  }, [batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, cesiumIonKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey, setCesiumIonKey])
 
   return (
     <Dialog

@@ -8,6 +8,7 @@ import Map, {
   AttributionControl,
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
+import { ToastHost } from "@/components/ui/toast"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
 import NavigationControlThemed from "./MapControls/NavigationControlThemed"
@@ -4433,6 +4434,7 @@ export function TerrainViewer() {
         getMapBounds={getMapBounds}
         mapRef={mapRefs.A as any}
       />
+      <ToastHost />
     </div>
   )
 }

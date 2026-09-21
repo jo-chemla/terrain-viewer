@@ -8,7 +8,8 @@ import { track } from "@/lib/analytics"
 import {
   hasSeenTourAtom, isTourOpenAtom, tourProgressAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
   elevationPickerActiveAtom, elevationPickerPointsAtom, sunShadowActiveAtom, sunShadowModeAtom, sunShadowPicksAtom, sunShadowHeightAtom, orbitRequestAtom, type PickedLngLat,
-  isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom } from "@/lib/settings-atoms"
+  isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom, hypsoAutoRangeRequestAtom } from "@/lib/settings-atoms"
+import type { MapRef } from "react-map-gl/maplibre"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import customSources from "@/lib/custom-sources.json"
 import { isSidebarOpenAtom, sectionOpenAtom, macroGroupOpenAtom } from "./TerrainControlPanel"
@@ -71,6 +72,13 @@ type TourActions = {
   setSunShadowPicks: (p: { base: PickedLngLat | null; tip: PickedLngLat | null }) => void
   setSunShadowHeight: (m: number) => void
   setOrbit: (v: boolean) => void
+  // The map is its own source of truth for the camera: state.lat/lng/zoom feed
+  // <Map initialViewState> and nothing reads them again, so setState alone
+  // rewrites the URL and leaves the camera exactly where it was. Every demo
+  // that flies somewhere has to go through here.
+  setCamera: (c: { lat: number; lng: number; zoom: number; pitch?: number; bearing?: number }) => void
+  /** Ask the hypsometric ramp to fit the tiles on screen (it polls for them). */
+  requestHypsoAutoRange: () => void
 }
 
 // Every nuqs `state` key any prepare function below ever writes — snapshotted
@@ -99,6 +107,8 @@ const TOUR_STATE_KEYS = [
   "illuminationDir", "illuminationAlt", "lightDayOfYear", "lightTimeOfDay", "lightUseDatetime",
   // Plane slicer, driven by the elevation-picker demo.
   "showPlaneSlicer", "planeSlicerValue", "planeSlicerOpacity", "planeSlicerSide", "planeSlicerReferenceMode",
+  // The hypsometric range, which the coverage step re-fits to the whole world.
+  "customHypsoMinMax", "minElevation", "maxElevation", "hypsoSliderMinBound", "hypsoSliderMaxBound", "hypsoSymmetric",
 ] as const
 
 // The map-viewport step's own popup — sidebar and any pre-existing
@@ -208,6 +218,29 @@ const TERRAIN_LIBRARY_COVERAGE_IDS: string[] = (customSources.SAMPLE_TERRAIN_SOU
 
 const TOOL_SECTION_KEYS = ["drawing", "elevationPicker", "sunShadowCalculator", "animation", "sourceInfo"] as const
 
+// ─── Where the demos happen ─────────────────────────────────────────────────
+//
+// Real ground with real relief, because a tool demonstrated over flat terrain
+// shows nothing. Every one of these goes through TourActions.setCamera, not
+// setState — see its comment. The camera is restored on close (the fields are
+// in TOUR_STATE_KEYS, and closeAndRestore jumps the map back too).
+
+/** Whole earth, centred so both hemispheres are on screen. 1.5 rather than 0
+ *  because below ~1.2 the map is smaller than the viewport and the footprints
+ *  float on a background instead of covering it. */
+const WORLD = { lat: 20, lng: 5, zoom: 1.5, pitch: 0, bearing: 0 }
+/** Zermatt valley, Matterhorn on the right. Framing taken from a link the
+ *  Matterhorn / Mont Cervin area actually reads well at — wide enough to hold
+ *  both Zermatt and the summit, which is what the elevation profile needs. */
+const ZERMATT = { lat: 45.9948, lng: 7.6453, zoom: 11.85, pitch: 55, bearing: -150 }
+/** Tour Montparnasse: 210 m, standing alone, so its shadow is unambiguous —
+ *  the one building in Paris this actually works on. Centred on the base pick
+ *  and zoomed in far enough that the tower and its shadow fill the view. */
+const MONTPARNASSE = { lat: 48.8425, lng: 2.3215, zoom: 16.6, pitch: 0, bearing: 0 }
+/** Parked on the Matterhorn for the orbit, tilted 45° so the spin reads as a
+ *  spin rather than a rotating map. */
+const MATTERHORN_ORBIT = { lat: 45.9990, lng: 7.7050, zoom: 12.2, pitch: 45, bearing: -35 }
+
 // Hillshade only — the Tools step isn't about any viz mode, so this clears
 // every OTHER mode back down to just its own collapsed section, leaving the
 // panel's remaining room to the Tools group below it (already forced open
@@ -233,10 +266,21 @@ function prepareTerrainLibrary(a: TourActions) {
 // so the step has something to point at on the map.
 function prepareCoverageOverlays(a: TourActions) {
   prepareTerrainTools(a)
-  a.setSectionOpen((prev) => ({ ...prev, sourceInfo: true }))
+  a.setSectionOpen((prev) => ({ ...prev, sourceInfo: true, hypsometricTint: false }))
   // Mapterhorn's own coverage plus every terrain-library footprint: the two
   // halves of the question "is there better data here than the default?".
   a.setCoverageOverlays(["mapterhorn", ...TERRAIN_LIBRARY_COVERAGE_IDS])
+  // Whole world. These footprints are national and continental - shown over
+  // wherever the visitor happened to be parked, most of them are off-screen
+  // and the step reads as "two patches near me" instead of "here is what
+  // exists, everywhere".
+  a.setCamera(WORLD)
+  // ...and colour the world while we are at it, with a range derived from the
+  // tiles actually on screen rather than the ramp's nominal bounds. At z1.5
+  // that is very nearly the real global min/max, which is a far better first
+  // sight of a hypsometric ramp than a default guess.
+  a.setState({ showColorRelief: true, colorReliefOpacity: 1, hillshadeOpacity: 0.35, hypsoSymmetric: false })
+  a.requestHypsoAutoRange()
 }
 
 // Same single-setState-call merging as prepareTerrainBase above, via
@@ -506,6 +550,11 @@ const makeDocsStep = (key: string): TourStepDef => ({
 })
 const TERRAIN_DOCS_STEP = makeDocsStep("terrain-docs")
 const HISTORICAL_DOCS_STEP = makeDocsStep("historical-docs")
+// The level-2 tours end on the same card. Without it they stopped dead on
+// their last lesson with no way on to the others, which made finishing one
+// feel like falling off the end rather than reaching it.
+const TOOLS_DOCS_STEP = makeDocsStep("tools-docs")
+const BYOD_DOCS_STEP = makeDocsStep("byod-docs")
 
 const TERRAIN_STEPS: TourStepDef[] = [
   {
@@ -606,7 +655,8 @@ const TERRAIN_STEPS: TourStepDef[] = [
     description: (
       <>
         <p className="pb-2">Source Info → <span className="font-semibold text-foreground">Coverage overlays</span> draws the footprint of any dataset on the map, whether or not it is loaded — so a blank area can be told apart from a slow one before you switch source.</p>
-        <p className="pb-2">Two are on now. <span className="font-semibold text-foreground">Mapterhorn</span>: each patch is the national dataset the default terrain ingested there, hollow where it falls back to global 30 m. <span className="font-semibold text-foreground">Terrain library</span>: every dataset from the Library you just saw, loaded or not.</p>
+        <p className="pb-2">Two are on now, and the camera has pulled back to the whole earth so you can see all of them at once. <span className="font-semibold text-foreground">Mapterhorn</span>: each patch is the national dataset the default terrain ingested there, hollow where it falls back to global 30 m. <span className="font-semibold text-foreground">Terrain library</span>: every dataset from the Library you just saw, loaded or not.</p>
+        <p className="pb-2">The colour underneath is the hypsometric ramp, fitted to the elevations actually on screen — at this zoom, very nearly the real global range.</p>
         <p>Where they overlap, the library has an alternative to the default — hover for the resolution and producer, click for a link and a "use this source" button. Basemaps and the OpenStreetMap imagery index can be drawn the same way.</p>
       </>
     ),
@@ -735,12 +785,6 @@ const HISTORICAL_STEPS: TourStepDef[] = [
 // finished. They reuse prepareTerrainTools/prepareTerrainBase so the panel is
 // in a known shape, and each opens exactly the one section it is about.
 
-/** Where each demo happens. Real ground with real relief, because a tool
- *  demonstrated over flat terrain shows nothing. The camera is restored on
- *  close - it is in TOUR_STATE_KEYS. */
-const MATTERHORN = { lat: 45.9990, lng: 7.7050, zoom: 12.2, pitch: 60, bearing: -140 }
-const MONTPARNASSE = { lat: 48.8421, lng: 2.3220, zoom: 16.4, pitch: 0, bearing: 0 }
-
 function prepareOneTool(a: TourActions, key: string) {
   prepareTerrainTools(a)
   a.setSectionOpen((prev) => ({
@@ -770,7 +814,8 @@ const TOOLS_STEPS: TourStepDef[] = [
       // left null on purpose - the section samples whatever is missing from
       // the ACTIVE DEM, so the numbers are real and match whichever source is
       // loaded rather than being typed in here.
-      a.setState({ ...MATTERHORN, showPlaneSlicer: true, planeSlicerReferenceMode: "absolute",
+      a.setCamera(ZERMATT)
+      a.setState({ showPlaneSlicer: true, planeSlicerReferenceMode: "absolute",
         planeSlicerSide: "below", planeSlicerValue: 2100, planeSlicerOpacity: 0.45 })
       a.setElevationPickerActive(true)
       a.setElevationPickerPoints([
@@ -791,26 +836,29 @@ const TOOLS_STEPS: TourStepDef[] = [
     key: "l2-sun-shadow", domId: "tour-sun-shadow-section", side: "left", align: "start",
     onEnter: (a) => {
       prepareOneTool(a, "sunShadowCalculator")
-      // Tour Montparnasse: 210 m, standing alone, so its shadow is
-      // unambiguous - the one building in Paris this actually works on.
       // A shadow is only checkable against imagery that shows it, so the
       // aerial basemap goes on for this step - on a vector or hillshade
       // backdrop there is nothing to match the picked tip against.
-      a.setState({ ...MONTPARNASSE, showRasterBasemap: true, rasterBasemapOpacity: 1,
+      a.setCamera(MONTPARNASSE)
+      a.setState({ showRasterBasemap: true, rasterBasemapOpacity: 1,
         basemapSource: "esri", basemapSourceA: "esri" })
       a.setSunShadowActive(true)
       a.setSunShadowMode("reverse")
       a.setSunShadowHeight(210)  // Tour Montparnasse, roof height
+      // Read off the Esri World Imagery capture itself: the tower's base and
+      // the tip of the shadow it casts in that frame. ~227 m long on a 210 m
+      // tower, bearing ~344 deg, which solves to a sun around 43 deg altitude
+      // in the SSE - a near-midday capture, roughly equinox.
       a.setSunShadowPicks({
-        base: { lng: 2.3220, lat: 48.8421, elevation: null },
-        tip: { lng: 2.3247, lat: 48.8408, elevation: null },
+        base: { lng: 2.321549, lat: 48.842027, elevation: null },
+        tip: { lng: 2.320672, lat: 48.843986, elevation: null },
       })
     },
     title: "Sun and Shadow Calculator",
     description: (
       <>
         <p className="pb-2">The rest of the app points the light and shows you the shadow. This runs it <b>backwards</b>.</p>
-        <p className="pb-2">Placed on the aerial imagery: the base of the <b>Tour Montparnasse</b>, the tip of a shadow falling south-east, and its 210 m height. The solver turns those three numbers into a date and a time — the bearing gives the azimuth, the height-to-length ratio gives the sun&rsquo;s elevation.</p>
+        <p className="pb-2">Placed on the aerial imagery: the base of the <b>Tour Montparnasse</b>, the tip of the shadow it casts in that very frame, and its 210 m height. The solver turns those three numbers into a date and a time — the bearing gives the azimuth, the height-to-length ratio gives the sun&rsquo;s elevation.</p>
         <p>The answer is written into the same light every other mode reads, so hillshade and cast shadows snap to it.</p>
       </>
     ),
@@ -824,7 +872,7 @@ const TOOLS_STEPS: TourStepDef[] = [
       // Actually spin, rather than parking the camera and describing a spin.
       // animPlaying360 is ordinary state, so it is snapshotted with everything
       // else and stops when the tour closes.
-      a.setState({ ...MATTERHORN, pitch: 62, bearing: -35 })
+      a.setCamera(MATTERHORN_ORBIT)
       a.setOrbit(true)
     },
     title: "Animation",
@@ -836,8 +884,13 @@ const TOOLS_STEPS: TourStepDef[] = [
       </>
     ),
   },
+  TOOLS_DOCS_STEP,
 ]
 
+// Bring-your-own-data and nDSM used to be two separate level-2 tours. They are
+// one: both start in Add Terrain, the second is what you do with two of the
+// sources the first loaded, and splitting them meant three steps of setup twice
+// over. Run as one arc — load data, see where it exists, then difference it.
 const BYOD_STEPS: TourStepDef[] = [
   {
     key: "l2-byod-add", domId: "tour-byod-terrain-row", side: "left", align: "center",
@@ -865,11 +918,8 @@ const BYOD_STEPS: TourStepDef[] = [
     key: "l2-byod-coverage", domId: "tour-coverage-overlays", side: "left", align: "center",
     onEnter: prepareCoverageOverlays,
     title: "Where does it actually have data?",
-    description: <p>Before loading anything, draw its footprint. Mapterhorn&rsquo;s own coverage shows which national source it used where; the library footprints show what else is available there. The selection travels in the link.</p>,
+    description: <p>Before loading anything, draw its footprint — pulled back to the whole earth here so every one is on screen at once. Mapterhorn&rsquo;s own coverage shows which national source it used where; the library footprints show what else is available there. The selection travels in the link.</p>,
   },
-]
-
-const NDSM_STEPS: TourStepDef[] = [
   {
     key: "l2-ndsm-add", domId: "tour-byod-terrain-row", side: "left", align: "center",
     onEnter: (a) => { prepareTerrainBase(a); a.setSectionOpen((prev) => ({ ...prev, terrainSource: true })) },
@@ -905,6 +955,7 @@ const NDSM_STEPS: TourStepDef[] = [
       </>
     ),
   },
+  BYOD_DOCS_STEP,
 ]
 
 // The full union, for building/resolving target refs — every possible step's
@@ -912,7 +963,7 @@ const NDSM_STEPS: TourStepDef[] = [
 // actually active (cheap: just N getElementById calls), so switching
 // branches (or going Back into one after picking the other) never hits an
 // unresolved target.
-const ALL_STEPS: TourStepDef[] = [...GENERAL_STEPS, BRANCH_STEP, ...TERRAIN_STEPS, ...HISTORICAL_STEPS, ...TOOLS_STEPS, ...BYOD_STEPS, ...NDSM_STEPS]
+const ALL_STEPS: TourStepDef[] = [...GENERAL_STEPS, BRANCH_STEP, ...TERRAIN_STEPS, ...HISTORICAL_STEPS, ...TOOLS_STEPS, ...BYOD_STEPS]
 
 /** The level-2 tours. Unlike the level-1 branches these do NOT replay the
  *  general intro: they are entered by someone who has already finished one,
@@ -922,16 +973,17 @@ const ALL_STEPS: TourStepDef[] = [...GENERAL_STEPS, BRANCH_STEP, ...TERRAIN_STEP
  *  other - a menu, not a chain. */
 export const LEVEL2_TOURS = [
   { key: "tools" as const, label: "The Tools", blurb: "Drawing, the elevation picker, the sun/shadow calculator and the animation path." },
-  { key: "byod" as const, label: "Bring Your Own Data", blurb: "Load a COG, a WMS elevation service or a catalog search as a terrain source." },
-  { key: "ndsm" as const, label: "nDSM and Comparison", blurb: "Subtract one source from another: canopy height, building height, change between two dates." },
+  { key: "byod" as const, label: "Bring Your Own Data", blurb: "Load a COG, a WMS elevation service or a catalog search as a terrain source — then difference two of them into an nDSM." },
 ]
 
 function getStepsForBranch(branch: TourBranch): TourStepDef[] {
   if (branch === "terrain") return [...GENERAL_STEPS, BRANCH_STEP, ...TERRAIN_STEPS]
   if (branch === "historical") return [...GENERAL_STEPS, BRANCH_STEP, ...HISTORICAL_STEPS]
   if (branch === "tools") return TOOLS_STEPS
-  if (branch === "byod") return BYOD_STEPS
-  if (branch === "ndsm") return NDSM_STEPS
+  // "ndsm" is kept as an alias rather than dropped: it is a public deep link
+  // (?startTour=ndsm) and was the end-of-tour menu's own key, so old links and
+  // stored progress keep working - they just land in the merged tour now.
+  if (branch === "byod" || branch === "ndsm") return BYOD_STEPS
   return [...GENERAL_STEPS, BRANCH_STEP]
 }
 
@@ -1127,9 +1179,10 @@ interface ProductTourProps {
   state: any
   setState: (updates: any) => void
   switchAppMode: (mode: AppMode) => void
+  mapRef: React.RefObject<MapRef>
 }
 
-export function ProductTour({ state, setState, switchAppMode }: ProductTourProps) {
+export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductTourProps) {
   const [hasSeenTour, setHasSeenTour] = useAtom(hasSeenTourAtom)
   // Completion, per branch. Level-2 tours unlock once EITHER level-1 branch is
   // done: terrain and historical are alternatives, so requiring both would make
@@ -1154,6 +1207,23 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   const setSunShadowPicks = useSetAtom(sunShadowPicksAtom)
   const setSunShadowHeight = useSetAtom(sunShadowHeightAtom)
   const setOrbit = useSetAtom(orbitRequestAtom)
+  const setHypsoAutoRangeRequest = useSetAtom(hypsoAutoRangeRequestAtom)
+
+  // Camera. setState writes the URL; the map only ever READ those fields once,
+  // as <Map initialViewState>. So a demo that says "we are at the Matterhorn"
+  // has to command the map itself, and the URL is kept in step alongside so the
+  // snapshot/restore and the shareable link still agree with what is on screen.
+  // jumpTo, not flyTo: a step's popup is positioned against a settled layout,
+  // and a multi-second animated fly would have the coachmark describing a view
+  // the visitor cannot see yet.
+  const cameraMovedRef = useRef(false)
+  const setCamera = useCallback((c: { lat: number; lng: number; zoom: number; pitch?: number; bearing?: number }) => {
+    cameraMovedRef.current = true
+    setState({ lat: c.lat, lng: c.lng, zoom: c.zoom, pitch: c.pitch ?? 0, bearing: c.bearing ?? 0 })
+    mapRef.current?.getMap()?.jumpTo({
+      center: [c.lng, c.lat], zoom: c.zoom, pitch: c.pitch ?? 0, bearing: c.bearing ?? 0,
+    })
+  }, [setState, mapRef])
 
   const [open, setOpen] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -1213,6 +1283,7 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     setTerrainLibraryOpen, coverageOverlays, setCoverageOverlays,
     setElevationPickerActive, setElevationPickerPoints,
     setSunShadowActive, setSunShadowMode, setSunShadowPicks, setSunShadowHeight, setOrbit,
+    setCamera, requestHypsoAutoRange: () => setHypsoAutoRangeRequest((n) => n + 1),
   }
 
   // One stable ref-shaped object per step (across every branch — see
@@ -1310,11 +1381,17 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   // handler from depending on declaration order.
   const startLevel2Ref = useRef<((k: Exclude<TourBranch, null>) => void) | null>(null)
 
-  const chooseBranch = useCallback((next: Exclude<TourBranch, null>) => {
+  // `atIndex` overrides where in that branch to land. Only "last" is used
+  // today (the intro's shortcut straight to Dive Deeper in the Docs, for a
+  // visitor who wants the reference rather than the tour), but the mechanism
+  // is the same one the branch buttons use, so it inherits the whole
+  // onEnter/settle/generation discipline rather than being a second path.
+  const chooseBranch = useCallback((next: Exclude<TourBranch, null>, atIndex?: number | "last") => {
     const steps = getStepsForBranch(next)
     // A level-2 tour is its own whole list and starts at 0; the level-1
     // branches continue after the shared intro and the fork.
-    const targetIndex = (next === "terrain" || next === "historical") ? GENERAL_STEPS.length + 1 : 0
+    const defaultIndex = (next === "terrain" || next === "historical") ? GENERAL_STEPS.length + 1 : 0
+    const targetIndex = atIndex === "last" ? steps.length - 1 : atIndex ?? defaultIndex
     const step = steps[targetIndex]
     const generation = ++transitionGenerationRef.current
     setIsTransitioning(true)
@@ -1382,6 +1459,18 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     const a = actionsRef.current
     if (snap) {
       a.setState(snap.stateFields)
+      // ...and put the MAP back, not just the URL. Same asymmetry as setCamera:
+      // restoring lat/lng/zoom into state leaves the camera parked on whatever
+      // the last demo flew to. Only when a step actually moved it - otherwise
+      // a tour that never touched the camera would still yank it to the
+      // snapshot, undoing any panning the visitor did during the tour.
+      const cam = snap.stateFields as Record<string, number>
+      if (cameraMovedRef.current && typeof cam.lat === "number" && typeof cam.lng === "number") {
+        mapRef.current?.getMap()?.jumpTo({
+          center: [cam.lng, cam.lat], zoom: cam.zoom, pitch: cam.pitch ?? 0, bearing: cam.bearing ?? 0,
+        })
+      }
+      cameraMovedRef.current = false
       a.setSectionOpen(() => snap.sectionOpen)
       a.setMacroGroupOpen(() => snap.macroGroupOpen)
       a.setIsSidebarOpen(snap.isSidebarOpen)
@@ -1735,6 +1824,17 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
                             Historical imagery
                           </button>
                         </div>
+                        {/* ...or past the tour entirely, to its last card: the
+                            links into the documentation. Someone who wants the
+                            reference should not have to click Next twenty
+                            times to reach it. */}
+                        <button
+                          type="button"
+                          onClick={() => chooseBranch("terrain", "last")}
+                          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), buttonBase, "h-auto whitespace-normal py-1 leading-snug text-muted-foreground")}
+                        >
+                          …or straight to the docs →
+                        </button>
                       </div>
                     )}
                     {step.offerOtherBranch && otherBranch && (

@@ -173,7 +173,15 @@ export function SampleSourcesModal<T extends SampleLike>({
     return out
   }, [samples, comparisons, compareToMapterhorn, lastGlobal, q])
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
-  const isOpen = (k: string) => openSections[k] ?? true
+  // Everything is open by default EXCEPT the "not better than Mapterhorn"
+  // tier. That tier is the majority of the list and, by its own definition,
+  // the part you do not need: the default terrain already has the same grid or
+  // finer. Leaving it expanded buried the handful of genuinely new datasets
+  // under three screens of also-rans. It is one click away, and a search still
+  // reaches into it.
+  // ...and a live filter opens everything, or typing a name that only exists
+  // in the collapsed tier would show nothing at all.
+  const isOpen = (k: string) => (q ? true : openSections[k] ?? k !== "notBetter")
 
   const add = (entries: readonly T[]) => {
     // A "dem-diff" entry is nothing without its two operands: add those from

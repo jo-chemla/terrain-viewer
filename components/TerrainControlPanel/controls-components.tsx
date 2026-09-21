@@ -14,6 +14,7 @@ import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Marker, MarkerContent } from "@/components/ui/marker"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useToast } from "@/components/ui/toast"
 import type { LucideIcon } from "lucide-react"
 import { atom, useAtom, useSetAtom } from "jotai"
 import { cn } from "@/lib/utils"
@@ -507,9 +508,15 @@ export const SliderControl: React.FC<{
 // ─── CheckboxWithSlider ───────────────────────────────────────────────────────
 
 /** Jumps the panel to a mode's own options section (opening it if collapsed).
- *  An action, not a state: it stores nothing and changes nothing on the map. */
-export const GotoOptionsButton: React.FC<{ section: string; className?: string }> = ({ section, className }) => {
+ *  An action, not a state: it stores nothing and changes nothing on the map.
+ *
+ *  When the mode is off, the options section is either absent or inert, so
+ *  jumping there lands on nothing and reads as a broken button. Say why
+ *  instead — a toast rather than a disabled control, because a disabled button
+ *  gives no reason and this one has a one-click fix. */
+export const GotoOptionsButton: React.FC<{ section: string; className?: string; modeActive?: boolean; modeLabel?: React.ReactNode }> = ({ section, className, modeActive = true, modeLabel }) => {
   const reveal = useSetAtom(revealSectionAtom)
+  const toast = useToast()
   return (
     <Tooltip>
       <TooltipTrigger
@@ -517,14 +524,26 @@ export const GotoOptionsButton: React.FC<{ section: string; className?: string }
           <button
             type="button"
             aria-label="Go to this mode's options"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); reveal(section) }}
-            className={cn("shrink-0 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors", className)}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!modeActive) {
+                toast({
+                  key: `goto-inactive-${section}`,
+                  title: "Turn the mode on first",
+                  body: `Tick the checkbox to enable ${typeof modeLabel === "string" ? modeLabel : "this mode"}, then jump to its options.`,
+                })
+                return
+              }
+              reveal(section)
+            }}
+            className={cn("shrink-0 rounded p-0.5 cursor-pointer transition-colors", modeActive ? "text-muted-foreground/60 hover:text-foreground" : "text-muted-foreground/30 hover:text-muted-foreground/60", className)}
           >
             <ArrowRightToLine className="h-3.5 w-3.5" />
           </button>
         }
       />
-      <TooltipContent><p>Go to this mode&rsquo;s options</p></TooltipContent>
+      <TooltipContent><p>{modeActive ? "Go to this mode’s options" : "Turn the mode on to reach its options"}</p></TooltipContent>
     </Tooltip>
   )
 }
@@ -560,7 +579,7 @@ export const CheckboxWithSlider: React.FC<{
       ) : labelEl}
       {!hideSlider && (
         <div className="flex items-center gap-1.5 min-w-0">
-          {gotoSection && <GotoOptionsButton section={gotoSection} />}
+          {gotoSection && <GotoOptionsButton section={gotoSection} modeActive={checked} modeLabel={label} />}
           <MobileSlider sliderId={fullId} value={sliderValue} onValueChange={(v) => onSliderChange(v as number)} min={0} max={1} step={0.1} className="cursor-pointer flex-1" disabled={!checked || disabled} />
         </div>
       )}

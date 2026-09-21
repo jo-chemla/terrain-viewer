@@ -566,7 +566,7 @@ export function TerrainControlPanel({
             return below, so React keeps this instance mounted — not
             remounted — across an isSidebarOpen flip the tour itself
             triggers (see product-tour.tsx's "prepare" step). */}
-        <ProductTour state={state} setState={setState} switchAppMode={handleSelectMode} />
+        <ProductTour state={state} setState={setState} switchAppMode={handleSelectMode} mapRef={mapRef} />
       </>
     )
   }
@@ -799,7 +799,7 @@ export function TerrainControlPanel({
     </TooltipProvider>
     {/* Same position (2nd child of this Fragment) as in the closed-sidebar
         return above — see that branch's comment. */}
-    <ProductTour state={state} setState={setState} switchAppMode={handleSelectMode} />
+    <ProductTour state={state} setState={setState} switchAppMode={handleSelectMode} mapRef={mapRef} />
     </>
   )
 }

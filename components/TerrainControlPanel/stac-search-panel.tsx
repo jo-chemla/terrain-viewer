@@ -547,20 +547,45 @@ export const StacSearchPanel: React.FC<{
                 <span className="text-xs">
                   {(() => {
                     // Say WHY, because "none" on a catalog you know has DEMs is
-                    // otherwise a dead end. The three reasons are: nothing was a
-                    // COG at all, everything was multi-band (an RGB ortho), or
-                    // the items carried many rasters and none read as elevation.
+                    // otherwise a dead end. Beyond the reason, show what the
+                    // page actually WAS — the collections it came from and the
+                    // media types of its assets. On a mixed catalog the whole
+                    // answer is usually "page 1 is 100% one non-raster
+                    // collection", and nothing short of naming it makes that
+                    // visible.
                     let cogs = 0, multiband = 0
+                    const byCollection = new Map<string, number>()
+                    const byType = new Map<string, number>()
                     for (const it of items) {
+                      const c = it.collection ?? "—"
+                      byCollection.set(c, (byCollection.get(c) ?? 0) + 1)
                       for (const [key, a] of Object.entries(it.assets ?? {})) {
+                        // Normalise "image/tiff; application=geotiff; ..." to its
+                        // media type; the parameters are noise in a tally.
+                        const t = (a.type ?? "no media type").split(";")[0].trim()
+                        byType.set(t, (byType.get(t) ?? 0) + 1)
                         if (!isCog(a)) continue
                         cogs++
                         if (!usableForTerrain(key, a)) multiband++
                       }
                     }
-                    if (!cogs) return "No COG assets on this page — they may be quicklooks or archives."
-                    if (multiband === cogs) return `All ${cogs} COG assets on this page are multi-band (RGB imagery), so none can be elevation.`
-                    return `${cogs} COG assets on this page, but none reads as elevation by key, title or role.`
+                    const top = (m: Map<string, number>, n: number) =>
+                      [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${v}× ${k}`).join(", ")
+
+                    const reason = !cogs
+                      ? "No COG assets on this page at all."
+                      : multiband === cogs
+                        ? `All ${cogs} COG assets on this page are multi-band (RGB imagery), so none can be elevation.`
+                        : `${cogs} COG assets on this page, but none reads as elevation by key, title or role.`
+
+                    return (
+                      <>
+                        {reason}
+                        <br />
+                        This page came from: {top(byCollection, 4)}
+                        {byType.size > 0 && <>; its assets are {top(byType, 4)}.</>}
+                      </>
+                    )
                   })()}
                 </span>
               </>

@@ -105,6 +105,12 @@ export const sunShadowHeightAtom = atom(10)
  *  OWN useQueryStates map, which TerrainViewer's setState does not write - so
  *  the walkthrough asks through here instead of silently doing nothing. */
 export const orbitRequestAtom = atom(false)
+/** Bumped to ask the hypsometric section to re-derive min/max elevation from
+ *  the tiles currently on screen — the same thing its "Set from viewport"
+ *  button does. A nonce rather than a boolean so two requests in a row are two
+ *  events, and because the section has to poll (a fresh viewport has no
+ *  decoded DEM tiles yet) rather than answer immediately. */
+export const hypsoAutoRangeRequestAtom = atom(0)
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 
 /** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.
