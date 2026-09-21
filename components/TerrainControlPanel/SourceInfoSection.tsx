@@ -219,7 +219,7 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
           <span className="text-muted-foreground text-right">{stripSourcePrefix(textFor(id, geAttribution, waybackAttribution))}</span>
         </div>
         {custom && (custom.provider || custom.licenseName || custom.licenseUrl || custom.infoUrl) && (
-          // Catalogue provenance for sources added through NextGIS QMS or the
+          // Catalog provenance for sources added through NextGIS QMS or the
           // OSM Editor Layer Index: where it came from, and under what licence.
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
             {custom.provider && <span>via {custom.provider === "qms" ? "NextGIS QMS" : "OSM Editor Layer Index"}</span>}

@@ -1,11 +1,11 @@
 ---
 title: "Tools (Drawing, Elevation Picker, Anim)"
-description: Drawing, Elevation Picker, Sun/Shadow Calculator, Animation, and the catalogue searches that find new data
+description: Drawing, Elevation Picker, Sun/Shadow Calculator, Animation, and the catalog searches that find new data
 ---
 
 A grab bag of map-based utilities in the sidebar's Tools group, independent of whichever visualization modes are active. Source Info also lives in that group — it is documented with the [coverage overlays](/features/coverage-overlays) it contains.
 
-The last two sections below are not in the Tools group at all: they are the **catalogue searches**, tabs inside the Add Terrain and Add Basemap dialogs. They are here because they are tools in every sense that matters — they are how you find data you do not already have a URL for.
+The last two sections below are not in the Tools group at all: they are the **catalog searches**, tabs inside the Add Terrain and Add Basemap dialogs. They are here because they are tools in every sense that matters — they are how you find data you do not already have a URL for.
 
 ## Drawing
 
@@ -69,24 +69,24 @@ Fly the camera along a scripted path through the scene — set keyframe camera p
 
 ## STAC search
 
-Beta — enable **STAC catalogue search** under Settings → Beta. A tab in both the **Add Terrain** and **Add Basemap** dialogs.
+Beta — enable **STAC catalog search** under Settings → Beta. A tab in both the **Add Terrain** and **Add Basemap** dialogs.
 
-[STAC](https://stacspec.org/) is the standard index for cloud-native imagery and elevation. This tab searches a catalogue for scenes over your current view and adds the COG assets it finds as sources, with no download step.
+[STAC](https://stacspec.org/) is the standard index for cloud-native imagery and elevation. This tab searches a catalog for scenes over your current view and adds the COG assets it finds as sources, with no download step.
 
 Seventeen presets ship, grouped by what they hold:
 
-| Group | Catalogues |
+| Group | Catalogs |
 |---|---|
 | **Mixed** | OpenAerialMap, Earth Search (AWS/Element 84), eoAPI demo, NASA VEDA, swisstopo |
 | **Imagery** | LINZ New Zealand, Maxar and Vantor open-data disaster events, Planet disaster releases, Umbra and Capella open SAR, Lower Saxony orthophotos, SPOT Canada |
 | **Elevation** | OpenTopography raster DEMs, LINZ elevation, Polar Geospatial Center (ArcticDEM, REMA, EarthDEM) |
 | **Registries** | federated collection discovery (MAAP) |
 
-Or paste any catalogue URL: a `.json` is crawled as a static catalog, anything else is treated as a STAC API.
+Or paste any catalog URL: a `.json` is crawled as a static catalog, anything else is treated as a STAC API.
 
-The same list is also in the **Library**, under **Catalogues** — a catalogue cannot be "added" the way a single dataset URL can, so its row offers **Browse**, which closes the Library and opens this tab with that endpoint already selected. That is the entry point worth remembering: the Library is where you look for data, and per-scene DEMs (EarthDEM strips, ArcticDEM strips, OpenTopography's rasters) only exist behind a search.
+The same list is also in the **Library**, under **Catalogs** — a catalog cannot be "added" the way a single dataset URL can, so its row offers **Browse**, which closes the Library and opens this tab with that endpoint already selected. That is the entry point worth remembering: the Library is where you look for data, and per-scene DEMs (EarthDEM strips, ArcticDEM strips, OpenTopography's rasters) only exist behind a search.
 
-Each catalogue row also has a **+/−**, which decides whether that endpoint is offered in the search's own picker at all — so a list you never use can be trimmed to the handful you do. The choice is remembered, and it is stored as the *exclusions*, so a catalogue added in a later release turns up rather than being silently absent.
+Each catalog row also has a **+/−**, which decides whether that endpoint is offered in the search's own picker at all — so a list you never use can be trimmed to the handful you do. The choice is remembered, and it is stored as the *exclusions*, so a catalog added in a later release turns up rather than being silently absent.
 
 What the panel does for you:
 
@@ -96,19 +96,19 @@ What the panel does for you:
 - **Terrain is filtered to single-band elevation rasters**, so the terrain dialog does not offer you an RGB quicklook as a DEM.
 - Collections offering a `xyz` web-map-link can be added as a tile source directly, without picking an item at all.
 
-Your last catalogue, collection and filters are remembered per target, so reopening the tab resumes where you left off.
+Your last catalog, collection and filters are remembered per target, so reopening the tab resumes where you left off.
 
 <Callout type="warn">
-A catalogue has to send CORS headers to be usable from a browser at all, regardless of how open its licence is. CNES GEODES, for example, answers 200 with 66 collections and no `Access-Control-Allow-Origin` — unreachable from any client-side app.
+A catalog has to send CORS headers to be usable from a browser at all, regardless of how open its licence is. CNES GEODES, for example, answers 200 with 66 collections and no `Access-Control-Allow-Origin` — unreachable from any client-side app.
 </Callout>
 
-## Basemap catalogue search
+## Basemap catalog search
 
 Two more tabs in the **Add Basemap** dialog, for imagery rather than elevation.
 
 **NextGIS QMS** — searches [qms.nextgis.com](https://qms.nextgis.com/), a community index of public map services. Only `tms` and `wms` entries can become a MapLibre raster source directly, so those are what the list shows; each result carries its zoom range and a permalink into the QMS browser.
 
-**OSM Editor Layer Index** — the imagery catalogue behind iD, JOSM and Rapid: roughly 1,500 aerial, map and historic sources, most of them national or regional agency services **with their licence recorded**. It ships bundled (bumped weekly) rather than fetched, so it works offline and cannot break when an upstream index moves.
+**OSM Editor Layer Index** — the imagery catalog behind iD, JOSM and Rapid: roughly 1,500 aerial, map and historic sources, most of them national or regional agency services **with their licence recorded**. It ships bundled (bumped weekly) rather than fetched, so it works offline and cannot break when an upstream index moves.
 
 - Filter by text, by category (aerial, map, historic map, OSM-based, historic aerial, QA, elevation), or to **layers covering the current view**.
 - "Best" layers are starred, as the OSM editors mark them.

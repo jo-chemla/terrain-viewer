@@ -60,12 +60,12 @@ export const cesiumIonKeyAtom = atomWithStorage("cesiumIonKey", import.meta.env.
 // per tile; each further step is 4x the requests. See lib/quantized-mesh-protocol.ts.
 export const cesiumDetailOffsetAtom = atomWithStorage("cesiumDetailOffset", 1)
 
-// STAC catalogues the visitor has switched OFF in the Library's Catalogues
+// STAC catalogs the visitor has switched OFF in the Library's Catalogs
 // section: stored as the exclusions rather than the inclusions so a preset
 // added in a later release is on by default instead of silently missing.
 export const disabledStacPresetsAtom = atomWithStorage<string[]>("disabledStacPresets", [])
 
-// Catalogue endpoints the visitor pasted into the STAC search. Kept so they
+// Catalog endpoints the visitor pasted into the STAC search. Kept so they
 // survive a reload and can be listed in the Library beside the shipped ones -
 // a URL typed once and lost on refresh is barely a feature.
 export interface SavedStacCatalog { id: string; name: string; url: string; kind: "api" | "static"; target: "basemap" | "terrain" | "both" }
@@ -254,7 +254,7 @@ export interface CustomTerrainSource {
    *  Haiti DTM makes titiler fail with "Cannot convert fill_value -999.0 to
    *  dtype uint16", so it has to be settable per source. */
   titilerNodata?: number
-  /** Human landing page for the dataset - the agency's product page, catalogue
+  /** Human landing page for the dataset - the agency's product page, catalog
    *  record or viewer, ideally stating the licence. Shown as a link in the
    *  sample picker; absent means the raw endpoint host is linked instead. */
   infoUrl?: string
@@ -319,12 +319,12 @@ export interface CustomBasemapSource {
    *  instead of fully opaque. Defaults to 100 for sources created before this
    *  field existed. */
   opacity?: number
-  /** Provenance, filled in by the catalogue pickers (NextGIS QMS, OSM Editor
+  /** Provenance, filled in by the catalog pickers (NextGIS QMS, OSM Editor
    *  Layer Index) and shown in the Source Info section. */
   attribution?: string
   licenseName?: string
   licenseUrl?: string
-  /** Catalogue record or provider page for this source. */
+  /** Catalog record or provider page for this source. */
   infoUrl?: string
   provider?: "qms" | "eli"
   /** Mirror of CustomTerrainSource.linkedBasemapId — the terrain source this
@@ -544,7 +544,7 @@ const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow
 export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
 export const sunShadowBetaEnabledAtom = booleanField(betaEnabledAtom, "sunShadow")
 export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historical")
-/** STAC catalogue search in the Add Dataset / Add Basemap modals (no URL param: local only). */
+/** STAC catalog search in the Add Dataset / Add Basemap modals (no URL param: local only). */
 export const stacSearchBetaEnabledAtom = booleanField(betaEnabledAtom, "stacSearch")
 
 // Bookmarks gallery modal: on (default) flattens every group's cards into one

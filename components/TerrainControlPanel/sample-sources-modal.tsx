@@ -118,16 +118,16 @@ export function SampleSourcesModal<T extends SampleLike>({
   current: T[]
   setCurrent: (next: T[]) => void
   compareToMapterhorn?: boolean
-  /** Which half of the STAC preset list the Catalogues section offers. Omit
+  /** Which half of the STAC preset list the Catalogs section offers. Omit
    *  to leave the section out entirely. */
   stacTarget?: "terrain" | "basemap"
-  /** Hands the chosen catalogue back so the caller can close this dialog and
+  /** Hands the chosen catalog back so the caller can close this dialog and
    *  open the Add dialog on its STAC tab. Omit and the section is read-only
    *  links. */
   onBrowseStac?: (presetId: string) => void
 }) {
-  // Which catalogues the Add dialog's own picker offers. Stored as the
-  // exclusions (see disabledStacPresetsAtom) so a catalogue added in a later
+  // Which catalogs the Add dialog's own picker offers. Stored as the
+  // exclusions (see disabledStacPresetsAtom) so a catalog added in a later
   // release shows up rather than being silently absent.
   const [disabledStac, setDisabledStac] = useAtom(disabledStacPresetsAtom)
   const stacOff = useMemo(() => new Set(disabledStac), [disabledStac])
@@ -189,14 +189,14 @@ export function SampleSourcesModal<T extends SampleLike>({
     const ids = new Set(entries.map((s) => s.id))
     setCurrent(current.filter((s) => !ids.has(s.id)))
   }
-  // Catalogues are not datasets: a STAC endpoint is a search over thousands of
+  // Catalogs are not datasets: a STAC endpoint is a search over thousands of
   // scenes, so it cannot be "added" the way a single URL can. Listing them here
   // anyway is the point - this dialog is where you look for data, and having to
   // know that per-scene DEMs live behind a tab of a different dialog is a
   // discoverability failure. The row hands you off instead of adding.
   const [savedCatalogs, setSavedCatalogs] = useAtom(savedStacCatalogsAtom)
   const [newCatalogUrl, setNewCatalogUrl] = useState("")
-  const addCatalogue = () => {
+  const addCatalog = () => {
     const url = newCatalogUrl.trim().replace(/\/+$/, "")
     if (!url) return
     setSavedCatalogs((prev) => prev.some((c) => c.url === url) ? prev : [...prev, {
@@ -209,10 +209,10 @@ export function SampleSourcesModal<T extends SampleLike>({
     }])
     setNewCatalogUrl("")
   }
-  const catalogues = useMemo(
+  const catalogs = useMemo(
     () => (!stacTarget ? [] : [
       ...STAC_PRESETS,
-      // Catalogues the visitor pasted into the search and kept. Same rows, same
+      // Catalogs the visitor pasted into the search and kept. Same rows, same
       // Browse, same on/off - the only difference is where they came from.
       ...savedCatalogs.map((c) => ({ ...c, group: "Yours" as const, note: "Added by you." })),
     ].filter((p) => (p.target === "both" || p.target === stacTarget)
@@ -403,72 +403,82 @@ export function SampleSourcesModal<T extends SampleLike>({
               })
             : renderSections("better", "")}
 
-          {catalogues.length > 0 && (
-            <Collapsible open={isOpen("catalogues")} onOpenChange={(o) => setOpenSections((p) => ({ ...p, catalogues: o }))}>
+          {catalogs.length > 0 && (
+            <Collapsible open={isOpen("catalogs")} onOpenChange={(o) => setOpenSections((p) => ({ ...p, catalogs: o }))}>
               <div className="flex items-center gap-1 border-b-2">
                 <CollapsibleTrigger className="flex items-center gap-1.5 flex-1 min-w-0 py-1 cursor-pointer text-left">
                   <Library className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="text-sm font-bold">
-                    Catalogues <span className="font-normal text-muted-foreground">· {catalogues.filter((p) => !stacOff.has(p.id)).length}/{catalogues.length}</span>
+                    Catalogs <span className="font-normal text-muted-foreground">· {catalogs.filter((p) => !stacOff.has(p.id)).length}/{catalogs.length}</span>
                   </span>
                 </CollapsibleTrigger>
                 <span className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Offer every catalogue"
-                    disabled={catalogues.every((p) => !stacOff.has(p.id))}
-                    onClick={() => setStacEnabled(catalogues.map((p) => p.id), true)}>
+                  <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Offer every catalog"
+                    disabled={catalogs.every((p) => !stacOff.has(p.id))}
+                    onClick={() => setStacEnabled(catalogs.map((p) => p.id), true)}>
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Hide every catalogue"
-                    disabled={catalogues.every((p) => stacOff.has(p.id))}
-                    onClick={() => setStacEnabled(catalogues.map((p) => p.id), false)}>
+                  <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Hide every catalog"
+                    disabled={catalogs.every((p) => stacOff.has(p.id))}
+                    onClick={() => setStacEnabled(catalogs.map((p) => p.id), false)}>
                     <Minus className="h-3.5 w-3.5" />
                   </Button>
                 </span>
                 <CollapsibleTrigger className="cursor-pointer p-1">
-                  <ChevronDown className={`h-4 w-4 transition-transform ${isOpen("catalogues") ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isOpen("catalogs") ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
               </div>
               <CollapsibleContent>
                 <p className="text-xs text-muted-foreground pt-1">
                   Searchable archives rather than single datasets — per-scene DEMs and imagery, found by area and date.
-                  <b>Browse</b> opens the catalogue search with that endpoint selected; the <b>+/−</b> decides whether it
+                  <b>Browse</b> opens the catalog search with that endpoint selected; the <b>+/−</b> decides whether it
                   is offered in that search&rsquo;s own picker at all, so a list you never use can be trimmed down.
                 </p>
                 <div className="pl-2 divide-y divide-border/50">
                   {/* Adding one here rather than only from inside the search:
                       the Library is where you go looking for data, so "I have a
-                      catalogue URL" belongs in the same place as "I want one of
+                      catalog URL" belongs in the same place as "I want one of
                       yours". */}
                   <div className="flex items-center gap-2 py-1">
                     <Input
                       value={newCatalogUrl}
                       onChange={(e) => setNewCatalogUrl(e.target.value)}
-                      placeholder="Add a catalogue: https://…/v1 or https://…/catalog.json"
+                      placeholder="Add a catalog: https://…/v1 or https://…/catalog.json"
                       className="cursor-text h-8 flex-1"
-                      onKeyDown={(e) => { if (e.key === "Enter") addCatalogue() }}
+                      onKeyDown={(e) => { if (e.key === "Enter") addCatalog() }}
                     />
                     <Button
                       variant="secondary" size="sm" className="cursor-pointer shrink-0 h-8"
                       disabled={!newCatalogUrl.trim()}
-                      onClick={addCatalogue}
+                      onClick={addCatalog}
                     >
                       <Plus className="h-3.5 w-3.5" /> Add
                     </Button>
                   </div>
-                  {catalogues.map((p) => (
+                  {/* Split so a catalog you saved is not lost among the
+                      shipped ones - the Library is "ours" by default, and this
+                      is the one part of it that is yours. */}
+                  {(["shipped", "yours"] as const).flatMap((bucket) => {
+                    const rows = catalogs.filter((p) => (bucket === "yours") === (p.group === "Yours"))
+                    if (!rows.length) return []
+                    return [
+                      <p key={`h-${bucket}`} className="pt-2 pb-1 text-[11px] font-semibold text-muted-foreground">
+                        {bucket === "yours" ? "Yours" : "Included"}
+                      </p>,
+                      ...rows.map((p) => (
                     <div key={p.id} className="flex items-center gap-2 min-w-0 py-1">
                       <span className="flex-1 min-w-0 text-sm truncate" title={p.note ?? p.name}>{p.name}</span>
                       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 bg-sky-500/15 text-sky-700 dark:text-sky-300">
                         {p.group}
                       </span>
                       <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0 w-16 text-right">{p.kind}</span>
-                      <a href={p.url} target="_blank" rel="noopener noreferrer" title="Catalogue endpoint"
+                      <a href={p.url} target="_blank" rel="noopener noreferrer" title="Catalog endpoint"
                         className="shrink-0 text-muted-foreground hover:text-foreground">
                         <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                       <Button variant="secondary" size="sm" className="cursor-pointer shrink-0 h-8"
                         disabled={!onBrowseStac}
-                        title={onBrowseStac ? `Search ${p.name} over the current view` : "Catalogue search is off (Settings → Beta)"}
+                        title={onBrowseStac ? `Search ${p.name} over the current view` : "Catalog search is off (Settings → Beta)"}
                         onClick={() => onBrowseStac?.(p.id)}>
                         <Search className="h-3.5 w-3.5" /> Browse
                       </Button>
@@ -476,14 +486,16 @@ export function SampleSourcesModal<T extends SampleLike>({
                         variant={stacOff.has(p.id) ? "secondary" : "outline"}
                         size="icon-sm"
                         className="cursor-pointer shrink-0"
-                        aria-label={stacOff.has(p.id) ? `Offer ${p.name} in the catalogue picker` : `Hide ${p.name} from the catalogue picker`}
-                        title={stacOff.has(p.id) ? "Hidden from the catalogue picker — click to offer it" : "Offered in the catalogue picker — click to hide it"}
+                        aria-label={stacOff.has(p.id) ? `Offer ${p.name} in the catalog picker` : `Hide ${p.name} from the catalog picker`}
+                        title={stacOff.has(p.id) ? "Hidden from the catalog picker — click to offer it" : "Offered in the catalog picker — click to hide it"}
                         onClick={() => setStacEnabled([p.id], stacOff.has(p.id))}
                       >
                         {stacOff.has(p.id) ? <Plus className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
                       </Button>
                     </div>
-                  ))}
+                      )),
+                    ]
+                  })}
                 </div>
               </CollapsibleContent>
             </Collapsible>

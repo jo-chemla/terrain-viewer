@@ -11,7 +11,7 @@ import { getLayers, layersInViewport, getLayerHydrated, getRasterSourceSpec, typ
 import { type CustomBasemapSource } from "@/lib/settings-atoms"
 
 // The OSM Editor Layer Index (osmlab/editor-layer-index) is the imagery
-// catalogue behind iD, JOSM and Rapid: ~1,500 aerial, map and historic
+// catalog behind iD, JOSM and Rapid: ~1,500 aerial, map and historic
 // sources, most of them national or regional agency services with their
 // licence recorded. @osm-editor-kit/maplibre-editor-layer-index ships it
 // pre-converted to maplibre raster sources (TMS {zoom}->{z}, {-y}->scheme
@@ -108,7 +108,7 @@ export const EliSearchPanel: React.FC<{
         <a href="https://github.com/osmlab/editor-layer-index" target="_blank" rel="noopener noreferrer" className="underline">
           OSM Editor Layer Index
         </a>
-        , the imagery catalogue behind iD and JOSM: agency aerials, historic maps and more, each with its licence.
+        , the imagery catalog behind iD and JOSM: agency aerials, historic maps and more, each with its licence.
         Browse it on a map in the{" "}
         <a href="https://osm-editor-kit.github.io/maplibre-editor-layer-index/" target="_blank" rel="noopener noreferrer" className="underline">
           ELI browser

@@ -36,7 +36,7 @@ export const MAPTERHORN_COVERAGE_LAYER = "coverage"
 
 export interface MapterhornSourceMeta { source: string; name: string; producer: string; resolution: number; website?: string }
 let mapterhornMeta: Promise<Record<string, MapterhornSourceMeta>> | null = null
-/** Mapterhorn's source catalogue (download.mapterhorn.com/attribution.json):
+/** Mapterhorn's source catalog (download.mapterhorn.com/attribution.json):
  *  per-source grid resolution, product name and producer, keyed by the
  *  "source" id the coverage tiles carry. Fetched once, on first use. */
 export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSourceMeta>> {

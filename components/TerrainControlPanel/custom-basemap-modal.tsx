@@ -298,7 +298,7 @@ export const CustomBasemapModal: React.FC<{
                 "wms-picker": "WMS (list layers)",
                 qms: "NextGIS QMS (search)",
                 eli: "OSM Editor Layer Index (search)",
-                stac: "STAC catalogue search (beta)",
+                stac: "STAC catalog search (beta)",
               }}
             >
               <SelectTrigger id="basemap-type" className="cursor-pointer w-full">
@@ -307,10 +307,10 @@ export const CustomBasemapModal: React.FC<{
               <SelectContent>
                 {!editingSource && (
                   <SelectGroup>
-                    <SelectLabel>Search a catalogue</SelectLabel>
+                    <SelectLabel>Search a catalog</SelectLabel>
                     <SelectItem value="qms">NextGIS QMS (search)</SelectItem>
                     <SelectItem value="eli">OSM Editor Layer Index (search)</SelectItem>
-                    {stacSearchBeta && <SelectItem value="stac">STAC catalogue search (beta)</SelectItem>}
+                    {stacSearchBeta && <SelectItem value="stac">STAC catalog search (beta)</SelectItem>}
                   </SelectGroup>
                 )}
                 <SelectGroup>

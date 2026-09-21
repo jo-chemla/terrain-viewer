@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useEffect, forwardRef, createContext, useContext, useId, Fragment } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin, ArrowRightToLine } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
@@ -15,9 +15,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Marker, MarkerContent } from "@/components/ui/marker"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { LucideIcon } from "lucide-react"
-import { atom, useAtom } from "jotai"
+import { atom, useAtom, useSetAtom } from "jotai"
 import { cn } from "@/lib/utils"
-import { activeSliderAtom, transparentUiAtom, vizActivationAtom } from "@/lib/settings-atoms"
+import { activeSliderAtom, transparentUiAtom, vizActivationAtom, revealSectionAtom } from "@/lib/settings-atoms"
 import { GRID_LAYOUTS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 
 
@@ -506,6 +506,29 @@ export const SliderControl: React.FC<{
 
 // ─── CheckboxWithSlider ───────────────────────────────────────────────────────
 
+/** Jumps the panel to a mode's own options section (opening it if collapsed).
+ *  An action, not a state: it stores nothing and changes nothing on the map. */
+export const GotoOptionsButton: React.FC<{ section: string; className?: string }> = ({ section, className }) => {
+  const reveal = useSetAtom(revealSectionAtom)
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label="Go to this mode's options"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); reveal(section) }}
+            className={cn("shrink-0 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors", className)}
+          >
+            <ArrowRightToLine className="h-3.5 w-3.5" />
+          </button>
+        }
+      />
+      <TooltipContent><p>Go to this mode&rsquo;s options</p></TooltipContent>
+    </Tooltip>
+  )
+}
+
 export const CheckboxWithSlider: React.FC<{
   // ReactNode (not just string) so a mode that's slow to compute can append an
   // inline icon (e.g. SVF/Openness's hourglass) that inherits the label's own
@@ -513,7 +536,12 @@ export const CheckboxWithSlider: React.FC<{
   id: string; label: React.ReactNode; checked: boolean; onCheckedChange: (checked: boolean) => void
   sliderValue?: number; onSliderChange?: (value: number) => void; hideSlider?: boolean; disabled?: boolean
   tooltip?: string
-}> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false, tooltip }) => {
+  /** Section key this mode's own options live in. Renders a small "go to
+   *  options" button at the left edge of the slider column - the question
+   *  "where do I tune this" is asked right here, next to the switch that
+   *  turned it on, not from a menu somewhere else. */
+  gotoSection?: string
+}> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false, tooltip, gotoSection }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const fullId = `${sectionId}:${id}`
@@ -531,7 +559,10 @@ export const CheckboxWithSlider: React.FC<{
         </Tooltip>
       ) : labelEl}
       {!hideSlider && (
-        <MobileSlider sliderId={fullId} value={sliderValue} onValueChange={(v) => onSliderChange(v as number)} min={0} max={1} step={0.1} className="cursor-pointer" disabled={!checked || disabled} />
+        <div className="flex items-center gap-1.5 min-w-0">
+          {gotoSection && <GotoOptionsButton section={gotoSection} />}
+          <MobileSlider sliderId={fullId} value={sliderValue} onValueChange={(v) => onSliderChange(v as number)} min={0} max={1} step={0.1} className="cursor-pointer flex-1" disabled={!checked || disabled} />
+        </div>
       )}
     </div>
   )

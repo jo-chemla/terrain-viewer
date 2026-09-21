@@ -29,6 +29,12 @@ export interface TerrainSourceConfig {
   name: string
   link: string
   description: string
+  /** Vertical datum. Omitted means orthometric (heights above the geoid, i.e.
+   *  "above sea level"), which is what almost every source here is. Marking
+   *  the exceptions matters because an ellipsoidal source reads tens of metres
+   *  high - about +49 m in the Alps - and nothing on screen would otherwise
+   *  say so. See the EGM96 geoid entry in the Library for the field itself. */
+  datum?: "ellipsoidal"
   encoding: "terrarium" | "terrainrgb" | "3dtiles" | "custom" 
   sourceConfig: {
     type: "raster-dem" | "3dtiles"

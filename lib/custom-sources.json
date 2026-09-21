@@ -552,6 +552,31 @@
             "infoUrl": "https://github.com/openlandmap/GEDTM30"
         },
         {
+            "id": "custom-global-geoid-egm96",
+            "name": "Global - EGM96 geoid undulation 15' (ellipsoid - geoid separation)",
+            "url": "https://cdn.proj.org/us_nga_egm96_15.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -9999,
+            "maxzoom": 8,
+            "resolutionM": 27000,
+            "description": "Not terrain: the SEPARATION between the WGS84 ellipsoid and the EGM96 geoid, in metres, -107 m at the Indian Ocean low to +85 m near Papua New Guinea. This is the number that makes an ellipsoidal source (Cesium World Terrain, ArcticDEM, REMA, swisstopo quantized mesh) read high against an orthometric one (Mapterhorn, AWS, Esri, most national DEMs). Best viewed with the hypsometric ramp's Symmetric Range so zero sits at the neutral colour. NGA's own grid, redistributed by the PROJ CDN (public domain), EPSG:4979 so it is routed through titiler. 15 arc-minutes is coarse by design - the geoid is a long-wavelength field.",
+            "infoUrl": "https://cdn.proj.org/"
+        },
+        {
+            "id": "custom-global-geoid-egm2008",
+            "name": "Global - EGM2008 geoid undulation 2.5' (ellipsoid - geoid separation)",
+            "url": "https://cdn.proj.org/us_nga_egm08_25.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -9999,
+            "maxzoom": 10,
+            "resolutionM": 4600,
+            "loadWithSamples": false,
+            "description": "The same quantity as the EGM96 entry at six times the resolution (2.5 arc-minutes), from the newer EGM2008 model - use this one to check an ellipsoidal source's offset somewhere specific, and the 15' one for a world view. PROJ CDN, public domain, EPSG:4979 via titiler.",
+            "infoUrl": "https://cdn.proj.org/"
+        },
+        {
             "id": "custom-global-smartmaps-gel",
             "name": "Global - Smart Maps GEL NASADEM 30m Terrain-RGB z2-12 (CC0) - PMTiles",
             "url": "pmtiles://https://data.source.coop/smartmaps/gel/gel.pmtiles/{z}/{x}/{y}",

@@ -1,4 +1,4 @@
-// The catalogue list and the panel's cross-mount memory, kept out of
+// The catalog list and the panel's cross-mount memory, kept out of
 // stac-search-panel.tsx so the Library dialog and the BYOD sections can read
 // them without pulling in the panel itself - that file is deliberately
 // lazy-loaded (it is large and map-bound), and a static import of any symbol
@@ -10,9 +10,9 @@ export interface StacPreset {
   name: string
   url: string
   kind: "api" | "static" | "discovery"
-  /** Which modal offers it: imagery-only catalogues are pointless for terrain. */
+  /** Which modal offers it: imagery-only catalogs are pointless for terrain. */
   target: "basemap" | "terrain" | "both"
-  /** "Yours" is reserved for catalogues the visitor saved themselves. */
+  /** "Yours" is reserved for catalogs the visitor saved themselves. */
   group: "Imagery" | "Elevation" | "Mixed" | "Registries" | "Yours"
   note?: string
 }
@@ -60,11 +60,11 @@ export const STAC_PRESETS: StacPreset[] = [
 export type Remembered = { presetId: string; customUrl: string; collectionId: string; startDate: string; endDate: string; viewportOnly: boolean; items: StacItem[]; collections: StacCollection[] }
 export const remembered: Partial<Record<"basemap" | "terrain", Remembered>> = {}
 
-/** Preselect a catalogue for the next time the panel mounts for `target`.
- *  The Library's Catalogues section calls this on its way to opening the Add
- *  dialog, so "Browse" lands on the right catalogue instead of on whatever was
+/** Preselect a catalog for the next time the panel mounts for `target`.
+ *  The Library's Catalogs section calls this on its way to opening the Add
+ *  dialog, so "Browse" lands on the right catalog instead of on whatever was
  *  last used. Any remembered results are dropped: they belong to the previous
- *  catalogue and would be listed under the new one's name until the first
+ *  catalog and would be listed under the new one's name until the first
  *  search replaced them. */
 export function seedStacPreset(target: "basemap" | "terrain", presetId: string) {
   const prev = remembered[target]

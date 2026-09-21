@@ -7,7 +7,7 @@
 - **Tiles render around 10× faster.** Every custom protocol now hands MapLibre an `ImageBitmap` instead of a PNG it immediately decoded again — 99 ms median down to 0.1 ms on the encode alone. This is not specific to the new sources: hillshade, LRM, SVF, the difference source and the WMS elevation services all got it.
 
 ### Features
-- The **Library** lists catalogues beside datasets. **Browse** opens the catalogue search on that endpoint, and a **+/−** on each row decides whether the search offers it at all.
+- The **Library** lists catalogs beside datasets. **Browse** opens the catalog search on that endpoint, and a **+/−** on each row decides whether the search offers it at all.
 - **Settings → API Keys** gains a Cesium ion token and a terrain-detail control for it.
 - Docs: new dev pages for [LERC](/docs/dev/lerc-protocol), [quantized mesh](/docs/dev/quantized-mesh-protocol), [derived terrain](/docs/dev/demdiff-protocol), [tile caches](/docs/dev/tile-caches), [PMTiles & COG contours](/docs/dev/vendored-protocols), [camera sync](/docs/dev/camera-sync), [map bounds](/docs/dev/map-bounds-and-underzoom), [the product tour](/docs/dev/product-tour) and [layer order](/docs/dev/layer-order), plus a [Settings](/docs/features/settings) page.
 
@@ -19,17 +19,17 @@
 
 ---
 
-# Changelog — Catalogue Search, Coverage Overlays & OSM Vector
+# Changelog — Catalog Search, Coverage Overlays & OSM Vector
 <!-- released: 2026-09-16 -->
 
 #### TL;DR
 - **Coverage overlays** (Source Info): see where sources have data before loading them — Mapterhorn's own per-country coverage tiles with each source's resolution on hover, the whole terrain and basemap libraries, OSM Editor Layer Index footprints, your own sources. Tree picker, drawn on every view; hover lists what covers a point, click links each dataset and can select it for view A.
 
   ![Coverage overlays over Europe with the hover list](/docs/screenshots/coverage-overlays.jpg)
-- **STAC search** (beta, Settings → Beta) in both Add dialogs: OpenAerialMap, Earth Search, eoAPI, NASA VEDA, swisstopo, LINZ, OpenTopography, polar DEMs, Maxar / Vantor open-data events, Planet disaster releases, a federated collection search, or any catalogue URL. Date range, current view, cloud cover, Web Mercator first, non-Mercator assets pinned to titiler, terrain limited to single-band elevation rasters, add as basemap or overlay.
+- **STAC search** (beta, Settings → Beta) in both Add dialogs: OpenAerialMap, Earth Search, eoAPI, NASA VEDA, swisstopo, LINZ, OpenTopography, polar DEMs, Maxar / Vantor open-data events, Planet disaster releases, a federated collection search, or any catalog URL. Date range, current view, cloud cover, Web Mercator first, non-Mercator assets pinned to titiler, terrain limited to single-band elevation rasters, add as basemap or overlay.
 
   ![STAC search: Vantor open-data scenes over the 2026 Nepal flooding](/docs/screenshots/stac-search.jpg)
-- **Basemap catalogue search**: NextGIS QMS and the OSM Editor Layer Index (bundled, bumped weekly), with licence and attribution carried into Source Info and permalinks into their browsers.
+- **Basemap catalog search**: NextGIS QMS and the OSM Editor Layer Index (bundled, bumped weekly), with licence and attribution carried into Source Info and permalinks into their browsers.
 - **OpenStreetMap is now OpenFreeMap's Liberty vector style** instead of raster tiles, with a 3D buildings toggle, following the basemap visibility and opacity controls.
 
   ![OSM 3D buildings from OpenFreeMap Liberty over a Vantor post-event overlay](/docs/screenshots/osm-liberty-3d.jpg)

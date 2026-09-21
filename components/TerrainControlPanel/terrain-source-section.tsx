@@ -50,7 +50,7 @@ export const TerrainSourceSection: React.FC<{
   const [editingSource, setEditingSource] = useState<CustomTerrainSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
   const [isSampleModalOpen, setIsSampleModalOpen] = useAtom(terrainLibraryOpenAtom)
-  // Handing off from the Library to the Add dialog's catalogue tab is done
+  // Handing off from the Library to the Add dialog's catalog tab is done
   // SEQUENTIALLY rather than by opening the second while the first is still
   // up: overlapping dialog transitions are the shape of problem that left
   // ?openLibrary=both unusable, and one closing cleanly before the next opens
@@ -419,9 +419,9 @@ export const TerrainSourceSection: React.FC<{
         onBrowseStac={!stacSearchBeta ? undefined : (presetId) => {
         // The Add dialog reads its own type back from the "last type" atom
         // when it opens for a NEW source, so pointing that at "stac" is all it
-        // takes to land on the catalogue tab - no extra prop, no second path
+        // takes to land on the catalog tab - no extra prop, no second path
         // through the dialog's reset effect. seedStacPreset picks the
-        // catalogue itself. Off when the beta flag is off, since the tab would
+        // catalog itself. Off when the beta flag is off, since the tab would
         // not be there to land on.
           seedStacPreset("terrain", presetId)
           setLastTerrainType("stac")

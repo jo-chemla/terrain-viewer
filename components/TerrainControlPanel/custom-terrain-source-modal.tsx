@@ -297,7 +297,7 @@ export const CustomTerrainSourceModal: React.FC<{
                 terrarium: "TMS (Terrarium)",
                 terrainrgb: "TMS (TerrainRGB)",
                 "wms-picker": "WMS (list layers)",
-                stac: "STAC catalogue search (beta)",
+                stac: "STAC catalog search (beta)",
                 "wms-raw": "WMS (raw Float32 elevation)",
                 "lerc": "ArcGIS tiled elevation (LERC)",
                 tilejson: "TileJSON",
@@ -337,9 +337,9 @@ export const CustomTerrainSourceModal: React.FC<{
                 </SelectGroup>
                 {!editingSource && (
                   <SelectGroup>
-                    <SelectLabel>Search a catalogue</SelectLabel>
+                    <SelectLabel>Search a catalog</SelectLabel>
                     <SelectItem value="wms-picker">WMS (list layers)</SelectItem>
-                    {stacSearchBeta && <SelectItem value="stac">STAC catalogue search (beta)</SelectItem>}
+                    {stacSearchBeta && <SelectItem value="stac">STAC catalog search (beta)</SelectItem>}
                   </SelectGroup>
                 )}
               </SelectContent>

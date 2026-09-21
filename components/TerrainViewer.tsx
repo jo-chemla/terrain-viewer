@@ -41,7 +41,6 @@ const SAMPLE_TERRAIN_SOURCES = customSourcesData["SAMPLE_TERRAIN_SOURCES"] as Cu
 const SAMPLE_BASEMAP_SOURCES = customSourcesData["SAMPLE_BASEMAPS_SOURCES"] as CustomBasemapSource[]
 import { MinimapInternal } from "./MapControls/MinimapControl";
 import { LightControlOverlay } from "./MapControls/LightControlOverlay";
-import { VizModeGotoButton } from "./MapControls/VizModeGotoButton";
 import { HistogramMatchFilter } from "./MapControls/HistogramMatchFilter";
 import { COLOR_SPACES } from "@/lib/histogram-matching";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
@@ -4341,9 +4340,6 @@ export function TerrainViewer() {
         )}
       </div>
       <LightControlOverlay state={state} setState={setState} mapRef={mapRefs.A as any} />
-      {/* Follows the cursor over the map; one click lands on the options for
-          whichever visualization mode is on top. See VizModeGotoButton. */}
-      <VizModeGotoButton state={state} />
       {/* One instance per non-A active view — overlay only ever has B, but
           grid/side-by-side can have up to G (B..H), each independently
           matched onto A. */}

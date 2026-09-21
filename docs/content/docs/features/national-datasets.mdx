@@ -19,7 +19,7 @@ Load them from **Sources → Terrain → Library**, which opens a picker where e
 
 This page only exists because [Mapterhorn](https://mapterhorn.com/) did the hard part first. It is an open, community-run project that solves the same problem from the other end: rather than talking to each agency's API live, it **ingests** the world's open elevation data — API endpoints, hundred-thousand-file bulk archives, S3 buckets, national download portals — normalises it, and republishes the result as one global, unified [Terrarium](https://mapterhorn.com/) raster tileset distributed as PMTiles, with a [coverage map](https://mapterhorn.com/coverage/) and full [attribution](https://mapterhorn.com/attribution/) for every contributing dataset.
 
-Its [source catalogue](https://github.com/mapterhorn/mapterhorn/tree/main/source-catalog) is the best inventory of open elevation data anywhere: 153 sources across 32 countries, each with a licence, a resolution and a file list. Working through it makes the shape of the problem obvious — those 153 sources amount to roughly **690,000 individual files**, overwhelmingly `.tif`, `.asc` and `.zip` bulk downloads. Only a handful are a single fetchable file, and only a minority of countries expose a live API at all.
+Its [source catalog](https://github.com/mapterhorn/mapterhorn/tree/main/source-catalog) is the best inventory of open elevation data anywhere: 153 sources across 32 countries, each with a licence, a resolution and a file list. Working through it makes the shape of the problem obvious — those 153 sources amount to roughly **690,000 individual files**, overwhelmingly `.tif`, `.asc` and `.zip` bulk downloads. Only a handful are a single fetchable file, and only a minority of countries expose a live API at all.
 
 That is the division of labour between the two projects. Mapterhorn gives you consistent global terrain with no per-country special cases. The sources below skip the ingest entirely and stream from the agency in real time, which keeps the native resolution — 0.5 m where the agency publishes 0.5 m — at the cost of only working country by country, at whatever speed that government's server manages. Mapterhorn is the sensible default; these are for when you want the sharpest possible data over one country.
 
@@ -100,11 +100,11 @@ These countries do publish a national elevation product — often an excellent o
 
 <UnusableDatasetsTable />
 
-Two patterns dominate. **Auth at the data step**: Portugal and Sweden both publish modern, public STAC catalogues under CC BY 4.0 where the *index* is open and CORS-enabled but every raster byte sits behind OAuth2 or HTTP Basic. **Rendered, not raw**: the product is a hillshade or a hypsometric colour ramp, sometimes mislabelled as an elevation coverage.
+Two patterns dominate. **Auth at the data step**: Portugal and Sweden both publish modern, public STAC catalogs under CC BY 4.0 where the *index* is open and CORS-enabled but every raster byte sits behind OAuth2 or HTTP Basic. **Rendered, not raw**: the product is a hillshade or a hypsometric colour ramp, sometimes mislabelled as an elevation coverage.
 
 Beyond the table, a long tail of countries publishes nothing retrievable at all. Across Central Asia, the Caucasus, the western Balkans, the Caribbean, Central America, the Middle East, South-East Asia and the Pacific, the national geoportal is typically a dead host, a single-page app with no service directory, or an ArcGIS estate exposing only rendered `MapServer` layers. Two small countries need no entry of their own: **Monaco** is inside France's IGN LiDAR coverage and **San Marino** inside Italy's TINITALY, so both already work through the sources above.
 
-This is exactly the gap Mapterhorn fills. It ingests several of these under licence — Portugal's 0.5 m and Sweden's 1 m are both in its source catalogue — so those countries already render at national resolution in this app through the Mapterhorn tileset, just not by talking to the agency live. Greece is the one case where the data isn't open at all, and falls back to global 30 m.
+This is exactly the gap Mapterhorn fills. It ingests several of these under licence — Portugal's 0.5 m and Sweden's 1 m are both in its source catalog — so those countries already render at national resolution in this app through the Mapterhorn tileset, just not by talking to the agency live. Greece is the one case where the data isn't open at all, and falls back to global 30 m.
 
 ## Coverage edges and no-data
 

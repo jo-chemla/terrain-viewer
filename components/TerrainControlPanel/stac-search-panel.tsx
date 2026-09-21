@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { SegmentedToggle } from "./controls-components"
 
-// STAC search (beta). Three kinds of catalogue are handled:
+// STAC search (beta). Three kinds of catalog are handled:
 //  - "api": a STAC API - POST {root}/search with bbox / datetime /
 //    collections (Earth Search, OpenAerialMap, eoAPI, VEDA, any
 //    stac-fastapi / pgstac deployment);
@@ -53,7 +53,7 @@ const NOT_DEM_RE = /\b(qa|quality|mask|saturation|occlusion|cloud|aerosol|angle|
 /** Band count when the asset says (raster:bands, eo:bands, STAC 1.1 bands). */
 const bandCount = (a: StacAsset) => (a["raster:bands"] ?? a["eo:bands"] ?? a.bands)?.length
 /** Terrain wants single-band elevation rasters: drop RGB visuals, multi-band
- *  scenes and thumbnails; keep unknown band counts (many DEM catalogues
+ *  scenes and thumbnails; keep unknown band counts (many DEM catalogs
  *  carry no band metadata at all). */
 function usableForTerrain(key: string, a: StacAsset): boolean {
   if (/^(visual|thumbnail|overview|rendered_preview)$/i.test(key)) return false
@@ -98,11 +98,11 @@ async function listCollections(root: string, onPage: (sofar: StacCollection[]) =
 
 /** "Failed to fetch" is all the browser says for a blocked request; a CORS
  *  override extension ("Allow CORS" and the like) is the usual culprit when
- *  a catalogue that normally works suddenly does not. */
+ *  a catalog that normally works suddenly does not. */
 const explainFetchError = (e: unknown, fallback: string) => {
   const msg = e instanceof Error ? e.message : fallback
   return /failed to fetch|networkerror|load failed/i.test(msg)
-    ? `${msg} - the browser blocked the request. A CORS-overriding extension (e.g. "Allow CORS") breaks catalogues that already send the right headers: disable it for this site. Otherwise the catalogue does not allow browser access.`
+    ? `${msg} - the browser blocked the request. A CORS-overriding extension (e.g. "Allow CORS") breaks catalogs that already send the right headers: disable it for this site. Otherwise the catalog does not allow browser access.`
     : msg
 }
 
@@ -182,8 +182,8 @@ export const StacSearchPanel: React.FC<{
   onSave: (source: StacSaveSource) => void
   mapRef?: React.RefObject<MapRef | null>
 }> = ({ target, onSave, mapRef }) => {
-  // Catalogues switched off in the Library's Catalogues section are left out
-  // here - that section is where the list is curated. A catalogue that is
+  // Catalogs switched off in the Library's Catalogs section are left out
+  // here - that section is where the list is curated. A catalog that is
   // still the remembered choice stays listed even when hidden, so seeding it
   // from a Browse click (or reopening on a stale selection) cannot leave the
   // picker pointing at nothing.
@@ -219,7 +219,7 @@ export const StacSearchPanel: React.FC<{
   const [collectionFilter, setCollectionFilter] = useState("")
   const [progress, setProgress] = useState("")
   // Results get most of the dialog: once they land, scroll the dialog so the
-  // list starts at the top and the catalogue / filter header slides away.
+  // list starts at the top and the catalog / filter header slides away.
   const resultsRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (items.length > 0) resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -227,9 +227,9 @@ export const StacSearchPanel: React.FC<{
   useEffect(() => { remembered[target] = { presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections } },
     [target, presetId, customUrl, collectionId, startDate, endDate, viewportOnly, items, collections])
 
-  // Collections of the chosen catalogue (API / discovery: /collections with
+  // Collections of the chosen catalog (API / discovery: /collections with
   // paging; static: child links). The first run is skipped when a remembered
-  // listing for this catalogue exists; otherwise every run (re)fetches and a
+  // listing for this catalog exists; otherwise every run (re)fetches and a
   // cleanup only discards a superseded fetch. No "already listed" guard: a
   // guard that survived the cleanup left React's dev double-invocation with
   // a cancelled fetch and a spinner that never stopped.
@@ -348,17 +348,17 @@ export const StacSearchPanel: React.FC<{
   const collectionItems = useMemo(() => Object.fromEntries([["__all__", allLabel], ...collections.map((c) => [c.id, c.title || c.id])]), [collections, allLabel])
   const browserUrl = catalog.url ? `https://radiantearth.github.io/stac-browser/#/external/${catalog.url.replace(/^https?:\/\//, "")}` : ""
   const stacMapUrl = catalog.url ? `https://developmentseed.org/stac-map/?href=${encodeURIComponent(catalog.url)}` : ""
-  // "Yours" first - a catalogue you saved yourself is the one you are most
+  // "Yours" first - a catalog you saved yourself is the one you are most
   // likely reaching for, and leaving it out of this list (as the first version
-  // did) filtered saved catalogues out of the picker entirely.
+  // did) filtered saved catalogs out of the picker entirely.
   const groups = ["Yours", "Elevation", "Mixed", "Imagery", "Registries"] as const
   const selectItems = Object.fromEntries([["custom", "Custom catalog URL…"], ...presets.map((p) => [p.id, p.name])])
 
   return (
     <div className="space-y-3 min-w-0">
       <p className="text-xs text-muted-foreground">
-        Beta — search a STAC catalogue for Cloud Optimized GeoTIFFs and add any as {target === "terrain" ? "terrain (DEM)" : "basemap"} sources; the dialog stays open so you can add several.
-        Web Mercator (3857) assets are listed first{target === "terrain" ? ", single-band elevation rasters only" : ""}; an asset whose catalogue declares another projection is pinned to titiler, the rest use the global COG setting.
+        Beta — search a STAC catalog for Cloud Optimized GeoTIFFs and add any as {target === "terrain" ? "terrain (DEM)" : "basemap"} sources; the dialog stays open so you can add several.
+        Web Mercator (3857) assets are listed first{target === "terrain" ? ", single-band elevation rasters only" : ""}; an asset whose catalog declares another projection is pinned to titiler, the rest use the global COG setting.
       </p>
       <Select value={presetId} onValueChange={(v) => v && setPresetId(v)} items={selectItems}>
         <SelectTrigger className="w-full cursor-pointer"><SelectValue /></SelectTrigger>
@@ -387,7 +387,7 @@ export const StacSearchPanel: React.FC<{
             size="sm"
             className="cursor-pointer shrink-0"
             disabled={!customUrl.trim() || savedCatalogs.some((c) => c.url === trimSlash(customUrl.trim()))}
-            title="Remember this catalogue — it joins this list and the Library's Catalogues section"
+            title="Remember this catalog — it joins this list and the Library's Catalogs section"
             onClick={() => {
               const url = trimSlash(customUrl.trim())
               const entry: SavedStacCatalog = {
@@ -441,7 +441,7 @@ export const StacSearchPanel: React.FC<{
           <Checkbox id="stac-viewport-only" checked={viewportOnly} onCheckedChange={(v) => setViewportOnly(v === true)} className="cursor-pointer" />
           <Label htmlFor="stac-viewport-only" className="text-xs cursor-pointer">Only items covering the current view</Label>
         </div>
-        <div className="flex items-center gap-2" title="Keep only assets the catalogue declares as EPSG:3857 - the ones the in-browser reader streams without titiler">
+        <div className="flex items-center gap-2" title="Keep only assets the catalog declares as EPSG:3857 - the ones the in-browser reader streams without titiler">
           <Checkbox id="stac-only-3857" checked={only3857} onCheckedChange={(v) => setOnly3857(v === true)} className="cursor-pointer" />
           <Label htmlFor="stac-only-3857" className="text-xs cursor-pointer">Only Web Mercator (3857)</Label>
         </div>
@@ -520,7 +520,7 @@ export const StacSearchPanel: React.FC<{
               <div className="flex flex-wrap gap-1">
                 {assets.slice(0, 12).map(([key, a]) => {
                   const epsg = epsgOf(it, a)
-                  // Opt-in: only an asset whose catalogue DECLARES another
+                  // Opt-in: only an asset whose catalog DECLARES another
                   // projection is pinned to titiler; unstated ones stay on the
                   // in-browser reader (the global setting still applies).
                   const viaTitiler = epsg !== undefined && epsg !== 3857

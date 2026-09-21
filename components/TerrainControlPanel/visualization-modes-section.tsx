@@ -42,7 +42,7 @@ export const VisualizationModesSection: React.FC<{
           separate from "Lighting Effects" below. See Options: Hillshade for
           method/illumination/color controls. */}
       <CheckboxWithSlider
-        id="hillshade"
+        id="hillshade" gotoSection="hillshade"
         checked={state.showHillshade}
         onCheckedChange={(checked) => setState({ showHillshade: checked })}
         label="Hillshade"
@@ -50,8 +50,8 @@ export const VisualizationModesSection: React.FC<{
         sliderValue={state.hillshadeOpacity}
         onSliderChange={(value) => setState({ hillshadeOpacity: value })}
       />
-      <CheckboxWithSlider id="terrain-raster" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} tooltip="Raster Basemap source (predefined aerial/satellite or BYOD)" />
-      <CheckboxWithSlider id="color-relief" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} tooltip="Hypsometric/Color relief colorramp altitude representation" />
+      <CheckboxWithSlider id="terrain-raster" gotoSection="rasterBasemap" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} tooltip="Raster Basemap source (predefined aerial/satellite or BYOD)" />
+      <CheckboxWithSlider id="color-relief" gotoSection="hypsometricTint" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} tooltip="Hypsometric/Color relief colorramp altitude representation" />
       {/* Separates the "basic" modes above (contours/hillshade/basemap/hypso)
           from the more advanced derived-analysis ones below. Darker than the
           default --border (which is barely visible) — bg-foreground/NN
@@ -65,7 +65,7 @@ export const VisualizationModesSection: React.FC<{
           relief-visualization-section.tsx / terrain-analysis-section.tsx. */}
       {!hideReliefVisualization && (
         <CheckboxWithSlider
-          id="relief-visualization"
+          id="relief-visualization" gotoSection="reliefVisualization"
           checked={state.showReliefVisualization}
           onCheckedChange={(checked) => setState({ showReliefVisualization: checked })}
           label="Relief Visualization"
@@ -76,7 +76,7 @@ export const VisualizationModesSection: React.FC<{
       )}
       {!hideTerrainAnalysis && (
         <CheckboxWithSlider
-          id="terrain-analysis"
+          id="terrain-analysis" gotoSection="terrainAnalysis"
           checked={state.showTerrainAnalysis}
           onCheckedChange={(checked) => setState({ showTerrainAnalysis: checked })}
           label="Terrain Analysis"
@@ -88,7 +88,7 @@ export const VisualizationModesSection: React.FC<{
       {/* Matcap + Phong, both raster-tile protocols draped over 3D terrain —
           see Options: Lighting Effects for material/light controls. */}
       <CheckboxWithSlider
-        id="lighting-effects"
+        id="lighting-effects" gotoSection="lightingEffects"
         checked={state.showLightingEffects}
         onCheckedChange={(checked) => setState({ showLightingEffects: checked })}
         label="Lighting Effects"

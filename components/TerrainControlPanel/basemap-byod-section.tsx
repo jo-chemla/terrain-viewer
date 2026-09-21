@@ -38,7 +38,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const [editingBasemap, setEditingBasemap] = useState<CustomBasemapSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
   const [isSampleModalOpen, setIsSampleModalOpen] = useAtom(basemapLibraryOpenAtom)
-  // Handing off from the Library to the Add dialog's catalogue tab is done
+  // Handing off from the Library to the Add dialog's catalog tab is done
   // SEQUENTIALLY rather than by opening the second while the first is still
   // up: overlapping dialog transitions are the shape of problem that left
   // ?openLibrary=both unusable, and one closing cleanly before the next opens
@@ -359,9 +359,9 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         onBrowseStac={!stacSearchBeta ? undefined : (presetId) => {
         // The Add dialog reads its own type back from the "last type" atom
         // when it opens for a NEW source, so pointing that at "stac" is all it
-        // takes to land on the catalogue tab - no extra prop, no second path
+        // takes to land on the catalog tab - no extra prop, no second path
         // through the dialog's reset effect. seedStacPreset picks the
-        // catalogue itself. Off when the beta flag is off, since the tab would
+        // catalog itself. Off when the beta flag is off, since the tab would
         // not be there to land on.
           seedStacPreset("basemap", presetId)
           setLastBasemapType("stac")

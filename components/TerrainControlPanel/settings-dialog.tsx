@@ -939,7 +939,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">STAC catalogue search</Label>
+                <Label className="text-sm font-medium">STAC catalog search</Label>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="stac-search-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
                   <Switch
@@ -952,7 +952,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               </div>
               <p className="text-xs text-muted-foreground">
                 Adds a <span className="font-semibold text-foreground">STAC search</span> option to the Add Dataset and
-                Add Basemap modals: pick a catalogue (Earth Search, Maxar Open Data, Planetary Computer or any URL),
+                Add Basemap modals: pick a catalog (Earth Search, Maxar Open Data, Planetary Computer or any URL),
                 a date range and the current view, then add any Cloud Optimized GeoTIFF from the results.
               </p>
             </div>

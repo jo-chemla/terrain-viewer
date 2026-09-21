@@ -76,6 +76,8 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
   cesium: {
     name: "Cesium World Terrain - quantized mesh",
     link: "https://cesium.com/platform/cesium-ion/content/cesium-world-terrain/",
+    // The only ellipsoidal source among the built-ins.
+    datum: "ellipsoidal",
     description: "Cesium ion asset 1, the terrain CesiumJS uses by default, consumed as an ordinary elevation source: the quantized-mesh TIN is rasterised per tile in the browser (see /dev/quantized-mesh-protocol). Heights are ELLIPSOIDAL - measured +48.1 m against an orthometric reference near Innsbruck, the alpine geoid separation - so summits read about 50 m high. Hidden until a Cesium ion token is set in Settings, since every ion asset is 401 without one.",
     encoding: "terrarium",
     sourceConfig: {

@@ -780,11 +780,11 @@ const BYOD_STEPS: TourStepDef[] = [
   {
     key: "l2-byod-library", domId: "tour-source-library", side: "left", align: "center",
     onEnter: prepareTerrainLibrary,
-    title: "The Library, and catalogues",
+    title: "The Library, and catalogs",
     description: (
       <>
         <p className="pb-2">Dozens of national and global datasets, graded against the built-in Mapterhorn so you can see at a glance where one is genuinely finer.</p>
-        <p>Below them sit <b>Catalogues</b>: searchable archives rather than single datasets. <b>Browse</b> opens the catalogue search over your current view — that is where per-scene DEMs live, and you can save your own endpoint there too.</p>
+        <p>Below them sit <b>Catalogs</b>: searchable archives rather than single datasets. <b>Browse</b> opens the catalog search over your current view — that is where per-scene DEMs live, and you can save your own endpoint there too.</p>
       </>
     ),
   },
@@ -849,7 +849,7 @@ const ALL_STEPS: TourStepDef[] = [...GENERAL_STEPS, BRANCH_STEP, ...TERRAIN_STEP
  *  other - a menu, not a chain. */
 export const LEVEL2_TOURS = [
   { key: "tools" as const, label: "The Tools", blurb: "Drawing, the elevation picker, the sun/shadow calculator and the animation path." },
-  { key: "byod" as const, label: "Bring Your Own Data", blurb: "Load a COG, a WMS elevation service or a catalogue search as a terrain source." },
+  { key: "byod" as const, label: "Bring Your Own Data", blurb: "Load a COG, a WMS elevation service or a catalog search as a terrain source." },
   { key: "ndsm" as const, label: "nDSM and Comparison", blurb: "Subtract one source from another: canopy height, building height, change between two dates." },
 ]
 
