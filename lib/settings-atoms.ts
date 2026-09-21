@@ -85,6 +85,22 @@ export const tourProgressAtom = atomWithStorage<Record<string, boolean>>("tourPr
 // open-then-scroll the ?scrollTo= parameter already did, reachable at runtime.
 // Session-only: it is an action, not a preference.
 export const revealSectionAtom = atom<string | null>(null)
+
+// The two point-picking tools keep their picks here rather than in their own
+// component state, so something outside them can seed a worked example - the
+// level-2 walkthrough places real points and lets the tool compute the answer,
+// instead of describing what would happen if you clicked. Session-only.
+export interface PickedLngLat { lng: number; lat: number; elevation: number | null; error?: string }
+export const elevationPickerPointsAtom = atom<PickedLngLat[]>([])
+export const sunShadowPicksAtom = atom<{ base: PickedLngLat | null; tip: PickedLngLat | null }>({ base: null, tip: null })
+// Whether each tool is armed for picking. Lifted for the same reason as the
+// picks themselves: a walkthrough step has to be able to switch the tool on.
+export const elevationPickerActiveAtom = atom(false)
+export const sunShadowActiveAtom = atom(false)
+export const sunShadowModeAtom = atom<"forward" | "reverse">("forward")
+/** Object height for the reverse solve, in metres. Lifted so the walkthrough
+ *  can present a complete worked example rather than a half-filled form. */
+export const sunShadowHeightAtom = atom(10)
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
 
 /** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.

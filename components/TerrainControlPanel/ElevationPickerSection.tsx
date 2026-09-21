@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useSourceConfig } from "@/lib/controls-utils"
-import { customTerrainSourcesAtom } from "@/lib/settings-atoms"
+import { customTerrainSourcesAtom, elevationPickerPointsAtom, elevationPickerActiveAtom } from "@/lib/settings-atoms"
 import { activeDrawModeAtom } from "./TerraDrawSystem"
 import { getClientExportSource, type ClientExportSource } from "@/lib/client-export"
 import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint, sampleClientElevationPath, type ProfilePoint } from "@/lib/elevation-query"
@@ -90,8 +90,12 @@ export const ElevationPickerSection: React.FC<{
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, mapRef, draw, isOpen, onOpenChange }) => {
-  const [isActive, setIsActive] = useState(false)
-  const [points, setPoints] = useState<PickedPoint[]>([])
+  const [isActive, setIsActive] = useAtom(elevationPickerActiveAtom)
+  // Lifted to an atom so the walkthrough can place a worked pair (see
+  // product-tour.tsx's TOOLS_STEPS); the sampling effect below fills in
+  // whatever elevation a seeded point is missing, so seeding and clicking take
+  // the same path.
+  const [points, setPoints] = useAtom(elevationPickerPointsAtom)
   // Derived from the shared activeDrawModeAtom (TerraDrawSystem.tsx) rather
   // than a local mirror kept in sync via draw's own 'change' event — that
   // event only fires on feature store mutations, never from a bare
@@ -303,6 +307,26 @@ export const ElevationPickerSection: React.FC<{
       })
     })
   }, [mapRef, sampleElevation])
+
+  // Any point that has no elevation yet gets sampled, whoever added it. The
+  // click handler seeds one that way too, so a point placed by the walkthrough
+  // (product-tour.tsx) resolves through exactly the same path as a clicked one
+  // rather than needing its own.
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    const pending = points.filter((p) => p.elevation === null && !p.error)
+    if (!pending.length) return
+    let cancelled = false
+    for (const p of pending) {
+      sampleElevation(map, p.lng, p.lat).then(({ elevation, error }) => {
+        if (cancelled) return
+        setPoints((prev) => prev.map((q) => (q.lng === p.lng && q.lat === p.lat && q.elevation === null && !q.error
+          ? { ...q, elevation, error } : q)))
+      })
+    }
+    return () => { cancelled = true }
+  }, [points, mapRef, sampleElevation, setPoints])
 
   useEffect(() => {
     const map = mapRef.current?.getMap()

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { track } from "@/lib/analytics"
 import {
   hasSeenTourAtom, isTourOpenAtom, tourProgressAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
+  elevationPickerActiveAtom, elevationPickerPointsAtom, sunShadowActiveAtom, sunShadowModeAtom, sunShadowPicksAtom, sunShadowHeightAtom, type PickedLngLat,
   isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom } from "@/lib/settings-atoms"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import customSources from "@/lib/custom-sources.json"
@@ -61,6 +62,14 @@ type TourActions = {
   setTerrainLibraryOpen: (v: boolean) => void
   coverageOverlays: string[]
   setCoverageOverlays: (ids: string[]) => void
+  // The two point-picking tools, so a demo step can arm one and place a real
+  // pair rather than describing what a click would do.
+  setElevationPickerActive: (v: boolean) => void
+  setElevationPickerPoints: (p: PickedLngLat[]) => void
+  setSunShadowActive: (v: boolean) => void
+  setSunShadowMode: (m: "forward" | "reverse") => void
+  setSunShadowPicks: (p: { base: PickedLngLat | null; tip: PickedLngLat | null }) => void
+  setSunShadowHeight: (m: number) => void
 }
 
 // Every nuqs `state` key any prepare function below ever writes — snapshotted
@@ -79,6 +88,16 @@ const TOUR_STATE_KEYS = [
   "basemapSource", "basemapSourceA", "basemapSourceB", "basemapPerView",
   "splitStyle", "gridLayout", "splitBlendModeEnabled", "splitBlendMode", "overlayOpacity",
   "historicalTimelineCollapsed", "historicalControlsExpanded",
+  // The camera. Level-1 never touches it - a shared link's viewport survives
+  // the tour untouched - but the level-2 demos fly somewhere with real terrain
+  // to show a tool working on, so it has to come back.
+  "lat", "lng", "zoom", "pitch", "bearing",
+  // The shared light. The sun/shadow demo SOLVES for it and writes the answer
+  // into the same fields the light pad drives, which is the point of that tool
+  // - so without these the visitor's own lighting would not come back.
+  "illuminationDir", "illuminationAlt", "lightDayOfYear", "lightTimeOfDay", "lightUseDatetime",
+  // Plane slicer, driven by the elevation-picker demo.
+  "showPlaneSlicer", "planeSlicerValue", "planeSlicerOpacity", "planeSlicerSide", "planeSlicerReferenceMode",
 ] as const
 
 // The map-viewport step's own popup — sidebar and any pre-existing
@@ -715,6 +734,12 @@ const HISTORICAL_STEPS: TourStepDef[] = [
 // finished. They reuse prepareTerrainTools/prepareTerrainBase so the panel is
 // in a known shape, and each opens exactly the one section it is about.
 
+/** Where each demo happens. Real ground with real relief, because a tool
+ *  demonstrated over flat terrain shows nothing. The camera is restored on
+ *  close - it is in TOUR_STATE_KEYS. */
+const MATTERHORN = { lat: 45.9990, lng: 7.7050, zoom: 12.2, pitch: 60, bearing: -140 }
+const MONTPARNASSE = { lat: 48.8421, lng: 2.3220, zoom: 16.4, pitch: 0, bearing: 0 }
+
 function prepareOneTool(a: TourActions, key: string) {
   prepareTerrainTools(a)
   a.setSectionOpen((prev) => ({
@@ -730,38 +755,76 @@ const TOOLS_STEPS: TourStepDef[] = [
     title: "Drawing",
     description: (
       <>
-        <p className="pb-2">Sketch on the map, or bring geometry in: GeoJSON, KML, GPX, FlatGeobuf and Shapefile, from a file or from a URL.</p>
-        <p>Layers are named and styled separately, and the loop button steps through one layer&rsquo;s features one at a time, framing each — useful for reviewing an imported inventory of sites.</p>
+        <p className="pb-2">Sketch on the map, or bring geometry in: GeoJSON, KML, GPX, FlatGeobuf and Shapefile, from a file or from a URL. Layers are named and styled separately.</p>
+        <p><b>Don&rsquo;t miss the Feature Iterator</b> — the loop button on a layer row steps through that layer&rsquo;s features one at a time, framing each on the map, with <kbd>&rarr;</kbd>/<kbd>&larr;</kbd> to move and <kbd>D</kbd> to delete. It is the fastest way to review an imported inventory of sites.</p>
       </>
     ),
   },
   {
     key: "l2-elevation-picker", domId: "tour-elevation-picker-section", side: "left", align: "start",
-    onEnter: (a) => prepareOneTool(a, "elevationPicker"),
+    onEnter: (a) => {
+      prepareOneTool(a, "elevationPicker")
+      // Hoernli ridge to the Matterhorn summit: ~1400 m of gain over ~3 km, so
+      // the delta and the profile both have something to say. Elevations are
+      // left null on purpose - the section samples whatever is missing from
+      // the ACTIVE DEM, so the numbers are real and match whichever source is
+      // loaded rather than being typed in here.
+      a.setState({ ...MATTERHORN, showPlaneSlicer: true, planeSlicerReferenceMode: "absolute",
+        planeSlicerSide: "below", planeSlicerValue: 2100, planeSlicerOpacity: 0.45 })
+      a.setElevationPickerActive(true)
+      a.setElevationPickerPoints([
+        { lng: 7.7491, lat: 46.0207, elevation: null },  // Zermatt, ~1600 m
+        { lng: 7.6585, lat: 45.9766, elevation: null },  // Matterhorn summit, 4478 m
+      ])
+    },
     title: "Elevation Picker",
     description: (
       <>
-        <p className="pb-2">Click the terrain to read its height off whichever DEM is active. A second click measures the distance and the drop between the two.</p>
-        <p>It also draws a full profile along a line — straight, or following a real routed path — and the Plane Slicer paints everything above or below a chosen altitude.</p>
+        <p className="pb-2">Two points are already placed, from Zermatt up to the Matterhorn summit — the panel is reading their heights off whichever DEM is loaded, with the distance, the <b>&Delta; elevation</b> and a full profile along the line.</p>
+        <p className="pb-2">Normally you place them by clicking; a second click measures against the first. The profile can follow a straight line or a real routed path.</p>
+        <p>The blue wash is the <b>Plane Slicer</b>, flooding everything below 2 100 m — the same tool, independent of the two points.</p>
       </>
     ),
   },
   {
     key: "l2-sun-shadow", domId: "tour-sun-shadow-section", side: "left", align: "start",
-    onEnter: (a) => prepareOneTool(a, "sunShadowCalculator"),
+    onEnter: (a) => {
+      prepareOneTool(a, "sunShadowCalculator")
+      // Tour Montparnasse: 210 m, standing alone, so its shadow is
+      // unambiguous - the one building in Paris this actually works on.
+      a.setState(MONTPARNASSE)
+      a.setSunShadowActive(true)
+      a.setSunShadowMode("reverse")
+      a.setSunShadowHeight(210)  // Tour Montparnasse, roof height
+      a.setSunShadowPicks({
+        base: { lng: 2.3220, lat: 48.8421, elevation: null },
+        tip: { lng: 2.3247, lat: 48.8408, elevation: null },
+      })
+    },
     title: "Sun and Shadow Calculator",
     description: (
       <>
-        <p className="pb-2">The rest of the app points the light and shows you the shadow. This runs it backwards: click something&rsquo;s base, then the tip of its shadow, type its height, and it solves for the date and time.</p>
+        <p className="pb-2">The rest of the app points the light and shows you the shadow. This runs it <b>backwards</b>.</p>
+        <p className="pb-2">Placed for you: the base of the <b>Tour Montparnasse</b> and the tip of a shadow falling south-east, and its 210 m height. The solver turns those three numbers into a date and a time — the bearing gives the azimuth, the height-to-length ratio gives the sun&rsquo;s elevation.</p>
         <p>The answer is written into the same light every other mode reads, so hillshade and cast shadows snap to it.</p>
       </>
     ),
   },
   {
     key: "l2-animation", domId: "tour-animation-section", side: "left", align: "start",
-    onEnter: (a) => prepareOneTool(a, "animation"),
+    onEnter: (a) => {
+      prepareOneTool(a, "animation")
+      // Parked on the Matterhorn, tilted, so "orbit this" is an obvious thing
+      // to want rather than an abstraction.
+      a.setState({ ...MATTERHORN, pitch: 62, bearing: -35 })
+    },
     title: "Animation",
-    description: <p>Set keyframe camera poses and interpolate between them for a fly-through. Terrain mode only — historical mode has no continuous surface to fly over.</p>,
+    description: (
+      <>
+        <p className="pb-2">Set keyframe camera poses and interpolate between them for a fly-through, exportable as a rendered video.</p>
+        <p>The camera is parked on the Matterhorn and tilted — a good first keyframe. Add a second with a different bearing and you have an orbit. Terrain mode only: historical mode has no continuous surface to fly over.</p>
+      </>
+    ),
   },
 ]
 
@@ -1074,6 +1137,12 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
   const [comparisonMixAdvancedOpen, setComparisonMixAdvancedOpen] = useAtom(isComparisonMixAdvancedOpenAtom)
   const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
   const [coverageOverlays, setCoverageOverlays] = useAtom(coverageOverlaysAtom)
+  const setElevationPickerActive = useSetAtom(elevationPickerActiveAtom)
+  const setElevationPickerPoints = useSetAtom(elevationPickerPointsAtom)
+  const setSunShadowActive = useSetAtom(sunShadowActiveAtom)
+  const setSunShadowMode = useSetAtom(sunShadowModeAtom)
+  const setSunShadowPicks = useSetAtom(sunShadowPicksAtom)
+  const setSunShadowHeight = useSetAtom(sunShadowHeightAtom)
 
   const [open, setOpen] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -1131,6 +1200,8 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     colorizeMapBorders, setColorizeMapBorders,
     comparisonMixAdvancedOpen, setComparisonMixAdvancedOpen,
     setTerrainLibraryOpen, coverageOverlays, setCoverageOverlays,
+    setElevationPickerActive, setElevationPickerPoints,
+    setSunShadowActive, setSunShadowMode, setSunShadowPicks, setSunShadowHeight,
   }
 
   // One stable ref-shaped object per step (across every branch — see
@@ -1200,6 +1271,14 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
     // left on the map (and in the link) for the rest of the visit otherwise.
     if (step.key !== "terrain-library") setTerrainLibraryOpen(false)
     if (step.key !== "coverage-overlays") setCoverageOverlays([])
+    // The demos are loans too: a step that placed points on the map takes them
+    // back when you move on, or you would be left with somebody else's picks.
+    if (step.key !== "l2-elevation-picker") {
+      setElevationPickerActive(false); setElevationPickerPoints([])
+      // The flood plane is that step's loan as much as the two points are.
+      setState({ showPlaneSlicer: false })
+    }
+    if (step.key !== "l2-sun-shadow") { setSunShadowActive(false); setSunShadowPicks({ base: null, tip: null }) }
     step.onEnter?.(actionsRef.current)
     void waitForTarget(step.domId).then(() => {
       scrollTargetIntoView(step.scrollTargetId ?? step.domId, step.scrollBlock)
@@ -1300,6 +1379,8 @@ export function ProductTour({ state, setState, switchAppMode }: ProductTourProps
       a.setColorizeMapBorders(snap.colorizeMapBorders)
       a.setComparisonMixAdvancedOpen(snap.comparisonMixAdvancedOpen)
       a.setCoverageOverlays(snap.coverageOverlays)
+      a.setElevationPickerActive(false); a.setElevationPickerPoints([])
+      a.setSunShadowActive(false); a.setSunShadowPicks({ base: null, tip: null })
       snapshotRef.current = null
     }
     setStepIndex(0)

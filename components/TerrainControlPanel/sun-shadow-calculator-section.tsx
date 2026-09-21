@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useEffect, useRef } from "react"
-import { useAtomValue } from "jotai"
+import { useAtomValue, useAtom } from "jotai"
 import maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -14,6 +14,7 @@ import { LightDirectionControl } from "./light-direction-control"
 import { ColorAlphaSwatch } from "./color-picker"
 import { track } from "@/lib/analytics"
 import { activeDrawModeAtom } from "./TerraDrawSystem"
+import { sunShadowPicksAtom, sunShadowActiveAtom, sunShadowModeAtom, sunShadowHeightAtom } from "@/lib/settings-atoms"
 import { inverseSunPosition, formatDayOfYear, formatHour } from "@/lib/solar-position"
 import { utcOffsetHoursAt, utcInstantForDayOfYear } from "@/lib/timezone"
 
@@ -62,16 +63,24 @@ export const SunShadowCalculatorSection: React.FC<{
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, mapRef, draw, isOpen, onOpenChange }) => {
-  const [isActive, setIsActive] = useState(false)
+  const [isActive, setIsActive] = useAtom(sunShadowActiveAtom)
   // "forward": pick where the object stands, drive the light with the pad —
   // the shadow tip is computed and drawn. "reverse": the light itself is
   // unknown — click the object's base, then the real shadow's tip as seen in
   // the imagery, and the light direction (and closest matching day/time) is
   // back-solved from the two points + object height instead.
-  const [mode, setMode] = useState<"forward" | "reverse">("forward")
-  const [point, setPoint] = useState<PickedPoint | null>(null)
-  const [tipPoint, setTipPoint] = useState<PickedPoint | null>(null)
-  const [height, setHeight] = useState(10)
+  const [mode, setMode] = useAtom(sunShadowModeAtom)
+  // Lifted to an atom for the same reason as the elevation picker's points:
+  // the walkthrough seeds a real base/tip pair so the solver has something to
+  // solve. See product-tour.tsx's TOOLS_STEPS.
+  const [picks, setPicks] = useAtom(sunShadowPicksAtom)
+  const point = picks.base
+  const tipPoint = picks.tip
+  const setPoint = (v: PickedPoint | null | ((p: PickedPoint | null) => PickedPoint | null)) =>
+    setPicks((prev) => ({ ...prev, base: typeof v === "function" ? (v as any)(prev.base) : v }))
+  const setTipPoint = (v: PickedPoint | null | ((p: PickedPoint | null) => PickedPoint | null)) =>
+    setPicks((prev) => ({ ...prev, tip: typeof v === "function" ? (v as any)(prev.tip) : v }))
+  const [height, setHeight] = useAtom(sunShadowHeightAtom)
   const [lineColor, setLineColor] = useState(DEFAULT_LINE_COLOR)
   const [lineWidth, setLineWidth] = useState(DEFAULT_LINE_WIDTH)
   const markerRef = useRef<maplibregl.Marker | null>(null)
