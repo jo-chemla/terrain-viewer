@@ -77,6 +77,10 @@ type TourActions = {
   // rewrites the URL and leaves the camera exactly where it was. Every demo
   // that flies somewhere has to go through here.
   setCamera: (c: { lat: number; lng: number; zoom: number; pitch?: number; bearing?: number }) => void
+  /** Frame a set of lng/lat points, keeping a given pitch/bearing. For a demo
+   *  whose subject is the points themselves — a fixed zoom cannot guarantee
+   *  they are on screen once terrain has had its say about the camera. */
+  fitCameraTo: (points: { lng: number; lat: number }[], opts?: { pitch?: number; bearing?: number; padding?: number }) => void
   /** Ask the hypsometric ramp to fit the tiles on screen (it polls for them). */
   requestHypsoAutoRange: () => void
   /** Load a Library sample (and, for a difference, its two operands) into the
@@ -303,12 +307,17 @@ function prepareCoverageOverlays(a: TourActions) {
   // and the step reads as "two patches near me" instead of "here is what
   // exists, everywhere".
   a.setCamera(WORLD)
-  // ...and colour the world while we are at it, with a range derived from the
-  // tiles actually on screen rather than the ramp's nominal bounds. At z1.5
-  // that is very nearly the real global min/max, which is a far better first
-  // sight of a hypsometric ramp than a default guess.
-  a.setState({ showColorRelief: true, colorReliefOpacity: 1, hillshadeOpacity: 0.35, hypsoSymmetric: false })
-  a.requestHypsoAutoRange()
+  // Imagery plus hillshade, and explicitly NOT the hypsometric ramp. This step
+  // is about footprints drawn ON the map, so the map underneath should be the
+  // plainest legible thing there is. A colour ramp fights the overlays for the
+  // same pixels - and whatever ramp the visitor had selected comes with them,
+  // so a diverging one (centred on zero, for differences) ends up applied to
+  // world elevation, where it means nothing at all.
+  a.setState({
+    showColorRelief: false,
+    showRasterBasemap: true, rasterBasemapOpacity: 1,
+    showHillshade: true, hillshadeOpacity: 1,
+  })
 }
 
 // Same single-setState-call merging as prepareTerrainBase above, via
@@ -693,7 +702,7 @@ const TERRAIN_STEPS: TourStepDef[] = [
       <>
         <p className="pb-2">Source Info → <span className="font-semibold text-foreground">Coverage overlays</span> draws the footprint of any dataset on the map, whether or not it is loaded — so a blank area can be told apart from a slow one before you switch source.</p>
         <p className="pb-2">Two are on now, and the camera has pulled back to the whole earth so you can see all of them at once. <span className="font-semibold text-foreground">Mapterhorn</span>: each patch is the national dataset the default terrain ingested there, hollow where it falls back to global 30 m. <span className="font-semibold text-foreground">Terrain library</span>: every dataset from the Library you just saw, loaded or not.</p>
-        <p className="pb-2">The colour underneath is the hypsometric ramp, fitted to the elevations actually on screen — at this zoom, very nearly the real global range.</p>
+        <p className="pb-2">Imagery and hillshade underneath, deliberately: this step is about the footprints drawn <i>on</i> the map, so everything else is turned down out of their way.</p>
         <p>Where they overlap, the library has an alternative to the default — hover for the resolution and producer, click for a link and a "use this source" button. Basemaps and the OpenStreetMap imagery index can be drawn the same way.</p>
       </>
     ),
@@ -854,7 +863,23 @@ const TOOLS_STEPS: TourStepDef[] = [
         showPlaneSlicer: true, planeSlicerReferenceMode: "absolute",
         planeSlicerSide: "below", planeSlicerValue: 2100, planeSlicerOpacity: 0.45 })
       a.setElevationPickerActive(true)
-      a.setElevationPickerPoints(ZERMATT_PICKS)
+      // Deferred for the same reason as the sun/shadow picks, but with a worse
+      // failure mode: the two seeded points are sampled against the ACTIVE DEM,
+      // and on a cold map that DEM has not decoded yet. Every sample came back
+      // the same value, so the draped line's elevation gradient collapsed to a
+      // single stop - 160 stops all `rgb(0,0,4)`, a near-black line over dark
+      // imagery, which is why the 2D profile drew but the line on the map
+      // appeared missing.
+      //
+      // The camera is re-asserted in the same callback: a pitched jumpTo onto
+      // terrain that is still loading gets recalculated as the ground rises
+      // under it (measured: z12.8 settling to z13.44), which pushed both
+      // endpoints off-screen. Re-issuing it once terrain is up lands on the
+      // framing this view was actually chosen at.
+      a.deferForStep("l2-elevation-picker", 1400, () => {
+        a.setElevationPickerPoints(ZERMATT_PICKS)
+        a.fitCameraTo(ZERMATT_PICKS, { pitch: ZERMATT.pitch, bearing: ZERMATT.bearing })
+      })
     },
     title: "Elevation Picker",
     description: (
@@ -1354,6 +1379,26 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     map?.jumpTo({ center: [c.lng, c.lat], zoom: c.zoom, pitch, bearing: c.bearing ?? 0 })
   }, [setState, mapRef])
 
+  // A fixed zoom is not enough when the subject is a pair of points: with 3D
+  // terrain and pitch, maplibre recalculates zoom/centre as the ground rises
+  // under the camera (measured: a jumpTo at z12.8 settling at z13.44, which
+  // pushed one of the two picks 342 px off the left edge). fitBounds re-derives
+  // the zoom from the points themselves, so they are on screen whatever the
+  // terrain does afterwards.
+  const fitCameraTo = useCallback((points: { lng: number; lat: number }[], opts?: { pitch?: number; bearing?: number; padding?: number }) => {
+    if (points.length === 0) return
+    cameraMovedRef.current = true
+    const lngs = points.map((p) => p.lng)
+    const lats = points.map((p) => p.lat)
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    if ((opts?.pitch ?? 0) > 0) { setState({ viewMode: "3d" }); map.setMaxPitch(85) }
+    map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: opts?.padding ?? 140, pitch: opts?.pitch ?? 0, bearing: opts?.bearing ?? 0, duration: 0 },
+    )
+  }, [mapRef, setState])
+
   const [open, setOpen] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   // True for the whole onEnter→scroll→settle window goToIndex/chooseBranch
@@ -1412,7 +1457,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     setTerrainLibraryOpen, coverageOverlays, setCoverageOverlays,
     setElevationPickerActive, setElevationPickerPoints,
     setSunShadowActive, setSunShadowMode, setSunShadowPicks, setSunShadowHeight, setOrbit,
-    setCamera, requestHypsoAutoRange: () => setHypsoAutoRangeRequest((n) => n + 1),
+    setCamera, fitCameraTo, requestHypsoAutoRange: () => setHypsoAutoRangeRequest((n) => n + 1),
     deferForStep,
     loadLibrarySource,
   }

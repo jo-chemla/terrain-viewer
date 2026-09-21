@@ -415,8 +415,18 @@ export const ElevationPickerSection: React.FC<{
     }
     if (!gradient) gradient = ["interpolate", ["linear"], ["line-progress"], 0, MARKER_COLORS[0], 1, MARKER_COLORS[1]]
 
+    let disposed = false
     const redraw = () => {
-      if (!map.isStyleLoaded()) return
+      if (disposed) return
+      // Not just `return` on an unloaded style. This used to rely entirely on
+      // the styledata listener below to try again — but styledata only fires
+      // when the style CHANGES, and the common case is that it already changed
+      // (a basemap being switched on is what made isStyleLoaded() false in the
+      // first place) and then settles with nothing further to report. The
+      // layer was then never added at all: source and layer both absent, the
+      // 2D profile chart drawing normally, and no line on the map.
+      // `idle` is the event that always arrives once rendering catches up.
+      if (!map.isStyleLoaded()) { map.once("idle", redraw); return }
       const existing = map.getSource(SRC) as maplibregl.GeoJSONSource | undefined
       if (existing) existing.setData(data as any)
       else map.addSource(SRC, { type: "geojson", lineMetrics: true, data: data as any })
@@ -436,7 +446,12 @@ export const ElevationPickerSection: React.FC<{
     map.on("styledata", redraw)
 
     return () => {
+      // disposed guards the pending `once("idle")` above: this effect re-runs
+      // on every profilePoints update, so a retry queued by a superseded run
+      // must not draw stale geometry after the newer one has taken over.
+      disposed = true
       map.off("styledata", redraw)
+      map.off("idle", redraw)
       if (map.getLayer(LYR)) map.removeLayer(LYR)
       if (map.getSource(SRC)) map.removeSource(SRC)
     }
