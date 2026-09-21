@@ -138,10 +138,32 @@ async function loadTileBitmap(url: string, signal: AbortSignal): Promise<ImageBi
     if (result.data instanceof Uint8Array) return createImageBitmap(new Blob([result.data.buffer as ArrayBuffer], { type: "image/png" }))
     return result.data
   }
+  // Our own elevation protocols have to be dispatched, not fetched: the
+  // browser has no idea what lerc:// or quantized-mesh:// are, so they fell
+  // through to the plain fetch below and every client-side consumer - the
+  // difference source and every viz mode - saw nothing but holes. Loaded
+  // lazily so a session that never touches them does not pay for the decoders.
+  if (url.startsWith("lerc://")) {
+    const { lercProtocol } = await import("./lerc-protocol")
+    return asBitmap(await lercProtocol({ url }, { signal } as AbortController))
+  }
+  if (url.startsWith("quantized-mesh://")) {
+    const { quantizedMeshProtocol } = await import("./quantized-mesh-protocol")
+    return asBitmap(await quantizedMeshProtocol({ url }, { signal } as AbortController))
+  }
   const response = await fetch(url, { signal })
   if (!response.ok) return null
   const blob = await response.blob()
   return createImageBitmap(blob)
+}
+
+/** A protocol result is a bitmap already (the normal path, see tile-image.ts)
+ *  or PNG bytes from the no-createImageBitmap fallback. */
+async function asBitmap(result: { data: Uint8Array | ImageBitmap }): Promise<ImageBitmap> {
+  if (result.data instanceof Uint8Array) {
+    return createImageBitmap(new Blob([result.data.buffer as ArrayBuffer], { type: "image/png" }))
+  }
+  return result.data
 }
 
 export async function fetchDecodedTile(
