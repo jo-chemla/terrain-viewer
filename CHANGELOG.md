@@ -1,3 +1,29 @@
+# Changelog - Guided Walkthroughs That Actually Do Things
+
+<!-- released: 2026-09-22 -->
+
+#### TL;DR
+- **The walkthrough demonstrates instead of describing.** The Tools tour now flies to real ground and works the tool in front of you: the elevation picker measures Zermatt to the Matterhorn summit (8.56 km, +2 806 m) with the profile and the draped line live, the sun/shadow calculator solves a real Tour Montparnasse shadow off the aerial imagery back to a date and time, and the Animation step actually orbits. Previously none of this moved the camera at all - the tour wrote to the URL, which the map only ever reads once, at startup.
+- **Bring Your Own Data and nDSM are one tour**, ending on the docs rather than stopping dead, and the nDSM steps load a real IGN Lidar HD DSM - DTM at 0.5 m over Paris with the ramp set to 0-40 m, which reads as a building-height map. Everything it loads is removed again when you leave.
+- **The Library leads with what is actually new.** "Not better than Mapterhorn" starts collapsed - it is most of the list and, by its own definition, the part you do not need. The comparison table was refreshed against Mapterhorn's own source catalog, adding the Faroes, Greenland, Israel and Svalbard.
+- **The app says things out loud now.** A small toast explains what used to fail silently: a reprojection service that is unreachable, local COG files the browser no longer has the bytes for, a clipboard copy the browser refused, a search result outside your map-bounds fence, and a snapshot saved (with its world file).
+
+### Features
+- Map pills name the **terrain source** when no raster basemap is drawn - the case where you are comparing two DEMs side by side and most need to know which pane is which.
+- The intro's first step can jump straight to the documentation card, alongside the existing shortcuts into either branch.
+- The coverage-overlay steps pull back to the whole earth, so national and continental footprints are all on screen at once.
+- **Settings -> API Keys**: the batch view round-trips `CESIUM_ION_TOKEN`, and parses on the first `=` so a base64 token's padding survives.
+
+### Fixes
+- The elevation picker's draped line could be drawn in a single near-black colour, or not added to the map at all: it gave up when the style was mid-change and waited for an event that never came again. It now retries on idle.
+- "Set elevation from viewport" did nothing in 2D - it required the 3D terrain object, which only exists once 3D terrain is on. It now reads the elevation source's own tiles.
+- A tilted demo camera was silently flattened for anyone in 2D, where pitch is locked to 0.
+- The `ellipsoidal` badge no longer sits beside a source's name; the datum is explained in that source's info dialog instead.
+- The "go to this mode's options" arrow explains itself when the mode is off, instead of jumping to a section that is not there.
+- Catalog search says which collections a page of results came from and what its assets actually are, instead of only "no elevation assets".
+
+---
+
 # Changelog — Esri & Cesium Global Terrain, Faster Tiles
 <!-- released: 2026-09-20 -->
 
