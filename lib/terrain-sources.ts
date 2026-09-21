@@ -118,3 +118,28 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
   //   },
   // },
 }
+
+/** Compact label for the map pill. Built-in names are "Mapterhorn -
+ *  Terrarium" / "Esri World Elevation - LERC": everything before the first
+ *  " - " is the part worth reading on a map corner.
+ *
+ *  A library/BYOD source is named "<ISO> - <dataset> - <transport>"
+ *  ("FRA - IGN Lidar HD DTM - WMS raw Float32"). The ISO prefix is redundant
+ *  on a map that is already showing that country, and the transport is an
+ *  implementation detail, so both ends are trimmed and the middle kept. */
+export function terrainShortLabel(
+  id: string,
+  customSources: readonly { id: string; name: string }[] = [],
+): string {
+  const builtin = terrainSources[id as TerrainSource]
+  if (builtin) return builtin.name.split(" - ")[0]
+  const custom = customSources.find((s) => s.id === id)
+  if (!custom) return id
+  const parts = custom.name.split(" - ").map((p) => p.trim()).filter(Boolean)
+  if (parts.length > 1 && /^([A-Z]{3}|Global)$/.test(parts[0])) parts.shift()
+  // Trailing transport/encoding segment, e.g. "WCS raw Float32", "ImageServer
+  // raw Float32", "Terrain-RGB", "single national COG", "derived", "PMTiles".
+  const TRANSPORT = /\b(WMS|WCS|WMTS|TMS|XYZ|COG|VRT|PMTiles|ImageServer|MapServer|Terrain-?RGB|Terrarium|LERC|quantized[- ]mesh|titiler|raw Float32|derived)\b/i
+  if (parts.length > 1 && TRANSPORT.test(parts[parts.length - 1])) parts.pop()
+  return parts.join(" - ") || custom.name
+}

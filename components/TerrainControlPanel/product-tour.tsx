@@ -8,7 +8,7 @@ import { track } from "@/lib/analytics"
 import {
   hasSeenTourAtom, isTourOpenAtom, tourProgressAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
   elevationPickerActiveAtom, elevationPickerPointsAtom, sunShadowActiveAtom, sunShadowModeAtom, sunShadowPicksAtom, sunShadowHeightAtom, orbitRequestAtom, type PickedLngLat,
-  isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom, hypsoAutoRangeRequestAtom } from "@/lib/settings-atoms"
+  isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom, hypsoAutoRangeRequestAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import customSources from "@/lib/custom-sources.json"
@@ -79,6 +79,10 @@ type TourActions = {
   setCamera: (c: { lat: number; lng: number; zoom: number; pitch?: number; bearing?: number }) => void
   /** Ask the hypsometric ramp to fit the tiles on screen (it polls for them). */
   requestHypsoAutoRange: () => void
+  /** Load a Library sample (and, for a difference, its two operands) into the
+   *  visitor's terrain sources and make it active. Anything this ADDS is
+   *  removed again on close — the tour does not get to leave sources behind. */
+  loadLibrarySource: (id: string) => void
 }
 
 // Every nuqs `state` key any prepare function below ever writes — snapshotted
@@ -94,6 +98,8 @@ const TOUR_STATE_KEYS = [
   "showSlope", "showCurvature", "showLrm", "showSvf",
   "hillshadeOpacity", "colorReliefOpacity", "terrainAnalysisOpacity", "reliefVisualizationOpacity",
   "showCaptureDatePill", "matchColorsToA", "matchColorsColorSpace",
+  // The active terrain source: the nDSM demo switches it to a Library entry.
+  "sourceA",
   "basemapSource", "basemapSourceA", "basemapSourceB", "basemapPerView",
   "splitStyle", "gridLayout", "splitBlendModeEnabled", "splitBlendMode", "overlayOpacity",
   "historicalTimelineCollapsed", "historicalControlsExpanded",
@@ -233,13 +239,21 @@ const WORLD = { lat: 20, lng: 5, zoom: 1.5, pitch: 0, bearing: 0 }
  *  Matterhorn / Mont Cervin area actually reads well at — wide enough to hold
  *  both Zermatt and the summit, which is what the elevation profile needs. */
 const ZERMATT = { lat: 45.9948, lng: 7.6453, zoom: 11.85, pitch: 55, bearing: -150 }
+/** The Mapterhorn massif, centred rather than off in a corner. */
+const MATTERHORN = { lat: 45.9597, lng: 7.5941, zoom: 11.85, pitch: 0, bearing: 0 }
 /** Tour Montparnasse: 210 m, standing alone, so its shadow is unambiguous —
  *  the one building in Paris this actually works on. Centred on the base pick
  *  and zoomed in far enough that the tower and its shadow fill the view. */
 const MONTPARNASSE = { lat: 48.8425, lng: 2.3215, zoom: 16.6, pitch: 0, bearing: 0 }
-/** Parked on the Matterhorn for the orbit, tilted 45° so the spin reads as a
- *  spin rather than a rotating map. */
-const MATTERHORN_ORBIT = { lat: 45.9990, lng: 7.7050, zoom: 12.2, pitch: 45, bearing: -35 }
+/** Central Paris for the nDSM demo — dense, uniform-ish Haussmannian roofline
+ *  with the odd tower, so "0 is the street and the colour is the roof" is
+ *  legible at a glance. IGN Lidar HD covers it at 0.5 m. */
+const PARIS_NDSM = { lat: 48.8566, lng: 2.3400, zoom: 15.2, pitch: 0, bearing: 0 }
+/** The Library entry the nDSM steps load: IGN Lidar HD DSM − DTM, 0.5 m. */
+const IGN_NDSM_ID = "custom-fr-ign-lidarhd-nhm"
+/** Same massif as MATTERHORN, tilted 45° so the spin reads as an orbit rather
+ *  than a rotating flat map. */
+const MATTERHORN_ORBIT = { ...MATTERHORN, pitch: 45, bearing: -35 }
 
 // Hillshade only — the Tools step isn't about any viz mode, so this clears
 // every OTHER mode back down to just its own collapsed section, leaving the
@@ -561,7 +575,16 @@ const TERRAIN_STEPS: TourStepDef[] = [
     key: "viz-modes", domId: "tour-viz-modes", side: "left", align: "start",
     title: "Visualization Modes",
     description: "Each checkbox turns one layer on or off, with its own opacity slider alongside it. Once a mode is switched on, its detailed options appear in the Options group further down this panel — only available here, in Terrain mode.",
-    onEnter: prepareTerrainBase,
+    // Standard hillshade alone, nothing else. This is the first thing the
+    // terrain branch shows, and whatever the visitor had stacked up before
+    // (hypso over relief over analysis) makes the map an unreadable pile
+    // right where the point is "each checkbox is ONE layer". The next four
+    // steps each turn on exactly one mode from this same clean base.
+    onEnter: (a) => {
+      prepareHillshadeOnly(a)
+      a.setState({ hillshadeMethod: "standard" })
+      a.setCamera(MATTERHORN)
+    },
   },
   {
     key: "hillshade", domId: "tour-hillshade-section", side: "left", align: "start",
@@ -840,8 +863,12 @@ const TOOLS_STEPS: TourStepDef[] = [
       // aerial basemap goes on for this step - on a vector or hillshade
       // backdrop there is nothing to match the picked tip against.
       a.setCamera(MONTPARNASSE)
+      // Imagery ONLY. A hillshade over a 30 m DEM in central Paris is a flat
+      // grey wash that just dims the one thing this step is about - the
+      // building's real shadow in the aerial capture. Every other viz mode is
+      // already off via prepareTerrainTools; hillshade is the one it leaves on.
       a.setState({ showRasterBasemap: true, rasterBasemapOpacity: 1,
-        basemapSource: "esri", basemapSourceA: "esri" })
+        basemapSource: "esri", basemapSourceA: "esri", showHillshade: false })
       a.setSunShadowActive(true)
       a.setSunShadowMode("reverse")
       a.setSunShadowHeight(210)  // Tour Montparnasse, roof height
@@ -933,9 +960,22 @@ const BYOD_STEPS: TourStepDef[] = [
   },
   {
     key: "l2-ndsm-list", domId: "tour-terrain-section", side: "left", align: "start",
-    onEnter: (a) => { prepareTerrainBase(a); a.setSectionOpen((prev) => ({ ...prev, terrainSource: true })) },
+    onEnter: (a) => {
+      prepareTerrainBase(a)
+      a.setSectionOpen((prev) => ({ ...prev, terrainSource: true }))
+      // Load the real thing rather than describe it: IGN Lidar HD DSM minus
+      // DTM at 0.5 m, over Paris. Both operands come along automatically, and
+      // all three are removed again on close.
+      a.loadLibrarySource(IGN_NDSM_ID)
+      a.setCamera(PARIS_NDSM)
+    },
     title: "They get their own group",
-    description: <p>Derived sources are listed under <b>nDSM and Comparison</b>, separate from the datasets you loaded — they are made of two of those, not fetched from anywhere.</p>,
+    description: (
+      <>
+        <p className="pb-2">Loaded for real: <b>IGN Lidar HD DSM − DTM</b> at 0.5 m, over central Paris. Both operands were added with it — a difference is made of two sources, not fetched from anywhere.</p>
+        <p>Derived sources are listed under <b>nDSM and Comparison</b>, separate from the datasets you loaded.</p>
+      </>
+    ),
   },
   {
     key: "l2-ndsm-ramp", domId: "tour-hypso-section", side: "left", align: "start",
@@ -944,14 +984,22 @@ const BYOD_STEPS: TourStepDef[] = [
     // under the transition and the step never settled - it sat on the
     // previous step until the next click finished the tour outright.
     onEnter: (a) => {
-      a.setState({ showColorRelief: true, colorReliefOpacity: 1, hillshadeOpacity: 0.3 })
+      a.setState({
+        showColorRelief: true, colorReliefOpacity: 1, hillshadeOpacity: 0.3,
+        // 0-40 m over Paris: 0 is the street, and the ramp's top end lands
+        // around a Haussmannian roofline, so the whole city reads as building
+        // height rather than as the ground it stands on.
+        customHypsoMinMax: true, hypsoSymmetric: false,
+        minElevation: 0, maxElevation: 40,
+        hypsoSliderMinBound: -10, hypsoSliderMaxBound: 60,
+      })
       a.setSectionOpen((prev) => ({ ...prev, hypsometricTint: true }))
     },
     title: "Reading the result",
     description: (
       <>
-        <p className="pb-2">A difference is elevation as far as everything else is concerned, so every mode works on it — a hypsometric ramp from 0 to 40 m is a canopy-height map.</p>
-        <p>For change detection use the ramp&rsquo;s <b>Symmetric Range</b>, which centres zero so gain and loss read as opposite colours.</p>
+        <p className="pb-2">A difference is elevation as far as everything else is concerned, so every mode works on it — the ramp is set to <b>0–40 m</b> here, which over Paris is a <b>building-height</b> map: 0 is the street, and the colour is how far the roof is above it.</p>
+        <p>Over forest the same thing is canopy height. For change detection between two dates use the ramp&rsquo;s <b>Symmetric Range</b>, which centres zero so gain and loss read as opposite colours.</p>
       </>
     ),
   },
@@ -973,7 +1021,7 @@ const ALL_STEPS: TourStepDef[] = [...GENERAL_STEPS, BRANCH_STEP, ...TERRAIN_STEP
  *  other - a menu, not a chain. */
 export const LEVEL2_TOURS = [
   { key: "tools" as const, label: "The Tools", blurb: "Drawing, the elevation picker, the sun/shadow calculator and the animation path." },
-  { key: "byod" as const, label: "Bring Your Own Data", blurb: "Load a COG, a WMS elevation service or a catalog search as a terrain source — then difference two of them into an nDSM." },
+  { key: "byod" as const, label: "BYOD — Bring Your Own Data, and nDSM", blurb: "Load a COG, a WMS elevation service or a catalog search as a terrain source — then difference two of them into an nDSM." },
 ]
 
 function getStepsForBranch(branch: TourBranch): TourStepDef[] {
@@ -1208,6 +1256,31 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
   const setSunShadowHeight = useSetAtom(sunShadowHeightAtom)
   const setOrbit = useSetAtom(orbitRequestAtom)
   const setHypsoAutoRangeRequest = useSetAtom(hypsoAutoRangeRequestAtom)
+  const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
+
+  // Ids this run ADDED to the visitor's terrain sources, so close can remove
+  // exactly those and leave anything they already had alone.
+  const borrowedSourceIdsRef = useRef<string[]>([])
+  const loadLibrarySource = useCallback((id: string) => {
+    const samples = customSources.SAMPLE_TERRAIN_SOURCES as any[]
+    const wanted = samples.find((s) => s.id === id)
+    if (!wanted) return
+    // A difference source is nothing without its two operands, exactly as the
+    // Library's own add does.
+    const needed = [wanted.diffMinuendId, wanted.diffSubtrahendId, id]
+      .filter(Boolean)
+      .map((k: string) => samples.find((s) => s.id === k))
+      .filter(Boolean)
+    setCustomTerrainSources((prev) => {
+      const have = new Set(prev.map((s) => s.id))
+      const missing = needed.filter((s) => !have.has(s.id))
+      borrowedSourceIdsRef.current = [
+        ...new Set([...borrowedSourceIdsRef.current, ...missing.map((s) => s.id)]),
+      ]
+      return missing.length ? [...prev, ...missing] : prev
+    })
+    setState({ sourceA: id })
+  }, [setCustomTerrainSources, setState])
 
   // Camera. setState writes the URL; the map only ever READ those fields once,
   // as <Map initialViewState>. So a demo that says "we are at the Matterhorn"
@@ -1219,10 +1292,24 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
   const cameraMovedRef = useRef(false)
   const setCamera = useCallback((c: { lat: number; lng: number; zoom: number; pitch?: number; bearing?: number }) => {
     cameraMovedRef.current = true
-    setState({ lat: c.lat, lng: c.lng, zoom: c.zoom, pitch: c.pitch ?? 0, bearing: c.bearing ?? 0 })
-    mapRef.current?.getMap()?.jumpTo({
-      center: [c.lng, c.lat], zoom: c.zoom, pitch: c.pitch ?? 0, bearing: c.bearing ?? 0,
-    })
+    const pitch = c.pitch ?? 0
+    const map = mapRef.current?.getMap()
+    // A tilted demo is a 3D demo. 2D is a strict nadir view enforced by
+    // `maxPitch={0}` on the <Map> element, so jumpTo({pitch: 45}) is silently
+    // clamped to 0 for a visitor who happened to be in 2D - which is exactly
+    // what "you did not tilt the camera" was. viewMode is in TOUR_STATE_KEYS,
+    // so 2D comes back on close.
+    //
+    // setMaxPitch as well as the state write: maxPitch is a React prop and
+    // only reaches the map on the next render, whereas jumpTo runs on this
+    // tick. Setting it imperatively first is what makes the pitch actually
+    // stick rather than being clamped one last time on the way in.
+    if (pitch > 0) {
+      setState({ viewMode: "3d" })
+      map?.setMaxPitch(85)
+    }
+    setState({ lat: c.lat, lng: c.lng, zoom: c.zoom, pitch, bearing: c.bearing ?? 0 })
+    map?.jumpTo({ center: [c.lng, c.lat], zoom: c.zoom, pitch, bearing: c.bearing ?? 0 })
   }, [setState, mapRef])
 
   const [open, setOpen] = useState(false)
@@ -1284,6 +1371,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     setElevationPickerActive, setElevationPickerPoints,
     setSunShadowActive, setSunShadowMode, setSunShadowPicks, setSunShadowHeight, setOrbit,
     setCamera, requestHypsoAutoRange: () => setHypsoAutoRangeRequest((n) => n + 1),
+    loadLibrarySource,
   }
 
   // One stable ref-shaped object per step (across every branch — see
@@ -1336,6 +1424,28 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
   // wait resolves is allowed to actually commit.
   const transitionGenerationRef = useRef(0)
 
+  /** Hands back everything the step we are LEAVING borrowed — the Library
+   *  modal, the coverage footprints, both tools' picks, the flood plane, the
+   *  orbit. Anything a step put on the map is a loan for that one step; left
+   *  behind it reads as state the visitor set themselves, and it travels in
+   *  the link.
+   *
+   *  Takes the step being entered, so a step keeps its own loans. Called from
+   *  goToIndex AND chooseBranch — chooseBranch had no teardown at all, so
+   *  jumping into a level-2 tour (from the end-of-tour menu, the sidebar, or a
+   *  ?startTour= link) while a previous run had left the picker armed carried
+   *  those picks straight into it. */
+  const returnStepLoans = useCallback((enteringKey: string | undefined) => {
+    if (enteringKey !== "terrain-library") setTerrainLibraryOpen(false)
+    if (enteringKey !== "coverage-overlays" && enteringKey !== "l2-byod-coverage") setCoverageOverlays([])
+    if (enteringKey !== "l2-elevation-picker") {
+      setElevationPickerActive(false); setElevationPickerPoints([])
+      setState({ showPlaneSlicer: false })
+    }
+    if (enteringKey !== "l2-sun-shadow") { setSunShadowActive(false); setSunShadowPicks({ base: null, tip: null }) }
+    if (enteringKey !== "l2-animation") setOrbit(false)
+  }, [setTerrainLibraryOpen, setCoverageOverlays, setElevationPickerActive, setElevationPickerPoints, setState, setSunShadowActive, setSunShadowPicks, setOrbit])
+
   // Moves to `newIndex` within the CURRENT branch's step list: runs that
   // step's own onEnter (forcing whatever sidebar/section/mode state its
   // target needs to exist), waits for that to actually land in the DOM,
@@ -1347,21 +1457,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     if (!step) return
     const generation = ++transitionGenerationRef.current
     setIsTransitioning(true)
-    // The Library modal covers the panel: every other step has to start with
-    // it closed, whichever direction the visitor came from. The coverage
-    // footprints are the same kind of loan - drawn for one step only, and
-    // left on the map (and in the link) for the rest of the visit otherwise.
-    if (step.key !== "terrain-library") setTerrainLibraryOpen(false)
-    if (step.key !== "coverage-overlays") setCoverageOverlays([])
-    // The demos are loans too: a step that placed points on the map takes them
-    // back when you move on, or you would be left with somebody else's picks.
-    if (step.key !== "l2-elevation-picker") {
-      setElevationPickerActive(false); setElevationPickerPoints([])
-      // The flood plane is that step's loan as much as the two points are.
-      setState({ showPlaneSlicer: false })
-    }
-    if (step.key !== "l2-sun-shadow") { setSunShadowActive(false); setSunShadowPicks({ base: null, tip: null }) }
-    if (step.key !== "l2-animation") setOrbit(false)
+    returnStepLoans(step.key)
     step.onEnter?.(actionsRef.current)
     void waitForTarget(step.domId).then(() => {
       scrollTargetIntoView(step.scrollTargetId ?? step.domId, step.scrollBlock)
@@ -1372,7 +1468,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
       setOpen(true)
       setIsTransitioning(false)
     })
-  }, [activeSteps, resolveAllRefs])
+  }, [activeSteps, resolveAllRefs, returnStepLoans])
 
   // The branch-choice step's two buttons — unlike goToIndex, this can't rely
   // on `activeSteps` (still the pre-choice list until React re-renders with
@@ -1396,6 +1492,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     const generation = ++transitionGenerationRef.current
     setIsTransitioning(true)
     setBranch(next)
+    returnStepLoans(step?.key)
     step?.onEnter?.(actionsRef.current)
     void waitForTarget(step?.domId ?? "").then(() => {
       if (step) scrollTargetIntoView(step.scrollTargetId ?? step.domId, step.scrollBlock)
@@ -1408,7 +1505,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
       setOpen(true)
       setIsTransitioning(false)
     })
-  }, [resolveAllRefs])
+  }, [resolveAllRefs, returnStepLoans])
 
   /** Capture the visitor's own configuration, once, before any step touches
    *  it. Both start() and a direct level-2 entry need this. */
@@ -1484,6 +1581,14 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
       a.setSunShadowActive(false); a.setSunShadowPicks({ base: null, tip: null })
       a.setOrbit(false)
       snapshotRef.current = null
+    }
+    // Give back any Library sources the nDSM demo loaded — but only the ones
+    // this run actually added, so a source the visitor already had (or added
+    // themselves mid-tour) survives.
+    if (borrowedSourceIdsRef.current.length) {
+      const borrowed = new Set(borrowedSourceIdsRef.current)
+      setCustomTerrainSources((prev) => prev.filter((s) => !borrowed.has(s.id)))
+      borrowedSourceIdsRef.current = []
     }
     setStepIndex(0)
     setBranch(null)

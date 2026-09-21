@@ -233,7 +233,16 @@ export const HypsometricTintOptionsSection: React.FC<{
 
     const map = mapRef.current.getMap();
     const terrain = (map as any).terrain;
-    if (!terrain) return null;
+    // `map.terrain` only exists once 3D terrain is applied. In 2D there is no
+    // Terrain object at all, but the raster-dem SOURCE is still loaded and
+    // decoded (the hypsometric layer is drawn from it) — so fall back to that
+    // source's own tile cache rather than reporting "no data". Without this,
+    // "Set from viewport" and the walkthrough's auto-range were dead in 2D,
+    // which is the mode a whole-world view is normally in.
+    const demCache = (map as any).style?.sourceCaches?.terrainSource
+      ?? (map as any).style?._otherSourceCaches?.terrainSource;
+    const tileSource = terrain?.tileManager ?? demCache;
+    if (!tileSource) return null;
 
     const bounds = map.getBounds();
     const west = bounds.getWest();
@@ -241,7 +250,13 @@ export const HypsometricTintOptionsSection: React.FC<{
     const south = bounds.getSouth();
     const north = bounds.getNorth();
 
-    const tiles: any[] = terrain.tileManager?.getRenderableTiles?.() ?? [];
+    // getRenderableTiles() on the Terrain path; a plain SourceCache exposes
+    // the same tiles through getVisibleCoordinates()/getTile().
+    const tiles: any[] = tileSource.getRenderableTiles?.()
+      ?? (tileSource.getVisibleCoordinates?.() ?? [])
+        .map((coord: any) => tileSource.getTile?.(coord))
+        .filter(Boolean)
+      ?? [];
     const inViewLoaded = tiles.filter((tile) => {
       if (!tile.dem) return false;
       const { x, y, z } = tile.tileID.canonical;
@@ -275,6 +290,9 @@ export const HypsometricTintOptionsSection: React.FC<{
     }
 
     // Fallback: none of the in-view tiles have decoded dem data yet.
+    // No Terrain object means no queryTerrainElevation either, so the
+    // point-sampling fallback below only applies on the 3D path.
+    if (!terrain) return null;
     const exaggeration = terrain.exaggeration || 1;
     const GRID = 9; // 9x9 = 81 sample points spread across the viewport
     let min = Infinity;

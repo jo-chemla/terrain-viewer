@@ -32,6 +32,7 @@ import { useTheme } from "@/lib/controls-utils"
 import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS, BASEMAP_SHORT_LABELS } from "./TerrainControlPanel/raster-basemap-section"
+import { terrainShortLabel } from "@/lib/terrain-sources"
 import { HistoricalTimelinePanel, SOURCE_CONFIG } from "./TerrainControlPanel/historical-timeline-panel"
 import { isHistoricalSourceActive, resolveActiveHistoricalSource, TIMELINE_SOURCE_IDS } from "@/lib/historical-sources"
 import { useEsriLiveCaptureDate } from "@/lib/wayback"
@@ -3999,13 +4000,24 @@ export function TerrainViewer() {
     : state.showCaptureDatePill
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
     if (effectiveCaptureDatePill === "off") return null
-    // The pill describes the BASEMAP source/date — in terrain mode that
-    // layer only renders while the Raster Basemap viz mode is on, so a
-    // pill without it labels imagery that isn't on screen (e.g. a terrain
-    // split comparing two DEMs). Historical mode always shows the basemap
-    // (opacity forced to 100% in the per-view render above), so no gate
-    // there — same reasoning as historicalTimelineActive's.
-    if (!isHistoricalMode && !state.showRasterBasemap) return null
+    // The pill describes the BASEMAP source/date — in terrain mode that layer
+    // only renders while the Raster Basemap viz mode is on, so labelling it
+    // there would name imagery that isn't on screen.
+    //
+    // But the case that puts you there is a terrain split comparing two DEMs,
+    // and that is exactly when you most want to know which pane is which. So
+    // rather than nothing, fall back to naming the TERRAIN source: basemap
+    // label whenever the basemap is actually drawn, terrain label otherwise.
+    // Never a date — a DEM has no capture date to show.
+    let baseLabel: string | null
+    if (!isHistoricalMode && !state.showRasterBasemap) {
+      // Terrain is always per-view (sourceA..H, unconditionally), unlike a
+      // basemap, which is only per-view behind basemapPerView — so this is a
+      // plain lookup rather than a viewFieldName() call.
+      const terrainId = stateAny[`source${pane.side}`] ?? state.sourceA
+      if (!terrainId || terrainId === "none") return null
+      baseLabel = terrainShortLabel(terrainId, customTerrainSources)
+    } else {
     const resolved = perViewResolved[pane.side]
     if (!resolved || !resolved.basemapSource) return null
     // A non-historical basemap (Mapbox/HERE/Google Sat/OSM/plain Bing) has no
@@ -4030,9 +4042,11 @@ export function TerrainViewer() {
       // human-facing name, not its raw id slug.
       ?? customBasemapSources.find((s) => s.id === resolved.basemapSource)?.name
       ?? resolved.basemapSource
-    const baseLabel = !hasKnownDate ? sourceShortLabel
+    baseLabel = !hasKnownDate ? sourceShortLabel
       : effectiveCaptureDatePill === "source-date" ? `${sourceShortLabel} · ${dateLabel}`
       : dateLabel
+    }
+    if (!baseLabel) return null
     // Split views name their pane in the pill itself ("B: Bing · 1999-01-15",
     // the letter being on-screen only: a snapshot shows "Bing · 1999-01-15"),
     // uncoloured. The pill doubles as the view selector for the timeline

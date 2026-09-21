@@ -988,7 +988,10 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   language="properties"
                   value={batchApiKeys}
                   onChange={setBatchApiKeys}
-                  rows={5}
+                  // One row per provider, plus room to paste a block with a
+                  // blank line or a stray comment in it. Six providers no
+                  // longer fit in five rows.
+                  rows={8}
                 />
               </div>
             ) : (
