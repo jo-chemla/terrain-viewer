@@ -50,7 +50,7 @@ export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSour
 export interface CoverageLeaf { id: string; label: string; color: string; detail?: string }
 export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps" }
 
-export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444" }
+export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1" }
 
 const ELI_ID_RE = /OSM Editor Layer Index id (\S+)/
 type Bounded = { id: string; name: string; bounds?: number[]; type?: string; resolutionM?: number; maxzoom?: number; infoUrl?: string }
@@ -80,6 +80,14 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     { section: "Basemaps", key: "yourBasemaps", label: "Your basemaps", color: OVERLAY_COLORS.yourBasemaps, note: "Every loaded basemap that declares bounds or came from the index, library entries included.", leaves: yourBasemaps },
     { section: "Basemaps", key: "basemapLibrary", label: "Basemap library", color: OVERLAY_COLORS.basemapLibrary,
       leaves: BASEMAP_LIB.filter((s) => s.bounds).map((s) => ({ id: `blib:${s.id}`, label: s.name, color: OVERLAY_COLORS.basemapLibrary })) },
+    // Not a basemap this app can draw - Bing's 3D mesh is a Cesium/3D Tiles
+    // thing - but the question "is there photogrammetry here?" belongs on
+    // the same map as "is there a fine DEM here?". The polygons come from
+    // Bing's own 3D Tiles subtree availability (docs/scripts/build-bing-3d-
+    // coverage.mjs), which needs no key; nothing published lists them.
+    { section: "Basemaps", key: "bing3d", label: "Bing Maps 3D (photogrammetry)", color: OVERLAY_COLORS.bing3d,
+      note: "Where Bing Maps 3D has mesh - the photogrammetry behind Bing's 3D cities and Flight Simulator - read from the tileset's own availability data at ~2.4 km. Includes terrain photogrammetry of parks, not only cities.",
+      leaves: [{ id: "bing3d", label: "Bing Maps 3D coverage", color: OVERLAY_COLORS.bing3d }] },
   ]
   // "Your …" groups stay listed even when empty (the tree shows "None").
   return groups.filter((g) => g.leaves.length > 0 || g.key.startsWith("your"))
@@ -202,6 +210,21 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
     return one(id, rect(s.bounds), { color: kind === "lib" ? OVERLAY_COLORS.library : OVERLAY_COLORS.basemapLibrary, label: s.name,
       detail: `${kind === "lib" ? "Terrain library" : "Basemap library"} (${s.type}) · declared bounds`, url: s.infoUrl ?? "",
       resolutionM: s.resolutionM, maxzoom: s.maxzoom })
+  }
+  if (kind === "bing3d") {
+    // A static file built by docs/scripts/build-bing-3d-coverage.mjs: 2 857
+    // merged rectangles (0.5 MB) from 161 276 level-13 content tiles. Fetched
+    // relative to BASE_URL so the /terrain-viewer/ subpath deploy finds it.
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}coverage/bing-3d.geojson`)
+      if (!res.ok) return empty
+      const fc = (await res.json()) as FeatureCollection
+      const features: Feature[] = fc.features.map((f) => ({ ...f, properties: { ...f.properties,
+        overlay: id, color: OVERLAY_COLORS.bing3d, hollow: false, opacity: 0.12,
+        label: "Bing Maps 3D", detail: "photogrammetry mesh (tf=3dv4) · from the tileset's subtree availability, level 13",
+        url: "https://www.bing.com/maps?style=x" } }))
+      return { type: "FeatureCollection", features }
+    } catch { return empty }
   }
   if (kind === "eli") {
     const eli = await import("@osm-editor-kit/maplibre-editor-layer-index")

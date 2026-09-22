@@ -15,7 +15,8 @@
     "docs:dev": "pnpm --dir docs dev",
     "docs:build": "pnpm --dir docs build",
     "docs:preview": "pnpm --dir docs start",
-    "url-params": "node docs/scripts/build-url-params.mjs"
+    "url-params": "node docs/scripts/build-url-params.mjs",
+    "bing-3d-coverage": "node docs/scripts/build-bing-3d-coverage.mjs"
   },
   "packageManager": "pnpm@10.20.0",
   "dependencies": {

@@ -44,6 +44,7 @@ The picker is a small tree, independent of what is loaded in your Terrain and Ba
 - **OSM Editor Layer Index** — the real coverage polygons of the [Editor Layer Index](https://github.com/osmlab/editor-layer-index) layers whose footprint touches the current view at the moment the picker opens. Worldwide layers have no footprint and are left out.
 - **Your basemaps** — custom basemaps with declared bounds, or added from the Editor Layer Index (those use the index polygon).
 - **Basemap library** — the sample basemaps that declare bounds.
+- **Bing Maps 3D (photogrammetry)** — where Bing Maps 3D actually has mesh: the photogrammetry behind Bing's 3D cities and Flight Simulator. Not something this app can draw, but "is there photogrammetry here?" belongs on the same map as "is there a fine DEM here?". Includes terrain photogrammetry of parks (Rainier, Yellowstone, the Grand Canyon), not only cities.
 
 ## Reading the map
 
@@ -61,5 +62,6 @@ Overlays are drawn on all views of a split or grid layout. The selection is sess
 | Terrain / basemap library | Bounds rectangles | `bounds` of each entry in `lib/custom-sources.json` |
 | OSM Editor Layer Index | Coverage polygons | `@osm-editor-kit/maplibre-editor-layer-index` (bundled index, bumped weekly) |
 | Your sources | Bounds rectangles | the `bounds` you declared in the source dialog |
+| Bing Maps 3D | Merged tile rectangles, ~2.4 km | Bing's own 3D Tiles subtree availability (`td1` manifest → `st…` `subt` bitstreams), crawled by `docs/scripts/build-bing-3d-coverage.mjs` into `public/coverage/bing-3d.geojson` — no API key, nothing published lists it |
 
 Library bounds are the advertised extent of the service, not a survey footprint: a national LiDAR that covers 75 % of the country still shows its whole bounding box. Mapterhorn and the Editor Layer Index carry real polygons.
