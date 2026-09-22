@@ -38,13 +38,13 @@ The picker is a small tree, independent of what is loaded in your Terrain and Ba
 - **Mapterhorn** — the built-in terrain's own coverage, streamed from Mapterhorn's coverage vector tiles (`single-archive-tiles.mapterhorn.com/coverage/{z}/{x}/{y}.mvt`). Each polygon carries the id of the national source Mapterhorn ingested there; areas that fall back to Copernicus GLO-30 are drawn hollow. Hovering shows the product name, producer and grid resolution, read once from Mapterhorn's [attribution table](https://download.mapterhorn.com/attribution.json).
 - **Terrain library** — the declared bounds of every dataset in the [national datasets](/features/national-datasets) library, loaded or not.
 - **Your terrain sources** — custom terrain sources you added yourself that declare bounds (Advanced section of the Add Terrain dialog) and are not library entries.
+- **Bing Maps 3D (photogrammetry)** — where Bing Maps 3D actually has mesh: the photogrammetry behind Bing's 3D cities and Flight Simulator. Not something this app can draw, but "is there photogrammetry here?" belongs on the same map as "is there a fine DEM here?". Includes terrain photogrammetry of parks (Rainier, Yellowstone, the Grand Canyon), not only cities.
 
 **Basemaps**
 
 - **OSM Editor Layer Index** — the real coverage polygons of the [Editor Layer Index](https://github.com/osmlab/editor-layer-index) layers whose footprint touches the current view at the moment the picker opens. Worldwide layers have no footprint and are left out.
 - **Your basemaps** — custom basemaps with declared bounds, or added from the Editor Layer Index (those use the index polygon).
 - **Basemap library** — the sample basemaps that declare bounds.
-- **Bing Maps 3D (photogrammetry)** — where Bing Maps 3D actually has mesh: the photogrammetry behind Bing's 3D cities and Flight Simulator. Not something this app can draw, but "is there photogrammetry here?" belongs on the same map as "is there a fine DEM here?". Includes terrain photogrammetry of parks (Rainier, Yellowstone, the Grand Canyon), not only cities.
 
 ## Reading the map
 

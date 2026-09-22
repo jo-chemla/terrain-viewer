@@ -85,7 +85,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     // the same map as "is there a fine DEM here?". The polygons come from
     // Bing's own 3D Tiles subtree availability (docs/scripts/build-bing-3d-
     // coverage.mjs), which needs no key; nothing published lists them.
-    { section: "Basemaps", key: "bing3d", label: "Bing Maps 3D (photogrammetry)", color: OVERLAY_COLORS.bing3d,
+    { section: "Terrain", key: "bing3d", label: "Bing Maps 3D (photogrammetry)", color: OVERLAY_COLORS.bing3d,
       note: "Where Bing Maps 3D has mesh - the photogrammetry behind Bing's 3D cities and Flight Simulator - read from the tileset's own availability data at ~2.4 km. Includes terrain photogrammetry of parks, not only cities.",
       leaves: [{ id: "bing3d", label: "Bing Maps 3D coverage", color: OVERLAY_COLORS.bing3d }] },
   ]

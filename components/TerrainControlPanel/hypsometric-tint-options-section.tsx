@@ -17,6 +17,7 @@ import { colorRamps, extractStops, colorRampsFlat, buildCustomRampColors, DEFAUL
 // import { Section, TooltipIconButton } from "./controls-components"
 import { Section, TooltipIconButton, MobileSlider, SectionIdContext, DraftBoundInput, clampMinCommit, clampMaxCommit } from "./controls-components"
 import { CustomRampStopsEditor } from "./custom-color-ramp"
+import { DiffOffsetControl } from "./diff-auto-offset"
 import { cn } from "@/lib/utils"
 import { getGradientColors } from "@/lib/controls-utils"
 import { useEffect } from "react"
@@ -707,11 +708,17 @@ export const HypsometricTintOptionsSection: React.FC<{
         </div>
         )}
 
-        {/* Invert Color Ramp — always offered for a custom ramp (a pure
-            polarity swap over its own stops, same as every other viz mode's
-            custom-ramp support), otherwise only once a custom Min/Max range
-            is in play, same as before. */}
-        {(isCustom || state.customHypsoMinMax) &&
+        {/* Only when the source on screen is a difference: the offset is a
+            property of the ramp's zero, so it lives here, not beside the
+            source's name. */}
+        <DiffOffsetControl sourceId={state.sourceA} mapRef={mapRef} />
+
+        {/* Symmetric Range and Invert Ramp, always offered. They used to be
+            gated on a custom Min/Max being in play, which read as the two
+            controls having vanished the moment that box was unticked — and
+            Symmetric turns it on itself anyway. Symmetric has no meaning for a
+            custom stops ramp, so that one stays hidden there. */}
+        {
           <div className="flex gap-2">
             {!isCustom && (
             <div className="flex flex-2 items-center gap-2">
