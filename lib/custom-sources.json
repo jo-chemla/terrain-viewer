@@ -204,6 +204,30 @@
             "infoUrl": "https://geoservices.ign.fr/lidarhd"
         },
         {
+            "id": "custom-fr-ign-lidarhd-minus-rgealti",
+            "name": "FRA - Ground change: IGN Lidar HD DTM (2021+) - RGE ALTI DTM (2009-2020) - derived",
+            "url": "diff://custom-ign-lidarhd-dtm-wms-raw-custom-fr-ign-rgealti-highres",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-ign-lidarhd-dtm-wms-raw",
+            "diffSubtrahendId": "custom-fr-ign-rgealti-highres",
+            "loadWithSamples": false,
+            "bounds": [-5.5, 41.0, 9.8, 51.5],
+            "resolutionM": 1,
+            "description": "Two generations of IGN bare-earth terrain subtracted tile by tile: the 2021+ Lidar HD DTM at 0.5 m minus the 2009-2020 RGE ALTI DTM at 1-5 m. Positive is ground ADDED since the older survey (fill, spoil, new embankments, quarries backfilled), negative is ground REMOVED (excavation, erosion, quarry faces, landslides). Use the hypsometric ramp's Symmetric Range so gain and loss read as opposite colours, and expect a few metres of noise where RGE ALTI is the coarse 5 m photogrammetric grid rather than lidar - the auto-offset button on this row re-centres the difference on zero for the area on screen. Both operands are added with it; each is a raw Float32 WMS.",
+            "infoUrl": "https://geoservices.ign.fr/lidarhd"
+        },
+        {
+            "id": "custom-hk-landsd-dtm5",
+            "name": "HKG - Lands Department DTM 5m - LERC",
+            "url": "https://tiles.arcgis.com/tiles/6j1KwZfY2fZrfNMR/arcgis/rest/services/HK_DTM/ImageServer/tile/{z}/{y}/{x}",
+            "type": "lerc",
+            "maxzoom": 16,
+            "bounds": [113.83, 22.15, 114.45, 22.57],
+            "description": "Hong Kong SAR's 5 m DTM from the Lands Department (DATA.GOV.HK, CSDI), republished by Esri China (Hong Kong) as a LERC-tiled elevation ImageServer and decoded in the browser by lerc://. Includes elevated roads and bridges (it is not strictly bare earth). Verified: Float32 single band, 20 LODs declared, real tiles to z15-16 over Victoria Peak, 404 past that; CORS open. Mapterhorn has no Hong Kong source, so this is 5 m where the default is GLO-30. Licence: DATA.GOV.HK terms (attribution required).",
+            "resolutionM": 5,
+            "infoUrl": "https://data.gov.hk/en-data/dataset/hk-landsd-openmap-5m-grid-dtm"
+        },
+        {
             "id": "custom-fr-ign-rgealti-highres",
             "name": "FRA - IGN RGE ALTI 1-5m (mainland + overseas departments) - WMS raw Float32",
             "url": "data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES&STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514",

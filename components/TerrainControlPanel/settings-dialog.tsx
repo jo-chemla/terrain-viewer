@@ -1063,6 +1063,21 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   </p>
                 </div>
 
+                {/* Was batch-only (GOOGLE_API_KEY round-tripped, but there was no
+                    field for it), which made it look like it had no home. */}
+                <div className="space-y-2">
+                  <Label htmlFor="google-key">Google API Key</Label>
+                  <PasswordInput
+                    id="google-key"
+                    value={googleKey}
+                    onChange={(e: any) => setGoogleKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Used by the Google Open-In destinations (Street View, the 3D area explorer). Nothing on the map itself needs it.
+                  </p>
+                </div>
+
               </>
             )}
           </CollapsibleSection>

@@ -1,15 +1,22 @@
 import type React from "react"
-import { useRef } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useAtom, useSetAtom, useAtomValue } from "jotai"
-import { MapPin, Edit, Trash2, Upload, HardDrive, Link, ExternalLink } from "lucide-react"
+import { MapPin, Edit, Trash2, Upload, HardDrive, Link, ExternalLink, Sigma, Loader2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
+import { useCogProtocolVsTitilerAtom, customTerrainSourcesAtom, mapboxKeyAtom, maptilerKeyAtom, titilerEndpointAtom } from "@/lib/settings-atoms"
+import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
+import { sharedTileCache, fetchDecodedTile } from "@/lib/normal-derived-protocol"
+import { pushToast } from "@/components/ui/toast"
+import type { MapRef } from "react-map-gl/maplibre"
 import { registerLocalFileAtom, resolveLocalFileUrl, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 
 export const CustomSourceDetails: React.FC<{
   source: any; handleFitToBounds: any; handleEditSource: any; handleDeleteCustomSource: any
+  /** The map, for the difference source's auto-offset (it samples the tiles
+   *  on screen). Basemap rows never pass it and never show that button. */
+  mapRef?: React.RefObject<MapRef>
   /** Called with source.id when the label is clicked, e.g. setState({ sourceA: id }) or
    *  setState({ basemapSource: id }) — the caller decides which state key to write.
    *  Omit in contexts (e.g. split-screen A/B) where a separate control already handles
@@ -20,7 +27,7 @@ export const CustomSourceDetails: React.FC<{
    *  — the caller resolves this since it needs the OTHER list to look it up.
    *  Undefined/empty renders no badge at all. */
   linkedSourceName?: string
-}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName }) => {
+}> = ({ source, mapRef, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName }) => {
   const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -34,6 +41,104 @@ export const CustomSourceDetails: React.FC<{
   // picking "VRT" fresh from the Type dropdown, so disable it here too rather than
   // letting it silently fail to select/render.
   const isDisabledVrt = source.type === "vrt" && useCogProtocol
+
+  // ── Auto-offset for a difference source ──────────────────────────────────
+  // A DSM minus DTM from two different producers, or two dates, or a source
+  // on the ellipsoid minus one on the geoid, rarely centres on zero: there is
+  // a constant (locally) between them - a datum, a co-registration bias, a
+  // different notion of "ground". diffOffsetM is the knob that removes it;
+  // this measures it, from the tiles actually on screen, instead of asking
+  // for a number.
+  //
+  // The two operands are resolved with the same hook MapSources uses for the
+  // difference itself, so the templates sampled here are exactly the ones the
+  // rendered layer subtracts. Both hooks are called unconditionally (rules of
+  // hooks) with "" for non-difference rows, which resolves to null.
+  const isDiff = source.type === "dem-diff"
+  const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const mapboxKey = useAtomValue(mapboxKeyAtom)
+  const maptilerKey = useAtomValue(maptilerKeyAtom)
+  const titilerEndpoint = useAtomValue(titilerEndpointAtom)
+  const opA = useClientDemUpstream(isDiff ? source.diffMinuendId ?? "" : "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, undefined, undefined, true)
+  const opB = useClientDemUpstream(isDiff ? source.diffSubtrahendId ?? "" : "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, undefined, undefined, true)
+  const [offsetBusy, setOffsetBusy] = useState(false)
+  const autoOffset = useCallback(async () => {
+    const map = mapRef?.current?.getMap()
+    if (!map || !opA || !opB) {
+      pushToast({ key: "ndsm-offset", title: "Cannot sample the difference yet", body: "Both operands have to be resolvable first - one of them is still loading its metadata, or is itself a difference." })
+      return
+    }
+    setOffsetBusy(true)
+    try {
+      // Tiles under the viewport at the current zoom, capped both by the
+      // coarser operand's pyramid (its tiles simply do not exist deeper -
+      // the protocol walks up to an ancestor, this sampler does not) and at
+      // z14, so a WMS operand with no fixed pyramid is not asked for a
+      // screenful of z18 GetMaps for a statistic.
+      const b = map.getBounds()
+      let z = Math.max(0, Math.min(Math.floor(map.getZoom()), opA.maxzoom ?? 14, opB.maxzoom ?? 14, 14))
+      const toTile = (lat: number, lng: number, zz: number) => {
+        const n = 2 ** zz
+        const x = Math.floor(((lng + 180) / 360) * n)
+        const sn = Math.sin((lat * Math.PI) / 180)
+        const y = Math.floor((0.5 - Math.log((1 + sn) / (1 - sn)) / (4 * Math.PI)) * n)
+        return [Math.max(0, Math.min(n - 1, x)), Math.max(0, Math.min(n - 1, y))]
+      }
+      let tiles: [number, number][] = []
+      for (;;) {
+        const [x0, y0] = toTile(b.getNorth(), b.getWest(), z)
+        const [x1, y1] = toTile(b.getSouth(), b.getEast(), z)
+        tiles = []
+        for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) tiles.push([x, y])
+        if (tiles.length <= 16 || z === 0) break
+        z--
+      }
+      const fill = (u: string, x: number, y: number) => u.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
+      const ctrl = new AbortController()
+      const samples: number[] = []
+      const GRID = 24 // per tile, per axis - fractional positions, so operands of different tile sizes still line up
+      await Promise.all(tiles.map(async ([x, y]) => {
+        const [a, c] = await Promise.all([
+          fetchDecodedTile(sharedTileCache, fill(opA.template, x, y), opA.encoding, ctrl.signal),
+          fetchDecodedTile(sharedTileCache, fill(opB.template, x, y), opB.encoding, ctrl.signal),
+        ])
+        if (!a || !c) return
+        for (let r = 0; r < GRID; r++) for (let q = 0; q < GRID; q++) {
+          const fr = (r + 0.5) / GRID, fc = (q + 0.5) / GRID
+          const ia = Math.floor(fr * a.height) * a.width + Math.floor(fc * a.width)
+          const ic = Math.floor(fr * c.height) * c.width + Math.floor(fc * c.width)
+          if ((a.valid && !a.valid[ia]) || (c.valid && !c.valid[ic])) continue
+          const va = a.data[ia], vc = c.data[ic]
+          if (!Number.isFinite(va) || !Number.isFinite(vc) || va < -1000 || va > 10000 || vc < -1000 || vc > 10000) continue
+          samples.push(va - vc)
+        }
+      }))
+      if (samples.length < 50) {
+        pushToast({ key: "ndsm-offset", title: "Not enough overlap on screen", body: `Only ${samples.length} pixels had both operands here. Move to where both sources have data and try again.` })
+        return
+      }
+      // Interquartile mean: robust to the very things a difference is made
+      // to show (buildings, canopy, a quarry) while still averaging over the
+      // bulk. A plain mean would be dragged by them; a median alone throws
+      // away the half of the data that agrees.
+      samples.sort((p, q) => p - q)
+      const q1 = samples[Math.floor(samples.length * 0.25)], q3 = samples[Math.floor(samples.length * 0.75)]
+      const inner = samples.filter((v) => v >= q1 && v <= q3)
+      const mean = inner.reduce((acc, v) => acc + v, 0) / inner.length
+      const median = samples[Math.floor(samples.length / 2)]
+      // The protocol ADDS the offset, so the offset is minus what we measured.
+      const offset = Math.round(-mean * 10) / 10
+      setCustomTerrainSources((prev) => prev.map((s) => (s.id === source.id ? { ...s, diffOffsetM: offset } : s)))
+      pushToast({
+        key: "ndsm-offset",
+        title: `Offset set to ${offset > 0 ? "+" : ""}${offset} m`,
+        body: `Interquartile mean of ${samples.length.toLocaleString()} samples over ${tiles.length} tile${tiles.length === 1 ? "" : "s"} at z${z} (median ${median >= 0 ? "+" : ""}${median.toFixed(1)} m). The difference now centres on zero for this area.`,
+        duration: 8000,
+      })
+    } finally {
+      setOffsetBusy(false)
+    }
+  }, [mapRef, opA, opB, source.id, setCustomTerrainSources])
 
   if (isLocalFileMissing) {
     return (
@@ -154,6 +259,20 @@ export const CustomSourceDetails: React.FC<{
           }
         />
         <TooltipContent><p>Fit to bounds</p></TooltipContent>
+      </Tooltip>
+    )}
+    {isDiff && mapRef && (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" disabled={offsetBusy} onClick={autoOffset}>
+              {offsetBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sigma className="h-4 w-4" />}
+            </Button>
+          }
+        />
+        <TooltipContent>
+          <p>Auto offset: measure the constant between the two sources over the area on screen and set the co-registration offset so the difference centres on zero{source.diffOffsetM ? ` (currently ${source.diffOffsetM > 0 ? "+" : ""}${source.diffOffsetM} m)` : ""}.</p>
+        </TooltipContent>
       </Tooltip>
     )}
     <Tooltip>

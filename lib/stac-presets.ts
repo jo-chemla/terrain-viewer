@@ -35,6 +35,8 @@ export const STAC_PRESETS: StacPreset[] = [
     note: "283 OpenTopography-hosted LiDAR and DEM rasters as COGs, keyless. Static catalog: collections are filtered to the view, items crawled." },
   { id: "linz-elevation", name: "LINZ New Zealand Elevation", url: "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/catalog.json", kind: "static", target: "terrain", group: "Elevation",
     note: "1 m LiDAR DEM and DSM tiles (EPSG:2193 - routed through titiler)." },
+  { id: "lidarbc", name: "LidarBC elevation (New Graph Environment)", url: "https://images.a11s.one", kind: "api", target: "terrain", group: "Elevation",
+    note: "British Columbia's open LidarBC DEMs and DSMs as COGs - 102,000+ tiles in collection stac-elevation-bc, CC BY 4.0, updated monthly. A community catalog, not the province's own; Mapterhorn has only Canada's national 2 m here." },
   // Disaster imagery
   { id: "maxar-opendata", name: "Maxar Open Data - disaster events", url: "https://maxar-opendata.s3.dualstack.us-west-2.amazonaws.com/events/catalog.json", kind: "static", target: "basemap", group: "Imagery",
     note: "Pre/post-event 30-50 cm ARD COGs per event (CC BY-NC 4.0). Static catalog: pick an event, items are crawled." },

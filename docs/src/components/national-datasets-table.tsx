@@ -66,6 +66,8 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-ca-nrcan-mrdem30": { res: "30 m", coverage: "Nationwide, one single COG (via titiler)" },
   "custom-fr-ign-rgealti-highres": { res: "1–5 m", coverage: "Mainland + Réunion, Guadeloupe, Martinique, Guyane, Mayotte, St-Pierre-et-Miquelon" },
   "custom-fr-ign-lidarhd-reunion": { res: "0.5 m", coverage: "Réunion only" },
+  "custom-fr-ign-lidarhd-minus-rgealti": { res: "1 m", coverage: "Mainland + Corsica — ground change between the two IGN DTM generations" },
+  "custom-hk-landsd-dtm5": { res: "5 m", coverage: "Hong Kong SAR (LERC tiles, includes elevated roads)" },
   "custom-jp-gsj-terrainrgb": { res: "5–10 m", coverage: "Nationwide (5 m where DEM5 exists, 10 m elsewhere)" },
   "custom-uy-ideuy-mdt30": { res: "30 m", coverage: "Nationwide (7–11 s per tile)" },
   "custom-ht-cnigs-dtm15": { res: "1.5 m", coverage: "Nationwide, but renders only from z12 (VRT without overviews)" },
