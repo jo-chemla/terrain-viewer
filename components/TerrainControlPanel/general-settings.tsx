@@ -1,6 +1,6 @@
 import type React from "react"
 import { useMemo } from "react"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
 import { Globe, RotateCcw } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
@@ -9,7 +9,7 @@ import { Slider } from "@/components/ui/slider"
 import { Section, SegmentedToggle } from "./controls-components"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { ImportExportProjectDialog } from "./import-export-project-dialog"
-import { OpenInLinksButton } from "./open-in-links"
+import { OpenInLinksButton, openInSelectedAtom } from "./open-in-links"
 import { useWaybackItemsWithLocalChanges } from "@/lib/wayback"
 
 export const GeneralSettings: React.FC<{
@@ -23,6 +23,7 @@ export const GeneralSettings: React.FC<{
   mapRef: React.RefObject<MapRef>
 }> = ({ state, setState, isOpen, onOpenChange, historicalMode = false, mapRef }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
+  const openInSelected = useAtomValue(openInSelectedAtom)
   const disabledViewModes = activeProjectConfig?.disableViewModes ?? []
   const hideSplitScreen = activeProjectConfig?.hiddenSections?.includes("splitScreen") ?? false
   const hideProjectImportExport = activeProjectConfig?.hiddenSections?.includes("projectImportExport") ?? false
@@ -35,7 +36,14 @@ export const GeneralSettings: React.FC<{
   // it in Terrain mode regardless of any of that — same
   // hook/pattern comparison-mix-section.tsx uses for its own (historical
   // mode) copy, just gated the other way round (!historicalMode).
-  const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom)
+  // …but ONLY when the Esri Wayback destination is the one selected. The
+  // release number is the single thing this costs a network call for, and
+  // resolving it eagerly meant Terrain mode kept querying Esri's Wayback
+  // tilemaps on every pan with nothing Esri on the map at all.
+  const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(
+    state.lat, state.lng, state.zoom,
+    !hideOpenIn && openInSelected === "esri-wayback",
+  )
   const latestWaybackRelease = useMemo(
     () => rawWaybackItems.reduce<number | null>((max, item) => (max === null || item.releaseNum > max ? item.releaseNum : max), null),
     [rawWaybackItems],

@@ -95,12 +95,23 @@ function getCachedLocalChanges(latitude: number, longitude: number, zoom: number
  * imagery as their neighbor at any given spot. This is what the timeline's
  * ticks are built from (real imagery dates, not "the layer exists" dates).
  */
-export function useWaybackItemsWithLocalChanges(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { items: WaybackItem[]; loading: boolean } {
+/** `enabled` exists because this is NOT a cheap hook: @esri/wayback-core
+ *  resolves "which releases actually changed here" by walking every release's
+ *  tilemap at this location, so one settled camera position is dozens of
+ *  requests to Esri's servers. It used to run unconditionally from General
+ *  Settings — which is mounted in every mode — purely so the "Open in…"
+ *  button could pre-resolve the latest release number for ONE of its
+ *  destinations. That meant plain terrain browsing, with no historical
+ *  imagery and nothing Esri anywhere on the map, kept hitting
+ *  wayback.maptiles.arcgis.com on every pan. Callers that only want the
+ *  release number now pass enabled=false until it is actually wanted. */
+export function useWaybackItemsWithLocalChanges(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, enabled = true): { items: WaybackItem[]; loading: boolean } {
   const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const [items, setItems] = useState<WaybackItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!enabled) { setLoading(false); return }
     let cancelled = false
     setLoading(true)
     const timer = setTimeout(() => {
@@ -109,7 +120,7 @@ export function useWaybackItemsWithLocalChanges(latitudeRaw: number, longitudeRa
         .catch(() => { if (!cancelled) setLoading(false) })
     }, LOCAL_CHANGES_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [latitude, longitude, zoom])
+  }, [latitude, longitude, zoom, enabled])
 
   return { items, loading }
 }

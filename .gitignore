@@ -34,3 +34,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts.cache
+
+# Intermediate coverage decodes (docs/scripts/google3d-coverage.ts): hundreds of MB
+.cache/
