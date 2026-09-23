@@ -124,9 +124,43 @@ the per-zoom finding; the table is in the .ts header.
 
 **Shipped 2026-09-23.** `docs/scripts/dissolve-google-3d-coverage.mjs` unions
 the z8+z9+z10 decodes per 5-degree bucket with `@turf/turf` (no new dep),
-simplifies at ~500 m-1 km, truncates to 3 decimals, drops rings < 1-2 km2.
-225 MB -> ~3-5 MB raw, ~0.6 MB gzipped, same 34/39 against ground truth (the
-5 "misses" are tight polygons next to the test point, see above). The
-byte-size probe script is kept only as the keyless fallback. Re-running the
-pipeline: `pnpm google-3d-fetch` (needs VITE_GOOGLE_API_KEY), `google-3d-
-decode`, `google-3d-dissolve`.
+then generalises. Re-running: `GOOGLE_KEY=... pnpm google-3d-fetch` (all three
+zooms, fetch + decode into `.cache/`), then `pnpm google-3d-dissolve`.
+
+**The first shipped file was visibly wrong over Paris, and the reason is the
+order of operations.** Union first was right; what was missing is that BOTH
+the union and the generalisation leave invalid geometry behind. Measured on
+the largest Paris polygon (656 km2) of that file:
+
+- **30 holes, 26 of them under 1 km2**, most under 0.2 km2 - pinpricks where
+  two tile-clipped triangles met imperfectly, not gaps in coverage. They are
+  smaller than the error of the outline that contains them, and they render
+  as a city peppered with specks. That is what "looks weeeeeeird" was.
+- **7 self-intersections** created by `simplify` + `truncate`, absent from the
+  union. Douglas-Peucker on a ring with thousands of vertices crosses it over
+  itself; snapping to 3 decimals crosses a few more. maplibre then draws the
+  bowties.
+
+Fix, per merged polygon: drop holes < 1 km2, simplify, truncate, **re-node**,
+drop small holes again, drop outer rings < 1 km2. Re-noding is `union(p, p)` -
+polygon-clipping nodes every intersection before reassembling, so a polygon
+unioned with a copy of itself comes back with no crossings. Verified on that
+polygon: 7 kinks -> 0, 39 rings -> 31, area 655.9 -> 655.8 km2. Do NOT
+reorder these steps.
+
+Whole-world result of the fix: 73 317 -> 11 084 polygons, 3.17 MB (was 4.02),
+**11 208 artefact holes dropped**, self-intersections 10 231 -> 4 103 (the
+remainder are mostly holes that legitimately touch their outer ring, which
+`turf.kinks` counts). Paris went from one 656 km2 polygon with 30 holes to
+clean outlines with none. Total covered area barely moved: 1.074 -> 1.062
+Mkm2, so nothing was thrown away.
+
+**London is the one city that stopped testing "inside", and the old answer was
+the wrong one.** Charing Cross was 2.77 km inside an OLD polygon and is 2.87
+km outside a NEW one - but it is inside NOTHING in the raw decodes either
+(nearest polygon 2.85 / 3.02 / 2.81 km at z8 / z9 / z10). The old containment
+was a bowtie from an un-noded self-intersection happening to fill over it. Do
+not "fix" this by loosening the dissolve; the gap is in Google's own published
+coverage layer. 18/20 of a city checklist test inside, and most cities sit
+*deeper* inside than before (Rome -0.42 -> -4.41 km, Lisbon -1.23 -> -3.08).
+

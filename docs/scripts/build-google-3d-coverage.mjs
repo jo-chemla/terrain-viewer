@@ -2,9 +2,8 @@
 // SUPERSEDED as the producer of public/coverage/google-3d.geojson. That file
 // now comes from decoding Google's coverage layer outright:
 //
-//   npx tsx docs/scripts/google3d-coverage.ts fetch --key $KEY --out tiles --zoom 10
-//   npx tsx docs/scripts/google3d-coverage.ts decode --tiles tiles --out z.geojson
-//   node docs/scripts/dissolve-google-3d-coverage.mjs z*.geojson
+//   GOOGLE_KEY=... pnpm google-3d-fetch     # z8, z9 and z10, fetch + decode
+//   pnpm google-3d-dissolve                 # union, generalise, re-node
 //
 // which gives real polygons at ~500 m instead of the ~39 km cells this
 // produces. This is kept because it needs NO API key and no decoder: it reads
