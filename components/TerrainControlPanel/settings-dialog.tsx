@@ -783,6 +783,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 min={-4}
                 max={4}
                 step={1}
+                origin={0}
                 value={[cesiumDetailOffset]}
                 onValueChange={(v) => setCesiumDetailOffset(Math.max(-4, Math.min(4, Array.isArray(v) ? v[0] : v)))}
                 className="cursor-pointer"

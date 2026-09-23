@@ -89,6 +89,14 @@ export const TerrainSourceSection: React.FC<{
   // they are two of your OWN sources subtracted (see /features/ndsm-and-comparison)
   // - and they read as clutter mixed into the same flat list. Pulled out under
   // their own heading, which only appears when there is at least one.
+  // A difference source references its two operands by id; if one is deleted
+  // the difference is left pointing at nothing, so the row needs to know which
+  // ids are still real. Built-ins count too - a difference can be taken
+  // against Mapterhorn.
+  const liveTerrainSourceIds = useMemo(
+    () => new Set([...customTerrainSources.map((s) => s.id), ...Object.keys(terrainSources)]),
+    [customTerrainSources],
+  )
   const plainTerrainSources = useMemo(() => customTerrainSources.filter((s) => s.type !== "dem-diff"), [customTerrainSources])
   const ndsmTerrainSources = useMemo(() => customTerrainSources.filter((s) => s.type === "dem-diff"), [customTerrainSources])
 
@@ -381,7 +389,7 @@ export const TerrainSourceSection: React.FC<{
                   ) : (
                     <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
                   )}
-                  <CustomSourceDetails {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, ...(isSplit ? {} : { onSelect: selectTerrainA }), linkedSourceName: linkedBasemapName(source) }} />
+                  <CustomSourceDetails liveSourceIds={liveTerrainSourceIds} {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, ...(isSplit ? {} : { onSelect: selectTerrainA }), linkedSourceName: linkedBasemapName(source) }} />
                 </div>
               )
               const body = (

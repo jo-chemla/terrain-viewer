@@ -256,6 +256,13 @@ export default function GeocoderControl({
         // Always suppress the library's own built-in pin marker — this wrapper
         // renders its own (small dot, see the `marker` prop) via markerEl below.
         marker: false,
+        // The camera move is this wrapper's, not the library's. Left to the
+        // geocoder, picking a result outside the Map Bounds fence started the
+        // flight, maplibre clamped it back mid-air, and only then did the
+        // "outside the bounds" toast appear - so the map lurched and returned
+        // while being told it could not go. Deciding first and flying second
+        // means it simply does not move.
+        flyTo: false,
         // react-map-gl's `mapLib` is deliberately typed as a minimal Mapbox/
         // MapLibre-compatible interface (see @vis.gl/react-maplibre's own "only
         // loosely typed for compatibility" doc comment) so it can hand back
@@ -357,13 +364,24 @@ export default function GeocoderControl({
           : location
             ? [location[0], location[1], location[0], location[1]]
             : null;
-        if (targetBounds && outsideFence(map?.getMap?.(), targetBounds)) {
+        const m = map?.getMap?.();
+        if (targetBounds && outsideFence(m, targetBounds)) {
           pushToast({
             key: "geocoder-outside-fence",
             title: "That result is outside the map bounds",
-            body: `“${result?.place_name ?? result?.text ?? "The result"}” is outside the current bounds constraint, so the map cannot fly there. Settings → Map bounds constraints → None releases it.`,
+            body: `“${result?.place_name ?? result?.text ?? "The result"}” is outside the current bounds constraint, so the map did not fly there. Settings → Map bounds constraints → None releases it.`,
             duration: 7000,
           });
+        } else if (m && targetBounds) {
+          // What the library would have done, now that we know it is allowed.
+          // A result with a real bbox is framed; a bare point keeps the
+          // control's configured zoom, as `flyTo: false` also disables that.
+          const isPoint = targetBounds[0] === targetBounds[2] && targetBounds[1] === targetBounds[3];
+          if (isPoint) {
+            m.flyTo({ center: [targetBounds[0], targetBounds[1]], zoom: props.zoom ?? 16, duration: 1200 });
+          } else {
+            m.fitBounds([[targetBounds[0], targetBounds[1]], [targetBounds[2], targetBounds[3]]], { padding: 60, duration: 1200 });
+          }
         }
       });
 

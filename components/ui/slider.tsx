@@ -11,14 +11,20 @@ import { cn } from '@/lib/utils'
 // site failed to destructure `([min, max]) => ...` under tsc and every
 // single-value site needed a `v as number` cast. With the generic preserved,
 // `value={[a, b]}` infers an array-typed onValueChange automatically.
+/** Where a single-thumb slider's filled track starts, if not at `min`. Pass 0
+ *  on a signed scale so the fill reads as a signed offset from the middle
+ *  rather than as a quantity measured from the far left. */
+type SliderExtras = { origin?: number }
+
 function Slider<Value extends number | readonly number[]>({
   className,
   defaultValue,
   value,
   min = 0,
   max = 100,
+  origin,
   ...props
-}: SliderPrimitive.Root.Props<Value>) {
+}: SliderPrimitive.Root.Props<Value> & SliderExtras) {
   // The official pattern's `_values` fallback only accounts for array vs.
   // "nothing passed" — it renders 2 <Thumb>s (`[min, max]`) whenever `value`/
   // `defaultValue` isn't an array, even for a genuine single-thumb slider
@@ -56,10 +62,29 @@ function Slider<Value extends number | readonly number[]>({
           data-slot="slider-track"
           className="bg-muted relative grow overflow-hidden rounded-full data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1.5"
         >
-          <SliderPrimitive.Indicator
-            data-slot="slider-indicator"
-            className="bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
-          />
+          {origin === undefined || _values.length !== 1 ? (
+            <SliderPrimitive.Indicator
+              data-slot="slider-indicator"
+              className="bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
+            />
+          ) : (
+            // Base UI's own Indicator always runs from the track's start, so a
+            // signed slider read as "how far from the far left" rather than
+            // "how far from zero". This spans origin-to-thumb instead.
+            (() => {
+              const span = max - min || 1
+              const at = (v: number) => ((v - min) / span) * 100
+              const a = at(Math.min(origin, _values[0] as number))
+              const b = at(Math.max(origin, _values[0] as number))
+              return (
+                <div
+                  data-slot="slider-indicator"
+                  className="bg-primary absolute h-full"
+                  style={{ left: `${a}%`, width: `${Math.max(b - a, 0)}%` }}
+                />
+              )
+            })()
+          )}
         </SliderPrimitive.Track>
         {Array.from({ length: _values.length }, (_, index) => (
           <SliderPrimitive.Thumb

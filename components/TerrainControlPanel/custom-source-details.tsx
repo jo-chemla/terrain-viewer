@@ -19,7 +19,10 @@ export const CustomSourceDetails: React.FC<{
    *  — the caller resolves this since it needs the OTHER list to look it up.
    *  Undefined/empty renders no badge at all. */
   linkedSourceName?: string
-}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName }) => {
+  /** Ids of every terrain source that currently exists, so a difference source
+   *  can tell whether its two operands are still there. */
+  liveSourceIds?: Set<string>
+}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName, liveSourceIds }) => {
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // The File behind a "cog-local" source only lives in this tab's memory — after
@@ -27,6 +30,14 @@ export const CustomSourceDetails: React.FC<{
   // one is (re-)registered to flip between "Re-select file…" and the normal row.
   useAtomValue(localFileVersionAtom)
   const isLocalFileMissing = source.type === "cog-local" && !resolveLocalFileUrl(localFileId(source.url))
+  // A difference source holds its two operands by id, and deleting one leaves
+  // the difference behind pointing at nothing: it selects, renders nothing,
+  // and gives no hint why. Name the missing side and disable the row instead.
+  const missingOperands = source.type === "dem-diff" && liveSourceIds
+    ? ([source.diffMinuendId, source.diffSubtrahendId] as (string | undefined)[])
+        .filter((id): id is string => !!id && !liveSourceIds.has(id))
+    : []
+  const isOrphanedDiff = missingOperands.length > 0
 
   if (isLocalFileMissing) {
     return (
@@ -121,8 +132,9 @@ export const CustomSourceDetails: React.FC<{
         render={
           <Label
             htmlFor={`source-${source.id}`}
-            className="flex-1 text-sm truncate min-w-0 cursor-pointer"
+            className={`flex-1 text-sm truncate min-w-0 ${isOrphanedDiff ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
             onClick={() => {
+              if (isOrphanedDiff) return
               onSelect?.(source.id)
               handleFitToBounds(source)
             }}
@@ -131,7 +143,11 @@ export const CustomSourceDetails: React.FC<{
           </Label>
         }
       />
-      <TooltipContent> <p>{source.name}</p> </TooltipContent>
+      <TooltipContent>
+        <p>{isOrphanedDiff
+          ? `This difference needs ${missingOperands.length === 2 ? "both of its sources" : "a source"} that ${missingOperands.length === 2 ? "have" : "has"} been deleted — edit it to pick ${missingOperands.length === 2 ? "new ones" : "another"}, or delete it.`
+          : source.name}</p>
+      </TooltipContent>
     </Tooltip>
 
     {(['cog', 'cog-local', 'vrt', 'tilejson'].includes(source.type) || !!source.bounds) && (
