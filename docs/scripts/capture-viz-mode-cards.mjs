@@ -76,9 +76,10 @@ const SHOTS = [
   // Aspect stays 3D: its whole content is which way a face turns, which an
   // oblique shows and a plan view flattens.
   // The old aspect-multidir.jpg was a split view over Patagonia; this is the
-  // same massif as everything else, oblique because aspect IS which way a
-  // face turns.
-  { file: "aspect-multidir.jpg", view: OBLIQUE, state: { showAspect: true, showTerrainAnalysis: true, showHillshade: true, hillshadeOpacity: 0.5 } },
+  // same massif and the same nadir camera as every other card. An oblique
+  // was tried first and read as a different place - the point of the set is
+  // that only the rendering changes between cards.
+  { file: "aspect-multidir.jpg", view: PLAN, state: { showAspect: true, showTerrainAnalysis: true, showHillshade: true, hillshadeOpacity: 0.5 } },
   { file: "curvature.jpg", view: VIEW_2D, state: { showTerrainAnalysis: true, showCurvature: true } },
   { file: "tpi.jpg", view: VIEW_2D, state: { showTerrainAnalysis: true, showTpi: true } },
   // ── Relief visualization ───────────────────────────────────────────────
