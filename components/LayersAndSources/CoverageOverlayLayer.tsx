@@ -100,7 +100,7 @@ export const CoverageOverlayLayer: React.FC = () => {
           : { gsdM: coverageGsdMeters(p, e.lngLat.lat) ?? Infinity, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail,
               url: p.urlTemplate
                 ? fillViewport(p.urlTemplate, e.lngLat.lng, e.lngLat.lat, m.getZoom(), m.getBearing(), m.getPitch(),
-                    (38000 * 4096) / Math.pow(2, m.getZoom()) * Math.cos((e.lngLat.lat * Math.PI) / 180))
+                    (156543.034 * Math.cos((e.lngLat.lat * Math.PI) / 180) / Math.pow(2, m.getZoom())) * 100)
                 : p.url || undefined, overlay: p.overlay,
               useAs: p.role === "overlay" ? "overlay" : coverageUseKind(p.overlay) ?? undefined, needsKey: p.needsKey === true || p.needsKey === "true" }
         const k = `${hit.label}|${hit.detail}`

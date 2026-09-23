@@ -117,15 +117,19 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
     // `style=3d` is Bing's photogrammetry view - the same mesh the Bing Maps 3D
     // coverage overlay maps. The camera carries over in full rather than
     // dropping in nadir:
-    //   eh  camera height above ground, metres (same altitude formula as the
-    //       Google Earth destinations above)
+    //   eh  camera height above ground, metres. NOT the Google Earth altitude
+    //       formula, which is about 10x too high here: reusing it put z16 over
+    //       Amiens at 1530 m when the view matches roughly 150 m. Calibrated
+    //       against that instead, as ~100x the ground resolution. Bing derives
+    //       its own eh from however the camera actually got there, so a link
+    //       copied out of Bing will not match this exactly.
     //   dir compass heading, degrees clockwise from north - matches maplibre's
     //       bearing once normalised out of its signed range
     //   pi  tilt, degrees from vertical, matching maplibre's pitch convention
     // Coverage is partial (see the Bing Maps 3D coverage overlay); outside it
     // Bing falls back to plain aerial, where the tilt still applies.
     buildUrl: ({ lat, lng, zoom, bearing, pitch }) => {
-      const eh = Math.round((38000 * 4096) / Math.pow(2, zoom) * Math.cos((lat * Math.PI) / 180))
+      const eh = Math.round((156543.034 * Math.cos((lat * Math.PI) / 180) / Math.pow(2, zoom)) * 100)
       return `https://www.bing.com/maps?cp=${lat}~${lng}&lvl=${zoom.toFixed(1)}&style=3d&eh=${eh}&pi=${pitch.toFixed(2)}&dir=${bearing.toFixed(2)}`
     },
   },
