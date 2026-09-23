@@ -1,16 +1,14 @@
 import type React from "react"
-import { useMemo } from "react"
-import { useAtom, useAtomValue } from "jotai"
-import { Globe, RotateCcw } from "lucide-react"
+import { useAtom } from "jotai"
+import { Globe, RotateCcw, Home } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
-import { Section, SegmentedToggle } from "./controls-components"
+import { Section, SegmentedToggle, TooltipIconButton } from "./controls-components"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { ImportExportProjectDialog } from "./import-export-project-dialog"
-import { OpenInLinksButton, openInSelectedAtom } from "./open-in-links"
-import { useWaybackItemsWithLocalChanges } from "@/lib/wayback"
+import { OpenInLinksButton } from "./open-in-links"
 
 export const GeneralSettings: React.FC<{
   state: any; setState: (updates: any) => void;
@@ -21,36 +19,31 @@ export const GeneralSettings: React.FC<{
   // dropped rather than shown disabled/single-option.
   historicalMode?: boolean
   mapRef: React.RefObject<MapRef>
-}> = ({ state, setState, isOpen, onOpenChange, historicalMode = false, mapRef }) => {
+  /** "Home" - reset the view. Lives on this section's own header rather than
+   *  in the panel's title bar, where it sat next to Fold-all and Close and
+   *  read as a panel command rather than a view one. */
+  onGoHome?: () => void
+}> = ({ state, setState, isOpen, onOpenChange, historicalMode = false, mapRef, onGoHome }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
-  const openInSelected = useAtomValue(openInSelectedAtom)
   const disabledViewModes = activeProjectConfig?.disableViewModes ?? []
   const hideSplitScreen = activeProjectConfig?.hiddenSections?.includes("splitScreen") ?? false
   const hideProjectImportExport = activeProjectConfig?.hiddenSections?.includes("projectImportExport") ?? false
   const hideOpenIn = activeProjectConfig?.hiddenSections?.includes("openIn") ?? false
-  // Terrain mode's own "Open in..." fallback, below — a second copy of the
-  // one already living in the historical timeline panel's A/B caption row
-  // (historical-timeline-panel.tsx), which only renders once the timeline
-  // panel itself is showing (a historical basemap active, exactly 2 views,
-  // not collapsed). This one is unconditional, so there's always a path to
-  // it in Terrain mode regardless of any of that — same
-  // hook/pattern comparison-mix-section.tsx uses for its own (historical
-  // mode) copy, just gated the other way round (!historicalMode).
-  // …but ONLY when the Esri Wayback destination is the one selected. The
-  // release number is the single thing this costs a network call for, and
-  // resolving it eagerly meant Terrain mode kept querying Esri's Wayback
-  // tilemaps on every pan with nothing Esri on the map at all.
-  const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(
-    state.lat, state.lng, state.zoom,
-    !hideOpenIn && openInSelected === "esri-wayback",
-  )
-  const latestWaybackRelease = useMemo(
-    () => rawWaybackItems.reduce<number | null>((max, item) => (max === null || item.releaseNum > max ? item.releaseNum : max), null),
-    [rawWaybackItems],
-  )
-
+  // "Open in..." lives here too, a second copy of the one in the historical
+  // timeline panel's A/B caption row (historical-timeline-panel.tsx), which
+  // only renders once that panel is showing. This one is unconditional, so
+  // Terrain mode always has a path to it.
   return (
-    <Section id="tour-general-settings" title="General Settings" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
+    <Section
+      id="tour-general-settings"
+      title="General Settings"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      withSeparator={true}
+      headerExtra={onGoHome && (
+        <TooltipIconButton icon={Home} tooltip="Home - back to the default view" onClick={onGoHome} />
+      )}
+    >
       {!historicalMode && (
         <div className="flex items-center justify-between gap-2">
           <Label className="text-sm font-medium">View Mode</Label>
@@ -108,7 +101,7 @@ export const GeneralSettings: React.FC<{
           Deliberately always shown here too, even though the timeline panel
           usually also has one — see the hook comment above. */}
       {!historicalMode && !hideOpenIn && (
-        <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="w-full" />
+        <OpenInLinksButton state={state} mapRef={mapRef} className="w-full" />
       )}
     </Section>
   )

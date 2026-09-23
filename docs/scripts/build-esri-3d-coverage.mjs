@@ -34,7 +34,9 @@
 //
 // Most of these are small: median extent ~0.02 degrees, about 2 km. That is
 // what the data is - drone and aerial captures of a site, not cities. Items
-// spanning more than MAX_SPAN_DEG are dropped as mis-tagged indexes.
+// spanning more than MAX_SPAN_DEG are dropped as mis-tagged indexes, and
+// items under MIN_AREA_KM2 are dropped as too small to be a clickable
+// footprint at any zoom you would ask a coverage question from.
 //
 // The overlay cannot RENDER any of it - I3S is Esri's own format and maplibre
 // has no reader. It answers "who has photogrammetry here", alongside Bing and
@@ -56,10 +58,20 @@ const SEARCH = "https://www.arcgis.com/sharing/rest/search"
 // A capture is at most a couple of degrees across; anything bigger is a
 // global or regional index item wearing the same type keyword.
 const MAX_SPAN_DEG = 4
+// ...and a floor, because the long tail of this catalogue is one drone flight
+// over one building site. Those are real photogrammetry, but at a coverage
+// overlay's zoom they are a speck you cannot click, and they were most of the
+// 10 887. 5 km2 of declared extent is roughly a 2.2 km square - a district,
+// not a parcel. Measured on the full set: the median extent is ~0.02 degrees.
+const MIN_AREA_KM2 = Number(process.env.ESRI3D_MIN_AREA_KM2 ?? 5)
 const FIRST_YEAR = 2012
 
+/** Area of a lat/lon box in km2, near enough for a threshold. */
+const boxKm2 = (w, s, e, n) =>
+  (e - w) * 111.32 * Math.cos(((n + s) / 2) * Math.PI / 180) * (n - s) * 110.57
+
 const seen = new Map()
-let requests = 0, skippedSpan = 0
+let requests = 0, skippedSpan = 0, skippedSmall = 0
 
 async function page(q, start) {
   const u = `${SEARCH}?f=json&num=100&start=${start}&sortField=modified&sortOrder=desc&q=${encodeURIComponent(q)}`
@@ -85,6 +97,7 @@ for (let year = FIRST_YEAR - 1; year <= nowYear; year++) {
       const [[w, s], [e, n]] = it.extent
       if (![w, s, e, n].every(Number.isFinite) || e <= w || n <= s) continue
       if (e - w > MAX_SPAN_DEG || n - s > MAX_SPAN_DEG) { skippedSpan++; continue }
+      if (boxKm2(w, s, e, n) < MIN_AREA_KM2) { skippedSmall++; continue }
       // Keyed by SERVICE, not item id: the same hosted mesh is routinely
       // registered as several items (a copy per group, per org, per web
       // scene), and those would stack identical rectangles on the map.
@@ -98,7 +111,7 @@ for (let year = FIRST_YEAR - 1; year <= nowYear; year++) {
   }
   console.log(`  ${year < FIRST_YEAR ? `<${FIRST_YEAR}` : year}  ${String(found).padStart(5)} results, ${seen.size} distinct services so far`)
 }
-console.log(`${seen.size} Integrated Mesh services, ${requests} search requests, ${skippedSpan} dropped for spanning > ${MAX_SPAN_DEG} deg`)
+console.log(`${seen.size} Integrated Mesh services, ${requests} search requests, ${skippedSpan} dropped for spanning > ${MAX_SPAN_DEG} deg, ${skippedSmall} dropped under ${MIN_AREA_KM2} km2`)
 
 const round = (v) => Math.round(v * 1e4) / 1e4
 const features = [...seen.values()].map(({ it, w, s, e, n }) => ({

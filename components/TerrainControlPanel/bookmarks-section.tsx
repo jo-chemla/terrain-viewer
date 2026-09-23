@@ -655,7 +655,22 @@ export const BookmarksSection: React.FC<{
   }, [setBookmarks])
 
   return (
-    <Section title="Bookmarks" isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Section
+      title="Bookmarks"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      // Gallery on the header, so it is reachable without expanding the
+      // section first - it is a view OF the bookmarks, not one of the
+      // actions inside the list.
+      headerExtra={
+        <TooltipIconButton
+          icon={GalleryThumbnails}
+          tooltip="Gallery - every saved view fullscreen"
+          onClick={() => setIsGalleryOpen(true)}
+          disabled={bookmarks.length === 0}
+        />
+      }
+    >
       <div className="space-y-2">
         {/* One non-wrapping toolbar row. Only the Save View button is
             flexible (flex-1 min-w-0 — its label truncates before anything
@@ -669,14 +684,6 @@ export const BookmarksSection: React.FC<{
             onClick={() => saveBookmark()}
             disabled={isSaving}
             className="flex-1 min-w-0"
-          />
-          <TooltipIconButton
-            icon={GalleryThumbnails}
-            tooltip="Gallery — every saved view fullscreen"
-            onClick={() => setIsGalleryOpen(true)}
-            disabled={bookmarks.length === 0}
-            variant="outline"
-            className="shrink-0"
           />
           {/* List/grid presentation toggle — same icon-button-group pattern
               as RiverREM_UI's runsView selector (List/LayoutGrid pair in one

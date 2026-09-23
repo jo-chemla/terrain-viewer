@@ -1,6 +1,6 @@
 import type React from "react"
 import { useMemo, useState } from "react"
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom } from "jotai"
 import { ChevronDown, Frame, Hourglass } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
@@ -11,11 +11,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, SegmentedToggle, SliderControl, GroupHeading } from "./controls-components"
 import { ColorAlphaSwatch } from "./color-picker"
-import { OpenInLinksButton, openInSelectedAtom } from "./open-in-links"
+import { OpenInLinksButton } from "./open-in-links"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { colorizeMapBordersAtom, colorizeMapBordersInsetAtom, isComparisonMixAdvancedOpenAtom, sideColorOverridesAtom } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, BLEND_MODE_GROUPS, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
-import { useWaybackItemsWithLocalChanges } from "@/lib/wayback"
 import { cn } from "@/lib/utils"
 
 // RGB is the only space cheap enough for a live CSS filter (see
@@ -125,15 +124,6 @@ export const ComparisonMixSection: React.FC<{
   // lib/wayback.ts's getCachedLocalChanges), so mounting this hook here too
   // (the "Open In" button moved out of that panel to keep it tighter) costs
   // no extra network round-trip.
-  // Same gate as general-settings.tsx: the release number is only needed by
-  // the Esri Wayback destination, and resolving it costs a walk of every
-  // release's tilemap at this location.
-  const openInSelected = useAtomValue(openInSelectedAtom)
-  const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom, openInSelected === "esri-wayback")
-  const latestWaybackRelease = useMemo(
-    () => rawWaybackItems.reduce<number | null>((max, item) => (max === null || item.releaseNum > max ? item.releaseNum : max), null),
-    [rawWaybackItems],
-  )
 
   if (hideSplitScreen || !historicalMode) return null
 
@@ -401,7 +391,7 @@ export const ComparisonMixSection: React.FC<{
           {destination}", so a row label would just repeat "open in" — and
           full width (not paired against a label in a justify-between row)
           since it's the only control on this line. */}
-      <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="w-full" />
+      <OpenInLinksButton state={state} mapRef={mapRef} className="w-full" />
     </Section>
   )
 }

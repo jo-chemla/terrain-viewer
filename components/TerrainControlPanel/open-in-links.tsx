@@ -32,7 +32,6 @@ type OpenInContext = {
    *  same convention maplibre uses. */
   pitch: number
   bounds: { west: number; south: number; east: number; north: number } | null
-  latestWaybackRelease: number | null
 }
 
 type OpenInDestination = {
@@ -69,10 +68,12 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
   {
     id: "esri-wayback",
     label: "ESRI Wayback Machine",
-    buildUrl: ({ lat, lng, zoom, latestWaybackRelease }) => {
-      if (!latestWaybackRelease) return null
-      return `https://livingatlas.arcgis.com/wayback/#mapCenter=${lng}%2C${lat}%2C${Math.round(zoom)}&mode=explore&active=${latestWaybackRelease}`
-    },
+    // No `&active=<release>`: Wayback opens on its own latest release when
+    // none is named, and resolving "the latest release HERE" cost a walk of
+    // every release's tilemap at this location - dozens of requests, fired on
+    // every pan, to pre-fill a link that is identical without them.
+    buildUrl: ({ lat, lng, zoom }) =>
+      `https://livingatlas.arcgis.com/wayback/#mapCenter=${lng}%2C${lat}%2C${Math.round(zoom)}&mode=explore`,
   },
   {
     id: "google-maps-3d",
@@ -267,12 +268,11 @@ const AddCustomDestinationModal: React.FC<{
 export const OpenInLinksButton: React.FC<{
   state: any
   mapRef: React.RefObject<MapRef>
-  waybackLatestRelease: number | null
   /** e.g. "w-full" when this is the only control on its row (sidebar usage)
    *  instead of paired against a Label in a justify-between row (its
    *  original, narrower, timeline-footer usage). */
   className?: string
-}> = ({ state, mapRef, waybackLatestRelease, className }) => {
+}> = ({ state, mapRef, className }) => {
   const [selectedId, setSelectedId] = useAtom(openInSelectedAtom)
   const [customDestinations, setCustomDestinations] = useAtom(customOpenInDestinationsAtom)
   // Controlled (not left to the menu's own default close-on-select) — the
@@ -312,9 +312,8 @@ export const OpenInLinksButton: React.FC<{
       bearing: ((state.bearing % 360) + 360) % 360,
       pitch: state.pitch ?? 0,
       bounds: bounds ? { west: bounds.getWest(), south: bounds.getSouth(), east: bounds.getEast(), north: bounds.getNorth() } : null,
-      latestWaybackRelease: waybackLatestRelease,
     }
-  }, [mapRef, state.lat, state.lng, state.zoom, state.bearing, state.pitch, waybackLatestRelease])
+  }, [mapRef, state.lat, state.lng, state.zoom, state.bearing, state.pitch])
 
   const openDestination = useCallback((id: string) => {
     const dest = allDestinations.find((d) => d.id === id)

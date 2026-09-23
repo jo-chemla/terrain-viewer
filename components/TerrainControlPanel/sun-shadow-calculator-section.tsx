@@ -344,10 +344,11 @@ export const SunShadowCalculatorSection: React.FC<{
 
   return (
     <Section title="Sun Shadow Calculator" isOpen={isOpen} onOpenChange={onOpenChange}>
-      <div className="flex items-center justify-between gap-2">
-        <Label htmlFor="sun-shadow-calc-toggle" className="text-sm font-medium">
-          Pick point on click
-        </Label>
+      {/* Switch FIRST, then the label - same order as the Plane Slicer master
+          row (plane-slicer-fields.tsx), so the two "turn this map tool on"
+          controls line up down the sidebar instead of one reading left-to-right
+          and the other right-to-left. */}
+      <div className="flex items-center gap-2">
         <Switch
           id="sun-shadow-calc-toggle"
           checked={isActive}
@@ -355,6 +356,9 @@ export const SunShadowCalculatorSection: React.FC<{
           disabled={drawModeActive}
           className="cursor-pointer"
         />
+        <Label htmlFor="sun-shadow-calc-toggle" className="text-sm font-medium">
+          Pick point on click
+        </Label>
       </div>
 
       {drawModeActive && (

@@ -3,21 +3,25 @@
 <!-- released: 2026-09-23T23:30 -->
 
 #### TL;DR
-- **Esri Integrated Mesh coverage went from 47 footprints to 10 887.** The old query matched a free-text tag somebody typed; `typeKeywords:"IntegratedMesh"` is what ArcGIS itself stamps on an Integrated Mesh layer. What comes back is not a list of cities — the median footprint is about 2 km, so this is mostly drone and aerial captures of a site.
+- **Esri Integrated Mesh coverage went from 47 footprints to 1 719.** The old query matched a free-text tag somebody typed; `typeKeywords:"IntegratedMesh"` is what ArcGIS itself stamps on an Integrated Mesh layer, and it finds 10 887. Most of those are one drone flight over one building site, so anything under 5 km² is dropped — a speck you cannot click is not an answer.
 - **Esri has no global photorealistic mesh, and the link that implied otherwise is gone.** `Esri3D_Buildings_v1` is *modelled* buildings (TomTom, Vantor, Community Maps, Overture), so it no longer sits in "Open in…" next to Google Earth and Bing Maps 3D. Clicking an Integrated Mesh footprint now opens that one service in Esri's Scene Viewer — the service alone, so nothing else in the scene collides with the mesh.
-- **Terrain mode stopped talking to Esri's Wayback servers.** Resolving the latest Wayback release walks every release's tilemap at your location, and it ran on every pan from General Settings — with no historical imagery and nothing Esri on the map — purely to pre-fill one "Open in…" destination. Now it only runs when that destination is the one selected.
-- **Google 3D coverage: the blotches over Paris were artefacts, and they are gone.** Generalising a union of tile-clipped triangles leaves sub-kilometre holes where triangles met imperfectly and self-intersections made by the simplification itself. 11 208 pinprick holes dropped, self-intersections down 60%, file 4.02 → 3.17 MB, covered area unchanged.
-- **The Data layers picker moved next to the list it illustrates**, dropped the modes it had no picture for, gained a Tools section that opens the panel you recognised, and now loads 1.1 MB of thumbnails instead of 37 MB of full-resolution captures.
+- **The app stopped talking to Esri's Wayback servers unless it has a reason to.** Resolving the latest Wayback release walks every release's tilemap at your location, and it ran on every pan from General Settings — with no historical imagery and nothing Esri on the map — purely to pre-fill one "Open in…" destination. That link does not need it: Wayback opens on its own latest release when none is named. So the walk is gone from Terrain mode entirely, and in Historical mode it only happens when some view's ESRI pill is actually on and its ticks are wanted.
+- **Google 3D coverage: the union was not unioning.** polygon-clipping throws on raw decoded coordinates, and the fallback split the input and returned the halves *unmerged* — so three zooms' outlines shipped stacked, 2 110 km² of polygons for 1 346 km² of coverage over Paris. Inputs are now snapped before the union and partial results are tree-merged until nothing merges, with anything left over counted out loud. Plus 11 264 sub-kilometre artefact holes dropped and self-intersections down 58%. Still not clean — 66 partial unions resist merging and Paris is 1 745 km² against a true 1 346 — so this is better, not finished.
+- **The Data layers picker moved next to the list it illustrates**, dropped the modes it had no picture for, gained a Tools section that opens the panel you recognised, and now loads 0.8 MB of thumbnails instead of 37 MB of full-resolution captures — cropped to the middle fifth of each capture, since a whole landscape in a 220 px card is a grey smudge.
+- **Three buttons moved onto the section headers they belong to**: Home to General Settings, the bookmark Gallery to Bookmarks, and Snapshot to Download and Snapshot. The panel's title bar was becoming a drawer of unrelated icons.
 
 ### Features
 - Data layers: a **Tools** section — Draw and measure, Elevation picker/profile/slicer, Sun and shadow, Camera animation. Clicking one closes the dialog and opens that section in the sidebar, expanding the group it lives in.
 - Its button now sits left of the Visualization Modes pin rather than in the panel's title bar. Basemap imagery joins the Base group; hard shadows moved down to Light, where the sun already is.
 - An nDSM whose operands are missing but **in the library** gets a one-click button to fetch them, instead of only being told it is broken.
 - Drawing layers show their feature count in brackets, and the hover text is a real tooltip rather than the browser's.
+- The difference-source dialog offers the same one-click library load, next to whichever of its two selects is missing a source.
+- The Elevation Picker and Sun Shadow "pick on click" switches sit left of their label now, like the Plane Slicer's.
 
 ### Fixes
 - Screenshots in the Data layers picker were blank unless the docs dev server happened to be running. Vite now serves `/docs/screenshots/` straight off disk, the same bypass `/docs/content/` already had.
 - A removed "Open in…" destination stayed selected forever in local storage, showing the wrong label and doing nothing when clicked.
+- Clicking a hidden drawing layer made it active and left it invisible, so the click appeared to do nothing. It shows the layer now.
 
 ### Notes
 - Central London tests *outside* Google's coverage now. That is what the raw decode says at all three zooms (nearest polygon 2.8 km); it used to test inside because a self-intersecting ring filled over it.

@@ -18,7 +18,7 @@ import { downloadGeoJSON } from "@/lib/download-geojson"
 import { mergeContourLines } from "@/lib/merge-contours"
 import { track } from "@/lib/analytics"
 import { ShareButton } from "./ShareSection"
-import { TooltipButton, GroupHeading } from "./controls-components"
+import { TooltipButton, TooltipIconButton, GroupHeading } from "./controls-components"
 import { Progress } from "@/components/ui/progress"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -374,7 +374,20 @@ export const DownloadSection: React.FC<{
 
   if (historicalMode) {
     return (
-      <Section id="tour-download-section" title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
+      <Section
+        id="tour-download-section"
+        title="Download and Snapshot"
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        withSeparator={withSeparator}
+        // Snapshot is the one action people come back to often enough to want
+        // without expanding the section. The full button below stays: the
+        // header icon is a shortcut, not a replacement, because "Snapshot"
+        // next to "Copy" and "DEM GeoTiff" is where you learn what it does.
+        headerExtra={
+          <TooltipIconButton icon={Camera} tooltip="Snapshot - download the current view" onClick={downloadScreenshot} />
+        }
+      >
         <div className="flex gap-2">
           <TooltipButton
             icon={Camera}
@@ -407,7 +420,20 @@ export const DownloadSection: React.FC<{
   }
 
   return (
-    <Section id="tour-download-section" title="Download and Snapshot" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
+    <Section
+        id="tour-download-section"
+        title="Download and Snapshot"
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        withSeparator={withSeparator}
+        // Snapshot is the one action people come back to often enough to want
+        // without expanding the section. The full button below stays: the
+        // header icon is a shortcut, not a replacement, because "Snapshot"
+        // next to "Copy" and "DEM GeoTiff" is where you learn what it does.
+        headerExtra={
+          <TooltipIconButton icon={Camera} tooltip="Snapshot - download the current view" onClick={downloadScreenshot} />
+        }
+      >
       <div className="space-y-2">
         <div className="flex gap-2">
           <TooltipButton

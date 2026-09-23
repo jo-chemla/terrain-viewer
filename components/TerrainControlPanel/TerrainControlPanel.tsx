@@ -651,11 +651,6 @@ export function TerrainControlPanel({
               tooltip={allFolded ? "Expand all sections" : "Fold all sections"}
               onClick={handleFoldExpandAll}
             />
-            <TooltipIconButton
-              icon={Home}
-              tooltip="Home"
-              onClick={handleGoHome}
-            />
             {/* The trigger for this lives in the Visualization Modes section
                 header (left of its pin), where the thing it opens actually
                 is - the dialog just stays mounted here, at the panel root. */}
@@ -678,7 +673,7 @@ export function TerrainControlPanel({
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-4 space-y-2"
           style={{ maskImage: scrollMask, WebkitMaskImage: scrollMask }}
         >
-        <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} mapRef={mapRef} />
+        <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} mapRef={mapRef} onGoHome={handleGoHome} />
         <ComparisonMixSection state={state} setState={setState} isOpen={sectionOpen.comparisonMix} onOpenChange={toggle("comparisonMix")} historicalMode={historicalMode} mapRef={mapRef} />
         {!historicalMode && (
           <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />

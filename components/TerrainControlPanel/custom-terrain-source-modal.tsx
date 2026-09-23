@@ -2,7 +2,7 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
-import { ChevronDown, Link, Settings2, Expand, Copy, Check, Info, ExternalLink } from "lucide-react"
+import { ChevronDown, Link, Settings2, Expand, Copy, Check, Info, ExternalLink, LibraryBig } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch"
 import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom, customTerrainSourcesAtom, customTerrainLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { supportsNodataControls } from "@/lib/nodata"
 import { terrainSources } from "@/lib/terrain-sources"
+import customSources from "@/lib/custom-sources.json"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
 import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
@@ -59,7 +60,7 @@ export const CustomTerrainSourceModal: React.FC<{
   const [diffMinuendId, setDiffMinuendId] = useState("")
   const [diffSubtrahendId, setDiffSubtrahendId] = useState("")
   const [diffOffset, setDiffOffset] = useState("")
-  const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
+  const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const isDemDiff = type === "dem-diff"
   // Operands: every built-in and custom terrain source except differences
   // (one level only) and the source being edited.
@@ -68,6 +69,41 @@ export const CustomTerrainSourceModal: React.FC<{
     ...customTerrainSources.filter((s) => s.type !== "dem-diff" && s.id !== editingSource?.id).map((s) => ({ id: s.id, name: s.name })),
   ], [customTerrainSources, editingSource?.id])
   const diffReady = !!diffMinuendId && !!diffSubtrahendId && diffMinuendId !== diffSubtrahendId
+  // A library nDSM names its two operands by id, and loading it does not load
+  // them. The select then shows "Choose..." with no hint that the source it
+  // wants exists, is named in the entry, and is one click away in the very
+  // same library file. When that is the case, offer to fetch it right next to
+  // the select that is missing it.
+  const libraryById = useMemo(
+    () => new Map((customSources.SAMPLE_TERRAIN_SOURCES as { id: string; name: string }[]).map((e) => [e.id, e])),
+    [],
+  )
+  const missingFromLibrary = useCallback(
+    (id: string) => (id && !diffOperands.some((o) => o.id === id) ? libraryById.get(id) : undefined),
+    [diffOperands, libraryById],
+  )
+  const loadFromLibrary = useCallback((id: string) => {
+    setCustomTerrainSources((prev) => (prev.some((s2) => s2.id === id)
+      ? prev
+      : [...prev, (customSources.SAMPLE_TERRAIN_SOURCES as any[]).find((e) => e.id === id) as CustomTerrainSource]))
+  }, [setCustomTerrainSources])
+  /** Sits on the label row, right-aligned over the select it belongs to. */
+  const LoadMissingOperand: React.FC<{ id: string }> = ({ id }) => {
+    const entry = missingFromLibrary(id)
+    if (!entry) return null
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs text-primary cursor-pointer" onClick={() => loadFromLibrary(id)}>
+              <LibraryBig className="h-3.5 w-3.5" /> Load from library
+            </Button>
+          }
+        />
+        <TooltipContent><p>This difference names "{entry.name}", which is in the terrain library but not loaded. Add it.</p></TooltipContent>
+      </Tooltip>
+    )
+  }
   // The trigger shows the label from `items`; a 90-character library name
   // there widened the whole dialog past its max width (the value span does
   // not shrink inside Base UI's trigger), so the trigger gets a clipped label
@@ -370,7 +406,10 @@ export const CustomTerrainSourceModal: React.FC<{
                     <p>The result is a terrain source like any other: 3D terrain shows those heights, and hillshade, hypsometric tint (try a 0–40 m ramp), slope, contours and the rest read the difference as elevation. Where either source has no data the difference is 0.</p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="source-diff-a">First source (minuend, e.g. a DSM) *</Label>
+                    <div className="flex items-center justify-between gap-2 min-h-6">
+                      <Label htmlFor="source-diff-a">First source (minuend, e.g. a DSM) *</Label>
+                      <LoadMissingOperand id={diffMinuendId} />
+                    </div>
                     <Select value={diffMinuendId || "none"} onValueChange={(v: any) => setDiffMinuendId(v === "none" ? "" : v)} items={diffItems}>
                       <SelectTrigger id="source-diff-a" className="cursor-pointer w-full min-w-0 overflow-hidden [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:truncate"><SelectValue /></SelectTrigger>
                       <SelectContent className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)]">
@@ -380,7 +419,10 @@ export const CustomTerrainSourceModal: React.FC<{
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="source-diff-b">Second source (subtrahend, e.g. a DTM) *</Label>
+                    <div className="flex items-center justify-between gap-2 min-h-6">
+                      <Label htmlFor="source-diff-b">Second source (subtrahend, e.g. a DTM) *</Label>
+                      <LoadMissingOperand id={diffSubtrahendId} />
+                    </div>
                     <Select value={diffSubtrahendId || "none"} onValueChange={(v: any) => setDiffSubtrahendId(v === "none" ? "" : v)} items={diffItems}>
                       <SelectTrigger id="source-diff-b" className="cursor-pointer w-full min-w-0 overflow-hidden [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:truncate"><SelectValue /></SelectTrigger>
                       <SelectContent className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)]">

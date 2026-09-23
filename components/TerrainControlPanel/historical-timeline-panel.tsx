@@ -17,7 +17,7 @@ import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom } from "@/lib/settings-atoms"
 import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom } from "@/lib/layout-constants"
-import { GRID_LAYOUTS, viewFieldName, SIDE_COLORS, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
+import { GRID_LAYOUTS, viewFieldName, VIEW_IDS, SIDE_COLORS, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
 
@@ -361,14 +361,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     panelObserverRef.current = observer
   }, [setPanelHeight])
 
-  const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom)
-  // Reuses the same fetch as the ticks below (no separate network round
-  // trip) for the "Open in..." button's own ESRI Wayback deep link — see
-  // its terrain-mode mount further down.
-  const latestWaybackRelease = useMemo(
-    () => rawWaybackItems.reduce<number | null>((max, item) => (max === null || item.releaseNum > max ? item.releaseNum : max), null),
-    [rawWaybackItems],
-  )
+  // Resolving Wayback's releases here walks EVERY release's tilemap at this
+  // location - the single most expensive thing this panel does, repeated on
+  // every settled camera. It is only worth paying when some side's pill set
+  // actually asks for Esri ticks, so check that first. Deliberately not
+  // reusing timelineSourcesForPills below: that one resolves to the active
+  // side, and a hidden side still draws its own ticks. An unset list means
+  // the defaults, which include wayback.
+  const waybackWanted = useMemo(() => {
+    let configured = false
+    for (const side of VIEW_IDS) {
+      const list = state[viewFieldName(side, "timelineSources", true)] ?? (side === "A" ? state.timelineSources : undefined)
+      if (list?.length) { configured = true; if (list.includes("wayback")) return true }
+    }
+    return !configured
+  }, [state])
+  const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom, waybackWanted)
   // REAL per-tile imagery capture dates for every release at this location —
   // ticks are positioned by these (the actual date the imagery was taken),
   // not each release's own releaseDatetime (a catalog-wide publish date that
@@ -381,6 +389,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // response comes back. The "wayback" pill's own spinner (elsewhere in this
   // file) still reflects waybackDatesLoading, so there's still a visible
   // sign more are on the way.
+  // rawWaybackItems is already empty when waybackWanted is false, so this
+  // resolves nothing - no extra gate needed, it is one fetch per release.
   const { resolved: waybackRealDates, loading: waybackDatesLoading } = useWaybackRealCaptureDates(rawWaybackItems, state.lat, state.lng, state.zoom)
   // key is the tick's real dateMs (same convention as every other source
   // now — see the state.date/dateA-F consolidation) rather than the release
@@ -1801,7 +1811,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             {(["A", "B"] as const).map((side, idx) => (
               <Fragment key={side}>
                 {idx === 1 && state.appMode !== "historical" && (
-                  <OpenInLinksButton state={state} mapRef={mapRef} waybackLatestRelease={latestWaybackRelease} className="shrink-0 h-6 px-2 text-[10px]" />
+                  <OpenInLinksButton state={state} mapRef={mapRef} className="shrink-0 h-6 px-2 text-[10px]" />
                 )}
                 {isHistoricalFor(side) ? (
                   <span style={{ color: colorFor(side) }}>

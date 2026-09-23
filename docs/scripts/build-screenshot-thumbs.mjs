@@ -14,6 +14,16 @@
 // /docs/screenshots/ the same way and the docs pages keep using the
 // full-size originals.
 //
+// Map screenshots are also CROPPED to the middle CROP of their width and
+// height first. A whole 3000 px landscape shrunk into a 220 px card is a grey
+// smudge where you cannot tell slope from openness, which defeats the point
+// of showing a picture at all; the middle fifth of the same capture is the
+// texture itself at close to native pixels. Cropping happens BEFORE the
+// downscale, so the thumbnail is real detail rather than an enlargement.
+//
+// Panel screenshots are exempt (PANEL_SHOTS): the tool cards show the sidebar,
+// and the middle of one of those is whatever the map happened to be doing.
+//
 // Uses ffmpeg rather than a new dependency: this repo has no image library,
 // and adding one (sharp, with its platform binaries) to resize fourteen
 // files at build time is a poor trade. The outputs are committed, so nobody
@@ -32,6 +42,10 @@ const SHOTS = resolve(HERE, "../public/screenshots")
 const THUMBS = join(SHOTS, "thumbs")
 const MODAL = resolve(HERE, "../../components/TerrainControlPanel/data-layers-modal.tsx")
 const WIDTH = 640
+/** Fraction of the original kept, per axis, centred. */
+const CROP = Number(process.env.THUMB_CROP ?? 0.2)
+/** Screenshots OF THE UI rather than of the map - never cropped. */
+const PANEL_SHOTS = /^tools\/|^sun-shadow-calculator/
 const FORCE = process.argv.includes("--force")
 
 // The modal is the list: pulling the paths out of it means a card added there
@@ -48,13 +62,15 @@ for (const rel of [...new Set(wanted)]) {
   if (!FORCE && existsSync(out) && statSync(out).mtimeMs >= statSync(src).mtimeMs) { skipped++; continue }
   mkdirSync(dirname(out), { recursive: true })
   // -2 keeps the height even, which some encoders insist on; q 4 is visually
-  // clean at this size and lands around 50 KB.
-  execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", src, "-vf", `scale=${WIDTH}:-2`, "-q:v", "4", out])
+  // clean at this size and lands around 50 KB. crop before scale, or the
+  // crop would be of an already-degraded image.
+  const crop = PANEL_SHOTS.test(rel) ? "" : `crop=iw*${CROP}:ih*${CROP},`
+  execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", src, "-vf", `${crop}scale=${WIDTH}:-2`, "-q:v", "4", out])
   made++
 }
 
 const total = (dir) => (existsSync(dir) ? readdirSync(dir, { withFileTypes: true, recursive: true })
   .filter((e) => e.isFile()).reduce((n, e) => n + statSync(join(e.parentPath ?? e.path, e.name)).size, 0) : 0)
-console.log(`${made} written, ${skipped} up to date -> ${THUMBS}`)
+console.log(`${made} written (map shots cropped to the middle ${(CROP * 100).toFixed(0)}%), ${skipped} up to date -> ${THUMBS}`)
 console.log(`  ${(total(THUMBS) / 1e6).toFixed(2)} MB of thumbnails for ${(wanted.length)} cards` +
   ` (originals: ${(wanted.reduce((n, r) => n + (existsSync(join(SHOTS, r)) ? statSync(join(SHOTS, r)).size : 0), 0) / 1e6).toFixed(0)} MB)`)

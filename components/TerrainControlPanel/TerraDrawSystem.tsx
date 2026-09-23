@@ -1279,7 +1279,16 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                             render={
                                                 <button
                                                     type="button"
-                                                    onClick={() => layer.id === activeLayerId ? setLayerHidden(layer.id, !layer.hidden) : setActiveLayerId(layer.id)}
+                                                    // Clicking a HIDDEN layer shows it, whichever layer
+                                                    // is active - the old rule (active toggles, inactive
+                                                    // selects) meant clicking a hidden inactive layer
+                                                    // made it active and left it invisible, so the click
+                                                    // appeared to do nothing.
+                                                    onClick={() => {
+                                                        if (layer.hidden) { setLayerHidden(layer.id, false); setActiveLayerId(layer.id); return }
+                                                        if (layer.id === activeLayerId) setLayerHidden(layer.id, true)
+                                                        else setActiveLayerId(layer.id)
+                                                    }}
                                                     className={`flex items-center gap-1.5 flex-1 text-left text-sm min-w-0 cursor-pointer ${layer.id === activeLayerId ? "font-bold" : "font-normal"} ${layer.hidden ? "text-muted-foreground" : ""}`}
                                                 >
                                                     {/* Count FIRST, and outside the truncating span: as a suffix
@@ -1293,7 +1302,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                         {/* The full name and the count, since the name itself is
                                             truncated and an imported file's name is often long. */}
                                         <TooltipContent>
-                                            <p>{layer.name} — {featureCount(layer.id)} feature{featureCount(layer.id) === 1 ? "" : "s"}. {layer.id === activeLayerId ? `Active layer, new drawings go here. Click again to ${layer.hidden ? "show" : "hide"} it` : "Click to draw on this layer"}</p>
+                                            <p>{layer.name} — {featureCount(layer.id)} feature{featureCount(layer.id) === 1 ? "" : "s"}. {layer.hidden ? "Hidden — click to show it and draw on it" : layer.id === activeLayerId ? "Active layer, new drawings go here. Click again to hide it" : "Click to draw on this layer"}</p>
                                         </TooltipContent>
                                     </Tooltip>
                                 )}

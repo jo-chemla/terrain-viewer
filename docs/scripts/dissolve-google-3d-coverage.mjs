@@ -8,11 +8,36 @@
 // Tours only at z9 - see the decoder's header). Three zooms come to 73 317
 // polygons and 225 MB, which is why this pass exists.
 //
-// ## The order matters, and the first version had it wrong
+// ## Two bugs, both of which shipped
 //
-// Union first, then generalise - that part was right. What was missing is
-// that BOTH steps leave invalid geometry behind, and the output shipped with
-// it. Over Paris the first version produced, in one 656 km2 polygon:
+// **The union silently did not union.** `turf.union` (polygon-clipping)
+// throws "Unable to complete output ring" on this input - raw decoded
+// coordinates are full-precision doubles and the mesh has near-coincident
+// vertices everywhere, which is exactly what its ring assembly cannot close.
+// The old fallback caught that, split the group in half, unioned each half
+// and returned BOTH - never unioning the halves with each other. So the
+// output kept every overlap the union was there to remove. Over Paris that
+// meant the three zooms' outlines shipped stacked on top of one another:
+// 2 110 km2 of polygons for 1 346 km2 of coverage, 69 polygons with 89
+// intersecting pairs, drawn as a red crosshatch.
+//
+// Two changes fix it:
+//
+//  - **Snap before unioning.** Truncating each input ring to PRE_DECIMALS and
+//    running cleanCoords removes the near-duplicate vertices the clipper
+//    chokes on. Measured on the Paris window: full precision throws, 5
+//    decimals (~1 m) unions 484 polygons in 1.0 s. That is the whole fix for
+//    the failure itself.
+//  - **Never return unmerged partial unions.** Groups are unioned in chunks
+//    and the chunk results are then tree-merged pairwise until nothing
+//    merges, rotating the pairing each pass so a pair that cannot combine
+//    gets a different partner rather than blocking forever. Anything still
+//    unmerged at the end is COUNTED AND PRINTED, because silence is what let
+//    the first version look finished.
+//
+// **Generalising leaves its own rubbish.** Both simplify and truncate make
+// invalid geometry. Over Paris the first version produced, in one 656 km2
+// polygon:
 //
 //   - **30 holes, 26 of them under 1 km2**, most under 0.2 km2. They are not
 //     gaps in Google's coverage. The input is a triangulated mesh clipped to
@@ -26,18 +51,13 @@
 //     decimals crosses a few more. A self-intersecting ring is not a closed
 //     area, and maplibre's triangulator draws the bowties it implies.
 //
-// So each merged polygon now goes: drop small holes, simplify, truncate,
+// So each merged polygon goes: drop small holes, simplify, truncate,
 // **re-node**, drop small holes again, drop small outer rings.
 //
-// Re-noding is `union(p, p)`: polygon-clipping is a boolean-op library, so it
-// nodes every intersection before it reassembles the output, and a polygon
-// unioned with a copy of itself comes back as the same area with no crossings
-// left. Measured on that Paris polygon: 7 kinks -> 0, 39 rings -> 31, area
-// unchanged (655.9 -> 655.8 km2). Whole world: 11 208 artefact holes dropped,
-// self-intersections 10 231 -> 4 103 (the rest are holes that legitimately
-// touch their outer ring, which turf.kinks counts), 4.02 MB -> 3.17 MB, and
-// total covered area barely moved - 1.074 -> 1.062 Mkm2 - so this removes
-// artefacts, not coverage.
+// Re-noding is `union(p, p)`: polygon-clipping nodes every intersection
+// before it reassembles the output, so a polygon unioned with a copy of
+// itself comes back as the same area with no crossings left. Measured on that
+// Paris polygon: 7 kinks -> 0, 39 rings -> 31, area unchanged.
 //
 //   node docs/scripts/dissolve-google-3d-coverage.mjs a.geojson b.geojson ... [--out public/coverage/google-3d.geojson]
 
@@ -68,12 +88,33 @@ const MIN_KM2 = Number(process.env.G3D_MIN_KM2 ?? 1)
  *  Same threshold as MIN_KM2 by default: a hole too small to be an outer ring
  *  worth keeping is too small to be a gap worth drawing. */
 const MIN_HOLE_KM2 = Number(process.env.G3D_MIN_HOLE_KM2 ?? MIN_KM2)
-/** A bucket whose union throws is retried in halves, recursively, down to
- *  this many polygons - one bad ring should cost one ring, not a region. */
-const MIN_SPLIT = 8
+/** Decimals every input ring is snapped to BEFORE the union. ~1 m. Without
+ *  this the clipper throws on near-coincident vertices; see the header. */
+const PRE_DECIMALS = Number(process.env.G3D_PRE_DECIMALS ?? 5)
+/** Inputs smaller than this are dropped before the union - they are single
+ *  mesh triangles that cannot survive a 500 m generalisation anyway, and
+ *  every one of them is another chance for the clipper to fail. */
+const MIN_INPUT_M2 = 1000
+/** Polygons per polygon-clipping call. Chunking keeps any one failure local. */
+const CHUNK = 400
+
+/** Snap to PRE_DECIMALS, drop repeated vertices, reject what is left of a
+ *  ring that was only a sliver. Both halves matter: the snap is what stops
+ *  polygon-clipping throwing, and cleanCoords is what stops the snap from
+ *  leaving zero-length segments behind. */
+function prepare(rings) {
+  let p
+  try { p = turf.polygon(JSON.parse(JSON.stringify(rings))) } catch { return null }
+  turf.truncate(p, { precision: PRE_DECIMALS, coordinates: 2, mutate: true })
+  try { p = turf.cleanCoords(p, { mutate: true }) } catch { return null }
+  const outer = p.geometry.coordinates[0]
+  if (!outer || outer.length < 4) return null
+  try { if (turf.area(p) < MIN_INPUT_M2) return null } catch { return null }
+  return p
+}
 
 const t0 = Date.now()
-let inCount = 0
+let inCount = 0, dropped = 0
 const buckets = new Map()
 for (const f of INPUTS) {
   const fc = JSON.parse(readFileSync(f, "utf8"))
@@ -83,29 +124,56 @@ for (const f of INPUTS) {
     inCount++
     const polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates
     for (const rings of polys) {
-      const [x, y] = rings[0][0]
+      const poly = prepare(rings)
+      if (!poly) { dropped++; continue }
+      const [x, y] = poly.geometry.coordinates[0][0]
       const k = `${Math.floor(x / BUCKET_DEG)},${Math.floor(y / BUCKET_DEG)}`
       if (!buckets.has(k)) buckets.set(k, [])
-      buckets.get(k).push(turf.polygon(rings))
+      buckets.get(k).push(poly)
     }
   }
 }
-console.log(`${inCount} input polygons from ${INPUTS.length} file(s) into ${buckets.size} buckets`)
+console.log(`${inCount} input polygons from ${INPUTS.length} file(s) into ${buckets.size} buckets (${dropped} slivers dropped before the union)`)
 
-let failed = 0
-/** Union a list of polygon features; on failure split and union the halves,
- *  so one invalid ring does not send a whole 5x5 degree bucket out raw. */
-function unionAll(polys) {
-  if (polys.length === 1) return [polys[0]]
+let unmerged = 0
+const unionPair = (a, b) => {
+  try { return turf.union(turf.featureCollection([a, b])) ?? null } catch { return null }
+}
+/** One polygon-clipping call over the whole list, halving on failure. */
+function unionGroup(list) {
+  if (list.length <= 1) return list
   try {
     // turf 7's union takes a FeatureCollection of polygons in one go.
-    const u = turf.union(turf.featureCollection(polys))
-    return u ? [u] : []
-  } catch {
-    if (polys.length <= MIN_SPLIT) { failed++; return polys }
-    const mid = polys.length >> 1
-    return [...unionAll(polys.slice(0, mid)), ...unionAll(polys.slice(mid))]
+    const u = turf.union(turf.featureCollection(list))
+    if (u) return [u]
+  } catch { /* fall through to halving */ }
+  if (list.length === 2) return list
+  const mid = list.length >> 1
+  return [...unionGroup(list.slice(0, mid)), ...unionGroup(list.slice(mid))]
+}
+/** Union a bucket. Chunk, then TREE-MERGE the chunk results until nothing
+ *  merges - the old version stopped after the split and returned overlapping
+ *  halves, which is the bug this file's header is mostly about. */
+function unionAll(polys) {
+  if (polys.length <= 1) return polys
+  let parts = []
+  for (let i = 0; i < polys.length; i += CHUNK) parts.push(...unionGroup(polys.slice(i, i + CHUNK)))
+  for (let pass = 0; parts.length > 1 && pass < 24; pass++) {
+    // Offset the pairing on odd passes so a pair that refuses to combine is
+    // offered a different partner instead of blocking the whole bucket.
+    const offset = pass % 2
+    const next = offset ? [parts[0]] : []
+    let merged = 0
+    for (let i = offset; i < parts.length; i += 2) {
+      if (i + 1 >= parts.length) { next.push(parts[i]); break }
+      const u = unionPair(parts[i], parts[i + 1])
+      if (u) { next.push(u); merged++ } else next.push(parts[i], parts[i + 1])
+    }
+    if (!merged) break
+    parts = next
   }
+  if (parts.length > 1) unmerged += parts.length
+  return parts
 }
 
 const km2 = (ring) => {
@@ -175,4 +243,4 @@ const verts = out.reduce((n, p) => n + p.geometry.coordinates.reduce((m, r) => m
 console.log(`${inCount} -> ${out.length} polygons, ${verts} vertices, ${(body.length / 1e6).toFixed(2)} MB, ${((Date.now() - t0) / 1000).toFixed(0)} s -> ${OUT}`)
 console.log(`  ${stats.holes} artefact holes dropped, self-intersections ${stats.kinksBefore} -> ${stats.kinksAfter}` +
   `${stats.renodeFailed ? `, ${stats.renodeFailed} polygons the clipper refused to re-node` : ""}` +
-  `${failed ? `, ${failed} small groups left un-unioned` : ""}`)
+  `${unmerged ? `, ${unmerged} partial unions left unmerged - THEY MAY OVERLAP` : ""}`)

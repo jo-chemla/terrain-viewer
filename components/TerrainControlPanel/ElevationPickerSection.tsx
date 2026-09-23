@@ -492,10 +492,11 @@ export const ElevationPickerSection: React.FC<{
 
   return (
     <Section title="Elevation Picker" isOpen={isOpen} onOpenChange={onOpenChange}>
-      <div className="flex items-center justify-between gap-2">
-        <Label htmlFor="elevation-picker-toggle" className="text-sm font-medium">
-          Pick elevation on click
-        </Label>
+      {/* Switch FIRST, then the label - same order as the Plane Slicer master
+          row (plane-slicer-fields.tsx), so the two "turn this map tool on"
+          controls line up down the sidebar instead of one reading left-to-right
+          and the other right-to-left. */}
+      <div className="flex items-center gap-2">
         <Switch
           id="elevation-picker-toggle"
           checked={isActive}
@@ -503,6 +504,9 @@ export const ElevationPickerSection: React.FC<{
           disabled={drawModeActive}
           className="cursor-pointer"
         />
+        <Label htmlFor="elevation-picker-toggle" className="text-sm font-medium">
+          Pick elevation on click
+        </Label>
       </div>
 
       {drawModeActive && (

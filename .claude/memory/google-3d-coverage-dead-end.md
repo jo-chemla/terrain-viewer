@@ -127,9 +127,33 @@ the z8+z9+z10 decodes per 5-degree bucket with `@turf/turf` (no new dep),
 then generalises. Re-running: `GOOGLE_KEY=... pnpm google-3d-fetch` (all three
 zooms, fetch + decode into `.cache/`), then `pnpm google-3d-dissolve`.
 
-**The first shipped file was visibly wrong over Paris, and the reason is the
-order of operations.** Union first was right; what was missing is that BOTH
-the union and the generalisation leave invalid geometry behind. Measured on
+**The union was throwing, and the fallback hid it.** `turf.union`
+(polygon-clipping) raises "Unable to complete output ring" on raw decoded
+coordinates - full-precision doubles over a mesh full of near-coincident
+vertices. The fallback caught it, split the group in half, unioned each half
+and **returned both without unioning them with each other**, so the output
+kept every overlap the union existed to remove. Over Paris: 2 110 km2 of
+polygons for 1 346 km2 of coverage, 69 polygons with 89 intersecting pairs -
+the three zooms' outlines stacked, drawn as a red crosshatch. `failed` was 0
+and nothing looked wrong.
+
+Two fixes, both necessary:
+
+- **Snap before unioning.** `truncate` to 5 decimals (~1 m) plus `cleanCoords`
+  on every input ring. Measured on the Paris window: full precision throws,
+  5 decimals unions 484 polygons in 1.0 s. Also drop inputs under 1000 m2 -
+  single mesh triangles that cannot survive a 500 m generalisation and are
+  each another chance for the clipper to fail.
+- **Never return unmerged partial unions.** Chunk, then tree-merge the chunk
+  results pairwise until nothing merges, rotating the pairing each pass.
+  Anything still unmerged is counted and printed loudly, because silence is
+  exactly what shipped the first two versions.
+
+**Diagnostic that settles it in one line:** compare the output's total area
+over a window against the raw decodes'. A correct union is at most the largest
+single zoom plus a little; three times it means no union happened.
+
+**Generalising leaves its own rubbish**, separately from the union bug above. Measured on
 the largest Paris polygon (656 km2) of that file:
 
 - **30 holes, 26 of them under 1 km2**, most under 0.2 km2 - pinpricks where
