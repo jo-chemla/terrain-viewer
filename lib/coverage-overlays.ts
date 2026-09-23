@@ -75,29 +75,18 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     { section: "Terrain", key: "library", label: "Terrain library", color: OVERLAY_COLORS.library, note: "Declared bounds of every library dataset, loaded or not.",
       leaves: TERRAIN_LIB.filter((s) => s.bounds).map((s) => ({ id: `lib:${s.id}`, label: s.name, color: OVERLAY_COLORS.library })) },
     { section: "Terrain", key: "yourTerrain", label: "Your terrain sources", color: OVERLAY_COLORS.yours, note: "Every loaded terrain source that declares bounds, library entries included.", leaves: yourTerrain },
-    // Not a basemap this app can draw - Bing's 3D mesh is a Cesium/3D Tiles
-    // thing - but the question "is there photogrammetry here?" belongs on
-    // the same map as "is there a fine DEM here?". The polygons come from
-    // Bing's own 3D Tiles subtree availability (docs/scripts/build-bing-3d-
-    // coverage.mjs), which needs no key; nothing published lists them.
-    { section: "Terrain", key: "bing3d", label: "Bing Maps 3D (photogrammetry)", color: OVERLAY_COLORS.bing3d,
-      note: "Where Bing Maps 3D has mesh - the photogrammetry behind Bing's 3D cities and Flight Simulator - read from the tileset's own availability data at ~2.4 km. Includes terrain photogrammetry of parks, not only cities.",
-      leaves: [{ id: "bing3d", label: "Bing Maps 3D coverage", color: OVERLAY_COLORS.bing3d }] },
-    // Google's equivalent, and a harder read: Google publishes no machine-
-    // readable coverage, and unlike Bing its 3D Tiles tree cannot be asked -
-    // it refines to 2 m over rural Nepal exactly as over Paris (see
-    // docs/scripts/probe-google-3d-detail.mjs). These polygons come from the
-    // coverage layer Google Earth itself draws, classified by response size;
-    // docs/scripts/build-google-3d-coverage.mjs explains the whole trick.
-    { section: "Terrain", key: "google3d", label: "Google 3D (photorealistic)", color: OVERLAY_COLORS.google3d,
-      note: "Where Google has photorealistic 3D - the mesh behind Google Earth and the Photorealistic 3D Tiles API - read from Google Earth's own coverage layer at ~39 km. Coarser than the Bing overlay, which gets an exact answer from its tileset.",
-      leaves: [{ id: "google3d", label: "Google 3D coverage", color: OVERLAY_COLORS.google3d }] },
-    // Open point clouds rather than a DEM, but the same question: is there
-    // anything better than the global 30 m here? Footprints are each
-    // dataset's COPC extent (docs/scripts/build-flai-coverage.mjs).
-    { section: "Terrain", key: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai,
-      note: "Open LiDAR point clouds republished as COPC by FLAI (hub.flai.ai). The real flown footprint of each survey, traced from the COPC octree's own occupied nodes rather than a bounding box. Click one to open it in FLAI Hub at this view.",
-      leaves: [{ id: "flai", label: "FLAI open LiDAR datasets", color: OVERLAY_COLORS.flai }] },
+    // One group, because they answer one question: "is there something better
+    // than a global DEM here, and of what kind?" Three very different reads
+    // underneath - Bing's own availability bitstream, Google's published
+    // coverage layer decoded, and each FLAI survey's COPC octree - but a user
+    // comparing them wants them on one switch, not three.
+    { section: "Terrain", key: "sources3d", label: "3D and LiDAR coverage", color: OVERLAY_COLORS.bing3d,
+      note: "Where somebody has photogrammetry, mesh or a point cloud, as opposed to a gridded DEM. Bing and Google are city-scale photorealistic 3D; FLAI is open airborne LiDAR. Each is read from the provider's own data - nothing here comes from a published list, because none of them publish one.",
+      leaves: [
+        { id: "bing3d", label: "Bing Maps 3D", color: OVERLAY_COLORS.bing3d, detail: "photogrammetry mesh, ~2.4 km" },
+        { id: "google3d", label: "Google photorealistic 3D", color: OVERLAY_COLORS.google3d, detail: "decoded from Google's own coverage layer" },
+        { id: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai, detail: "114 open COPC surveys" },
+      ] },
     { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category })) },
     { section: "Basemaps", key: "yourBasemaps", label: "Your basemaps", color: OVERLAY_COLORS.yourBasemaps, note: "Every loaded basemap that declares bounds or came from the index, library entries included.", leaves: yourBasemaps },
@@ -120,6 +109,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
 const STATIC_GROUP_LEAVES: Record<string, string[]> = {
   library: TERRAIN_LIB.filter((s) => s.bounds).map((s) => `lib:${s.id}`),
   basemapLibrary: BASEMAP_LIB.filter((s) => s.bounds).map((s) => `blib:${s.id}`),
+  sources3d: ["bing3d", "google3d", "flai"],
 }
 
 /** Coverage overlays in the URL, folded to group keys wherever a group is

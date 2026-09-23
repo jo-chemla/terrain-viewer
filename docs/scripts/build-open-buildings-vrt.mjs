@@ -94,6 +94,22 @@ const height = Math.round((maxY - minY) / scale)
 console.log(`${NAME}: ${sources.length} tiles, EPSG:${epsg}, ${scale} m, ${width} x ${height} px`)
 console.log(`  extent ${Math.round(minX)}, ${Math.round(minY)} .. ${Math.round(maxX)}, ${Math.round(maxY)}`)
 
+// Print the lng/lat bounds too. Guessing them from the UTM numbers by eye put
+// the first library entry 1.5 degrees west of the data, so the entry looked
+// broken over Sao Paulo when the cell actually starts at Rio.
+try {
+  const proj4 = (await import("proj4")).default
+  const def = (await (await fetch(`https://epsg.io/${epsg}.proj4`)).text()).trim()
+  const to = proj4(def, "WGS84")
+  let w = 180, s2 = 90, e = -180, n = -90
+  for (const [cx, cy] of [[minX, minY], [maxX, minY], [minX, maxY], [maxX, maxY]]) {
+    const [lng, lat] = to.forward([cx, cy])
+    w = Math.min(w, lng); e = Math.max(e, lng); s2 = Math.min(s2, lat); n = Math.max(n, lat)
+  }
+  const r = (v) => Math.round(v * 100) / 100
+  console.log(`  bounds for the library entry: [${r(w)}, ${r(s2)}, ${r(e)}, ${r(n)}]`)
+} catch (err) { console.log(`  (could not reproject the extent: ${err.message})`) }
+
 const parts = [
   `<VRTDataset rasterXSize="${width}" rasterYSize="${height}">`,
   `  <SRS>EPSG:${epsg}</SRS>`,

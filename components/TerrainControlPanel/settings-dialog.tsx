@@ -9,6 +9,7 @@ import remarkGfm from "remark-gfm"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -691,31 +692,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           )}
 
           <CollapsibleSection title="Streaming Settings" openAtom={isSettingsStreamingOpenAtom} contentClassName="space-y-2 pt-2">
-                <div className="space-y-2">
-                  <Label htmlFor="cesium-detail">Cesium terrain detail (levels)</Label>
-                  <div className="flex items-center gap-3">
-                    <Input
-                      id="cesium-detail"
-                      type="number"
-                      min={-3}
-                      max={3}
-                      step={1}
-                      value={cesiumDetailOffset}
-                      onChange={(e) => setCesiumDetailOffset(Math.max(-3, Math.min(3, Number(e.target.value) || 0)))}
-                      className="cursor-text w-24"
-                    />
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {4 ** Math.max(0, cesiumDetailOffset)} request{4 ** Math.max(0, cesiumDetailOffset) === 1 ? "" : "s"} per tile
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Quantized mesh is adaptively tessellated, so a tile carries however many vertices the terrain
-                    needed rather than one per pixel — matching the tile width alone gave 436 vertices for 65 536
-                    pixels, which is what made it look faceted. <b>+1</b> (the default) is the first value that
-                    resolves real terrain. Each further step is 4× the requests, and only helps where the asset has
-                    data that deep; negative values trade detail for fewer requests.
-                  </p>
-                </div>
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">COG Streaming Settings</Label>
               <SegmentedToggle
@@ -790,6 +766,34 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             <div className="flex gap-2">
               <Label className="flex-1 min-w-0" htmlFor="titiler-endpoint">Titiler Endpoint</Label>
               <Input className="flex-2 min-w-0 cursor-text" id="titiler-endpoint" type="text" placeholder="https://titiler.xyz" value={titilerEndpoint} onChange={(e) => setTitilerEndpoint(e.target.value)} />
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-2">
+                <Label className="flex-1 min-w-0" htmlFor="cesium-detail">Cesium terrain detail</Label>
+                <span className="text-sm tabular-nums font-medium w-8 text-right">
+                  {cesiumDetailOffset > 0 ? "+" : ""}{cesiumDetailOffset}
+                </span>
+                <span className="text-xs text-muted-foreground tabular-nums w-24 text-right">
+                  {4 ** Math.max(0, cesiumDetailOffset)} req/tile
+                </span>
+              </div>
+              <Slider
+                id="cesium-detail"
+                min={-4}
+                max={4}
+                step={1}
+                value={[cesiumDetailOffset]}
+                onValueChange={(v) => setCesiumDetailOffset(Math.max(-4, Math.min(4, Array.isArray(v) ? v[0] : v)))}
+                className="cursor-pointer"
+              />
+              <p className="text-xs text-muted-foreground">
+                Quantized mesh is adaptively tessellated, so a tile carries however many vertices the terrain
+                needed rather than one per pixel — matching the tile width alone gave 436 vertices for 65 536
+                pixels, which is what made it look faceted. <b>+1</b> (the default) is the first value that
+                resolves real terrain. Each further step is 4× the requests, and only helps where the asset has
+                data that deep; negative values trade detail for fewer requests.
+              </p>
             </div>
           </CollapsibleSection>
 
