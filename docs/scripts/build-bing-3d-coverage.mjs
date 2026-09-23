@@ -117,44 +117,90 @@ const worker = async () => {
 await Promise.all(Array.from({ length: 12 }, worker))
 console.log(`content tiles at level ${TARGET_LEVEL}: ${tiles.length} (${((Date.now() - t0) / 1000).toFixed(1)} s)`)
 
-// ── dissolve: horizontal strips, then vertical runs of identical strips ───────
-const rows = new Map()
+// ── dissolve: a true union, by tracing the boundary of the tile set ──────────
+// Merging into rectangles (tried first) is the wrong shape of answer: a greedy
+// maximal-rectangle cover only got 161 276 tiles down to 2 827 pieces against
+// 2 857 for strips, and either way every piece draws its own outline, so the
+// shared internal edges render as dense hatching at low zoom. Tracing the union
+// boundary instead drops it to ~407 rings — one outer ring per contiguous area
+// plus its holes — and no internal edge exists to be drawn.
+//
+// The trace: emit the four unit edges of every cell with consistent winding; an
+// edge shared by two cells cancels its twin and is dropped; whatever survives is
+// the boundary, chained head-to-tail into closed rings.
+function traceRings(cells) {
+  const edges = new Map()
+  const key = (a, b) => `${a[0]},${a[1]}|${b[0]},${b[1]}`
+  for (const c of cells) {
+    const [x, y] = c
+    for (const [a, b] of [[[x, y], [x + 1, y]], [[x + 1, y], [x + 1, y + 1]], [[x + 1, y + 1], [x, y + 1]], [[x, y + 1], [x, y]]]) {
+      const twin = key(b, a)
+      if (edges.has(twin)) edges.delete(twin)
+      else edges.set(key(a, b), [a, b])
+    }
+  }
+  const from = new Map()
+  for (const [, [a, b]] of edges) {
+    const k = `${a[0]},${a[1]}`
+    if (!from.has(k)) from.set(k, [])
+    from.get(k).push(b)
+  }
+  const rings = []
+  const live = new Map(edges)
+  while (live.size) {
+    const [k0, [a0, b0]] = live.entries().next().value
+    live.delete(k0)
+    const ring = [a0, b0]
+    let cur = b0
+    while (cur[0] !== a0[0] || cur[1] !== a0[1]) {
+      const cands = (from.get(`${cur[0]},${cur[1]}`) ?? []).filter((b) => live.has(key(cur, b)))
+      if (!cands.length) break
+      const b = cands[0]
+      live.delete(key(cur, b))
+      ring.push(b)
+      cur = b
+    }
+    rings.push(ring)
+  }
+  return rings
+}
+const signedArea = (r) => { let a = 0; for (let i = 0; i < r.length - 1; i++) a += r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1]; return a / 2 }
+function pointInRing(pt, ring) {
+  let inside = false
+  for (let i = 0, j = ring.length - 2; i < ring.length - 1; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j]
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+const byFace = new Map()
 for (const t of tiles) {
-  const k = `${t.face.face}:${t.y}`
-  if (!rows.has(k)) rows.set(k, { face: t.face, y: t.y, xs: [] })
-  rows.get(k).xs.push(t.x)
+  if (!byFace.has(t.face.face)) byFace.set(t.face.face, { face: t.face, cells: [] })
+  byFace.get(t.face.face).cells.push([t.x, t.y])
 }
-const strips = []   // { face, y, x0, x1 }
-for (const row of rows.values()) {
-  row.xs.sort((a, b) => a - b)
-  let cur = null
-  for (const x of row.xs) {
-    if (cur && x === cur.x1 + 1) cur.x1 = x
-    else { if (cur) strips.push(cur); cur = { face: row.face, y: row.y, x0: x, x1: x } }
+const features = []
+let ringCount = 0
+for (const { face, cells } of byFace.values()) {
+  const rings = traceRings(cells)
+  ringCount += rings.length
+  // A cell's corner (cx, cy) in tile space maps to the corner of tile (cx, cy).
+  const toLonLat = ([cx, cy]) => { const b = tileBox(face, TARGET_LEVEL, cx, cy); return [b.w, b.n] }
+  const geo = rings.map((r) => ({ ring: r.map(toLonLat), area: signedArea(r) }))
+  // Outer rings wind one way, holes the other. Each hole goes to the smallest
+  // outer ring that contains it.
+  const sign = Math.sign(geo.reduce((acc, g) => (Math.abs(g.area) > Math.abs(acc.area) ? g : acc), geo[0] ?? { area: 0 }).area) || 1
+  const outers = geo.filter((g) => Math.sign(g.area) === sign).sort((a, b) => Math.abs(a.area) - Math.abs(b.area))
+  const holes = geo.filter((g) => Math.sign(g.area) !== sign)
+  const polys = outers.map((o) => [o.ring])
+  for (const h of holes) {
+    const i = outers.findIndex((o) => pointInRing(h.ring[0], o.ring))
+    if (i >= 0) polys[i].push(h.ring)
   }
-  if (cur) strips.push(cur)
+  for (const rings2 of polys) features.push({ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: rings2 } })
 }
-const bySpan = new Map()
-for (const s of strips) {
-  const k = `${s.face.face}:${s.x0}-${s.x1}`
-  if (!bySpan.has(k)) bySpan.set(k, { face: s.face, x0: s.x0, x1: s.x1, ys: [] })
-  bySpan.get(k).ys.push(s.y)
-}
-const rects = []
-for (const g of bySpan.values()) {
-  g.ys.sort((a, b) => a - b)
-  let cur = null
-  for (const y of g.ys) {
-    if (cur && y === cur.y1 + 1) cur.y1 = y
-    else { if (cur) rects.push(cur); cur = { face: g.face, x0: g.x0, x1: g.x1, y0: y, y1: y } }
-  }
-  if (cur) rects.push(cur)
-}
-const features = rects.map((r) => {
-  const a = tileBox(r.face, TARGET_LEVEL, r.x0, r.y0), b = tileBox(r.face, TARGET_LEVEL, r.x1, r.y1)
-  return { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[[a.w, a.s], [b.e, a.s], [b.e, b.n], [a.w, b.n], [a.w, a.s]]] } }
-})
+
 await mkdir(dirname(OUT), { recursive: true })
 const body = JSON.stringify({ type: "FeatureCollection", features })
 await writeFile(OUT, body)
-console.log(`tiles ${tiles.length} → strips ${strips.length} → rects ${rects.length}, ${(body.length / 1e6).toFixed(2)} MB → ${OUT}`)
+console.log(`tiles ${tiles.length} → ${ringCount} boundary rings → ${features.length} polygons, ${(body.length / 1e6).toFixed(2)} MB → ${OUT}`)

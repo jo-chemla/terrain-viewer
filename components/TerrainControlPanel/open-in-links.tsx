@@ -106,6 +106,16 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
     },
   },
   {
+    id: "bing-maps-3d",
+    label: "Bing Maps 3D",
+    // Bing's own 3D mode: `style=x` is the photogrammetry view (the same mesh
+    // the Bing Maps 3D coverage overlay maps), `dir` heading and `pi` pitch
+    // give it an oblique framing rather than dropping in nadir. Coverage is
+    // partial - see the overlay - so outside it this lands on plain aerial.
+    buildUrl: ({ lat, lng, zoom }) =>
+      `https://www.bing.com/maps?cp=${lat}~${lng}&lvl=${Math.round(zoom)}&style=x&dir=0&pi=-30`,
+  },
+  {
     id: "bbbike-mapcompare",
     label: "BBBike MapCompare",
     buildUrl: ({ lat, lng, zoom }) =>

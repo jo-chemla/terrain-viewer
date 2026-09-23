@@ -430,6 +430,52 @@
             "infoUrl": "https://crd.resilienceacademy.ac.tz/catalogue/#/dataset/880"
         },
         {
+            "id": "custom-global-aw3d30",
+            "name": "Global - JAXA ALOS World 3D 30m (AW3D30) - VRT",
+            "url": "https://opentopography.s3.sdsc.edu/raster/AW3D30/AW3D30_global.vrt",
+            "type": "vrt",
+            "loadWithSamples": false,
+            "resolutionM": 30,
+            "description": "JAXA's global 30 m DSM, mirrored by OpenTopography as a single global VRT over per-degree COGs (10 MB index, CORS-open, verified). A genuinely INDEPENDENT global surface model from Copernicus GLO-30 and SRTM - different sensor (ALOS PRISM optical stereo), different epoch (2006-2011) - which is what makes it useful here: difference it against Mapterhorn or GLO-30 and the disagreement between two global DSMs is the signal. Routed through titiler. Free with attribution to JAXA.",
+            "infoUrl": "https://www.eorc.jaxa.jp/ALOS/en/dataset/aw3d30/aw3d30_e.htm"
+        },
+        {
+            "id": "custom-global-aw3d30-minus-mapterhorn",
+            "name": "Global - Difference: AW3D30 - Mapterhorn - derived",
+            "url": "diff://custom-global-aw3d30-mapterhorn",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-global-aw3d30",
+            "diffSubtrahendId": "mapterhorn",
+            "loadWithSamples": false,
+            "resolutionM": 30,
+            "description": "Two independent global elevation models subtracted: JAXA's ALOS World 3D against whatever Mapterhorn serves here (a national dataset where it has one, Copernicus GLO-30 where it does not). Over GLO-30 areas this is optical-stereo minus radar and mostly shows canopy and sensor disagreement; over a national LiDAR area it shows how far a 30 m global model is from surveyed ground. Use Symmetric Range, and the difference offset to remove the datum constant first.",
+            "infoUrl": "https://www.eorc.jaxa.jp/ALOS/en/dataset/aw3d30/aw3d30_e.htm"
+        },
+        {
+            "id": "custom-us-ny-dem1",
+            "name": "USA - New York statewide LiDAR DEM 1m - ImageServer raw Float32",
+            "url": "elevation.its.ny.gov/arcgis/rest/services/Latest_DEM/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=514,514&format=tiff&pixelType=F32&noData=-9999&noDataInterpretation=esriNoDataMatchAny&f=image",
+            "type": "wms-raw",
+            "maxzoom": 18,
+            "nodataFloor": -100,
+            "nodataFill": 0,
+            "bounds": [-79.77, 40.47, -71.85, 45.02],
+            "resolutionM": 1,
+            "description": "New York State's 1 m LiDAR mosaic (newest survey on top), dynamic exportImage as Float32. VERTICAL UNITS VERIFIED IN METRES: identify at Mt Marcy returns 1626.2 against a true 1629 m. Public data. Same grid as 3DEP nationally, but this is the state's own freshest mosaic.",
+            "infoUrl": "https://gis.ny.gov/elevation"
+        },
+        {
+            "id": "custom-lt-klaipeda-dtm05",
+            "name": "LTU - Klaipeda city LiDAR DTM 0.5m - LERC",
+            "url": "https://tiles.arcgis.com/tiles/iXKkToITHRQyyZyN/arcgis/rest/services/Reljefo_modelis/ImageServer/tile/{z}/{y}/{x}",
+            "type": "lerc",
+            "maxzoom": 19,
+            "bounds": [20.9, 55.6, 21.35, 55.83],
+            "resolutionM": 0.5,
+            "description": "Klaipeda's 2017 city LiDAR terrain model as a LERC elevation tile cache in Web Mercator (verified: image/lerc, CORS, 24 LODs). Mapterhorn has Lithuania only via the 20 m national grid, so this is 40x finer - over one city. LICENCE UNCLEAR: the service carries a municipal copyright notice and no explicit open licence, unlike the national HNIT-Baltic services which are explicitly restricted to Esri clients and non-commercial use. Check before publishing with it. The national 1 m DTM is NOT included here for exactly that reason.",
+            "infoUrl": "https://www.geoportal.lt/geoportal/"
+        },
+        {
             "id": "custom-fr-ign-rgealti-highres",
             "name": "FRA - IGN RGE ALTI 1-5m (mainland + overseas departments) - WMS raw Float32",
             "url": "data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES&STYLES=&FORMAT=image%2Fgeotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514",

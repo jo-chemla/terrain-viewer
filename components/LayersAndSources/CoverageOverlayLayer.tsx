@@ -19,6 +19,12 @@ const MH_FILL_ID = "mapterhorn-coverage-fill"
 const MH_LINE_ID = "mapterhorn-coverage-line"
 
 type Hit = { gsdM: number; label: string; detail: string; url?: string; overlay?: string; useAs?: "terrain" | "basemap" | "overlay"; needsKey?: boolean }
+/** A feature may carry `urlTemplate` instead of a fixed `url`: {lat}/{lng}/{zoom}
+ *  are filled from the click, so "open this elsewhere" lands on the place you
+ *  clicked rather than on a provider home page. Used by the Bing Maps 3D
+ *  overlay, whose whole point is "go and look at the mesh here". */
+const fillViewport = (tpl: string, lng: number, lat: number, zoom: number) =>
+  tpl.replace(/\{lat\}/g, String(lat.toFixed(6))).replace(/\{lng\}/g, String(lng.toFixed(6))).replace(/\{zoom\}/g, String(Math.round(zoom)))
 
 /**
  * Draws the coverage overlays picked in Source Info (see
@@ -87,7 +93,8 @@ export const CoverageOverlayLayer: React.FC = () => {
                 : meta ? `${meta.resolution} m · ${meta.name} (${meta.producer}) · "${p.source}"`
                 : `national source "${p.source}"`,
               url: `https://mapterhorn.com/attribution/#${p.source}`, overlay: "mapterhorn" }
-          : { gsdM: coverageGsdMeters(p, e.lngLat.lat) ?? Infinity, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.url || undefined, overlay: p.overlay,
+          : { gsdM: coverageGsdMeters(p, e.lngLat.lat) ?? Infinity, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail,
+              url: p.urlTemplate ? fillViewport(p.urlTemplate, e.lngLat.lng, e.lngLat.lat, m.getZoom()) : p.url || undefined, overlay: p.overlay,
               useAs: p.role === "overlay" ? "overlay" : coverageUseKind(p.overlay) ?? undefined, needsKey: p.needsKey === true || p.needsKey === "true" }
         const k = `${hit.label}|${hit.detail}`
         if (seen.has(k)) continue
