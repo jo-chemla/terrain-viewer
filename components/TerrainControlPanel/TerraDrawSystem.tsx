@@ -1277,10 +1277,16 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                     <button
                                         type="button"
                                         onClick={() => layer.id === activeLayerId ? setLayerHidden(layer.id, !layer.hidden) : setActiveLayerId(layer.id)}
-                                        title={layer.id === activeLayerId ? `Active layer — new drawings go here. Click again to ${layer.hidden ? "show" : "hide"} it` : "Click to draw on this layer"}
-                                        className={`flex-1 text-left text-sm truncate min-w-0 cursor-pointer ${layer.id === activeLayerId ? "font-bold" : "font-normal"} ${layer.hidden ? "text-muted-foreground" : ""}`}
+                                        // The full name and the count, since the name itself is
+                                        // truncated and an imported file's name is often long.
+                                        title={`${layer.name} — ${featureCount(layer.id)} feature${featureCount(layer.id) === 1 ? "" : "s"}. ${layer.id === activeLayerId ? `Active layer, new drawings go here. Click again to ${layer.hidden ? "show" : "hide"} it` : "Click to draw on this layer"}`}
+                                        className={`flex items-center gap-1.5 flex-1 text-left text-sm min-w-0 cursor-pointer ${layer.id === activeLayerId ? "font-bold" : "font-normal"} ${layer.hidden ? "text-muted-foreground" : ""}`}
                                     >
-                                        {layer.name} <span className="text-muted-foreground font-normal">({featureCount(layer.id)})</span>
+                                        {/* Count FIRST, and outside the truncating span: as a suffix
+                                            it was the first thing a long layer name pushed out of
+                                            sight, which is exactly when you want to know it. */}
+                                        <span className="shrink-0 text-muted-foreground font-normal tabular-nums">{featureCount(layer.id)}</span>
+                                        <span className="truncate min-w-0">{layer.name}</span>
                                     </button>
                                 )}
 
