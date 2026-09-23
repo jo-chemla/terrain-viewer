@@ -14,6 +14,11 @@ export interface StacPreset {
   target: "basemap" | "terrain" | "both"
   /** "Yours" is reserved for catalogs the visitor saved themselves. */
   group: "Imagery" | "Elevation" | "Mixed" | "Registries" | "Yours"
+  /** Pre-selects one collection of the catalog. Two entries can then point at
+   *  the same API and still land on different data - NASA CSDA holds Vantor's
+   *  and Airbus's DEMs side by side, and picking the catalog alone searched
+   *  all 21 collections. */
+  collection?: string
   note?: string
 }
 
@@ -39,9 +44,9 @@ export const STAC_PRESETS: StacPreset[] = [
     note: "Natural Resources Canada's datacube: the 1 m HRDEM mosaic and every per-project LiDAR DTM/DSM as COGs on S3, CORS-open, OGL-Canada-2.0. Finer than the 2 m national HRDEM Mapterhorn ingests. Collections hrdem-mosaic-1m and hrdem-lidar." },
   { id: "mngeo", name: "MnGeo Minnesota LiDAR DEM (0.5 m)", url: "https://stac.gisdata.mn.gov", kind: "api", target: "terrain", group: "Elevation",
     note: "Minnesota's statewide seamless second-generation LiDAR DEM at 0.5, 1 and 2 m as COGs, CORS-open. Public data; see the metadata for terms." },
-  { id: "csda-maxar-dem", name: "Vantor Precision3D DEM (NASA CSDA)", url: "https://csdap.earthdata.nasa.gov/stac", kind: "api", target: "terrain", group: "Elevation",
+  { id: "csda-maxar-dem", name: "Vantor Precision3D DEM (NASA CSDA)", url: "https://csdap.earthdata.nasa.gov/stac", kind: "api", target: "terrain", group: "Elevation", collection: "maxar-sdx",
     note: "NASA's Commercial SmallSat Data Acquisition catalog. Collection `maxar-sdx` is Vantor (ex-Maxar) Precision3D: 1 m DTM COGs, 2008-2025, Americas plus parts of Europe and Africa. The CATALOG is open and CORS-open, so you can search it and see exactly what exists where - but the DEM assets are `s3://` URIs behind an Earthdata login, a EULA and per-request approval, so they cannot be streamed from a browser. Use this to find a scene, then request it through NASA's Satellite Data Explorer. `airbus-dem` (WorldDEM) and `pgc-earthdem` live in the same catalog." },
-  { id: "csda-airbus-dem", name: "Airbus WorldDEM Neo (NASA CSDA)", url: "https://csdap.earthdata.nasa.gov/stac", kind: "api", target: "terrain", group: "Elevation",
+  { id: "csda-airbus-dem", name: "Airbus WorldDEM Neo (NASA CSDA)", url: "https://csdap.earthdata.nasa.gov/stac", kind: "api", target: "terrain", group: "Elevation", collection: "airbus-dem",
     note: "Same NASA CSDA catalog, collection `airbus-dem`: Airbus WorldDEM DSM tiles (5 m WorldDEM Neo lineage), 2025 onwards. Browsable and CORS-open; the DEM assets are `s3://` behind Earthdata login + EULA, so they are discoverable here but not streamable. Airbus also runs its own OneAtlas elevation API with a free trial that includes the WorldDEM layer - if you hold those credentials, add the tile endpoint as a custom source instead." },
   { id: "lidarbc", name: "LidarBC elevation (New Graph Environment)", url: "https://images.a11s.one", kind: "api", target: "terrain", group: "Elevation",
     note: "British Columbia's open LidarBC DEMs and DSMs as COGs - 102,000+ tiles in collection stac-elevation-bc, CC BY 4.0, updated monthly. A community catalog, not the province's own; Mapterhorn has only Canada's national 2 m here." },
@@ -84,7 +89,7 @@ export function seedStacPreset(target: "basemap" | "terrain", presetId: string) 
     viewportOnly: prev?.viewportOnly ?? true,
     presetId,
     customUrl: "",
-    collectionId: "",
+    collectionId: STAC_PRESETS.find((p) => p.id === presetId)?.collection ?? "",
     items: [],
     collections: [],
   }

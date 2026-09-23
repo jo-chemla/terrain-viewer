@@ -82,3 +82,48 @@ A titiler-served operand contributes no zoom range of its own, which once silent
 ## Output
 
 The per-pixel loop writes into a `Uint8ClampedArray`, which the shared `toTileImage` tail (`lib/tile-image.ts`) turns into an `ImageBitmap`. That is what MapLibre receives — a bog-standard Terrain-RGB tile with no trace of how it was made. It is handed over decoded rather than PNG-encoded, which is worth roughly 99 ms a tile; see [Tile Caches](/dev/tile-caches#handing-tiles-to-maplibre).
+
+## The offset, and how it is measured
+
+`diffOffsetM` is added to every difference before encoding. It exists because a
+DSM minus a DTM from two producers, two dates, or an ellipsoidal source minus an
+orthometric one rarely centres on zero: there is a local constant between them —
+a datum, a co-registration bias, a different notion of "ground".
+
+The **Difference offset** row in the Elevation Color section (only shown when the
+source on screen is a difference) both holds that number and can measure it. It
+lives there rather than beside the source's name because the hypsometric ramp is
+where the offset is *visible*: a diverging ramp centred on zero is what it exists
+to make honest.
+
+It is not a least-squares fit and not an SSD minimiser. It is an **interquartile
+mean of the raw per-pixel difference**:
+
+1. Take the tiles under the viewport at `min(zoom, 14)`, halving the zoom until
+   there are at most 16 of them. The z14 cap keeps a WMS operand from being asked
+   for a screenful of z18 `GetMap`s just for a statistic.
+2. For each tile, fetch **both** operands through the protocol's own
+   `fetchOperand` — so an operand with no tile at that zoom is read from its
+   nearest ancestor, up to 6 levels. This matters more than it sounds: Mapterhorn
+   declares `maxzoom: 18` but falls back to Copernicus GLO-30 over most of the
+   world and 404s from z13 there, so sampling it directly returned nothing at all
+   against a fine COG.
+3. Sample a **24 × 24 grid per tile** at fractional positions — fractional so
+   operands with different tile sizes still line up — skipping anything the
+   validity mask or the DEM sentinel guards reject.
+4. Sort, drop the top and bottom quartiles, take the mean of the middle half.
+   The offset is the negation of that, since the protocol *adds* it.
+
+The interquartile trim is the whole point. Buildings, canopy, a quarry — the very
+things a difference exists to **show** — sit in the tails, so a plain mean would
+chase them and a median alone would throw away the agreeing half. The toast
+reports the sample count, the tile count, the zoom and the median alongside the
+result, so a suspicious answer is visible as one.
+
+<Callout type="warn">
+Measuring is right for a datum or co-registration difference, and wrong for a
+true nDSM: there, zero means bare earth and the constant you would remove *is*
+the height of the city. That is why the button has two states — it measures at
+0 m and resets at any other value — and why the number is directly editable when
+you already know the shift.
+</Callout>
