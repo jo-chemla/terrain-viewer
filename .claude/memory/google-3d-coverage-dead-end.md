@@ -97,3 +97,27 @@ rediscovered as if new:
 
 The shipped script stays on the byte-size probe at z10, whose ceiling is
 documented in its own header.
+
+## Update 2026-09-23 (later): decoded, and complete - blocked only on file size
+
+Jonathan's parallel agent cracked the tile format: the body is **XOR 0x9b**
+(why every standard decompressor failed), then a protobuf whose geometry is
+pre-triangulated. Two decoders are committed - `docs/scripts/
+build-google-3d-coverage.py` (shapely, installed here) and
+`docs/scripts/google3d-coverage.ts` (zero deps, tsx). Both run fully from
+Node: `mapConfigs:batchGet` mints the layer id from the API key. Two traps the
+TS one fixes that my own decoder had: zero-area collinear triangles are part
+of the mesh and must be counted, and clamping vertices to the tile box makes
+invalid rings.
+
+**The layer is generalised per zoom; no single zoom is complete.** Union of
+z8+z9+z10 scores 34/39 on the ground-truth set, and the 5 "misses" all have
+coverage geometry 0.3-3.3 km from the test coordinate (Paris's nearest vertex
+is 0.5 km and it hits) - so they are in the dataset and the union is
+effectively complete. z10 is 19 768 requests / 95 MB / ~1 min.
+
+**Blocker: size.** The 3-way union is 225 MB undissolved. Needs `polygon-
+clipping` (not a repo dep - one `npm i -D`, ask first) for `--dissolve`, then
+simplify, or PMTiles via the app's existing pmtiles protocol. The shipped
+overlay stays on the coarse payload-size probe until then. Do NOT re-derive
+the per-zoom finding; the table is in the .ts header.

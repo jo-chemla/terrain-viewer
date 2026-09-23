@@ -19,25 +19,40 @@
  * silently delete whole features), and clamping vertices to the tile box
  * produces invalid rings - the ~0.7% buffer should be kept instead.
  *
- * ## What still blocks it
+ * ## What the data actually looks like (measured 2026-09-23)
  *
- * The layer is GENERALISED PER ZOOM, and no single zoom is complete. Testing
- * point-in-triangle against the raw mesh, which is independent of any ring or
- * hole logic:
+ * The layer is GENERALISED PER ZOOM, and no single zoom is complete. By
+ * point-in-triangle against the raw mesh, which no ring or hole logic can
+ * affect: London, New York and Berlin are present at z10 and absent at z8;
+ * Tokyo is present at z8 and absent at z10; Tours only at z9. So the world
+ * has to be crawled at several zooms and the polygons UNIONED. Scored against
+ * 39 places Google Earth answers for:
  *
- *      London      z8 miss   z10 HIT   z12 miss
- *      New York    z8 miss   z10 HIT   z12 miss
- *      Tokyo       z8 HIT    z10 miss  z12 miss
- *      Berlin      z8 miss   z10 HIT   z12 miss
- *      Paris       z8 HIT    z10 HIT   z12 miss
+ *      z8 alone            25/39     17 937 polygons     53 MB
+ *      z9 alone            26/39     24 137 polygons     84 MB
+ *      z10 alone           29/39     31 243 polygons     88 MB
+ *      z8 + z10            33/39     49 180 polygons    141 MB
+ *      z8 + z9 + z10       34/39     73 317 polygons    225 MB
  *
- * So a z8-only crawl drops London, New York and Berlin, and a z10-only one
- * drops Tokyo. A correct world file needs several zooms unioned (or whichever
- * single zoom turns out to be authoritative - worth settling against the
- * France ground truth before spending the requests). Until then
- * build-google-3d-coverage.mjs, the coarse payload-size probe, is still what
- * produces public/coverage/google-3d.geojson, because a sharper map that drops
- * New York is worse than a blocky one that does not.
+ * The five still "missed" by the 3-way union - Le Havre, Deauville, Blois,
+ * Le Mans, Dijon - are inside zero triangles at EVERY zoom, and yet each has
+ * coverage geometry 0.3-3.3 km from the test point. They are in the dataset;
+ * the polygons are simply tighter than a city-centre coordinate. Paris's own
+ * nearest vertex is 0.5 km away and it hits. Treat the union as complete.
+ *
+ * Cost of the union: z10 is 19 768 requests and 95 MB of tiles (z5-z10, all
+ * cached), a minute of fetch and 15 s of decode.
+ *
+ * ## What still blocks shipping it
+ *
+ * Only size. 225 MB of overlapping, undissolved polygons cannot go in
+ * public/. `--dissolve` fixes the overlap but needs `polygon-clipping`, which
+ * is not a dependency of this repo - adding it is a one-line `npm i -D` and a
+ * decision to make, not a bug. After that, simplify and drop the sub-km
+ * slivers, or write PMTiles (the app already has a pmtiles protocol) so the
+ * browser only ever fetches the tiles in view. Until one of those lands,
+ * build-google-3d-coverage.mjs - the coarse payload-size probe - still
+ * produces public/coverage/google-3d.geojson.
  */
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
