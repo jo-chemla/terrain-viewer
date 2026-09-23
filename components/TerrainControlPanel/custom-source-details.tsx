@@ -57,7 +57,7 @@ export const CustomSourceDetails: React.FC<{
                 className="flex-1 justify-start text-sm truncate min-w-0 text-muted-foreground cursor-pointer h-8"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Upload className="h-4 w-4 mr-1 shrink-0" /> {source.name} — re-select file…
+                <Upload className="h-4 w-4 mr-1 shrink-0" /> <span className="truncate min-w-0">{source.name} — re-select file…</span>
               </Button>
             }
           />
@@ -135,7 +135,7 @@ export const CustomSourceDetails: React.FC<{
               handleFitToBounds(source)
             }}
             >
-            {source.name}
+            <span className="truncate min-w-0">{source.name}</span>
           </Label>
         }
       />

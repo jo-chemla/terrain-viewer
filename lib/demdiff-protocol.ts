@@ -41,16 +41,16 @@ export function buildDemDiffUrl(
   return `demdiff://${minuend.encoding}/${subtrahend.encoding}/${tileSize}/${offsetM}/${encodeURIComponent(minuend.template)}/${encodeURIComponent(subtrahend.template)}/{z}/{x}/{y}`
 }
 
-const fill = (u: string, z: number, x: number, y: number) => u.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
+export const fillTileTemplate = (u: string, z: number, x: number, y: number) => u.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
 
 /** An operand's tile at z/x/y, or - when the source has no tile that deep
  *  (a 30 m DEM under a 0.5 m DSM) - the nearest ancestor that exists, with
  *  the sub-window to read: the coarser side is then upsampled bilinearly
  *  on the fly, up to 6 levels, instead of going missing above its maxzoom. */
-type Operand = { tile: DecodedTile; scale: number; ox: number; oy: number }
-async function fetchOperand(template: string, enc: UpstreamEncoding, z: number, x: number, y: number, signal: AbortSignal): Promise<Operand | null> {
+export type Operand = { tile: DecodedTile; scale: number; ox: number; oy: number }
+export async function fetchOperand(template: string, enc: UpstreamEncoding, z: number, x: number, y: number, signal: AbortSignal): Promise<Operand | null> {
   for (let d = 0; d <= 6 && z - d >= 0; d++) {
-    const tile = await fetchDecodedTile(sharedTileCache, fill(template, z - d, x >> d, y >> d), enc, signal)
+    const tile = await fetchDecodedTile(sharedTileCache, fillTileTemplate(template, z - d, x >> d, y >> d), enc, signal)
     if (tile) {
       const scale = 1 << d
       return { tile, scale, ox: x - ((x >> d) << d), oy: y - ((y >> d) << d) }
@@ -62,7 +62,7 @@ async function fetchOperand(template: string, enc: UpstreamEncoding, z: number, 
 
 /** Bilinear sample of an operand at output pixel (row, col) of an n-px tile,
  *  honouring the validity mask and the DEM sentinels. */
-function sampleOperand(op: Operand | null, row: number, col: number, n: number): number {
+export function sampleOperand(op: Operand | null, row: number, col: number, n: number): number {
   if (!op) return NaN
   const { tile: t, scale, ox, oy } = op
   // Position in the ancestor tile, in its own pixels.

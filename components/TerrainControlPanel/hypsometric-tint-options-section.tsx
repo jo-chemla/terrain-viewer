@@ -708,11 +708,6 @@ export const HypsometricTintOptionsSection: React.FC<{
         </div>
         )}
 
-        {/* Only when the source on screen is a difference: the offset is a
-            property of the ramp's zero, so it lives here, not beside the
-            source's name. */}
-        <DiffOffsetControl sourceId={state.sourceA} mapRef={mapRef} />
-
         {/* Symmetric Range and Invert Ramp, always offered. They used to be
             gated on a custom Min/Max being in play, which read as the two
             controls having vanished the moment that box was unticked — and
@@ -753,6 +748,12 @@ export const HypsometricTintOptionsSection: React.FC<{
             </div>
           </div>
         }
+
+        {/* Only when the source on screen is a difference: the offset is a
+            property of the ramp's zero, so it lives here, not beside the
+            source's name. */}
+        <DiffOffsetControl sourceId={state.sourceA} mapRef={mapRef} />
+
 
       </div>
     </Section>

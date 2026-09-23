@@ -1035,18 +1035,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="planet-key">Planet API Key</Label>
-                  <PasswordInput
-                    id="planet-key"
-                    value={planetKey}
-                    onChange={(e: any) => setPlanetKey(e.target.value)}
-                    className="cursor-text"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Unlocks Planet Monthly Mosaics as a historical Basemap option — hidden until set.
-                  </p>
-                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="cesium-ion-key">Cesium ion Access Token</Label>
@@ -1060,6 +1048,19 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                     Unlocks Cesium World Terrain (and any ion terrain asset) as a Terrain source — hidden until set.
                     Every ion asset is 401 without a token; a free one is at{" "}
                     <a href="https://ion.cesium.com/tokens" target="_blank" rel="noopener noreferrer" className="underline">ion.cesium.com/tokens</a>.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="planet-key">Planet API Key</Label>
+                  <PasswordInput
+                    id="planet-key"
+                    value={planetKey}
+                    onChange={(e: any) => setPlanetKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Unlocks Planet Monthly Mosaics as a historical Basemap option — hidden until set.
                   </p>
                 </div>
 

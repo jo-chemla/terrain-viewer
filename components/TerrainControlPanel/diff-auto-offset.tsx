@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { customTerrainSourcesAtom, mapboxKeyAtom, maptilerKeyAtom, titilerEndpointAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
 import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
-import { sharedTileCache, fetchDecodedTile } from "@/lib/normal-derived-protocol"
+import { fetchOperand, sampleOperand } from "@/lib/demdiff-protocol"
+import { DraftBoundInput } from "./controls-components"
 import { pushToast } from "@/components/ui/toast"
 
 /**
@@ -54,12 +55,12 @@ export const DiffOffsetControl: React.FC<{ sourceId: string; mapRef: React.RefOb
     }
     setBusy(true)
     try {
-      // Tiles under the viewport, capped by the coarser operand's pyramid (its
-      // tiles do not exist deeper; the protocol walks to an ancestor, this
-      // sampler does not) and at z14 so a WMS operand is not asked for a
-      // screenful of z18 GetMaps for a statistic.
+      // Tiles under the viewport, capped at z14 so a WMS operand is not asked
+      // for a screenful of z18 GetMaps just for a statistic. A declared maxzoom
+      // is deliberately NOT used as a cap any more: it lies often enough (see
+      // the Mapterhorn note below) and the ancestor walk covers the real case.
       const b = map.getBounds()
-      let z = Math.max(0, Math.min(Math.floor(map.getZoom()), opA.maxzoom ?? 14, opB.maxzoom ?? 14, 14))
+      let z = Math.max(0, Math.min(Math.floor(map.getZoom()), 14))
       const toTile = (lat: number, lng: number, zz: number) => {
         const n = 2 ** zz
         const x = Math.floor(((lng + 180) / 360) * n)
@@ -76,23 +77,25 @@ export const DiffOffsetControl: React.FC<{ sourceId: string; mapRef: React.RefOb
         if (tiles.length <= 16 || z === 0) break
         z--
       }
-      const fill = (u: string, x: number, y: number) => u.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
       const ctrl = new AbortController()
       const samples: number[] = []
-      const GRID = 24 // per tile per axis, at fractional positions so operands of different tile sizes still line up
+      const GRID = 24 // per tile per axis
+      // fetchOperand/sampleOperand are the protocol's OWN pair (exported from
+      // lib/demdiff-protocol.ts), so this measures exactly what gets rendered.
+      // Crucially they walk up to an ancestor tile when a source has nothing at
+      // this zoom: Mapterhorn declares maxzoom 18 but falls back to GLO-30 over
+      // most of the world and 404s from z13 there, which is why sampling it
+      // directly returned "not enough overlap" against a fine COG in Nepal.
       await Promise.all(tiles.map(async ([x, y]) => {
         const [a, c] = await Promise.all([
-          fetchDecodedTile(sharedTileCache, fill(opA.template, x, y), opA.encoding, ctrl.signal),
-          fetchDecodedTile(sharedTileCache, fill(opB.template, x, y), opB.encoding, ctrl.signal),
+          fetchOperand(opA.template, opA.encoding, z, x, y, ctrl.signal),
+          fetchOperand(opB.template, opB.encoding, z, x, y, ctrl.signal),
         ])
         if (!a || !c) return
         for (let r = 0; r < GRID; r++) for (let q = 0; q < GRID; q++) {
-          const fr = (r + 0.5) / GRID, fc = (q + 0.5) / GRID
-          const ia = Math.floor(fr * a.height) * a.width + Math.floor(fc * a.width)
-          const ic = Math.floor(fr * c.height) * c.width + Math.floor(fc * c.width)
-          if ((a.valid && !a.valid[ia]) || (c.valid && !c.valid[ic])) continue
-          const va = a.data[ia], vc = c.data[ic]
-          if (!Number.isFinite(va) || !Number.isFinite(vc) || va < -1000 || va > 10000 || vc < -1000 || vc > 10000) continue
+          const row = Math.floor(((r + 0.5) / GRID) * 256), col = Math.floor(((q + 0.5) / GRID) * 256)
+          const va = sampleOperand(a, row, col, 256), vc = sampleOperand(c, row, col, 256)
+          if (!Number.isFinite(va) || !Number.isFinite(vc)) continue
           samples.push(va - vc)
         }
       }))
@@ -125,7 +128,17 @@ export const DiffOffsetControl: React.FC<{ sourceId: string; mapRef: React.RefOb
     <div className="flex items-center justify-between gap-2 py-0.5">
       <span className="text-sm font-medium">Difference offset</span>
       <div className="flex items-center gap-1.5">
-        <span className="text-sm tabular-nums text-muted-foreground">{hasOffset ? `${offset > 0 ? "+" : ""}${offset} m` : "0 m"}</span>
+        {/* Typed as well as measured: a known datum shift (a geoid separation,
+         *  a published co-registration bias) is a number you already have, and
+         *  measuring it from the screen would only approximate it. */}
+        <DraftBoundInput
+          value={offset}
+          onCommit={(v) => write(v && Number.isFinite(v) ? Math.round(v * 10) / 10 : undefined)}
+          placeholder="0"
+          className="h-7 py-1 px-2 text-sm w-20 min-w-0 text-right rounded-md border border-input bg-transparent shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] tabular-nums"
+          step={0.1}
+        />
+        <span className="text-sm text-muted-foreground">m</span>
         <Tooltip>
           <TooltipTrigger
             render={

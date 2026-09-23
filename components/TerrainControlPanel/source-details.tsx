@@ -11,7 +11,7 @@ export const SourceDetails: React.FC<{
 }> = ({ sourceKey, config, getTilesUrl, linkCallback, getMapBounds, state }) => (
   <>
     <Label htmlFor={`source-${sourceKey}`} className={`flex-1 text-sm truncate min-w-0 ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
-      {config.name}
+      <span className="truncate min-w-0">{config.name}</span>
     </Label>
     {/* No datum badge here. An "ellipsoidal" pill next to the name read as a
      *  warning on a source that is not wrong, just referenced differently, and

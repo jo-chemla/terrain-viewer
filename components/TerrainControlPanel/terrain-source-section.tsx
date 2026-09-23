@@ -317,7 +317,7 @@ export const TerrainSourceSection: React.FC<{
                 ))}
               </div>
             ) : (
-              <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">
+              <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2 grid-cols-[minmax(0,1fr)]">
                 {visibleTerrainSources.map(([key, config]) => (
                   <div key={key} className="flex items-center gap-2 min-w-0">
                     <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer shrink-0" disabled={config.encoding === "3dtiles"} />
@@ -388,7 +388,7 @@ export const TerrainSourceSection: React.FC<{
                 <>
                   {plainTerrainSources.map(rowFor)}
                   {ndsmTerrainSources.length > 0 && (
-                    <div id="tour-ndsm-group" className="space-y-1.5 scroll-mt-[100px]">
+                    <div id="tour-ndsm-group" className="space-y-1.5 min-w-0 scroll-mt-[100px]">
                       <GroupHeading className="normal-case">nDSM and Comparison</GroupHeading>
                       {ndsmTerrainSources.map(rowFor)}
                     </div>
@@ -397,7 +397,7 @@ export const TerrainSourceSection: React.FC<{
               )
               return isSplit
                 ? <div className="space-y-1.5">{body}</div>
-                : <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2">{body}</RadioGroup>
+                : <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2 grid-cols-[minmax(0,1fr)]">{body}</RadioGroup>
             })()}
           </CollapsibleContent>
         </Collapsible>

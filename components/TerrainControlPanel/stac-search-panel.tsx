@@ -35,6 +35,11 @@ export type StacItem = { type: "Feature"; id: string; collection?: string; bbox?
 export type StacCollection = { id: string; title?: string; description?: string; links?: StacLink[]; extent?: { spatial?: { bbox?: number[][] } } }
 
 const isCog = (a: StacAsset) => /geotiff|tiff/i.test(a.type ?? "") || /\.tiff?($|\?)/i.test(a.href)
+/** An `s3://` href is a real asset a browser cannot fetch - no scheme handler,
+ *  and usually a credentialed bucket behind it (NASA CSDA's Vantor and Airbus
+ *  DEM collections are both like this). Worth naming in the empty state rather
+ *  than letting the item look like it has no data. */
+const isUnfetchable = (a: StacAsset) => /^(s3|gs|az):\/\//i.test(a.href)
 const resolveHref = (base: string, href: string) => { try { return new URL(href, base).toString() } catch { return href } }
 const isoDate = (d: Date) => d.toISOString().slice(0, 10)
 const parseIso = (s: string) => new Date(`${s}T12:00:00Z`)
@@ -553,7 +558,7 @@ export const StacSearchPanel: React.FC<{
                     // answer is usually "page 1 is 100% one non-raster
                     // collection", and nothing short of naming it makes that
                     // visible.
-                    let cogs = 0, multiband = 0
+                    let cogs = 0, multiband = 0, unfetchable = 0
                     const byCollection = new Map<string, number>()
                     const byType = new Map<string, number>()
                     for (const it of items) {
@@ -564,6 +569,7 @@ export const StacSearchPanel: React.FC<{
                         // media type; the parameters are noise in a tally.
                         const t = (a.type ?? "no media type").split(";")[0].trim()
                         byType.set(t, (byType.get(t) ?? 0) + 1)
+                        if (isUnfetchable(a)) unfetchable++
                         if (!isCog(a)) continue
                         cogs++
                         if (!usableForTerrain(key, a)) multiband++
@@ -572,7 +578,9 @@ export const StacSearchPanel: React.FC<{
                     const top = (m: Map<string, number>, n: number) =>
                       [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${v}× ${k}`).join(", ")
 
-                    const reason = !cogs
+                    const reason = unfetchable > 0 && !cogs
+                      ? `${unfetchable} assets on this page are s3:// URIs, which a browser cannot fetch - this catalog indexes data held in a credentialed bucket. Use it to find what exists, then request the scene from the provider.`
+                      : !cogs
                       ? "No COG assets on this page at all."
                       : multiband === cogs
                         ? `All ${cogs} COG assets on this page are multi-band (RGB imagery), so none can be elevation.`
