@@ -1,11 +1,10 @@
 import type React from "react"
 import { useRef } from "react"
-import { useAtom, useSetAtom, useAtomValue } from "jotai"
+import { useSetAtom, useAtomValue } from "jotai"
 import { MapPin, Edit, Trash2, Upload, HardDrive, Link, ExternalLink } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, resolveLocalFileUrl, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 
 export const CustomSourceDetails: React.FC<{
@@ -21,7 +20,6 @@ export const CustomSourceDetails: React.FC<{
    *  Undefined/empty renders no badge at all. */
   linkedSourceName?: string
 }> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName }) => {
-  const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // The File behind a "cog-local" source only lives in this tab's memory — after
@@ -29,11 +27,6 @@ export const CustomSourceDetails: React.FC<{
   // one is (re-)registered to flip between "Re-select file…" and the normal row.
   useAtomValue(localFileVersionAtom)
   const isLocalFileMissing = source.type === "cog-local" && !resolveLocalFileUrl(localFileId(source.url))
-  // VRT only streams through titiler (see custom-terrain-source-modal.tsx) — a VRT
-  // source already saved in the BYOD list is just as unusable in geomatico mode as
-  // picking "VRT" fresh from the Type dropdown, so disable it here too rather than
-  // letting it silently fail to select/render.
-  const isDisabledVrt = source.type === "vrt" && useCogProtocol
 
   if (isLocalFileMissing) {
     return (
@@ -128,9 +121,8 @@ export const CustomSourceDetails: React.FC<{
         render={
           <Label
             htmlFor={`source-${source.id}`}
-            className={`flex-1 text-sm truncate min-w-0 ${isDisabledVrt ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            className="flex-1 text-sm truncate min-w-0 cursor-pointer"
             onClick={() => {
-              if (isDisabledVrt) return
               onSelect?.(source.id)
               handleFitToBounds(source)
             }}
@@ -139,7 +131,7 @@ export const CustomSourceDetails: React.FC<{
           </Label>
         }
       />
-      <TooltipContent> <p>{isDisabledVrt ? "VRT only works in titiler streaming mode" : source.name}</p> </TooltipContent>
+      <TooltipContent> <p>{source.name}</p> </TooltipContent>
     </Tooltip>
 
     {(['cog', 'cog-local', 'vrt', 'tilejson'].includes(source.type) || !!source.bounds) && (
@@ -148,7 +140,7 @@ export const CustomSourceDetails: React.FC<{
             only fits when smart-zoom decides the camera should actually move. */}
         <TooltipTrigger
           render={
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" disabled={isDisabledVrt} onClick={() => handleFitToBounds(source, true)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleFitToBounds(source, true)}>
               <MapPin className="h-4 w-4" />
             </Button>
           }

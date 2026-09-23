@@ -14,6 +14,7 @@
     "lrm",
     "lighting-effects",
     "wms-float32-protocol",
+    "vrt-protocol",
     "lerc-protocol",
     "quantized-mesh-protocol",
     "demdiff-protocol",

@@ -3,6 +3,7 @@
 // independently-drifting implementations: the terrain-only `cogTileUrl` and an inline
 // COG-vs-titiler branch duplicated in RasterBasemapSource.
 import { appendNodataMarkers, type NodataConfig } from "./nodata"
+import { buildVrtUrl } from "./vrt-protocol"
 
 // titiler's terrainrgb algorithm can encode masked (nodata) pixels as a
 // chosen height instead of leaving them transparent - a transparent pixel is
@@ -82,10 +83,12 @@ export function buildRasterTileSource(params: {
           }
 
     case "vrt":
-      if (useCogProtocol) {
-        console.warn("Warning, VRT can only work with TiTiler COG streaming")
-        return { tiles: [url] }
-      }
+      // In-browser: lib/vrt-protocol.ts parses the VRT's own XML index and
+      // Range-reads the source COGs it points at, which is the same
+      // intersect/read/composite GDAL's VRT driver does for titiler below.
+      // A source can still pin itself to titiler (cogViaTitiler) when its
+      // sources have no CORS, or when a tile spans too many files.
+      if (useCogProtocol) return { tiles: [buildVrtUrl(url)] }
       return {
         tiles: [
           `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? -999}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}${forClientDecode ? '' : TITILER_FLAT_NODATA}`,

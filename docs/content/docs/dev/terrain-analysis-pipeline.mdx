@@ -70,9 +70,37 @@ Slope uses Mapbox Terrain-RGB packing (base −10000, 0.1 unit step — plenty o
 
 Those packed bytes are then handed to maplibre as an **`ImageBitmap`**, via the shared `toTileImage` tail in `lib/tile-image.ts` — *not* PNG-encoded. Every mode on this page used to end with `OffscreenCanvas.convertToBlob({type: "image/png"})`, which was by far the most expensive thing any of them did and entirely wasted, since maplibre decoded the PNG straight back: **99 ms median per 256×256 tile against 0.1 ms** for `createImageBitmap`. The PNG path survives only as a fallback where `createImageBitmap` is unavailable. See [Tile Caches](/dev/tile-caches#handing-tiles-to-maplibre) for the measurements, and maplibre-gl-js [#8515](https://github.com/maplibre/maplibre-gl-js/issues/8515) / [#8525](https://github.com/maplibre/maplibre-gl-js/pull/8525), which documented and typed the return shape after this was found.
 
+The difference in code is two lines, which is exactly why it went unnoticed for so long.
+
+Not recommended:
+
+```ts
+const canvas = new OffscreenCanvas(width, height)
+canvas.getContext("2d").putImageData(new ImageData(pixels, width, height), 0, 0)
+const blob = await canvas.convertToBlob({ type: "image/png" })
+return { data: new Uint8Array(await blob.arrayBuffer()) }   // ~99 ms, then maplibre decodes it again
+```
+
+Recommended:
+
+```ts
+return { data: await createImageBitmap(new ImageData(pixels, width, height)) }   // ~0.1 ms
+```
+
+maplibre's own image request already short-circuits on the second form, and always has:
+
+```ts
+if (response.data instanceof HTMLImageElement || isImageBitmap(response.data)) {
+    // User using addProtocol can directly return HTMLImageElement/ImageBitmap type
+    onSuccess(response);
+}
+```
+
+So the PNG encode existed only to be undone. The types said `ArrayBuffer`, the docs showed a canvas, and the fast path was unadvertised.
+
 ## 6. MapLibre consumption
 
-The resulting PNG is added as an ordinary `type: "raster-dem"` `<Source>` — e.g. `SlopeSource` in `components/LayersAndSources/MapSources.tsx`:
+The resulting bitmap is added as an ordinary `type: "raster-dem"` `<Source>` — e.g. `SlopeSource` in `components/LayersAndSources/MapSources.tsx`:
 
 ```tsx
 <Source id="slopeSource" type="raster-dem" tiles={[url]} tileSize={256} encoding="mapbox" />

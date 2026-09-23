@@ -83,6 +83,8 @@ Surveying national mapping agencies worldwide turns up two consistent traps.
 
 **Some excellent data sits behind a login.** NASA's High Mountain Asia 8 m DEM (HMA_DEM8m_MOS, stereo from commercial imagery, 2014–2016, 26–46 N by 67–103 E) is the natural pre-event reference for the Himalaya, and Mapterhorn does not carry it (its Nepal coverage is Copernicus GLO-30). It needs an Earthdata account, which the app cannot supply, so it is not in the library; download it and pick it as a local COG, or serve it yourself.
 
+The two best global commercial DEMs are in the same position, one step further out. **Vantor Precision3D** (1 m DTM/DSM, the `maxar-sdx` collection) and **Airbus WorldDEM Neo** (5 m DSM, `airbus-dem`) are both browsable through NASA's CSDA catalog in [STAC search](/features/byod) — the catalog is open and CORS-open, so you can see exactly what exists where — but the assets are `s3://` URIs behind an Earthdata login, a EULA and per-request approval, so nothing streams. **Getting proper API-key access to both is on the list**: Airbus runs a OneAtlas elevation API whose free trial includes the WorldDEM layer, and Vantor sells Precision3D through its own delivery platform. Either would become an ordinary custom source with a key, the way Mapbox and MapTiler already are — the app has nowhere to put those credentials yet because there has been nothing to point them at.
+
 Everything listed above was verified by decoding a real tile and checking it against a known summit or sea-level point before being added.
 
 ## How they are served

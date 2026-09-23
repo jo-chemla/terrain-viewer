@@ -63,6 +63,7 @@ import { applyBoundedView, sanitizeBounds } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
+import { vrtProtocol } from '@/lib/vrt-protocol'
 import { slopeProtocol } from '@/lib/slope-protocol'
 import { demDiffProtocol } from '@/lib/demdiff-protocol'
 import { lercProtocol } from '@/lib/lerc-protocol'
@@ -1544,6 +1545,10 @@ export function TerrainViewer() {
     // DemSource/worker path.
     maplibregl.addProtocol('cog-contour', cogContourProtocol)
     maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
+    // vrt://<encoded .vrt url>/{z}/{x}/{y} - a GDAL VRT mosaic read in the
+    // browser: its XML index says which COGs a tile touches, geotiff.js
+    // Range-reads them, proj4 warps. Used to be titiler-only.
+    maplibregl.addProtocol('vrt', withTileResultCache(vrtProtocol))
     maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
     maplibregl.addProtocol('demdiff', withTileResultCache(demDiffProtocol))
     // lerc://<arcgis tiled elevation service>/tile/{z}/{y}/{x} - Esri's own

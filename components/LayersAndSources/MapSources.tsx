@@ -15,6 +15,8 @@ import { resolveNodata, isSentinel } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
 import { buildDemDiffUrl } from "@/lib/demdiff-protocol"
+import { buildVrtUrl } from "@/lib/vrt-protocol"
+import { useVrtInfo } from "@/lib/use-vrt-info"
 import { withQuantizedMeshDetail } from "@/lib/quantized-mesh-protocol"
 import { buildAspectProtocolUrl } from "@/lib/aspect-protocol"
 import { buildTriProtocolUrl } from "@/lib/tri-protocol"
@@ -180,6 +182,10 @@ export const TerrainSources = memo(({
     const useCogProtocolForSource = useCogProtocol && !customSource?.cogViaTitiler
     const isCogProtocol = (customSource?.type === 'cog' && useCogProtocolForSource) || isCogLocal
     const isTilejson = customSource?.type === 'tilejson'
+    // A VRT read in-browser (vrt://) has no COG header to detect a zoom range
+    // from — its own XML index supplies one instead.
+    const isVrtClient = customSource?.type === 'vrt' && useCogProtocolForSource
+    const vrtInfo = useVrtInfo(isVrtClient ? customSource!.url : null)
     // For a local file, this session's blob: URL if the file has been picked (or
     // re-picked after a reload), else null — same "not ready yet" shape as a COG
     // still fetching its metadata below.
@@ -194,13 +200,19 @@ export const TerrainSources = memo(({
     // viz modes resolve any upstream - so the primary terrain and every viz
     // mode read the same derived grid.
     const diffUpstream = useClientDemUpstream(source, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
-    const { minzoom, maxzoom: detectedMaxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
+    const { minzoom, maxzoom: cogDetectedMaxzoom } = useMemo(() => zoomRangeFromMetadata(metadata), [metadata])
+    const detectedMaxzoom = vrtInfo?.maxzoom ?? cogDetectedMaxzoom
     // A custom source's explicit maxzoom (e.g. WMS sources without COG metadata to auto-detect from)
     // wins over both the metadata-detected value and the 0-20 fallback.
     const maxzoom = customSource?.maxzoom ?? detectedMaxzoom
     // Same override shape as maxzoom: a source that errors on huge tiles can
     // declare the lowest zoom it actually serves (see CustomTerrainSource.minzoom).
-    const effectiveMinzoom = customSource?.minzoom ?? minzoom
+    // A client-read VRT gets one from its index whether or not the entry
+    // declares it: below that zoom a single tile spans more source files than
+    // the protocol will Range-read, so it would fail rather than blur. It goes
+    // here and NOT into `minzoom` above precisely because this one does not
+    // clamp the camera.
+    const effectiveMinzoom = customSource?.minzoom ?? vrtInfo?.minzoom ?? minzoom
 
     useEffect(() => {
         if (isCogProtocol && !metadata) return  // don't fire until real metadata
@@ -255,6 +267,10 @@ export const TerrainSources = memo(({
             // "encoding" field (when present) is fetched instead of asked upfront.
             if (isCogProtocol && !metadata) return null
             if (isTilejson && !tilejsonMetadata) return null
+            // Same reason: mounting a client-read VRT before its index is
+            // parsed would declare a 0-20 range and let maplibre ask for the
+            // whole-mosaic tiles the protocol refuses.
+            if (isVrtClient && !vrtInfo) return null
 
             const built = buildRasterTileSource({
                 url: isCogLocal ? resolvedCogUrl! : customSource.url,
@@ -313,7 +329,7 @@ export const TerrainSources = memo(({
             // actually refetch - the URL is maplibre's own dedupe key.
             tiles: [withQuantizedMeshDetail(builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey), cesiumDetailOffset)],
         }
-    }, [diffUpstream, customSource, source, useCogProtocolForSource, titilerEndpoint, highResTerrain, effectiveMinzoom, maxzoom, isCogProtocol, isCogLocal, resolvedCogUrl, isTilejson, tilejsonMetadata, mapboxKey, maptilerKey, metadata])
+    }, [diffUpstream, customSource, source, useCogProtocolForSource, titilerEndpoint, highResTerrain, effectiveMinzoom, maxzoom, isCogProtocol, isCogLocal, resolvedCogUrl, isTilejson, tilejsonMetadata, isVrtClient, vrtInfo, mapboxKey, maptilerKey, metadata, cesiumDetailOffset])
 
     // A source's declared maxzoom (sourceConfig.maxzoom) isn't always backed by
     // real coverage at every location — most visibly Mapterhorn, which declares
@@ -369,8 +385,8 @@ export const TerrainSources = memo(({
                 updateSource) — any other changed prop, maxzoom included, is silently
                 no-op'd with a console warning rather than actually applied, so a
                 probed maxzoom change has to force a remount to take effect. */}
-            <Source id="terrainSource"  key={`terrain-${source}-${highResTerrain}-${resolvedCogUrl}-${effectiveSourceConfig.maxzoom}`}  {...effectiveSourceConfig} />
-            <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}-${resolvedCogUrl}-${effectiveSourceConfig.maxzoom}`} {...effectiveSourceConfig} />
+            <Source id="terrainSource"  key={`terrain-${source}-${highResTerrain}-${resolvedCogUrl}-${effectiveSourceConfig.maxzoom}-${JSON.stringify((effectiveSourceConfig as any).tiles ?? (effectiveSourceConfig as any).url)}`}  {...effectiveSourceConfig} />
+            <Source id="hillshadeSource" key={`hillshade-${source}-${highResTerrain}-${resolvedCogUrl}-${effectiveSourceConfig.maxzoom}-${JSON.stringify((effectiveSourceConfig as any).tiles ?? (effectiveSourceConfig as any).url)}`} {...effectiveSourceConfig} />
         </>
     )
 })
@@ -753,6 +769,11 @@ export const useClientDemUpstream = (
         : isCogRemote ? customSource!.url : null
     const { data: cogMetadata } = useCogMetadata(cogUrlForMetadata)
     const cogZoomRange = useMemo(() => zoomRangeFromMetadata(cogMetadata), [cogMetadata])
+    // A VRT read in-browser needs the same treatment from its own XML index:
+    // it has no COG header, and its minzoom is a real floor (below it one tile
+    // spans more source files than vrt-protocol.ts will Range-read).
+    const isVrtClient = customSource?.type === "vrt" && useCogProtocolForSource
+    const vrtInfo = useVrtInfo(isVrtClient ? customSource!.url : null)
 
     const baseUpstream = useMemo<ClientDemUpstream | null>(() => {
         if (customSource?.type === "dem-diff") {
@@ -794,7 +815,19 @@ export const useClientDemUpstream = (
                 maxzoom: tilejsonMetadata.maxzoom,
             }
         }
-        if (customSource.type === "vrt" && useCogProtocol) return null // titiler-only — see custom-terrain-source-modal.tsx
+        if (isVrtClient) {
+            // vrt:// re-encodes to Terrain-RGB, matching what titiler's
+            // algorithm=terrainrgb returns for the same mosaic, so the two
+            // modes hand every client-side viz mode the same bytes.
+            if (!vrtInfo) return null // wait for the index, as the COG path waits for metadata
+            return {
+                template: buildVrtUrl(customSource.url),
+                encoding: "mapbox" as const,
+                tileSize: 256,
+                minzoom: customSource.minzoom ?? vrtInfo.minzoom,
+                maxzoom: customSource.maxzoom ?? vrtInfo.maxzoom,
+            }
+        }
         if (customSource.type === "stac" || customSource.type === "mosaicjson") return null
 
         if (customSource.type === "cog-local") {
@@ -876,7 +909,7 @@ export const useClientDemUpstream = (
             ...(customSource.maxzoom !== undefined ? { maxzoom: customSource.maxzoom } : {}),
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [diffA, diffB, _nested, customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, useCogProtocolForSource, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogRemote])
+    }, [diffA, diffB, _nested, customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, useCogProtocolForSource, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogRemote, isVrtClient, vrtInfo])
 
     // Same per-viewport real-coverage probe TerrainSources runs for the
     // primary elevation Source (see lib/tile-max-zoom.ts) — only actually

@@ -4,6 +4,7 @@
 // metadata via geomatico's protocol or titiler), but for constraining maplibre's
 // `maxBounds` rather than one-shot flying the camera.
 import { getCogMetadata } from "@geomatico/maplibre-cog-protocol"
+import { getVrtInfo } from "./vrt-protocol"
 import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
 import { resolveLocalFileUrl, localFileId } from "./local-file-store"
 import customSources from "./custom-sources.json"
@@ -92,6 +93,12 @@ export async function resolveCustomSourceBounds(
     try {
       // Per-source pin wins (see terrain-source-section.tsx's handleFitToBounds).
       if (opts.useCogProtocolVsTitiler && !("cogViaTitiler" in source && source.cogViaTitiler)) {
+        // A VRT is XML, not a GeoTIFF: its extent comes from its own
+        // GeoTransform (lib/vrt-protocol.ts), not from a COG header.
+        if (source.type === "vrt") {
+          const info = await getVrtInfo(source.url)
+          return info.bounds as LngLatBoundsTuple
+        }
         const metadata = await getCogMetadata(source.url)
         if (metadata?.bbox) return metadata.bbox as LngLatBoundsTuple
       } else {

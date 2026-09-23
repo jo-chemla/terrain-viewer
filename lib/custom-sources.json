@@ -374,7 +374,7 @@
             "loadWithSamples": false,
             "bounds": [-91.5, 17.2, -90.8, 17.9],
             "resolutionM": 0.5,
-            "description": "The highest-hit (canopy) surface of the same Middle Usumacinta survey as the bare-earth entry, on the same OpenTopography S3 (CC BY 4.0, no login). UTM 15N, so titiler mode. Its only real use is the difference below.",
+            "description": "The highest-hit (canopy) surface of the same Middle Usumacinta survey as the bare-earth entry, on the same OpenTopography S3 (CC BY 4.0, no login). UTM 15N, reprojected either by titiler or in-browser by vrt://. Its only real use is the difference below.",
             "infoUrl": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.042022.32615.1"
         },
         {
@@ -436,7 +436,7 @@
             "type": "vrt",
             "loadWithSamples": false,
             "resolutionM": 30,
-            "description": "JAXA's global 30 m DSM, mirrored by OpenTopography as a single global VRT over per-degree COGs (10 MB index, CORS-open, verified). A genuinely INDEPENDENT global surface model from Copernicus GLO-30 and SRTM - different sensor (ALOS PRISM optical stereo), different epoch (2006-2011) - which is what makes it useful here: difference it against Mapterhorn or GLO-30 and the disagreement between two global DSMs is the signal. Routed through titiler. Free with attribution to JAXA.",
+            "description": "JAXA's global 30 m DSM, mirrored by OpenTopography as a single global VRT over per-degree COGs (10 MB index, CORS-open, verified). A genuinely INDEPENDENT global surface model from Copernicus GLO-30 and SRTM - different sensor (ALOS PRISM optical stereo), different epoch (2006-2011) - which is what makes it useful here: difference it against Mapterhorn or GLO-30 and the disagreement between two global DSMs is the signal. Readable either through titiler or in-browser (vrt:// parses the 10 MB index once, then Range-reads the per-degree COGs; usable z8-12). Free with attribution to JAXA.",
             "infoUrl": "https://www.eorc.jaxa.jp/ALOS/en/dataset/aw3d30/aw3d30_e.htm"
         },
         {
@@ -1004,10 +1004,10 @@
         },
         {
             "id": "custom-1763118373252",
-            "name": "FRA - VRT Titiler CQUEST repack RGEALTI_2",
+            "name": "FRA - RGE ALTI 1m, CQUEST COG repack (VRT)",
             "url": "https://data.cquest.org/ign/rgealti/repack/cog/RGEALTI_2-0_1M_COG_LAMB93-IGN69_FXX.vrt?a_srs=EPSG:2154",
             "type": "vrt",
-            "description": "",
+            "description": "IGN RGE ALTI 1 m for mainland France, repacked as 93 departmental COGs behind a 40 KB VRT index by Christian Quest. The VRT itself carries no SRS, hence the ?a_srs=EPSG:2154 - without it the mosaic lands in the Gulf of Guinea. The host answers Access-Control-Allow-Origin: * but exposes no Content-Range, so if the in-browser read misbehaves, pin this one to titiler.",
             "resolutionM": 1,
             "infoUrl": "https://data.cquest.org/ign/rgealti/repack/cog/"
         },
@@ -1028,7 +1028,7 @@
             "type": "vrt",
             "loadWithSamples": false,
             "bounds": [-91.5, 17.2, -90.8, 17.9],
-            "description": "RESEARCH DATA, not a mapping agency: the airborne LiDAR survey of the Middle Usumacinta that revealed Aguada Fenix, the largest known Maya monumental construction (Inomata et al., Nature 2020). 0.5m bare-earth, hosted on OpenTopography. Exactly the kind of dataset LiDAR archaeology exists for - the platform is invisible on the ground and unmistakable in a hillshade. Nodata is +1.70141e38, a POSITIVE sentinel caught by the magnitude guard in lib/nodata.ts rather than by a floor. UTM 15N, so titiler mode.",
+            "description": "RESEARCH DATA, not a mapping agency: the airborne LiDAR survey of the Middle Usumacinta that revealed Aguada Fenix, the largest known Maya monumental construction (Inomata et al., Nature 2020). 0.5m bare-earth, hosted on OpenTopography. Exactly the kind of dataset LiDAR archaeology exists for - the platform is invisible on the ground and unmistakable in a hillshade. Nodata is +1.70141e38, a POSITIVE sentinel caught by the magnitude guard in lib/nodata.ts rather than by a floor. UTM 15N, reprojected either by titiler or in-browser by vrt://.",
             "resolutionM": 0.5,
             "infoUrl": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.042022.32615.1"
         },

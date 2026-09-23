@@ -202,7 +202,11 @@ export const CustomTerrainSourceModal: React.FC<{
   // Declared above handleSave because its dependency array reads it at render time.
   // A remote COG can opt out of the in-browser reader per source (non-3857
   // files); nodata controls only exist on that reader, so they follow it.
-  const showTitilerToggle = type === "cog"
+  // VRT is on this list too: lib/vrt-protocol.ts reads a mosaic in-browser, but
+  // it needs CORS on every source file it Range-reads and refuses a tile
+  // spanning more than 40 of them, so a per-source pin back to titiler is the
+  // difference between "works" and "does not" for a fair number of mosaics.
+  const showTitilerToggle = type === "cog" || type === "vrt"
   const showNodataFields = supportsNodataControls(type, useCogProtocol && !(showTitilerToggle && cogViaTitiler))
   // Terrain-RGB only. Terrarium is a single fixed packing with nothing to vary,
   // and cog:// / wms-raw are re-encoded to Terrarium by our own protocols before
@@ -324,12 +328,12 @@ export const CustomTerrainSourceModal: React.FC<{
                   <SelectItem value="wms-raw">WMS (raw Float32 elevation)</SelectItem>
                   <SelectItem value="lerc">ArcGIS tiled elevation (LERC)</SelectItem>
                   <SelectItem value="tilejson">TileJSON</SelectItem>
-                  {/* VRT only streams through titiler (GDAL's vsicurl driver) — the
-                      geomatico cog:// protocol reads a real COG file directly and can't
-                      open a VRT mosaic, so this option is a dead end in that mode. */}
-                  <SelectItem value="vrt" disabled={useCogProtocol}>
-                    VRT{useCogProtocol ? " (titiler mode only)" : ""}
-                  </SelectItem>
+                  {/* Both modes now: titiler opens it as vrt:///vsicurl/, and in
+                      browser mode lib/vrt-protocol.ts parses the mosaic's own XML
+                      index and Range-reads the COGs it points at. "Always serve via
+                      titiler" below is the escape hatch when the sources have no
+                      CORS or a tile spans too many files. */}
+                  <SelectItem value="vrt">VRT mosaic</SelectItem>
                 </SelectGroup>
                 <SelectGroup>
                   <SelectLabel>Derived</SelectLabel>
@@ -514,7 +518,11 @@ export const CustomTerrainSourceModal: React.FC<{
                     <div className="flex items-center justify-between gap-3">
                       <Label htmlFor="source-cog-via-titiler" className="block text-sm leading-snug cursor-pointer">
                         <span className="font-medium">Always serve via titiler</span>{" "}
-                        <span className="font-normal text-muted-foreground">for a COG not in EPSG:3857: the in-browser reader does not reproject, titiler warps it server-side. Overrides the global COG setting for this source only.</span>
+                        <span className="font-normal text-muted-foreground">
+                          {type === "vrt"
+                            ? "for a mosaic whose source files have no CORS, or whose tiles span too many of them to Range-read in the browser. Overrides the global streaming setting for this source only."
+                            : "for a COG not in EPSG:3857: the in-browser reader does not reproject, titiler warps it server-side. Overrides the global COG setting for this source only."}
+                        </span>
                       </Label>
                       <Switch id="source-cog-via-titiler" checked={cogViaTitiler} onCheckedChange={setCogViaTitiler} className="cursor-pointer shrink-0" />
                     </div>
