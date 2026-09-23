@@ -1,7 +1,7 @@
 import type React from "react"
 import { useRef } from "react"
 import { useSetAtom, useAtomValue } from "jotai"
-import { MapPin, Edit, Trash2, Upload, HardDrive, Link, ExternalLink } from "lucide-react"
+import { MapPin, Edit, Trash2, Upload, HardDrive, Link, ExternalLink, LibraryBig } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -22,7 +22,14 @@ export const CustomSourceDetails: React.FC<{
   /** Ids of every terrain source that currently exists, so a difference source
    *  can tell whether its two operands are still there. */
   liveSourceIds?: Set<string>
-}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName, liveSourceIds }) => {
+  /** Ids the terrain LIBRARY can still supply. A library nDSM carries its two
+   *  operands by id, so loading the difference on its own - or deleting one
+   *  side later - leaves a row that is only missing something one click away.
+   *  When every missing operand is in here, the row offers to fetch them. */
+  libraryIds?: Set<string>
+  /** Adds the given library entries to the user's sources. */
+  onLoadFromLibrary?: (ids: string[]) => void
+}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName, liveSourceIds, libraryIds, onLoadFromLibrary }) => {
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // The File behind a "cog-local" source only lives in this tab's memory — after
@@ -38,6 +45,12 @@ export const CustomSourceDetails: React.FC<{
         .filter((id): id is string => !!id && !liveSourceIds.has(id))
     : []
   const isOrphanedDiff = missingOperands.length > 0
+  // Only offer the shortcut when the library can supply EVERY missing side -
+  // half a difference is still a dead row, so a button that fixes half of it
+  // would just move the dead end one click further along.
+  const restorable = libraryIds && onLoadFromLibrary && missingOperands.every((id) => libraryIds.has(id))
+    ? missingOperands
+    : []
 
   if (isLocalFileMissing) {
     return (
@@ -145,10 +158,27 @@ export const CustomSourceDetails: React.FC<{
       />
       <TooltipContent>
         <p>{isOrphanedDiff
-          ? `This difference needs ${missingOperands.length === 2 ? "both of its sources" : "a source"} that ${missingOperands.length === 2 ? "have" : "has"} been deleted — edit it to pick ${missingOperands.length === 2 ? "new ones" : "another"}, or delete it.`
+          ? (restorable.length
+              ? `This difference needs ${missingOperands.length === 2 ? "both of its sources" : "a source"}, and the library has ${missingOperands.length === 2 ? "them" : "it"} — use the button on the right to load ${missingOperands.length === 2 ? "them" : "it"}.`
+              : `This difference needs ${missingOperands.length === 2 ? "both of its sources" : "a source"} that ${missingOperands.length === 2 ? "have" : "has"} been deleted — edit it to pick ${missingOperands.length === 2 ? "new ones" : "another"}, or delete it.`)
           : source.name}</p>
       </TooltipContent>
     </Tooltip>
+
+    {restorable.length > 0 && (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer text-primary" onClick={() => onLoadFromLibrary!(restorable)}>
+              <LibraryBig className="h-4 w-4" />
+            </Button>
+          }
+        />
+        <TooltipContent>
+          <p>Load {restorable.length === 2 ? "both missing sources" : "the missing source"} from the terrain library</p>
+        </TooltipContent>
+      </Tooltip>
+    )}
 
     {(['cog', 'cog-local', 'vrt', 'tilejson'].includes(source.type) || !!source.bounds) && (
       <Tooltip>

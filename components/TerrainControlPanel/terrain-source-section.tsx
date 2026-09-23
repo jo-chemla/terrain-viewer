@@ -97,6 +97,26 @@ export const TerrainSourceSection: React.FC<{
     () => new Set([...customTerrainSources.map((s) => s.id), ...Object.keys(terrainSources)]),
     [customTerrainSources],
   )
+  // A library nDSM (custom-fr-ign-lidarhd-nhm and friends) holds its two
+  // operands by id, and nothing forces those two entries to be loaded when it
+  // is - load the difference alone and it points at nothing. Both sides are
+  // right there in the library under the very same ids, so the row can offer
+  // to fetch them instead of only saying it is broken.
+  const libraryTerrainIds = useMemo(
+    () => new Set((customSources.SAMPLE_TERRAIN_SOURCES as { id: string }[]).map((s) => s.id)),
+    [],
+  )
+  const loadLibrarySourcesById = useCallback((ids: string[]) => {
+    setCustomTerrainSources((prev) => {
+      const have = new Set(prev.map((s) => s.id))
+      const add = ids
+        .filter((id) => !have.has(id))
+        .map((id) => (customSources.SAMPLE_TERRAIN_SOURCES as any[]).find((s) => s.id === id))
+        .filter(Boolean) as CustomTerrainSource[]
+      return add.length ? [...prev, ...add] : prev
+    })
+  }, [setCustomTerrainSources])
+
   const plainTerrainSources = useMemo(() => customTerrainSources.filter((s) => s.type !== "dem-diff"), [customTerrainSources])
   const ndsmTerrainSources = useMemo(() => customTerrainSources.filter((s) => s.type === "dem-diff"), [customTerrainSources])
 
@@ -389,7 +409,7 @@ export const TerrainSourceSection: React.FC<{
                   ) : (
                     <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
                   )}
-                  <CustomSourceDetails liveSourceIds={liveTerrainSourceIds} {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, ...(isSplit ? {} : { onSelect: selectTerrainA }), linkedSourceName: linkedBasemapName(source) }} />
+                  <CustomSourceDetails liveSourceIds={liveTerrainSourceIds} libraryIds={libraryTerrainIds} onLoadFromLibrary={loadLibrarySourcesById} {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, ...(isSplit ? {} : { onSelect: selectTerrainA }), linkedSourceName: linkedBasemapName(source) }} />
                 </div>
               )
               const body = (
