@@ -73,3 +73,27 @@ build script cannot do. Useful as ground truth, not as a source.
 
 Related: [[national-terrain-sources]]; `lib/coverage-overlays.ts` wires all
 three 3D overlays.
+
+## Routes found but NOT taken
+
+Jonathan ruled out rasterising, twice. Recording both so they are not
+rediscovered as if new:
+
+- **The plain raster endpoint renders the coverage layer.** Append a second
+  layer spec to an ordinary `/maps/vt?pb=` request -
+  `!2m3!1e2!2s<the ml:xsr:c: id>!3i<epoch>` - and the PNG comes back with the
+  overlay drawn on it. Fetch each tile twice, with and without, and the
+  coverage is the difference: pixel-exact at any zoom, 2 requests per tile, no
+  Maps JS and no headless browser. Verified at z6/z8/z10 with the Sahara
+  returning zero overlay pixels. Two traps if it is ever wanted: a raw pixel
+  diff also lights up every label and road, because Maps re-renders them once
+  another layer is present, so classify by the DIRECTION of the delta instead
+  (the overlay is a fixed warm blend, about (dR,dG,dB) = (-3,-32,-67)); and
+  city labels are drawn over the fill, punching holes that need closing.
+- **Screenshotting the Maps JS dataset layer** (Google docs-team map id
+  `ccfdf8d031b6b83cc90ddc70`, dataset `bcf6598c-7603-4698-9493-9e927d8d3d38`)
+  - 64 screenshots at z6 for 2.4 km, 256 at z7 for 1.2 km. Maps JS cannot be
+  tree-shaken or module-scoped, so it is a build-time tool only.
+
+The shipped script stays on the byte-size probe at z10, whose ceiling is
+documented in its own header.
