@@ -38,12 +38,17 @@ const argOf = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1]
 const BASE = argOf("--base", "https://terrain-viewer.iconem.com/")
 const ONLY = (argOf("--only", "") || "").split(",").filter(Boolean)
 
-// Matterhorn. 2D shots sit a touch WEST of the summit: the sidebar covers the
-// right quarter of the viewport, so a subject on the map's true centre is
-// half-hidden behind it in the finished picture.
-const PEAK = { lat: 45.9763, lng: 7.6586 }
-const VIEW_2D = { ...PEAK, lng: PEAK.lng - 0.035, zoom: 12.6, viewMode: "2d", bearing: 0, pitch: 0 }
-const VIEW_3D = { lat: 45.9245, lng: 7.6586, zoom: 12.9, viewMode: "3d", bearing: 0, pitch: 72, exaggeration: 1 }
+// The docs' own capture parameters, verbatim - every link under a viz-mode
+// screenshot on /docs/features/visualization-modes carries them, and the
+// pre-existing cards (slope, curvature, TPI, LRM...) were shot with exactly
+// this. Matching it is what makes a new card sit next to an old one without
+// the massif jumping. Note viewMode=3d with pitch 0: that is what "2D" means
+// in those shots - a plan view of the 3D scene, not the 2D renderer.
+const PLAN = { lat: 45.9763, lng: 7.6586, zoom: 12.6, pitch: 0, bearing: 0, viewMode: "3d", exaggeration: 1 }
+// The docs' oblique, used by their hillshade and hypso pages.
+const OBLIQUE = { ...PLAN, pitch: 60, bearing: -20 }
+const VIEW_2D = PLAN
+const VIEW_3D = OBLIQUE
 
 /** Every flag that any shot turns on, so each shot can state only its own. */
 const OFF = {
@@ -56,27 +61,24 @@ const OFF = {
 
 const SHOTS = [
   // ── Base ───────────────────────────────────────────────────────────────
-  // 2D, as asked: the point of a hillshade card is the shading itself, and an
-  // oblique sells the terrain mesh instead.
-  { file: "hillshade.jpg", view: VIEW_2D, state: { showHillshade: true, hillshadeOpacity: 1 } },
-  // Hypso reads as flat colour bands on its own; a little hillshade under it
-  // is how anyone actually uses it, and how the docs page shows it.
-  // minElevation/maxElevation are stated outright rather than pressed out of
-  // the auto min/max button: clicking it gave a range that put the whole
-  // viewport at one end of the ramp (all white once, all blue the next), and
-  // a screenshot that depends on a button press is a screenshot that changes
-  // when the button does. This window spans the valley floor to the summit
-  // (Zermatt ~1 600 m, Matterhorn 4 478 m).
-  { file: "hypso.jpg", view: VIEW_2D, state: { showColorRelief: true, colorReliefOpacity: 1, showHillshade: true, hillshadeOpacity: 0.25, minElevation: 1600, maxElevation: 4500 } },
+  // Plan view, as asked: the point of a hillshade card is the shading itself.
+  { file: "hillshade.jpg", view: PLAN, state: { showHillshade: true, hillshadeOpacity: 1 } },
+  // The docs' hypso parameters exactly (ramp, bounds, opacities), only with
+  // the plan-view camera instead of their oblique. Two earlier attempts with
+  // an invented range came out single-hued; these are the values that work.
+  { file: "hypso.jpg", view: PLAN, state: { showHillshade: true, showColorRelief: true, hillshadeOpacity: 0.6, colorRamp: "tv-a", hypsoSliderMaxBound: 4230, maxElevation: 8620, minElevation: 1450, colorReliefOpacity: 0.9, hypsoSliderMinBound: 90 } },
   { file: "contours.jpg", view: VIEW_2D, state: { showContoursAndGraticules: true, showContours: true, showHillshade: true, hillshadeOpacity: 0.35 } },
   // Replaces osm-liberty-3d.jpg on the "Basemap imagery" card, which was a
   // vector style over an unrelated overlay in Nepal.
-  { file: "basemap.jpg", view: VIEW_2D, state: { showRasterBasemap: true, rasterBasemapOpacity: 1 } },
+  { file: "basemap.jpg", view: PLAN, state: { showRasterBasemap: true, rasterBasemapOpacity: 1 } },
   // ── Terrain analysis ───────────────────────────────────────────────────
   { file: "slope.jpg", view: VIEW_2D, state: { showTerrainAnalysis: true, showSlope: true } },
   // Aspect stays 3D: its whole content is which way a face turns, which an
   // oblique shows and a plan view flattens.
-  { file: "aspect-multidir.jpg", view: VIEW_3D, state: { showAspect: true, showTerrainAnalysis: true } },
+  // The old aspect-multidir.jpg was a split view over Patagonia; this is the
+  // same massif as everything else, oblique because aspect IS which way a
+  // face turns.
+  { file: "aspect-multidir.jpg", view: OBLIQUE, state: { showAspect: true, showTerrainAnalysis: true, showHillshade: true, hillshadeOpacity: 0.5 } },
   { file: "curvature.jpg", view: VIEW_2D, state: { showTerrainAnalysis: true, showCurvature: true } },
   { file: "tpi.jpg", view: VIEW_2D, state: { showTerrainAnalysis: true, showTpi: true } },
   // ── Relief visualization ───────────────────────────────────────────────

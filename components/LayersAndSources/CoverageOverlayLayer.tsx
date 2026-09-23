@@ -31,8 +31,37 @@ type Hit = { gsdM: number; label: string; detail: string; url?: string; overlay?
  * which runs about ten times larger for the same framing - the same formula
  * open-in-links.tsx uses for its Google Earth destinations.
  */
-const fillViewport = (tpl: string, lng: number, lat: number, zoom: number, bearing: number, pitch: number) =>
-  tpl.replace(/\{lat\}/g, lat.toFixed(6)).replace(/\{lng\}/g, lng.toFixed(6))
+type CamCtx = { viewportW: number; viewportH: number; groundM: number }
+/**
+ * Esri's Scene Viewer `viewpoint=cam:x,y,z;heading,tilt` is the CAMERA, not
+ * the point being looked at - and z is metres above sea level, not above
+ * ground. Passing the clicked point with the Google Earth altitude put the
+ * camera on the target with a made-up height: fine for a nadir view over
+ * lowlands, badly off once tilted or in the Alps. So back the camera off:
+ *
+ *   D  distance camera -> target, sized so the target's screen extent
+ *      matches this map's: half the visible diagonal over tan(fov/2), with
+ *      Esri's fov being DIAGONAL and 55 by default
+ *   h  height above target = D cos(tilt);  s = D sin(tilt) back along the
+ *      reverse heading, so the camera sits behind the target looking at it
+ *   z  h + ground elevation at the target
+ */
+const esriCamera = (lng: number, lat: number, zoom: number, bearing: number, pitch: number, cam: CamCtx) => {
+  const rad = Math.PI / 180
+  const gsd = (156543.03392 * Math.cos(lat * rad)) / Math.pow(2, zoom)
+  const D = (gsd * Math.hypot(cam.viewportW, cam.viewportH)) / 2 / Math.tan((55 / 2) * rad)
+  const h = D * Math.cos(pitch * rad), sBack = D * Math.sin(pitch * rad)
+  const camLat = lat - (sBack * Math.cos(bearing * rad)) / 111320
+  const camLng = lng - (sBack * Math.sin(bearing * rad)) / (111320 * Math.cos(lat * rad))
+  return { x: camLng.toFixed(6), y: camLat.toFixed(6), z: String(Math.round(h + cam.groundM)) }
+}
+
+const fillViewport = (tpl: string, lng: number, lat: number, zoom: number, bearing: number, pitch: number, cam?: CamCtx) =>
+  tpl.replace(/\{esri(X|Y|Z)\}/g, (_, k: string) => {
+      const c = esriCamera(lng, lat, zoom, bearing, pitch, cam ?? { viewportW: 1280, viewportH: 800, groundM: 0 })
+      return k === "X" ? c.x : k === "Y" ? c.y : c.z
+    })
+    .replace(/\{lat\}/g, lat.toFixed(6)).replace(/\{lng\}/g, lng.toFixed(6))
     .replace(/\{zoom\}/g, zoom.toFixed(1))
     .replace(/\{bearing\}/g, (((bearing % 360) + 360) % 360).toFixed(2))
     .replace(/\{pitch\}/g, pitch.toFixed(2))
@@ -111,7 +140,11 @@ export const CoverageOverlayLayer: React.FC = () => {
               url: `https://mapterhorn.com/attribution/#${p.source}`, overlay: "mapterhorn" }
           : { gsdM: coverageGsdMeters(p, e.lngLat.lat) ?? Infinity, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail,
               url: p.urlTemplate
-                ? fillViewport(p.urlTemplate, e.lngLat.lng, e.lngLat.lat, m.getZoom(), m.getBearing(), m.getPitch())
+                ? fillViewport(p.urlTemplate, e.lngLat.lng, e.lngLat.lat, m.getZoom(), m.getBearing(), m.getPitch(), {
+                    viewportW: m.getContainer().clientWidth, viewportH: m.getContainer().clientHeight,
+                    // queryTerrainElevation reports the EXAGGERATED height; Esri wants the real one.
+                    groundM: (m.queryTerrainElevation(e.lngLat) ?? 0) / (m.getTerrain()?.exaggeration || 1),
+                  })
                 : p.url || undefined, overlay: p.overlay,
               useAs: p.role === "overlay" ? "overlay" : coverageUseKind(p.overlay) ?? undefined, needsKey: p.needsKey === true || p.needsKey === "true" }
         const k = `${hit.label}|${hit.detail}`

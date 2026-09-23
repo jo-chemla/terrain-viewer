@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, useEffect } from "react"
+import { memo, useMemo, useState, useEffect, useRef } from "react"
 import { VectorBasemapLayer } from "./VectorBasemapLayer"
 import { Source } from "react-map-gl/maplibre"
 import { useAtom, useAtomValue } from "jotai"
@@ -7,6 +7,7 @@ import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
 import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { probeMaxZoomAt } from "@/lib/tile-max-zoom"
+import { pushToast } from "@/components/ui/toast"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction } from '@geomatico/maplibre-cog-protocol'
 import { useCogMetadata, zoomRangeFromMetadata, type CogMetadata } from "@/lib/cog-metadata"
@@ -151,7 +152,7 @@ function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKey: stri
 
 export const TerrainSources = memo(({
     // source, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint,
-    source, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, onZoomRangeChange, lat, lng,
+    source, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, onZoomRangeChange, lat, lng, zoom,
 }: {
     source: TerrainSource | string
     mapboxKey: string
@@ -163,6 +164,8 @@ export const TerrainSources = memo(({
      *  coverage (see probedMaxzoom below), not threaded into sourceConfig. */
     lat: number
     lng: number
+    /** Current zoom, primary view only - drives the "zoom in" notice below. */
+    zoom?: number
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const cesiumDetailOffset = useAtomValue(cesiumDetailOffsetAtom)
@@ -213,6 +216,30 @@ export const TerrainSources = memo(({
     // here and NOT into `minzoom` above precisely because this one does not
     // clamp the camera.
     const effectiveMinzoom = customSource?.minzoom ?? vrtInfo?.minzoom ?? minzoom
+
+    // Below a source's own floor the map is simply blank, because the camera
+    // is deliberately NOT clamped (see above) and the protocol refuses rather
+    // than blurs: a VRT tile down there would touch more of the mosaic's
+    // files than the browser will Range-read. Nothing said why. This does -
+    // once per crossing, not once per tile, hence the ref. Any source with a
+    // real floor gets it, VRT (derived from its index) or a declared minzoom.
+    const zoomFloor = customSource?.minzoom ?? vrtInfo?.minzoom
+    const belowFloorRef = useRef(false)
+    useEffect(() => {
+        const below = zoom != null && zoomFloor != null && zoom < zoomFloor - 0.05
+        if (below && !belowFloorRef.current) {
+            const name = customSource?.name ?? (typeof source === "string" ? source : "this source")
+            pushToast({
+                key: `zoom-in:${typeof source === "string" ? source : name}`,
+                title: `Zoom in to z${Math.ceil(zoomFloor!)} for ${name}`,
+                body: vrtInfo?.minzoom != null && customSource?.minzoom == null
+                    ? "Below that, one tile spans more of the mosaic's files than the browser will read, so nothing loads rather than everything blurring."
+                    : "This source does not serve tiles below that zoom.",
+                duration: 7000,
+            })
+        }
+        belowFloorRef.current = below
+    }, [zoom, zoomFloor, source, customSource?.name, customSource?.minzoom, vrtInfo?.minzoom])
 
     useEffect(() => {
         if (isCogProtocol && !metadata) return  // don't fire until real metadata

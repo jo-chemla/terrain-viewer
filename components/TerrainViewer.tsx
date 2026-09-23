@@ -3436,6 +3436,7 @@ export function TerrainViewer() {
             onZoomRangeChange={isPrimary ? setZoomRangeA : undefined}
             lat={state.lat}
             lng={state.lng}
+            zoom={isPrimary ? state.zoom : undefined}
           />
           <RasterBasemapSource
             basemapSource={perViewResolved[side].basemapSource}

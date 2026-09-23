@@ -292,11 +292,11 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
           // else, so Esri's own 3D Buildings basemap layer is not there to
           // z-fight with the photogrammetry. Scene Viewer has no URL
           // parameter that would switch that layer off had it been present.
-          // viewpoint=cam:lng,lat,camera height;heading,tilt - the same
-          // Google Earth altitude formula the Open In destinations use, so
-          // it frames roughly the zoom you left.
+          // viewpoint=cam: is the CAMERA position and an absolute height -
+          // {esriX}/{esriY}/{esriZ} back it off from the clicked point along
+          // the reverse heading (see esriCamera in CoverageOverlayLayer.tsx).
           urlTemplate: p.service
-            ? `https://www.arcgis.com/home/webscene/viewer.html?url=${encodeURIComponent(p.service)}&viewpoint=cam:{lng},{lat},{gealt};{bearing},{pitch}`
+            ? `https://www.arcgis.com/home/webscene/viewer.html?url=${encodeURIComponent(p.service)}&viewpoint=cam:{esriX},{esriY},{esriZ};{bearing},{pitch}`
             : p.id
               ? `https://www.arcgis.com/home/item.html?id=${p.id}`
               : "https://www.arcgis.com/" } }

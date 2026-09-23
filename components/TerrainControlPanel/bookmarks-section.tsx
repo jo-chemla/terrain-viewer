@@ -655,6 +655,7 @@ export const BookmarksSection: React.FC<{
   }, [setBookmarks])
 
   return (
+    <>
     <Section
       title="Bookmarks"
       isOpen={isOpen}
@@ -907,15 +908,20 @@ export const BookmarksSection: React.FC<{
         </div>
       </div>
 
-      <BookmarksGalleryModal
-        open={isGalleryOpen}
-        onClose={() => setIsGalleryOpen(false)}
-        bookmarks={bookmarks}
-        setState={setState}
-        mapRef={mapRef}
-        onDelete={handleDelete}
-        onRename={handleRename}
-      />
     </Section>
+    {/* Outside the Section on purpose: the Section's children are its
+        collapsible content, and the header's Gallery button has to work
+        while the section is folded. Inside, the modal was simply not
+        mounted whenever the list was closed. */}
+    <BookmarksGalleryModal
+      open={isGalleryOpen}
+      onClose={() => setIsGalleryOpen(false)}
+      bookmarks={bookmarks}
+      setState={setState}
+      mapRef={mapRef}
+      onDelete={handleDelete}
+      onRename={handleRename}
+    />
+    </>
   )
 }
