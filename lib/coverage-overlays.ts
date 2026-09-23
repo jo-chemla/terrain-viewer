@@ -50,7 +50,7 @@ export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSour
 export interface CoverageLeaf { id: string; label: string; color: string; detail?: string }
 export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps" }
 
-export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6" }
+export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6", esri3d: "#a855f7" }
 
 const ELI_ID_RE = /OSM Editor Layer Index id (\S+)/
 type Bounded = { id: string; name: string; bounds?: number[]; type?: string; resolutionM?: number; maxzoom?: number; infoUrl?: string }
@@ -81,11 +81,12 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     // coverage layer decoded, and each FLAI survey's COPC octree - but a user
     // comparing them wants them on one switch, not three.
     { section: "Terrain", key: "sources3d", label: "3D and LiDAR coverage", color: OVERLAY_COLORS.bing3d,
-      note: "Where somebody has photogrammetry, mesh or a point cloud, as opposed to a gridded DEM. Bing and Google are city-scale photorealistic 3D; FLAI is open airborne LiDAR. Each is read from the provider's own data - nothing here comes from a published list, because none of them publish one.",
+      note: "Where somebody has photogrammetry, mesh or a point cloud, as opposed to a gridded DEM. Bing and Google are city-scale photorealistic 3D, Esri's are Integrated Mesh scene layers published one service per city, and FLAI is open airborne LiDAR. Only Esri publishes a list; the rest are read from the provider's own data.",
       leaves: [
         { id: "bing3d", label: "Bing Maps 3D", color: OVERLAY_COLORS.bing3d, detail: "photogrammetry mesh, ~2.4 km" },
         { id: "google3d", label: "Google photorealistic 3D", color: OVERLAY_COLORS.google3d, detail: "decoded from Google's own coverage layer" },
         { id: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai, detail: "114 open COPC surveys" },
+        { id: "esri3d", label: "Esri Integrated Mesh", color: OVERLAY_COLORS.esri3d, detail: "city photogrammetry published as I3S" },
       ] },
     { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category })) },
@@ -109,7 +110,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
 const STATIC_GROUP_LEAVES: Record<string, string[]> = {
   library: TERRAIN_LIB.filter((s) => s.bounds).map((s) => `lib:${s.id}`),
   basemapLibrary: BASEMAP_LIB.filter((s) => s.bounds).map((s) => `blib:${s.id}`),
-  sources3d: ["bing3d", "google3d", "flai"],
+  sources3d: ["bing3d", "google3d", "flai", "esri3d"],
 }
 
 /** Coverage overlays in the URL, folded to group keys wherever a group is
@@ -270,6 +271,22 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
           urlTemplate: p.datasetId
             ? `https://hub.flai.ai/dataset/${p.datasetId}?c={mercX},{mercY}&z={zoom}`
             : "https://hub.flai.ai/" } }
+      })
+      return { type: "FeatureCollection", features }
+    } catch { return empty }
+  }
+  if (kind === "esri3d") {
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}coverage/esri-3d.geojson`)
+      if (!res.ok) return empty
+      const fc = (await res.json()) as FeatureCollection
+      const features: Feature[] = fc.features.map((f) => {
+        const p = (f.properties ?? {}) as { name?: string; owner?: string; modified?: string; url?: string }
+        return { ...f, properties: { ...f.properties,
+          overlay: id, color: OVERLAY_COLORS.esri3d, hollow: true, opacity: 0.4,
+          label: p.name ?? "Esri Integrated Mesh",
+          detail: `photogrammetric mesh (I3S)${p.owner ? ` \u00b7 ${p.owner}` : ""}${p.modified ? ` \u00b7 ${p.modified}` : ""} \u00b7 not renderable here, click for the item page`,
+          url: p.url ?? "https://www.arcgis.com/" } }
       })
       return { type: "FeatureCollection", features }
     } catch { return empty }
