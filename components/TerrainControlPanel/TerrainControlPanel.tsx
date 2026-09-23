@@ -3,7 +3,7 @@ import { useState, useMemo, useCallback, useEffect, useRef  } from "react"
 import { useQueryStates } from "nuqs"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home, ArrowLeftRight } from "lucide-react"
+import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home, ArrowLeftRight, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -14,6 +14,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 
 import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
 import { SettingsDialog } from "./settings-dialog"
+import { DataLayersModal } from "./data-layers-modal"
 import { ModePicker } from "./ModePicker"
 import { GeneralSettings } from "./general-settings"
 import { ComparisonMixSection } from "./comparison-mix-section"
@@ -153,6 +154,7 @@ export function TerrainControlPanel({
 }: TerrainControlPanelProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isDataLayersOpen, setIsDataLayersOpen] = useState(false)
   // "Use as terrain / basemap for view A" from the coverage click modal.
   useCoverageUseRequest(setState)
   const [isModePickerOpen, setIsModePickerOpen] = useState(false)
@@ -637,6 +639,14 @@ export function TerrainControlPanel({
               tooltip="Home"
               onClick={handleGoHome}
             />
+            {!historicalMode && (
+              <TooltipIconButton
+                icon={Layers}
+                tooltip="Data layers: every visualization mode, with a picture"
+                onClick={() => setIsDataLayersOpen(true)}
+              />
+            )}
+            <DataLayersModal open={isDataLayersOpen} onOpenChange={setIsDataLayersOpen} state={state} setState={setState} />
             <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState} historicalMode={historicalMode}/>
             <TooltipIconButton
               icon={PanelRightClose}

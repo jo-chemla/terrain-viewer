@@ -134,6 +134,22 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
     },
   },
   {
+    id: "esri-3d-buildings",
+    label: "Esri 3D Buildings (Scene Viewer)",
+    // Esri's global 3D Buildings scene layer - modelled buildings from TomTom,
+    // Vantor, Community Maps and Overture, refreshed quarterly - opened in
+    // Esri's own Scene Viewer, which is the only thing that renders I3S.
+    // `viewpoint=cam:` takes the camera as x,y,z;heading,tilt. z is the
+    // camera's height in metres; the Google Earth altitude formula is about
+    // right here (Scene Viewer frames a z16 city view from a few hundred
+    // metres). Tilt is from nadir, matching maplibre's pitch.
+    buildUrl: ({ lat, lng, zoom, bearing, pitch }) => {
+      const alt = Math.round(((38000 * 4096) / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180))
+      const heading = (((bearing % 360) + 360) % 360).toFixed(1)
+      return `https://www.arcgis.com/home/webscene/viewer.html?layers=b8fec5af7dfe4866b1b8ac2d2800f282&viewpoint=cam:${lng.toFixed(5)},${lat.toFixed(5)},${alt};${heading},${pitch.toFixed(1)}`
+    },
+  },
+  {
     id: "bbbike-mapcompare",
     label: "BBBike MapCompare",
     buildUrl: ({ lat, lng, zoom }) =>
