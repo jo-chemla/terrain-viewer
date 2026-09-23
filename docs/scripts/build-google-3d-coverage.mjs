@@ -1,7 +1,15 @@
 #!/usr/bin/env node
-// Builds public/coverage/google-3d.geojson: where Google has photorealistic 3D,
-// read from the coverage layer Google Earth itself draws when you switch on
-// "3D buildings where available".
+// SUPERSEDED as the producer of public/coverage/google-3d.geojson. That file
+// now comes from decoding Google's coverage layer outright:
+//
+//   npx tsx docs/scripts/google3d-coverage.ts fetch --key $KEY --out tiles --zoom 10
+//   npx tsx docs/scripts/google3d-coverage.ts decode --tiles tiles --out z.geojson
+//   node docs/scripts/dissolve-google-3d-coverage.mjs z*.geojson
+//
+// which gives real polygons at ~500 m instead of the ~39 km cells this
+// produces. This is kept because it needs NO API key and no decoder: it reads
+// the layer through the payload SIZE of Google Earth's own request, and is
+// the fallback if the layer id minting ever stops working.
 //
 // ## Why not the 3D Tiles API
 //

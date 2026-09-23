@@ -43,16 +43,17 @@
  * Cost of the union: z10 is 19 768 requests and 95 MB of tiles (z5-z10, all
  * cached), a minute of fetch and 15 s of decode.
  *
- * ## What still blocks shipping it
+ * ## Shipping it
  *
- * Only size. 225 MB of overlapping, undissolved polygons cannot go in
- * public/. `--dissolve` fixes the overlap but needs `polygon-clipping`, which
- * is not a dependency of this repo - adding it is a one-line `npm i -D` and a
- * decision to make, not a bug. After that, simplify and drop the sub-km
- * slivers, or write PMTiles (the app already has a pmtiles protocol) so the
- * browser only ever fetches the tiles in view. Until one of those lands,
- * build-google-3d-coverage.mjs - the coarse payload-size probe - still
- * produces public/coverage/google-3d.geojson.
+ * dissolve-google-3d-coverage.mjs takes the per-zoom outputs and unions them
+ * per 5x5 degree bucket with @turf/turf (polygon-clipping underneath, already
+ * a dependency), simplifies, truncates coordinates to 3 decimals and drops
+ * rings under a square kilometre. 225 MB of overlapping polygons becomes a
+ * few MB, ~0.6 MB over the wire, with the same score against ground truth.
+ * The first, gentle pass (200 m, 4 decimals, 0.5 km2) left 69 MB: the
+ * tile-clipped triangle outlines are dense enough that only a brutal
+ * tolerance bites, and at coverage scale nothing under a kilometre is
+ * information.
  */
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';

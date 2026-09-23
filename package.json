@@ -18,6 +18,9 @@
     "url-params": "node docs/scripts/build-url-params.mjs",
     "bing-3d-coverage": "node docs/scripts/build-bing-3d-coverage.mjs",
     "google-3d-coverage": "node docs/scripts/build-google-3d-coverage.mjs",
+    "google-3d-fetch": "tsx docs/scripts/google3d-coverage.ts fetch --out .cache/google3d --zoom 10",
+    "google-3d-decode": "tsx docs/scripts/google3d-coverage.ts decode --tiles .cache/google3d --out .cache/google3d.geojson",
+    "google-3d-dissolve": "node --max-old-space-size=8192 docs/scripts/dissolve-google-3d-coverage.mjs .cache/google3d.geojson",
     "flai-coverage": "node docs/scripts/build-flai-coverage.mjs",
     "esri-3d-coverage": "node docs/scripts/build-esri-3d-coverage.mjs",
     "open-buildings-vrt": "node docs/scripts/build-open-buildings-vrt.mjs"

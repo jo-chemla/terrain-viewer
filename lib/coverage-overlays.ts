@@ -239,7 +239,7 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
       const fc = (await res.json()) as FeatureCollection
       const features: Feature[] = fc.features.map((f) => ({ ...f, properties: { ...f.properties,
         overlay: id, color: OVERLAY_COLORS.google3d, hollow: false, opacity: 0.12,
-        label: "Google 3D", detail: "photorealistic mesh · from Google Earth's own coverage layer, ~39 km cells · click to open Google Earth here",
+        label: "Google 3D", detail: "photorealistic mesh · decoded from Google's own coverage layer, unioned across three zooms, ~500 m · click to open Google Earth here",
         urlTemplate: "https://earth.google.com/web/@{lat},{lng},0a,{gealt}d,35y,{bearing}h,{pitch}t,0r" } }))
       return { type: "FeatureCollection", features }
     } catch { return empty }

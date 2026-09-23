@@ -121,3 +121,12 @@ clipping` (not a repo dep - one `npm i -D`, ask first) for `--dissolve`, then
 simplify, or PMTiles via the app's existing pmtiles protocol. The shipped
 overlay stays on the coarse payload-size probe until then. Do NOT re-derive
 the per-zoom finding; the table is in the .ts header.
+
+**Shipped 2026-09-23.** `docs/scripts/dissolve-google-3d-coverage.mjs` unions
+the z8+z9+z10 decodes per 5-degree bucket with `@turf/turf` (no new dep),
+simplifies at ~500 m-1 km, truncates to 3 decimals, drops rings < 1-2 km2.
+225 MB -> ~3-5 MB raw, ~0.6 MB gzipped, same 34/39 against ground truth (the
+5 "misses" are tight polygons next to the test point, see above). The
+byte-size probe script is kept only as the keyless fallback. Re-running the
+pipeline: `pnpm google-3d-fetch` (needs VITE_GOOGLE_API_KEY), `google-3d-
+decode`, `google-3d-dissolve`.
