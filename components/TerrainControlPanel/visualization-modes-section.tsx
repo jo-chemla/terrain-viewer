@@ -1,8 +1,9 @@
 import type React from "react"
 import { useState } from "react"
-import { useAtom } from "jotai"
-import { activeProjectConfigAtom, vizModePinnedAtom } from "@/lib/settings-atoms"
-import { Section, CheckboxWithSlider, PinToggle } from "./controls-components"
+import { useAtom, useSetAtom } from "jotai"
+import { activeProjectConfigAtom, vizModePinnedAtom, dataLayersModalOpenAtom } from "@/lib/settings-atoms"
+import { Section, CheckboxWithSlider, PinToggle, TooltipIconButton } from "./controls-components"
+import { Layers } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 
 export const VisualizationModesSection: React.FC<{
@@ -12,6 +13,7 @@ export const VisualizationModesSection: React.FC<{
 }> = ({ state, setState, isOpen, onOpenChange }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const [vizModePinned, setVizModePinned] = useAtom(vizModePinnedAtom)
+  const openDataLayers = useSetAtom(dataLayersModalOpenAtom)
   // EXPERIMENTAL: while pinned, this section's own chevron can't collapse it
   // either (not just "Fold all sections") — clicking it is a no-op that shakes
   // the pin icon instead, forcing an explicit unpin first.
@@ -33,7 +35,18 @@ export const VisualizationModesSection: React.FC<{
       title="Visualization Modes"
       isOpen={isOpen}
       onOpenChange={handleOpenChange}
-      headerExtra={<PinToggle pinned={vizModePinned} onToggle={() => setVizModePinned(!vizModePinned)} wiggleNonce={wiggleNonce} />}
+      headerExtra={
+        <div className="flex items-center gap-1">
+          {/* The picture version of this very list, so it sits next to the
+              list rather than up in the panel's own title bar. */}
+          <TooltipIconButton
+            icon={Layers}
+            tooltip="Data layers: every visualization mode, with a picture"
+            onClick={() => openDataLayers(true)}
+          />
+          <PinToggle pinned={vizModePinned} onToggle={() => setVizModePinned(!vizModePinned)} wiggleNonce={wiggleNonce} />
+        </div>
+      }
     >
       {!hideContours && (
         <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} tooltip="Controllable contours (minor/major elevation difference)" />

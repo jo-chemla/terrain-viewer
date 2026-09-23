@@ -390,6 +390,13 @@ export const bookmarksGalleryViewModeAtom = atomWithStorage<"grid" | "list">("bo
 // collapsible via its own chevron regardless of the pin.
 export const vizModePinnedAtom = atomWithStorage("vizModePinned", true)
 
+// The Data layers picker's open state. An atom rather than local state because
+// the trigger and the dialog live in different components: the button sits in
+// the Visualization Modes section header, next to the pin it belongs beside,
+// while the dialog stays mounted at the panel root. Not persisted - a modal
+// that reopens itself on reload is a bug, not a setting.
+export const dataLayersModalOpenAtom = atom(false)
+
 // Which of the two sidebar "modes" the ModePicker (opened by clicking the
 // sidebar title) last chose — "terrain" is the full app as it's always been;
 // "historical" swaps in a deliberately stripped-down sidebar for browsing

@@ -7,7 +7,7 @@ import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home, 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom, type AppMode, revealSectionAtom } from "@/lib/settings-atoms"
+import { transparentUiAtom, activeSliderAtom, activeProjectConfigAtom, vizModePinnedAtom, vizActivationAtom, type AppMode, revealSectionAtom, dataLayersModalOpenAtom } from "@/lib/settings-atoms"
 import { useCoverageUseRequest } from "@/lib/use-coverage-use-request"
 import { ProductTour } from "./product-tour"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -90,8 +90,25 @@ export const SCROLL_TARGETS: Record<string, string> = {
   terrainAnalysis: "tour-terrain-analysis-section",
   contour: "tour-contour-section",
   tools: "tour-tools-group",
-  drawing: "tour-tools-group",
+  drawing: "tour-drawing-section",
+  elevationPicker: "tour-elevation-picker-section",
+  sunShadowCalculator: "tour-sun-shadow-section",
+  animation: "tour-animation-section",
   comparisonMix: "tour-historical-compare-blend",
+}
+
+/** Which macro group a reveal target lives under, so revealing it also
+ *  expands the group it is buried in. Anything unlisted is in Options, which
+ *  is where every visualization mode's own section sits. */
+export const SECTION_MACRO_GROUP: Record<string, MacroGroupKey> = {
+  terrainSource: "Sources",
+  rasterBasemap: "Sources",
+  tellsDetector: "Detectors",
+  tools: "Tools",
+  drawing: "Tools",
+  elevationPicker: "Tools",
+  sunShadowCalculator: "Tools",
+  animation: "Tools",
 }
 type SectionOpenState = Record<SectionKey, boolean>
 
@@ -154,7 +171,7 @@ export function TerrainControlPanel({
 }: TerrainControlPanelProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isDataLayersOpen, setIsDataLayersOpen] = useState(false)
+  const [isDataLayersOpen, setIsDataLayersOpen] = useAtom(dataLayersModalOpenAtom)
   // "Use as terrain / basemap for view A" from the coverage click modal.
   useCoverageUseRequest(setState)
   const [isModePickerOpen, setIsModePickerOpen] = useState(false)
@@ -395,7 +412,7 @@ export function TerrainControlPanel({
   useEffect(() => {
     if (!revealSection) return
     setIsSidebarOpen(true)
-    setMacroGroupOpen((prev) => ({ ...prev, Options: true }))
+    setMacroGroupOpen((prev) => ({ ...prev, [SECTION_MACRO_GROUP[revealSection] ?? "Options"]: true }))
     setSectionOpen((prev) => ({ ...prev, [revealSection]: true }))
     const id = SCROLL_TARGETS[revealSection] ?? revealSection
     const t = setTimeout(() => {
@@ -639,13 +656,9 @@ export function TerrainControlPanel({
               tooltip="Home"
               onClick={handleGoHome}
             />
-            {!historicalMode && (
-              <TooltipIconButton
-                icon={Layers}
-                tooltip="Data layers: every visualization mode, with a picture"
-                onClick={() => setIsDataLayersOpen(true)}
-              />
-            )}
+            {/* The trigger for this lives in the Visualization Modes section
+                header (left of its pin), where the thing it opens actually
+                is - the dialog just stays mounted here, at the panel root. */}
             <DataLayersModal open={isDataLayersOpen} onOpenChange={setIsDataLayersOpen} state={state} setState={setState} />
             <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState} historicalMode={historicalMode}/>
             <TooltipIconButton

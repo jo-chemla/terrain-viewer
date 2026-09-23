@@ -81,7 +81,21 @@ export default defineConfig({
         // module-serving middleware ever sees it. Returning the untouched
         // req.url here tells http-proxy-middleware to skip proxying and let
         // the request fall through to Vite instead.
-        bypass: (req) => (req.url?.startsWith("/docs/content/") ? req.url : undefined),
+        // Screenshots are the second thing this app reads out of the docs
+        // tree (the Data layers modal shows one per visualization mode), and
+        // they are plain files — there is no reason a picture in the app
+        // should need the Next.js dev server to be running. In prod the docs
+        // build merges docs/public into dist/docs, so /docs/screenshots/ is
+        // already the right URL; here we just point it at where those files
+        // actually live on disk and let Vite's own static middleware serve
+        // them. Not imported through Vite instead because the folder is 36 MB
+        // — bundling it would double every screenshot into dist/assets.
+        bypass: (req) =>
+          req.url?.startsWith("/docs/content/")
+            ? req.url
+            : req.url?.startsWith("/docs/screenshots/")
+              ? req.url.replace("/docs/screenshots/", "/docs/public/screenshots/")
+              : undefined,
       },
     },
   },
