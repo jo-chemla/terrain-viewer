@@ -25,6 +25,12 @@ type OpenInContext = {
   lat: number
   lng: number
   zoom: number
+  /** Compass heading, degrees clockwise from north, already normalised to
+   *  0-360 (maplibre's own bearing is signed). */
+  bearing: number
+  /** Degrees from nadir: 0 looks straight down, 60 is a strong oblique - the
+   *  same convention maplibre uses. */
+  pitch: number
   bounds: { west: number; south: number; east: number; north: number } | null
   latestWaybackRelease: number | null
 }
@@ -109,13 +115,19 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
     id: "bing-maps-3d",
     label: "Bing Maps 3D",
     // `style=3d` is Bing's photogrammetry view - the same mesh the Bing Maps 3D
-    // coverage overlay maps. `eh` is the camera height above ground in metres;
-    // derived from zoom so the framing roughly matches what you were looking at
-    // rather than dropping in at a fixed altitude. `lvl` takes a fractional
-    // zoom. Coverage is partial (see the overlay); outside it Bing falls back
-    // to plain aerial.
-    buildUrl: ({ lat, lng, zoom }) =>
-      `https://www.bing.com/maps?cp=${lat}~${lng}&lvl=${zoom.toFixed(1)}&style=3d&eh=${Math.round((38000 * 4096) / Math.pow(2, zoom) * Math.cos((lat * Math.PI) / 180))}`,
+    // coverage overlay maps. The camera carries over in full rather than
+    // dropping in nadir:
+    //   eh  camera height above ground, metres (same altitude formula as the
+    //       Google Earth destinations above)
+    //   dir compass heading, degrees clockwise from north - matches maplibre's
+    //       bearing once normalised out of its signed range
+    //   pi  tilt, degrees from vertical, matching maplibre's pitch convention
+    // Coverage is partial (see the Bing Maps 3D coverage overlay); outside it
+    // Bing falls back to plain aerial, where the tilt still applies.
+    buildUrl: ({ lat, lng, zoom, bearing, pitch }) => {
+      const eh = Math.round((38000 * 4096) / Math.pow(2, zoom) * Math.cos((lat * Math.PI) / 180))
+      return `https://www.bing.com/maps?cp=${lat}~${lng}&lvl=${zoom.toFixed(1)}&style=3d&eh=${eh}&pi=${pitch.toFixed(2)}&dir=${bearing.toFixed(2)}`
+    },
   },
   {
     id: "bbbike-mapcompare",
@@ -274,10 +286,12 @@ export const OpenInLinksButton: React.FC<{
       lat: state.lat,
       lng: state.lng,
       zoom: state.zoom,
+      bearing: ((state.bearing % 360) + 360) % 360,
+      pitch: state.pitch ?? 0,
       bounds: bounds ? { west: bounds.getWest(), south: bounds.getSouth(), east: bounds.getEast(), north: bounds.getNorth() } : null,
       latestWaybackRelease: waybackLatestRelease,
     }
-  }, [mapRef, state.lat, state.lng, state.zoom, waybackLatestRelease])
+  }, [mapRef, state.lat, state.lng, state.zoom, state.bearing, state.pitch, waybackLatestRelease])
 
   const openDestination = useCallback((id: string) => {
     const dest = allDestinations.find((d) => d.id === id)

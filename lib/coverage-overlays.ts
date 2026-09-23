@@ -222,7 +222,7 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
       const features: Feature[] = fc.features.map((f) => ({ ...f, properties: { ...f.properties,
         overlay: id, color: OVERLAY_COLORS.bing3d, hollow: false, opacity: 0.12,
         label: "Bing Maps 3D", detail: "photogrammetry mesh (tf=3dv4) · from the tileset's subtree availability, level 13 · click to open Bing's own 3D view here",
-        urlTemplate: "https://www.bing.com/maps?cp={lat}~{lng}&lvl={zoom}&style=3d&eh=400" } }))
+        urlTemplate: "https://www.bing.com/maps?cp={lat}~{lng}&lvl={zoom}&style=3d&eh={eh}&pi={pitch}&dir={bearing}" } }))
       return { type: "FeatureCollection", features }
     } catch { return empty }
   }
