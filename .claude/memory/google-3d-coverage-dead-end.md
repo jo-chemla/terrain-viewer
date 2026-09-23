@@ -149,6 +149,19 @@ Two fixes, both necessary:
   Anything still unmerged is counted and printed loudly, because silence is
   exactly what shipped the first two versions.
 
+**The third fix, and the real one (2026-09-24).** After both of the above the
+world still reported 66 partials "left unmerged", and a retry ladder aimed at
+the clipper rescued one. The Paris-bucket experiment then showed "2 parts, 0
+pair failures" - a pair that never failed was simply never attempted. The
+tree-merge rotates its pairing on odd passes (offset 1), so with two parts
+left an odd pass pairs nothing, sees no progress, and the loop broke. Fix:
+only a full EVEN pass that merges nothing ends the loop. Plus pre-snapping to
+the OUTPUT precision (3 decimals, 110 m) instead of 5: below anything the
+500 m simplification keeps, and it is what lets a whole bucket union cleanly
+(Paris bucket at 5 decimals: 1 779 km2 out for 1 346 in; at 3: 1 339, one
+part, zero failures). Shipped: Paris 10 polygons, 0 overlapping pairs,
+1 333 km2; world 7 268 polygons, 0.977 Mkm2, 2.53 MB, 18/18 cities inside.
+
 **Diagnostic that settles it in one line:** compare the output's total area
 over a window against the raw decodes'. A correct union is at most the largest
 single zoom plus a little; three times it means no union happened.

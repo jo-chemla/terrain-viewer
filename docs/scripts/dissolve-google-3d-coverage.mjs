@@ -21,19 +21,31 @@
 // 2 110 km2 of polygons for 1 346 km2 of coverage, 69 polygons with 89
 // intersecting pairs, drawn as a red crosshatch.
 //
-// Two changes fix it:
+// Three changes fix it, and the third took two false starts to find:
 //
 //  - **Snap before unioning.** Truncating each input ring to PRE_DECIMALS and
 //    running cleanCoords removes the near-duplicate vertices the clipper
-//    chokes on. Measured on the Paris window: full precision throws, 5
-//    decimals (~1 m) unions 484 polygons in 1.0 s. That is the whole fix for
-//    the failure itself.
+//    chokes on. Full precision throws; 1 m snapping stops the throws; 110 m
+//    (the output precision, see PRE_DECIMALS) is what finally lets a whole
+//    bucket union cleanly.
 //  - **Never return unmerged partial unions.** Groups are unioned in chunks
 //    and the chunk results are then tree-merged pairwise until nothing
 //    merges, rotating the pairing each pass so a pair that cannot combine
 //    gets a different partner rather than blocking forever. Anything still
 //    unmerged at the end is COUNTED AND PRINTED, because silence is what let
 //    the first version look finished.
+//  - **Do not stop after a fruitless ODD pass.** The rotation offsets odd
+//    passes by one, so with two parts left an odd pass pairs nothing at all,
+//    sees no progress, and the loop used to break there. That, not the
+//    clipper, was most of the "66 partial unions left unmerged": they had
+//    never been attempted. A retry ladder aimed at the clipper rescued 1 of
+//    them; fixing the loop rescued all of them. Only a full, even pass that
+//    merges nothing means done.
+//
+// Measured after all three, Paris window: 10 polygons, 0 overlapping pairs,
+// 1 333 km2 against a true union of 1 346. World: 7 268 polygons, 2.53 MB,
+// 0.977 Mkm2 (the 1.089 before was overlap counted twice), every city on the
+// checklist still inside, 157 s.
 //
 // **Generalising leaves its own rubbish.** Both simplify and truncate make
 // invalid geometry. Over Paris the first version produced, in one 656 km2
@@ -88,9 +100,14 @@ const MIN_KM2 = Number(process.env.G3D_MIN_KM2 ?? 1)
  *  Same threshold as MIN_KM2 by default: a hole too small to be an outer ring
  *  worth keeping is too small to be a gap worth drawing. */
 const MIN_HOLE_KM2 = Number(process.env.G3D_MIN_HOLE_KM2 ?? MIN_KM2)
-/** Decimals every input ring is snapped to BEFORE the union. ~1 m. Without
- *  this the clipper throws on near-coincident vertices; see the header. */
-const PRE_DECIMALS = Number(process.env.G3D_PRE_DECIMALS ?? 5)
+/** Decimals every input ring is snapped to BEFORE the union. Without this
+ *  the clipper throws on near-coincident vertices; see the header. It is the
+ *  OUTPUT precision (~110 m) on purpose: 1 m snapping stopped the throws but
+ *  still left partial unions the tree-merge could not combine, and 110 m is
+ *  below anything the 500 m generalisation would keep anyway. Measured on
+ *  the Paris bucket: 5 decimals -> 1 779 km2 of output for 1 346 km2 of
+ *  coverage, 3 decimals -> 1 403 km2. */
+const PRE_DECIMALS = Number(process.env.G3D_PRE_DECIMALS ?? DECIMALS)
 /** Inputs smaller than this are dropped before the union - they are single
  *  mesh triangles that cannot survive a 500 m generalisation anyway, and
  *  every one of them is another chance for the clipper to fail. */
@@ -135,9 +152,29 @@ for (const f of INPUTS) {
 }
 console.log(`${inCount} input polygons from ${INPUTS.length} file(s) into ${buckets.size} buckets (${dropped} slivers dropped before the union)`)
 
-let unmerged = 0
+let unmerged = 0, rescued = 0
+/** Snap a feature to `prec` decimals and re-node it (union with itself), so
+ *  a partial that the clipper refuses to combine with its neighbour gets a
+ *  cleaner version of itself to try again with. */
+function harden(f, prec) {
+  const c = turf.truncate(turf.clone(f), { precision: prec, coordinates: 2, mutate: true })
+  try { return turf.union(turf.featureCollection([c, turf.clone(c)])) ?? c } catch { return c }
+}
+/** Union two features. The first version had one try and gave up; the 66
+ *  partials it left unmerged were every one of these failing on the same
+ *  near-coincident-vertex ring assembly that the pre-snap fixes for raw
+ *  input but does not fix for two big partials meeting. So: retry with both
+ *  sides snapped harder and re-noded, down to the file's own output
+ *  precision - there is nothing to lose there, 3 decimals is what ships. */
 const unionPair = (a, b) => {
-  try { return turf.union(turf.featureCollection([a, b])) ?? null } catch { return null }
+  try { const u = turf.union(turf.featureCollection([a, b])); if (u) return u } catch { /* ladder */ }
+  for (const prec of [PRE_DECIMALS - 1, DECIMALS]) {
+    try {
+      const u = turf.union(turf.featureCollection([harden(a, prec), harden(b, prec)]))
+      if (u) { rescued++; return u }
+    } catch { /* next rung */ }
+  }
+  return null
 }
 /** One polygon-clipping call over the whole list, halving on failure. */
 function unionGroup(list) {
@@ -158,7 +195,17 @@ function unionAll(polys) {
   if (polys.length <= 1) return polys
   let parts = []
   for (let i = 0; i < polys.length; i += CHUNK) parts.push(...unionGroup(polys.slice(i, i + CHUNK)))
-  for (let pass = 0; parts.length > 1 && pass < 24; pass++) {
+  // Thin each partial BEFORE the merges. The merges fail on vertex count and
+  // coincidence, and every vertex here is about to be generalised at
+  // SIMPLIFY_DEG anyway - a quarter of that tolerance removes the mesh
+  // stair-steps without moving any outline the final pass would keep.
+  parts = parts.map((p) => {
+    try {
+      const t = turf.simplify(p, { tolerance: SIMPLIFY_DEG / 4, highQuality: false })
+      return turf.truncate(t, { precision: PRE_DECIMALS, coordinates: 2, mutate: true })
+    } catch { return p }
+  })
+  for (let pass = 0; parts.length > 1 && pass < 40; pass++) {
     // Offset the pairing on odd passes so a pair that refuses to combine is
     // offered a different partner instead of blocking the whole bucket.
     const offset = pass % 2
@@ -169,7 +216,11 @@ function unionAll(polys) {
       const u = unionPair(parts[i], parts[i + 1])
       if (u) { next.push(u); merged++ } else next.push(parts[i], parts[i + 1])
     }
-    if (!merged) break
+    // Only a FULL pairing that merges nothing means we are done. An odd
+    // pass skips the first element and, with two parts left, pairs nothing
+    // at all - breaking there is what left most of the "unmerged" partials
+    // unmerged without a single failed union among them.
+    if (!merged && !offset) break
     parts = next
   }
   if (parts.length > 1) unmerged += parts.length
@@ -243,4 +294,5 @@ const verts = out.reduce((n, p) => n + p.geometry.coordinates.reduce((m, r) => m
 console.log(`${inCount} -> ${out.length} polygons, ${verts} vertices, ${(body.length / 1e6).toFixed(2)} MB, ${((Date.now() - t0) / 1000).toFixed(0)} s -> ${OUT}`)
 console.log(`  ${stats.holes} artefact holes dropped, self-intersections ${stats.kinksBefore} -> ${stats.kinksAfter}` +
   `${stats.renodeFailed ? `, ${stats.renodeFailed} polygons the clipper refused to re-node` : ""}` +
+  `${rescued ? `, ${rescued} pair unions rescued by snapping harder` : ""}` +
   `${unmerged ? `, ${unmerged} partial unions left unmerged - THEY MAY OVERLAP` : ""}`)
