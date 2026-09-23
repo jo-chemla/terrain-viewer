@@ -1,7 +1,9 @@
 #!/usr/bin/env -S npx tsx
 /**
- * NOT YET WIRED INTO THE BUILD. The decode here is correct - see below for the
- * one thing that still blocks a shippable world file.
+ * The fetch + decode half of the Google 3D coverage pipeline; the dissolve
+ * half is dissolve-google-3d-coverage.mjs. `pnpm google-3d-fetch` runs this
+ * for z8, z9 and z10. The write-up of the whole pipeline, with timings and
+ * where every intermediate lands, is in the docs: /features/coverage-overlays.
  *
  * From a parallel investigation of Jonathan's; kept verbatim apart from this
  * header. The companion Python version is build-google-3d-coverage.py.
@@ -276,16 +278,10 @@ async function cmdDecode(o: Record<string, string>) {
     polys.push(...tileToPolygons(raw)); nt++;
   }
   console.log(`${nt} tiles -> ${polys.length} polygons in ${Date.now() - t0} ms`);
-  if ('dissolve' in o) {
-    try {
-      const pc = (await import('polygon-clipping')).default;
-      const groups = new Map<string, [number, number][][][]>();
-      for (const p of polys) { const k = lonLatToTile(p[0][0][0], p[0][0][1], 5).join('/'); (groups.get(k) ?? groups.set(k, []).get(k)!).push(p); }
-      polys = [];
-      for (const g of groups.values()) polys.push(...(pc.union(...(g as any)) as [number, number][][][]));
-      console.log(`dissolved -> ${polys.length} polygons in ${Date.now() - t0} ms`);
-    } catch { console.warn('--dissolve needs `npm i polygon-clipping`; writing undissolved output'); }
-  }
+  // No --dissolve here any more. It used to `import('polygon-clipping')`,
+  // which is not a dependency - the docs' `next build` typechecks this file
+  // and failed on it. Dissolving is dissolve-google-3d-coverage.mjs's job,
+  // via @turf/turf, which IS a dependency and carries the same clipper.
   polys.sort((a, b) => areaKm2(b) - areaKm2(a));
   const fc = { type: 'FeatureCollection', features: polys.map((p, id) => ({ type: 'Feature', properties: { id, area_km2: areaKm2(p) }, geometry: { type: 'Polygon', coordinates: p } })) };
   writeFileSync(out, JSON.stringify(fc));
@@ -299,6 +295,6 @@ async function main() {
   for (let i = 0; i < rest.length; i++) if (rest[i].startsWith('--')) { const k = rest[i].slice(2); opts[k] = rest[i + 1] && !rest[i + 1].startsWith('--') ? rest[++i] : ''; }
   if (cmd === 'fetch') { if (!opts.key) throw new Error('--key required'); await cmdFetch(opts); }
   else if (cmd === 'decode') await cmdDecode(opts);
-  else console.log('usage: fetch --key K [--out tiles --zoom 8 --bbox W,S,E,N --conc 8] | decode [--tiles tiles --out x.geojson --dissolve]');
+  else console.log('usage: fetch --key K [--out tiles --zoom 8 --bbox W,S,E,N --conc 8] | decode [--tiles tiles --out x.geojson]');
 }
 main().catch(e => { console.error(e); process.exit(1); });

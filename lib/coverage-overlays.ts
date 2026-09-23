@@ -217,12 +217,15 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
       detail: `${kind === "lib" ? "Terrain library" : "Basemap library"} (${s.type}) · declared bounds`, url: s.infoUrl ?? "",
       resolutionM: s.resolutionM, maxzoom: s.maxzoom })
   }
+  // Every static coverage file is fetched with cache: "no-cache" - it costs
+  // one conditional request per toggle, and it is what stopped a regenerated
+  // file from showing last week's polygons until a hard reload.
   if (kind === "bing3d") {
     // A static file built by docs/scripts/build-bing-3d-coverage.mjs: 2 857
     // merged rectangles (0.5 MB) from 161 276 level-13 content tiles. Fetched
     // relative to BASE_URL so the /terrain-viewer/ subpath deploy finds it.
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}coverage/bing-3d.geojson`)
+      const res = await fetch(`${import.meta.env.BASE_URL}coverage/bing-3d.geojson`, { cache: "no-cache" })
       if (!res.ok) return empty
       const fc = (await res.json()) as FeatureCollection
       const features: Feature[] = fc.features.map((f) => ({ ...f, properties: { ...f.properties,
@@ -234,7 +237,7 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
   }
   if (kind === "google3d") {
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}coverage/google-3d.geojson`)
+      const res = await fetch(`${import.meta.env.BASE_URL}coverage/google-3d.geojson`, { cache: "no-cache" })
       if (!res.ok) return empty
       const fc = (await res.json()) as FeatureCollection
       const features: Feature[] = fc.features.map((f) => ({ ...f, properties: { ...f.properties,
@@ -246,7 +249,7 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
   }
   if (kind === "flai") {
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}coverage/flai-open-lidar.geojson`)
+      const res = await fetch(`${import.meta.env.BASE_URL}coverage/flai-open-lidar.geojson`, { cache: "no-cache" })
       if (!res.ok) return empty
       const fc = (await res.json()) as FeatureCollection
       const features: Feature[] = fc.features.map((f) => {
@@ -277,7 +280,7 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
   }
   if (kind === "esri3d") {
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}coverage/esri-3d.geojson`)
+      const res = await fetch(`${import.meta.env.BASE_URL}coverage/esri-3d.geojson`, { cache: "no-cache" })
       if (!res.ok) return empty
       const fc = (await res.json()) as FeatureCollection
       const features: Feature[] = fc.features.map((f) => {
