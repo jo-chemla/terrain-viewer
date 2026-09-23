@@ -349,8 +349,12 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
                       {g.leaves.map((l) => (
                         <div key={l.id} className="flex items-center gap-1.5">
                           <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
-                          <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate" title={l.label}>{l.label}</Label>
-                          {l.detail && <span className="text-[10px] text-muted-foreground shrink-0">{l.detail}</span>}
+                          {/* The label wins the width fight: `detail` used to be
+                              shrink-0, so a long one (the Esri leaf's) pushed the
+                              layer's own NAME down to zero width and the row read
+                              as subtitle-only. */}
+                          <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate shrink-0 max-w-full" title={l.label}>{l.label}</Label>
+                          {l.detail && <span className="text-[10px] text-muted-foreground truncate min-w-0" title={l.detail}>{l.detail}</span>}
                         </div>
                       ))}
                     </div>

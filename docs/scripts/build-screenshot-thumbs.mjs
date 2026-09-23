@@ -43,7 +43,13 @@ const THUMBS = join(SHOTS, "thumbs")
 const MODAL = resolve(HERE, "../../components/TerrainControlPanel/data-layers-modal.tsx")
 const WIDTH = 640
 /** Fraction of the original kept, per axis, centred. */
-const CROP = Number(process.env.THUMB_CROP ?? 0.2)
+const CROP = Number(process.env.THUMB_CROP ?? 0.3)
+/** Where the crop window sits, as a fraction of the frame. 0.5,0.5 is dead
+ *  centre. Map shots are framed on the map's own centre, but the sidebar
+ *  overlays the right quarter of the viewport, so the subject a human aimed
+ *  at sits a little LEFT of the image centre - hence the default nudge. */
+const CROP_X = Number(process.env.THUMB_CROP_X ?? 0.44)
+const CROP_Y = Number(process.env.THUMB_CROP_Y ?? 0.5)
 /** Screenshots OF THE UI rather than of the map - never cropped. */
 const PANEL_SHOTS = /^tools\/|^sun-shadow-calculator/
 const FORCE = process.argv.includes("--force")
@@ -64,13 +70,16 @@ for (const rel of [...new Set(wanted)]) {
   // -2 keeps the height even, which some encoders insist on; q 4 is visually
   // clean at this size and lands around 50 KB. crop before scale, or the
   // crop would be of an already-degraded image.
-  const crop = PANEL_SHOTS.test(rel) ? "" : `crop=iw*${CROP}:ih*${CROP},`
+  // x/y are the TOP-LEFT of the crop window, so convert from a centre.
+  const crop = PANEL_SHOTS.test(rel)
+    ? ""
+    : `crop=iw*${CROP}:ih*${CROP}:iw*${(CROP_X - CROP / 2).toFixed(4)}:ih*${(CROP_Y - CROP / 2).toFixed(4)},`
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", src, "-vf", `${crop}scale=${WIDTH}:-2`, "-q:v", "4", out])
   made++
 }
 
 const total = (dir) => (existsSync(dir) ? readdirSync(dir, { withFileTypes: true, recursive: true })
   .filter((e) => e.isFile()).reduce((n, e) => n + statSync(join(e.parentPath ?? e.path, e.name)).size, 0) : 0)
-console.log(`${made} written (map shots cropped to the middle ${(CROP * 100).toFixed(0)}%), ${skipped} up to date -> ${THUMBS}`)
+console.log(`${made} written (map shots cropped to ${(CROP * 100).toFixed(0)}% around ${CROP_X}/${CROP_Y}), ${skipped} up to date -> ${THUMBS}`)
 console.log(`  ${(total(THUMBS) / 1e6).toFixed(2)} MB of thumbnails for ${(wanted.length)} cards` +
   ` (originals: ${(wanted.reduce((n, r) => n + (existsSync(join(SHOTS, r)) ? statSync(join(SHOTS, r)).size : 0), 0) / 1e6).toFixed(0)} MB)`)

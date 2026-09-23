@@ -84,9 +84,9 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
       note: "Where somebody has photogrammetry, mesh or a point cloud, as opposed to a gridded DEM. Bing and Google are city-scale photorealistic 3D, Esri's are Integrated Mesh scene layers published one service per capture - a city, a district or a single drone flight - and FLAI is open airborne LiDAR. Only Esri publishes a list; the rest are read from the provider's own data.",
       leaves: [
         { id: "bing3d", label: "Bing Maps 3D", color: OVERLAY_COLORS.bing3d, detail: "photogrammetry mesh, ~2.4 km" },
-        { id: "google3d", label: "Google photorealistic 3D", color: OVERLAY_COLORS.google3d, detail: "decoded from Google's own coverage layer" },
+        { id: "google3d", label: "Google photorealistic 3D", color: OVERLAY_COLORS.google3d, detail: "decoded from Google's layer" },
         { id: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai, detail: "114 open COPC surveys" },
-        { id: "esri3d", label: "Esri Integrated Mesh", color: OVERLAY_COLORS.esri3d, detail: "1 719 public I3S captures of 5 km\u00b2 or more, cities down to districts" },
+        { id: "esri3d", label: "Esri Integrated Mesh", color: OVERLAY_COLORS.esri3d, detail: "open I3S, \u2265 5 km\u00b2" },
       ] },
     { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category })) },

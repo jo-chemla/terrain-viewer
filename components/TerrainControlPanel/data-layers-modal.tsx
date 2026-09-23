@@ -65,7 +65,7 @@ const GROUPS: Group[] = [
       // other mode is drawn over or blended with, and it is the one thing
       // here that is not derived from elevation at all. Hard shadows moved
       // down to Light, where the sun already lives.
-      { key: "showRasterBasemap", label: "Basemap imagery", image: "osm-liberty-3d.jpg", blurb: "Satellite, aerial or vector imagery draped on the terrain, from any of the basemap sources." },
+      { key: "showRasterBasemap", label: "Basemap imagery", image: "viz-modes/basemap.jpg", blurb: "Satellite, aerial or vector imagery draped on the terrain, from any of the basemap sources." },
     ],
   },
   {

@@ -363,19 +363,26 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
 
   // Resolving Wayback's releases here walks EVERY release's tilemap at this
   // location - the single most expensive thing this panel does, repeated on
-  // every settled camera. It is only worth paying when some side's pill set
-  // actually asks for Esri ticks, so check that first. Deliberately not
-  // reusing timelineSourcesForPills below: that one resolves to the active
-  // side, and a hidden side still draws its own ticks. An unset list means
-  // the defaults, which include wayback.
+  // every settled camera. Two conditions have to hold before it is worth
+  // paying, and BOTH modes can satisfy them: app mode is irrelevant, what
+  // matters is that some view A...H is actually showing a historical basemap
+  // AND that view's timeline has the ESRI Wayback pill on, i.e. its ticks are
+  // wanted. A view sitting on Google Hybrid needs no ticks however its pills
+  // are set, and a view on Google Earth Historical with the ESRI pill off
+  // needs no ESRI ticks.
+  //
+  // Deliberately NOT reusing timelineSourcesForPills below: that resolves to
+  // whichever side the pill row is currently editing, while every showing
+  // view draws its own ticks. An unset list means the defaults, which include
+  // wayback.
   const waybackWanted = useMemo(() => {
-    let configured = false
     for (const side of VIEW_IDS) {
-      const list = state[viewFieldName(side, "timelineSources", true)] ?? (side === "A" ? state.timelineSources : undefined)
-      if (list?.length) { configured = true; if (list.includes("wayback")) return true }
+      if (!activeViews.includes(side) || !isHistoricalFor(side)) continue
+      const list = state[viewFieldName(side, "timelineSources", true)] ?? state.timelineSources
+      if (!list?.length || list.includes("wayback")) return true
     }
-    return !configured
-  }, [state])
+    return false
+  }, [state, activeViews, isHistoricalFor])
   const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom, waybackWanted)
   // REAL per-tile imagery capture dates for every release at this location —
   // ticks are positioned by these (the actual date the imagery was taken),

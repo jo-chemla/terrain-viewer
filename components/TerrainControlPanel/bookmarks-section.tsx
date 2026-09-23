@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { useAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
 import {
-  Bookmark as BookmarkIcon, Trash2, Pencil, GalleryThumbnails, Upload, Download as DownloadIcon, ImageOff, Plus, ChevronDown,
+  Bookmark as BookmarkIcon, Trash2, Pencil, Images, Upload, Download as DownloadIcon, ImageOff, Plus, ChevronDown,
   ChevronsDownUp, ChevronsUpDown, Edit, List, LayoutGrid, Star,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -664,8 +664,11 @@ export const BookmarksSection: React.FC<{
       // actions inside the list.
       headerExtra={
         <TooltipIconButton
-          icon={GalleryThumbnails}
-          tooltip="Gallery - every saved view fullscreen"
+          // Images (a stack of pictures), not GalleryThumbnails (a frame with
+          // a filmstrip beneath it) - that one reads as a carousel control,
+          // which is not what this opens.
+          icon={Images}
+          tooltip="Gallery - every saved view, fullscreen"
           onClick={() => setIsGalleryOpen(true)}
           disabled={bookmarks.length === 0}
         />

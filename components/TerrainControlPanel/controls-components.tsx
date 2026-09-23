@@ -229,8 +229,13 @@ export const Section: React.FC<{
   // tour (product-tour.tsx) to spotlight/anchor a whole section by its
   // title, without needing a forwarded ref through every call site.
   id?: string
+  // Replaces the default open/close chevron entirely. One section (Visualization
+  // Modes) folds this control together with its pin into a single three-state
+  // button, and a chevron sitting next to a pin that both mean "state of this
+  // section" was one control too many.
+  headerChevron?: React.ReactNode
   children: React.ReactNode
-}> = ({ title, isOpen, onOpenChange, withSeparator = true, headerExtra, pulseKey, id, children }) => {
+}> = ({ title, isOpen, onOpenChange, withSeparator = true, headerExtra, pulseKey, id, headerChevron, children }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   const [vizActivation] = useAtom(vizActivationAtom)
   const autoId = useId()
@@ -289,9 +294,11 @@ export const Section: React.FC<{
           </CollapsibleTrigger>
           <div className="flex items-center gap-3 shrink-0">
             {headerExtra}
-            <CollapsibleTrigger className="cursor-pointer">
-              <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-            </CollapsibleTrigger>
+            {headerChevron ?? (
+              <CollapsibleTrigger className="cursor-pointer">
+                <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+              </CollapsibleTrigger>
+            )}
           </div>
         </div>
         <SectionIdContext.Provider value={autoId}>
@@ -369,6 +376,56 @@ export const AdvancedModeToggle: React.FC<{ advanced: boolean; onToggle: () => v
 // TerrainControlPanel.tsx). Reusing that pattern instead of a plain icon Button
 // is deliberate: a ghost Button has no persistent on/off look, which read as a
 // harsh, always-black icon with no indication of pinned state.
+/** Three states in one control, replacing a chevron AND a pin sitting side by
+ *  side: folded (chevron down) -> expanded (chevron up) -> pinned (pin, stays
+ *  expanded through "Fold all sections") -> folded. Clicking the section TITLE
+ *  still behaves as before, including refusing to collapse while pinned, so
+ *  this button is the only way out of the pinned state - which is what makes
+ *  the cycle discoverable rather than a trap. */
+export const SectionFoldPinToggle: React.FC<{
+  isOpen: boolean; pinned: boolean
+  onChange: (next: { isOpen: boolean; pinned: boolean }) => void
+  wiggleNonce?: number
+}> = ({ isOpen, pinned, onChange, wiggleNonce = 0 }) => {
+  const state = pinned ? "pinned" : isOpen ? "expanded" : "folded"
+  const next = state === "folded"
+    ? { isOpen: true, pinned: false }
+    : state === "expanded"
+      ? { isOpen: true, pinned: true }
+      : { isOpen: false, pinned: false }
+  const label = {
+    folded: "Folded - click to expand",
+    expanded: "Expanded - click to pin it open",
+    pinned: "Pinned open (survives \u201cFold all sections\u201d) - click to fold",
+  }[state]
+  const Icon = state === "pinned" ? Pin : ChevronDown
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        delay={0}
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            onClick={() => onChange(next)}
+            className="cursor-pointer inline-flex items-center justify-center"
+          >
+            <Icon
+              key={state === "pinned" ? wiggleNonce : undefined}
+              className={cn(
+                "h-4 w-4 shrink-0 transition-transform",
+                state === "expanded" && "rotate-180",
+                state === "pinned" && wiggleNonce > 0 && "animate-pin-wiggle",
+              )}
+            />
+          </button>
+        }
+      />
+      <TooltipContent><p>{label}</p></TooltipContent>
+    </Tooltip>
+  )
+}
+
 export const PinToggle: React.FC<{ pinned: boolean; onToggle: () => void; wiggleNonce?: number }> = ({ pinned, onToggle, wiggleNonce = 0 }) => (
   <Tooltip>
     <TooltipTrigger

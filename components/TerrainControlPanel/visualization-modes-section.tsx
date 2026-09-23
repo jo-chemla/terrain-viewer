@@ -2,7 +2,7 @@ import type React from "react"
 import { useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { activeProjectConfigAtom, vizModePinnedAtom, dataLayersModalOpenAtom } from "@/lib/settings-atoms"
-import { Section, CheckboxWithSlider, PinToggle, TooltipIconButton } from "./controls-components"
+import { Section, CheckboxWithSlider, SectionFoldPinToggle, TooltipIconButton } from "./controls-components"
 import { Layers } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 
@@ -14,9 +14,10 @@ export const VisualizationModesSection: React.FC<{
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const [vizModePinned, setVizModePinned] = useAtom(vizModePinnedAtom)
   const openDataLayers = useSetAtom(dataLayersModalOpenAtom)
-  // EXPERIMENTAL: while pinned, this section's own chevron can't collapse it
-  // either (not just "Fold all sections") — clicking it is a no-op that shakes
-  // the pin icon instead, forcing an explicit unpin first.
+  // While pinned, clicking the section TITLE can't collapse it (not just
+  // "Fold all sections") — it's a no-op that shakes the pin instead. The
+  // three-state control in the header is the way out: folded -> expanded ->
+  // pinned -> folded.
   const [wiggleNonce, setWiggleNonce] = useState(0)
   const handleOpenChange = (open: boolean) => {
     if (!open && vizModePinned) {
@@ -44,8 +45,15 @@ export const VisualizationModesSection: React.FC<{
             tooltip="Data layers: every visualization mode, with a picture"
             onClick={() => openDataLayers(true)}
           />
-          <PinToggle pinned={vizModePinned} onToggle={() => setVizModePinned(!vizModePinned)} wiggleNonce={wiggleNonce} />
         </div>
+      }
+      headerChevron={
+        <SectionFoldPinToggle
+          isOpen={isOpen}
+          pinned={vizModePinned}
+          wiggleNonce={wiggleNonce}
+          onChange={({ isOpen: open, pinned }) => { setVizModePinned(pinned); onOpenChange(open) }}
+        />
       }
     >
       {!hideContours && (

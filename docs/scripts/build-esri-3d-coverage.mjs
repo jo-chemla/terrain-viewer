@@ -38,6 +38,22 @@
 // items under MIN_AREA_KM2 are dropped as too small to be a clickable
 // footprint at any zoom you would ask a coverage question from.
 //
+// ## access:public is not the same as "you can open it"
+//
+// The search filter `access:public` is about the ITEM's sharing level, not
+// the service behind it. Plenty of items are shared publicly while the
+// SceneServer they point at sits behind an ArcGIS login or a private org's
+// tile host, so the footprint drew, the link opened, and Scene Viewer asked
+// for credentials. Two real examples over the same French city: "CACP_2019_
+// mesh3D_wgs84" loads for anyone, while "CACP - 2019 - Mesh3D" and
+// "mesh3D_V1" - same mesh, different items - do not.
+//
+// Nothing in the item record says which is which, so every surviving service
+// is asked for its own `?f=json` anonymously and dropped unless it answers
+// like a scene service. An auth-walled one returns HTTP 403, or HTTP 200 with
+// an `error` object (code 499 "Token Required" / 498 "Invalid Token"), which
+// is why the body has to be parsed rather than the status trusted.
+//
 // The overlay cannot RENDER any of it - I3S is Esri's own format and maplibre
 // has no reader. It answers "who has photogrammetry here", alongside Bing and
 // Google, and clicking a footprint opens that one service in Esri's Scene
@@ -113,8 +129,42 @@ for (let year = FIRST_YEAR - 1; year <= nowYear; year++) {
 }
 console.log(`${seen.size} Integrated Mesh services, ${requests} search requests, ${skippedSpan} dropped for spanning > ${MAX_SPAN_DEG} deg, ${skippedSmall} dropped under ${MIN_AREA_KM2} km2`)
 
+// ---- drop anything that needs a login --------------------------------------
+const CHECK_CONCURRENCY = 24
+/** True when this SceneServer answers an anonymous request like a real
+ *  service. Anything else - 403, a token error in a 200 body, a redirect to
+ *  the sign-in page, a timeout - means a reader cannot open it. */
+async function isOpen(url) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const ctl = AbortSignal.timeout(15000)
+      const r = await fetch(`${url.replace(/\/+$/, "")}?f=json`, { signal: ctl, redirect: "follow" })
+      if (r.status === 403 || r.status === 401) return false
+      if (!r.ok) { if (r.status >= 500) continue; return false }
+      const j = await r.json().catch(() => null)
+      if (!j || j.error) return false
+      // A scene service describes itself; the sign-in page does not.
+      return !!(j.layers || j.serviceItemId || j.name || j.serviceName)
+    } catch { /* retry once, then give up */ }
+  }
+  return false
+}
+
+const candidates = [...seen.values()]
+const open = []
+let checked = 0
+await Promise.all(Array.from({ length: CHECK_CONCURRENCY }, async () => {
+  for (;;) {
+    const c = candidates.shift()
+    if (!c) return
+    if (await isOpen(c.it.url)) open.push(c)
+    if (++checked % 250 === 0) console.log(`  checked ${checked}, ${open.length} openly readable so far`)
+  }
+}))
+console.log(`${open.length} of ${checked} services answer anonymously; ${checked - open.length} need a login and are dropped`)
+
 const round = (v) => Math.round(v * 1e4) / 1e4
-const features = [...seen.values()].map(({ it, w, s, e, n }) => ({
+const features = open.map(({ it, w, s, e, n }) => ({
   type: "Feature",
   properties: {
     name: it.title,
