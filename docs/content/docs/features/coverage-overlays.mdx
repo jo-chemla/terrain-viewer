@@ -63,6 +63,7 @@ Overlays are drawn on all views of a split or grid layout. The selection is sess
 ## Where the footprints come from
 
 | Group | Geometry | Source |
+
 |---|---|---|
 | Mapterhorn | Vector tiles, per national source | Mapterhorn coverage tiles + `attribution.json` |
 | Terrain / basemap library | Bounds rectangles | `bounds` of each entry in `lib/custom-sources.json` |
@@ -72,27 +73,42 @@ Overlays are drawn on all views of a split or grid layout. The selection is sess
 | Google 3D | Decoded polygons, dissolved, ~500 m | Google’s own coverage layer, fetched from `maps.googleapis.com/maps/vt` at z8–z10 with a layer id minted from an API key, decoded (XOR 0x9b + protobuf + triangle mesh) by `docs/scripts/google3d-coverage.ts`, then unioned and simplified by `docs/scripts/dissolve-google-3d-coverage.mjs` into `public/coverage/google-3d.geojson` |
 | FLAI open LiDAR | Traced octree cells, per dataset | Each survey’s COPC octree hierarchy — the overview file’s occupied nodes, read over range requests without downloading any points — by `docs/scripts/build-flai-coverage.mjs` into `public/coverage/flai-open-lidar.geojson`. FLAI’s API carries no geometry at all |
 | Esri Integrated Mesh | One rectangle per scene layer | ArcGIS Online’s public search API, which returns each item’s extent, by `docs/scripts/build-esri-3d-coverage.mjs` into `public/coverage/esri-3d.geojson` — no key, no crawl. Matched on `typeKeywords:"IntegratedMesh"`, which ArcGIS sets itself when the layer is published; the free-text tag `"integrated mesh"` finds 48 layers where the type keyword finds 10 900. Queried a year at a time, since search caps any one query at 10 000 items. Deduped by service URL, since the same hosted mesh is routinely registered as several items
+
 ## How the 3D and LiDAR footprints are built
+
 None of these is built by the deploy workflow. Each is a script under `docs/scripts/`, run by hand, whose output is committed under `public/coverage/`; the GitHub Action only builds the app and this docs site. Times are from one machine on 2026-09-24.
+
 ### Google photorealistic 3D
+
 Not rasterised, not screen-scraped from the Maps JavaScript API, and not derived from the 3D Tiles API — that tree refines to 2 m over rural Nepal exactly as over central Paris, so its depth says nothing about photogrammetry (measured by `probe-google-3d-detail.mjs`). It is Google's **own coverage layer**, the one drawn on the Photorealistic 3D Tiles coverage page, which turns out to be an ordinary Maps vector layer: tiles from `maps.googleapis.com/maps/vt` with a layer id (`ml:xs:c:…`) that `mapConfigs:batchGet` mints from a plain API key. A tile body is XOR 0x9b, then a protobuf of a **pre‑triangulated mesh** in tile‑local integer coordinates on an 8 192 grid.
+
 Three stages, in this order:
+
 1. **Fetch** — `docs/scripts/google3d-coverage.ts fetch`, hierarchical from z5: an empty tile is a fixed 36‑byte stub, so only non‑empty children are descended. Three target zooms, because the layer is generalised per zoom and no single one is complete — London, New York and Berlin only exist at z10, Tokyo only at z8, Tours only at z9. Tiles land in `.cache/google3d-z8/`, `-z9/`, `-z10/` (32 / 62 / 95 MB). About 10 s, 24 s and 60 s.
 2. **Decode** — `google3d-coverage.ts decode`: XOR, protobuf, triangles → rings by cancelling shared edges. Two things that earlier decoders got wrong and that silently delete cities: zero‑area collinear triangles are part of the mesh and must be counted, and vertices must keep their ~0.7 % overshoot rather than be clamped to the tile box. Coordinates go from the 8 192 grid to lng/lat, so the only quantisation at this point is the tile's own: 4.8 m at z10, 9.6 m at z9, 19 m at z8. Output `.cache/google3d-z{8,9,10}.geojson` — 17 937 / 24 137 / 31 243 polygons, 53 / 84 / 88 MB, about 9 s each. These are the files to inspect if you want to see the raw layer (kepler.gl opens them).
 3. **Dissolve** — `docs/scripts/dissolve-google-3d-coverage.mjs`, all three zooms at once: snap every ring to 3 decimals (~110 m) and clean it, drop anything under 1 000 m²; bucket by 5°×5°; union each bucket in chunks of 400, thin each partial (125 m), then tree‑merge the partials pairwise until nothing merges; then per merged polygon drop holes under 1 km², simplify at ~500 m, truncate to 3 decimals, re‑node by unioning the polygon with itself, drop small holes again, drop outer rings under 1 km². 73 317 polygons → 7 268, 2.53 MB, 157 s with an 8 GB heap. Output `public/coverage/google-3d.geojson`.
+
 Why that order matters is written up in the script's header: the clipper (`polygon-clipping`, under `@turf/turf`) throws on full‑precision input, an early fallback returned *unmerged halves* so three zooms shipped stacked, and the merge loop later gave up on a pass that could not pair anything. Checked against a Paris window: 10 polygons, no overlapping pairs, 1 333 km² against 1 346 km² for the raw union; and an 18‑city checklist all still inside.
+
 ```text
 C:\Users\jonathan\.t3\worktrees\elevation-terrain-visualizer\t3code-619d1237\docs\scripts\google3d-coverage.ts
 C:\Users\jonathan\.t3\worktrees\elevation-terrain-visualizer\t3code-619d1237\docs\scripts\dissolve-google-3d-coverage.mjs
 C:\Users\jonathan\.t3\worktrees\elevation-terrain-visualizer\t3code-619d1237\.cache\google3d-z10.geojson      (raw decode, 88 MB)
 C:\Users\jonathan\.t3\worktrees\elevation-terrain-visualizer\t3code-619d1237\public\coverage\google-3d.geojson (shipped, 2.5 MB)
 ```
+
 `pnpm google-3d-fetch` (needs `GOOGLE_KEY`) then `pnpm google-3d-dissolve` reproduces it, about five minutes end to end. Superseded but kept: `build-google-3d-coverage.mjs` classifies tiles by *response size* and needs no key (~39 km cells — the fallback if the layer id minting ever stops), `build-google-3d-coverage.py` is a shapely port of the decoder, and `decode-google-3d-coverage.mjs` is the earlier hand‑rolled decoder with the two bugs above.
+
 ### Bing Maps 3D
+
 Bing serves its `tf=3dv4` photogrammetry as a standard OGC 3D Tiles 1.1 **implicit** tileset rooted at the `td1` manifest: four Web Mercator faces, each a quadtree of `subt` subtree binaries whose `contentAvailability` bitstream says exactly which tiles carry a mesh. `build-bing-3d-coverage.mjs` reads the 4 root subtrees, then every level‑7 subtree they mark (469), emits the content tiles at level 13 (161 276) and merges adjacent ones into rectangles. No key, 6 s. Exact by construction — it is the service's own availability data.
+
 ### FLAI open LiDAR
+
 FLAI's public API lists 114 datasets and carries no geometry. Each dataset has an `overview` COPC on a public bucket, and a COPC is an octree with a published index, so `build-flai-coverage.mjs` range‑reads the 375‑byte LAS header, the `copc info` VLR and the hierarchy pages, and takes the occupied nodes at level 7 as the footprint — without downloading a single point. Only nodes at or below the target level count (a COPC keeps a coarse sample at every ancestor, so counting ancestors fills the whole square). Footprints are reprojected from each dataset's CRS with proj4, definitions from epsg.io. France comes out at 33 % of its bounding box; the country is 30 %. About a minute.
+
 ### Esri Integrated Mesh
+
 ArcGIS Online's public search API, `typeKeywords:"IntegratedMesh" AND access:public` — the type keyword ArcGIS sets itself on publish, where the free‑text tag finds 48 layers instead of 10 887. Queried one `modified` year at a time to stay under the 10 000‑item cap, deduplicated by service URL, dropped under 5 km² of declared extent (drone flights over one building site), and — because `access:public` is the item's sharing level, not the service's — every survivor is asked for its own `?f=json` anonymously and dropped if it answers with a token error or 403 (75 did). 1 644 footprints, 121 search requests plus one check per service, about two minutes.
 
 Library bounds are the advertised extent of the service, not a survey footprint: a national LiDAR that covers 75 % of the country still shows its whole bounding box. Mapterhorn and the Editor Layer Index carry real polygons.
