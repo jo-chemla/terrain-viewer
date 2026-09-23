@@ -1,5 +1,5 @@
 import type React from "react"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { SquareArrowOutUpRight, ChevronDown, Plus, X } from "lucide-react"
@@ -133,22 +133,16 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
       return `https://www.bing.com/maps?cp=${lat}~${lng}&lvl=${zoom.toFixed(1)}&style=3d&eh=${eh}&pi=${pitch.toFixed(2)}&dir=${bearing.toFixed(2)}`
     },
   },
-  {
-    id: "esri-3d-buildings",
-    label: "Esri 3D Buildings (Scene Viewer)",
-    // Esri's global 3D Buildings scene layer - modelled buildings from TomTom,
-    // Vantor, Community Maps and Overture, refreshed quarterly - opened in
-    // Esri's own Scene Viewer, which is the only thing that renders I3S.
-    // `viewpoint=cam:` takes the camera as x,y,z;heading,tilt. z is the
-    // camera's height in metres; the Google Earth altitude formula is about
-    // right here (Scene Viewer frames a z16 city view from a few hundred
-    // metres). Tilt is from nadir, matching maplibre's pitch.
-    buildUrl: ({ lat, lng, zoom, bearing, pitch }) => {
-      const alt = Math.round(((38000 * 4096) / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180))
-      const heading = (((bearing % 360) + 360) % 360).toFixed(1)
-      return `https://www.arcgis.com/home/webscene/viewer.html?layers=b8fec5af7dfe4866b1b8ac2d2800f282&viewpoint=cam:${lng.toFixed(5)},${lat.toFixed(5)},${alt};${heading},${pitch.toFixed(1)}`
-    },
-  },
+  // Esri 3D Buildings (Scene Viewer, layer b8fec5af7dfe4866b1b8ac2d2800f282)
+  // used to be a destination here and was removed: it is Esri's one global
+  // I3S layer of MODELLED buildings (TomTom, Vantor, Community Maps,
+  // Overture), not photogrammetry, so as an "open this view somewhere that
+  // shows real 3D" link next to Google Earth and Bing Maps 3D it promised
+  // something it does not deliver. Esri has no global photorealistic mesh at
+  // all. What it does have is ~10 900 per-capture Integrated Mesh services,
+  // which is a coverage question rather than a fixed destination - they are
+  // the "Esri Integrated Mesh" coverage overlay, and clicking one of those
+  // footprints opens that service in Scene Viewer (lib/coverage-overlays.ts).
   {
     id: "bbbike-mapcompare",
     label: "BBBike MapCompare",
@@ -299,6 +293,15 @@ export const OpenInLinksButton: React.FC<{
       isCustom: true,
     })),
   ]
+
+  // A destination that no longer exists stays in localStorage forever - the
+  // button would then show the first built-in's label and do nothing when
+  // clicked. Happens to anyone who had picked "Esri 3D Buildings" before it
+  // was removed, and to anyone importing a project that named one.
+  useEffect(() => {
+    if (!allDestinations.some((d) => d.id === selectedId)) setSelectedId(DEFAULT_SELECTED)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, customDestinations])
 
   const buildContext = useCallback((): OpenInContext => {
     const bounds = mapRef.current?.getMap()?.getBounds()
