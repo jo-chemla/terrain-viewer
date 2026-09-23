@@ -120,6 +120,28 @@ chase them and a median alone would throw away the agreeing half. The toast
 reports the sample count, the tile count, the zoom and the median alongside the
 result, so a suspicious answer is visible as one.
 
+### The size of the offset tells you what it is
+
+A useful diagnostic, borrowed from [uw-cryo/groundcontrol](https://github.com/uw-cryo/groundcontrol)'s
+vertical-datum guide: **a measured offset of geoid magnitude means the datum
+assumption is wrong, not that the sources are misregistered.** Co-registration
+bias between two surveys of the same ground is metres. Ellipsoidal against
+orthometric is tens of metres, and up to ±100 m — −105 m south of India,
++85 m around Iceland. If the button reports 40 m over the Himalaya, the answer
+is not to accept it; it is that one source is on the ellipsoid and the other
+is not.
+
+The library ships both geoid undulation grids (EGM96 15′ and EGM2008 2.5′) as
+ordinary terrain sources, so that conversion is itself a difference: subtract
+the geoid from an ellipsoidal DEM and the result is orthometric.
+
+Worth knowing for the sources that are explicitly ellipsoidal: PGC's ArcticDEM
+and REMA, Re:Earth Terrain, and — when access to it ever arrives — Vantor
+Precision3D, which is stated on **WGS84 G1674** specifically rather than "WGS84"
+generally. The WGS84 *ensemble* is about 2 m of deliberate ambiguity across its
+realizations, which is why a source's realization is worth recording where a
+producer states one.
+
 <Callout type="warn">
 Measuring is right for a datum or co-registration difference, and wrong for a
 true nDSM: there, zero means bare earth and the constant you would remove *is*

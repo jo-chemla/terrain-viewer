@@ -14,5 +14,5 @@
 - [Titiler DEM gotchas](titiler-dem-gotchas.md) — pass the file nodata, reproject=bilinear for the warp, maxzoom decides who upsamples; how the DSM − DTM derived source (demdiff://) is wired
 - [Sprint handoff 2026-09-19](handoff-2026-09-19.md) — snapshot compositing, URL API and docs generators, derived terrain (dem-diff), titiler DEM fixes, Bhotekoshi on NextGIS: shipped, unverified, deferred, gotchas
 - [Library browse entries (deferred idea)](library-browse-entries-idea.md) — Library rows that open the Add modal on a preset tab instead of resolving to one URL; why EarthDEM needs it.
-- [Commercial DEM API access (wanted)](commercial-dem-api-access.md) — Vantor Precision3D and Airbus WorldDEM: why CSDA is discovery-only, what a key would unlock
+- [Commercial DEM API access (wanted)](commercial-dem-api-access.md) — Vantor/Airbus: the Maxar Discovery STAC endpoint to ask for, product vertical datums, why CSDA is discovery-only
 - [Google 3D coverage](google-3d-coverage-dead-end.md) — the 3D Tiles tree cannot answer it (depth is the same over rural Nepal and Paris); Earth’s own bpb layer can, classified by response size
