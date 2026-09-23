@@ -18,7 +18,8 @@
     "url-params": "node docs/scripts/build-url-params.mjs",
     "bing-3d-coverage": "node docs/scripts/build-bing-3d-coverage.mjs",
     "google-3d-coverage": "node docs/scripts/build-google-3d-coverage.mjs",
-    "flai-coverage": "node docs/scripts/build-flai-coverage.mjs"
+    "flai-coverage": "node docs/scripts/build-flai-coverage.mjs",
+    "open-buildings-vrt": "node docs/scripts/build-open-buildings-vrt.mjs"
   },
   "packageManager": "pnpm@10.20.0",
   "dependencies": {

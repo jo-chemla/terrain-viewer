@@ -37,8 +37,9 @@ import { toTileImage, type TileImage } from "./tile-image"
  *
  * - No `ComplexSource` scale/offset and no `<LUT>`; `<NODATA>` is honoured,
  *   which is the part that matters for elevation.
- * - Only the first band. An elevation VRT is single-band and a multi-band one
- *   would need a channel policy this protocol has no way to express.
+ * - One band per source, the one `<SourceBand>` names (default 1). A VRT that
+ *   combined several into one output band would need a policy this has no way
+ *   to express.
  * - No recursion into sources that are themselves VRTs.
  * - A tile touching more than `MAX_SOURCES_PER_TILE` files is refused rather
  *   than served: zoomed far out over a global mosaic that is hundreds of
@@ -83,6 +84,9 @@ class TileNotFound extends Error {
 
 interface VrtSource {
   filename: string
+  /** 1-based `<SourceBand>`; a mosaic of multi-band files needs it, e.g. the
+   *  Open Buildings tiles whose height is band 2 of three. */
+  band: number
   srcX: number; srcY: number; srcW: number; srcH: number
   dstX: number; dstY: number; dstW: number; dstH: number
   nodata: number | null
@@ -146,10 +150,15 @@ function parseVrt(xml: string, vrtUrl: string): VrtDoc {
     // relativeToVRT="1" resolves against the VRT's own directory; anything else
     // is taken as already absolute (an http URL, or a /vsicurl/ path this has
     // no way to reach, which will simply fail its read).
-    const filename = fnEl?.getAttribute("relativeToVRT") === "1" ? new URL(raw, vrtUrl).toString() : raw
+    // `/vsicurl/https://...` is GDAL's own way of saying "this is a URL", and
+    // a VRT written for titiler will use it. Strip it and the path is one.
+    const bare = raw.replace(/^\/vsicurl\//, "")
+    const filename = fnEl?.getAttribute("relativeToVRT") === "1" ? new URL(bare, vrtUrl).toString() : bare
     const nd = s.querySelector("NODATA")?.textContent
+    const bandText = s.querySelector("SourceBand")?.textContent?.trim()
     const entry: VrtSource = {
       filename,
+      band: bandText && Number(bandText) > 0 ? Number(bandText) : 1,
       srcX: num(src, "xOff"), srcY: num(src, "yOff"), srcW: num(src, "xSize"), srcH: num(src, "ySize"),
       dstX: num(dst, "xOff"), dstY: num(dst, "yOff"), dstW: num(dst, "xSize"), dstH: num(dst, "ySize"),
       nodata: nd != null && nd !== "" ? Number(nd) : null,
@@ -469,7 +478,7 @@ export async function vrtProtocol(
       // same band (-99999 for RGE ALTI), and interpolating across its edge
       // produced values like -11 650 m - inside every sane guard, and a
       // kilometres-deep gash along every source boundary.
-      const rasters = await tiff.readRasters({ window: win, width: outW, height: outH, resampleMethod: "nearest", fillValue: NaN, signal })
+      const rasters = await tiff.readRasters({ window: win, width: outW, height: outH, resampleMethod: "nearest", fillValue: NaN, samples: [s.band - 1], signal })
       const band = (Array.isArray(rasters) ? rasters[0] : rasters) as unknown as ArrayLike<number>
       return { s, win, outW, outH, band }
     } catch {

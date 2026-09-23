@@ -914,6 +914,46 @@
             "infoUrl": "https://github.com/reearth/reearth-terrain"
         },
         {
+            "id": "custom-global-openbuildings-2023",
+            "name": "Global - Google Open Buildings 2.5D height 0.5m, 2023 (BRA sample) - VRT, CORS-missing",
+            "url": "https://terrain-viewer.iconem.com/vrt/open-buildings-01_EPSG_32723_2023_06_30.vrt",
+            "type": "vrt",
+            "loadWithSamples": false,
+            "cogViaTitiler": true,
+            "titilerNodata": -99,
+            "resolutionM": 0.5,
+            "bounds": [-47.55, -24.95, -44.4, -16.35],
+            "description": "Google Open Buildings 2.5D - the only PERIODIC open building-height product there is, one raster per year from 2016 to 2023 at 0.5 m, inferred from Sentinel-2 and Landsat. Google ships it as Earth Engine image manifests rather than anything a map can open, so docs/scripts/build-open-buildings-vrt.mjs turns one into a GDAL VRT over its COG tiles (band 2 of three is building_height, nodata -99). CORS-MISSING: storage.googleapis.com serves these objects publicly and answers Range requests but sends no Access-Control-Allow-Origin, so the in-browser reader cannot touch them and this is pinned to titiler. It is a building-height surface above bare ground, not terrain - over open country it reads 0. Sample is S2 cell 01, UTM 23S: the Brazilian coast from Santos up past Vitoria. 1173 manifests exist (39 cells x 73 zones x 8 years) and the script builds any of them. 2023 edition.",
+            "infoUrl": "https://sites.research.google/gr/open-buildings/temporal/"
+        },
+        {
+            "id": "custom-global-openbuildings-2016",
+            "name": "Global - Google Open Buildings 2.5D height 0.5m, 2016 (BRA sample) - VRT, CORS-missing",
+            "url": "https://terrain-viewer.iconem.com/vrt/open-buildings-01_EPSG_32723_2016_06_30.vrt",
+            "type": "vrt",
+            "loadWithSamples": false,
+            "cogViaTitiler": true,
+            "titilerNodata": -99,
+            "resolutionM": 0.5,
+            "bounds": [-47.55, -24.95, -44.4, -16.35],
+            "description": "Google Open Buildings 2.5D - the only PERIODIC open building-height product there is, one raster per year from 2016 to 2023 at 0.5 m, inferred from Sentinel-2 and Landsat. Google ships it as Earth Engine image manifests rather than anything a map can open, so docs/scripts/build-open-buildings-vrt.mjs turns one into a GDAL VRT over its COG tiles (band 2 of three is building_height, nodata -99). CORS-MISSING: storage.googleapis.com serves these objects publicly and answers Range requests but sends no Access-Control-Allow-Origin, so the in-browser reader cannot touch them and this is pinned to titiler. It is a building-height surface above bare ground, not terrain - over open country it reads 0. Sample is S2 cell 01, UTM 23S: the Brazilian coast from Santos up past Vitoria. 1173 manifests exist (39 cells x 73 zones x 8 years) and the script builds any of them. 2016 edition, the first year of the series - difference it against 2023 to read seven years of building growth.",
+            "infoUrl": "https://sites.research.google/gr/open-buildings/temporal/"
+        },
+        {
+            "id": "custom-global-openbuildings-growth",
+            "name": "Global - Difference: Open Buildings 2.5D 2023 - 2016 (BRA sample) - derived",
+            "url": "",
+            "type": "dem-diff",
+            "loadWithSamples": false,
+            "diffMinuendId": "custom-global-openbuildings-2023",
+            "diffSubtrahendId": "custom-global-openbuildings-2016",
+            "diffOffsetM": 0,
+            "resolutionM": 0.5,
+            "bounds": [-47.55, -24.95, -44.4, -16.35],
+            "description": "Seven years of building growth as elevation change: the 2023 Open Buildings 2.5D height raster minus the 2016 one. Positive is a new or taller building, zero is unchanged ground. This is what a periodic building-height product is FOR, and nothing else open offers it. Leave the offset at 0 - both sides share a datum by construction, so measuring one would only subtract the growth you came to see. Both operands are CORS-missing and pinned to titiler.",
+            "infoUrl": "https://sites.research.google/gr/open-buildings/temporal/"
+        },
+        {
             "id": "custom-au-nsw-dem5",
             "name": "AUS - NSW 5m statewide - ImageServer raw Float32",
             "url": "maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_5M_Elevation/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=514,514&format=tiff&pixelType=F32&noData=-9999&noDataInterpretation=esriNoDataMatchAny&f=image",
