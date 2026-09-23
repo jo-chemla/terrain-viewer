@@ -158,6 +158,9 @@ const PADDING_EASE_MS = 200
 // the sub-metre wobble between one re-anchor's chosen center and the next —
 // see resettleTerrainElevation for why an exact test would never converge.
 const ELEVATION_SETTLE_EPSILON_M = 1
+// How far past a custom source's native maxzoom the camera may still go, with
+// maplibre resampling the parent tile — see effectiveMaxZoom.
+const OVERZOOM_LEVELS = 2
 const SLOPE_SOURCE_MODES = ['plantopo', 'client'] as const
 // 'shape-index' stays a valid internal curvature:// mode (ShapeIndexSource
 // below reads it directly) even though nothing in the UI exposes setting
@@ -1544,6 +1547,15 @@ export function TerrainViewer() {
     // lib/cog-contour-protocol.ts for why this can't be maplibre-contour's own
     // DemSource/worker path.
     maplibregl.addProtocol('cog-contour', cogContourProtocol)
+    // maplibre queues ALL raster and raster-dem tile loads through one global
+    // budget (MAX_PARALLEL_IMAGE_REQUESTS, default 16), and a custom protocol's
+    // tile holds its slot for as long as the handler takes. This app's handlers
+    // are slow on purpose - a VRT tile Range-reads several COGs, an SVF tile
+    // ray-marches - so sixteen of them in flight starved the basemap of every
+    // slot and left the map grey while the terrain resolved. Raising the budget
+    // lets requests to OTHER hosts through; the browser's own ~6-per-host cap
+    // still does the real throttling.
+    maplibregl.config.MAX_PARALLEL_IMAGE_REQUESTS = 48
     maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
     // vrt://<encoded .vrt url>/{z}/{x}/{y} - a GDAL VRT mosaic read in the
     // browser: its XML index says which COGs a tile touches, geotiff.js
@@ -2972,7 +2984,16 @@ export function TerrainViewer() {
           isTerrainCustom && zoomRangeA ? zoomRangeA.maxzoom : null,
           isBasemapCustom && zoomRangeBasemap ? zoomRangeBasemap.maxzoom : null,
       ].filter((v): v is number => v !== null)
-      return candidates.length > 0 ? Math.max(...candidates) : 22
+      // + OVERZOOM_LEVELS: a source's maxzoom is where one tile pixel meets one
+      // screen pixel, not where the data stops being worth looking at. Past it
+      // maplibre resamples the parent tile, which is the ordinary, useful
+      // behaviour every built-in source already gets (they are all left at 22) —
+      // and the layers that CAN still refine, a basemap or an overlay, keep
+      // refining. Hard-stopping the camera at a custom source's native GSD only
+      // made BYOD and library sources feel arbitrarily more restricted than the
+      // built-ins. Two levels is the same allowance the difference source
+      // already takes on its own Source (see MapSources.tsx).
+      return candidates.length > 0 ? Math.min(22, Math.max(...candidates) + OVERZOOM_LEVELS) : 22
   }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
 
   const effectiveMinZoom = useMemo(() => {

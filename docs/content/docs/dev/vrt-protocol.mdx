@@ -33,7 +33,9 @@ titiler does it by handing the whole problem over: `vrt:///vsicurl/<url>` throug
 
 A VRT is in whatever CRS its sources are, and MapLibre asks for Web Mercator. The library's three shipped mosaics are three different answers: AW3D30 is plain EPSG:4326, the OpenTopography LiDAR surveys are UTM zones, and the RGE ALTI repack is Lambert-93.
 
-The `<SRS>` element carries the projection as WKT and `proj4` — already a dependency — turns that into a transform. The inverse runs **per output pixel**, 65 536 of them for a 256 tile, measured at 35-50 ms. That is the honest cost of doing this client-side and it is well below the source reads.
+The `<SRS>` element carries the projection as WKT and `proj4` — already a dependency — turns that into a transform. It is **not** called per output pixel, though: 65 536 proj4 calls measured 21 ms of main-thread time per tile, and sixteen of those in a viewport is a third of a second of jank.
+
+GDAL's warper does not do it that way either. It builds an *approximate* transformer: evaluate the real projection on a coarse grid, interpolate between the nodes, and subdivide while the error is above a threshold — `-et`, 0.125 px by default. The same here, starting at 16 cells and doubling. The error is quadratic in cell size, so it is entirely a function of zoom; over Lambert-93 a 16-cell grid is 930 px out at z3, 0.2 px at z9 and 5×10⁻⁵ px at z15. The grid costs well under 1 ms.
 
 Two wrinkles the real files forced:
 

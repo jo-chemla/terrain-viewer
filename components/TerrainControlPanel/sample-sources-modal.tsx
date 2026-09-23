@@ -17,11 +17,14 @@ export interface SampleLike {
   loadWithSamples?: boolean
   resolutionM?: number
   bulkResolutionM?: number
+  /** [west, south, east, north] - the only thing that can tell a 4 km city
+   *  survey from a national mosaic, since neither declares its scope. */
+  bounds?: [number, number, number, number]
   url?: string
   infoUrl?: string
 }
 
-type SectionKey = "national" | "global" | "regional"
+type SectionKey = "national" | "global" | "regional" | "city"
 
 /** Bare host-and-path link for a source with no landing page recorded. */
 const endpointOf = (u: string) => {
@@ -32,8 +35,14 @@ const endpointOf = (u: string) => {
 const SECTIONS: { key: SectionKey; title: string; blurb: string }[] = [
   { key: "national", title: "Nation-wide", blurb: "Published by a national mapping agency, covering the whole country." },
   { key: "global", title: "Global", blurb: "Worldwide and polar products from research consortia." },
-  { key: "regional", title: "Sub-national and project scans", blurb: "A state, a province, or a single survey. Left out of Load all." },
+  { key: "regional", title: "Sub-national", blurb: "A state, a province, an island or a region - roughly 50 to 300 km across. Left out of Load all." },
+  { key: "city", title: "City and single-survey", blurb: "One city or one flight line, a few kilometres across. The finest data in the library, and useful for almost nowhere else. Left out of Load all." },
 ]
+
+/** Above this width (km) an entry is not a city survey, however it was filed.
+ *  Klaipeda, the largest thing on the city list, is 28 km across; the smallest
+ *  genuinely national entry, the Netherlands, is 332 km. */
+const CITY_MAX_KM = 30
 
 /** Top-level split for terrain: is this an upgrade over the built-in Mapterhorn? */
 type TierKey = "better" | "notBetter" | "bathy"
@@ -54,14 +63,31 @@ const VERDICT_STYLE: Record<MapterhornVerdict, { label: string; className: strin
   coarser: { label: "Coarser", className: "bg-orange-500/15 text-orange-700 dark:text-orange-300", title: "Mapterhorn ingested finer data" },
 }
 
+/** Width and height of a declared bounds box in km, or null. */
+function extentKm(bounds?: [number, number, number, number]): { x: number; y: number } | null {
+  if (!bounds || bounds.length !== 4) return null
+  const [w, s, e, n] = bounds
+  const midLat = (((s + n) / 2) * Math.PI) / 180
+  return { x: Math.abs(e - w) * 111.32 * Math.cos(midLat), y: Math.abs(n - s) * 110.57 }
+}
+
 /**
  * Which scope a sample belongs to. "Global - " is an explicit name prefix.
  * Regional entries are the ones custom-sources.json deliberately lists AFTER
  * the global block (its convention: sub-national sinks below the nationals) or
- * flags loadWithSamples: false (project scans). Nothing else needs a field.
+ * flags loadWithSamples: false (project scans).
+ *
+ * City scale is read off the declared bounds instead, because position in the
+ * file cannot see it: Dar es Salaam's Msimbazi basin is 4 x 4 km and Klaipeda
+ * is 28 x 25 km, and both sat under "Nation-wide" purely by being listed above
+ * the global block. Size alone would not do either - the Netherlands is 332 km
+ * across and unambiguously national - so it only ever promotes INTO the
+ * narrowest bucket, and the editorial ordering still decides everything else.
  */
 function sectionOf(s: SampleLike, index: number, lastGlobalIndex: number): SectionKey {
   if (s.name.startsWith("Global - ")) return "global"
+  const extent = extentKm(s.bounds)
+  if (extent && Math.max(extent.x, extent.y) < CITY_MAX_KM) return "city"
   if (s.loadWithSamples === false || (lastGlobalIndex >= 0 && index > lastGlobalIndex)) return "regional"
   return "national"
 }
@@ -158,9 +184,9 @@ export function SampleSourcesModal<T extends SampleLike>({
   // tier -> section -> rows. Without comparison everything sits in one tier.
   const grouped = useMemo(() => {
     const out: Record<TierKey, Record<SectionKey, T[]>> = {
-      better: { national: [], global: [], regional: [] },
-      notBetter: { national: [], global: [], regional: [] },
-      bathy: { national: [], global: [], regional: [] },
+      better: { national: [], global: [], regional: [], city: [] },
+      notBetter: { national: [], global: [], regional: [], city: [] },
+      bathy: { national: [], global: [], regional: [], city: [] },
     }
     samples.forEach((s, i) => {
       if (q && !`${s.name} ${s.id} ${s.type ?? ""}`.toLowerCase().includes(q)) return

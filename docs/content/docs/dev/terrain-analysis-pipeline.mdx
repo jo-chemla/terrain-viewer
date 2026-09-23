@@ -68,35 +68,7 @@ outData[idx] = r; outData[idx + 1] = g; outData[idx + 2] = b; outData[idx + 3] =
 
 Slope uses Mapbox Terrain-RGB packing (base −10000, 0.1 unit step — plenty of precision for a 0–90° angle); every other mode uses Terrarium packing (~0.0039 step) because their values cluster near zero and would visibly band under Terrain-RGB's coarser step. Curvature additionally multiplies by an internal `CURVATURE_ENCODE_SCALE = 1000` before encoding (undone when the raw value is read back for the UI/ramp bounds) purely to spread its small, near-zero-heavy range across more of Terrarium's discrete levels.
 
-Those packed bytes are then handed to maplibre as an **`ImageBitmap`**, via the shared `toTileImage` tail in `lib/tile-image.ts` — *not* PNG-encoded. Every mode on this page used to end with `OffscreenCanvas.convertToBlob({type: "image/png"})`, which was by far the most expensive thing any of them did and entirely wasted, since maplibre decoded the PNG straight back: **99 ms median per 256×256 tile against 0.1 ms** for `createImageBitmap`. The PNG path survives only as a fallback where `createImageBitmap` is unavailable. See [Tile Caches](/dev/tile-caches#handing-tiles-to-maplibre) for the measurements, and maplibre-gl-js [#8515](https://github.com/maplibre/maplibre-gl-js/issues/8515) / [#8525](https://github.com/maplibre/maplibre-gl-js/pull/8525), which documented and typed the return shape after this was found.
-
-The difference in code is two lines, which is exactly why it went unnoticed for so long.
-
-Not recommended:
-
-```ts
-const canvas = new OffscreenCanvas(width, height)
-canvas.getContext("2d").putImageData(new ImageData(pixels, width, height), 0, 0)
-const blob = await canvas.convertToBlob({ type: "image/png" })
-return { data: new Uint8Array(await blob.arrayBuffer()) }   // ~99 ms, then maplibre decodes it again
-```
-
-Recommended:
-
-```ts
-return { data: await createImageBitmap(new ImageData(pixels, width, height)) }   // ~0.1 ms
-```
-
-maplibre's own image request already short-circuits on the second form, and always has:
-
-```ts
-if (response.data instanceof HTMLImageElement || isImageBitmap(response.data)) {
-    // User using addProtocol can directly return HTMLImageElement/ImageBitmap type
-    onSuccess(response);
-}
-```
-
-So the PNG encode existed only to be undone. The types said `ArrayBuffer`, the docs showed a canvas, and the fast path was unadvertised.
+Those packed bytes are then handed to maplibre as an **`ImageBitmap`**, via the shared `toTileImage` tail in `lib/tile-image.ts` — *not* PNG-encoded. That choice is worth three orders of magnitude per tile and is the subject of [the last section on this page](#handing-the-tile-back-to-maplibre).
 
 ## 6. MapLibre consumption
 
@@ -136,3 +108,47 @@ Computation for all eleven modes on this page is pure CPU/JS on the main thread,
 - **Sky-View Factor, Openness, Local Dominance** — yes, same output pipeline (step 5 onward). They just replace the fixed 3×3 kernel with the ray-marched horizon-angle core in `lib/horizon-angle.ts` (SVF/Openness) or a pyramid-sampled downward-angle average (Local Dominance, which borrows LRM's ancestor-tile trick for its far field — see [LRM](/dev/lrm)).
 - **LRM** — no. It isn't a function of one same-zoom neighborhood at all; it subtracts a coarser pyramid ancestor tile from the fine tile. See the dedicated [LRM](/dev/lrm) page.
 - **Matcap, Phong, Hard Shadows** — no. These start from a real `(nx, ny, nz)` surface normal (optionally GPU-computed) rather than a pseudo-elevation scalar, and matcap/phong end as plain `type: "raster"` (not `raster-dem`/color-relief) layers, with an additional live-WebGL fast path that bypasses the protocol round-trip entirely for parameter changes. See [Lighting Effects](/dev/lighting-effects).
+
+## Handing the tile back to MapLibre
+
+Every mode on this page ends in the shared `toTileImage` tail (`lib/tile-image.ts`), which returns an **`ImageBitmap`**. That is a recent change, and the reason is worth spelling out, because the same trap is laid for anyone writing an `addProtocol` handler.
+
+### Why it matters
+
+The alternative tail — the one you write if you follow the docs — is:
+
+```js
+const blob = await canvas.convertToBlob({ type: "image/png" })
+return { data: new Uint8Array(await blob.arrayBuffer()) }
+```
+
+MapLibre then undoes that immediately: `arrayBufferToCanvasImageSource` → `arrayBufferToImageBitmap`. A PNG encode and a PNG decode, per tile, for nothing.
+
+What you can write instead, if you already hold the pixels:
+
+```js
+return { data: await createImageBitmap(new ImageData(pixels, 256, 256)) }
+```
+
+or, if you drew into a canvas rather than filling an array yourself:
+
+```js
+return { data: await createImageBitmap(canvas) }
+```
+
+Both are used as-is, with no decode step. `createImageBitmap` is unavailable in a handful of environments (older Safari, some worker contexts), so a handler that must cover those can keep the `convertToBlob` path as a fallback behind a `typeof createImageBitmap === "function"` check.
+
+### What it cost here
+
+Measured over 15 runs on a 256×256 tile: **99 ms median** for the `convertToBlob` tail, with about half the runs near 1000 ms, against **0.1 ms** for `createImageBitmap`. On every tile of every mode on this page.
+
+MapLibre has always accepted the fast form — its image request checks for it before falling back to decoding bytes:
+
+```ts
+if (response.data instanceof HTMLImageElement || isImageBitmap(response.data)) {
+    // User using addProtocol can directly return HTMLImageElement/ImageBitmap type
+    onSuccess(response);
+}
+```
+
+It simply was not advertised: the types said `ArrayBuffer` and the documented example showed a canvas. maplibre-gl-js [#8515](https://github.com/maplibre/maplibre-gl-js/issues/8515) and [#8525](https://github.com/maplibre/maplibre-gl-js/pull/8525) documented and typed the return shape after this was found; the timings are in [Tile Caches](/dev/tile-caches#handing-tiles-to-maplibre).

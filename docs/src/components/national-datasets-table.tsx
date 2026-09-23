@@ -137,11 +137,49 @@ const PROJECT_SCANS = new Set(["dura-w-05mm", "dura-grid-2mm", "custom-176303200
 
 // Sub-national or otherwise partial coverage. Shown in their own section rather
 // than mixed in with national datasets, and kept out of Load Sample Sources.
+//
+// One rule, applied consistently: a state, province, region or island of a
+// larger country goes here, however large it is. Queensland is 2300 km across
+// and still sub-national; the Netherlands is 332 km and is not. The second
+// half of the list is the same rule catching up with the sources added during
+// the world sweep, which were filed as national purely by being listed above
+// the global block.
 const SUB_NATIONAL = new Set([
   "custom-au-nsw-dem5", "custom-au-qld-dem", "custom-ca-ontario-dtm05",
   "custom-de-nrw-dgm1", "custom-mx-aguadafenix-lidar", "custom-at-tirol-dgm5",
   "custom-be-vlaanderen-dtm1", "custom-1762932753466", "custom-fr-ign-lidarhd-reunion",
+  "custom-us-hi-dtm1-lerc", "custom-us-hi-dsm1", "custom-us-hi-ndsm",
+  "custom-us-hi-maui-dtm03-lerc", "custom-us-ak-ifsar-dtm5", "custom-us-ak-ifsar-dsm5",
+  "custom-us-ak-ifsar-ndsm", "custom-us-ny-dem1", "custom-ca-nb-dtm1",
+  "custom-ca-nb-dsm1", "custom-ca-nb-ndsm", "custom-au-sa-murray-dtm05",
+  "custom-mx-aguadafenix-dsm", "custom-mx-aguadafenix-ndsm",
 ]);
+
+/** Width of a declared bounds box, in km. */
+function extentKm(bounds?: number[]): number | null {
+  if (!bounds || bounds.length !== 4) return null;
+  const [w, s, e, n] = bounds;
+  const midLat = (((s + n) / 2) * Math.PI) / 180;
+  return Math.max(Math.abs(e - w) * 111.32 * Math.cos(midLat), Math.abs(n - s) * 110.57);
+}
+
+/**
+ * A single city or flight line rather than an administrative unit - Dar es
+ * Salaam's Msimbazi basin is 4 x 4 km, Klaipeda 28 x 25 km, the Bhotekoshi
+ * corridors under 10 km. Read off the bounds rather than listed by hand,
+ * because that is the one thing about them that is unambiguous, and because
+ * the list will keep growing.
+ */
+const CITY_MAX_KM = 30;
+function isCityScale(s: { bounds?: number[] }): boolean {
+  const km = extentKm(s.bounds);
+  return km !== null && km < CITY_MAX_KM;
+}
+
+/** Everything that is not a whole country's own national product. */
+function isSubNational(s: { id: string; bounds?: number[] }): boolean {
+  return SUB_NATIONAL.has(s.id) || isCityScale(s);
+}
 
 // Regional services that were verified but are NOT shipped as sample sources —
 // the app's library stays national, and these are documented so nobody has to
@@ -264,7 +302,7 @@ const endpointOf = (u: string) => {
 /** Headline comparison, shown before the detail tables. */
 export function MapterhornSummary() {
   const rows = loadRows();
-  const by = (k: string) => rows.filter((r) => bucketOf(r) === k && !SUB_NATIONAL.has(r.s.id));
+  const by = (k: string) => rows.filter((r) => bucketOf(r) === k && !isSubNational(r.s));
   // No "vs" when the two agree — "FRA 0.5 m" says it without the noise.
   const label = (r: Row) => {
     const mine = `${r.iso} ${r.ours ?? "?"} m`;
@@ -300,7 +338,7 @@ export function NationalDatasetsTable() {
   return (
     <>
       {GROUPS.map((g) => {
-        const group = rows.filter((r) => bucketOf(r) === g.key && !SUB_NATIONAL.has(r.s.id));
+        const group = rows.filter((r) => bucketOf(r) === g.key && !isSubNational(r.s));
         if (!group.length) return null;
         return (
           <div key={g.key} className="overflow-x-auto">
@@ -355,7 +393,7 @@ export function NationalDatasetsTable() {
 
 /** Regional / sub-national datasets — real data, partial footprint. */
 export function SubNationalTable() {
-  const rows = loadRows().filter((r) => SUB_NATIONAL.has(r.s.id));
+  const rows = loadRows().filter((r) => isSubNational(r.s));
   return (
     <div className="overflow-x-auto">
       <table className="text-sm">
@@ -485,9 +523,9 @@ export function Glo30Table() {
  */
 export function NationalCoverageMap({ region = "world" }: { region?: "world" | "europe" }) {
   const rows = loadRows();
-  const national = new Set(rows.filter((r) => !SUB_NATIONAL.has(r.s.id)).map((r) => r.iso));
+  const national = new Set(rows.filter((r) => !isSubNational(r.s)).map((r) => r.iso));
   const partial = new Set([
-    ...rows.filter((r) => SUB_NATIONAL.has(r.s.id)).map((r) => r.iso),
+    ...rows.filter((r) => isSubNational(r.s)).map((r) => r.iso),
     ...REGIONAL_DOCS_ONLY.map((r) => r.iso),
   ].filter((iso) => !national.has(iso)));
 

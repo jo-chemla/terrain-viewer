@@ -1,3 +1,34 @@
+# Changelog - VRT Mosaics Without a Server
+
+<!-- released: 2026-09-23 -->
+
+#### TL;DR
+- **A GDAL VRT mosaic now streams in the browser**, with no titiler in the middle. A `.vrt` is an XML index over many real COGs, and the browser can already Range-read COGs - what was missing was GDAL's bookkeeping, which is now done here: which source files a tile touches, where inside each to read, and how to warp the result. IGN's RGE ALTI at 1 m over France is 93 departmental COGs behind a 40 KB index, and a tile over Montparnasse now takes 0.43 s from four of them.
+- **Reprojection for whatever CRS the mosaic is in**, not just the easy two. Lambert-93, a UTM zone and plain geographic all work, because the VRT's own `SRS` goes through proj4. Bare EPSG codes resolve through epsg.io, and GDAL's `a_srs=` URL override is honoured - without it the French mosaic lands in the Gulf of Guinea, because that file declares no projection at all.
+- **Per-source "Always serve via titiler"** now covers VRT as well as COG. It is the escape hatch for a mosaic whose source files have no CORS, or whose tiles span more files than is sensible to read in a browser.
+- **The camera can go two zoom levels past a source's native resolution.** A source's maxzoom is where one tile pixel meets one screen pixel, not where the data stops being worth looking at; past it MapLibre resamples the parent tile, which is what every built-in source already did. BYOD and library sources were the only ones hard-stopped.
+- **City-scale sources have their own place in the Library.** Dar es Salaam's Msimbazi basin is 4 x 4 km and Klaipeda 28 x 25 km, and both sat under "Nation-wide" because of where they appear in the file rather than anything about them.
+
+### Features
+- The new `vrt://` protocol: intersect, read, composite, entirely client-side. See [VRT Mosaic Protocol](/docs/dev/vrt-protocol) for what it does and what it deliberately does not.
+- A VRT's zoom range and bounds are read from its own index, since it has no COG header to detect them from.
+- Two honest refusals rather than a hung map: a tile touching more than 40 source files, and a read of more than 8 Mpx from a file with no overviews - Haiti's 1.5 m mosaic took 15 s for a single z11 tile before that guard existed. Both point at the titiler switch.
+- The Library's sections are now **Nation-wide, Global, Sub-national and City and single-survey**, the last read off each source's declared bounds.
+
+### Fixes
+- **Switching between titiler and in-browser streaming did not refetch anything.** The terrain and hillshade sources were keyed without the resolved tile URLs, so the pipeline changed and MapLibre kept serving what it already had.
+- **A slow protocol tile starved the basemap.** MapLibre queues every raster and raster-dem load through one budget of 16, and a custom protocol holds its slot for as long as the handler runs - so sixteen VRT or sky-view-factor tiles in flight left the map grey while they resolved. The budget is now 48, which lets requests to other hosts through.
+- **Bing Maps 3D links opened from orbit.** The camera-height parameter reused the Google Earth altitude formula, which put a z16 view over Amiens at 1530 m where the real camera sits near 150 m.
+- Reading a VRT with bilinear resampling blended its nodata sentinel into real ground: a z7 tile over France came back with a minimum of -11 650 m, and a kilometres-deep gash along every source boundary. Nearest, and the same tile reads 22 m.
+
+### Docs
+- [VRT Mosaic Protocol](/docs/dev/vrt-protocol) - the index, the approximate transformer, the two refusals, and the CORS pairing that decides whether a mosaic works.
+- The [terrain analysis pipeline](/docs/dev/terrain-analysis-pipeline) page ends with the `createImageBitmap` finding written out as before-and-after code, since the same trap is laid for anyone writing an `addProtocol` handler.
+- Noted, in the docs and in the repo's own memory, that API-key access to **Vantor Precision3D** and **Airbus WorldDEM** is wanted: NASA's CSDA catalog makes both browsable, but its assets are `s3://` behind an Earthdata login, so it is discovery-only by construction.
+- Recorded a dead end so nobody walks it again: **Google's 3D coverage cannot be read out of its 3D Tiles tree** the way Bing's can. Rural Nepal refines exactly as deep as central Paris, so depth says nothing about where the aerial mesh is.
+
+---
+
 # Changelog - A World Sweep, Difference Offsets and Bing's Hidden 3D Map
 
 <!-- released: 2026-09-23 -->

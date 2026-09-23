@@ -26,9 +26,9 @@ import { toTileImage, type TileImage } from "./tile-image"
  * maplibre asks for Web Mercator tiles. The `<SRS>` element carries the
  * projection as WKT and `proj4` (already a dependency) turns that into a
  * transform, so an arbitrary projected VRT works rather than only the 4326 and
- * 3857 cases. The inverse transform runs per output pixel, 65 536 of them for a
- * 256 tile, which is the honest cost of doing this client-side and still well
- * below the source reads.
+ * 3857 cases. It is not called per output pixel: like GDAL's warper, the
+ * projection is evaluated on a coarse grid and interpolated between the nodes,
+ * refined until it is within an eighth of a pixel of the real thing.
  *
  * GDAL's `a_srs=` open option, which some library entries carry in the URL
  * (`...FXX.vrt?a_srs=EPSG:2154`), is honoured as an override.
@@ -60,6 +60,10 @@ const MAX_SOURCES_PER_TILE = 40
 const MINZOOM_TARGET_SOURCES = 4
 /** Ceiling on the source pixels one tile may decode from a single file. */
 const MAX_READ_PIXELS = 8e6
+/** Starting cells per side of the approximate-transformer grid, and the error
+ *  it refines down to. 0.125 px is GDAL's own `-et` default. */
+const APPROX_GRID = 16
+const APPROX_MAX_ERR_PX = 0.125
 
 /** A tile outside the mosaic, which is ordinary rather than an error: maplibre
  *  only keeps a tile failure quiet when `status === 404`. */
@@ -104,6 +108,11 @@ const docCache = new Map<string, Promise<VrtDoc>>()
 // commonly revisits the same neighbours as its siblings, so the opened files
 // are kept too (geotiff caches decoded strips inside each instance).
 const tiffCache = new Map<string, Promise<any>>()
+// `getImageCount()` walks the whole IFD chain, which for a 7-overview COG is
+// seven dependent header reads. Asking once per tile made the first viewport
+// spend about a second per tile just re-deciding how many overviews a file it
+// already had open has.
+const levelCache = new Map<string, Promise<number>>()
 
 function parseVrt(xml: string, vrtUrl: string): VrtDoc {
   const doc = new DOMParser().parseFromString(xml, "application/xml")
@@ -266,6 +275,77 @@ export async function getVrtInfo(vrtUrl: string, signal?: AbortSignal): Promise<
   return { bounds: [west, south, east, north], maxzoom, minzoom, sourceCount: vrt.sources.length }
 }
 
+/**
+ * Every pixel of a 256 tile, in VRT pixel space, via an approximating
+ * transformer refined until it is within `APPROX_MAX_ERR_PX` of the real
+ * projection. See the caller for why.
+ */
+function projectTilePixels(
+  toPixel: (mercX: number, mercY: number) => [number, number],
+  tileMinX: number, tileMaxY: number, span: number,
+) {
+  const at = (col: number, row: number) =>
+    toPixel(tileMinX + (col / TILE_SIZE) * span, tileMaxY - (row / TILE_SIZE) * span)
+
+  let cells = APPROX_GRID
+  let nodes = cells + 1
+  let gx = new Float64Array(0), gy = new Float64Array(0)
+  for (;;) {
+    nodes = cells + 1
+    gx = new Float64Array(nodes * nodes)
+    gy = new Float64Array(nodes * nodes)
+    const step = TILE_SIZE / cells
+    for (let r = 0; r < nodes; r++) {
+      for (let c = 0; c < nodes; c++) {
+        const [px, py] = at(c * step, r * step)
+        gx[r * nodes + c] = px
+        gy[r * nodes + c] = py
+      }
+    }
+    if (cells >= TILE_SIZE) break                 // a node per pixel: exact
+    // Probe the worst place for bilinear error, the centre of a cell, on a
+    // handful of cells spread across the tile.
+    let worst = 0
+    for (let r = 0; r < cells; r += Math.max(1, cells >> 2)) {
+      for (let c = 0; c < cells; c += Math.max(1, cells >> 2)) {
+        const a = r * nodes + c, b = a + 1, d = a + nodes, e = d + 1
+        const ix = (gx[a] + gx[b] + gx[d] + gx[e]) / 4
+        const iy = (gy[a] + gy[b] + gy[d] + gy[e]) / 4
+        const [ex, ey] = at((c + 0.5) * step, (r + 0.5) * step)
+        if (!Number.isFinite(ex) || !Number.isFinite(ey)) continue
+        worst = Math.max(worst, Math.hypot(ix - ex, iy - ey))
+      }
+    }
+    if (worst <= APPROX_MAX_ERR_PX) break
+    cells *= 2
+  }
+
+  const vx = new Float64Array(TILE_SIZE * TILE_SIZE)
+  const vy = new Float64Array(TILE_SIZE * TILE_SIZE)
+  let minVX = Infinity, minVY = Infinity, maxVX = -Infinity, maxVY = -Infinity
+  const cell = TILE_SIZE / cells
+  for (let row = 0; row < TILE_SIZE; row++) {
+    const fy = (row + 0.5) / cell
+    const r0 = Math.min(cells - 1, Math.floor(fy)), ty = fy - r0
+    for (let col = 0; col < TILE_SIZE; col++) {
+      const fx = (col + 0.5) / cell
+      const c0 = Math.min(cells - 1, Math.floor(fx)), tx = fx - c0
+      const a = r0 * nodes + c0, b = a + 1, d = a + nodes, e = d + 1
+      const px = (gx[a] * (1 - tx) + gx[b] * tx) * (1 - ty) + (gx[d] * (1 - tx) + gx[e] * tx) * ty
+      const py = (gy[a] * (1 - tx) + gy[b] * tx) * (1 - ty) + (gy[d] * (1 - tx) + gy[e] * tx) * ty
+      const i = row * TILE_SIZE + col
+      vx[i] = px; vy[i] = py
+      if (Number.isFinite(px) && Number.isFinite(py)) {
+        if (px < minVX) minVX = px
+        if (px > maxVX) maxVX = px
+        if (py < minVY) minVY = py
+        if (py > maxVY) maxVY = py
+      }
+    }
+  }
+  return { vx, vy, minVX, minVY, maxVX, maxVY }
+}
+
 export async function vrtProtocol(
   params: { url: string },
   abortController: AbortController,
@@ -287,25 +367,25 @@ export async function vrtProtocol(
 
   // Every output pixel's position in VRT pixel space, computed once up front
   // rather than once per source: a tile commonly straddles several.
-  const vx = new Float64Array(TILE_SIZE * TILE_SIZE)
-  const vy = new Float64Array(TILE_SIZE * TILE_SIZE)
-  let minVX = Infinity, minVY = Infinity, maxVX = -Infinity, maxVY = -Infinity
-  for (let row = 0; row < TILE_SIZE; row++) {
-    const mercY = tileMaxY - ((row + 0.5) / TILE_SIZE) * span
-    for (let col = 0; col < TILE_SIZE; col++) {
-      const mercX = tileMinX + ((col + 0.5) / TILE_SIZE) * span
-      const [wx, wy] = toVrt(mercX, mercY)
-      const i = row * TILE_SIZE + col
-      const px = (wx - ox) / pxW, py = (wy - oy) / pxH
-      vx[i] = px; vy[i] = py
-      if (Number.isFinite(px) && Number.isFinite(py)) {
-        if (px < minVX) minVX = px
-        if (px > maxVX) maxVX = px
-        if (py < minVY) minVY = py
-        if (py > maxVY) maxVY = py
-      }
-    }
-  }
+  //
+  // Not one proj4 call per pixel. GDAL's warper does not do that either: it
+  // builds an *approximate* transformer, evaluating the real projection on a
+  // coarse grid and interpolating between the nodes, subdividing while the
+  // error is above a threshold (`-et`, 0.125 px by default). Same idea here.
+  // 65 536 proj4 calls per tile measured 21 ms of main-thread time each, and
+  // 16 tiles of that in a viewport is a third of a second of jank; the grid is
+  // well under 1 ms.
+  //
+  // The grid starts at APPROX_GRID cells and doubles while a probe says the
+  // error is too big, because the error is quadratic in cell size and so
+  // depends entirely on zoom: over LAMB93, a 16-cell grid is 930 px out at z3,
+  // 0.2 px at z9 and 5e-5 px at z15. Every mosaic's own derived minzoom keeps
+  // it in the harmless end of that range, but a source with a hand-set minzoom
+  // should not have to know that.
+  const { vx, vy, minVX, minVY, maxVX, maxVY } = projectTilePixels(
+    (mx, my) => { const [wx, wy] = toVrt(mx, my); return [(wx - ox) / pxW, (wy - oy) / pxH] },
+    tileMinX, tileMaxY, span,
+  )
   if (!Number.isFinite(minVX) || maxVX <= 0 || maxVY <= 0 || minVX >= vrt.width || minVY >= vrt.height) {
     throw new TileNotFound(params.url)
   }
@@ -352,7 +432,11 @@ export async function vrtProtocol(
       // output). Refusing beats a stalled map: the zoom range getVrtInfo
       // derives normally keeps maplibre above this, and titiler, which has
       // GDAL's own overview handling, is one switch away.
-      const levels = await tiff.getImageCount()
+      if (!levelCache.has(s.filename)) {
+        levelCache.set(s.filename, (tiff.getImageCount() as Promise<number>)
+          .catch((e: unknown) => { levelCache.delete(s.filename); throw e }))
+      }
+      const levels = await levelCache.get(s.filename)!
       const decoded = Math.max(outW * outH, ((win[2] - win[0]) * (win[3] - win[1])) / 4 ** (levels - 1))
       if (decoded > MAX_READ_PIXELS) return { tooLarge: Math.round(decoded / 1e6) }
       // Nearest, NOT bilinear: these mosaics carry a nodata sentinel in the
