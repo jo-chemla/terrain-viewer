@@ -48,7 +48,10 @@ type CamCtx = { viewportW: number; viewportH: number; groundM: number }
  */
 const esriCamera = (lng: number, lat: number, zoom: number, bearing: number, pitch: number, cam: CamCtx) => {
   const rad = Math.PI / 180
-  const gsd = (156543.03392 * Math.cos(lat * rad)) / Math.pow(2, zoom)
+  // 2^(zoom+1): maplibre zooms are on 512 px tiles, so a screen pixel is HALF
+  // the classic 256-tile 156543/2^z figure. Using 2^zoom here put the camera
+  // twice too far out and Scene Viewer framed four times the area.
+  const gsd = (156543.03392 * Math.cos(lat * rad)) / Math.pow(2, zoom + 1)
   const D = (gsd * Math.hypot(cam.viewportW, cam.viewportH)) / 2 / Math.tan((55 / 2) * rad)
   const h = D * Math.cos(pitch * rad), sBack = D * Math.sin(pitch * rad)
   const camLat = lat - (sBack * Math.cos(bearing * rad)) / 111320

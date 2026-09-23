@@ -1,7 +1,9 @@
-import { Check, Layers } from "lucide-react"
+import { Check, Layers, ArrowRight } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useSetAtom } from "jotai"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { revealSectionAtom } from "@/lib/settings-atoms"
 import { cn } from "@/lib/utils"
 
@@ -51,7 +53,16 @@ type Mode = {
   enable?: Record<string, unknown>
 }
 
-type Group = { title: string; blurb: string; modes: Mode[] }
+type Group = {
+  title: string; blurb: string; modes: Mode[]
+  /** Sidebar section this group's options live in. Makes the title a link:
+   *  click -> master flag on, dialog closed, section revealed. Base has no
+   *  single section (hillshade, hypso, contours and basemap each have their
+   *  own), so it stays a plain heading. */
+  section?: string
+  /** Master flag that has to be on for `section` to render at all. */
+  master?: string
+}
 
 const GROUPS: Group[] = [
   {
@@ -69,7 +80,7 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: "Terrain analysis",
+    title: "Terrain analysis", section: "terrainAnalysis", master: "showTerrainAnalysis",
     blurb: "Surface derivatives and neighbourhood statistics, as in gdaldem.",
     modes: [
       { key: "showSlope", master: "showTerrainAnalysis", label: "Slope", image: "viz-modes/slope.jpg", blurb: "Steepness, the magnitude of the gradient." },
@@ -79,7 +90,7 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: "Relief visualization",
+    title: "Relief visualization", section: "reliefVisualization", master: "showReliefVisualization",
     blurb: "Multi-scale relief and visibility, after the Relief Visualization Toolbox.",
     modes: [
       { key: "showLrm", master: "showReliefVisualization", label: "Local relief model", image: "viz-modes/lrm.jpg", blurb: "Elevation minus its own smoothed trend. Small features on any slope." },
@@ -90,7 +101,7 @@ const GROUPS: Group[] = [
   {
     // Above Light because these are the things you DO with a terrain, and a
     // picture is the fastest way to find out a plane slicer exists at all.
-    title: "Tools",
+    title: "Tools", section: "tools",
     blurb: "Panels rather than layers - clicking one opens it in the sidebar.",
     modes: [
       { key: "drawing", section: "drawing", label: "Draw and measure", image: "tools/draw.jpg", blurb: "Points, lines and polygons in layers, with lengths and areas. Imports and exports GeoJSON, KML, GPX." },
@@ -100,7 +111,7 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: "Light",
+    title: "Light", section: "lightingEffects", master: "showLightingEffects",
     blurb: "Shading from real surface normals, and the sun's real position.",
     modes: [
       { key: "showMatcap", master: "showLightingEffects", label: "Matcap", image: "viz-modes/matcap.jpg", blurb: "Colour looked up from a pre-lit sphere by surface normal. Stylised, no light direction." },
@@ -125,6 +136,32 @@ export function DataLayersModal({ open, onOpenChange, state, setState }: {
   setState: (updates: any) => void
 }) {
   const reveal = useSetAtom(revealSectionAtom)
+  const goToGroup = (g: Group) => {
+    if (!g.section) return
+    if (g.master) setState({ [g.master]: true })
+    onOpenChange(false)
+    reveal(g.section)
+  }
+
+  // Fade the top and bottom edges of the list while there is more to scroll
+  // that way - the dialog clips at 85vh and, with five groups of cards, the
+  // last two are below the fold with nothing to say so. Same maskImage trick
+  // the sidebar uses; recomputed on scroll, on open and on resize.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [fade, setFade] = useState({ top: false, bottom: false })
+  const updateFade = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setFade({ top: el.scrollTop > 4, bottom: el.scrollTop + el.clientHeight < el.scrollHeight - 4 })
+  }, [])
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(updateFade, 60)
+    window.addEventListener("resize", updateFade)
+    return () => { clearTimeout(t); window.removeEventListener("resize", updateFade) }
+  }, [open, updateFade])
+  const FADE = 44
+  const mask = `linear-gradient(to bottom, ${fade.top ? `transparent 0, black ${FADE}px` : "black 0"}, ${fade.bottom ? `black calc(100% - ${FADE}px), transparent 100%` : "black 100%"})`
   const isOn = (m: Mode) => !m.section && !!state[m.key] && (!m.master || !!state[m.master])
   const activate = (m: Mode) => {
     if (m.section) {
@@ -152,10 +189,24 @@ export function DataLayersModal({ open, onOpenChange, state, setState }: {
           </div>
         </div>
 
-        <div className="min-h-0 overflow-y-auto px-6 py-4 space-y-6">
+        <div ref={scrollRef} onScroll={updateFade} className="min-h-0 overflow-y-auto px-6 py-4 space-y-6" style={{ maskImage: mask, WebkitMaskImage: mask }}>
           {GROUPS.map((g) => (
             <section key={g.title}>
-              <h3 className="text-sm font-semibold">{g.title}</h3>
+              {g.section ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button type="button" onClick={() => goToGroup(g)} className="group/title inline-flex items-center gap-1.5 text-sm font-semibold cursor-pointer hover:text-primary">
+                        {g.title}
+                        <ArrowRight className="h-3.5 w-3.5 opacity-40 transition-opacity group-hover/title:opacity-100" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent><p>Open the {g.title} section in the sidebar{g.master ? ", switched on" : ""}</p></TooltipContent>
+                </Tooltip>
+              ) : (
+                <h3 className="text-sm font-semibold">{g.title}</h3>
+              )}
               <p className="text-xs text-muted-foreground mb-2">{g.blurb}</p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {g.modes.map((m) => {

@@ -651,9 +651,17 @@ export function TerrainControlPanel({
               tooltip={allFolded ? "Expand all sections" : "Fold all sections"}
               onClick={handleFoldExpandAll}
             />
-            {/* The trigger for this lives in the Visualization Modes section
-                header (left of its pin), where the thing it opens actually
-                is - the dialog just stays mounted here, at the panel root. */}
+            {/* Also in the Visualization Modes section header, next to its
+                pin. This copy exists because that header scrolls away with
+                the list, and the picker is how you change layer from
+                anywhere in the panel. */}
+            {!historicalMode && (
+              <TooltipIconButton
+                icon={Layers}
+                tooltip="Data layers: every visualization mode, with a picture"
+                onClick={() => setIsDataLayersOpen(true)}
+              />
+            )}
             <DataLayersModal open={isDataLayersOpen} onOpenChange={setIsDataLayersOpen} state={state} setState={setState} />
             <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState} historicalMode={historicalMode}/>
             <TooltipIconButton
