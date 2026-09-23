@@ -1,3 +1,28 @@
+# Changelog - A World Sweep, Difference Offsets and Bing's Hidden 3D Map
+
+<!-- released: 2026-09-23 -->
+
+#### TL;DR
+- **Twenty new elevation sources**, every endpoint verified live before it was added: Hawaii's 1 m and Maui's 0.3 m LiDAR as LERC tiles, New Brunswick and Alaska IfSAR (DTM *and* DSM, so 3DEP finally has a surface-model counterpart), South Australia's 0.5 m River Murray LiDAR, Hong Kong, New York, Dar es Salaam's 0.5 m, JAXA's global AW3D30, and the Aguada Fenix Maya survey's canopy surface. Seven of them are ready-made **nDSMs** that pull their own operands in.
+- **A difference source can measure its own offset.** Two elevation models rarely agree on zero - a datum, a co-registration bias, a different idea of "ground". The Elevation Color section now shows a Difference offset you can type or measure: it samples the tiles on screen, takes an interquartile mean so buildings and canopy cannot drag it, and tells you how many samples it used. Press again to reset, which is what a true nDSM wants.
+- **Where Bing Maps 3D actually has photogrammetry**, as a coverage overlay - read from the tileset's own availability data, because nothing publishes it. Click a polygon to open Bing's 3D view at that spot. The densest areas turn out to be national parks, not cities.
+- **Catalogs**: NRCan's 1 m Canadian LiDAR, Minnesota's 0.5 m, British Columbia's LidarBC, and NASA's CSDA - which carries Vantor Precision3D and Airbus WorldDEM, browsable even though the pixels need an Earthdata login.
+
+### Features
+- Map pills name the **terrain source** when no basemap is drawn, which is exactly the split-screen DEM comparison where you most need to know which pane is which.
+- **Open in Bing Maps 3D**, alongside Google Earth 3D, at the same viewport.
+- **Settings**: a Google API key field, Planet moved next to Cesium, and the batch view round-trips both.
+- The Library leads with what is genuinely new: "Not better than Mapterhorn" starts collapsed, and the comparison table was refreshed against Mapterhorn's own catalog.
+
+### Fixes
+- A long source name widened the panel's grid column past the sidebar and carried every row's buttons off-screen with it.
+- The Nepal Bhotekoshi COGs never rendered in the default streaming mode: their host sends no CORS header, so the in-browser reader could not read them. They now go through titiler.
+- "Set elevation from viewport" did nothing in 2D.
+- The elevation picker's draped line could be drawn in a single near-black colour, or never added to the map at all.
+- Coverage overlays no longer draw thousands of internal rectangle edges as hatching; Bing's is a single dissolved union.
+
+---
+
 # Changelog - Guided Walkthroughs That Actually Do Things
 
 <!-- released: 2026-09-22 -->
