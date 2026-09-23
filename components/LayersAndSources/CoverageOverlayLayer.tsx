@@ -23,12 +23,21 @@ type Hit = { gsdM: number; label: string; detail: string; url?: string; overlay?
  *  are filled from the click, so "open this elsewhere" lands on the place you
  *  clicked rather than on a provider home page. Used by the Bing Maps 3D
  *  overlay, whose whole point is "go and look at the mesh here". */
-const fillViewport = (tpl: string, lng: number, lat: number, zoom: number, bearing: number, pitch: number, altitudeM: number) =>
+/**
+ * Substitutes a destination's viewport placeholders. Two different camera
+ * heights, because the two hosts mean different things by the number:
+ * `{eh}` is Bing's, calibrated against its own 3D view (a z16 view over
+ * Amiens sits near 150 m), and `{gealt}` is Google Earth's `…d` distance,
+ * which runs about ten times larger for the same framing - the same formula
+ * open-in-links.tsx uses for its Google Earth destinations.
+ */
+const fillViewport = (tpl: string, lng: number, lat: number, zoom: number, bearing: number, pitch: number) =>
   tpl.replace(/\{lat\}/g, lat.toFixed(6)).replace(/\{lng\}/g, lng.toFixed(6))
     .replace(/\{zoom\}/g, zoom.toFixed(1))
     .replace(/\{bearing\}/g, (((bearing % 360) + 360) % 360).toFixed(2))
     .replace(/\{pitch\}/g, pitch.toFixed(2))
-    .replace(/\{eh\}/g, String(Math.round(altitudeM)))
+    .replace(/\{eh\}/g, String(Math.round((156543.034 * Math.cos((lat * Math.PI) / 180) / Math.pow(2, zoom)) * 100)))
+    .replace(/\{gealt\}/g, String(Math.round(((38000 * 4096) / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180))))
 
 /**
  * Draws the coverage overlays picked in Source Info (see
@@ -99,8 +108,7 @@ export const CoverageOverlayLayer: React.FC = () => {
               url: `https://mapterhorn.com/attribution/#${p.source}`, overlay: "mapterhorn" }
           : { gsdM: coverageGsdMeters(p, e.lngLat.lat) ?? Infinity, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail,
               url: p.urlTemplate
-                ? fillViewport(p.urlTemplate, e.lngLat.lng, e.lngLat.lat, m.getZoom(), m.getBearing(), m.getPitch(),
-                    (156543.034 * Math.cos((e.lngLat.lat * Math.PI) / 180) / Math.pow(2, m.getZoom())) * 100)
+                ? fillViewport(p.urlTemplate, e.lngLat.lng, e.lngLat.lat, m.getZoom(), m.getBearing(), m.getPitch())
                 : p.url || undefined, overlay: p.overlay,
               useAs: p.role === "overlay" ? "overlay" : coverageUseKind(p.overlay) ?? undefined, needsKey: p.needsKey === true || p.needsKey === "true" }
         const k = `${hit.label}|${hit.detail}`

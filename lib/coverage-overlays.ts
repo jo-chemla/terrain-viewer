@@ -50,7 +50,7 @@ export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSour
 export interface CoverageLeaf { id: string; label: string; color: string; detail?: string }
 export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps" }
 
-export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1" }
+export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6" }
 
 const ELI_ID_RE = /OSM Editor Layer Index id (\S+)/
 type Bounded = { id: string; name: string; bounds?: number[]; type?: string; resolutionM?: number; maxzoom?: number; infoUrl?: string }
@@ -83,6 +83,21 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     { section: "Terrain", key: "bing3d", label: "Bing Maps 3D (photogrammetry)", color: OVERLAY_COLORS.bing3d,
       note: "Where Bing Maps 3D has mesh - the photogrammetry behind Bing's 3D cities and Flight Simulator - read from the tileset's own availability data at ~2.4 km. Includes terrain photogrammetry of parks, not only cities.",
       leaves: [{ id: "bing3d", label: "Bing Maps 3D coverage", color: OVERLAY_COLORS.bing3d }] },
+    // Google's equivalent, and a harder read: Google publishes no machine-
+    // readable coverage, and unlike Bing its 3D Tiles tree cannot be asked -
+    // it refines to 2 m over rural Nepal exactly as over Paris (see
+    // docs/scripts/probe-google-3d-detail.mjs). These polygons come from the
+    // coverage layer Google Earth itself draws, classified by response size;
+    // docs/scripts/build-google-3d-coverage.mjs explains the whole trick.
+    { section: "Terrain", key: "google3d", label: "Google 3D (photorealistic)", color: OVERLAY_COLORS.google3d,
+      note: "Where Google has photorealistic 3D - the mesh behind Google Earth and the Photorealistic 3D Tiles API - read from Google Earth's own coverage layer at ~39 km. Coarser than the Bing overlay, which gets an exact answer from its tileset.",
+      leaves: [{ id: "google3d", label: "Google 3D coverage", color: OVERLAY_COLORS.google3d }] },
+    // Open point clouds rather than a DEM, but the same question: is there
+    // anything better than the global 30 m here? Footprints are each
+    // dataset's COPC extent (docs/scripts/build-flai-coverage.mjs).
+    { section: "Terrain", key: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai,
+      note: "Open LiDAR point clouds republished as COPC by FLAI (hub.flai.ai), one rectangle per survey, read from each file's own LAS header. Rectangles are declared extents, so a national survey overstates its edges.",
+      leaves: [{ id: "flai", label: "FLAI open LiDAR datasets", color: OVERLAY_COLORS.flai }] },
     { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category })) },
     { section: "Basemaps", key: "yourBasemaps", label: "Your basemaps", color: OVERLAY_COLORS.yourBasemaps, note: "Every loaded basemap that declares bounds or came from the index, library entries included.", leaves: yourBasemaps },
@@ -223,6 +238,35 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
         overlay: id, color: OVERLAY_COLORS.bing3d, hollow: false, opacity: 0.12,
         label: "Bing Maps 3D", detail: "photogrammetry mesh (tf=3dv4) · from the tileset's subtree availability, level 13 · click to open Bing's own 3D view here",
         urlTemplate: "https://www.bing.com/maps?cp={lat}~{lng}&lvl={zoom}&style=3d&eh={eh}&pi={pitch}&dir={bearing}" } }))
+      return { type: "FeatureCollection", features }
+    } catch { return empty }
+  }
+  if (kind === "google3d") {
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}coverage/google-3d.geojson`)
+      if (!res.ok) return empty
+      const fc = (await res.json()) as FeatureCollection
+      const features: Feature[] = fc.features.map((f) => ({ ...f, properties: { ...f.properties,
+        overlay: id, color: OVERLAY_COLORS.google3d, hollow: false, opacity: 0.12,
+        label: "Google 3D", detail: "photorealistic mesh · from Google Earth's own coverage layer, ~39 km cells · click to open Google Earth here",
+        urlTemplate: "https://earth.google.com/web/@{lat},{lng},0a,{gealt}d,35y,{bearing}h,{pitch}t,0r" } }))
+      return { type: "FeatureCollection", features }
+    } catch { return empty }
+  }
+  if (kind === "flai") {
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}coverage/flai-open-lidar.geojson`)
+      if (!res.ok) return empty
+      const fc = (await res.json()) as FeatureCollection
+      const features: Feature[] = fc.features.map((f) => {
+        const p = (f.properties ?? {}) as { name?: string; year?: string; density?: number; licence?: string; url?: string }
+        const bits = [p.year, p.density ? `${p.density} pts/m²` : null].filter(Boolean).join(" · ")
+        return { ...f, properties: { ...f.properties,
+          overlay: id, color: OVERLAY_COLORS.flai, hollow: true, opacity: 0.35,
+          label: p.name ?? "FLAI open LiDAR",
+          detail: `open LiDAR (COPC)${bits ? ` · ${bits}` : ""} · declared extent`,
+          url: "https://hub.flai.ai/" } }
+      })
       return { type: "FeatureCollection", features }
     } catch { return empty }
   }

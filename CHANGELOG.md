@@ -1,35 +1,34 @@
-# Changelog - VRT Mosaics Without a Server
+# Changelog — VRT Mosaics Without a Server
 
-<!-- released: 2026-09-23 -->
+<!-- released: 2026-09-23T18:00 -->
 
 #### TL;DR
-- **A GDAL VRT mosaic now streams in the browser**, with no titiler in the middle. A `.vrt` is an XML index over many real COGs, and the browser can already Range-read COGs - what was missing was GDAL's bookkeeping, which is now done here: which source files a tile touches, where inside each to read, and how to warp the result. IGN's RGE ALTI at 1 m over France is 93 departmental COGs behind a 40 KB index, and a tile over Montparnasse now takes 0.43 s from four of them.
-- **Reprojection for whatever CRS the mosaic is in**, not just the easy two. Lambert-93, a UTM zone and plain geographic all work, because the VRT's own `SRS` goes through proj4. Bare EPSG codes resolve through epsg.io, and GDAL's `a_srs=` URL override is honoured - without it the French mosaic lands in the Gulf of Guinea, because that file declares no projection at all.
-- **Per-source "Always serve via titiler"** now covers VRT as well as COG. It is the escape hatch for a mosaic whose source files have no CORS, or whose tiles span more files than is sensible to read in a browser.
-- **The camera can go two zoom levels past a source's native resolution.** A source's maxzoom is where one tile pixel meets one screen pixel, not where the data stops being worth looking at; past it MapLibre resamples the parent tile, which is what every built-in source already did. BYOD and library sources were the only ones hard-stopped.
-- **City-scale sources have their own place in the Library.** Dar es Salaam's Msimbazi basin is 4 x 4 km and Klaipeda 28 x 25 km, and both sat under "Nation-wide" because of where they appear in the file rather than anything about them.
+- **GDAL VRT mosaics now stream in the browser**, no titiler needed. A `.vrt` is an XML index over many COGs, and the browser can already Range-read COGs — what was missing was GDAL's bookkeeping. IGN's RGE ALTI 1 m over France is 93 COGs behind a 40 KB index; a tile over Montparnasse takes 0.43 s. Any CRS, not just the easy two.
+- **Per-source "Always serve via titiler"** now covers VRT too — the escape hatch when a mosaic's source files have no CORS.
+- **You can zoom two levels past a source's native resolution.** Maxzoom is where one tile pixel meets one screen pixel, not where the data stops being useful; built-in sources always allowed this, custom ones did not.
+- **City-scale sources have their own Library section.** Dar es Salaam's Msimbazi basin is 4 × 4 km and Klaipėda 28 × 25 km; both were filed under "Nation-wide".
+- **A slow terrain tile no longer freezes the basemap.** MapLibre queues every raster load through one budget of 16, and a custom protocol holds its slot for the whole handler — so sixteen VRT or sky-view-factor tiles left the map grey.
+- **Two new coverage overlays: Google 3D and FLAI open LiDAR.** Google publishes no machine-readable coverage and its 3D Tiles tree cannot be asked — it refines to 2 m over rural Nepal exactly as over Paris — so this reads the layer Google Earth itself draws. FLAI’s footprints come from each survey’s COPC header, 512 bytes per dataset.
 
 ### Features
-- The new `vrt://` protocol: intersect, read, composite, entirely client-side. See [VRT Mosaic Protocol](/docs/dev/vrt-protocol) for what it does and what it deliberately does not.
-- A VRT's zoom range and bounds are read from its own index, since it has no COG header to detect them from.
-- Two honest refusals rather than a hung map: a tile touching more than 40 source files, and a read of more than 8 Mpx from a file with no overviews - Haiti's 1.5 m mosaic took 15 s for a single z11 tile before that guard existed. Both point at the titiler switch.
-- The Library's sections are now **Nation-wide, Global, Sub-national and City and single-survey**, the last read off each source's declared bounds.
+- The `vrt://` protocol: intersect, read, composite, client-side. Zoom range and bounds come from the mosaic's own index. See [VRT Mosaic Protocol](/docs/dev/vrt-protocol).
+- Two refusals instead of a hung map: a tile touching more than 40 source files, or more than 8 Mpx from a file with no overviews. Both point at the titiler switch.
+- Library sections are now Nation-wide, Global, Sub-national, and City and single-survey.
+- Coverage overlays for **Google 3D** (~39 km cells, verified 19/19 against known cities) and **FLAI open LiDAR** (114 open COPC surveys, drawn hollow because each is a declared extent).
 
 ### Fixes
-- **Switching between titiler and in-browser streaming did not refetch anything.** The terrain and hillshade sources were keyed without the resolved tile URLs, so the pipeline changed and MapLibre kept serving what it already had.
-- **A slow protocol tile starved the basemap.** MapLibre queues every raster and raster-dem load through one budget of 16, and a custom protocol holds its slot for as long as the handler runs - so sixteen VRT or sky-view-factor tiles in flight left the map grey while they resolved. The budget is now 48, which lets requests to other hosts through.
-- **Bing Maps 3D links opened from orbit.** The camera-height parameter reused the Google Earth altitude formula, which put a z16 view over Amiens at 1530 m where the real camera sits near 150 m.
-- Reading a VRT with bilinear resampling blended its nodata sentinel into real ground: a z7 tile over France came back with a minimum of -11 650 m, and a kilometres-deep gash along every source boundary. Nearest, and the same tile reads 22 m.
+- Switching between titiler and in-browser streaming did not refetch anything — the sources were keyed without the resolved tile URLs.
+- Bing Maps 3D links opened from orbit: the camera height reused the Google Earth formula, putting a z16 view over Amiens at 1530 m instead of ~150 m.
+- Reading a VRT bilinearly blended its nodata sentinel into real ground — a z7 tile over France bottomed out at −11 650 m.
+- Changelog entries titled with a hyphen instead of an em dash never appeared in the app or the docs. The last two releases were invisible.
 
 ### Docs
-- [VRT Mosaic Protocol](/docs/dev/vrt-protocol) - the index, the approximate transformer, the two refusals, and the CORS pairing that decides whether a mosaic works.
-- The [terrain analysis pipeline](/docs/dev/terrain-analysis-pipeline) page ends with the `createImageBitmap` finding written out as before-and-after code, since the same trap is laid for anyone writing an `addProtocol` handler.
-- Noted, in the docs and in the repo's own memory, that API-key access to **Vantor Precision3D** and **Airbus WorldDEM** is wanted: NASA's CSDA catalog makes both browsable, but its assets are `s3://` behind an Earthdata login, so it is discovery-only by construction.
-- Recorded a dead end so nobody walks it again: **Google's 3D coverage cannot be read out of its 3D Tiles tree** the way Bing's can. Rural Nepal refines exactly as deep as central Paris, so depth says nothing about where the aerial mesh is.
+- [VRT Mosaic Protocol](/docs/dev/vrt-protocol), and the `createImageBitmap` finding written out as before-and-after code on the [terrain analysis pipeline](/docs/dev/terrain-analysis-pipeline) page.
+- API-key access to **Vantor Precision3D** and **Airbus WorldDEM** is wanted: NASA's CSDA catalog makes both browsable, but its assets sit behind an Earthdata login.
 
 ---
 
-# Changelog - A World Sweep, Difference Offsets and Bing's Hidden 3D Map
+# Changelog — A World Sweep, Difference Offsets and Bing's Hidden 3D Map
 
 <!-- released: 2026-09-23 -->
 
@@ -54,7 +53,7 @@
 
 ---
 
-# Changelog - Guided Walkthroughs That Actually Do Things
+# Changelog — Guided Walkthroughs That Actually Do Things
 
 <!-- released: 2026-09-22 -->
 
