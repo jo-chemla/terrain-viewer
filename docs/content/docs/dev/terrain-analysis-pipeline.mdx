@@ -58,7 +58,7 @@ The exact per-mode formulas are on the [Equations page](/dev/equations); this pa
 
 ## 5. Output encoding — the key architectural trick
 
-The computed scalar is **not** rendered directly to RGBA color. It's re-packed as a *pseudo-elevation*, using the exact same byte-packing MapLibre's native `raster-dem` decoder already knows how to read, then PNG-encoded via `OffscreenCanvas`:
+The computed scalar is **not** rendered directly to RGBA color. It's re-packed as a *pseudo-elevation*, using the exact same byte-packing MapLibre's native `raster-dem` decoder already knows how to read:
 
 ```ts
 // lib/tri-protocol.ts (representative — every mode in this family ends the same way)
@@ -67,6 +67,8 @@ outData[idx] = r; outData[idx + 1] = g; outData[idx + 2] = b; outData[idx + 3] =
 ```
 
 Slope uses Mapbox Terrain-RGB packing (base −10000, 0.1 unit step — plenty of precision for a 0–90° angle); every other mode uses Terrarium packing (~0.0039 step) because their values cluster near zero and would visibly band under Terrain-RGB's coarser step. Curvature additionally multiplies by an internal `CURVATURE_ENCODE_SCALE = 1000` before encoding (undone when the raw value is read back for the UI/ramp bounds) purely to spread its small, near-zero-heavy range across more of Terrarium's discrete levels.
+
+Those packed bytes are then handed to maplibre as an **`ImageBitmap`**, via the shared `toTileImage` tail in `lib/tile-image.ts` — *not* PNG-encoded. Every mode on this page used to end with `OffscreenCanvas.convertToBlob({type: "image/png"})`, which was by far the most expensive thing any of them did and entirely wasted, since maplibre decoded the PNG straight back: **99 ms median per 256×256 tile against 0.1 ms** for `createImageBitmap`. The PNG path survives only as a fallback where `createImageBitmap` is unavailable. See [Tile Caches](/dev/tile-caches#handing-tiles-to-maplibre) for the measurements, and maplibre-gl-js [#8515](https://github.com/maplibre/maplibre-gl-js/issues/8515) / [#8525](https://github.com/maplibre/maplibre-gl-js/pull/8525), which documented and typed the return shape after this was found.
 
 ## 6. MapLibre consumption
 
@@ -99,10 +101,10 @@ maplibregl.addProtocol('svf', withTileResultCache(withSlowTileStats('svf', svfPr
 
 ## GPU acceleration — none here
 
-Computation for all eleven modes on this page is pure CPU/JS on the main thread, per tile (`OffscreenCanvas` is used only for PNG encode/decode, not for compute). `runWindowedProtocol`/`runNormalDerivedProtocol` explicitly yield every `YIELD_EVERY_ROWS` rows so a burst of new tiles during a pan/zoom doesn't block input handling. The only GPU path in the codebase is `computeNormalPixelsGPU` (WebGL2), used exclusively by `lib/normals-protocol.ts` for the surface-normal computation that backs Matcap and Phong — see [Lighting Effects](/dev/lighting-effects).
+Computation for all eleven modes on this page is pure CPU/JS on the main thread, per tile — nothing here touches a GPU, and `OffscreenCanvas` appears only in the fallback encode path described in step 5, never in the compute. `runWindowedProtocol`/`runNormalDerivedProtocol` explicitly yield every `YIELD_EVERY_ROWS` rows so a burst of new tiles during a pan/zoom doesn't block input handling. For scale: **LRM over a z13 viewport is about 1.2 s of recompute**, which is why finished tiles are cached rather than recomputed on every toggle (see [Tile Caches](/dev/tile-caches)). The only GPU path in the codebase is `computeNormalPixelsGPU` (WebGL2), used exclusively by `lib/normals-protocol.ts` for the surface-normal computation that backs Matcap and Phong — see [Lighting Effects](/dev/lighting-effects).
 
 ## Does this apply to Relief Visualization and Lighting too?
 
 - **Sky-View Factor, Openness, Local Dominance** — yes, same output pipeline (step 5 onward). They just replace the fixed 3×3 kernel with the ray-marched horizon-angle core in `lib/horizon-angle.ts` (SVF/Openness) or a pyramid-sampled downward-angle average (Local Dominance, which borrows LRM's ancestor-tile trick for its far field — see [LRM](/dev/lrm)).
 - **LRM** — no. It isn't a function of one same-zoom neighborhood at all; it subtracts a coarser pyramid ancestor tile from the fine tile. See the dedicated [LRM](/dev/lrm) page.
-- **Matcap, Phong, Hard Shadows** — no. These start from a real `(nx, ny, nz)` surface normal (optionally GPU-computed) rather than a pseudo-elevation scalar, and matcap/phong end as plain `type: "raster"` (not `raster-dem`/color-relief) layers, with an additional live-WebGL fast path that bypasses the protocol/PNG round-trip entirely for parameter changes. See [Lighting Effects](/dev/lighting-effects).
+- **Matcap, Phong, Hard Shadows** — no. These start from a real `(nx, ny, nz)` surface normal (optionally GPU-computed) rather than a pseudo-elevation scalar, and matcap/phong end as plain `type: "raster"` (not `raster-dem`/color-relief) layers, with an additional live-WebGL fast path that bypasses the protocol round-trip entirely for parameter changes. See [Lighting Effects](/dev/lighting-effects).

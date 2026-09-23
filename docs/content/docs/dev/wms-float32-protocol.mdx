@@ -38,7 +38,7 @@ for (let i = 0; i < elevationData.length; i++) {
 }
 ```
 
-The RGBA buffer is drawn to an `OffscreenCanvas` and converted to a PNG blob — what's actually returned to MapLibre.
+The RGBA buffer goes through the shared `toTileImage` tail (`lib/tile-image.ts`) and is returned to MapLibre as an `ImageBitmap`, decoded rather than PNG-encoded — worth roughly 99 ms a tile; see [Tile Caches](/dev/tile-caches#handing-tiles-to-maplibre).
 
 ## 3. Protocol registration
 

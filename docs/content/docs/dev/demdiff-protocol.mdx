@@ -81,4 +81,4 @@ A titiler-served operand contributes no zoom range of its own, which once silent
 
 ## Output
 
-The per-pixel loop writes into a `Uint8ClampedArray`, draws it to an `OffscreenCanvas` via `putImageData`, and converts to a PNG blob. That is what MapLibre receives — a bog-standard Terrain-RGB tile with no trace of how it was made.
+The per-pixel loop writes into a `Uint8ClampedArray`, which the shared `toTileImage` tail (`lib/tile-image.ts`) turns into an `ImageBitmap`. That is what MapLibre receives — a bog-standard Terrain-RGB tile with no trace of how it was made. It is handed over decoded rather than PNG-encoded, which is worth roughly 99 ms a tile; see [Tile Caches](/dev/tile-caches#handing-tiles-to-maplibre).
