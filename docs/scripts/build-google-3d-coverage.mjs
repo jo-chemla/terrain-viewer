@@ -46,10 +46,10 @@
 //
 // ## Limits, stated plainly
 //
-//  - Resolution stops at z10, about 39 km at the equator. Deeper, the
-//    separation closes: at z12 central Paris is 261 bytes against 187 for
-//    farmland 60 km away. Bing's overlay gets 2.4 km because its subtree
-//    bitstream is exact; this is an inference from payload size.
+//  - Resolution stops at z10, about 39 km at the equator, so the overlay is
+//    visibly blockier than Google's own coverage layer and adjacent cities
+//    merge. Bing's overlay gets 2.4 km because its subtree bitstream is
+//    exact; this is an inference from payload size. See COVERED_BYTES.
 //  - The `ml:xsr:c:` layer id is a 149-character opaque token from a captured
 //    request. If Google rotates it this script stops working, and the fix is
 //    to capture one request from earth.google.com again (network tab, enable
@@ -69,10 +69,34 @@ const TARGET_ZOOM = Number(process.argv[2] ?? 10)
 const OUT = resolve(process.argv[3] ?? resolve(HERE, "../../public/coverage/google-3d.geojson"))
 const START_ZOOM = 4          // 256 tiles, enough to prune the oceans cheaply
 const CONCURRENCY = 24        // measured 256 req/s here; 48 was no faster
-// Empty stubs measured 33-174 bytes from z4 to z14; the smallest response over
-// real coverage was 462 (the eastern edge of the LA basin at z10). 300 sits in
-// the gap with room on both sides.
-const COVERED_BYTES = 300
+// What the payload size actually measures is HOW MUCH GEOMETRY falls in the
+// tile, which is only a proxy for coverage while the polygons are small
+// relative to the tile. That holds down to z10 and then stops, and it is worth
+// writing down because two different thresholds were tried and both fail.
+//
+// Calibrated against places Google Earth's own render answers for:
+//
+//   z10  twelve French cities 1142-4335   nine empty places 132-716
+//   z11  covered 170-223   empty 132-179   OVERLAP
+//   z12  covered 189-261   empty 132-206   OVERLAP
+//   z13  covered 191-254   empty 132-187   gap of 4, i.e. noise
+//
+// z10 looks separable on that set, and a threshold of 900 does cut the false
+// positives by a third - the Morvan (535), Berry (638) and Champagne (716) are
+// all empty and all pass at 300. But it then loses London (449), Rome (450),
+// Berlin (486) and Vienna (471), which are covered. They are small because
+// they sit INSIDE a large polygon: an interior tile has no boundary crossing
+// it, so there is almost nothing to encode. Big cities and empty countryside
+// are indistinguishable by size, in opposite directions.
+//
+// So 300 it is: it keeps every city and overstates some countryside, which is
+// the better failure for an overlay answering "is there photogrammetry here".
+// Finer or more exact needs the geometry itself, and the payload is 7.97
+// bits/byte with no standard decompressor touching it. The practical route to
+// a sharper map is to rasterise Google's own published coverage layer (a Maps
+// JS dataset layer, see the memory note) and vectorise the fill: 64
+// screenshots at z6 gives 2.4 km, 256 at z7 gives 1.2 km.
+const COVERED_BYTES = () => 300
 
 // ── the captured request ─────────────────────────────────────────────────────
 const CAPTURED = "CgsKBggBEAAYAMoBABIVCAASAW0Yv4KF_AIiCAoDbmRsEgExEqkBCAISlQFtbDp4c3I6YzpBRk94UjA1R29FTkRjWDhwMUxtVm5pd09BTjRacXB4d002bEYtYmk2cUp3Tk1hT2N2T3ZlbDlselNWRWREd3VpR0RfU2pCRXphWDdTNnR2bE1Cdzdmd1I1NjZmY1ZjbFBxOExvYU55LVo0QTlJOFJ3NkdJSjdWZ2ZXcmM2V1Axam5tcldJQ3JOUHNQTRi_goX8AiIHCgJtaBIBMRoqEgVlbi1VUxoCRlIoA2IbCEQSFwoDc2V0EhBSb2FkbWFwU2F0ZWxsaXRlIAEyGSgBWAO4AgHYAgHgAgToAgG4AwHQAwHYBQG6AQTpjrQW"
@@ -153,7 +177,7 @@ async function testAll(tiles) {
     for (;;) {
       const t = queue.pop()
       if (!t) return
-      if (await tileBytes(t[0], t[1], t[2]) >= COVERED_BYTES) covered.push(t)
+      if (await tileBytes(t[0], t[1], t[2]) >= COVERED_BYTES()) covered.push(t)
     }
   }))
   return covered

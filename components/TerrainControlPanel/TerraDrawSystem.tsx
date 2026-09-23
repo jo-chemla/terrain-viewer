@@ -222,28 +222,32 @@ function geometryTypeToMode(geometryType: string): string | null {
     }
 }
 
-function parseFeatures(rawFeatures: any[], defaultLayerId: string): GeoJSONFeature[] {
-    const flattened = flattenFeatures(rawFeatures)  // <-- add this
-    const output = flattened
+/**
+ * `resolveLayerId` maps a feature's OWN `properties.layerId` - the one this
+ * app wrote when the file was exported - to a layer that exists now.
+ *
+ * Keeping the file's id verbatim was the obvious thing and it was wrong: a
+ * layer id is a uuid minted in the session that drew it, so re-importing an
+ * export into any other session left every feature tagged with a layer that
+ * no longer exists. They rendered (terra-draw does not care) while every
+ * count and the feature iterator, which all filter
+ * `f.properties.layerId === someLayer.id`, saw none of them. A 1 470-feature
+ * file imported as "0 features".
+ */
+function parseFeatures(rawFeatures: any[], resolveLayerId: (fileLayerId: unknown) => string): GeoJSONFeature[] {
+    return flattenFeatures(rawFeatures)
         .filter((f) => f?.geometry)
         .flatMap((f) => {
             const mode = geometryTypeToMode(f.geometry.type)
-            if (!mode) { console.log(mode, 'Unsupported geometry type:', f.geometry.type); return [] }
+            if (!mode) { console.warn('[TerraDraw] unsupported geometry type on import:', f.geometry?.type); return [] }
+            const { layerId: _fileLayerId, ...rest } = (f.properties || {}) as Record<string, unknown>
             return [{
                 type: 'Feature' as const,
                 id: uuidv4(),
                 geometry: { ...f.geometry, coordinates: to2DCoords(f.geometry.coordinates) },
-                // defaultLayerId goes first so a re-imported export (which already
-                // carries its own layerId in properties) keeps its original layer
-                // instead of being reassigned to whichever layer is active now.
-                properties: { layerId: defaultLayerId, ...(f.properties || {}), mode },
+                properties: { ...rest, layerId: resolveLayerId(_fileLayerId), mode },
             }]
         })
-
-    console.log('parseFeatures', rawFeatures, rawFeatures
-        .filter((f) => f?.geometry), output)
-
-    return output
 }
 
 // --- LAYER VISIBILITY HELPERS ---
@@ -510,14 +514,40 @@ function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef>) {
         // Each import lands in its own new layer named after the file, created
         // only once the data is known to hold real features (no phantom layer).
         const layer: DrawLayer = existing ?? { ...makeLayer(layersRef.current.length, name), ...(opts.sourceUrl ? { sourceUrl: opts.sourceUrl } : {}) }
-        // parseFeatures keeps a feature's own properties.layerId (so a
-        // re-imported export lands back in its layers); a remote layer owns
-        // its features outright.
-        const newFeatures = parseFeatures(raw, layer.id).map((f) => (opts.sourceUrl ? { ...f, properties: { ...f.properties, layerId: layer.id } } : f))
+
+        // A flattened export keeps each feature's own layerId so the grouping
+        // survives the round trip - but those ids belong to the session that
+        // drew them. Ids that still name a live layer are kept; the rest are
+        // remapped, one new layer per distinct group, so the file's structure
+        // comes back instead of collapsing into one bucket. A remote layer
+        // (sourceUrl) owns its features outright and skips all of this.
+        const liveLayerIds = new Set(layersRef.current.map((l) => l.id))
+        const remapped = new Map<string, DrawLayer>()
+        const extraLayers: DrawLayer[] = []
+        const resolveLayerId = (fileLayerId: unknown): string => {
+            if (opts.sourceUrl) return layer.id
+            const id = typeof fileLayerId === 'string' ? fileLayerId : ''
+            if (!id || id === layer.id) return layer.id
+            if (liveLayerIds.has(id)) return id
+            const already = remapped.get(id)
+            if (already) return already.id
+            // The first unknown group reuses the layer this import already
+            // creates, so the common case (an export from one layer) does not
+            // leave an empty one behind.
+            const target = remapped.size === 0
+                ? layer
+                : makeLayer(layersRef.current.length + extraLayers.length, `${name} (${remapped.size + 1})`)
+            remapped.set(id, target)
+            if (target !== layer) extraLayers.push(target)
+            return target.id
+        }
+
+        const newFeatures = parseFeatures(raw, resolveLayerId)
         if (newFeatures.length === 0) throw new Error(`"${name}" has no importable features.`)
-        if (!existing) {
-            layersRef.current = [...layersRef.current, layer]
-            setLayers((prev) => [...prev, layer])
+        const created = [...(existing ? [] : [layer]), ...extraLayers]
+        if (created.length) {
+            layersRef.current = [...layersRef.current, ...created]
+            setLayers((prev) => [...prev, ...created])
         }
         setActiveLayerId(layer.id)
         track("tools-drawing", { action: "import", features: newFeatures.length, format, remote: !!opts.sourceUrl })

@@ -38,6 +38,9 @@ const fillViewport = (tpl: string, lng: number, lat: number, zoom: number, beari
     .replace(/\{pitch\}/g, pitch.toFixed(2))
     .replace(/\{eh\}/g, String(Math.round((156543.034 * Math.cos((lat * Math.PI) / 180) / Math.pow(2, zoom)) * 100)))
     .replace(/\{gealt\}/g, String(Math.round(((38000 * 4096) / Math.pow(2, zoom)) * Math.cos((lat * Math.PI) / 180))))
+    // Web Mercator metres - what hub.flai.ai's ?c=x,y is in.
+    .replace(/\{mercX\}/g, String(Math.round((lng / 180) * 20037508.34)))
+    .replace(/\{mercY\}/g, String(Math.round((Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) / Math.PI) * 20037508.34)))
 
 /**
  * Draws the coverage overlays picked in Source Info (see

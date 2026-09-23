@@ -96,7 +96,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     // anything better than the global 30 m here? Footprints are each
     // dataset's COPC extent (docs/scripts/build-flai-coverage.mjs).
     { section: "Terrain", key: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai,
-      note: "Open LiDAR point clouds republished as COPC by FLAI (hub.flai.ai), one rectangle per survey, read from each file's own LAS header. Rectangles are declared extents, so a national survey overstates its edges.",
+      note: "Open LiDAR point clouds republished as COPC by FLAI (hub.flai.ai). The real flown footprint of each survey, traced from the COPC octree's own occupied nodes rather than a bounding box. Click one to open it in FLAI Hub at this view.",
       leaves: [{ id: "flai", label: "FLAI open LiDAR datasets", color: OVERLAY_COLORS.flai }] },
     { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category })) },
@@ -259,13 +259,27 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
       if (!res.ok) return empty
       const fc = (await res.json()) as FeatureCollection
       const features: Feature[] = fc.features.map((f) => {
-        const p = (f.properties ?? {}) as { name?: string; year?: string; density?: number; licence?: string; url?: string }
-        const bits = [p.year, p.density ? `${p.density} pts/m²` : null].filter(Boolean).join(" · ")
+        const p = (f.properties ?? {}) as {
+          name?: string; datasetId?: string; year?: string; endYear?: string
+          density?: number; areaKm2?: number; approximate?: boolean; licence?: string
+        }
+        const years = p.year && p.endYear && p.endYear !== p.year ? `${p.year}–${p.endYear}` : p.year
+        const bits = [
+          years,
+          p.density ? `${p.density} pts/m²` : null,
+          p.areaKm2 ? `${p.areaKm2.toLocaleString()} km²` : null,
+          p.approximate ? "bounding box only" : null,
+        ].filter(Boolean).join(" · ")
         return { ...f, properties: { ...f.properties,
-          overlay: id, color: OVERLAY_COLORS.flai, hollow: true, opacity: 0.35,
+          overlay: id, color: OVERLAY_COLORS.flai, hollow: false, opacity: 0.15,
           label: p.name ?? "FLAI open LiDAR",
-          detail: `open LiDAR (COPC)${bits ? ` · ${bits}` : ""} · declared extent`,
-          url: "https://hub.flai.ai/" } }
+          detail: `open LiDAR point cloud (COPC)${bits ? ` · ${bits}` : ""} · click to open it in FLAI Hub here`,
+          // hub.flai.ai reads its camera from ?c=<mercator x>,<mercator y>&z=,
+          // so the deep link lands on the same view rather than the dataset's
+          // default framing.
+          urlTemplate: p.datasetId
+            ? `https://hub.flai.ai/dataset/${p.datasetId}?c={mercX},{mercY}&z={zoom}`
+            : "https://hub.flai.ai/" } }
       })
       return { type: "FeatureCollection", features }
     } catch { return empty }
