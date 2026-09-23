@@ -61,8 +61,17 @@ const MINZOOM_TARGET_SOURCES = 4
 /** Ceiling on the source pixels one tile may decode from a single file. */
 const MAX_READ_PIXELS = 8e6
 /** Starting cells per side of the approximate-transformer grid, and the error
- *  it refines down to. 0.125 px is GDAL's own `-et` default. */
-const APPROX_GRID = 16
+ *  it refines down to. 0.125 px is GDAL's own `-et` default.
+ *
+ *  1 means the grid starts as the tile's four CORNERS and an affine fit
+ *  between them, which is all a conformal projection needs over a small tile:
+ *  measured over Lambert-93 the corner fit is 0.012 px out at z15 and 0.0002
+ *  at z18, so street-level tiles cost exactly four proj4 calls. It only
+ *  subdivides where the projection actually curves across the tile - at z12
+ *  the corner fit is 0.8 px and it refines to 4 cells, at z3 it goes further
+ *  still. Starting at 16 instead, as this first did, spent 289 calls at every
+ *  zoom to buy precision that only the lowest few need. */
+const APPROX_GRID = 1
 const APPROX_MAX_ERR_PX = 0.125
 
 /** A tile outside the mosaic, which is ordinary rather than an error: maplibre
@@ -303,20 +312,37 @@ function projectTilePixels(
       }
     }
     if (cells >= TILE_SIZE) break                 // a node per pixel: exact
-    // Probe the worst place for bilinear error, the centre of a cell, on a
-    // handful of cells spread across the tile.
+    // The tolerance is in OUTPUT pixels, like GDAL's -et, so it has to be
+    // scaled by how many source pixels one output pixel covers. Getting this
+    // wrong is not academic: an error of 3.5 source pixels sounds alarming and
+    // is 0.011 of an output pixel at z9, while the same 3.5 at z18 would be a
+    // visible smear. The span of the corner grid gives the scale directly.
+    const sourcePxPerOutputPx = Math.max(
+      Math.hypot(gx[nodes - 1] - gx[0], gy[nodes - 1] - gy[0]),
+      Math.hypot(gx[nodes * (nodes - 1)] - gx[0], gy[nodes * (nodes - 1)] - gy[0]),
+    ) / (TILE_SIZE / cells) / cells || 1
+    const tolerance = APPROX_MAX_ERR_PX * sourcePxPerOutputPx
+
+    // Bilinear error over a cell is not reliably worst at its centre - for a
+    // conic projection the centre can sit near a zero of the error while the
+    // edges do not - so each probed cell is sampled at its centre AND its four
+    // edge midpoints. Probing the centre alone accepted a single-quad fit that
+    // was really 0.89 px out.
     let worst = 0
-    for (let r = 0; r < cells; r += Math.max(1, cells >> 2)) {
-      for (let c = 0; c < cells; c += Math.max(1, cells >> 2)) {
+    const stride = Math.max(1, cells >> 2)
+    for (let r = 0; r < cells; r += stride) {
+      for (let c = 0; c < cells; c += stride) {
         const a = r * nodes + c, b = a + 1, d = a + nodes, e = d + 1
-        const ix = (gx[a] + gx[b] + gx[d] + gx[e]) / 4
-        const iy = (gy[a] + gy[b] + gy[d] + gy[e]) / 4
-        const [ex, ey] = at((c + 0.5) * step, (r + 0.5) * step)
-        if (!Number.isFinite(ex) || !Number.isFinite(ey)) continue
-        worst = Math.max(worst, Math.hypot(ix - ex, iy - ey))
+        for (const [fx, fy] of [[0.5, 0.5], [0.5, 0], [0.5, 1], [0, 0.5], [1, 0.5]]) {
+          const ix = (gx[a] * (1 - fx) + gx[b] * fx) * (1 - fy) + (gx[d] * (1 - fx) + gx[e] * fx) * fy
+          const iy = (gy[a] * (1 - fx) + gy[b] * fx) * (1 - fy) + (gy[d] * (1 - fx) + gy[e] * fx) * fy
+          const [ex, ey] = at((c + fx) * step, (r + fy) * step)
+          if (!Number.isFinite(ex) || !Number.isFinite(ey)) continue
+          worst = Math.max(worst, Math.hypot(ix - ex, iy - ey))
+        }
       }
     }
-    if (worst <= APPROX_MAX_ERR_PX) break
+    if (worst <= tolerance) break
     cells *= 2
   }
 
