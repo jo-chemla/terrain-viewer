@@ -1910,13 +1910,18 @@ export function TerrainViewer() {
       const missingTerrain: CustomTerrainSource[] = []
       const considerTerrain = (value: string | null) => {
         if (!value || missingTerrainIds.has(value)) return
-        if (value in ((terrainSources as any) ?? {}) || customTerrainSources.some((s) => s.id === value)) return
-        const sample = SAMPLE_TERRAIN_SOURCES.find((s) => s.id === value)
-        if (sample) {
-          // A derived (dem-diff) entry needs its operands loaded too.
-          for (const op of [sample.diffMinuendId, sample.diffSubtrahendId]) if (op) considerTerrain(op)
-          missingTerrainIds.add(sample.id); missingTerrain.push(sample)
-        }
+        if (value in ((terrainSources as any) ?? {})) return
+        // A derived (dem-diff) entry needs its operands loaded too - and
+        // that holds when the entry itself is already in this browser's
+        // list but an operand is not (deleted from BYOD, or added by a
+        // build that did not seed operands yet). Only the entry's own
+        // presence used to short-circuit here, which left such a link with
+        // a silently-empty pane.
+        const known = customTerrainSources.find((s) => s.id === value)
+        const sample = known ?? SAMPLE_TERRAIN_SOURCES.find((s) => s.id === value)
+        if (!sample) return
+        for (const op of [sample.diffMinuendId, sample.diffSubtrahendId]) if (op) considerTerrain(op)
+        if (!known) { missingTerrainIds.add(sample.id); missingTerrain.push(sample) }
       }
       for (const side of VIEW_IDS) considerTerrain(getUrlParam(searchParams, `source${side}`))
       for (const id of addSourceIds) considerTerrain(id)
