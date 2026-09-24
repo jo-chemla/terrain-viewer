@@ -26,7 +26,7 @@
  * An ordinary generalised vector layer. Decoded correctly, every zoom from
  * z5 to z12 gives ~2.05 Mkm2 worldwide and 91-96% of the central-Paris
  * tile, and a tile agrees with its four children (Jaccard 1.00). ONE zoom is
- * enough; z9 ships.
+ * enough; z8 ships - its blocks read like Google Earth's own coverage view.
  *
  * Everything this header used to say about the layer being "generalised per
  * zoom with no single zoom complete" (London only at z10, Tokyo only at z8,
@@ -36,10 +36,10 @@
  *
  * ## Shipping it
  *
- * dissolve-google-3d-coverage.mjs unions the z9 decode per 5x5 degree bucket
+ * dissolve-google-3d-coverage.mjs unions the z8 decode per 5x5 degree bucket
  * with @turf/turf (polygon-clipping underneath, already a dependency),
  * simplifies at ~500 m, truncates coordinates to 3 decimals and drops rings
- * under a square kilometre: 24 137 polygons -> 1 620, 0.99 MB, 54 s.
+ * under a square kilometre: 17 937 polygons -> 1 601, 0.99 MB, 49 s.
  */
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -61,13 +61,27 @@ async function get(url: string, retries = 5): Promise<{ status: number; data: Ui
 }
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-export async function layerTemplate(key: string): Promise<string> {
+/** Two layers ride the same endpoint and the same tile format:
+ *   'ml:xs:c:…'  - the Maps Datasets coverage layer behind Google's own
+ *                  Photorealistic 3D Tiles coverage page; its id is minted per
+ *                  API key by mapConfigs:batchGet (needs --key).
+ *   'ml:xsr:c:…' - the layer Google Earth draws for "3D buildings where
+ *                  available"; its id comes from any captured Earth bpb=
+ *                  request, works here with NO key or token, and decodes to
+ *                  blockier per-region blobs, ~4x smaller tiles.
+ *  --layer-id takes either verbatim and skips the minting. Ported from the
+ *  parallel agent's version, which found the Earth id works on this endpoint. */
+export async function layerTemplate(key: string, layerId?: string): Promise<string> {
+  if (layerId) return tmplFor(layerId, '47083502', '56565656');
   const { status, data } = await get(`https://maps.googleapis.com/maps/api/mapsjs/mapConfigs:batchGet?alt=protojson&map_ids=${MAP_ID}&map_type=1&language=en-US&region=US&key=${key}`);
   const txt = new TextDecoder().decode(data);
   const m = txt.match(/ml:xs:c:[A-Za-z0-9_-]+/);
   if (status !== 200 || !m) throw new Error(`mapConfigs failed (${status}): ${txt.slice(0, 300)}`);
   const ep = txt.match(/\[(\d{8}),(\d{8})\]/); const [a, b] = ep ? [ep[1], ep[2]] : ['47083502', '56565656'];
-  return `https://maps.googleapis.com/maps/vt/pb=!1m4!1m3!1i{z}!2i{x}!3i{y}!2m2!1e2!2s${encodeURIComponent(m[0])}` +
+  return tmplFor(m[0], a, b);
+}
+function tmplFor(id: string, a: string, b: string): string {
+  return `https://maps.googleapis.com/maps/vt/pb=!1m4!1m3!1i{z}!2i{x}!3i{y}!2m2!1e2!2s${encodeURIComponent(id)}` +
     `!3m9!2sen-US!3sUS!5e18!12m5!1e68!2m2!1sset!2sRoadmap!4e2!4e1!5m4!1e4!8m2!1e0!1e1` +
     `!6m9!1e12!2i2!19m1!1e0!20m1!1e0!39b1!44e1!50e0!23i${a}!23i${b}!23i47054750!23i46991212!26m2!1e2!1e3!28i796`;
 }
@@ -82,7 +96,7 @@ function lonLatToTile(lon: number, lat: number, z: number): [number, number] {
 async function cmdFetch(o: Record<string, string>) {
   const out = o.out ?? 'tiles', zoom = +(o.zoom ?? 8), z0 = Math.min(+(o['start-zoom'] ?? 5), zoom), conc = +(o.conc ?? 8);
   mkdirSync(out, { recursive: true });
-  const tmpl = await layerTemplate(o.key);
+  const tmpl = await layerTemplate(o.key, o['layer-id']);
   let x0 = 0, y0 = 0, x1 = 2 ** z0 - 1, y1 = x1;
   if (o.bbox) { const [w, s, e, n] = o.bbox.split(',').map(Number); [x0, y0] = lonLatToTile(w, n, z0); [x1, y1] = lonLatToTile(e, s, z0); }
   let queue: [number, number, number][] = [];
@@ -291,8 +305,8 @@ async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   const opts: Record<string, string> = {};
   for (let i = 0; i < rest.length; i++) if (rest[i].startsWith('--')) { const k = rest[i].slice(2); opts[k] = rest[i + 1] && !rest[i + 1].startsWith('--') ? rest[++i] : ''; }
-  if (cmd === 'fetch') { if (!opts.key) throw new Error('--key required'); await cmdFetch(opts); }
+  if (cmd === 'fetch') { if (!opts.key && !opts['layer-id']) throw new Error('--key or --layer-id required'); await cmdFetch(opts); }
   else if (cmd === 'decode') await cmdDecode(opts);
-  else console.log('usage: fetch --key K [--out tiles --zoom 8 --bbox W,S,E,N --conc 8] | decode [--tiles tiles --out x.geojson --zoom N]');
+  else console.log('usage: fetch --key K | --layer-id ml:xsr:c:... [--out tiles --zoom 8 --bbox W,S,E,N --conc 8] | decode [--tiles tiles --out x.geojson --zoom N]');
 }
 main().catch(e => { console.error(e); process.exit(1); });

@@ -182,10 +182,14 @@ z11 children, seven decode variants scored by Jaccard:
 
 Decoded correctly, every zoom z5..z12 gives ~2.05 Mkm2 worldwide and
 91-96% of that tile: an ordinary generalised layer. **One zoom is enough.**
-Shipped z9: crawl to z9 (8 744 requests, 62 MB, ~25 s), decode 9 s,
-dissolve 54 s -> 1 620 polygons, 0.99 MB. Central Paris 97.3%, Paris window
-ONE polygon of 2 897 km2 (was 18 polygons / 2 258 km2 / holes), 20/20 cities.
-z8 is identical to 0.2%. The Python port had the same bug and is fixed.
+Shipped z8 (Jonathan's pick - its blocks read like Google Earth's own
+coverage view): crawl to z8 (4 120 requests, 32 MB, ~10 s), decode 5 s,
+dissolve 49 s -> 1 601 polygons, 0.99 MB. Central Paris 97.1%, Paris window
+ONE polygon of 2 894 km2 (was 18 polygons / 2 258 km2 / holes), 20/20 cities.
+z9/z10 are identical to 0.2%. A second agent reached the same bug
+independently (`prev + 2*zz(v)`, IoU 1.00 across z8/z9/z10) - and found that
+Google Earth's own `ml:xsr:c:` layer id works on the same maps/vt endpoint
+with no key (`fetch --layer-id`), giving blockier per-region blobs. The Python port had the same bug and is fixed.
 
 Lesson worth keeping: when a per-zoom measurement lands on a suspiciously
 round fraction (25%), test the decoder against itself across zoom levels

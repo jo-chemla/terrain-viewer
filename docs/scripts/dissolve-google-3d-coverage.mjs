@@ -2,7 +2,7 @@
 // Turns the decoded Google 3D coverage - several zooms' worth of overlapping,
 // tile-clipped polygons - into one shippable GeoJSON.
 //
-// Input is what google3d-coverage.ts `decode --zoom 9` wrote: 24 137
+// Input is what google3d-coverage.ts `decode --zoom 8` wrote: 17 937
 // tile-clipped polygons. One zoom is enough - the layer is an ordinary
 // generalised one once the decoder's delta rule is right (see the .ts
 // header; for a while it was thought to be sharded across zooms and this
