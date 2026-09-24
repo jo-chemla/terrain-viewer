@@ -244,6 +244,14 @@ class RafEngine {
 
 /** Keyframe animation (pose1 → pose2) RAF engine */
 const animEngine = new RafEngine()
+/** Camera-target elevation held for the whole of a playback or scrub - see
+ *  applyProgress. Captured when playback starts, cleared when it stops. */
+const playbackElevation: { value: number | null } = { value: null }
+function holdPlaybackElevation(map: ReturnType<typeof getMap>) {
+  const m = map as unknown as { getCameraTargetElevation?: () => number; _camera?: { transform?: { elevation?: number } }; transform?: { elevation?: number } } | null
+  const e = m?.getCameraTargetElevation?.() ?? m?._camera?.transform?.elevation ?? m?.transform?.elevation
+  playbackElevation.value = Number.isFinite(e as number) ? (e as number) : null
+}
 
 /** 360° spin RAF engine */
 const spinEngine = new RafEngine()
@@ -365,22 +373,22 @@ function applyProgress(
   if (!map) return
   const t = smootherstep(clamp(raw, 0, 1))
 
-  map.easeTo({
+  // jumpTo, not easeTo, and with the elevation spelled out. MapLibre 6.11
+  // (maplibre-gl-js#8543) makes every unfrozen easeTo glide the camera
+  // target's elevation to the terrain under the destination, and #8471
+  // re-applies the terrain height the moment a freeze lifts - so a flight
+  // driven by one easeTo per frame bobs over every ridge as if it were
+  // avoiding the ground, freezeElevation or not. jumpTo with an explicit
+  // `elevation` writes that height last and skips the easing machinery, so
+  // the pose interpolates in a straight line; the height is the one the
+  // target had when playback (or the scrub) began.
+  map.jumpTo({
     center: [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
     zoom:   lerp(p1.pose.zoom, p2.pose.zoom, t),
     pitch:  lerp(p1.pose.pitch, p2.pose.pitch, t),
     bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
-    duration: 0,
-    animate: false,
-    // Keep the camera target's elevation where it was when playback began.
-    // Without this every per-frame easeTo re-reads the terrain height under
-    // the interpolated center and moves the camera with it, so a pose-to-pose
-    // flight bobs over ridges as if it were avoiding the ground (MapLibre 6
-    // eases the center elevation in every easeTo). Ground clamping is off for
-    // playback (see setCenterClampedToGround(false) below), so nothing
-    // re-solves zoom and center when the freeze lifts at the end.
-    freezeElevation: true,
-  })
+    ...(playbackElevation.value != null ? { elevation: playbackElevation.value } : {}),
+  } as Parameters<typeof map.jumpTo>[0])
   ;(map as any).setRoll?.(lerp(p1.pose.roll, p2.pose.roll, t))
   map.setVerticalFieldOfView(lerp(p1.pose.vfov, p2.pose.vfov, t))
   map.triggerRepaint()
@@ -805,12 +813,18 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
     animEngine.stop()
     const map = getMap(mapRef)
     map?.setCenterClampedToGround(false)
+    playbackElevation.value = null
     setPlaying(false)
   }, [mapRef, setPlaying])
 
   const startPlay = useCallback((fromProgress = 0) => {
     if (!p1Ref.current || !p2Ref.current) return
     animEngine.stop()
+    const playMap = getMap(mapRef)
+    // Off for the flight: with it on, MapLibre re-reads the ground under the
+    // center every rendered frame and the held elevation would not hold.
+    playMap?.setCenterClampedToGround(false)
+    holdPlaybackElevation(playMap)
     bounceDir.current = 1
     playOffsetRef.current = clamp(fromProgress, 0, 1)
     playStartRef.current = performance.now()
@@ -850,6 +864,7 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
     const p1 = p1Ref.current; const p2 = p2Ref.current; const map = getMap(mapRef)
     if (!p1 || !p2 || !map) return
     setProgress(raw)
+    if (playbackElevation.value == null) holdPlaybackElevation(map)
     applyProgress(raw, p1, p2, map, appRef.current, cbRef.current, false)
     if (playing) { playOffsetRef.current = raw; playStartRef.current = performance.now() }
   }, [playing, mapRef])
