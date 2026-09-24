@@ -162,39 +162,34 @@ the OUTPUT precision (3 decimals, 110 m) instead of 5: below anything the
 part, zero failures). Shipped: Paris 10 polygons, 0 overlapping pairs,
 1 333 km2; world 7 268 polygons, 0.977 Mkm2, 2.53 MB, 18/18 cities inside.
 
-**Why Paris still looked hollow after every union fix (2026-09-24): the
-layer is sharded across zoom levels.** Jonathan loaded the raw z10 decode in
-kepler.gl and the heart of Paris was empty. Per-stage accounting on the
-central tile (10/518/352, the biggest z10 tile in the world at 7 085 points,
-15 features, 58 KB) showed the decoder loses nothing - triangles 24.9% of the
-tile, rings 25.2%, polygons 24.9%, no duplicate triangles, no edge used 3+
-times, no unread geometry (the f3/f4/f5 sub-fields are 1-16 values and the
-vertex count). No per-tile budget either: z8 tiles reach 16 390 points. The
-tile really carries a quarter of the area.
+**THE ROOT CAUSE, found 2026-09-24 after three wrong explanations: the
+decoder's delta rule.** `zz` used protobuf zigzag (`v/2`, `-(v+1)/2`). This
+format is NOT zigzag; the rule is `v` / `-(v+1)`. Every polygon was deflated
+2x about its first vertex. Consequences, all of which were misread as data
+properties: each zoom covered ~25% of central Paris ((1/2)^2); different
+zooms' pieces landed in different places so unions grew with every zoom and
+never converged (wrongly called "generalised per zoom", then "per-tile
+budget", then "sharded across zooms"); London and San Francisco tested
+outside. Jonathan spotted the 2x deflation from the polygon shapes in
+kepler.gl. Settled by cross-zoom agreement on tile 10/518/352 vs its four
+z11 children, seven decode variants scored by Jaccard:
 
-Then the same footprint at every zoom, unioned cumulatively:
+| variant | z10 | z11 | Jaccard |
+|---|---|---|---|
+| zigzag (old) | 23.2% | 23.7% | 0.32 |
+| **deltas x2** | **96.2%** | **96.3%** | **1.00** |
+| coords x1/2, y-flip, x/y swap, zigzag-first, no-zigzag | 6-24% | 6-25% | 0.04-0.31 |
 
-| zoom | alone | cumulative z5..z |
-|---|---|---|
-| z5 / z6 / z7 | 29.5 / 29.1 / 28.2 % | 54.1 % |
-| z8 / z9 / z10 | 26.0 / 26.4 / 23.4 % | 56.9 / 58.0 / 64.0 % |
-| z11 / z12 / z13 | 24.3 / 24.1 / 24.5 % | 69.5 / 75.2 / 80.8 % |
+Decoded correctly, every zoom z5..z12 gives ~2.05 Mkm2 worldwide and
+91-96% of that tile: an ordinary generalised layer. **One zoom is enough.**
+Shipped z9: crawl to z9 (8 744 requests, 62 MB, ~25 s), decode 9 s,
+dissolve 54 s -> 1 620 polygons, 0.99 MB. Central Paris 97.3%, Paris window
+ONE polygon of 2 897 km2 (was 18 polygons / 2 258 km2 / holes), 20/20 cities.
+z8 is identical to 0.2%. The Python port had the same bug and is fixed.
 
-**Every zoom level, fine ones included, serves a DIFFERENT ~25% subset of
-the coverage, and they never converge.** Not generalisation (a generalised
-layer converges at fine zoom), not truncation. It behaves like sampling
-with replacement at p~0.22 per level: three levels ~50%, nine levels ~80%.
-So the pipeline is structurally lossy by construction and the lever is
-MORE ZOOM LEVELS, not better clipping: the z5-z7 tiles are already on disk
-from any hierarchical crawl (decode with --zoom N), and one crawl to z12
-gives z5..z12. Remaining question, worth a look before crawling to z14+:
-whether the request has a density/sampling flag that returns everything.
-
-**Shipped with z5..z12 (2026-09-24):** one crawl to z12 (116 304 requests,
-194 MB, 259 s), eight decodes, dissolve of 241 283 polygons in 546 s with a
-12 GB heap -> 9 333 polygons, 3.96 MB. Central-Paris tile 48% -> 74%, Paris
-window 1 333 -> 2 258 km2, world 0.977 -> 1.634 Mkm2, cities 18/20 -> 20/20.
-`pnpm google-3d-fetch` / `google-3d-dissolve` now do exactly this.
+Lesson worth keeping: when a per-zoom measurement lands on a suspiciously
+round fraction (25%), test the decoder against itself across zoom levels
+before theorising about the data. Cross-zoom Jaccard is a one-line oracle.
 
 **Diagnostic that settles it in one line:** compare the output's total area
 over a window against the raw decodes'. A correct union is at most the largest
@@ -226,8 +221,6 @@ remainder are mostly holes that legitimately touch their outer ring, which
 clean outlines with none. Total covered area barely moved: 1.074 -> 1.062
 Mkm2, so nothing was thrown away.
 
-**RETRACTED (2026-09-24): "London is outside Google's layer".** It was
-outside the z8/z9/z10 shards. With z5..z12 unioned, London and San Francisco
-test inside (20/20 on the checklist). The gap was never in Google's coverage;
-it was in how many zoom levels had been fetched - see the sharding note.
+**RETRACTED (2026-09-24): "London is outside Google's layer".** It was the
+delta-rule bug deflating the polygon that contains it. Fixed; 20/20.
 

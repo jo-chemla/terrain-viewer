@@ -109,7 +109,7 @@ def varints(b):
     while i < len(b): v, i = rv(b, i); out.append(v)
     return out
 
-zz = lambda v: (v >> 1) ^ -(v & 1)
+zz = lambda v: -(v + 1) if v % 2 else v  # not protobuf zigzag - see google3d-coverage.ts
 
 def decode_tile(raw):
     b = bytes(c ^ 0x9b for c in raw)

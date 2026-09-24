@@ -18,9 +18,9 @@
     "url-params": "node docs/scripts/build-url-params.mjs",
     "bing-3d-coverage": "node docs/scripts/build-bing-3d-coverage.mjs",
     "google-3d-coverage": "node docs/scripts/build-google-3d-coverage.mjs",
-    "google-3d-fetch": "tsx docs/scripts/google3d-coverage.ts fetch --key $GOOGLE_KEY --out .cache/google3d-z12 --zoom 12 --conc 24 && for z in 5 6 7 8 9 10 11 12; do tsx docs/scripts/google3d-coverage.ts decode --tiles .cache/google3d-z12 --out .cache/google3d-z$z.geojson --zoom $z; done",
+    "google-3d-fetch": "tsx docs/scripts/google3d-coverage.ts fetch --key $GOOGLE_KEY --out .cache/google3d --zoom 9 --conc 24 && tsx docs/scripts/google3d-coverage.ts decode --tiles .cache/google3d --out .cache/google3d-z9.geojson --zoom 9",
     "screenshot-thumbs": "node docs/scripts/build-screenshot-thumbs.mjs",
-    "google-3d-dissolve": "node --max-old-space-size=8192 docs/scripts/dissolve-google-3d-coverage.mjs .cache/google3d-z5.geojson .cache/google3d-z6.geojson .cache/google3d-z7.geojson .cache/google3d-z8.geojson .cache/google3d-z9.geojson .cache/google3d-z10.geojson .cache/google3d-z11.geojson .cache/google3d-z12.geojson",
+    "google-3d-dissolve": "node --max-old-space-size=8192 docs/scripts/dissolve-google-3d-coverage.mjs .cache/google3d-z9.geojson",
     "flai-coverage": "node docs/scripts/build-flai-coverage.mjs",
     "esri-3d-coverage": "node docs/scripts/build-esri-3d-coverage.mjs",
     "open-buildings-vrt": "node docs/scripts/build-open-buildings-vrt.mjs"

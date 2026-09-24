@@ -21,41 +21,25 @@
  * silently delete whole features), and clamping vertices to the tile box
  * produces invalid rings - the ~0.7% buffer should be kept instead.
  *
- * ## What the data actually looks like (measured 2026-09-23)
+ * ## What the data actually looks like (corrected 2026-09-24)
  *
- * The layer is GENERALISED PER ZOOM, and no single zoom is complete. By
- * point-in-triangle against the raw mesh, which no ring or hole logic can
- * affect: London, New York and Berlin are present at z10 and absent at z8;
- * Tokyo is present at z8 and absent at z10; Tours only at z9. So the world
- * has to be crawled at several zooms and the polygons UNIONED. Scored against
- * 39 places Google Earth answers for:
+ * An ordinary generalised vector layer. Decoded correctly, every zoom from
+ * z5 to z12 gives ~2.05 Mkm2 worldwide and 91-96% of the central-Paris
+ * tile, and a tile agrees with its four children (Jaccard 1.00). ONE zoom is
+ * enough; z9 ships.
  *
- *      z8 alone            25/39     17 937 polygons     53 MB
- *      z9 alone            26/39     24 137 polygons     84 MB
- *      z10 alone           29/39     31 243 polygons     88 MB
- *      z8 + z10            33/39     49 180 polygons    141 MB
- *      z8 + z9 + z10       34/39     73 317 polygons    225 MB
- *
- * The five still "missed" by the 3-way union - Le Havre, Deauville, Blois,
- * Le Mans, Dijon - are inside zero triangles at EVERY zoom, and yet each has
- * coverage geometry 0.3-3.3 km from the test point. They are in the dataset;
- * the polygons are simply tighter than a city-centre coordinate. Paris's own
- * nearest vertex is 0.5 km away and it hits. Treat the union as complete.
- *
- * Cost of the union: z10 is 19 768 requests and 95 MB of tiles (z5-z10, all
- * cached), a minute of fetch and 15 s of decode.
+ * Everything this header used to say about the layer being "generalised per
+ * zoom with no single zoom complete" (London only at z10, Tokyo only at z8,
+ * scores of 25/39 rising to 34/39 with three zooms unioned) was an artefact
+ * of the delta rule below being protobuf zigzag, which deflated every
+ * polygon 2x about its first vertex. See `zz`.
  *
  * ## Shipping it
  *
- * dissolve-google-3d-coverage.mjs takes the per-zoom outputs and unions them
- * per 5x5 degree bucket with @turf/turf (polygon-clipping underneath, already
- * a dependency), simplifies, truncates coordinates to 3 decimals and drops
- * rings under a square kilometre. 225 MB of overlapping polygons becomes a
- * few MB, ~0.6 MB over the wire, with the same score against ground truth.
- * The first, gentle pass (200 m, 4 decimals, 0.5 km2) left 69 MB: the
- * tile-clipped triangle outlines are dense enough that only a brutal
- * tolerance bites, and at coverage scale nothing under a kilometre is
- * information.
+ * dissolve-google-3d-coverage.mjs unions the z9 decode per 5x5 degree bucket
+ * with @turf/turf (polygon-clipping underneath, already a dependency),
+ * simplifies at ~500 m, truncates coordinates to 3 decimals and drops rings
+ * under a square kilometre: 24 137 polygons -> 1 620, 0.99 MB, 54 s.
  */
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -147,7 +131,16 @@ function varints(b: Uint8Array): number[] {
   while (i < b.length) { let r = 0, s = 0; for (;;) { const c = b[i++]; r += (c & 0x7f) * 2 ** s; s += 7; if (!(c & 0x80)) break; } out.push(r); }
   return out;
 }
-const zz = (v: number) => (v % 2 ? -(v + 1) / 2 : v / 2);
+// NOT protobuf zigzag. Standard zigzag halves the value (v/2, -(v+1)/2) and
+// that is what an earlier version did - which deflated every polygon by 2x
+// about its first vertex. The tell was that every zoom level covered ~25%
+// of central Paris ((1/2)^2) with different zooms' pieces landing in
+// different places, so unions grew with every zoom and never converged.
+// Tested against six other readings by cross-zoom agreement: with this rule
+// the z10 tile and its four z11 children render the same polygons (Jaccard
+// 1.00, 96% of the tile covered); with zigzag they were near-disjoint
+// (Jaccard 0.32, 23%). The first vertex is absolute and unscaled.
+const zz = (v: number) => (v % 2 ? -(v + 1) : v);
 
 export interface Mesh { pts: number[]; tris: number[] } // pts: flat [x0,y0,x1,y1,...] tile units; tris: flat index triples
 export function decodeTile(raw: Uint8Array): { z: number; x: number; y: number; meshes: Mesh[] } {
