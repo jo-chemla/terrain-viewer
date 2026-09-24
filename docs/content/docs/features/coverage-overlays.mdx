@@ -75,6 +75,10 @@ Overlays are drawn on all views of a split or grid layout. The selection is sess
 
 ## How the 3D and LiDAR footprints are built
 
+![Bing, Google, Esri Integrated Mesh and FLAI coverage over Europe](/screenshots/coverage-3d-lidar-europe.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">The four 3D and LiDAR overlays on one switch, over Europe - Bing (indigo), Google (rose), Esri Integrated Mesh (violet), FLAI (teal)</p>
+
 None of these is built by the deploy workflow. Each is a script under `docs/scripts/`, run by hand, whose output is committed under `public/coverage/`; the GitHub Action only builds the app and this docs site. Times are from one machine on 2026-09-24.
 
 ### Google photorealistic 3D

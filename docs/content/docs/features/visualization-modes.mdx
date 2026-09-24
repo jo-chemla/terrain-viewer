@@ -47,6 +47,10 @@ Most of these are inspired by `gdaldem` and the [RVT (Relief Visualization Toolb
 
 ## Data layers picker
 
+![The Data layers picker](/screenshots/data-layers-picker.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">The Data layers picker - every visualization mode as a card of the same Matterhorn view, plus a Tools row</p>
+
 Every mode on this page is also a card in the **Data layers** picker — the Layers button in the panel’s title bar, or next to the Visualization Modes pin. Each card is a thumbnail of the same Matterhorn view with only the rendering changed, so the modes can be compared before any is switched on; clicking a card toggles it (and switches on the section it belongs to). Group titles — Terrain analysis, Relief visualization, Light, Tools — open that section in the sidebar, and the Tools row does the same for Draw, Elevation picker, Sun shadow and Animation. Modes without a screenshot yet (Ruggedness, Roughness, Blobness, Local dominance) are only in the sidebar.
 
 The thumbnails are 640 px crops of the docs’ own captures (`docs/scripts/build-screenshot-thumbs.mjs`), and the captures themselves are reproducible from `docs/scripts/capture-viz-mode-cards.mjs`, which uses the parameters linked under every screenshot here.

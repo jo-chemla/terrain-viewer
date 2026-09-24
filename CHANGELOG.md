@@ -4,6 +4,7 @@
 
 #### TL;DR
 - **A Data layers picker: every visualization mode as a card with its picture.** Google Earth’s layer panel, for terrain — hillshade, hypsometric tint, contours, basemap imagery, slope, aspect, curvature, TPI, local relief, sky‑view factor, openness, matcap, phong and hard shadows — each a thumbnail of the same Matterhorn view with only the rendering changed, one click to turn it on or off. A Tools row opens Draw, Elevation picker, Sun shadow and Animation in the sidebar. Reached from the panel title bar or next to the Visualization Modes pin.
+  ![The Data layers picker: every visualization mode as a card of the same Matterhorn view](/docs/screenshots/data-layers-picker.jpg)
 - **Quick buttons on the foldable section headers.** Home on General Settings, the Gallery on Bookmarks, Snapshot on Download and Snapshot, the Data layers picker on Visualization Modes — whose fold, expand and pin are now one three‑state control instead of a chevron beside a pin.
 
 ---
@@ -17,6 +18,7 @@
 - **Twenty new elevation sources**, every endpoint verified live before it was added: Hawaii's 1 m and Maui's 0.3 m LiDAR as LERC tiles, New Brunswick and Alaska IfSAR (DTM *and* DSM, so 3DEP finally has a surface-model counterpart), South Australia's 0.5 m River Murray LiDAR, Hong Kong, New York, Dar es Salaam's 0.5 m, JAXA's global AW3D30, and the Aguada Fenix Maya survey's canopy surface. Seven of them are ready-made **nDSMs** that pull their own operands in.
 - **A slow terrain tile no longer freezes the basemap.** MapLibre queues every raster load through one budget of 16, and a custom protocol holds its slot for the whole handler — so sixteen VRT or sky-view-factor tiles left the map grey.
 - **Four coverage overlays for 3D and LiDAR: Google photorealistic 3D, Bing Maps 3D, Esri Integrated Mesh and FLAI open LiDAR.** None of the four publishes a footprint you can download, so each is read from the provider’s own data — Google’s from the coverage layer behind its docs page, decoded from Maps vector tiles; Bing’s from its 3D Tiles subtree availability bitstream; Esri’s from ArcGIS Online’s search API, kept to open services of 5 km² or more; FLAI’s from every survey’s COPC octree over range requests. Click a footprint to open that provider’s own 3D view there. How each is built is on the [coverage overlays](/docs/features/coverage-overlays) page.
+  ![The four 3D and LiDAR coverage overlays over Europe: Bing, Google, Esri Integrated Mesh and FLAI](/docs/screenshots/coverage-3d-lidar-europe.jpg)
 
 ---
 
