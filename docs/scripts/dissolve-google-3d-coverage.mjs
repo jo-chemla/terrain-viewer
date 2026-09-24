@@ -2,11 +2,12 @@
 // Turns the decoded Google 3D coverage - several zooms' worth of overlapping,
 // tile-clipped polygons - into one shippable GeoJSON.
 //
-// Input is whatever google3d-coverage.ts `decode` wrote for each zoom. The
-// zooms are UNIONED because the layer is generalised per zoom and no single
-// one is complete (London, New York and Berlin only at z10, Tokyo only at z8,
-// Tours only at z9 - see the decoder's header). Three zooms come to 73 317
-// polygons and 225 MB, which is why this pass exists.
+// Input is whatever google3d-coverage.ts `decode --zoom N` wrote for each
+// level of one crawl. The levels are UNIONED because Google serves this layer
+// SHARDED across zoom levels: every level, fine ones included, carries a
+// different ~25% of the polygons and they never converge (central Paris:
+// three levels 48%, eight levels 74%, nine 81% - see the memory note). Eight
+// levels, z5..z12, come to 241 283 polygons, which is why this pass exists.
 //
 // ## Two bugs, both of which shipped
 //

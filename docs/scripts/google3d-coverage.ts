@@ -270,7 +270,12 @@ const areaKm2 = (poly: [number, number][][]) => { // outer ring only, equirect a
 async function cmdDecode(o: Record<string, string>) {
   const dir = o.tiles ?? 'tiles', out = o.out ?? 'coverage.geojson';
   const files = readdirSync(dir).filter(f => f.endsWith('.bin'));
-  const zmax = Math.max(...files.map(f => +f.split('_')[0]));
+  // --zoom N decodes that level out of a crawl directory instead of only the
+  // deepest one. A crawl to z10 leaves z5..z10 on disk, and every level
+  // carries a DIFFERENT subset of the coverage (measured on central Paris:
+  // z8..z13 each ~25% of the tile, all six together 72%), so the shallower
+  // levels are worth decoding too.
+  const zmax = o.zoom ? +o.zoom : Math.max(...files.map(f => +f.split('_')[0]));
   let polys: [number, number][][][] = []; const t0 = Date.now(); let nt = 0;
   for (const f of files) {
     if (+f.split('_')[0] !== zmax) continue;
@@ -295,6 +300,6 @@ async function main() {
   for (let i = 0; i < rest.length; i++) if (rest[i].startsWith('--')) { const k = rest[i].slice(2); opts[k] = rest[i + 1] && !rest[i + 1].startsWith('--') ? rest[++i] : ''; }
   if (cmd === 'fetch') { if (!opts.key) throw new Error('--key required'); await cmdFetch(opts); }
   else if (cmd === 'decode') await cmdDecode(opts);
-  else console.log('usage: fetch --key K [--out tiles --zoom 8 --bbox W,S,E,N --conc 8] | decode [--tiles tiles --out x.geojson]');
+  else console.log('usage: fetch --key K [--out tiles --zoom 8 --bbox W,S,E,N --conc 8] | decode [--tiles tiles --out x.geojson --zoom N]');
 }
 main().catch(e => { console.error(e); process.exit(1); });

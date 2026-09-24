@@ -162,6 +162,40 @@ the OUTPUT precision (3 decimals, 110 m) instead of 5: below anything the
 part, zero failures). Shipped: Paris 10 polygons, 0 overlapping pairs,
 1 333 km2; world 7 268 polygons, 0.977 Mkm2, 2.53 MB, 18/18 cities inside.
 
+**Why Paris still looked hollow after every union fix (2026-09-24): the
+layer is sharded across zoom levels.** Jonathan loaded the raw z10 decode in
+kepler.gl and the heart of Paris was empty. Per-stage accounting on the
+central tile (10/518/352, the biggest z10 tile in the world at 7 085 points,
+15 features, 58 KB) showed the decoder loses nothing - triangles 24.9% of the
+tile, rings 25.2%, polygons 24.9%, no duplicate triangles, no edge used 3+
+times, no unread geometry (the f3/f4/f5 sub-fields are 1-16 values and the
+vertex count). No per-tile budget either: z8 tiles reach 16 390 points. The
+tile really carries a quarter of the area.
+
+Then the same footprint at every zoom, unioned cumulatively:
+
+| zoom | alone | cumulative z5..z |
+|---|---|---|
+| z5 / z6 / z7 | 29.5 / 29.1 / 28.2 % | 54.1 % |
+| z8 / z9 / z10 | 26.0 / 26.4 / 23.4 % | 56.9 / 58.0 / 64.0 % |
+| z11 / z12 / z13 | 24.3 / 24.1 / 24.5 % | 69.5 / 75.2 / 80.8 % |
+
+**Every zoom level, fine ones included, serves a DIFFERENT ~25% subset of
+the coverage, and they never converge.** Not generalisation (a generalised
+layer converges at fine zoom), not truncation. It behaves like sampling
+with replacement at p~0.22 per level: three levels ~50%, nine levels ~80%.
+So the pipeline is structurally lossy by construction and the lever is
+MORE ZOOM LEVELS, not better clipping: the z5-z7 tiles are already on disk
+from any hierarchical crawl (decode with --zoom N), and one crawl to z12
+gives z5..z12. Remaining question, worth a look before crawling to z14+:
+whether the request has a density/sampling flag that returns everything.
+
+**Shipped with z5..z12 (2026-09-24):** one crawl to z12 (116 304 requests,
+194 MB, 259 s), eight decodes, dissolve of 241 283 polygons in 546 s with a
+12 GB heap -> 9 333 polygons, 3.96 MB. Central-Paris tile 48% -> 74%, Paris
+window 1 333 -> 2 258 km2, world 0.977 -> 1.634 Mkm2, cities 18/20 -> 20/20.
+`pnpm google-3d-fetch` / `google-3d-dissolve` now do exactly this.
+
 **Diagnostic that settles it in one line:** compare the output's total area
 over a window against the raw decodes'. A correct union is at most the largest
 single zoom plus a little; three times it means no union happened.
@@ -192,12 +226,8 @@ remainder are mostly holes that legitimately touch their outer ring, which
 clean outlines with none. Total covered area barely moved: 1.074 -> 1.062
 Mkm2, so nothing was thrown away.
 
-**London is the one city that stopped testing "inside", and the old answer was
-the wrong one.** Charing Cross was 2.77 km inside an OLD polygon and is 2.87
-km outside a NEW one - but it is inside NOTHING in the raw decodes either
-(nearest polygon 2.85 / 3.02 / 2.81 km at z8 / z9 / z10). The old containment
-was a bowtie from an un-noded self-intersection happening to fill over it. Do
-not "fix" this by loosening the dissolve; the gap is in Google's own published
-coverage layer. 18/20 of a city checklist test inside, and most cities sit
-*deeper* inside than before (Rome -0.42 -> -4.41 km, Lisbon -1.23 -> -3.08).
+**RETRACTED (2026-09-24): "London is outside Google's layer".** It was
+outside the z8/z9/z10 shards. With z5..z12 unioned, London and San Francisco
+test inside (20/20 on the checklist). The gap was never in Google's coverage;
+it was in how many zoom levels had been fetched - see the sharding note.
 
