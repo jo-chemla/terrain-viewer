@@ -6,6 +6,29 @@ import { useEffect, useRef, useCallback } from "react"
 import { useMap } from "react-map-gl/maplibre"
 import { GeoGrid } from "geogrid-maplibre-gl"
 
+// Auto density snapped to the intervals a map reader expects. geogrid's own
+// per-zoom table sets the coverage (4-8 lines across the view) but lands on
+// 7.5 deg, 0.75 deg, 0.075 deg and the like, which no graticule uses. Each of
+// its values is snapped to the nearest (in log space) whole number of
+// degrees, or round number of arc-minutes or arc-seconds, halving and
+// quartering the way survey grids do; past its table the spacing halves.
+const NICE_DEGREES = [
+    45, 30, 20, 15, 10, 5, 2, 1,
+    30 / 60, 20 / 60, 15 / 60, 10 / 60, 5 / 60, 2 / 60, 1 / 60,
+    30 / 3600, 20 / 3600, 15 / 3600, 10 / 3600, 5 / 3600, 2 / 3600, 1 / 3600,
+]
+const GEOGRID_DENSITY: Record<number, number> = { 0: 30, 1: 15, 2: 10, 3: 7.5, 4: 5, 5: 3, 6: 2, 7: 1.5, 8: 0.75, 9: 0.5, 10: 0.25, 11: 0.125, 12: 0.075, 13: 0.05, 14: 0.025 }
+export function niceGraticuleDensity(zoom: number): number {
+    const z = Math.max(0, Math.floor(zoom))
+    const raw = z <= 14 ? GEOGRID_DENSITY[z] : GEOGRID_DENSITY[14] / 2 ** (z - 14)
+    let best = NICE_DEGREES[0], bestD = Infinity
+    for (const d of NICE_DEGREES) {
+        const dist = Math.abs(Math.log(d / raw))
+        if (dist < bestD - 1e-9) { best = d; bestD = dist }
+    }
+    return best
+}
+
 export interface GraticuleLayerProps {
     showGraticules: boolean
     graticuleColor?: string
@@ -108,6 +131,8 @@ export function GraticuleLayer({
             opts.gridDensity = typeof p.gridDensity === "number"
                 ? (_z: number) => p.gridDensity as number
                 : p.gridDensity
+        } else {
+            opts.gridDensity = niceGraticuleDensity
         }
 
         return opts

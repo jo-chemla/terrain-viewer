@@ -243,10 +243,20 @@ export const HypsometricTintOptionsSection: React.FC<{
     // which is the mode a whole-world view is normally in.
     // MapLibre 6 calls them tile managers (style.tileManagers, keyed by
     // source id); 5 had sourceCaches / _otherSourceCaches. Same object.
-    const demCache = (map as any).style?.tileManagers?.terrainSource
-      ?? (map as any).style?.sourceCaches?.terrainSource
+    // Whichever raster-dem source is actually drawing holds the decoded DEM
+    // (tile.dem): terrainSource under 3D terrain, but in 2D nothing reads
+    // terrainSource and the hypsometric/hillshade layers draw from
+    // hillshadeSource instead, which is then the only one with tiles. Take
+    // the raster-dem tile manager with the most decoded tiles in view. On 6
+    // the terrain's own tile manager hands out render tiles without a dem,
+    // so it is only a last resort.
+    const managers: Record<string, any> = (map as any).style?.tileManagers ?? (map as any).style?.sourceCaches ?? {};
+    const demCache = Object.values(managers)
+      .filter((tm: any) => tm?.getSource?.()?.type === "raster-dem" && tm.getVisibleCoordinates)
+      .map((tm: any) => ({ tm, n: tm.getVisibleCoordinates().map((c: any) => tm.getTile(c)).filter((t: any) => t?.dem).length }))
+      .sort((a, b) => b.n - a.n)[0]?.tm
       ?? (map as any).style?._otherSourceCaches?.terrainSource;
-    const tileSource = terrain?.tileManager ?? demCache;
+    const tileSource = demCache ?? terrain?.tileManager;
     if (!tileSource) return null;
 
     const bounds = map.getBounds();
@@ -367,8 +377,15 @@ export const HypsometricTintOptionsSection: React.FC<{
   // work with nDSM". If nothing decodes in time, say so.
   const toast = useToast()
   const [autoRangeRequest, setAutoRangeRequest] = useAtom(hypsoAutoRangeRequestAtom)
+  // One poll per request id. setElevFromLoadedTiles changes identity every
+  // time the range it just wrote changes state, and an effect keyed on it
+  // re-ran for the same request: the range was re-read and re-written on
+  // every idle, which showed as the symmetric slider snapping back to a value
+  // the user had not set.
+  const handledRequestRef = useRef(0)
   useEffect(() => {
-    if (!autoRangeRequest) return
+    if (!autoRangeRequest || handledRequestRef.current === autoRangeRequest) return
+    handledRequestRef.current = autoRangeRequest
     let cancelled = false
     let tries = 0
     const tick = () => {

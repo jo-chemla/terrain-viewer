@@ -372,6 +372,14 @@ function applyProgress(
     bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
     duration: 0,
     animate: false,
+    // Keep the camera target's elevation where it was when playback began.
+    // Without this every per-frame easeTo re-reads the terrain height under
+    // the interpolated center and moves the camera with it, so a pose-to-pose
+    // flight bobs over ridges as if it were avoiding the ground (MapLibre 6
+    // eases the center elevation in every easeTo). Ground clamping is off for
+    // playback (see setCenterClampedToGround(false) below), so nothing
+    // re-solves zoom and center when the freeze lifts at the end.
+    freezeElevation: true,
   })
   ;(map as any).setRoll?.(lerp(p1.pose.roll, p2.pose.roll, t))
   map.setVerticalFieldOfView(lerp(p1.pose.vfov, p2.pose.vfov, t))
@@ -890,7 +898,15 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
   // triggerStopSpin are defined further down.
   const orbitRequest = useAtomValue(orbitRequestAtom)
   const sawFirstOrbitRequestRef = useRef(false)
+  // Keyed on the request VALUE only. doStartSpin/triggerStopSpin change
+  // identity whenever the query-state setter does, and every bearing the
+  // spin writes is a query-state update: with them in the dependency list
+  // the effect re-ran a frame into the spin, saw orbitRequest false and
+  // stopped it - an orbit that eased in for a second and eased straight out.
+  const lastOrbitRequestRef = useRef(orbitRequest)
   useEffect(() => {
+    if (sawFirstOrbitRequestRef.current && lastOrbitRequestRef.current === orbitRequest) return
+    lastOrbitRequestRef.current = orbitRequest
     // Skip the mount pass. The mount-sync effect above resumes a spin that the
     // URL says is running; this one firing with its initial `false` would stop
     // it again a tick later, so reloading an animPlaying360=true link would
