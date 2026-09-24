@@ -11,3 +11,14 @@ export function getTransform(map: MapLibreMap): any {
   const m = map as unknown as { transform?: unknown; _camera?: { transform?: unknown } }
   return m.transform ?? m._camera?.transform
 }
+
+/** Puts a read-only `map.transform` back on a MapLibre 6 map for plugins
+ *  written against 5 (geogrid-maplibre-gl reads
+ *  `map.transform.isLocationOccluded` on every move and threw on the switch
+ *  to globe). A getter, so it always follows the camera's live transform;
+ *  a no-op on 5, where the property already exists. */
+export function ensureLegacyTransform(map: MapLibreMap): void {
+  const m = map as unknown as { transform?: unknown; _camera?: { transform?: unknown } }
+  if ("transform" in m || !m._camera) return
+  Object.defineProperty(m, "transform", { configurable: true, get() { return this._camera?.transform } })
+}

@@ -57,7 +57,7 @@ export const VisualizationModesSection: React.FC<{
       }
     >
       {!hideContours && (
-        <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} tooltip="Controllable contours (minor/major elevation difference)" />
+        <CheckboxWithSlider id="contours" gotoSection="contour" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} tooltip="Controllable contours (minor/major elevation difference)" />
       )}
       {/* Native MapLibre hillshade — its own independent viz mode, entirely
           separate from "Lighting Effects" below. See Options: Hillshade for

@@ -623,7 +623,7 @@ export const CheckboxWithSlider: React.FC<{
   const fullId = `${sectionId}:${id}`
   const isDimmed = activeSlider !== null && activeSlider !== fullId
 
-  const labelEl = <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider ? "col-span-2" : ""}`}>{label}</Label>
+  const labelEl = <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider && !gotoSection ? "col-span-2" : ""}`}>{label}</Label>
 
   return (
     <div className={cn("grid grid-cols-[auto_1fr_1fr] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
@@ -638,6 +638,14 @@ export const CheckboxWithSlider: React.FC<{
         <div className="flex items-center gap-1.5 min-w-0">
           {gotoSection && <GotoOptionsButton section={gotoSection} modeActive={checked} modeLabel={label} />}
           <MobileSlider sliderId={fullId} value={sliderValue} onValueChange={(v) => onSliderChange(v as number)} min={0} max={1} step={0.1} className="cursor-pointer flex-1" disabled={!checked || disabled} />
+        </div>
+      )}
+      {/* No slider (Contours + GeoGrid): keep the arrow in the same column, at
+          the same x as the other rows' arrows, over an empty slider slot. */}
+      {hideSlider && gotoSection && (
+        <div className="flex items-center gap-1.5 min-w-0">
+          <GotoOptionsButton section={gotoSection} modeActive={checked} modeLabel={label} />
+          <div className="flex-1" />
         </div>
       )}
     </div>

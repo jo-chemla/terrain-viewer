@@ -59,7 +59,7 @@ import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName
 import { cn } from "@/lib/utils"
 
 import * as maplibregl from 'maplibre-gl'
-import { getTransform } from '@/lib/maplibre-internals'
+import { getTransform, ensureLegacyTransform } from '@/lib/maplibre-internals'
 import { applyBoundedView, sanitizeBounds } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
@@ -3303,6 +3303,7 @@ export function TerrainViewer() {
             setViewLoaded(side, true)
             const mapInstance = mapRefs[side].current?.getMap()
             if (!mapInstance) return
+            ensureLegacyTransform(mapInstance)
 
             // A new viewport needs a fresh "how many tiles are pending" count
             // for the slow ray-marched modes (SVF/Openness/Local Dominance) —
