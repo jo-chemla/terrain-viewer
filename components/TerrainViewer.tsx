@@ -2768,7 +2768,11 @@ export function TerrainViewer() {
       const onRender = () => {
         const terrain = (map as any).terrain
         const transitioning = !!terrain && map.getLayersOrder().some((id) => map.getLayer(id)?.hasTransition())
-        if (transitioning || wasTransitioning) terrain?.tileManager.freeRtt()
+        // MapLibre 6 renamed freeRtt to releaseAllRTT.
+        if (transitioning || wasTransitioning) {
+          const tm = terrain?.tileManager as { releaseAllRTT?: () => void; freeRtt?: () => void } | undefined
+          ;(tm?.releaseAllRTT ?? tm?.freeRtt)?.call(tm)
+        }
         if (!transitioning && wasTransitioning) map.triggerRepaint()
         wasTransitioning = transitioning
       }

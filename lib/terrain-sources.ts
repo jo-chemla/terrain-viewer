@@ -75,7 +75,10 @@ export const terrainSources: Record<TerrainSource, TerrainSourceConfig> = {
       type: "raster-dem",
       tiles: ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
       tileSize: 256,
-      maxzoom: 16,
+      // The bucket stops at z15 (registry.opendata.aws/terrain-tiles); a z16
+      // request 404s, and S3's error response carries no CORS header, so it
+      // also logged a CORS error on every zoomed-in view.
+      maxzoom: 15,
       encoding: "terrarium",
     },
   },
