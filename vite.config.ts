@@ -50,6 +50,13 @@ export default defineConfig({
   publicDir: 'public',
   server: {
     host: true, // bind to 0.0.0.0 so the dev server is reachable on the LAN, not just localhost
+    // The coverage build scripts leave their crawls under .cache/ - one Google
+    // 3D crawl to z12 is ~116 000 tile files and a few hundred MB of GeoJSON.
+    // Vite's watcher ignores only node_modules and .git by default, and
+    // trying to watch that tree wedged the dev server (1.6 GB resident,
+    // connections stuck in CLOSE_WAIT, no response at all). Nothing in
+    // .cache is ever imported; keep the watcher out of it.
+    watch: { ignored: ["**/.cache/**", "**/dist/**", "**/docs/out/**", "**/docs/.next/**"] },
     // /docs is a separate Next.js app (docs/), not part of this Vite app —
     // without this, a request for e.g. /docs/getting-started/ falls through
     // Vite's own SPA history-fallback and silently serves this app's
