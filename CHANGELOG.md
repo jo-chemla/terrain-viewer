@@ -1,111 +1,22 @@
-# Changelog — Esri's Real 3D, and Pictures Instead of Checkboxes
+# Changelog — Data Layers as Pictures, and Shortcuts on Section Headers
 
-<!-- released: 2026-09-23T23:30 -->
+<!-- released: 2026-09-24 -->
 
 #### TL;DR
-- **Esri Integrated Mesh coverage went from 47 footprints to 1 719.** The old query matched a free-text tag somebody typed; `typeKeywords:"IntegratedMesh"` is what ArcGIS itself stamps on an Integrated Mesh layer, and it finds 10 887. Most of those are one drone flight over one building site, so anything under 5 km² is dropped — a speck you cannot click is not an answer.
-- **Esri has no global photorealistic mesh, and the link that implied otherwise is gone.** `Esri3D_Buildings_v1` is *modelled* buildings (TomTom, Vantor, Community Maps, Overture), so it no longer sits in "Open in…" next to Google Earth and Bing Maps 3D. Clicking an Integrated Mesh footprint now opens that one service in Esri's Scene Viewer — the service alone, so nothing else in the scene collides with the mesh.
-- **The app stopped talking to Esri's Wayback servers unless it has a reason to.** Resolving the latest Wayback release walks every release's tilemap at your location, and it ran on every pan from General Settings — with no historical imagery and nothing Esri on the map — purely to pre-fill one "Open in…" destination. That link does not need it: Wayback opens on its own latest release when none is named. So the walk is gone from Terrain mode entirely, and in Historical mode it only happens when some view's ESRI pill is actually on and its ticks are wanted.
-- **Google 3D coverage: one decoder bug was behind every symptom, and it is fixed.** The vertex deltas were read with protobuf's zigzag rule; this format is not zigzag, and every polygon came out deflated 2× about its first vertex — which is why each zoom covered a quarter of central Paris, why unions of zooms grew and never converged, and why London tested “outside”. Spotted from the shape of the polygons in kepler.gl. Decoded correctly the layer is an ordinary generalised one, so the file is now a single zoom (z8, whose blocks read like Google Earth’s own coverage view): central Paris 97 % of its tile, the Paris window one polygon of 2 894 km² with no holes, 20/20 cities, and 0.99 MB instead of 3.96.
-- **The Data layers picker moved next to the list it illustrates**, dropped the modes it had no picture for, gained a Tools section that opens the panel you recognised, and now loads 0.8 MB of thumbnails instead of 37 MB of full-resolution captures — cropped to the middle fifth of each capture, since a whole landscape in a 220 px card is a grey smudge.
-- **Three buttons moved onto the section headers they belong to**: Home to General Settings, the bookmark Gallery to Bookmarks, and Snapshot to Download and Snapshot. The panel's title bar was becoming a drawer of unrelated icons.
-
-### Features
-- Data layers: a **Tools** section — Draw and measure, Elevation picker/profile/slicer, Sun and shadow, Camera animation. Clicking one closes the dialog and opens that section in the sidebar, expanding the group it lives in.
-- Its button now sits left of the Visualization Modes pin rather than in the panel's title bar. Basemap imagery joins the Base group; hard shadows moved down to Light, where the sun already is.
-- An nDSM whose operands are missing but **in the library** gets a one-click button to fetch them, instead of only being told it is broken.
-- Drawing layers show their feature count in brackets, and the hover text is a real tooltip rather than the browser's.
-- The difference-source dialog offers the same one-click library load, next to whichever of its two selects is missing a source.
-- The Elevation Picker and Sun Shadow "pick on click" switches sit left of their label now, like the Plane Slicer's.
-
-### Fixes
-- Screenshots in the Data layers picker were blank unless the docs dev server happened to be running. Vite now serves `/docs/screenshots/` straight off disk, the same bypass `/docs/content/` already had.
-- A removed "Open in…" destination stayed selected forever in local storage, showing the wrong label and doing nothing when clicked.
-- Clicking a hidden drawing layer made it active and left it invisible, so the click appeared to do nothing. It shows the layer now.
-
-### Notes
-- Central London tests *outside* Google's coverage now. That is what the raw decode says at all three zooms (nearest polygon 2.8 km); it used to test inside because a self-intersecting ring filled over it.
+- **A Data layers picker: every visualization mode as a card with its picture.** Google Earth’s layer panel, for terrain — hillshade, hypsometric tint, contours, basemap imagery, slope, aspect, curvature, TPI, local relief, sky‑view factor, openness, matcap, phong and hard shadows — each a thumbnail of the same Matterhorn view with only the rendering changed, one click to turn it on or off. A Tools row opens Draw, Elevation picker, Sun shadow and Animation in the sidebar. Reached from the panel title bar or next to the Visualization Modes pin.
+- **Quick buttons on the foldable section headers.** Home on General Settings, the Gallery on Bookmarks, Snapshot on Download and Snapshot, the Data layers picker on Visualization Modes — whose fold, expand and pin are now one three‑state control instead of a chevron beside a pin.
 
 ---
 
-# Changelog — VRT Mosaics Without a Server
-
-<!-- released: 2026-09-23T18:00 -->
-
-#### TL;DR
-- **GDAL VRT mosaics now stream in the browser**, no titiler needed. A `.vrt` is an XML index over many COGs, and the browser can already Range-read COGs — what was missing was GDAL's bookkeeping. IGN's RGE ALTI 1 m over France is 93 COGs behind a 40 KB index; a tile over Montparnasse takes 0.43 s. Any CRS, not just the easy two.
-- **Per-source "Always serve via titiler"** now covers VRT too — the escape hatch when a mosaic's source files have no CORS.
-- **You can zoom two levels past a source's native resolution.** Maxzoom is where one tile pixel meets one screen pixel, not where the data stops being useful; built-in sources always allowed this, custom ones did not.
-- **City-scale sources have their own Library section.** Dar es Salaam's Msimbazi basin is 4 × 4 km and Klaipėda 28 × 25 km; both were filed under "Nation-wide".
-- **A slow terrain tile no longer freezes the basemap.** MapLibre queues every raster load through one budget of 16, and a custom protocol holds its slot for the whole handler — so sixteen VRT or sky-view-factor tiles left the map grey.
-- **Two new coverage overlays: Google 3D and FLAI open LiDAR.** Google publishes no machine-readable coverage and its 3D Tiles tree cannot be asked — it refines to 2 m over rural Nepal exactly as over Paris — so this reads the layer Google Earth itself draws. FLAI’s footprints come from each survey’s COPC header, 512 bytes per dataset.
-
-### Features
-- The `vrt://` protocol: intersect, read, composite, client-side. Zoom range and bounds come from the mosaic's own index. See [VRT Mosaic Protocol](/docs/dev/vrt-protocol).
-- Two refusals instead of a hung map: a tile touching more than 40 source files, or more than 8 Mpx from a file with no overviews. Both point at the titiler switch.
-- Library sections are now Nation-wide, Global, Sub-national, and City and single-survey.
-- Coverage overlays for **Google 3D** (~39 km cells, verified 19/19 against known cities) and **FLAI open LiDAR** (114 open COPC surveys, drawn hollow because each is a declared extent).
-
-### Fixes
-- Switching between titiler and in-browser streaming did not refetch anything — the sources were keyed without the resolved tile URLs.
-- Bing Maps 3D links opened from orbit: the camera height reused the Google Earth formula, putting a z16 view over Amiens at 1530 m instead of ~150 m.
-- Reading a VRT bilinearly blended its nodata sentinel into real ground — a z7 tile over France bottomed out at −11 650 m.
-- Changelog entries titled with a hyphen instead of an em dash never appeared in the app or the docs. The last two releases were invisible.
-
-### Docs
-- [VRT Mosaic Protocol](/docs/dev/vrt-protocol), and the `createImageBitmap` finding written out as before-and-after code on the [terrain analysis pipeline](/docs/dev/terrain-analysis-pipeline) page.
-- API-key access to **Vantor Precision3D** and **Airbus WorldDEM** is wanted: NASA's CSDA catalog makes both browsable, but its assets sit behind an Earthdata login.
-
----
-
-# Changelog — A World Sweep, Difference Offsets and Bing's Hidden 3D Map
+# Changelog — VRT Mosaics in the Browser, Twenty New Sources, and Where 3D Exists
 
 <!-- released: 2026-09-23 -->
 
 #### TL;DR
+- **GDAL VRT mosaics now stream in the browser**, no titiler needed. A `.vrt` is an XML index over many COGs, and the browser can already Range-read COGs — what was missing was GDAL's bookkeeping. IGN's RGE ALTI 1 m over France is 93 COGs behind a 40 KB index; a tile over Montparnasse takes 0.43 s. Any CRS, not just the easy two.
 - **Twenty new elevation sources**, every endpoint verified live before it was added: Hawaii's 1 m and Maui's 0.3 m LiDAR as LERC tiles, New Brunswick and Alaska IfSAR (DTM *and* DSM, so 3DEP finally has a surface-model counterpart), South Australia's 0.5 m River Murray LiDAR, Hong Kong, New York, Dar es Salaam's 0.5 m, JAXA's global AW3D30, and the Aguada Fenix Maya survey's canopy surface. Seven of them are ready-made **nDSMs** that pull their own operands in.
-- **A difference source can measure its own offset.** Two elevation models rarely agree on zero - a datum, a co-registration bias, a different idea of "ground". The Elevation Color section now shows a Difference offset you can type or measure: it samples the tiles on screen, takes an interquartile mean so buildings and canopy cannot drag it, and tells you how many samples it used. Press again to reset, which is what a true nDSM wants.
-- **Where Bing Maps 3D actually has photogrammetry**, as a coverage overlay - read from the tileset's own availability data, because nothing publishes it. Click a polygon to open Bing's 3D view at that spot. The densest areas turn out to be national parks, not cities.
-- **Catalogs**: NRCan's 1 m Canadian LiDAR, Minnesota's 0.5 m, British Columbia's LidarBC, and NASA's CSDA - which carries Vantor Precision3D and Airbus WorldDEM, browsable even though the pixels need an Earthdata login.
-
-### Features
-- Map pills name the **terrain source** when no basemap is drawn, which is exactly the split-screen DEM comparison where you most need to know which pane is which.
-- **Open in Bing Maps 3D**, alongside Google Earth 3D, at the same viewport.
-- **Settings**: a Google API key field, Planet moved next to Cesium, and the batch view round-trips both.
-- The Library leads with what is genuinely new: "Not better than Mapterhorn" starts collapsed, and the comparison table was refreshed against Mapterhorn's own catalog.
-
-### Fixes
-- A long source name widened the panel's grid column past the sidebar and carried every row's buttons off-screen with it.
-- The Nepal Bhotekoshi COGs never rendered in the default streaming mode: their host sends no CORS header, so the in-browser reader could not read them. They now go through titiler.
-- "Set elevation from viewport" did nothing in 2D.
-- The elevation picker's draped line could be drawn in a single near-black colour, or never added to the map at all.
-- Coverage overlays no longer draw thousands of internal rectangle edges as hatching; Bing's is a single dissolved union.
-
----
-
-# Changelog — Guided Walkthroughs That Actually Do Things
-
-<!-- released: 2026-09-22 -->
-
-#### TL;DR
-- **The walkthrough demonstrates instead of describing.** The Tools tour now flies to real ground and works the tool in front of you: the elevation picker measures Zermatt to the Matterhorn summit (8.56 km, +2 806 m) with the profile and the draped line live, the sun/shadow calculator solves a real Tour Montparnasse shadow off the aerial imagery back to a date and time, and the Animation step actually orbits. Previously none of this moved the camera at all - the tour wrote to the URL, which the map only ever reads once, at startup.
-- **Bring Your Own Data and nDSM are one tour**, ending on the docs rather than stopping dead, and the nDSM steps load a real IGN Lidar HD DSM - DTM at 0.5 m over Paris with the ramp set to 0-40 m, which reads as a building-height map. Everything it loads is removed again when you leave.
-- **The Library leads with what is actually new.** "Not better than Mapterhorn" starts collapsed - it is most of the list and, by its own definition, the part you do not need. The comparison table was refreshed against Mapterhorn's own source catalog, adding the Faroes, Greenland, Israel and Svalbard.
-- **The app says things out loud now.** A small toast explains what used to fail silently: a reprojection service that is unreachable, local COG files the browser no longer has the bytes for, a clipboard copy the browser refused, a search result outside your map-bounds fence, and a snapshot saved (with its world file).
-
-### Features
-- Map pills name the **terrain source** when no raster basemap is drawn - the case where you are comparing two DEMs side by side and most need to know which pane is which.
-- The intro's first step can jump straight to the documentation card, alongside the existing shortcuts into either branch.
-- The coverage-overlay steps pull back to the whole earth, so national and continental footprints are all on screen at once.
-- **Settings -> API Keys**: the batch view round-trips `CESIUM_ION_TOKEN`, and parses on the first `=` so a base64 token's padding survives.
-
-### Fixes
-- The elevation picker's draped line could be drawn in a single near-black colour, or not added to the map at all: it gave up when the style was mid-change and waited for an event that never came again. It now retries on idle.
-- "Set elevation from viewport" did nothing in 2D - it required the 3D terrain object, which only exists once 3D terrain is on. It now reads the elevation source's own tiles.
-- A tilted demo camera was silently flattened for anyone in 2D, where pitch is locked to 0.
-- The `ellipsoidal` badge no longer sits beside a source's name; the datum is explained in that source's info dialog instead.
-- The "go to this mode's options" arrow explains itself when the mode is off, instead of jumping to a section that is not there.
-- Catalog search says which collections a page of results came from and what its assets actually are, instead of only "no elevation assets".
+- **A slow terrain tile no longer freezes the basemap.** MapLibre queues every raster load through one budget of 16, and a custom protocol holds its slot for the whole handler — so sixteen VRT or sky-view-factor tiles left the map grey.
+- **Four coverage overlays for 3D and LiDAR: Google photorealistic 3D, Bing Maps 3D, Esri Integrated Mesh and FLAI open LiDAR.** None of the four publishes a footprint you can download, so each is read from the provider’s own data — Google’s from the coverage layer behind its docs page, decoded from Maps vector tiles; Bing’s from its 3D Tiles subtree availability bitstream; Esri’s from ArcGIS Online’s search API, kept to open services of 5 km² or more; FLAI’s from every survey’s COPC octree over range requests. Click a footprint to open that provider’s own 3D view there. How each is built is on the [coverage overlays](/docs/features/coverage-overlays) page.
 
 ---
 

@@ -15,5 +15,6 @@
 - [Sprint handoff 2026-09-19](handoff-2026-09-19.md) — snapshot compositing, URL API and docs generators, derived terrain (dem-diff), titiler DEM fixes, Bhotekoshi on NextGIS: shipped, unverified, deferred, gotchas
 - [Library browse entries (deferred idea)](library-browse-entries-idea.md) — Library rows that open the Add modal on a preset tab instead of resolving to one URL; why EarthDEM needs it.
 - [Commercial DEM API access (wanted)](commercial-dem-api-access.md) — Vantor/Airbus: the Maxar Discovery STAC endpoint to ask for, product vertical datums, why CSDA is discovery-only
-- [Google 3D coverage](google-3d-coverage-dead-end.md) — the 3D Tiles tree cannot answer it (depth is the same over rural Nepal and Paris); Earth’s own bpb layer can, classified by response size
+- [Google 3D coverage](google-3d-coverage-dead-end.md) — the Maps vector-tile endpoint that answers it, the NON-zigzag delta rule (v / −(v+1)) that deflated every polygon 2× for two days, the z8 pipeline, and every route rejected
 - [Esri 3D coverage](esri-3d-coverage.md) — Esri has no global photorealistic mesh; typeKeywords:"IntegratedMesh" finds 10 900 services where the free-text tag finds 48; Scene Viewer ?url= opens one alone
+- [Sprint handoff 2026-09-24](handoff-2026-09-24.md) — VRT protocol, four 3D/LiDAR coverage overlays, Data layers picker, header shortcuts, Wayback gating, Esri camera: shipped, unverified, deferred, gotchas

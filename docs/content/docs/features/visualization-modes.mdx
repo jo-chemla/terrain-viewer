@@ -13,8 +13,8 @@ Most of these are inspired by `gdaldem` and the [RVT (Relief Visualization Toolb
     {
       category: "Base Layers",
       modes: [
-        { label: "Hillshade", image: "/docs/screenshots/viz-modes/hillshade.jpg", alt: "Hillshade visualization mode, with its Hillshade controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&showHillshade=true&hillshadeOpacity=1&exaggeration=1" },
-        { label: "Elevation Hypso", image: "/docs/screenshots/viz-modes/hypso.jpg", alt: "Elevation Hypso combined with Hillshade, with its Elevation Color controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&showHillshade=true&showColorRelief=true&hillshadeOpacity=0.6&colorRamp=tv-a&hypsoSliderMaxBound=4230&maxElevation=8620&minElevation=1450&colorReliefOpacity=0.9&hypsoSliderMinBound=90&exaggeration=1" },
+        { label: "Hillshade", image: "/docs/screenshots/viz-modes/hillshade.jpg", alt: "Hillshade, plan view — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&hillshadeOpacity=1&exaggeration=1" },
+        { label: "Elevation Hypso", image: "/docs/screenshots/viz-modes/hypso.jpg", alt: "Elevation Hypso over Hillshade, plan view — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&showColorRelief=true&hillshadeOpacity=0.6&colorRamp=tv-a&hypsoSliderMaxBound=4230&maxElevation=8620&minElevation=1450&colorReliefOpacity=0.9&hypsoSliderMinBound=90&exaggeration=1" },
         { label: "Contours + GeoGrid", image: "/docs/screenshots/viz-modes/contours.jpg", alt: "Contour lines, with the Contours & GeoGrid controls panel open — Matterhorn massif", href: "https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=false&showContours=true&showContoursAndGraticules=true&contourWeight=2&contourMinor=10&contourMajor=100&showGraticuleLabels=true&exaggeration=1" },
       ],
     },
@@ -45,6 +45,12 @@ Most of these are inspired by `gdaldem` and the [RVT (Relief Visualization Toolb
   ]}
 />
 
+## Data layers picker
+
+Every mode on this page is also a card in the **Data layers** picker — the Layers button in the panel’s title bar, or next to the Visualization Modes pin. Each card is a thumbnail of the same Matterhorn view with only the rendering changed, so the modes can be compared before any is switched on; clicking a card toggles it (and switches on the section it belongs to). Group titles — Terrain analysis, Relief visualization, Light, Tools — open that section in the sidebar, and the Tools row does the same for Draw, Elevation picker, Sun shadow and Animation. Modes without a screenshot yet (Ruggedness, Roughness, Blobness, Local dominance) are only in the sidebar.
+
+The thumbnails are 640 px crops of the docs’ own captures (`docs/scripts/build-screenshot-thumbs.mjs`), and the captures themselves are reproducible from `docs/scripts/capture-viz-mode-cards.mjs`, which uses the parameters linked under every screenshot here.
+
 ## Combined Mode
 
 Every mode above is independent — any number can be on at once, each with its own opacity slider right there in the Visualization Modes checklist, so a Hillshade backdrop, a color ramp, and a derivative can all be dialed in together rather than picked one at a time.
@@ -69,9 +75,9 @@ Native MapLibre hillshade with multiple illumination methods (Standard, Combined
 
 <p className="text-sm text-fd-muted-foreground italic">Hillshade — dragging the XYPad to set light azimuth/elevation</p>
 
-![Hillshade Method set to Aspect (Multidir Colors) — the colored/aspect-tinted variant, split against a Combined grayscale hillshade](/screenshots/viz-modes/aspect-multidir.jpg)
+![Aspect (Terrain Analysis) over Hillshade, plan view — Matterhorn massif](/screenshots/viz-modes/aspect-multidir.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">Hillshade — Aspect (Multidir Colors) method, split against Combined grayscale, Andes/Patagonia</p>
+<p className="text-sm text-fd-muted-foreground italic">Terrain Analysis — Aspect over Hillshade, plan view, Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showTerrainAnalysis=true&showAspect=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" target="_blank" rel="noopener noreferrer">open this view</a></p>
 
 ## Elevation Hypso (Hypsometric Tint)
 
