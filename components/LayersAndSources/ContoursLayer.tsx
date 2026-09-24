@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from "react"
 import { useMap, Layer } from "react-map-gl/maplibre"
 import type { LayerSpecification } from "react-map-gl/maplibre"
-import maplibregl from "maplibre-gl"
+import * as maplibregl from "maplibre-gl"
 import mlcontour from "maplibre-contour"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource } from "@/lib/terrain-types"

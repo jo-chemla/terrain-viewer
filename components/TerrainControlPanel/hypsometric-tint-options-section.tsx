@@ -241,7 +241,10 @@ export const HypsometricTintOptionsSection: React.FC<{
     // source's own tile cache rather than reporting "no data". Without this,
     // "Set from viewport" and the walkthrough's auto-range were dead in 2D,
     // which is the mode a whole-world view is normally in.
-    const demCache = (map as any).style?.sourceCaches?.terrainSource
+    // MapLibre 6 calls them tile managers (style.tileManagers, keyed by
+    // source id); 5 had sourceCaches / _otherSourceCaches. Same object.
+    const demCache = (map as any).style?.tileManagers?.terrainSource
+      ?? (map as any).style?.sourceCaches?.terrainSource
       ?? (map as any).style?._otherSourceCaches?.terrainSource;
     const tileSource = terrain?.tileManager ?? demCache;
     if (!tileSource) return null;

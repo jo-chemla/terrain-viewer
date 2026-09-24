@@ -31,6 +31,7 @@
 // the ground. That's the "weird fade-in at the center of the screen".
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap, OverscaledTileID } from "maplibre-gl"
 import { createTileMesh } from "maplibre-gl"
+import { getTransform } from "./maplibre-internals"
 import { computeNormalPixels } from "./normals-protocol"
 import { DEM_NORMAL_GLSL } from "./phong-live-gl-layer"
 import { groundResolutionM, tileRowToLatRad, RAD_TO_DEG, type UpstreamEncoding } from "./normal-derived-protocol"
@@ -655,7 +656,7 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
       for (const { tileID, entry } of drawable) {
-        const p = map.transform.getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
+        const p = getTransform(map).getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
         gl.uniformMatrix4fv(bundle.uProjectionMatrix, false, p.mainMatrix)
         gl.uniform4f(bundle.uProjectionTileMercatorCoords, p.tileMercatorCoords[0], p.tileMercatorCoords[1], p.tileMercatorCoords[2], p.tileMercatorCoords[3])
         gl.uniform4f(bundle.uProjectionClippingPlane, p.clippingPlane[0], p.clippingPlane[1], p.clippingPlane[2], p.clippingPlane[3])

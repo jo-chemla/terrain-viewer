@@ -11,7 +11,7 @@ import { OpenInLinksButton } from "./open-in-links"
 import { useWaybackItemsWithLocalChanges, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
 import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
-import { planetMonthlyTicks } from "@/lib/planet"
+import { planetMonthlyTicks, fetchPlanetMonthlyRange, type PlanetMonthlyRange } from "@/lib/planet"
 import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
@@ -442,9 +442,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Real monthly mosaics (see lib/planet.ts) — only generated once a Planet
   // API key is set; otherwise this source simply contributes no ticks and
   // its pill is hidden below.
+  // The key's own first/last monthly mosaic bounds the ticks (a grant that
+  // starts in 2020 must not offer 2016, whose tiles 404); until the Basemaps
+  // API answers, the ticks fall back to the product's nominal range.
+  const [planetRange, setPlanetRange] = useState<PlanetMonthlyRange | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    setPlanetRange(null)
+    if (planetKey) fetchPlanetMonthlyRange(planetKey).then((r) => { if (!cancelled) setPlanetRange(r) })
+    return () => { cancelled = true }
+  }, [planetKey])
   const planetTicks = useMemo<TimelineTick[]>(
-    () => (hasPlanetKey ? planetMonthlyTicks().map((t) => ({ source: "planet", key: t.dateMs, dateMs: t.dateMs, label: t.label })) : []),
-    [hasPlanetKey],
+    () => (hasPlanetKey ? planetMonthlyTicks(planetRange).map((t) => ({ source: "planet", key: t.dateMs, dateMs: t.dateMs, label: t.label })) : []),
+    [hasPlanetKey, planetRange],
   )
   // Bing has no browsable historical archive — just its single "current"
   // mosaic — so this is always at most a one-item pool: the real capture

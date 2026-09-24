@@ -1,4 +1,5 @@
-import maplibregl from "maplibre-gl"
+import * as maplibregl from "maplibre-gl"
+import { getTransform } from "./maplibre-internals"
 import { Underzoom } from "maplibre-xy"
 import type { LngLatBoundsTuple } from "./max-bounds"
 
@@ -32,7 +33,7 @@ export const FIT_PADDING_RATIO = 0.12
  */
 export function applyBoundedView(map: maplibregl.Map, rawBounds: LngLatBoundsTuple | null): void {
   const bounds = sanitizeBounds(rawBounds)
-  ;(map.transform as unknown as { setConstrainOverride?: (fn: unknown) => void })
+  ;(getTransform(map) as { setConstrainOverride?: (fn: unknown) => void })
     ?.setConstrainOverride?.(bounds ? underzoom.transformConstrain : null)
   map.setMaxBounds(bounds ? [[bounds[0], bounds[1]], [bounds[2], bounds[3]]] : null)
 }

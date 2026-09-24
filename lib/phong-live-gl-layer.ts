@@ -10,7 +10,7 @@
 // MERCATOR + GLOBE, flat (no terrain drape). Positioning goes through
 // MapLibre's OWN projection code via the per-frame `shaderData.vertexShaderPrelude`
 // (which defines `projectTile(a_pos)`) plus the projection uniforms from
-// `map.transform.getProjectionData({overscaledTileID})` — so the same tile
+// `getTransform(map).getProjectionData({overscaledTileID})` — so the same tile
 // quad projects correctly under mercator AND globe, matching how MapLibre's
 // own layers do it. Because the shader variant depends on the active
 // projection (`shaderData.variantName` flips mercator↔globe), the GL program
@@ -50,6 +50,7 @@
 // selection to match the terrain source's own tile pyramid.
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap, OverscaledTileID } from "maplibre-gl"
 import { createTileMesh } from "maplibre-gl"
+import { getTransform } from "./maplibre-internals"
 import { computeNormalPixels } from "./normals-protocol"
 import { groundResolutionM, tileRowToLatRad, RAD_TO_DEG, type UpstreamEncoding } from "./normal-derived-protocol"
 
@@ -889,7 +890,7 @@ export class PhongLiveLayer implements CustomLayerInterface {
           // projectTile() consumes, so the SAME shader handles mercator and
           // globe. applyGlobeMatrix:true so globe gets the sphere transform
           // (ignored, harmlessly, under mercator).
-          const p = map.transform.getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
+          const p = getTransform(map).getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
           gl.uniformMatrix4fv(bundle.uProjectionMatrix, false, p.mainMatrix)
           gl.uniform4f(bundle.uProjectionTileMercatorCoords, p.tileMercatorCoords[0], p.tileMercatorCoords[1], p.tileMercatorCoords[2], p.tileMercatorCoords[3])
           gl.uniform4f(bundle.uProjectionClippingPlane, p.clippingPlane[0], p.clippingPlane[1], p.clippingPlane[2], p.clippingPlane[3])

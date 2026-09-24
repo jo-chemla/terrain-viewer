@@ -58,7 +58,8 @@ import { coverageOverlaysAtom, coverageGroups, parseAsCoverageOverlays } from "@
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
+import { getTransform } from '@/lib/maplibre-internals'
 import { applyBoundedView, sanitizeBounds } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
@@ -2281,7 +2282,7 @@ export function TerrainViewer() {
     const referenceSide = order.find((s) => mapRefs[s].current?.getMap()?.getTerrain())
     if (!referenceSide) return
     const reference = mapRefs[referenceSide].current!.getMap()
-    const tr = reference.transform
+    const tr = getTransform(reference)
 
     // Is the camera height actually stale? Only a pan across terrain leaves it
     // behind (MapLibre freezes elevation for the duration of a gesture); a
@@ -2292,7 +2293,23 @@ export function TerrainViewer() {
     // new center, whose ground height differs from the old one's by a hair, so
     // an exact-equality test would let it creep from idle to idle forever —
     // and every one of those iterations would fire the jumpTo loop below.
-    const groundElevation = reference.terrain.getElevationForLngLatZoom(tr.center, tr.tileZoom)
+    // While MapLibre's own clamp is on it re-derives the elevation every
+    // rendered frame (Map#_render in both 5 and 6) and, in 6, the camera
+    // re-solves zoom and center itself when a gesture ends. Re-anchoring here
+    // as well can run in the one frame between a padding ease finishing and
+    // that clamp writing the first real height: the elevation still reads 0,
+    // the ground is thousands of metres up, and recalculateZoomAndCenter
+    // walks the center along the view ray - the view lands at a different
+    // zoom and center than the link asked for (seen on MapLibre 6). So this
+    // settle only owns the elevation once the clamp has been handed off.
+    const camera = (reference as unknown as { _camera?: { elevationFreeze?: boolean } })._camera
+    if (reference.getCenterClampedToGround?.() || camera?.elevationFreeze) return
+
+    // Sample the ground the way MapLibre writes tr.elevation (6: the rendered
+    // surface via getElevationForLngLat; 5: the tile at tileZoom), or the two
+    // disagree by tens of metres on steep ground and the epsilon never holds.
+    const terrain = reference.terrain as unknown as { getElevationForLngLat?: (c: unknown, t: unknown) => number; getElevationForLngLatZoom: (c: unknown, z: number) => number }
+    const groundElevation = terrain.getElevationForLngLat ? terrain.getElevationForLngLat(tr.center, tr) : terrain.getElevationForLngLatZoom(tr.center, tr.tileZoom)
     if (!Number.isFinite(groundElevation)) return
     if (Math.abs(groundElevation - tr.elevation) < ELEVATION_SETTLE_EPSILON_M) return
 
@@ -2350,13 +2367,13 @@ export function TerrainViewer() {
     const referenceSide = activeViewIds.includes(preferred) ? preferred : activeViewIds[0]
     const reference = mapRefs[referenceSide]?.current?.getMap()
     if (!reference) return
-    const tr = reference.transform
+    const tr = getTransform(reference)
     const ZOOM_EPS = 1e-3, DEG_EPS = 1e-6, ANGLE_EPS = 1e-2
     const drifted = activeViewIds.filter((side) => {
       if (side === referenceSide) return false
       const map = mapRefs[side].current?.getMap()
       if (!map) return false
-      const t = map.transform
+      const t = getTransform(map)
       return Math.abs(t.zoom - tr.zoom) > ZOOM_EPS
         || Math.abs(t.center.lng - tr.center.lng) > DEG_EPS
         || Math.abs(t.center.lat - tr.center.lat) > DEG_EPS
@@ -2947,7 +2964,17 @@ export function TerrainViewer() {
         // It also keeps the camera's height steady across the ease instead of
         // re-deriving it per frame; resettleTerrainElevation below re-anchors
         // it once at the end, without moving the camera.
-        freezeElevation: true,
+        //
+        // MapLibre 6 (Map composes a Camera, `_camera` exists) clears its
+        // freeze at the end of every ease by itself, and its _finalizeElevation
+        // - the only thing freezeElevation adds there - re-solves zoom and
+        // center from whatever elevation the transform holds. On first load
+        // that is 0 while the DEM tiles have already landed during the ease,
+        // and the view jumps to another zoom and center than the link asked
+        // for (a race: it depends on the tiles beating the 200 ms ease). Left
+        // unfrozen, 6 eases the elevation itself and adjusts mid-flight when
+        // tiles land, with no jump.
+        freezeElevation: !(map as unknown as { _camera?: unknown })._camera,
       })
     }
     const timer = setTimeout(() => {
@@ -2974,8 +3001,8 @@ export function TerrainViewer() {
         const map = mapRefs[side].current?.getMap()
         if (!mapLoaded[side] || !map) continue
         const target = mapPaddingFor(side)
-        if (map.transform.isPaddingEqual(target)) continue
-        map.transform.setPadding(target)
+        if (getTransform(map).isPaddingEqual(target)) continue
+        getTransform(map).setPadding(target)
         map.triggerRepaint()
       }
       // A pane's pixel dimensions usually change in the same commit as its
@@ -3344,6 +3371,18 @@ export function TerrainViewer() {
               // dragged is itself what suppresses the per-frame reclamp
               // (MapLibre freezes elevation for the duration of a gesture).
               if (mapInstance.getCenterClampedToGround()) {
+                // Hand off only once the clamp has written a real height. The
+                // first idle with terrain can land before it does (the padding
+                // ease froze elevation while the DEM tiles arrived, and
+                // MapLibre 6 writes the height on the next rendered frame):
+                // the elevation still reads 0 there, and re-anchoring from it
+                // would re-solve zoom and center along the view ray - a
+                // different view than the link asked for. Leave the clamp on
+                // for another idle instead; it costs one frame.
+                const tr = getTransform(mapInstance)
+                const terrain = mapInstance.terrain as unknown as { getElevationForLngLat?: (c: unknown, t: unknown) => number; getElevationForLngLatZoom: (c: unknown, z: number) => number }
+                const ground = terrain.getElevationForLngLat ? terrain.getElevationForLngLat(tr.center, tr) : terrain.getElevationForLngLatZoom(tr.center, tr.tileZoom)
+                if (Number.isFinite(ground) && Math.abs(ground - tr.elevation) >= ELEVATION_SETTLE_EPSILON_M) { reconcileOnIdleRef.current(); return }
                 mapInstance.setCenterClampedToGround(false)
               }
               resettleTerrainElevationOnIdleRef.current()
