@@ -247,6 +247,14 @@ const animEngine = new RafEngine()
 /** Camera-target elevation held for the whole of a playback or scrub - see
  *  applyProgress. Captured when playback starts, cleared when it stops. */
 const playbackElevation: { value: number | null } = { value: null }
+/** True while the keyframe playback (or a scrub) is driving the camera with a
+ *  held elevation. TerrainViewer's idle settle and view reconcile check it:
+ *  both would otherwise read the held height as "stale", re-solve zoom and
+ *  center onto the ground under the interpolated center, and the flight
+ *  would follow the terrain the flight is meant to ignore. */
+export function isPosePlaybackActive(): boolean {
+  return animEngine.isRunning() || playbackElevation.value != null
+}
 function holdPlaybackElevation(map: ReturnType<typeof getMap>) {
   const m = map as unknown as { getCameraTargetElevation?: () => number; _camera?: { transform?: { elevation?: number } }; transform?: { elevation?: number } } | null
   const e = m?.getCameraTargetElevation?.() ?? m?._camera?.transform?.elevation ?? m?.transform?.elevation
@@ -859,6 +867,7 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
     })
   }, [mapRef, setPlaying])
 
+  const scrubReleaseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleScrub = useCallback((val: number) => {
     const raw = val / 100
     const p1 = p1Ref.current; const p2 = p2Ref.current; const map = getMap(mapRef)
@@ -866,6 +875,10 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
     setProgress(raw)
     if (playbackElevation.value == null) holdPlaybackElevation(map)
     applyProgress(raw, p1, p2, map, appRef.current, cbRef.current, false)
+    if (!playing) {
+      if (scrubReleaseRef.current) clearTimeout(scrubReleaseRef.current)
+      scrubReleaseRef.current = setTimeout(() => { if (!animEngine.isRunning()) playbackElevation.value = null }, 1500)
+    }
     if (playing) { playOffsetRef.current = raw; playStartRef.current = performance.now() }
   }, [playing, mapRef])
 

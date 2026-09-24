@@ -342,7 +342,13 @@ export class MatcapLiveLayer implements CustomLayerInterface {
     // rationales (the 8×8 grid read as blocky under per-fragment normals;
     // the apron double-composited translucent output along tile seams).
     const terrainMeshSize = ((map as unknown as { terrain?: { meshSize?: number } }).terrain?.meshSize) ?? 128
-    const mesh = createTileMesh({ granularity: terrainMeshSize })
+    // generateBorders: an apron ring past each edge. MapLibre 6 draws terrain
+    // skirts ("auto") coloured by the draped layers, and our quads are drawn
+    // on top of the terrain: where a quad stops exactly at the tile edge the
+    // skirt strip peeks through as a white dash along every seam on the
+    // globe. The apron covers it. (Translucent output double-composites in
+    // the apron; opaque, which these layers normally are, does not.)
+    const mesh = createTileMesh({ granularity: terrainMeshSize, generateBorders: true })
     this.vao = gl.createVertexArray()
     gl.bindVertexArray(this.vao)
     const vertexBuffer = gl.createBuffer()

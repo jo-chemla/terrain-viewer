@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils"
 
 import * as maplibregl from 'maplibre-gl'
 import { getTransform, ensureLegacyTransform } from '@/lib/maplibre-internals'
+import { isPosePlaybackActive } from '@/components/TerrainControlPanel/CameraUtilities'
 import { applyBoundedView, sanitizeBounds } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
@@ -2274,6 +2275,9 @@ export function TerrainViewer() {
 
   const resettleTerrainElevation = useCallback(() => {
     if (pointerDownRef.current) return
+    // A keyframe flight holds the target elevation on purpose; re-anchoring
+    // it here would walk the camera back onto the ground every idle.
+    if (isPosePlaybackActive()) return
 
     const preferred = lastInteractedViewRef.current
     const order = activeViewIds.includes(preferred)
@@ -2362,7 +2366,7 @@ export function TerrainViewer() {
   // Unlike resettleTerrainElevation it does not need terrain, so it also
   // covers 2D historical mode.
   const reconcileSyncedViews = useCallback(() => {
-    if (!isSplit || pointerDownRef.current || isSyncing.current) return
+    if (!isSplit || pointerDownRef.current || isSyncing.current || isPosePlaybackActive()) return
     const preferred = lastInteractedViewRef.current
     const referenceSide = activeViewIds.includes(preferred) ? preferred : activeViewIds[0]
     const reference = mapRefs[referenceSide]?.current?.getMap()
