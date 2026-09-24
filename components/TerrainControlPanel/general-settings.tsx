@@ -8,7 +8,6 @@ import { Slider } from "@/components/ui/slider"
 import { Section, SegmentedToggle, TooltipIconButton } from "./controls-components"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { ImportExportProjectDialog } from "./import-export-project-dialog"
-import { OpenInLinksButton } from "./open-in-links"
 
 export const GeneralSettings: React.FC<{
   state: any; setState: (updates: any) => void;
@@ -26,13 +25,10 @@ export const GeneralSettings: React.FC<{
 }> = ({ state, setState, isOpen, onOpenChange, historicalMode = false, mapRef, onGoHome }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const disabledViewModes = activeProjectConfig?.disableViewModes ?? []
-  const hideSplitScreen = activeProjectConfig?.hiddenSections?.includes("splitScreen") ?? false
   const hideProjectImportExport = activeProjectConfig?.hiddenSections?.includes("projectImportExport") ?? false
-  const hideOpenIn = activeProjectConfig?.hiddenSections?.includes("openIn") ?? false
-  // "Open in..." lives here too, a second copy of the one in the historical
-  // timeline panel's A/B caption row (historical-timeline-panel.tsx), which
-  // only renders once that panel is showing. This one is unconditional, so
-  // Terrain mode always has a path to it.
+  // "Open in..." is at the bottom of Compare and Blend (both app modes) and,
+  // once a historical basemap's timeline panel is showing, in that panel's
+  // A/B caption row as well.
   return (
     <Section
       id="tour-general-settings"
@@ -59,28 +55,9 @@ export const GeneralSettings: React.FC<{
           />
         </div>
       )}
-      {/* Terrain mode's own minimal comparison control — historical mode gets
-          the full Compare and Blend section instead (grid layout picker,
-          blend mode/opacity, per-side border colors, capture-date pill), a
-          full N-map grid being a historical-imagery-comparison feature more
-          than a terrain-visualization one. Always forces gridLayout "2x1"
-          regardless of state.gridLayout's own stored value — see
-          TerrainViewer.tsx's effectiveGridLayout. */}
-      {!historicalMode && !hideSplitScreen && (
-        <div id="tour-split-mode" className="flex items-center justify-between gap-2 scroll-mt-[100px]">
-          <Label className="text-sm font-medium">Split Mode</Label>
-          <SegmentedToggle
-            className="w-[180px]"
-            value={state.splitStyle}
-            onChange={(value) => setState({ splitStyle: value })}
-            options={[
-              { value: "off", label: "Off" },
-              { value: "overlay", label: "Overlay" },
-              { value: "side-by-side", label: "Side" },
-            ]}
-          />
-        </div>
-      )}
+      {/* Split Mode used to sit here in terrain mode, pinned to a 2x1 grid;
+          both modes now get the full Compare and Blend section
+          (comparison-mix-section.tsx) right below this one. */}
       {!hideProjectImportExport && <ImportExportProjectDialog setState={setState} />}
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
         <div className="space-y-1 pt-1">
@@ -95,13 +72,6 @@ export const GeneralSettings: React.FC<{
           </div>
           <Slider value={state.exaggeration} onValueChange={(value) => setState({ exaggeration: value })} min={0.1} max={10} step={0.1} className="cursor-pointer" />
         </div>
-      )}
-      {/* Last row, terrain mode only — historical mode gets its own copy at
-          the bottom of Compare and Blend instead (comparison-mix-section.tsx).
-          Deliberately always shown here too, even though the timeline panel
-          usually also has one — see the hook comment above. */}
-      {!historicalMode && !hideOpenIn && (
-        <OpenInLinksButton state={state} mapRef={mapRef} className="w-full" />
       )}
     </Section>
   )

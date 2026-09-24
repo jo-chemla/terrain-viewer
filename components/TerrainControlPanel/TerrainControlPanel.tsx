@@ -682,9 +682,17 @@ export function TerrainControlPanel({
           style={{ maskImage: scrollMask, WebkitMaskImage: scrollMask }}
         >
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} mapRef={mapRef} onGoHome={handleGoHome} />
-        <ComparisonMixSection state={state} setState={setState} isOpen={sectionOpen.comparisonMix} onOpenChange={toggle("comparisonMix")} historicalMode={historicalMode} mapRef={mapRef} />
+        {/* Compare and Blend sits right under General Settings in historical
+            mode, where comparing dates is the point, and under Visualization
+            Modes in terrain mode, where picking what to draw comes first. */}
+        {historicalMode && (
+          <ComparisonMixSection state={state} setState={setState} isOpen={sectionOpen.comparisonMix} onOpenChange={toggle("comparisonMix")} historicalMode={historicalMode} mapRef={mapRef} />
+        )}
         {!historicalMode && (
-          <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
+          <>
+            <VisualizationModesSection state={state} setState={setState} isOpen={sectionOpen.visualizationModes} onOpenChange={toggle("visualizationModes")} />
+            <ComparisonMixSection state={state} setState={setState} isOpen={sectionOpen.comparisonMix} onOpenChange={toggle("comparisonMix")} historicalMode={historicalMode} mapRef={mapRef} />
+          </>
         )}
         {!hiddenSections.includes("bookmarks") && (
           <BookmarksSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.bookmarks} onOpenChange={toggle("bookmarks")} />

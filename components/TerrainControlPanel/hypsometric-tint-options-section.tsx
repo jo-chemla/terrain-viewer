@@ -1,6 +1,7 @@
 import type React from "react"
 import { useMemo, useCallback, useRef, useContext, useState } from "react"
 import { useAtom } from "jotai"
+import { useToast } from "@/components/ui/toast"
 import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw, Mountain, MountainSnow } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -355,7 +356,14 @@ export const HypsometricTintOptionsSection: React.FC<{
   // viewport's tiles) and silently keep the old range. Stops at the first
   // answer, or gives up after ~6 s rather than looping forever over ocean,
   // where there genuinely is no DEM tile to read.
-  const autoRangeRequest = useAtom(hypsoAutoRangeRequestAtom)[0]
+  //
+  // The sidebar's own button goes through the same request, so a click on a
+  // source whose tiles are still decoding (a derived nDSM waits on BOTH of
+  // its operands, each possibly routed through titiler) keeps polling instead
+  // of silently keeping the old range - which read as "auto range does not
+  // work with nDSM". If nothing decodes in time, say so.
+  const toast = useToast()
+  const [autoRangeRequest, setAutoRangeRequest] = useAtom(hypsoAutoRangeRequestAtom)
   useEffect(() => {
     if (!autoRangeRequest) return
     let cancelled = false
@@ -364,10 +372,15 @@ export const HypsometricTintOptionsSection: React.FC<{
       if (cancelled) return
       if (getLoadedTilesElevationRange()) { setElevFromLoadedTiles(); return }
       if (++tries < 20) timer = setTimeout(tick, 300)
+      else toast({
+        key: "hypso-auto-range-no-tiles",
+        title: "No terrain tiles decoded in view yet",
+        body: "The elevation range is read from the terrain tiles on screen. Wait for the source to finish loading, then try again.",
+      })
     }
     let timer = setTimeout(tick, 300)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [autoRangeRequest, getLoadedTilesElevationRange, setElevFromLoadedTiles])
+  }, [autoRangeRequest, getLoadedTilesElevationRange, setElevFromLoadedTiles, toast])
 
   // All hooks (useRef, useEffect, useCallback, useMemo, useAtom etc) must be above that early return statement
   if (!state.showColorRelief) return null
@@ -626,7 +639,7 @@ export const HypsometricTintOptionsSection: React.FC<{
                     <TooltipIconButton
                       icon={MountainSnow}
                       tooltip="Auto set elevation range from terrain tiles loaded in viewport"
-                      onClick={setElevFromLoadedTiles}
+                      onClick={() => setAutoRangeRequest((n) => n + 1)}
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 cursor-pointer"

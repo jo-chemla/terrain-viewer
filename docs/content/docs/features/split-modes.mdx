@@ -6,7 +6,7 @@ description: Off, Overlay, and Side — comparing terrain/basemap sources agains
 import { Gallery } from "@/components/gallery";
 import { Accordions, Accordion } from "fumadocs-ui/components/accordion";
 
-**Split Mode** (General Settings) controls how many "views" of the map are on screen and how they relate to each other. It's the same three-way choice in both Terrain and Historical Imagery mode, but Side behaves differently between them: a fixed 2×1 pane pair in Terrain mode, or any grid up to 4×2 (8 views, labeled A–H) in Historical mode.
+**Split Mode** (Compare and Blend) controls how many "views" of the map are on screen and how they relate to each other. It's the same three-way choice in both Terrain and Historical Imagery mode, and Side takes any grid up to 4×2 (8 views, labeled A–H) in either.
 
 Off, Overlay, and the Terrain-mode Side pane below all share the same tilted Matterhorn viewpoint (Mapterhorn vs. AWS Terrarium), so the three modes are directly comparable — same camera, same two terrain sources, just a different compare mechanic each time.
 
@@ -65,7 +65,7 @@ Overlay mode's Blend Mode dropdown controls how source A composites over source 
 
 ## Color Matching (Match Colors)
 
-**Match Colors** (Compare and Blend, historical mode) automatically recolors every other view onto view A's color histogram, so two different imagery sources — or two different dates of the same source — no longer look noticeably darker/bluer/warmer next to each other when compared or blended. A **Color Space** picker controls how thorough the match is: **RGB** (the default) is instant, while **HSL / HSV / LAB / LCH** are slower but can match more subtle color differences.
+**Match Colors** (Compare and Blend) automatically recolors every other view onto view A's color histogram, so two different imagery sources — or two different dates of the same source — no longer look noticeably darker/bluer/warmer next to each other when compared or blended. A **Color Space** picker controls how thorough the match is: **RGB** (the default) is instant, while **HSL / HSV / LAB / LCH** are slower but can match more subtle color differences.
 
 The same 2×2 grid over Zermatt (Bing Aerial 2003, Google Hybrid, ESRI World Imagery 2023, Mapbox Satellite), with and without Match Colors — with it on, views B–D take on view A's warmer 2003 Bing palette instead of each keeping their own look:
 

@@ -29,8 +29,9 @@ import { cn } from "@/lib/utils"
  *  - A MODE toggles a `show*` flag in the URL state. Most sit under a master
  *    flag for their section (Terrain Analysis, Relief Visualization, Lighting
  *    Effects, Contours) that gates whether the section renders at all, so
- *    turning a card ON turns its master on too; turning it OFF leaves the
- *    master alone, which is what the sidebar's own checkboxes do.
+ *    turning a card ON turns its master on too; turning OFF the last mode
+ *    that master still has on (counting the modes with no card, e.g.
+ *    Roughness) turns the master off with it, so a group reads as off.
  *  - A TOOL has no layer to toggle - it is a panel. Clicking one closes this
  *    dialog and reveals that sidebar section (revealSectionAtom: opens its
  *    macro group, opens the section, scrolls to it), which is the thing you
@@ -121,6 +122,17 @@ const GROUPS: Group[] = [
   },
 ]
 
+/** Every `show*` flag each master gates, cards or not (the ones without a
+ *  card - TRI, Roughness, Shape index, Blobness, Local dominance, Hard
+ *  shadows, graticules - still keep their master on). Mirrors the
+ *  `enabled={state.<master> && ...}` gates in TerrainViewer.tsx. */
+const MASTER_MEMBERS: Record<string, string[]> = {
+  showTerrainAnalysis: ["showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showShapeIndex", "showBlobness", "showEigenRatio", "showOrientation"],
+  showReliefVisualization: ["showLrm", "showSvf", "showOpenness", "showLocalDominance"],
+  showLightingEffects: ["showMatcap", "showPhong", "showShadows"],
+  showContoursAndGraticules: ["showContours", "showGraticules"],
+}
+
 const IMAGE_BASE = `${import.meta.env.BASE_URL}docs/screenshots/`
 /** Cards show the small copies, not the docs' full captures: the originals
  *  are 1-4 MB each and 37 MB together, which is what a grid of fourteen
@@ -172,7 +184,10 @@ export function DataLayersModal({ open, onOpenChange, state, setState }: {
     }
     const next = !isOn(m)
     // A card turning ON has to bring its section with it, or nothing draws.
-    setState(next && m.master ? { [m.key]: true, [m.master]: true } : { [m.key]: next })
+    if (next) { setState(m.master ? { [m.key]: true, [m.master]: true } : { [m.key]: true }); return }
+    // The last one OFF takes the master down with it.
+    const othersOn = !!m.master && (MASTER_MEMBERS[m.master] ?? []).some((k) => k !== m.key && !!state[k])
+    setState(m.master && !othersOn ? { [m.key]: false, [m.master]: false } : { [m.key]: false })
   }
   const onCount = GROUPS.reduce((n, g) => n + g.modes.filter(isOn).length, 0)
 
@@ -217,8 +232,12 @@ export function DataLayersModal({ open, onOpenChange, state, setState }: {
                       type="button"
                       onClick={() => activate(m)}
                       aria-pressed={m.section ? undefined : on}
+                      // flex-col: a <button> centres its content vertically
+                      // when the grid row stretches it taller than the content
+                      // (a one-line blurb next to two-line ones), which showed
+                      // as a bg-muted band above the thumbnail.
                       className={cn(
-                        "group overflow-hidden rounded-lg border text-left transition-colors cursor-pointer hover:border-foreground/40",
+                        "group flex flex-col items-stretch overflow-hidden rounded-lg border text-left transition-colors cursor-pointer hover:border-foreground/40",
                         on && "border-primary ring-2 ring-primary/40",
                       )}
                     >

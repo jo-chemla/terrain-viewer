@@ -456,6 +456,36 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // Two generic diverging ramps, third and fourth in the list on purpose: a
+  // difference source (nDSM, elevation change, ground change) is read as
+  // "below in blue, above in red" whatever the mode, so they belong next to
+  // black-and-white rather than buried among the per-mode ramps below.
+  // ColorBrewer RdBu, stops on a -1..1 domain that Symmetric / Auto range
+  // rescale. The transparent one leaves unchanged ground untinted.
+  "diverging-blue-white-red": {
+    name: "Diverging (Blue-White-Red)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -1, "rgb(33, 102, 172)",
+      -0.5, "rgb(146, 197, 222)",
+      0, "rgb(255, 255, 255)",
+      0.5, "rgb(244, 165, 130)",
+      1, "rgb(178, 24, 43)",
+    ],
+    continuous: true,
+  },
+  "diverging-blue-transparent-red": {
+    name: "Diverging (Blue-Transparent-Red)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      -1, "rgb(33, 102, 172)",
+      -0.5, "rgba(146, 197, 222, 0.6)",
+      0, "rgba(255, 255, 255, 0)",
+      0.5, "rgba(244, 165, 130, 0.6)",
+      1, "rgb(178, 24, 43)",
+    ],
+    continuous: true,
+  },
   "hypsometric-simple": {
     name: "Hypsometric Simple",
     colors: ["interpolate", ["linear"], ["elevation"], 0, "rgb(112, 209, 255)", 3724, "rgb(255, 178, 129)"],

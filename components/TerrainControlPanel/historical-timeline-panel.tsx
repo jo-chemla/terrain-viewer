@@ -1806,13 +1806,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             (mislabeled as if A/B), and a 2x1 with only one historical side
             hid a perfectly good caption.
             Terrain mode's own "Open in..." launcher is ALSO centered between
-            the two captions here, since terrain mode is always forced to
-            the 2x1 grid this row needs anyway — a second copy alongside the
-            unconditional one in General Settings (general-settings.tsx),
-            since this row (and the whole timeline panel it's part of) only
-            shows once a historical basemap is actually active and expanded.
-            Historical mode keeps its own copy in Compare and Blend
-            (comparison-mix-section.tsx), unrelated to this row. */}
+            the two captions here when the grid is 2x1 — a second copy
+            alongside the one at the bottom of Compare and Blend
+            (comparison-mix-section.tsx, both app modes), since this row
+            (and the whole timeline panel it's part of) only shows once a
+            historical basemap is actually active and expanded. */}
         {dualMode && gridLayoutForTimeline === "2x1" && (
           <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums mx-2">
             {(["A", "B"] as const).map((side, idx) => (

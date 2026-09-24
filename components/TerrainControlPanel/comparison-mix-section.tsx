@@ -1,7 +1,7 @@
 import type React from "react"
 import { useMemo, useState } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, Frame, Hourglass } from "lucide-react"
+import { ChevronDown, Columns2, Frame, Hourglass, PanelLeftDashed, SquareDashed } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Toggle } from "@/components/ui/toggle"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Section, SegmentedToggle, SliderControl, GroupHeading } from "./controls-components"
+import { Section, SegmentedToggle, SliderControl, GroupHeading, TooltipIconButton } from "./controls-components"
 import { ColorAlphaSwatch } from "./color-picker"
 import { OpenInLinksButton } from "./open-in-links"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
@@ -41,6 +41,18 @@ const COLOR_SPACE_OPTIONS: { value: "rgb" | "hsl" | "hsv" | "lab" | "lch"; label
 // grid-layout choice since this control only ever shows once isSplit is
 // already true) — disabled rather than hidden, so the control still reads
 // as a clean fixed rectangle instead of a lopsided 7-cell one.
+// Header shortcut: one icon button that cycles Off -> Overlay -> Side -> Off,
+// so the split style can be flipped without unfolding the section (same
+// idea as Home on General Settings and Gallery on Bookmarks). The icon shows
+// the CURRENT style - a dashed empty square, a pane with a dashed half, two
+// columns; the square family keeps the three the same shape - and the
+// tooltip names the next one.
+const SPLIT_CYCLE = [
+  { value: "off", label: "Off", icon: SquareDashed },
+  { value: "overlay", label: "Overlay", icon: PanelLeftDashed },
+  { value: "side-by-side", label: "Side", icon: Columns2 },
+] as const
+
 const GRID_PICKER_ROWS = 2
 const GRID_PICKER_COLS = 4
 
@@ -91,11 +103,10 @@ const GridLayoutPicker: React.FC<{ value: GridLayoutId; onChange: (id: GridLayou
 // (2x1..3x2), blend mode + opacity (overlay only), and per-side border
 // colorization. "Compare and Blend" felt closer to what it actually covers.
 //
-// Historical-mode only — Terrain mode still gets a plain Split Mode toggle
-// (off/overlay/side, no grid picker, forced to gridLayout "2x1" — see
-// TerrainViewer.tsx's effectiveGridLayout) inside General Settings instead,
-// since a full N-map grid is really a historical-imagery-comparison feature,
-// not a terrain-visualization one.
+// Shown in both app modes. Terrain mode used to get only a Split Mode toggle
+// in General Settings, pinned to a 2x1 grid; it now has the whole section,
+// grid picker included - Capture Date too, since a terrain view can carry a
+// historical basemap.
 export const ComparisonMixSection: React.FC<{
   state: any; setState: (updates: any) => void
   isOpen: boolean
@@ -109,6 +120,7 @@ export const ComparisonMixSection: React.FC<{
   // "comparisonMix") so existing project configs (see lib/projects.json)
   // that already hide it keep working unchanged.
   const hideSplitScreen = activeProjectConfig?.hiddenSections?.includes("splitScreen") ?? false
+  const hideOpenIn = activeProjectConfig?.hiddenSections?.includes("openIn") ?? false
   const [colorizeMapBorders, setColorizeMapBorders] = useAtom(colorizeMapBordersAtom)
   const [colorizeMapBordersInset, setColorizeMapBordersInset] = useAtom(colorizeMapBordersInsetAtom)
   const [sideColorOverrides, setSideColorOverrides] = useAtom(sideColorOverridesAtom)
@@ -125,7 +137,7 @@ export const ComparisonMixSection: React.FC<{
   // (the "Open In" button moved out of that panel to keep it tighter) costs
   // no extra network round-trip.
 
-  if (hideSplitScreen || !historicalMode) return null
+  if (hideSplitScreen) return null
 
   const isSplit = state.splitStyle !== "off"
   const isOverlay = state.splitStyle === "overlay"
@@ -134,7 +146,25 @@ export const ComparisonMixSection: React.FC<{
   const effectiveGridLayout: GridLayoutId = isOverlay ? "2x1" : (state.gridLayout ?? "2x1")
 
   return (
-    <Section id="tour-historical-compare-blend" title="Compare and Blend" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={true}>
+    <Section
+      id="tour-historical-compare-blend"
+      title="Compare and Blend"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      withSeparator={true}
+      headerExtra={(() => {
+        const idx = Math.max(0, SPLIT_CYCLE.findIndex((s) => s.value === state.splitStyle))
+        const current = SPLIT_CYCLE[idx]
+        const next = SPLIT_CYCLE[(idx + 1) % SPLIT_CYCLE.length]
+        return (
+          <TooltipIconButton
+            icon={current.icon}
+            tooltip={`Split mode: ${current.label} - click for ${next.label}`}
+            onClick={() => setState({ splitStyle: next.value })}
+          />
+        )
+      })()}
+    >
       {/* Grid Layout and Blend Mode (+ its Opacity slider) are mutually
           exclusive siblings of Split Mode (gated on the same splitStyle
           value) — wrapped together so the guided tour's Blend Modes/Grid
@@ -391,7 +421,7 @@ export const ComparisonMixSection: React.FC<{
           {destination}", so a row label would just repeat "open in" — and
           full width (not paired against a label in a justify-between row)
           since it's the only control on this line. */}
-      <OpenInLinksButton state={state} mapRef={mapRef} className="w-full" />
+      {!hideOpenIn && <OpenInLinksButton state={state} mapRef={mapRef} className="w-full" />}
     </Section>
   )
 }

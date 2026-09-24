@@ -711,15 +711,19 @@ const TERRAIN_STEPS: TourStepDef[] = [
     scrollIntoView: false,
   },
   {
-    key: "split-mode", domId: "tour-split-mode", side: "left", align: "center",
-    title: "Split / Compare Mode",
+    key: "split-mode", domId: "tour-historical-compare-blend", side: "left", align: "start",
+    title: "Compare and Blend",
     description: (
-      <ul className="list-disc pl-4 space-y-1.5">
-        <li><span className="font-semibold text-foreground">Off</span>: single map view pane, classic.</li>
-        <li><span className="font-semibold text-foreground">Overlay</span>: two sources blended in place with adjustable gutter.</li>
-        <li><span className="font-semibold text-foreground">Side</span>: two panes side by side — compare 2+ terrain or basemap sources directly against each other.</li>
-      </ul>
+      <>
+        <p className="pb-2">Home for every split, grid and blend control — split style, grid layout, blend mode and opacity, colour matching, and per-view border colours. Split mode can be:</p>
+        <ul className="list-disc pl-4 space-y-1.5">
+          <li><span className="font-semibold text-foreground">Off</span>: single map view pane, classic.</li>
+          <li><span className="font-semibold text-foreground">Overlay</span>: two sources blended in place with adjustable gutter.</li>
+          <li><span className="font-semibold text-foreground">Side</span>: panes side by side, up to a 4×2 grid — compare terrain or basemap sources directly against each other, every view synced.</li>
+        </ul>
+      </>
     ),
+    onEnter: (a) => a.setSectionOpen((prev) => ({ ...prev, comparisonMix: true })),
   },
   {
     key: "terrain-tools", domId: "tour-tools-group", side: "left", align: "start",

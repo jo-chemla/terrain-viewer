@@ -1090,7 +1090,11 @@ export function TerrainViewer() {
   }, [state.tellsFrozen])
   const isSplit = state.splitStyle !== "off"
   const isOverlaySplit = state.splitStyle === "overlay"
-  const effectiveGridLayout: GridLayoutId = (isOverlaySplit || !isHistoricalMode) ? "2x1" : state.gridLayout
+  // Overlay always compares exactly two views, so it is pinned to 2x1; every
+  // other split honours the picked grid in both app modes. (Terrain mode used
+  // to be forced to 2x1 as well, with only a Split Mode toggle in General
+  // Settings — it now gets the same Compare and Blend section as historical.)
+  const effectiveGridLayout: GridLayoutId = isOverlaySplit ? "2x1" : state.gridLayout
   const gridConfig = GRID_LAYOUTS[effectiveGridLayout]
   const activeViewIds: ViewId[] = isSplit ? gridConfig.grid.flat() : ["A"]
   const bottomRightViewId: ViewId = isSplit ? bottomRightView(effectiveGridLayout) : "A"
@@ -4292,14 +4296,10 @@ export function TerrainViewer() {
             around it. Rendered as a flat map here instead, at the same
             level as the date pills below, so borders always draw in their
             own true color regardless of the pane's blend mode. */}
-        {/* isHistoricalMode-gated, not just a straight read of the persisted
-            atom — colored borders are a historical-imagery-comparison
-            feature (matching per-side pill colors on the timeline), same
-            "terrain mode doesn't get this" policy as effectiveGridLayout
-            above. Gating the RENDER rather than resetting the atom itself
-            keeps the user's actual preference intact for next time they
-            switch back to historical mode. */}
-        {colorizeMapBorders && isHistoricalMode && isSplit && paneLayouts.map((pane) => {
+        {/* Both app modes: the per-side colors match the swatches in Compare
+            and Blend's Advanced block, and (in historical mode) the pill
+            colors on the timeline. */}
+        {colorizeMapBorders && isSplit && paneLayouts.map((pane) => {
           // Inset (not flush with the pane edge, unless
           // colorizeMapBordersInsetAtom is off — see insetPx below) so it
           // reads as a frame rather than colliding with maplibre's own
