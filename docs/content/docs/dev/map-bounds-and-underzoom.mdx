@@ -73,6 +73,24 @@ With the floor applied, the same box zooms out to **z8.95**.
 
 `staticBoundsFor` deserves a note. Library entries are **copied into localStorage on first use**, so a copy saved before a shipped entry gained its `bounds` would stay boundless forever. It therefore falls back to the shipped definition by id. Both this and the picker's fit must agree — which is why it is one shared helper and not two lookups. The symptom when they disagreed was memorable: "fit to bounds" did nothing while `maxBounds` still correctly fenced the right country.
 
+## Zooming to a source when you pick it
+
+Picking a source flies the camera to it only when that helps, and the rule differs between terrain and basemaps. Both live in `lib/controls-utils.tsx`; the "Fit to bounds" button always flies.
+
+**Terrain** (`shouldZoomToTerrainBounds`): fly unless the viewport is already entirely inside the source's footprint. A worldwide source has no footprint and never moves the camera.
+
+| From | To | Result |
+|---|---|---|
+| World view (Mapterhorn) | Spain | Flies to Spain |
+| Spain | Mapterhorn | Stays |
+| Madrid, via Mapterhorn | Spain | Stays on Madrid, which is inside Spain |
+| Netherlands | Mexico | Flies to Mexico |
+| Europe-wide view | Spain | Flies to Spain: the viewport contains Spain, so it is not inside it |
+
+**Basemaps** (`shouldZoomToBounds`): fly only when the source lies entirely inside the viewport, or does not touch it at all. When they merely overlap, or the source covers the whole viewport, the camera stays.
+
+Terrain used the basemap rule first and it was discarded there. For terrain, partial overlap is the common case: you pick a country while looking at its neighbour. The basemap rule does nothing on partial overlap, so switching terrain sources felt broken. A basemap is usually picked to see imagery where you already are, so staying put on overlap is the right default there.
+
 ## Padding
 
 `fitPaddingFor` returns the `fitBounds` padding in pixels for a given map: `FIT_PADDING_RATIO` (0.12) of the shorter viewport side, floored at 20 px and capped at just under half the frame so it can never exceed the container.

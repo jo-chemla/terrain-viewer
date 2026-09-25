@@ -46,7 +46,7 @@ export const DetectorMoundsSection: React.FC<{
   if (!state.tellsBeta) return null
 
   return (
-    <Section title="Mound Candidates" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={false}>
+    <Section id="tour-tells-detector-section" title="Mound Candidates" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={false}>
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           {/* Pure paint-visibility toggle (tellsMarkersVisible) — deliberately

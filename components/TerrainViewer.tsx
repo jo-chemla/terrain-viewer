@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsInteger, parseAsStringLiteral, parseAsArrayOf } from "nuqs"
 import Map, {
   type MapRef,
@@ -190,57 +190,68 @@ function matcapUrlFor(textureId: string): string {
 // lib/bookmarks.ts's restoreBookmarkInPlace can reuse the exact same parsers to
 // turn a saved query string back into typed state without a page reload.
 
-// Tiles that never land. MapLibre keeps every raster request in one queue
-// of 16 and a custom protocol holds its slot for the whole handler, so a
-// backlog of slow horizon-search tiles - or a service that stopped
-// answering - leaves a layer "loading" with nothing arriving. Nothing in the
-// app can recover the queue; a reload can.
+// Tiles that never land, or land too slowly. MapLibre keeps every raster
+// request in one queue of 16 and a custom protocol holds its slot for the
+// whole handler, so a backlog of slow horizon-search tiles - or a service
+// that stopped answering - leaves a layer loading with nothing to show.
+// Nothing in the app can drain that queue; a reload can.
 //
-// Watched per source, not per map: a map-wide "no tile landed" never fired
-// while a single mode was stuck, because every other source kept landing
-// tiles (SVF waiting forever beside a busy basemap). A source that has had
-// tiles pending for STALL_AFTER_MS without one of its own landing in that
-// time raises one toast, with a Reload button, then stays quiet for
-// STALL_REPEAT_MS.
+// Watched per source: a source that has not had ALL its tiles for
+// STALL_AFTER_MS is stalled, whether or not some of its tiles landed in the
+// meantime (a map-wide "nothing landed" never fired while SVF alone was
+// stuck beside a busy basemap). Each stall is an episode: it ends when the
+// source has every tile, or when the map moves (a pan or zoom asks for new
+// tiles, so the clock starts over). One toast per episode, so a stall after
+// a pan raises it again.
 const STALL_AFTER_MS = 20_000
-const STALL_REPEAT_MS = 300_000
-type StallWatch = { installedAt: number; lastTileAt: globalThis.Map<string, number>; pendingSince: globalThis.Map<string, number>; lastToastAt: number; timer: ReturnType<typeof setInterval> }
+type StallWatch = { pendingSince: globalThis.Map<string, number>; toasted: Set<string>; timer: ReturnType<typeof setInterval> }
 const stallWatchers = new WeakMap<object, StallWatch>()
-/** "svfSource" -> "svf", "terrainSource" -> "terrain" */
-const friendlySourceName = (id: string) => id.replace(/Source(Unfiltered)?$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()
+const SOURCE_LABELS: Record<string, string> = {
+  terrainSource: "Terrain", hillshadeSource: "Hillshade", "raster-basemap-source": "Basemap", "contour-source": "Contours",
+  slopeSource: "Slope", aspectSource: "Aspect", curvatureSource: "Curvature", tpiSource: "TPI", triSource: "TRI",
+  roughnessSource: "Roughness", lrmSource: "LRM", svfSource: "SVF", opennessSource: "Openness",
+  localDominanceSource: "Local Dominance", blobnessSource: "Blobness", eigenRatioSource: "Eigen Ratio",
+  shapeIndexSource: "Shape Index", orientationSource: "Orientation", matcapSource: "Matcap", phongSource: "Phong",
+  shadowSource: "Hard Shadows", tellsSource: "Mound Detector", tellsSourceUnfiltered: "Mound Detector",
+}
+/** "svfSource" -> "SVF"; an unlisted id is split into words and capitalised. */
+const sourceLabel = (id: string) =>
+  SOURCE_LABELS[id] ?? id.replace(/[-_]?[Ss]ource$/, "").replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\b\w/g, (c) => c.toUpperCase())
 function watchForStalledTiles(map: maplibregl.Map) {
   if (stallWatchers.has(map)) return
-  const w: StallWatch = { installedAt: Date.now(), lastTileAt: new globalThis.Map(), pendingSince: new globalThis.Map(), lastToastAt: 0, timer: 0 as unknown as ReturnType<typeof setInterval> }
-  map.on("data", (e) => {
-    const ev = e as { tile?: unknown; sourceId?: string }
-    if (ev.tile && ev.sourceId) w.lastTileAt.set(ev.sourceId, Date.now())
-  })
+  const w: StallWatch = { pendingSince: new globalThis.Map(), toasted: new Set(), timer: 0 as unknown as ReturnType<typeof setInterval> }
+  // New tiles requested: every open episode starts over.
+  map.on("moveend", () => { w.pendingSince.clear(); w.toasted.clear() })
   map.on("remove", () => { clearInterval(w.timer); stallWatchers.delete(map) })
   w.timer = setInterval(() => {
     const now = Date.now()
     const managers = (map as unknown as { style?: { tileManagers?: Record<string, { loaded(): boolean }> } }).style?.tileManagers
     if (!managers) return
     const stalled: string[] = []
+    let fresh = false
     for (const [id, tm] of Object.entries(managers)) {
       let loaded = true
       try { loaded = tm.loaded() } catch { continue }
-      if (loaded) { w.pendingSince.delete(id); continue }
+      if (loaded) { w.pendingSince.delete(id); w.toasted.delete(id); continue }
       const since = w.pendingSince.get(id) ?? now
       w.pendingSince.set(id, since)
-      const lastLanded = Math.max(w.lastTileAt.get(id) ?? 0, w.installedAt)
-      if (now - since > STALL_AFTER_MS && now - lastLanded > STALL_AFTER_MS) stalled.push(id)
+      if (now - since > STALL_AFTER_MS) {
+        stalled.push(id)
+        if (!w.toasted.has(id)) { w.toasted.add(id); fresh = true }
+      }
     }
-    if (stalled.length && now - w.lastToastAt > STALL_REPEAT_MS) {
-      w.lastToastAt = now
-      const names = stalled.map(friendlySourceName)
-      pushToast({
-        key: "tiles-stalled",
-        title: names.length === 1 ? `${names[0][0].toUpperCase()}${names[0].slice(1)} tiles have stopped arriving` : "Tiles have stopped arriving",
-        body: `Nothing has landed for 20 seconds from ${names.join(", ")}. The source may be down, or the tile queue is wedged behind slow requests. Reloading keeps your view: it is all in the URL.`,
-        duration: 15000,
-        action: { label: "Reload", onClick: () => window.location.reload() },
-      })
-    }
+    if (!fresh) return
+    const names = [...new Set(stalled.map(sourceLabel))]
+    const list = names.map((n, i) => (
+      <Fragment key={n}>{i > 0 && (i === names.length - 1 ? " and " : ", ")}<b className="text-popover-foreground">{n}</b></Fragment>
+    ))
+    pushToast({
+      key: "tiles-stalled",
+      title: "Some tiles have stopped arriving",
+      body: <>{list} {names.length === 1 ? "has" : "have"} been waiting on tiles for over 20 seconds. The source may be down, or the tile queue is wedged behind slow requests. Reloading keeps your view: it is all in the URL.</>,
+      duration: 15000,
+      action: { label: "Reload", onClick: () => window.location.reload() },
+    })
   }, 5000)
   stallWatchers.set(map, w)
 }

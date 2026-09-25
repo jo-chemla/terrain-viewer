@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils"
 export interface Toast {
   key: string
   title: string
-  body?: string
+  /** Plain text, or nodes when part of it needs emphasis. */
+  body?: React.ReactNode
   /** ms before it dismisses itself. */
   duration?: number
   /** One button under the body, e.g. "Reload". Clicking it runs `onClick`
@@ -79,11 +80,11 @@ const ToastItem: React.FC<{ toast: Entry }> = ({ toast }) => {
       )}
     >
       <p className="text-sm font-medium text-popover-foreground">{toast.title}</p>
-      {toast.body && <p className="mt-0.5 text-xs text-muted-foreground">{toast.body}</p>}
+      {toast.body && <div className="mt-0.5 text-xs text-muted-foreground">{toast.body}</div>}
       {toast.action && (
         <button
           type="button"
-          className="mt-1.5 rounded border px-2 py-0.5 text-xs font-medium text-popover-foreground hover:bg-accent cursor-pointer"
+          className="mt-2.5 mx-auto block rounded-md border bg-background px-6 py-1.5 text-sm font-semibold text-popover-foreground shadow-sm hover:bg-accent cursor-pointer"
           onClick={(e) => { e.stopPropagation(); dismissToast(toast.id); toast.action!.onClick() }}
         >
           {toast.action.label}

@@ -96,6 +96,7 @@ export const SCROLL_TARGETS: Record<string, string> = {
   sunShadowCalculator: "tour-sun-shadow-section",
   animation: "tour-animation-section",
   comparisonMix: "tour-historical-compare-blend",
+  tellsDetector: "tour-tells-detector-section",
 }
 
 /** Which macro group a reveal target lives under, so revealing it also
