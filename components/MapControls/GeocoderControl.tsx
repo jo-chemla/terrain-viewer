@@ -428,6 +428,17 @@ export default function GeocoderControl({
             if (inputEl && inputEl.value.length === 0) setExpanded(false);
           }, 150);
         });
+        // The vendor's Clear (x) empties the input and hands focus straight
+        // back to it, so the blur handler above never fires and the control
+        // stayed at full width with the search glyph pinned to its left edge
+        // - which read as a misaligned icon once anything else took focus and
+        // the box snapped shut. Blur and collapse explicitly after the
+        // vendor's own clear handler has run.
+        ctrl.on("clear", () => {
+          setTimeout(() => {
+            if (inputEl && inputEl.value.length === 0) { inputEl.blur(); setExpanded(false); }
+          }, 0);
+        });
         geocoderEl()?.addEventListener("click", () => {
           if (!geocoderEl()?.classList.contains("geocoder-collapsed")) return;
           setExpanded(true);

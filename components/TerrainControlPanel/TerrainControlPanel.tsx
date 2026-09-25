@@ -283,8 +283,9 @@ export function TerrainControlPanel({
         showReliefVisualization: state.showReliefVisualization,
         showTerrainAnalysis: state.showTerrainAnalysis,
         showBackground: state.showBackground,
-        showTellsDetector: state.showTellsDetector,
       }
+      // The detector overlay stays: it is the thing being checked against
+      // the imagery, not a rendering of the terrain.
       setState({
         showContoursAndGraticules: false,
         showHillshade: false,
@@ -294,7 +295,6 @@ export function TerrainControlPanel({
         showReliefVisualization: false,
         showTerrainAnalysis: false,
         showBackground: false,
-        showTellsDetector: false,
       })
     }
   }, !historicalMode)

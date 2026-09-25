@@ -448,7 +448,7 @@ export const QUERY_STATE_PARSERS = {
     // tile-recompute trigger the way it would if bearing were live-tracked.
     // (Matcap's own anchor keeps Camera as ITS default — the material
     // lookup is what a camera-held sphere means — unlike a scene light.)
-    phongLightRelativeToCamera: parseAsBoolean.withDefault(false),
+    phongLightRelativeToCamera: parseAsBoolean.withDefault(true),
     // "raster" (default): lib/phong-protocol.ts's plain raster-tile pipeline —
     // drapes correctly over 3D terrain exaggeration AND globe, but every
     // light/strength/exaggeration change costs a real tile refetch (~150ms
@@ -612,7 +612,7 @@ export const QUERY_STATE_PARSERS = {
     svfMax: parseAsFloat.withDefault(100),
     svfInvertColorRamp: parseAsBoolean.withDefault(false),
     svfRadius: parseAsFloat.withDefault(8),
-    svfPrecision: parseAsStringLiteral(HORIZON_PRECISIONS).withDefault("precise"),
+    svfPrecision: parseAsStringLiteral(HORIZON_PRECISIONS).withDefault("fast"),
     svfCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     svfCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showOpenness: parseAsBoolean.withDefault(false),
@@ -624,7 +624,7 @@ export const QUERY_STATE_PARSERS = {
     opennessSymmetric: parseAsBoolean.withDefault(true),
     opennessRadius: parseAsFloat.withDefault(8),
     opennessMode: parseAsStringLiteral(OPENNESS_MODES).withDefault("positive"),
-    opennessPrecision: parseAsStringLiteral(HORIZON_PRECISIONS).withDefault("precise"),
+    opennessPrecision: parseAsStringLiteral(HORIZON_PRECISIONS).withDefault("fast"),
     opennessCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     opennessCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     // Local Dominance (Hesse 2016) — Relief Visualization mode, see

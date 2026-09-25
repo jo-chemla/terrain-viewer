@@ -401,6 +401,26 @@
   transform: translate(-50%, -50%);
 }
 
+/* Loading spinner: the vendor parks it at the right edge over the clear
+   button (26px + margins, positioned for its own 36px-tall input). Ring it
+   around the search glyph at the left instead, sized for our 32px input:
+   20px tall, 6px from the top, 5px from the left, so the 14px glyph at
+   left 8 sits in its centre. No transform here - the vendor's rotate
+   keyframes own the transform. */
+.maplibregl-ctrl-geocoder--icon-loading {
+  position: absolute !important;
+  left: 5px !important;
+  top: 6px !important;
+  width: 20px !important;
+  height: 20px !important;
+  margin: 0 !important;
+  fill: var(--muted-foreground);
+}
+.maplibregl-ctrl-geocoder.geocoder-collapsed .maplibregl-ctrl-geocoder--icon-loading {
+  left: 4.5px !important;
+  top: 4.5px !important;
+}
+
 /* Clear (×) button: vendor hardcodes its background to a plain #fff with no
    dark-mode variant — bypasses every other themed control's --card/--accent
    tokens, so this reads as mismatched (a bright white square in dark mode,
@@ -434,9 +454,11 @@
    sits visibly above center in our 32px-tall input (see
    .maplibregl-ctrl-geocoder--input above) — top:50% + a matching
    translateY recenters it regardless of input height. Targets `> *`
-   (not just the button) since the loading spinner is this same pin-right
-   container's other child and needs the identical treatment. */
-.maplibregl-ctrl-geocoder--pin-right > * {
+   (not just the button). The loading spinner is this container's other
+   child but is excluded: its rotate animation owns `transform`, so the
+   translateY never applied and it hung 10px low at the right edge; it has
+   its own placement, ringed around the search glyph (above). */
+.maplibregl-ctrl-geocoder--pin-right > :not(.maplibregl-ctrl-geocoder--icon-loading) {
   top: 50% !important;
   transform: translateY(-50%);
 }
