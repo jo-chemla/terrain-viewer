@@ -495,15 +495,19 @@ export async function vrtProtocol(
       // produced values like -11 650 m - inside every sane guard, and a
       // kilometres-deep gash along every source boundary.
       const read = () => tiff.readRasters({ window: win, width: outW, height: outH, resampleMethod: "nearest", fillValue: NaN, samples: [s.band - 1], signal })
+      // Up to three attempts, 0.4 s then 1.2 s apart: under a busy tile queue
+      // a range read times out or drops far more often than a file is really
+      // gone, and a tile that fails stays blank until MapLibre asks for it
+      // again (the next pan or zoom).
       let rasters
-      try {
-        rasters = await read()
-      } catch (e) {
-        // One retry: under a busy tile queue a range read times out or drops
-        // far more often than a file is really gone.
-        if (signal.aborted || await fileIsGone(s.filename)) throw e
-        await new Promise((r) => setTimeout(r, 400))
-        rasters = await read()
+      for (let attempt = 0; ; attempt++) {
+        try {
+          rasters = await read()
+          break
+        } catch (e) {
+          if (attempt >= 2 || signal.aborted || await fileIsGone(s.filename)) throw e
+          await new Promise((r) => setTimeout(r, 400 * 3 ** attempt))
+        }
       }
       const band = (Array.isArray(rasters) ? rasters[0] : rasters) as unknown as ArrayLike<number>
       return { s, win, outW, outH, band }

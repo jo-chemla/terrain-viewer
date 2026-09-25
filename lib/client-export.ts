@@ -204,6 +204,10 @@ export interface ExportElevationClientSideParams {
    *  directly as the output width/height. */
   targetResolution: number
   onProgress?: (fraction: number) => void
+  /** Use this zoom instead of picking one from targetResolution: the layer
+   *  export passes the zoom the map is drawing, so every tile is already in
+   *  the result cache. */
+  zoom?: number
   /** Lets a caller cancel an in-flight export — aborts the COG range read or the
    *  tile mosaic's next per-tile fetch (see fetchTileMosaic/exportCogWindow). */
   signal?: AbortSignal
@@ -221,8 +225,13 @@ export async function exportElevationClientSide(
     return result
   }
 
-  const startZoom = pickZoomForResolution(bbox, targetResolution, targetResolution, source.tileSize, source.maxzoom)
-  const decodePixel = source.type === "terrainrgb" ? terrainrgbToElevation : terrariumToElevation
+  const startZoom = params.zoom ?? pickZoomForResolution(bbox, targetResolution, targetResolution, source.tileSize, source.maxzoom)
+  const decodeRgb = source.type === "terrainrgb" ? terrainrgbToElevation : terrariumToElevation
+  // A pixel that is not fully opaque is nodata: titiler writes holes with
+  // alpha 0, our own protocols with 254 (lib/vrt-protocol.ts, demdiff). It
+  // used to be decoded like any other pixel, so a hole exported as a real
+  // value (0 m, or -10 000 m in Terrain-RGB).
+  const decodePixel = (r: number, g: number, b: number, a: number) => (a < 255 ? NaN : decodeRgb(r, g, b))
 
   // A source's declared maxzoom isn't always backed by 100% coverage across
   // the whole export bbox (e.g. Mapterhorn declares 18 but plenty of real

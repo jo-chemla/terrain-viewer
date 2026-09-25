@@ -3,7 +3,7 @@ title: Export & Share
 description: Snapshots, DEM GeoTIFF and contour exports, historical batch export, and social sharing
 ---
 
-Everything here lives in the sidebar's **Download and Snapshot** section. In historical mode (no terrain source, no contour layer) the section shrinks to just Snapshot / Copy / Share plus the historical batch export — the DEM and Contours buttons only make sense with a terrain source loaded.
+Everything here lives in the sidebar's **Download and Snapshot** section. In historical mode (no terrain source, no contour layer) the section shrinks to just Snapshot / Copy / Share plus the historical batch export — the GeoTIFF export only makes sense with a terrain source loaded.
 
 ## Snapshot & Copy
 
@@ -12,16 +12,22 @@ Everything here lives in the sidebar's **Download and Snapshot** section. In his
 
 ## DEM GeoTIFF export
 
-**DEM GeoTiff** exports the current viewport's elevation data as a single-band 32-bit-float GeoTIFF (WGS 84) — real elevations in meters, not the RGB-packed tiles the renderer consumes. Two export engines, chosen by the **DTM Export without Titiler** toggle in [Streaming & Storage Settings](/features/streaming-settings):
+**GeoTIFF** exports the current viewport's elevation data as a single-band 32-bit-float GeoTIFF (WGS 84) — real elevations in meters, not the RGB-packed tiles the renderer consumes. Two export engines, chosen by the **DTM Export without Titiler** toggle in [Streaming & Storage Settings](/features/streaming-settings):
 
 - **Client-side** (toggle on) — the browser range-reads and mosaics the source's tiles/COG directly, bypassing Titiler's server-side size cap. Supports **COG, Terrain-RGB, and Terrarium** sources — including a [local COG file](/features/byod#local-offline-cog-terrain-sources) no server could reach. Shows a live progress bar, and a **Cancel** affordance appears (hover the exporting button) once an export has run long enough to be worth cancelling.
 - **Titiler** (toggle off) — the source's tile URL is wrapped in a GDAL WMS descriptor and handed to the Titiler endpoint's `/cog/bbox` route, which mosaics it server-side; the app then decodes the RGB packing back into real elevations before saving.
 
 The **Max Download Resolution (px)** field, in the **Export settings** fold below the buttons, caps the output width/height for both paths. If the source's tile pyramid runs out of zoom over the selected area, the export still saves — at the best resolution available — with a warning explaining the shortfall.
 
-## Contour export
+## Visible layers export
 
-**Contours** exports the contour lines **currently rendered in the viewport** as a GeoJSON file. Segments that were only cut apart by tile boundaries are stitched back into continuous lines before download. Because it reads rendered features, the [Contours & GeoGrid visualization mode](/features/visualization-modes) (with the contour-lines checkbox on) must be active — the button is disabled otherwise. It's viewport-only by design: pan/zoom to frame the area you want, then export.
+The arrow beside **GeoTIFF** opens a menu: **Elevation (DEM) GeoTIFF**, the same as the button, and **Visible layers…**. The second lists every Terrain Analysis and Relief Visualization mode currently drawn on the map, grouped under its section's name, plus the contour lines when they are on. Everything visible is checked; untick what you don't want and press **Export**.
+
+Each mode downloads as its own file, `terrain-viewer_<group>_<mode>_<time>.tif`: a single-band 32-bit-float GeoTIFF in WGS 84 holding the mode's own values, not the colours you see. Slope and aspect are in degrees, LRM, TPI and TRI in metres, sky-view factor in percent; nodata is NaN. The file covers the current viewport at the resolution the map is drawing, which means every tile is already in the app's cache and the export takes seconds. Zoom in for a finer export.
+
+Matcap, Phong, hard shadows and the hillshade are drawn as colours with no values behind them, so they are not listed; the elevation itself is the main **GeoTIFF** button.
+
+The contour lines export as GeoJSON: the lines **currently rendered in the viewport**, with segments cut apart by tile boundaries stitched back into continuous lines. They are only listed while the [Contours & GeoGrid mode](/features/visualization-modes) is on with its contour-lines checkbox.
 
 ## Export Multi (Historical)
 

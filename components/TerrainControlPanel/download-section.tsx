@@ -1,13 +1,16 @@
 import type React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useAtom } from "jotai"
-import { Download, Camera, Copy, Loader2, MountainSnow, X, Images, ChevronDown } from "lucide-react"
+import { Download, Camera, Copy, Loader2, X, Images, ChevronDown } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ExportMultiDialog } from "./export-multi-dialog"
 import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom } from "@/lib/settings-atoms"
 import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
-import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
+import { fromArrayBuffer } from "geotiff"
+import { encodeFloat32GeoTiff } from "@/lib/float-geotiff"
+import { ExportLayersDialog } from "./export-layers-dialog"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import saveAs from "file-saver"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
@@ -98,6 +101,7 @@ export const DownloadSection: React.FC<{
   const [isExporting, setIsExporting] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const [isExportMultiOpen, setIsExportMultiOpen] = useState(false)
+  const [isExportLayersOpen, setIsExportLayersOpen] = useState(false)
   const [exportProgress, setExportProgress] = useState<number | null>(null)
   const [exportError, setExportError] = useState("")
   // Non-fatal — the download still saved, but at less than the configured Max
@@ -228,26 +232,10 @@ export const DownloadSection: React.FC<{
     elevationData: Float32Array, width: number, height: number,
     bbox: { west: number; south: number; east: number; north: number },
   ) => {
-    const pixelSizeX = (bbox.east - bbox.west) / width
-    const pixelSizeY = (bbox.north - bbox.south) / height
-    const metadata = {
-      GTModelTypeGeoKey: 2,
-      GeographicTypeGeoKey: 4326,
-      GeogCitationGeoKey: "WGS 84",
-      height,
-      width,
-      ModelPixelScale: [pixelSizeX, pixelSizeY, 0],
-      ModelTiepoint: [0, 0, 0, bbox.west, bbox.north, 0],
-      SamplesPerPixel: 1,
-      BitsPerSample: [32],
-      SampleFormat: [3],
-      PlanarConfiguration: 1,
-      PhotometricInterpretation: 1,
-    }
-    // geotiff.js's own .d.ts types `values` as `any[]` but at runtime accepts
-    // (and expects) a single TypedArray for a single-band raster like this.
-    const outputArrayBuffer = await writeArrayBuffer(elevationData as unknown as any[], metadata)
-    const blob = new Blob([outputArrayBuffer], { type: "image/tiff" })
+    // lib/float-geotiff.ts, not geotiff.js's writeArrayBuffer: that one writes
+    // one byte per sample whatever BitsPerSample says, so every float DEM it
+    // produced was unreadable (GDAL: "TIFFReadEncodedStrip ... failed").
+    const blob = new Blob([encodeFloat32GeoTiff(elevationData, width, height, bbox)], { type: "image/tiff" })
     saveAs(blob, `terrain-dtm-${Date.now()}.tif`)
   }, [])
 
@@ -457,11 +445,12 @@ export const DownloadSection: React.FC<{
               accident the instant the export starts. Only mounted once
               canCancelExport flips true (see the effect above) — a fast
               export never shows a cancel affordance at all. */}
-          <div className="relative flex-1 group">
+          <div className="flex flex-1 min-w-0">
+          <div className="relative flex-1 min-w-0 group">
             <TooltipButton
               icon={isExporting ? Loader2 : Download}
-              label={isExporting ? "Exporting…" : "DEM GeoTiff"}
-              tooltip="Export DTM as GeoTIFF"
+              label={isExporting ? "Exporting…" : "GeoTIFF"}
+              tooltip="Export the elevation (DEM) as GeoTIFF; the arrow beside it exports the visible layers too"
               onClick={exportDTM}
               disabled={isExporting}
               // The hover-fade-to-Cancel behavior only applies once
@@ -470,7 +459,7 @@ export const DownloadSection: React.FC<{
               // meant hovering during the first 1.5s faded this button to
               // nothing with no Cancel button underneath to replace it.
               className={cn(
-                "block w-full",
+                "block w-full rounded-r-none",
                 isExporting && "[&_svg]:animate-spin",
                 isExporting && canCancelExport && "transition-opacity group-hover:opacity-0",
               )}
@@ -498,6 +487,24 @@ export const DownloadSection: React.FC<{
               </Button>
             )}
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="outline" size="sm" className="cursor-pointer rounded-l-none border-l-0 px-1 shrink-0 h-auto" aria-label="More exports" disabled={isExporting}>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem className="cursor-pointer" onClick={exportDTM}>
+                <Download className="h-4 w-4" /> Elevation (DEM) GeoTIFF
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={() => setIsExportLayersOpen(true)}>
+                <Images className="h-4 w-4" /> Visible layers…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          </div>
         </div>
         {exportProgress !== null && (
           <Progress value={exportProgress * 100} className="h-1" />
@@ -509,23 +516,6 @@ export const DownloadSection: React.FC<{
           <p className="text-xs text-amber-600 dark:text-amber-500">{exportWarning}</p>
         )}
         <div className="flex gap-2">
-          {!hideContoursExport && (
-            <TooltipButton
-              icon={MountainSnow}
-              label="Contours"
-              tooltip={state.showContoursAndGraticules && state.showContours
-                ? "Export the contour lines currently rendered in the viewport as GeoJSON"
-                : "Contours must be activated in visualization mode first."}
-              onClick={exportContours}
-              // Matches the actual layer-visibility condition in TerrainViewer.tsx
-              // (showContoursAndGraticules is the "Contours & GeoGrid" viz-mode master
-              // toggle, showContours is the sub-checkbox for the lines specifically) —
-              // checking showContours alone left this enabled even when the whole
-              // contours feature was off, since showContours defaults to true.
-              disabled={!(state.showContoursAndGraticules && state.showContours)}
-              className="flex-1 bg-transparent"
-            />
-          )}
           <TooltipButton
             icon={isCopying ? Loader2 : Copy}
             label="Copy"
@@ -546,6 +536,17 @@ export const DownloadSection: React.FC<{
         {exportSettings}
       </div>
       <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} getMapView={getMapView} />
+      <ExportLayersDialog
+        open={isExportLayersOpen}
+        onOpenChange={setIsExportLayersOpen}
+        mapRef={mapRef}
+        getMapBounds={getMapBounds}
+        maxResolution={maxResolution}
+        // Contour lines moved here from their own button: they are one more
+        // visible layer to export, as GeoJSON.
+        contoursVisible={!hideContoursExport && state.showContoursAndGraticules && state.showContours}
+        onExportContours={exportContours}
+      />
     </Section>
   )
 }
