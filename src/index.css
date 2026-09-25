@@ -397,28 +397,28 @@
    (below) now that our portaled icon is what needs to move to the middle
    of the collapsed 29x29 button instead. */
 .maplibregl-ctrl-geocoder.geocoder-collapsed .geocoder-search-icon {
-  left: 50%;
-  transform: translate(-50%, -50%);
+  /* Centred by a computed left rather than a translateX, so the glyph never
+     depends on which transform wins mid-toggle: the 14px glyph in the 29px
+     collapsed button is at left 7.5px whatever else is animating. */
+  left: calc(50% - 7px);
+  transform: translateY(-50%);
 }
 
-/* Loading spinner: the vendor parks it at the right edge over the clear
-   button (26px + margins, positioned for its own 36px-tall input). Ring it
-   around the search glyph at the left instead, sized for our 32px input:
-   20px tall, 6px from the top, 5px from the left, so the 14px glyph at
-   left 8 sits in its centre. No transform here - the vendor's rotate
-   keyframes own the transform. */
+/* Loading spinner: a ring around the clear cross at the right, as the vendor
+   intends, but sized and centred for our 32px input (the vendor's margins
+   assume its own 36px one, and the pin-right translateY below cannot reach
+   it because its rotate animation owns `transform`): 20px tall, 6px from
+   the top, and right-aligned so the 14px cross at left 218 sits in its
+   centre. */
 .maplibregl-ctrl-geocoder--icon-loading {
   position: absolute !important;
-  left: 5px !important;
+  left: auto !important;
+  right: 5px !important;
   top: 6px !important;
   width: 20px !important;
   height: 20px !important;
   margin: 0 !important;
   fill: var(--muted-foreground);
-}
-.maplibregl-ctrl-geocoder.geocoder-collapsed .maplibregl-ctrl-geocoder--icon-loading {
-  left: 4.5px !important;
-  top: 4.5px !important;
 }
 
 /* Clear (×) button: vendor hardcodes its background to a plain #fff with no
