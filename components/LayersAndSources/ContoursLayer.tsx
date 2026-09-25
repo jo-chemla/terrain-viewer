@@ -13,6 +13,9 @@ import { buildCogContourUrl } from "@/lib/cog-contour-protocol"
 import { buildLrmProtocolUrl, lrmFetchTileBlob } from "@/lib/lrm-protocol"
 import type { UpstreamEncoding } from "@/lib/normal-derived-protocol"
 import { useAtomValue } from "jotai"
+import { useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
+import { customScheme, dispatchTile, toBitmap } from "@/lib/protocol-registry"
+import { useClientDemUpstream, type ClientDemUpstream } from "./MapSources"
 import {LAYER_SLOTS} from "./MapLayers"
 
 // ─── Layer definitions (moved here from MapLayers.tsx) ───────────────────────
@@ -66,6 +69,12 @@ const contourLabelsLayerDef = (
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/** The style document is in: sources and layers can be added. Unlike
+ *  map.isStyleLoaded(), does not also wait for every tile of every source. */
+function styleJsonLoaded(map: maplibregl.Map): boolean {
+  return !!(map as unknown as { style?: { _loaded?: boolean } }).style?._loaded
+}
+
 function removeLayers(map: maplibregl.Map | undefined | null) {
   // `map` itself can be a live (non-null) object whose internal `.style` has
   // already been torn down by `map.remove()` — react-map-gl's own Map cleanup
@@ -93,6 +102,10 @@ function buildTileUrl(
   titilerEndpoint: string,
   mapboxKey: string,
   maptilerKey: string,
+  // The template the viz modes read for this source, when it is one of our
+  // own schemes (vrt://, lerc://, quantized-mesh://, demdiff://, a TileJSON's
+  // resolved tiles): used for every custom type without a branch below.
+  upstream: ClientDemUpstream | null,
 ): { tileUrl: string; encoding: string; maxzoom: number; tileSize: number } | null {
   const customSource = customTerrainSources.find((s) => s.id === sourceId)
 
@@ -127,6 +140,20 @@ function buildTileUrl(
         encoding: "terrarium",
         maxzoom: 14,
         tileSize: 512,
+      }
+    }
+    if (customSource.type !== "terrarium" && customSource.type !== "terrainrgb") {
+      // VRT, LERC, quantized mesh, a difference, TileJSON: contour whatever
+      // template the viz modes read. Null while it is still resolving (a
+      // VRT's index, a TileJSON manifest) - the reset effect below re-inits
+      // once it lands - rather than handing maplibre-contour's worker the
+      // source's own URL, which for these types is an index, not a tile.
+      if (!upstream) return null
+      return {
+        tileUrl: upstream.template,
+        encoding: upstream.encoding,
+        maxzoom: Math.min(upstream.maxzoom ?? 14, 16),
+        tileSize: upstream.tileSize,
       }
     }
     return {
@@ -201,6 +228,53 @@ function buildLrmDemSource(
     getTile: async (url: string, abortController: AbortController) => ({
       data: await lrmFetchTileBlob(url, abortController.signal),
     }),
+  })
+  return dem
+}
+
+// ─── Custom-scheme DEM source ─────────────────────────────────────────────
+//
+// Same construction as buildLrmDemSource above, for an upstream template on
+// one of our own schemes (vrt://, lerc://, quantized-mesh://, demdiff://,
+// float32dem://): maplibre-contour's worker would `fetch()` the template and
+// the browser refuses the scheme, so the tile is fetched on the main thread
+// through the protocol registry and decoded from the bitmap the protocol
+// returns (no PNG round trip: the pixels go straight from an OffscreenCanvas
+// into maplibre-contour's own decodeParsedImage). Isolines run on the main
+// thread for these sources, the price of the custom getTile.
+function buildRegistryDemSource(
+  DemSourceClass: any,
+  LocalDemManagerClass: any,
+  decodeParsedImage: (width: number, height: number, encoding: string, input: Uint8ClampedArray) => unknown,
+  resolved: { tileUrl: string; encoding: string; maxzoom: number; tileSize: number },
+): any {
+  const dem = new DemSourceClass({
+    url: resolved.tileUrl,
+    encoding: resolved.encoding,
+    maxzoom: resolved.maxzoom,
+    worker: false,
+    cacheSize: 100,
+    timeoutMs: 20000,
+  })
+  let canvas: OffscreenCanvas | null = null
+  dem.manager = new LocalDemManagerClass({
+    demUrlPattern: resolved.tileUrl,
+    encoding: resolved.encoding,
+    maxzoom: resolved.maxzoom,
+    cacheSize: 100,
+    timeoutMs: 20000,
+    getTile: async (url: string, abortController: AbortController) => ({
+      data: await toBitmap(await dispatchTile(url, abortController.signal)),
+    }),
+    decodeImage: async (bitmap: ImageBitmap, encoding: string) => {
+      const { width, height } = bitmap
+      if (!canvas || canvas.width !== width || canvas.height !== height) canvas = new OffscreenCanvas(width, height)
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })!
+      ctx.clearRect(0, 0, width, height)
+      ctx.drawImage(bitmap, 0, 0)
+      bitmap.close()
+      return decodeParsedImage(width, height, encoding, ctx.getImageData(0, 0, width, height).data)
+    },
   })
   return dem
 }
@@ -375,6 +449,9 @@ export function ContoursLayer({
   // below, so a slightly-delayed OPFS hydration doesn't need a few seconds to
   // be reflected here.
   const localFileVersion = useAtomValue(localFileVersionAtom)
+  const useCogClient = useAtomValue(useCogProtocolVsTitilerAtom)
+  const clientUpstream = useClientDemUpstream(sourceId, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
+  const clientUpstreamTemplate = clientUpstream?.template ?? ""
 
   // ── Reset when terrain source (or reference mode, or a local file's
   //    availability) changes ───────────────────────────────────────────────
@@ -387,7 +464,11 @@ export function ContoursLayer({
     initAttemptsRef.current = 0
     demSourceRef.current = null
     isCogLocalRef.current = false
-  }, [sourceId, localFileVersion, referenceMode, lrmRadius])
+    // The client upstream (a VRT's index, a difference's operands) resolves
+    // after the first init, and the client-COG toggle swaps the whole path:
+    // both need the init to run again from scratch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceId, localFileVersion, referenceMode, lrmRadius, clientUpstreamTemplate, useCogClient])
 
   // ── Init: register DemSource (or the cog-local path) + add contour-source ──
   useEffect(() => {
@@ -397,20 +478,35 @@ export function ContoursLayer({
 
     const map = mapRef.getMap()
 
+    // Every retry below is a timer holding THIS run's closure. When the deps
+    // change (the client upstream resolving after the first pass, say) the
+    // reset effect zeroes the attempt counter and this effect runs again;
+    // a stale retry firing after that saw the old, unresolved upstream,
+    // failed, and set the counter to its maximum, starving the new run.
+    let cancelled = false
     const tryInit = async () => {
+      if (cancelled) return
       if (initializedRef.current) return
       if (initAttemptsRef.current >= MAX_INIT_ATTEMPTS) return
 
-      initAttemptsRef.current += 1
-
-      if (!map.isStyleLoaded()) {
-        setTimeout(tryInit, 1000)
+      // Wait for the style JSON, not for isStyleLoaded(): that one is false
+      // until every tile of every source has landed, and on a slow source
+      // (a VRT reprojecting several COGs per tile) that took longer than
+      // the retry budget, so contours never appeared over exactly the
+      // sources that need them most. Waiting here costs no attempt.
+      if (!styleJsonLoaded(map)) {
+        setTimeout(tryInit, 500)
         return
       }
+      initAttemptsRef.current += 1
 
       const customSource = customTerrainSources.find((s) => s.id === sourceId)
-      if (customSource?.type === "cog-local") {
-        const blobUrl = resolveLocalFileUrl(localFileId(customSource.url))
+      // A remote COG read in the browser (the client toggle on, no titiler
+      // pin on the source) takes the same worker path as a local file: the
+      // worker's COG reader takes any URL.
+      const cogInWorker = customSource?.type === "cog-local" || (customSource?.type === "cog" && useCogClient && !customSource.cogViaTitiler)
+      if (customSource && cogInWorker) {
+        const blobUrl = customSource.type === "cog-local" ? resolveLocalFileUrl(localFileId(customSource.url)) : customSource.url
         if (!blobUrl) {
           // File hasn't been (re-)picked/hydrated from OPFS yet this session —
           // transient, not a permanent "unsupported" state, so keep polling
@@ -441,6 +537,7 @@ export function ContoursLayer({
         titilerEndpoint,
         mapboxKey,
         maptilerKey,
+        clientUpstream,
       )
       if (!resolved) {
         // Unsupported source type — permanent, not transient, so don't burn
@@ -459,8 +556,13 @@ export function ContoursLayer({
           (mlcontour as any).LocalDemManager ??
           (mlcontour as any).default?.LocalDemManager
 
+        const decodeParsedImage =
+          (mlcontour as any).decodeParsedImage ??
+          (mlcontour as any).default?.decodeParsedImage
         const dem = referenceMode === "lrm"
           ? buildLrmDemSource(DemSource, LocalDemManager, resolved, lrmRadius)
+          : customScheme(resolved.tileUrl)
+          ? buildRegistryDemSource(DemSource, LocalDemManager, decodeParsedImage, resolved)
           : new DemSource({
               url: resolved.tileUrl,
               encoding: resolved.encoding,
@@ -502,15 +604,15 @@ export function ContoursLayer({
     }
 
     const timer = setTimeout(tryInit, 1000)
-    return () => clearTimeout(timer)
-  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef, localFileVersion, referenceMode, lrmRadius])
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef, localFileVersion, referenceMode, lrmRadius, useCogClient, clientUpstreamTemplate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Update thresholds when contourMinor/contourMajor change ───────────────
   useEffect(() => {
     if (!mapRef || !initializedRef.current) return
     if (!isCogLocalRef.current && !demSourceRef.current) return
     const map = mapRef.getMap()
-    if (!map.isStyleLoaded()) return
+    if (!styleJsonLoaded(map)) return
 
     removeLayers(map)
 

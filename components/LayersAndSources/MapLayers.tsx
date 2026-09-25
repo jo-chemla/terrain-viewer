@@ -620,7 +620,7 @@ function tellsMeasuredScaleRadius(latDeg: number, scaleMultiplier: number) {
   ]
 }
 
-export const TellsMarkersLayer = memo(({ enabled, visible, style, outlineColor, sizeByMeasuredScale, scaleMultiplier, latDeg, colorByPaints, frozen = false }: {
+export const TellsMarkersLayer = memo(({ enabled, visible, style, outlineColor, pitColor, sizeByMeasuredScale, scaleMultiplier, latDeg, colorByPaints, frozen = false }: {
   enabled: boolean
   /** Mirrors TellsSource's own frozen prop — when frozen, TellsSource mounts
    *  a plain geojson source under "tellsSourceFrozen" (a distinct id from the
@@ -638,6 +638,9 @@ export const TellsMarkersLayer = memo(({ enabled, visible, style, outlineColor, 
   style: TellsMarkerStyle
   /** Stroke color for the "outline" style (see the tellsOutlineColor nuqs param). */
   outlineColor: string
+  /** Stroke color for pit candidates (features tagged `pit: 1`, see the
+   *  tellsPolarity / tellsPitColor nuqs params) in the "outline" style. */
+  pitColor: string
   /** When true (measure-scale + its size-markers style option both on), marker
    *  size tracks each candidate's own measured diameter instead of fixed px. */
   sizeByMeasuredScale: boolean
@@ -654,6 +657,9 @@ export const TellsMarkersLayer = memo(({ enabled, visible, style, outlineColor, 
 }) => {
   if (!enabled) return null
   const colorByPaint = colorByPaints[style]
+  // Mounds in the outline colour, pits in theirs; a tile computed before
+  // polarity existed carries no tag and draws as a mound.
+  const strokeColor = ["case", ["==", ["coalesce", ["get", "pit"], 0], 1], pitColor, outlineColor]
   const radius = sizeByMeasuredScale
     ? tellsMeasuredScaleRadius(latDeg, scaleMultiplier)
     : style === "outline" ? TELLS_CIRCLE_RADIUS_OUTLINE : TELLS_CIRCLE_RADIUS_COLOR_BY
@@ -676,7 +682,7 @@ export const TellsMarkersLayer = memo(({ enabled, visible, style, outlineColor, 
       ? {
           "circle-radius": radius,
           "circle-color": "rgba(0,0,0,0)",
-          "circle-stroke-color": outlineColor,
+          "circle-stroke-color": strokeColor,
           "circle-stroke-width": 2,
           "circle-opacity": 0,
         }
@@ -752,7 +758,7 @@ export const TellsInspectPopup = memo(({ mapRef, active }: { mapRef: RefObject<M
         .setLngLat(e.lngLat)
         .setHTML(
           `<div style="font-size:12px;line-height:1.6">` +
-          `<div style="font-weight:600;margin-bottom:2px">Tell candidate</div>` +
+          `<div style="font-weight:600;margin-bottom:2px">${tags.pit ? "Pit candidate" : "Tell candidate"}</div>` +
           `<div>DoG relief (A): <b>${tags.a} m</b></div>` +
           `<div>Blobness (D): <b>${tags.blobness}</b></div>` +
           `<div>Plan curvature (C): <b>${tags.plan}</b></div>` +
@@ -766,8 +772,14 @@ export const TellsInspectPopup = memo(({ mapRef, active }: { mapRef: RefObject<M
     // layer-scoped on("mouseenter"/"mouseleave", layerId, ...) overload — that
     // overload queries the named layer internally on every map pointer move, which
     // throws (rather than no-op-ing) if the layer isn't mounted yet.
+    // Only write the cursor on a change: writing "" on every move wiped the
+    // cursor terra-draw sets over a drawn feature or a polygon's closing
+    // point while the detector was active.
+    let wasHit = false
     const handleMove = (e: MapMouseEvent) => {
-      const hit = map.getLayer("tells-markers") && map.queryRenderedFeatures(e.point, { layers: ["tells-markers"] }).length > 0
+      const hit = !!map.getLayer("tells-markers") && map.queryRenderedFeatures(e.point, { layers: ["tells-markers"] }).length > 0
+      if (hit === wasHit) return
+      wasHit = hit
       map.getCanvas().style.cursor = hit ? "pointer" : ""
     }
 
@@ -776,7 +788,7 @@ export const TellsInspectPopup = memo(({ mapRef, active }: { mapRef: RefObject<M
     return () => {
       map.off("click", handleClick)
       map.off("mousemove", handleMove)
-      map.getCanvas().style.cursor = ""
+      if (wasHit) map.getCanvas().style.cursor = ""
       popup.remove()
     }
   }, [mapRef, active])

@@ -4,7 +4,8 @@ import { useAtom } from "jotai"
 import { Download, Camera, Copy, Loader2, MountainSnow, X, Images, ChevronDown } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ExportMultiDialog } from "./export-multi-dialog"
-import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
+import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom } from "@/lib/settings-atoms"
+import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer, writeArrayBuffer } from "geotiff"
 import saveAs from "file-saver"
@@ -88,6 +89,12 @@ export const DownloadSection: React.FC<{
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const hideContoursExport = activeProjectConfig?.hiddenSections?.includes("contour") ?? false
   const { getTilesUrl } = useSourceConfig()
+  const [mapboxKey] = useAtom(mapboxKeyAtom)
+  const [maptilerKey] = useAtom(maptilerKeyAtom)
+  // The template the viz modes read for this source (vrt://, lerc://,
+  // demdiff://...): the client export falls back to it for every source type
+  // the direct resolver cannot handle, see getClientExportSource.
+  const clientUpstream = useClientDemUpstream(state.sourceA, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
   const [isExporting, setIsExporting] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const [isExportMultiOpen, setIsExportMultiOpen] = useState(false)
@@ -245,9 +252,9 @@ export const DownloadSection: React.FC<{
   }, [])
 
   const exportDTMClientSide = useCallback(async (signal: AbortSignal) => {
-    const clientSource = getClientExportSource(state.sourceA, customTerrainSources, getTilesUrl)
+    const clientSource = getClientExportSource(state.sourceA, customTerrainSources, getTilesUrl, clientUpstream)
     if (!clientSource) {
-      setExportError("This source isn't supported for client-side export (only COG, TerrainRGB and Terrarium sources are) — switch off Client-side mode to export via Titiler instead.")
+      setExportError("This source has no client-side tile path to export from — switch off Client-side mode to export via Titiler instead.")
       return
     }
     const bounds = getMapBounds()
@@ -271,7 +278,7 @@ export const DownloadSection: React.FC<{
     await saveElevationGeoTiff(result.data, result.width, result.height, {
       west: result.bbox[0], south: result.bbox[1], east: result.bbox[2], north: result.bbox[3],
     })
-  }, [state.sourceA, customTerrainSources, getTilesUrl, getMapBounds, maxResolution, saveElevationGeoTiff])
+  }, [state.sourceA, customTerrainSources, getTilesUrl, clientUpstream, getMapBounds, maxResolution, saveElevationGeoTiff])
 
   const exportDTMViaTitiler = useCallback(async (signal: AbortSignal) => {
     const sourceConfig = getSourceConfig(state.sourceA)

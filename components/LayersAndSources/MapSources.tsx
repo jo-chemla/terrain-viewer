@@ -1377,7 +1377,7 @@ export const TellsSource = memo(({ enabled, terrainSource, customTerrainSources,
         <>
             <Source
                 id={sourceId}
-                key={`${sourceId}-${terrainSource}-${clientUpstream.template}-z${clientUpstream.maxzoom}-${effectiveOptions.tellSizeMeters}-${effectiveOptions.radiusPx}-${effectiveOptions.minReliefMeters}-${effectiveOptions.blobnessMin}-${effectiveOptions.planMin}-${effectiveOptions.detHessianMin}-${effectiveOptions.measureScale}-${effectiveOptions.vetoResolution}`}
+                key={`${sourceId}-${terrainSource}-${clientUpstream.template}-z${clientUpstream.maxzoom}-${effectiveOptions.tellSizeMeters}-${effectiveOptions.radiusPx}-${effectiveOptions.minReliefMeters}-${effectiveOptions.blobnessMin}-${effectiveOptions.planMin}-${effectiveOptions.detHessianMin}-${effectiveOptions.measureScale}-${effectiveOptions.vetoResolution}-${effectiveOptions.polarity}`}
                 type="vector"
                 tiles={[url]}
                 maxzoom={15}

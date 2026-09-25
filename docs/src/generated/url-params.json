@@ -2654,6 +2654,30 @@
       "note": ""
     },
     {
+      "key": "tellsPolarity",
+      "stateKey": "tellsPolarity",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "mounds",
+        "pits",
+        "both"
+      ],
+      "default": "mounds",
+      "defaultSource": "\"mounds\"",
+      "note": "Which extrema the detector reports: mounds (local maxima of the relief, the archaeological tell), pits (minima: quarries, sinkholes, craters, cisterns, robbed-out tombs) or both."
+    },
+    {
+      "key": "tellsPitColor",
+      "stateKey": "tellsPitColor",
+      "type": "color",
+      "items": null,
+      "enum": null,
+      "default": "#3b82f6",
+      "defaultSource": "\"#3b82f6\"",
+      "note": ""
+    },
+    {
       "key": "tellsFrozen",
       "stateKey": "tellsFrozen",
       "type": "boolean",

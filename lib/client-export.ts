@@ -34,7 +34,7 @@ function isClientExportSupported(type: string | undefined): type is ClientExport
  *  range-read and the tile-mosaic paths fetch the origin server directly. Returns
  *  null for a "cog-local" source that hasn't been (re-)picked this session, same
  *  "not ready" shape as an unsupported type. */
-export function getClientExportSource(
+function getClientExportSourceDirect(
   sourceKey: string,
   customTerrainSources: CustomTerrainSource[],
   getTilesUrl: (key: TerrainSource) => string,
@@ -62,6 +62,38 @@ export function getClientExportSource(
     url: custom.url,
     tileSize: 256,
     maxzoom: custom.maxzoom || (custom.type === "cog" ? 22 : 20),
+  }
+}
+
+/** The upstream the viz modes read for a source - the same template MapLibre
+ *  fetches for the terrain, resolved by useClientDemUpstream (MapSources.tsx). */
+export interface ClientDemUpstreamLike {
+  template: string
+  encoding: "terrarium" | "mapbox"
+  tileSize: number
+  maxzoom?: number
+}
+
+/** Resolves a sourceA key into what the client-side export, 2D picker and
+ *  profile fetch. Built-in and plain custom sources resolve directly; any
+ *  other type (VRT, LERC, quantized mesh, a difference, WMS, TileJSON) is
+ *  exported from the client upstream the viz modes already read - its
+ *  template is one of our own schemes, and tile-mosaic.ts dispatches those
+ *  through the protocol registry. Null only when nothing can resolve it. */
+export function getClientExportSource(
+  sourceKey: string,
+  customTerrainSources: CustomTerrainSource[],
+  getTilesUrl: (key: TerrainSource) => string,
+  upstream?: ClientDemUpstreamLike | null,
+): ClientExportSource | null {
+  const direct = getClientExportSourceDirect(sourceKey, customTerrainSources, getTilesUrl)
+  if (direct) return direct
+  if (!upstream) return null
+  return {
+    type: upstream.encoding === "mapbox" ? "terrainrgb" : "terrarium",
+    url: upstream.template,
+    tileSize: upstream.tileSize,
+    maxzoom: upstream.maxzoom ?? 20,
   }
 }
 

@@ -159,17 +159,20 @@ export const CoverageOverlayLayer: React.FC = () => {
       // keeps their render order).
       return out.sort((a, b) => (a.gsdM === b.gsdM ? 0 : a.gsdM - b.gsdM))
     }
+    let wasHit = false
     const onMove = (e: MapLayerMouseEvent) => {
       const hits = hitsAt(e)
-      m.getCanvas().style.cursor = hits.length ? "pointer" : ""
+      const hit = hits.length > 0
+      // Write only on change so terra-draw's own cursor survives a move.
+      if (hit !== wasHit) { wasHit = hit; m.getCanvas().style.cursor = hit ? "pointer" : "" }
       setHover(hits.length ? { x: e.point.x, y: e.point.y, hits } : null)
     }
-    const onLeave = () => { setHover(null); m.getCanvas().style.cursor = "" }
+    const onLeave = () => { setHover(null); if (wasHit) { wasHit = false; m.getCanvas().style.cursor = "" } }
     const onClick = (e: MapLayerMouseEvent) => { const hits = hitsAt(e); if (hits.length) setClicked(hits) }
     m.on("mousemove", onMove)
     m.on("mouseout", onLeave)
     m.on("click", onClick)
-    return () => { m.off("mousemove", onMove); m.off("mouseout", onLeave); m.off("click", onClick); m.getCanvas().style.cursor = "" }
+    return () => { m.off("mousemove", onMove); m.off("mouseout", onLeave); m.off("click", onClick); if (wasHit) m.getCanvas().style.cursor = "" }
   }, [map, ids.length, mhMeta])
 
   if (ids.length === 0) return null

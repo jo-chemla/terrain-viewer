@@ -2961,6 +2961,32 @@
             }
           },
           {
+            "name": "tellsPolarity",
+            "in": "query",
+            "required": false,
+            "description": "State. Which extrema the detector reports: mounds (local maxima of the relief, the archaeological tell), pits (minima: quarries, sinkholes, craters, cisterns, robbed-out tombs) or both.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mounds",
+                "pits",
+                "both"
+              ],
+              "default": "mounds"
+            }
+          },
+          {
+            "name": "tellsPitColor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#3b82f6"
+            }
+          },
+          {
             "name": "tellsFrozen",
             "in": "query",
             "required": false,

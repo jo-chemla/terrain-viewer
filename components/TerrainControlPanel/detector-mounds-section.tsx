@@ -4,7 +4,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Section, CycleButtonGroup } from "./controls-components"
+import { Section, CycleButtonGroup, SegmentedToggle } from "./controls-components"
 import { TellsFields } from "./tells-options-section"
 import { ColorAlphaSwatch } from "./color-picker"
 
@@ -61,14 +61,23 @@ export const DetectorMoundsSection: React.FC<{
             onCheckedChange={(checked) => setState({ tellsMarkersVisible: checked === true })}
           />
           <Label htmlFor="tells-show-markers" className="text-sm cursor-pointer">
-            Show mound candidates
+            Show candidates
           </Label>
         </div>
         <p className="text-xs text-muted-foreground">
           Experimental archaeological mound detector: local maxima of a Difference-
           of-Gaussians relief signal, filtered by blobness/curvature to reject
-          ridges and saddles.
+          ridges and saddles. Pits run the same detector on the inverted surface.
         </p>
+        <SegmentedToggle
+          value={(state.tellsPolarity ?? "mounds") as "mounds" | "pits" | "both"}
+          onChange={(v) => setState({ tellsPolarity: v })}
+          options={[
+            { value: "mounds", label: "Mounds", tooltip: "Local maxima of the relief: tells, tumuli, platform mounds" },
+            { value: "pits", label: "Pits", tooltip: "Local minima: quarries, sinkholes, craters, cisterns, robbed-out tombs" },
+            { value: "both", label: "Both", tooltip: "Mounds in the outline colour, pits in the pit colour" },
+          ]}
+        />
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col gap-0.5">
             <Label htmlFor="tells-frozen" className="text-sm cursor-pointer">
@@ -93,13 +102,26 @@ export const DetectorMoundsSection: React.FC<{
           onChange={(v) => setState({ tellsStyle: v })}
           onCycle={cycleTellsStyle}
           middle={state.tellsStyle === "outline" ? (
-            <ColorAlphaSwatch
-              title="Outline color — red by default; white or black read better over some ramps."
-              color={state.tellsOutlineColor}
-              onChange={(hex) => setState({ tellsOutlineColor: hex })}
-              size="h-7 w-7"
-              className="rounded"
-            />
+            <div className="flex items-center gap-1">
+              {state.tellsPolarity !== "pits" && (
+                <ColorAlphaSwatch
+                  title="Mound outline color — red by default; white or black read better over some ramps."
+                  color={state.tellsOutlineColor}
+                  onChange={(hex) => setState({ tellsOutlineColor: hex })}
+                  size="h-7 w-7"
+                  className="rounded"
+                />
+              )}
+              {state.tellsPolarity !== "mounds" && (
+                <ColorAlphaSwatch
+                  title="Pit outline color — blue by default."
+                  color={state.tellsPitColor ?? "#3b82f6"}
+                  onChange={(hex) => setState({ tellsPitColor: hex })}
+                  size="h-7 w-7"
+                  className="rounded"
+                />
+              )}
+            </div>
           ) : undefined}
         />
         <TellsFields state={state} setState={setState} tileSize={terrainTileSize} mapRef={mapRef} />

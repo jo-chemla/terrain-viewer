@@ -12,7 +12,8 @@ import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useSourceConfig } from "@/lib/controls-utils"
-import { customTerrainSourcesAtom, elevationPickerPointsAtom, elevationPickerActiveAtom } from "@/lib/settings-atoms"
+import { customTerrainSourcesAtom, elevationPickerPointsAtom, elevationPickerActiveAtom, mapboxKeyAtom, maptilerKeyAtom, titilerEndpointAtom } from "@/lib/settings-atoms"
+import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { activeDrawModeAtom } from "./TerraDrawSystem"
 import { getClientExportSource, type ClientExportSource } from "@/lib/client-export"
 import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint, sampleClientElevationPath, type ProfilePoint } from "@/lib/elevation-query"
@@ -143,6 +144,15 @@ export const ElevationPickerSection: React.FC<{
   customTerrainSourcesRef.current = customTerrainSources
   const getTilesUrlRef = useRef(getTilesUrl)
   getTilesUrlRef.current = getTilesUrl
+  // Same fallback as the GeoTIFF export (download-section.tsx): a source the
+  // direct resolver cannot sample (VRT, LERC, quantized mesh, a difference,
+  // WMS, TileJSON) is sampled from the client upstream the viz modes read.
+  const [mapboxKey] = useAtom(mapboxKeyAtom)
+  const [maptilerKey] = useAtom(maptilerKeyAtom)
+  const [titilerEndpoint] = useAtom(titilerEndpointAtom)
+  const clientUpstream = useClientDemUpstream(state.sourceA, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
+  const clientUpstreamRef = useRef(clientUpstream)
+  clientUpstreamRef.current = clientUpstream
 
   const sampleElevation = useCallback(async (
     map: maplibregl.Map, lng: number, lat: number,
@@ -152,9 +162,9 @@ export const ElevationPickerSection: React.FC<{
     // LRM has no 3D-mesh equivalent — always sample client-side, regardless
     // of view mode (see toLrmClientSource above).
     if (s.elevationPickerReferenceMode === "lrm") {
-      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current)
+      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamRef.current)
       if (!clientSource || clientSource.type === "cog") {
-        return { elevation: null, error: "LRM elevation lookup only supports TerrainRGB/Terrarium sources — switch to Absolute, or pick a different source." }
+        return { elevation: null, error: "LRM elevation lookup needs a tiled DEM path — switch to Absolute, or pick a different source." }
       }
       try {
         const elevation = await sampleClientElevationAtPoint(toLrmClientSource(clientSource, s.lrmRadius), lng, lat, lrmFetchTileBlob)
@@ -171,9 +181,9 @@ export const ElevationPickerSection: React.FC<{
       return { elevation }
     }
 
-    const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current)
+    const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamRef.current)
     if (!clientSource) {
-      return { elevation: null, error: "2D elevation lookup only supports COG/TerrainRGB/Terrarium sources" }
+      return { elevation: null, error: "This source has no client-side tile path to sample in 2D — switch to 3D" }
     }
     try {
       const elevation = await sampleClientElevationAtPoint(clientSource, lng, lat)
@@ -202,7 +212,7 @@ export const ElevationPickerSection: React.FC<{
     if (s.elevationPickerReferenceMode === "lrm") {
       // Same "no 3D-mesh equivalent" reasoning as sampleElevation above —
       // always client-side, regardless of view mode.
-      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current)
+      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamRef.current)
       elevations = (clientSource && clientSource.type !== "cog")
         ? await sampleClientElevationPath(toLrmClientSource(clientSource, s.lrmRadius), coords, lrmFetchTileBlob)
         : new Array(coords.length).fill(null)
@@ -212,7 +222,7 @@ export const ElevationPickerSection: React.FC<{
         ? coords.map(([lng, lat]) => queryTerrainElevationAtPoint(map, lng, lat, s.exaggeration || 1))
         : new Array(coords.length).fill(null)
     } else {
-      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current)
+      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamRef.current)
       elevations = clientSource
         ? await sampleClientElevationPath(clientSource, coords)
         : new Array(coords.length).fill(null)

@@ -19,3 +19,4 @@
 - [Esri 3D coverage](esri-3d-coverage.md) — Esri has no global photorealistic mesh; typeKeywords:"IntegratedMesh" finds 10 900 services where the free-text tag finds 48; Scene Viewer ?url= opens one alone
 - [Sprint handoff 2026-09-24](handoff-2026-09-24.md) — VRT protocol, four 3D/LiDAR coverage overlays, Data layers picker, header shortcuts, Wayback gating, Esri camera: shipped, unverified, deferred, gotchas
 - [MapLibre 6 branch handoff](handoff-maplibre-v6.md) — maplibre-v6 state, open seams/pose items, Playwright harness under .cache/pw
+- [MapLibre isStyleLoaded gate](maplibre-style-loaded-gate.md) — isStyleLoaded() waits for every tile; gate addSource on style._loaded or slow sources never get the layer

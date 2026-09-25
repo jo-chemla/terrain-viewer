@@ -29,7 +29,7 @@ let enabled = true
 
 /** Diagnostic counters — entries/bytes held plus lifetime hit/miss totals. */
 function getTileResultCacheStats() {
-  return { enabled, entries: lru.size, totalBytes, hits, misses }
+  return { enabled, entries: lru.size, totalBytes, hits, misses, shared }
 }
 
 // Dev-only console hook: window.__tileResultCacheStats() — dynamic import of
@@ -42,6 +42,21 @@ if (typeof window !== "undefined" && (import.meta as any).env?.DEV) {
 
 let hits = 0
 let misses = 0
+// Requests answered from another caller's in-flight run of the same URL.
+let shared = 0
+
+// One handler run per URL at a time. MapLibre asks for a tile once per
+// source that carries the template - terrainSource and hillshadeSource are
+// the same URL, and every derived mode over the same upstream lands at the
+// same moment - so without this a VRT tile was reprojected twice and a LERC
+// tile decoded twice, side by side. The leader's run resolves to the copy the
+// LRU retains; every caller, leader included, gets its own clone of it.
+type Flight = { promise: Promise<{ result: { data: unknown }; retained: CacheEntry | null }>; waiters: number }
+const inflight = new Map<string, Flight>()
+
+async function cloneEntry(v: CacheEntry): Promise<CacheEntry> {
+  return isBitmap(v) ? createImageBitmap(v) : v.slice()
+}
 
 export function setTileResultCacheEnabled(on: boolean) {
   enabled = on
@@ -85,12 +100,13 @@ export function withTileResultCache<
 >(inner: T): T {
   const wrapped = async (params: { url: string }, abortController: AbortController) => {
     if (!enabled) return inner(params, abortController)
-    const hit = lru.get(params.url)
+    const url = params.url
+    const hit = lru.get(url)
     if (hit) {
       hits++
       // Re-insert to refresh LRU recency.
-      lru.delete(params.url)
-      lru.set(params.url, hit)
+      lru.delete(url)
+      lru.set(url, hit)
       // maplibre transfers a protocol response's ArrayBuffer to its worker
       // (detaching it) — handing out the cache's own retained buffer would
       // detach OUR copy too, so the next hit on this key tries to transfer
@@ -98,17 +114,40 @@ export function withTileResultCache<
       // detached"). .slice() hands over an independent copy every time.
       // A bitmap is the same story: maplibre may close what it is given, so
       // every hit gets its own clone and the cache keeps the original.
-      return { data: isBitmap(hit) ? await createImageBitmap(hit) : hit.slice() }
+      return { data: await cloneEntry(hit) }
+    }
+    const flight = inflight.get(url)
+    if (flight) {
+      flight.waiters++
+      try {
+        const { retained } = await flight.promise
+        if (retained) {
+          shared++
+          return { data: await cloneEntry(retained) }
+        }
+      } catch {
+        // The leader failed or was aborted (its caller's tile left the
+        // viewport): run our own request below instead of inheriting that.
+      }
     }
     misses++
-    const result = await inner(params, abortController)
-    // Same detachment risk as above, from the other direction: `result.data`
-    // is about to be returned to maplibre (and transferred/detached) below,
-    // so the LRU must retain its own independent copy rather than that same
-    // object, or the very first future hit on this key would already be dead.
-    if (result?.data instanceof Uint8Array) put(params.url, result.data.slice())
-    else if (result?.data && isBitmap(result.data)) put(params.url, await createImageBitmap(result.data))
-    return result
+    const own: Flight = { waiters: 0, promise: null as unknown as Flight["promise"] }
+    own.promise = (async () => {
+      const result = await inner(params, abortController)
+      // The LRU must retain its own independent copy rather than the object
+      // about to be returned to maplibre (and transferred/detached) — or the
+      // very first future hit on this key would already be dead.
+      const d = result?.data
+      const retained: CacheEntry | null = d instanceof Uint8Array ? d.slice() : d && isBitmap(d) ? await createImageBitmap(d) : null
+      if (retained) put(url, retained)
+      return { result, retained }
+    })()
+    inflight.set(url, own)
+    try {
+      return (await own.promise).result
+    } finally {
+      if (inflight.get(url) === own) inflight.delete(url)
+    }
   }
   return wrapped as T
 }

@@ -8,6 +8,11 @@
 - **Camera animation that keeps its word.** A pose now records the camera target's elevation and playback interpolates it with the rest — centre, zoom, pitch, bearing, roll, field of view — so a flight from a summit pose to a valley pose no longer bobs over every ridge or holds the start height. Poses captured before this keep the old behaviour until re‑set.
 
 ### Features
+- **Export, 2D picker and contours on every source.** The GeoTIFF export, the 2D elevation picker and profile, and the contours layer now resolve a source through the same client upstream the visualization modes read, so VRT, LERC, quantized-mesh, difference (nDSM), WMS and TileJSON sources export, sample and contour like a plain tile source. Contours over one of the app's own tile schemes run on the main thread; a remote COG read in the browser contours in the same worker a local COG file uses, no titiler.
+- **Undo and redo, app-wide.** `Ctrl+Z` walks back any setting change and `Ctrl+Shift+Z` (or `Ctrl+Y`) forward: visualization modes, ramps, sources, split layout, the timeline date, detector thresholds. The camera is left out, so a pan is never a step; a slider drag counts as one.
+- **Mound detector: pits too.** A Mounds, Pits, Both toggle in Mound Candidates. Pits run the same detector on the inverted surface (quarries, sinkholes, craters, cisterns) and draw in their own colour, blue by default, beside the red mounds.
+- One handler run per tile URL in flight: when two sources or two modes ask a custom protocol for the same tile at the same moment, the second waits for the first and gets a clone, instead of decoding or reprojecting twice.
+- Drawn features show a hand cursor on hover in select mode, and the detector and coverage overlays no longer wipe Terra Draw's cursor on every mouse move.
 - Nepal's four Bhotekoshi COGs read straight from NextGIS in the browser now that the server exposes `Content-Range`; their titiler pins are gone.
 - Hypsometric tint: two generic diverging ramps near the top of the classic list, blue‑white‑red and blue‑transparent‑red, for nDSMs and change layers; **Set from viewport** waits for a slow source's tiles to decode and says so if none arrive.
 - Graticule auto spacing halves with every zoom level, so each zoom's lines nest inside the next.

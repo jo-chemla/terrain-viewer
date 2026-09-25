@@ -45,6 +45,7 @@ import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
 import { useShiftTapToggle } from '@/lib/use-shift-tap-toggle'
 import { useCtrlTapToggle } from '@/lib/use-ctrl-tap-toggle'
 import { useGeocoderShortcut } from '@/lib/use-geocoder-shortcut'
+import { useUrlStateHistory } from "@/lib/use-url-state-history"
 import { cn } from "@/lib/utils"
 
 // --- Persisted state ---
@@ -267,6 +268,9 @@ export function TerrainControlPanel({
   useShiftTapToggle(() => setState({ showRasterBasemap: !state.showRasterBasemap }), !historicalMode)
   // Ctrl/Cmd+K jumps focus to the geocoder search box from anywhere.
   useGeocoderShortcut()
+  // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or +Y) walk the URL state back and
+  // forth: every control's change, camera excluded. See the hook.
+  useUrlStateHistory(state, setState)
   // Tapping either Ctrl key alone hides every overlay visualization mode down
   // to just the plain basemap imagery, and restores every mode's previous
   // on/off state on the next tap — a quick "what's actually under here"

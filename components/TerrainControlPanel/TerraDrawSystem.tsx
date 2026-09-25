@@ -790,6 +790,14 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
                             },
                             styles: modeStyles.select,
                             pointerDistance: SELECT_POINTER_DISTANCE,
+                            // terra-draw's default over a feature is "move",
+                            // which reads as "nothing here" next to every
+                            // other clickable thing on the map: a hand says
+                            // "click to select". Vertices keep the move hand
+                            // they drag with. (Polygon and line modes already
+                            // show a pointer on their closing point; their
+                            // hit radius is DRAW_POINTER_DISTANCE.)
+                            cursors: { pointerOverFeature: "pointer" },
                         }),
                         new TerraDrawPointMode({ styles: modeStyles.point, pointerDistance: DRAW_POINTER_DISTANCE }),
                         new TerraDrawLineStringMode({ styles: modeStyles.linestring, pointerDistance: DRAW_POINTER_DISTANCE }),

@@ -179,6 +179,7 @@ const PLANE_SLICER_REFERENCE_MODES = ['absolute', 'lrm'] as const
 const PLANE_SLICER_SIDES = ['above', 'below'] as const
 const TELLS_STYLES = ['outline', 'byBlobness', 'byPlan', 'byDetHessian', 'byLrm'] as const
 const TELL_VETO_RESOLUTIONS = ['fine', 'coarse'] as const
+const TELLS_POLARITIES = ['mounds', 'pits', 'both'] as const
 
 function matcapUrlFor(textureId: string): string {
   return (MATCAP_TEXTURES.find((t) => t.id === textureId) ?? MATCAP_TEXTURES.find((t) => t.id === DEFAULT_MATCAP_ID)!).url
@@ -740,6 +741,11 @@ export const QUERY_STATE_PARSERS = {
     tellDetHessianMin: parseAsFloat.withDefault(0),
     tellMeasureScale: parseAsBoolean.withDefault(true),
     tellVetoResolution: parseAsStringLiteral(TELL_VETO_RESOLUTIONS).withDefault("coarse"),
+    // Which extrema the detector reports: mounds (local maxima of the relief,
+    // the archaeological tell), pits (minima: quarries, sinkholes, craters,
+    // cisterns, robbed-out tombs) or both. Pits draw in tellsPitColor.
+    tellsPolarity: parseAsStringLiteral(TELLS_POLARITIES).withDefault("mounds"),
+    tellsPitColor: parseAsColor().withDefault("#3b82f6"),
     // "Frozen" pins the currently-computed candidates in place (snapshotted
     // into a plain geojson source, see the tellsFrozenSnapshot state and
     // TellsSource's frozen/frozenSnapshot props below) so panning/zooming
@@ -1446,8 +1452,9 @@ export function TerrainViewer() {
       detHessianMin: state.tellDetHessianMin,
       measureScale: state.tellMeasureScale,
       vetoResolution: state.tellVetoResolution,
+      polarity: state.tellsPolarity,
     }),
-    [ state.tellSize, state.tellRadius, state.tellMinRelief, state.tellBlobnessMin, state.tellPlanMin, state.tellDetHessianMin, state.tellMeasureScale, state.tellVetoResolution ]
+    [ state.tellSize, state.tellRadius, state.tellMinRelief, state.tellBlobnessMin, state.tellPlanMin, state.tellDetHessianMin, state.tellMeasureScale, state.tellVetoResolution, state.tellsPolarity ]
   )
 
   useEffect(() => {
@@ -3852,6 +3859,7 @@ export function TerrainViewer() {
               visible={state.showTellsDetector && state.tellsMarkersVisible && !isHistoricalMode}
               style={state.tellsStyle}
               outlineColor={state.tellsOutlineColor}
+              pitColor={state.tellsPitColor}
               sizeByMeasuredScale={state.tellMeasureScale && state.tellsScaleMarkers}
               scaleMultiplier={state.tellsScaleMultiplier}
               latDeg={state.lat}
