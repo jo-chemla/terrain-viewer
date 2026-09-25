@@ -4,9 +4,9 @@ import { useAtom } from "jotai"
 import { ChevronDown, Columns2, Frame, Hourglass, PanelLeftDashed, SquareDashed } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Toggle } from "@/components/ui/toggle"
+import { Switch } from "@/components/ui/switch"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, SegmentedToggle, SliderControl, GroupHeading, TooltipIconButton } from "./controls-components"
@@ -220,7 +220,7 @@ export const ComparisonMixSection: React.FC<{
                   delay={0}
                   render={
                     <span className="inline-flex">
-                      <Checkbox
+                      <Switch
                         id="split-blend-mode-enabled"
                         checked={state.splitBlendModeEnabled}
                         onCheckedChange={(checked) => setState({ splitBlendModeEnabled: checked === true })}
@@ -274,7 +274,7 @@ export const ComparisonMixSection: React.FC<{
       {isSplit && (
         <div id="tour-historical-match-colors" className="flex items-center justify-between gap-2 pt-1">
           <div className="flex items-center gap-2">
-            <Checkbox
+            <Switch
               id="match-colors-to-a"
               checked={state.matchColorsToA}
               onCheckedChange={(checked) => setState({ matchColorsToA: checked === true })}
