@@ -29,7 +29,7 @@ let enabled = true
 
 /** Diagnostic counters — entries/bytes held plus lifetime hit/miss totals. */
 function getTileResultCacheStats() {
-  return { enabled, entries: lru.size, totalBytes, hits, misses, shared }
+  return { enabled, entries: lru.size, totalBytes, hits, misses, shared, inflight: inflight.size, inflightUrls: [...inflight.keys()].map((u) => u.slice(0, 50)) }
 }
 
 // Dev-only console hook: window.__tileResultCacheStats() — dynamic import of

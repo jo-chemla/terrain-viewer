@@ -195,9 +195,10 @@ function matcapUrlFor(textureId: string): string {
 // backlog of slow horizon-search tiles - or a service that stopped
 // answering - leaves the map "loading" with nothing arriving. Nothing in the
 // app can recover the queue; a reload can. Watch each map: pending tiles
-// for STALL_AFTER_MS with no tile landing in that time, one toast, then
+// for STALL_AFTER_MS with no tile landing in that time, one toast with a
+// Reload button, then
 // quiet for STALL_REPEAT_MS.
-const STALL_AFTER_MS = 60_000
+const STALL_AFTER_MS = 20_000
 const STALL_REPEAT_MS = 300_000
 const stallWatchers = new WeakMap<object, { lastTileAt: number; pendingSince: number | null; lastToastAt: number; timer: ReturnType<typeof setInterval> }>()
 function watchForStalledTiles(map: maplibregl.Map) {
@@ -217,8 +218,9 @@ function watchForStalledTiles(map: maplibregl.Map) {
       pushToast({
         key: "tiles-stalled",
         title: "Tiles have stopped arriving",
-        body: "The map has been waiting a minute with nothing landing. A source may be down, or the tile queue is wedged behind slow requests: reloading the page is the reliable fix.",
-        duration: 12000,
+        body: "The map has waited 20 seconds with nothing landing. A source may be down, or the tile queue is wedged behind slow requests. Reloading keeps your view: it is all in the URL.",
+        duration: 15000,
+        action: { label: "Reload", onClick: () => window.location.reload() },
       })
     }
   }, 5000)
@@ -885,6 +887,17 @@ export function TerrainViewer() {
   const mapRefs = useMemo<Record<ViewId, React.RefObject<MapRef>>>(() => ({
     A: mapRefA, B: mapRefB, C: mapRefC, D: mapRefD, E: mapRefE, F: mapRefF, G: mapRefG, H: mapRefH,
   }), [])
+  // The stalled-tiles watchdog goes on each map as soon as it exists, not in
+  // onLoad: MapLibre's "load" waits for the first complete render, which a
+  // wedged tile queue never produces, so the watchdog used to be missing in
+  // exactly the case it exists for. Idempotent (a WeakMap guards it), and
+  // cheap enough to check after every render.
+  useEffect(() => {
+    for (const side of VIEW_IDS) {
+      const m = mapRefs[side].current?.getMap()
+      if (m) watchForStalledTiles(m)
+    }
+  })
   const isSyncing = useRef(false)
   const [mapLibreReady, setMapLibreReady] = useState(false)
   const [mapLoaded, setMapLoaded] = useState<Partial<Record<ViewId, boolean>>>({})
@@ -3358,7 +3371,6 @@ export function TerrainViewer() {
             const mapInstance = mapRefs[side].current?.getMap()
             if (!mapInstance) return
             ensureLegacyTransform(mapInstance)
-            watchForStalledTiles(mapInstance)
 
             // A new viewport needs a fresh "how many tiles are pending" count
             // for the slow ray-marched modes (SVF/Openness/Local Dominance) —

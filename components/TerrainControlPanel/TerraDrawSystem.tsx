@@ -790,14 +790,6 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
                             },
                             styles: modeStyles.select,
                             pointerDistance: SELECT_POINTER_DISTANCE,
-                            // terra-draw's default over a feature is "move",
-                            // which reads as "nothing here" next to every
-                            // other clickable thing on the map: a hand says
-                            // "click to select". Vertices keep the move hand
-                            // they drag with. (Polygon and line modes already
-                            // show a pointer on their closing point; their
-                            // hit radius is DRAW_POINTER_DISTANCE.)
-                            cursors: { pointerOverFeature: "pointer" },
                         }),
                         new TerraDrawPointMode({ styles: modeStyles.point, pointerDistance: DRAW_POINTER_DISTANCE }),
                         new TerraDrawLineStringMode({ styles: modeStyles.linestring, pointerDistance: DRAW_POINTER_DISTANCE }),
@@ -808,6 +800,43 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
                 })
                 newDraw.start()
                 newDraw.setMode('select')
+                // Dev builds only, like window.__tv (TerrainViewer.tsx): lets an
+                // automated browser add features and test hover and selection.
+                if (import.meta.env.DEV) (window as any).__draw = newDraw
+                // terra-draw's select mode only sets a hover cursor on the
+                // feature that is ALREADY selected (its "move" hand), and on
+                // every other pointer move it clears the cursor. An unselected
+                // feature therefore showed the map's grab hand, so nothing said
+                // "click me". In select mode, over any drawn feature, show a
+                // pointer whenever terra-draw left the cursor empty. This runs
+                // on maplibre's mousemove, which fires after terra-draw's own
+                // pointermove, so it re-applies after each clear. Its "move"
+                // over a selection and its handles stand. (A `cursors` mode
+                // option does not work for this: terra-draw resets cursors to
+                // its defaults on every updateOptions call without them.)
+                let hoverCursorSet = false
+                const onHoverMove = (e: maplibregl.MapMouseEvent) => {
+                    if (!isCurrent || newDraw.getMode() !== 'select') return
+                    const canvas = map.getCanvas()
+                    let hit = false
+                    try {
+                        hit = newDraw.getFeaturesAtLngLat(e.lngLat, { pointerDistance: SELECT_POINTER_DISTANCE, ignoreSelectFeatures: true }).length > 0
+                    } catch { /* store mid-update */ }
+                    if (hit && !canvas.style.cursor) {
+                        canvas.style.cursor = 'pointer'
+                        hoverCursorSet = true
+                    } else if (!hit && hoverCursorSet) {
+                        if (canvas.style.cursor === 'pointer') canvas.style.removeProperty('cursor')
+                        hoverCursorSet = false
+                    }
+                }
+                map.on('mousemove', onHoverMove)
+                const prevBackspaceCleanup = backspaceCleanupRef.current
+                backspaceCleanupRef.current = () => {
+                    prevBackspaceCleanup?.()
+                    map.off('mousemove', onHoverMove)
+                    if (hoverCursorSet && map.getCanvas().style.cursor === 'pointer') map.getCanvas().style.removeProperty('cursor')
+                }
                 // A fresh instance (e.g. a mapRef swap) always resets to
                 // 'select' internally regardless of whatever mode the old
                 // instance was last left in — keep the shared atom in sync so

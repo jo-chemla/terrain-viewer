@@ -20,6 +20,9 @@ export interface Toast {
   body?: string
   /** ms before it dismisses itself. */
   duration?: number
+  /** One button under the body, e.g. "Reload". Clicking it runs `onClick`
+   *  and dismisses the toast. */
+  action?: { label: string; onClick: () => void }
 }
 
 type Entry = Toast & { id: number }
@@ -77,6 +80,15 @@ const ToastItem: React.FC<{ toast: Entry }> = ({ toast }) => {
     >
       <p className="text-sm font-medium text-popover-foreground">{toast.title}</p>
       {toast.body && <p className="mt-0.5 text-xs text-muted-foreground">{toast.body}</p>}
+      {toast.action && (
+        <button
+          type="button"
+          className="mt-1.5 rounded border px-2 py-0.5 text-xs font-medium text-popover-foreground hover:bg-accent cursor-pointer"
+          onClick={(e) => { e.stopPropagation(); dismissToast(toast.id); toast.action!.onClick() }}
+        >
+          {toast.action.label}
+        </button>
+      )}
     </div>
   )
 }

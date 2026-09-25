@@ -1,0 +1,107 @@
+---
+title: Custom Protocols
+description: What a MapLibre custom protocol is, every scheme this app registers, and the registry that lets every consumer reach every one of them
+---
+
+Almost everything this app draws beyond a plain tile server goes through a **custom protocol**: a URL scheme of our own, such as `slope://` or `vrt://`, whose tiles are produced by a JavaScript function instead of an HTTP request. This page explains the mechanism, lists every scheme, and describes the one rule that keeps them all reachable.
+
+## What a custom protocol is
+
+MapLibre GL JS lets an app claim a URL scheme with [`addProtocol`](https://maplibre.org/maplibre-gl-js/docs/API/functions/addProtocol/). Any source whose `tiles` template starts with that scheme then asks the registered function for each tile instead of fetching it:
+
+```ts
+maplibregl.addProtocol("slope", async (params, abortController) => {
+  // params.url is the tile URL with {z}/{x}/{y} already filled in
+  const bitmap = await computeSlopeTile(params.url, abortController.signal)
+  return { data: bitmap } // image bytes, an ImageBitmap, or vector-tile bytes
+})
+
+map.addSource("slopeSource", { type: "raster", tiles: ["slope://<upstream>/{z}/{x}/{y}"], tileSize: 256 })
+```
+
+A few properties shape everything built on top:
+
+- **It runs on the main thread.** MapLibre's worker asks the main thread for the tile, the handler runs there, and the result goes back to the worker. The [add a custom protocol example](https://maplibre.org/maplibre-gl-js/docs/examples/add-a-custom-protocol/) and the [PMTiles](https://docs.protomaps.com/pmtiles/maplibre) and [COG](https://github.com/geomatico/maplibre-cog-protocol) readers all work this way.
+- **The source type decides what the handler returns.** A `raster` or `raster-dem` source wants an image (encoded bytes or an `ImageBitmap`); a `vector` source wants Mapbox Vector Tile bytes. This app's derived modes return bitmaps, see [Handing the tile back to MapLibre](/dev/terrain-analysis-pipeline#handing-the-tile-back-to-maplibre).
+- **Each request holds a slot** in MapLibre's image-request queue for as long as the handler runs, which is why slow handlers can starve the basemap. See the stalled-tiles watchdog and `MAX_PARALLEL_IMAGE_REQUESTS` in `TerrainViewer.tsx`.
+- **Only MapLibre's own sources get dispatched.** `fetch("slope://…")` from anywhere else fails with "URL scheme is not supported". That limit is what the registry below exists for.
+
+## Every scheme this app registers
+
+Terrain sources, which read an elevation dataset MapLibre cannot read on its own and hand it back as Terrarium or Terrain-RGB tiles:
+
+| Scheme | What it serves | Page |
+|---|---|---|
+| `cog://` | Cloud-Optimized GeoTIFFs, read by range requests ([geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol)) | [Terrain sources](/features/terrain-sources) |
+| `float32dem://` | A WMS that returns float32 GeoTIFF elevation | [WMS Float32 DEM Protocol](/dev/wms-float32-protocol) |
+| `vrt://` | A GDAL VRT mosaic of COGs in any CRS, reprojected with proj4 | [VRT Mosaic Protocol](/dev/vrt-protocol) |
+| `lerc://` | Esri LERC tiles from an ArcGIS ImageServer | [ArcGIS LERC Elevation Protocol](/dev/lerc-protocol) |
+| `quantized-mesh://` | Cesium quantized-mesh terrain, rasterised | [Quantized Mesh Protocol](/dev/quantized-mesh-protocol) |
+| `demdiff://` | The difference of two sources (an nDSM, a change layer) | [Derived Terrain Protocol](/dev/demdiff-protocol) |
+| `pmtiles://` | Tiles packed in a PMTiles archive ([protomaps](https://docs.protomaps.com/pmtiles/maplibre)) | [PMTiles and COG Contours](/dev/vendored-protocols) |
+
+Derived modes, which read one of the sources above and compute something from it:
+
+| Scheme | What it computes | Page |
+|---|---|---|
+| `slope://`, `aspect://`, `curvature://`, `tpi://`, `tri://`, `roughness://`, `blobness://` | Neighbourhood kernels over a padded elevation grid | [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) |
+| `lrm://` | Local Relief Model from an ancestor-tile low-pass | [LRM](/dev/lrm) |
+| `svf://`, `openness://`, `local-dominance://` | Horizon searches over a wide neighbourhood | [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) and [Tile Caches](/dev/tile-caches#why-svf-and-openness-feel-slower-than-the-other-derivatives) |
+| `normals://`, `matcap://`, `phong://`, `shadow://` | Surface normals and the lighting built on them | [Lighting Effects](/dev/lighting-effects) |
+| `tells://` | Mound and pit candidates, as vector tiles | [Visualization modes](/features/visualization-modes) |
+| `cog-contour://` | Contours from a COG, computed in a worker | [PMTiles and COG Contours](/dev/vendored-protocols) |
+
+Contours over every other source use maplibre-contour's own `dem-contour://` scheme, fed as described [below](#contours).
+
+## The registry
+
+`lib/protocol-registry.ts` is the one place a scheme is registered, and the one way anything fetches a tile URL itself.
+
+```ts
+import { registerProtocol, fetchTileBitmap, dispatchTile } from "@/lib/protocol-registry"
+
+// Registration (components/TerrainViewer.tsx, once at startup):
+registerProtocol("vrt", withTileResultCache(vrtProtocol))
+registerProtocol("slope", withTileResultCache(slopeProtocol))
+
+// Consumption, anywhere in the app:
+const bitmap = await fetchTileBitmap("vrt://…/15/8074/14743", signal) // custom scheme: its handler; http(s): fetch()
+```
+
+`registerProtocol` records the handler and passes it on to `maplibregl.addProtocol`. `dispatchTile` looks a URL's scheme up and calls its handler directly; `fetchTileBitmap` does that for our schemes and a plain `fetch()` for everything else. An unregistered custom scheme throws an error that names the registry, instead of the browser's generic one.
+
+### Why it exists
+
+MapLibre dispatches our schemes for its own sources only. Several parts of the app build a tile URL from a template and fetch it themselves:
+
+- every derived mode reading its upstream (slope over a VRT asks for `vrt://` tiles),
+- the GeoTIFF export and the 2D elevation picker and profile,
+- the contours layer,
+- the mound detector.
+
+Before the registry each of them kept its own list of schemes to special-case, and every new protocol had to be added to every list. Twice one was missed: hillshade worked, because MapLibre fetched it, and every other mode drew nothing, first for `lerc://` and `quantized-mesh://`, then for `vrt://` and `demdiff://`. With the registry a consumer never needs to know which schemes exist, so a new source type works in every mode, in the export, in the picker and in the contours the day it is registered.
+
+### The rule
+
+**Register through `registerProtocol`, never `maplibregl.addProtocol` directly. Fetch a tile URL through `fetchTileBitmap` or `dispatchTile`, never `fetch()` directly.**
+
+### One resolver for every consumer
+
+The consumers also agree on *which* template to fetch. `useClientDemUpstream` (`components/LayersAndSources/MapSources.tsx`) turns a source id into the template the viz modes read: `vrt://…`, `lerc://…`, a difference's `demdiff://…`, a TileJSON's resolved tiles. The export and the 2D picker (`getClientExportSource` in `lib/client-export.ts`) and the contours layer fall back to it for every source type they have no direct path for. That is what makes the [feature matrix](https://github.com/Iconem/terrain-viewer/issues/16) green across all source types.
+
+### Contours
+
+maplibre-contour's `DemSource` fetches its DEM tiles itself, in a worker, with `fetch()`, so it cannot read our schemes. For a template on one of them, `buildRegistryDemSource` in `components/LayersAndSources/ContoursLayer.tsx` builds a `DemSource` with `worker: false` and gives its manager two functions:
+
+- a `getTile` that calls `dispatchTile` and returns the bitmap, and
+- a `decodeImage` that draws the bitmap to an `OffscreenCanvas` and hands the pixels to maplibre-contour's own `decodeParsedImage`.
+
+Isolines for these sources are computed on the main thread, the price of the custom `getTile`. A remote COG with the client toggle on goes to the same worker a local COG file uses (`cog-contour://`) instead.
+
+## Writing a new one
+
+1. Write the handler in `lib/<name>-protocol.ts`. Return a bitmap through `toTileImage` (`lib/tile-image.ts`), or MVT bytes for a vector source.
+2. Honour the abort signal, and throw on failure. A thrown error is not cached and MapLibre asks again later. A tile that silently comes back empty is cached for the session, which is how the VRT reader used to leave permanent holes after a timed-out range read.
+3. Mark nodata with alpha 254, not 0. See [Derived Terrain Protocol](/dev/demdiff-protocol).
+4. Register it in `TerrainViewer.tsx` with `registerProtocol`, wrapped in `withTileResultCache` unless it has its own caching. See [Tile Caches](/dev/tile-caches#wrapping-a-protocol).
+5. If it is a terrain source, make `useClientDemUpstream` resolve the new source type to its template. Every consumer then picks it up.

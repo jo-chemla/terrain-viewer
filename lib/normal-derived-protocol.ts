@@ -269,6 +269,13 @@ export interface PaddedElevationGrid {
   padded: Float32Array
   stride: number
   centerTile: DecodedTile
+  /** Same layout as `padded`: 1 where the sample is real data, 0 on a
+   *  nodata pixel (a VRT or COG hole, a difference's missing operand).
+   *  Only present when one of the nine tiles had a hole; absent means all
+   *  valid. Holes decode as elevation 0, so any kernel that spans one sees
+   *  a cliff to sea level - detectors check this mask before trusting a
+   *  value (lib/tells-protocol.ts). */
+  paddedValid?: Uint8Array
 }
 
 /** Fetches a tile's 8 same-zoom neighbors (via the shared decoded-tile cache) and
@@ -332,8 +339,18 @@ export async function fetchPaddedElevationGrid(
     return source.data[r * source.width + c]
   }
 
+  const anyHoles = Array.from(resolved.values()).some((t) => t?.valid)
+  const sampleValid = (tdx: number, tdy: number, row: number, col: number): number => {
+    const source = resolved.get(`${tdx},${tdy}`) ?? centerTile
+    if (!source.valid) return 1
+    const r = Math.min(Math.max(row, 0), source.height - 1)
+    const c = Math.min(Math.max(col, 0), source.width - 1)
+    return source.valid[r * source.width + c]
+  }
+
   const stride = n + 2 * halo
   const padded = new Float32Array(stride * stride)
+  const paddedValid = anyHoles ? new Uint8Array(stride * stride) : undefined
   for (let pr = 0; pr < stride; pr++) {
     const globalRow = pr - halo
     const tdy = globalRow < 0 ? -1 : globalRow >= n ? 1 : 0
@@ -343,10 +360,25 @@ export async function fetchPaddedElevationGrid(
       const tdx = globalCol < 0 ? -1 : globalCol >= n ? 1 : 0
       const srcCol = globalCol - tdx * n
       padded[pr * stride + pc] = sampleElevation(tdx, tdy, srcRow, srcCol)
+      if (paddedValid) paddedValid[pr * stride + pc] = sampleValid(tdx, tdy, srcRow, srcCol)
     }
   }
 
-  return { padded, stride, centerTile }
+  return paddedValid ? { padded, stride, centerTile, paddedValid } : { padded, stride, centerTile }
+}
+
+/** Whether every pixel bilinearSamplePadded would blend at (px, py) is real
+ *  data. Always true for a grid without holes. */
+export function bilinearValidPadded(grid: PaddedElevationGrid, px: number, py: number): boolean {
+  const { paddedValid, stride } = grid
+  if (!paddedValid) return true
+  const gx = px + 1
+  const gy = py + 1
+  const x0 = Math.floor(gx)
+  const y0 = Math.floor(gy)
+  const clamp = (v: number) => Math.min(Math.max(v, 0), stride - 1)
+  const x0c = clamp(x0), x1c = clamp(x0 + 1), y0c = clamp(y0), y1c = clamp(y0 + 1)
+  return !!(paddedValid[y0c * stride + x0c] && paddedValid[y0c * stride + x1c] && paddedValid[y1c * stride + x0c] && paddedValid[y1c * stride + x1c])
 }
 
 /** Bilinearly samples a PaddedElevationGrid at a fractional (px, py) given in the

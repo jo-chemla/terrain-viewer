@@ -53,7 +53,7 @@ import type { TileImage } from "./tile-image"
 
 import vtpbf from "vt-pbf"
 import {
-  sharedTileCache, fetchPaddedElevationGrid, bilinearSamplePadded, buildProtocolUrl,
+  sharedTileCache, fetchPaddedElevationGrid, bilinearSamplePadded, bilinearValidPadded, buildProtocolUrl,
   tileRowToLatRad, groundResolutionM, RAD_TO_DEG,
   type UpstreamEncoding, type ElevationWindow, type PaddedElevationGrid,
 } from "./normal-derived-protocol"
@@ -63,9 +63,9 @@ import { computeBlobness } from "./blobness-protocol"
 
 const TELLS_PATH_RE = /^tells:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)(?:\?(.*))?$/
 
-/** Which extrema the detector reports. A pit is a mound of the negated
- *  surface, so "pits" runs the same detector on -elevation and "both" runs it
- *  twice, tagging each feature `pit: 0|1`. */
+/** Which extrema the detector reports: local maxima of the DoG relief
+ *  (mounds), local minima (pits), or both from the same single pass, tagged
+ *  `pit: 0|1`. */
 export type TellsPolarity = "mounds" | "pits" | "both"
 
 export interface TellsOptions {
@@ -209,19 +209,27 @@ const RAY_DIRS: [number, number][] = [
  *  null if no ray crossed (candidate hard against a corner). */
 function measureHalfMaxRadiusPx(
   aGrid: Float32Array, strideA: number, haloA: number, cand: Candidate,
+  validA: Uint8Array | null,
 ): number | null {
-  const halfMax = cand.a / 2
+  // A pit is measured on the flipped signal, so the same half-max rule reads
+  // its rim; `cand.a` is the signed DoG, `peak` its magnitude.
+  const sgn = cand.a < 0 ? -1 : 1
+  const peak = sgn * cand.a
+  const halfMax = peak / 2
   const pr = cand.row + haloA
   const pc = cand.col + haloA
   const crossings: number[] = []
   for (const [dr, dc] of RAY_DIRS) {
     const stepLen = Math.hypot(dr, dc)
-    let prev = cand.a
+    let prev = peak
     for (let s = 1; ; s++) {
       const r = pr + dr * s
       const c = pc + dc * s
       if (r < 0 || r >= strideA || c < 0 || c >= strideA) break
-      const v = aGrid[r * strideA + c]
+      // A hole censors the ray like the tile edge does: the value there is a
+      // drop to sea level, not the mound's flank.
+      if (validA && !validA[r * strideA + c]) break
+      const v = sgn * aGrid[r * strideA + c]
       if (v < halfMax) {
         crossings.push((s - 1 + (prev - halfMax) / (prev - v)) * stepLen)
         break
@@ -288,151 +296,165 @@ export async function tellsProtocol(
       : Promise.resolve(null),
   ])
 
-  // ── One pass per polarity. A pit is a mound of the negated surface: the
-  // DoG flips sign (its local maxima become the pits' floors) and so does
-  // plan curvature (the -plan convexity veto then reads the bowl's own
-  // concavity), while blobness (quadratic in the gradients) and the
-  // determinant of the 2x2 Hessian are even in the sign. Multiplying every
-  // elevation sample by -1 therefore reuses the detector unchanged; "both"
-  // runs it twice over the same fetched grids. ──────────────────────────────
-  const signs = opts.polarity === "both" ? [1, -1] : opts.polarity === "pits" ? [-1] : [1]
-  const extent = 4096
-  const geojsonFeatures: { type: 1; geometry: [[number, number]]; tags: Record<string, number> }[] = []
-  const passLogs: string[] = []
-  // A: DoG(LRM) over a 1px-haloed grid (n+2 x n+2) — just enough margin for
-  // the 3x3 strict-local-max check to see across the tile's own edge.
+  // ── A: DoG(LRM) over a 1px-haloed grid (n+2 x n+2) — just enough margin for
+  // the 3x3 strict-extremum check to see across the tile's own edge. One grid
+  // serves both polarities: its local maxima are mounds, its local minima pits.
   const haloA = 1
   const strideA = n + 2 * haloA
+  const aGrid = new Float32Array(strideA * strideA)
+  // Nodata (a VRT gap, the outside of a LiDAR block) decodes as elevation 0,
+  // so a DoG that blends a hole reads the coverage edge as a 30 m cliff and
+  // lines every edge with a mound inside and a huge pit outside. A cell is
+  // only trusted when every pixel both lowpass samples blend is real.
+  const holes = !!(ancestorSmall.grid.paddedValid || ancestorLarge.grid.paddedValid || nativeGrid?.paddedValid)
+  const validA = holes ? new Uint8Array(strideA * strideA) : null
+  const lowpassValid = (a: AncestorScale, row: number, col: number) => {
+    const ancestorPxY = (a.yOffsetTiles * n + row + 0.5) / a.scale - 0.5
+    const ancestorPxX = (a.xOffsetTiles * n + col + 0.5) / a.scale - 0.5
+    return bilinearValidPadded(a.grid, ancestorPxX, ancestorPxY)
+  }
+  for (let pr = 0; pr < strideA; pr++) {
+    const row = pr - haloA
+    for (let pc = 0; pc < strideA; pc++) {
+      const col = pc - haloA
+      aGrid[pr * strideA + pc] = lowpassAt(ancestorSmall, n, row, col) - lowpassAt(ancestorLarge, n, row, col)
+      if (validA) validA[pr * strideA + pc] = lowpassValid(ancestorSmall, row, col) && lowpassValid(ancestorLarge, row, col) ? 1 : 0
+    }
+  }
+  const wantMounds = opts.polarity !== "pits"
+  const wantPits = opts.polarity !== "mounds"
+
+  // ── Candidates: strict 3x3 extrema beyond the relief threshold, their whole
+  // 3x3 on real data. `a` keeps its sign: negative is a pit. ────────────────
   const MAX_CANDIDATES = 2000 // defensive cap for pathologically noisy input tiles
+  const candidates: Candidate[] = []
+  for (let row = 0; row < n && candidates.length < MAX_CANDIDATES * 4; row++) {
+    const pr = row + haloA
+    for (let col = 0; col < n; col++) {
+      const pc = col + haloA
+      const a = aGrid[pr * strideA + pc]
+      const isMoundCandidate = wantMounds && a >= opts.minReliefMeters
+      const isPitCandidate = wantPits && a <= -opts.minReliefMeters
+      if (!isMoundCandidate && !isPitCandidate) continue
+      let isExtremum = true
+      for (let dr = -1; dr <= 1 && isExtremum; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (validA && !validA[(pr + dr) * strideA + (pc + dc)]) { isExtremum = false; break }
+          if (dr === 0 && dc === 0) continue
+          const v = aGrid[(pr + dr) * strideA + (pc + dc)]
+          if (isMoundCandidate ? v > a : v < a) { isExtremum = false; break }
+        }
+      }
+      if (isExtremum) candidates.push({ row, col, a })
+    }
+  }
+  // Strongest relief first, whichever its sign.
+  candidates.sort((p, q2) => Math.abs(q2.a) - Math.abs(p.a))
+  candidates.length = Math.min(candidates.length, MAX_CANDIDATES)
+
+  // ── Greedy point-wise non-max suppression by tell-size-derived radius, one
+  // pass over both kinds: a mound and a pit closer than one radius are the
+  // two sides of the same feature (a spoil heap beside its quarry), and the
+  // stronger one stands for it. ─────────────────────────────────────────────
   const nmsRadiusPx = Math.max(1, pxForMeters(opts.tellSizeMeters * 0.5))
   const nmsRadiusSq = nmsRadiusPx * nmsRadiusPx
-  const nativeStride = n + 2 * nativeHalo
-  const invGroundRes = 1 / groundResM
-
-  for (const sgn of signs) {
-    const aGrid = new Float32Array(strideA * strideA)
-    for (let pr = 0; pr < strideA; pr++) {
-      const row = pr - haloA
-      for (let pc = 0; pc < strideA; pc++) {
-        const col = pc - haloA
-        aGrid[pr * strideA + pc] = sgn * (lowpassAt(ancestorSmall, n, row, col) - lowpassAt(ancestorLarge, n, row, col))
-      }
+  const accepted: Candidate[] = []
+  for (const cand of candidates) {
+    let tooClose = false
+    for (const acc of accepted) {
+      const dr = cand.row - acc.row, dc = cand.col - acc.col
+      if (dr * dr + dc * dc < nmsRadiusSq) { tooClose = true; break }
     }
-
-    // ── Candidate detection: strict 3x3 local maxima above the relief threshold ──
-    const candidates: Candidate[] = []
-    for (let row = 0; row < n && candidates.length < MAX_CANDIDATES * 4; row++) {
-      const pr = row + haloA
-      for (let col = 0; col < n; col++) {
-        const pc = col + haloA
-        const a = aGrid[pr * strideA + pc]
-        if (a < opts.minReliefMeters) continue
-        let isMax = true
-        for (let dr = -1; dr <= 1 && isMax; dr++) {
-          for (let dc = -1; dc <= 1; dc++) {
-            if (dr === 0 && dc === 0) continue
-            if (aGrid[(pr + dr) * strideA + (pc + dc)] > a) { isMax = false; break }
-          }
-        }
-        if (isMax) candidates.push({ row, col, a })
-      }
-    }
-    candidates.sort((p, q2) => q2.a - p.a)
-    const rawCandidateCount = candidates.length
-    candidates.length = Math.min(candidates.length, MAX_CANDIDATES)
-
-    // ── Greedy point-wise non-max suppression by tell-size-derived radius ────────
-    const accepted: Candidate[] = []
-    for (const cand of candidates) {
-      let tooClose = false
-      for (const acc of accepted) {
-        const dr = cand.row - acc.row, dc = cand.col - acc.col
-        if (dr * dr + dc * dc < nmsRadiusSq) { tooClose = true; break }
-      }
-      if (!tooClose) accepted.push(cand)
-    }
-
-    // ── Veto filters: D (blobness), C (plan curvature, clipped positive), F (det
-    // Hessian) — evaluated only at surviving candidates, each independently able to
-    // reject (AND, not a weighted score). ────────────────────────────────────────
-    let rejectedByBlobness = 0, rejectedByPlan = 0, rejectedByDetHessian = 0
-    let acceptedCount = 0
-
-    for (const cand of accepted) {
-      // "fine": raw native-resolution pixels — exact same per-pixel GLO-30 stripe/
-      // quantization noise the primary detector (A) was deliberately built to avoid
-      // (see kSmall's comment above), which is why D/C/F's second-derivative-based
-      // formulas are far noisier here and any veto threshold above ~0 rejects nearly
-      // everything. "coarse": bilinearly resample ancestorSmall — the same kSmall
-      // lowpass grid A's own "mound survives here" term is built from — at the
-      // candidate's position, so the veto quantities see the same denoised mound
-      // shape A found, not amplified raw-pixel noise (ancestorLarge, the DoG's
-      // *background* term, is deliberately not used here: at that scale the mound
-      // itself has already been smoothed away, which would make every veto reject).
-      const pr = cand.row + nativeHalo
-      const pc = cand.col + nativeHalo
-      const sample = opts.vetoResolution === "fine"
-        ? (dr: number, dc: number) => sgn * nativeGrid!.padded[(pr + dr) * nativeStride + (pc + dc)]
-        : (dr: number, dc: number) => sgn * lowpassAt(ancestorSmall, n, cand.row + dr, cand.col + dc)
-
-      const blobness = computeBlobness(sample, groundResM)
-      if (blobness < opts.blobnessMin) { rejectedByBlobness++; continue }
-
-      const window: ElevationWindow = {
-        a0: sample(-1, -1), a1: sample(-1, 0), a2: sample(-1, 1),
-        a3: sample(0, -1), a4: sample(0, 0), a5: sample(0, 1),
-        a6: sample(1, -1), a7: sample(1, 0), a8: sample(1, 1),
-        invEwresXscale: invGroundRes, invNsresYscale: invGroundRes, groundResolutionM: groundResM,
-      }
-      // See planMin's doc comment: a real mound's flank has plan <= 0 by
-      // construction (positive=concave/valley, negative=convex/ridge convention),
-      // so the veto quantity is outward convexity = -plan, clipped to positive.
-      const { plan } = computeProfileAndPlan(window)
-      const planConvexity = Math.max(0, -plan)
-      if (planConvexity < opts.planMin) { rejectedByPlan++; continue }
-
-      const detHessian = computeDetHessian(window)
-      if (detHessian < opts.detHessianMin) { rejectedByDetHessian++; continue }
-
-      const tx = Math.round(((cand.col + 0.5) / n) * extent)
-      const ty = Math.round(((cand.row + 0.5) / n) * extent)
-      const tags: Record<string, number> = {
-        a: Math.round(cand.a * 100) / 100,
-        blobness: Math.round(blobness * 100) / 100,
-        plan: Math.round(planConvexity * 100) / 100,
-        // 3 decimals (not 2 like the others): the veto slider steps by 0.001, and
-        // real candidate values cluster well below 0.05 — 2-decimal rounding would
-        // show most of them as 0.00, uncomparable against the threshold.
-        detHessian: Math.round(detHessian * 1000) / 1000,
-        pit: sgn < 0 ? 1 : 0,
-      }
-      if (opts.measureScale) {
-        const halfMaxRadiusPx = measureHalfMaxRadiusPx(aGrid, strideA, haloA, cand)
-        // Diameter, not radius — same real-world quantity the Tell Size control is in.
-        if (halfMaxRadiusPx !== null) tags.scaleM = Math.round(2 * halfMaxRadiusPx * groundResM)
-      }
-      geojsonFeatures.push({
-        type: 1,
-        geometry: [[tx, ty]],
-        tags,
-      })
-      acceptedCount++
-    }
-    passLogs.push(
-      `${sgn < 0 ? "pits" : "mounds"}: rawCandidates=${rawCandidateCount} afterNMS=${accepted.length} accepted=${acceptedCount} ` +
-      `rejected{blobness=${rejectedByBlobness} plan=${rejectedByPlan} detHessian=${rejectedByDetHessian}}`,
-    )
+    if (!tooClose) accepted.push(cand)
   }
 
-  // eslint-disable-next-line no-console -- opt-in diagnostic for the "why are there
-  // zero tell points" report; cheap (one line per tile fetch) and only fires while
-  // the beta feature is actually in use, so left in rather than stripped for prod.
-  // console.log (not .debug) so it shows under Chrome DevTools' default "Info"
-  // filter without the user having to manually enable the Verbose level.
-  console.log(
-    `[tells] z${z}/${x}/${y} groundResM=${groundResM.toFixed(2)} kSmall=${kSmall} kLarge=${kLarge} ` +
-    `${passLogs.join(" | ")} opts=${JSON.stringify(opts)}`,
-  )
+  // ── Veto filters: D (blobness), C (plan curvature, clipped positive), F (det
+  // Hessian) — evaluated only at surviving candidates, each independently able to
+  // reject (AND, not a weighted score). A pit is vetoed on the flipped surface,
+  // where it is a mound: plan curvature flips sign with it, while blobness
+  // (quadratic in the gradients) and the Hessian determinant do not. ─────────
+  const nativeStride = n + 2 * nativeHalo
+  const invGroundRes = 1 / groundResM
+  const geojsonFeatures: { type: 1; geometry: [[number, number]]; tags: Record<string, number> }[] = []
+  const extent = 4096
+
+  for (const cand of accepted) {
+    const sgn = cand.a < 0 ? -1 : 1
+    const pr = cand.row + nativeHalo
+    const pc = cand.col + nativeHalo
+    // The veto kernels reach two pixels out (blobness' 5x5); a hole there
+    // would make every one of them read a cliff.
+    let touchesHole = false
+    if (holes) {
+      outer: for (let dr = -2; dr <= 2; dr++) {
+        for (let dc = -2; dc <= 2; dc++) {
+          const ok = opts.vetoResolution === "fine"
+            ? !nativeGrid?.paddedValid || nativeGrid.paddedValid[(pr + dr) * nativeStride + (pc + dc)] === 1
+            : lowpassValid(ancestorSmall, cand.row + dr, cand.col + dc)
+          if (!ok) { touchesHole = true; break outer }
+        }
+      }
+    }
+    if (touchesHole) continue
+    // "fine": raw native-resolution pixels — exact same per-pixel GLO-30 stripe/
+    // quantization noise the primary detector (A) was deliberately built to avoid
+    // (see kSmall's comment above), which is why D/C/F's second-derivative-based
+    // formulas are far noisier here and any veto threshold above ~0 rejects nearly
+    // everything. "coarse": bilinearly resample ancestorSmall — the same kSmall
+    // lowpass grid A's own "mound survives here" term is built from — at the
+    // candidate's position, so the veto quantities see the same denoised mound
+    // shape A found, not amplified raw-pixel noise (ancestorLarge, the DoG's
+    // *background* term, is deliberately not used here: at that scale the mound
+    // itself has already been smoothed away, which would make every veto reject).
+    const sample = opts.vetoResolution === "fine"
+      ? (dr: number, dc: number) => sgn * nativeGrid!.padded[(pr + dr) * nativeStride + (pc + dc)]
+      : (dr: number, dc: number) => sgn * lowpassAt(ancestorSmall, n, cand.row + dr, cand.col + dc)
+
+    const blobness = computeBlobness(sample, groundResM)
+    if (blobness < opts.blobnessMin) continue
+
+    const window: ElevationWindow = {
+      a0: sample(-1, -1), a1: sample(-1, 0), a2: sample(-1, 1),
+      a3: sample(0, -1), a4: sample(0, 0), a5: sample(0, 1),
+      a6: sample(1, -1), a7: sample(1, 0), a8: sample(1, 1),
+      invEwresXscale: invGroundRes, invNsresYscale: invGroundRes, groundResolutionM: groundResM,
+    }
+    // See planMin's doc comment: a real mound's flank has plan <= 0 by
+    // construction (positive=concave/valley, negative=convex/ridge convention),
+    // so the veto quantity is outward convexity = -plan, clipped to positive.
+    const { plan } = computeProfileAndPlan(window)
+    const planConvexity = Math.max(0, -plan)
+    if (planConvexity < opts.planMin) continue
+
+    const detHessian = computeDetHessian(window)
+    if (detHessian < opts.detHessianMin) continue
+
+    const tx = Math.round(((cand.col + 0.5) / n) * extent)
+    const ty = Math.round(((cand.row + 0.5) / n) * extent)
+    const tags: Record<string, number> = {
+      // Relief magnitude: a mound's height or a pit's depth above/below its
+      // surroundings, positive either way.
+      a: Math.round(Math.abs(cand.a) * 100) / 100,
+      blobness: Math.round(blobness * 100) / 100,
+      plan: Math.round(planConvexity * 100) / 100,
+      // 3 decimals (not 2 like the others): the veto slider steps by 0.001, and
+      // real candidate values cluster well below 0.05 — 2-decimal rounding would
+      // show most of them as 0.00, uncomparable against the threshold.
+      detHessian: Math.round(detHessian * 1000) / 1000,
+      pit: sgn < 0 ? 1 : 0,
+    }
+    if (opts.measureScale) {
+      const halfMaxRadiusPx = measureHalfMaxRadiusPx(aGrid, strideA, haloA, cand, validA)
+      // Diameter, not radius — same real-world quantity the Tell Size control is in.
+      if (halfMaxRadiusPx !== null) tags.scaleM = Math.round(2 * halfMaxRadiusPx * groundResM)
+    }
+    geojsonFeatures.push({
+      type: 1,
+      geometry: [[tx, ty]],
+      tags,
+    })
+  }
+
   const buffer = (vtpbf as any).fromGeojsonVt({ tells: { features: geojsonFeatures } }, { version: 2, extent })
   return { data: new Uint8Array(buffer) }
 }

@@ -88,19 +88,18 @@ So: **the derivative value is smuggled through the raster-dem pixel format, and 
 
 ## 7. Registration
 
-Every protocol is registered once, at app init, in `components/TerrainViewer.tsx`:
+Every protocol is registered once, at app init, in `components/TerrainViewer.tsx`, through the protocol registry:
 
 ```ts
-maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
-maplibregl.addProtocol('tri', withTileResultCache(triProtocol))
-maplibregl.addProtocol('svf', withTileResultCache(withSlowTileStats('svf', svfProtocol)))
+registerProtocol('slope', withTileResultCache(slopeProtocol))
+registerProtocol('tri', withTileResultCache(triProtocol))
+registerProtocol('svf', withTileResultCache(withSlowTileStats('svf', svfProtocol)))
 // …one line per mode
 ```
 
 `withTileResultCache` wraps the raw handler with its own result cache (on top of the shared decoded-tile cache from step 1); `withSlowTileStats` (SVF/Openness/Local Dominance only — the more expensive ray-marched modes) records timing for the app's internal perf instrumentation.
 
-
-**Register through `lib/protocol-registry.ts`, never `maplibregl.addProtocol` directly.** MapLibre only asks a protocol for the tiles of its own sources; every consumer in the app that builds a tile URL from a template and fetches it itself (each derived mode reading its upstream DEM, the GeoTIFF export, the 2D elevation picker and profile) goes through `fetchTileBitmap` / `dispatchTile` from that registry, which looks the scheme up and calls the handler. Before the registry each consumer kept its own list of schemes to special-case, and twice a new source type slipped through it: hillshade worked (MapLibre's own fetch) while every other mode drew nothing, first for `lerc://` and `quantized-mesh://`, then for `vrt://` and the nDSM's `demdiff://`. A scheme that is not registered now throws an error naming the registry instead of the browser's "URL scheme is not supported", and a consumer that goes through the registry never has to know which protocols exist. The GeoTIFF export, the 2D elevation picker and profile, and the contours layer all resolve a source through the same client upstream the viz modes read (`useClientDemUpstream`), so a source that renders in one mode exports, samples and contours in the others: VRT, LERC, quantized mesh, difference and WMS sources included. Contours over one of our schemes run maplibre-contour on the main thread with a `getTile` that dispatches through the registry, since its worker can only `fetch()`.
+`registerProtocol` (`lib/protocol-registry.ts`) registers the scheme with MapLibre and also lets every other consumer in the app dispatch to it: step 1 of this pipeline reads its upstream through the registry, which is why every mode works over `vrt://`, `lerc://`, `demdiff://` and the rest. What a custom protocol is, the full list of schemes and the registry's rules are on [Custom Protocols](/dev/custom-protocols).
 
 ## GPU acceleration — none here
 

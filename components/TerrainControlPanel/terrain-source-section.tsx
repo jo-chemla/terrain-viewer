@@ -406,7 +406,7 @@ export const TerrainSourceSection: React.FC<{
                   ) : (
                     <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
                   )}
-                  <CustomSourceDetails liveSourceIds={liveTerrainSourceIds} libraryIds={libraryTerrainIds} onLoadFromLibrary={loadLibrarySourcesById} {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, ...(isSplit ? {} : { onSelect: selectTerrainA }), linkedSourceName: linkedBasemapName(source) }} />
+                  <CustomSourceDetails liveSourceIds={liveTerrainSourceIds} libraryIds={libraryTerrainIds} onLoadFromLibrary={loadLibrarySourcesById} {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
                 </div>
               )
               const body = (

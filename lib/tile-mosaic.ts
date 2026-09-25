@@ -1,4 +1,7 @@
 import { customScheme, dispatchTile, toBitmap } from "./protocol-registry"
+
+/** Tiles fetched at once by fetchTileMosaic. */
+const MOSAIC_CONCURRENCY = 6
 // Generic XYZ tile fetcher + mosaicker — deliberately not terrain-specific, so it can
 // back a raster-imagery (basemap) export the same way it backs a DTM export today.
 // Callers supply `decodePixel` to turn each tile's RGBA into whatever scalar/vector
@@ -125,50 +128,65 @@ export async function fetchTileMosaic(opts: FetchTileMosaicOptions): Promise<Til
   let done = 0
   const total = cols * rows
 
-  for (let ty = yMin; ty <= yMax; ty++) {
-    for (let tx = xMin; tx <= xMax; tx++) {
-      const url = tileUrlTemplate
-        .replace("{z}", String(zoom))
-        .replace("{x}", String(tx))
-        .replace("{y}", String(ty))
+  const fetchOne = async (tx: number, ty: number) => {
+    const url = tileUrlTemplate
+      .replace("{z}", String(zoom))
+      .replace("{x}", String(tx))
+      .replace("{y}", String(ty))
 
-      // A template on one of our own schemes (vrt://, lerc://, demdiff://...)
-      // is dispatched to its protocol through the registry, so export and
-      // 2D sampling work on every source the viz modes work on; a caller's
-      // own fetchTileBlob still wins when given.
-      const bitmap = fetchTileBlob
-        ? await createImageBitmap(await fetchTileBlob(url, signal))
-        : customScheme(url)
-          ? await toBitmap(await dispatchTile(url, signal))
-          : await (async () => {
-              const response = await fetch(url, { signal })
-              if (!response.ok) throw new Error(`Tile fetch failed (${response.status}): ${url}`)
-              return createImageBitmap(await response.blob())
-            })()
+    // A template on one of our own schemes (vrt://, lerc://, demdiff://...)
+    // is dispatched to its protocol through the registry, so export and
+    // 2D sampling work on every source the viz modes work on; a caller's
+    // own fetchTileBlob still wins when given.
+    const bitmap = fetchTileBlob
+      ? await createImageBitmap(await fetchTileBlob(url, signal))
+      : customScheme(url)
+        ? await toBitmap(await dispatchTile(url, signal))
+        : await (async () => {
+            const response = await fetch(url, { signal })
+            if (!response.ok) throw new Error(`Tile fetch failed (${response.status}): ${url}`)
+            return createImageBitmap(await response.blob())
+          })()
 
-      const canvas = document.createElement("canvas")
-      canvas.width = tileSize
-      canvas.height = tileSize
-      const ctx = canvas.getContext("2d")!
-      ctx.drawImage(bitmap, 0, 0, tileSize, tileSize)
-      const pixels = ctx.getImageData(0, 0, tileSize, tileSize).data
-      bitmap.close()
+    const canvas = document.createElement("canvas")
+    canvas.width = tileSize
+    canvas.height = tileSize
+    const ctx = canvas.getContext("2d")!
+    ctx.drawImage(bitmap, 0, 0, tileSize, tileSize)
+    const pixels = ctx.getImageData(0, 0, tileSize, tileSize).data
+    bitmap.close()
 
-      const ox = (tx - xMin) * tileSize
-      const oy = (ty - yMin) * tileSize
-      for (let py = 0; py < tileSize; py++) {
-        const rowOffset = (oy + py) * width + ox
-        const srcRowOffset = py * tileSize
-        for (let px = 0; px < tileSize; px++) {
-          const i = (srcRowOffset + px) * 4
-          data[rowOffset + px] = decodePixel(pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3])
-        }
+    const ox = (tx - xMin) * tileSize
+    const oy = (ty - yMin) * tileSize
+    for (let py = 0; py < tileSize; py++) {
+      const rowOffset = (oy + py) * width + ox
+      const srcRowOffset = py * tileSize
+      for (let px = 0; px < tileSize; px++) {
+        const i = (srcRowOffset + px) * 4
+        data[rowOffset + px] = decodePixel(pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3])
       }
+    }
 
-      done++
-      onProgress?.(done / total)
+    done++
+    onProgress?.(done / total)
+  }
+
+  // Several tiles at once, not one after another. Each tile is independent
+  // (it writes its own block of `data`), and a slow source made the serial
+  // loop crawl: an IGN nDSM tile is two WMS calls of ~5 s each, so a 24-tile
+  // export took a quarter of an hour. Six matches the browser's per-host
+  // connection limit; the first failure stops the other workers.
+  const queue: [number, number][] = []
+  for (let ty = yMin; ty <= yMax; ty++) for (let tx = xMin; tx <= xMax; tx++) queue.push([tx, ty])
+  let failed: unknown = null
+  const worker = async () => {
+    while (queue.length && failed === null) {
+      const [tx, ty] = queue.shift()!
+      try { await fetchOne(tx, ty) } catch (e) { if (failed === null) failed = e }
     }
   }
+  await Promise.all(Array.from({ length: Math.min(MOSAIC_CONCURRENCY, queue.length) }, worker))
+  if (failed !== null) throw failed
 
   const [mosaicWest, mosaicNorth] = tileXYToLonLat(xMin, yMin, zoom)
   const [mosaicEast, mosaicSouth] = tileXYToLonLat(xMax + 1, yMax + 1, zoom)

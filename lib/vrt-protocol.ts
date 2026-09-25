@@ -77,6 +77,22 @@ const APPROX_MAX_ERR_PX = 0.125
 
 /** A tile outside the mosaic, which is ordinary rather than an error: maplibre
  *  only keeps a tile failure quiet when `status === 404`. */
+/** Whether a source file is really gone (401/403/404/410), asked once per
+ *  file with a HEAD request after a read fails: geotiff reports every HTTP
+ *  failure as "Error fetching data." with no status, so the message cannot
+ *  tell a missing file from a timeout. A HEAD that itself fails is not proof
+ *  the file is gone, and is not cached. */
+const goneCache = new Map<string, Promise<boolean>>()
+function fileIsGone(url: string): Promise<boolean> {
+  const hit = goneCache.get(url)
+  if (hit) return hit
+  const p = fetch(url, { method: "HEAD" })
+    .then((r) => [401, 403, 404, 410].includes(r.status))
+    .catch(() => { goneCache.delete(url); return false })
+  goneCache.set(url, p)
+  return p
+}
+
 class TileNotFound extends Error {
   status = 404
   constructor(url: string) { super(`404 ${url}`) }
@@ -478,13 +494,30 @@ export async function vrtProtocol(
       // same band (-99999 for RGE ALTI), and interpolating across its edge
       // produced values like -11 650 m - inside every sane guard, and a
       // kilometres-deep gash along every source boundary.
-      const rasters = await tiff.readRasters({ window: win, width: outW, height: outH, resampleMethod: "nearest", fillValue: NaN, samples: [s.band - 1], signal })
+      const read = () => tiff.readRasters({ window: win, width: outW, height: outH, resampleMethod: "nearest", fillValue: NaN, samples: [s.band - 1], signal })
+      let rasters
+      try {
+        rasters = await read()
+      } catch (e) {
+        // One retry: under a busy tile queue a range read times out or drops
+        // far more often than a file is really gone.
+        if (signal.aborted || await fileIsGone(s.filename)) throw e
+        await new Promise((r) => setTimeout(r, 400))
+        rasters = await read()
+      }
       const band = (Array.isArray(rasters) ? rasters[0] : rasters) as unknown as ArrayLike<number>
       return { s, win, outW, outH, band }
-    } catch {
-      // One unreachable or unreadable file must not lose the whole tile: a
-      // mosaic of thousands routinely has a few that 403 or time out.
-      return null
+    } catch (e) {
+      if (signal.aborted) throw e
+      // A file that is really not there (403, 404, 410) is a hole, as it
+      // would be in GDAL: a mosaic of thousands routinely has a few. Anything
+      // else - a timeout, a dropped connection, a 5xx - fails the whole
+      // tile. It used to draw a hole too, and the result cache then kept that
+      // hole for the session: blank bands in every derived mode and straight
+      // "0 m" contour edges that never healed. A failed tile is not cached,
+      // and MapLibre asks again the next time the tile is needed.
+      if (await fileIsGone(s.filename)) return null
+      throw e
     }
   }))
   const tooLarge = reads.find((r): r is { tooLarge: number } => !!r && "tooLarge" in r)

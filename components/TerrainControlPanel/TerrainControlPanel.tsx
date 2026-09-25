@@ -270,7 +270,17 @@ export function TerrainControlPanel({
   useGeocoderShortcut()
   // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or +Y) walk the URL state back and
   // forth: every control's change, camera excluded. See the hook.
-  useUrlStateHistory(state, setState)
+  useUrlStateHistory(state, setState, (pose) => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    map.easeTo({
+      ...(pose.lat != null && pose.lng != null ? { center: [pose.lng, pose.lat] as [number, number] } : {}),
+      ...(pose.zoom != null ? { zoom: pose.zoom } : {}),
+      ...(pose.pitch != null ? { pitch: pose.pitch } : {}),
+      ...(pose.bearing != null ? { bearing: pose.bearing } : {}),
+      duration: 700,
+    })
+  })
   // Tapping either Ctrl key alone hides every overlay visualization mode down
   // to just the plain basemap imagery, and restores every mode's previous
   // on/off state on the next tap — a quick "what's actually under here"

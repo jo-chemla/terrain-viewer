@@ -67,9 +67,12 @@ export const DetectorMoundsSection: React.FC<{
         <p className="text-xs text-muted-foreground">
           Experimental archaeological mound detector: local maxima of a Difference-
           of-Gaussians relief signal, filtered by blobness/curvature to reject
-          ridges and saddles. Pits run the same detector on the inverted surface.
+          ridges and saddles. Minima of the same signal are pits.
         </p>
+        <div className="flex items-center gap-2">
+        <Label className="text-sm shrink-0">Type</Label>
         <SegmentedToggle
+          className="flex-1"
           value={(state.tellsPolarity ?? "mounds") as "mounds" | "pits" | "both"}
           onChange={(v) => setState({ tellsPolarity: v })}
           options={[
@@ -78,6 +81,7 @@ export const DetectorMoundsSection: React.FC<{
             { value: "both", label: "Both", tooltip: "Mounds in the outline colour, pits in the pit colour" },
           ]}
         />
+        </div>
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col gap-0.5">
             <Label htmlFor="tells-frozen" className="text-sm cursor-pointer">

@@ -23,7 +23,13 @@ import { addProtocol, type AddProtocolAction, type RequestParameters } from "map
 
 export type ProtocolHandler = AddProtocolAction
 
-const handlers = new Map<string, ProtocolHandler>()
+// On globalThis, not module scope: a second copy of this module (Vite hot
+// reload after an edit here, or a dynamic import carrying a different
+// version query) would otherwise start with an empty table while the
+// registrations made at startup live in the first copy, and every consumer
+// going through the new copy would fail with "No protocol registered".
+const handlers: Map<string, ProtocolHandler> =
+  ((globalThis as { __tvProtocolHandlers?: Map<string, ProtocolHandler> }).__tvProtocolHandlers ??= new Map())
 
 /** Registers with MapLibre and with this registry. Use instead of
  *  `maplibregl.addProtocol` everywhere in the app. */
