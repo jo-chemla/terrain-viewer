@@ -20,7 +20,7 @@ const LIVE_LAYER_ID = "phong-live"
 
 export function PhongLiveGlLayer({
   mapRef, enabled,
-  diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity, skirts,
+  diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity,
   terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
 }: {
   mapRef: React.RefObject<MapRef>
@@ -32,7 +32,6 @@ export function PhongLiveGlLayer({
   lightRelativeToCamera: boolean
   exaggeration: number
   opacity: number
-  skirts?: boolean
   terrainSource: TerrainSource | string
   customTerrainSources: CustomTerrainSource[]
   mapboxKey: string
@@ -53,7 +52,7 @@ export function PhongLiveGlLayer({
       tileSize: clientUpstream.tileSize,
       minzoom: clientUpstream.minzoom,
       maxzoom: clientUpstream.maxzoom,
-      diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity, skirts,
+      diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity,
     }
     const layer = new PhongLiveLayerImpl(LIVE_LAYER_ID, options)
     layerRef.current = layer
@@ -100,8 +99,8 @@ export function PhongLiveGlLayer({
   }, [enabled, clientUpstream?.template, clientUpstream?.encoding, clientUpstream?.tileSize, clientUpstream?.minzoom, clientUpstream?.maxzoom, mapRef])
 
   useEffect(() => {
-    layerRef.current?.updateOptions({ diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity, skirts })
-  }, [diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity, skirts])
+    layerRef.current?.updateOptions({ diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity })
+  }, [diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity])
 
   return null
 }

@@ -715,9 +715,6 @@ export const QUERY_STATE_PARSERS = {
     showGraticules: parseAsBoolean.withDefault(false),
     showRasterBasemap: parseAsBoolean.withDefault(false),
     showBackground: parseAsBoolean.withDefault(false),
-    // MapLibre's terrain skirts (terrainSkirtLength auto/none) and the live GL
-    // layers' own, as one switch - see the Background section.
-    terrainSkirts: parseAsBoolean.withDefault(true),
     // Sky/horizon/fog colors for the Background + Fog/Sky mode (background-
     // options-section.tsx) — URL-shareable state like every other viz-mode
     // field, not a localStorage preference (was previously a plain, entirely
@@ -2644,23 +2641,6 @@ export function TerrainViewer() {
   // few states as it loads" flicker.
   const pendingTerrainApply = useMemo(() => new WeakMap<maplibregl.Map, () => void>(), [])
 
-  // Terrain skirts: MapLibre reads terrainSkirtLength once, in setTerrain
-  // (react-map-gl does not forward the option), so it is written straight
-  // onto the map and the terrain re-applied when the switch flips. The live
-  // GL layers take the same switch as a prop.
-  const terrainSkirtsRef = useRef(state.terrainSkirts)
-  terrainSkirtsRef.current = state.terrainSkirts
-  useEffect(() => {
-    for (const side of VIEW_IDS) {
-      const map = mapRefs[side].current?.getMap()
-      if (!map) continue
-      ;(map as unknown as { _terrainSkirtLength?: string })._terrainSkirtLength = state.terrainSkirts ? 'auto' : 'none'
-      const current = map.getTerrain()
-      if (current) { map.setTerrain(null); map.setTerrain(current) }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.terrainSkirts])
-
   const applyTerrain = useCallback((map: maplibregl.Map, viewMode: string) => {
     const pending = pendingTerrainApply.get(map)
     if (pending) {
@@ -3328,7 +3308,6 @@ export function TerrainViewer() {
             const mapInstance = mapRefs[side].current?.getMap()
             if (!mapInstance) return
             ensureLegacyTransform(mapInstance)
-            ;(mapInstance as unknown as { _terrainSkirtLength?: string })._terrainSkirtLength = terrainSkirtsRef.current ? 'auto' : 'none'
 
             // A new viewport needs a fresh "how many tiles are pending" count
             // for the slow ray-marched modes (SVF/Openness/Local Dominance) —
@@ -3699,7 +3678,6 @@ export function TerrainViewer() {
             exaggeration={state.exaggeration}
             opacity={state.matcapOpacity * state.lightingEffectsOpacity}
             lightRelativeToCamera={state.matcapLightRelativeToCamera}
-            skirts={state.terrainSkirts}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
@@ -3739,7 +3717,6 @@ export function TerrainViewer() {
             lightRelativeToCamera={state.phongLightRelativeToCamera}
             exaggeration={state.exaggeration}
             opacity={state.phongOpacity * state.lightingEffectsOpacity}
-            skirts={state.terrainSkirts}
             terrainSource={source}
             customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}

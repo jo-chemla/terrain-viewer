@@ -221,9 +221,6 @@ export type PhongLiveOptions = {
   specularStrength: number
   exaggeration: number
   opacity: number
-  /** Draw skirts under tile edges (default true), mirroring the map's
-   *  terrainSkirtLength; false hides them together with MapLibre's own. */
-  skirts?: boolean
 }
 
 // Evicted LRU-style once exceeded — bounds GPU texture memory during long
@@ -928,8 +925,8 @@ export class PhongLiveLayer implements CustomLayerInterface {
             gl.uniform4fv(bundle.uTerrainUnpack, td.u_terrain_unpack)
             gl.uniform1f(bundle.uTerrainExaggeration, td.u_terrain_exaggeration)
             // Same length rule as MapLibre's own skirts (Terrain.getSkirtLength),
-            // in exaggerated metres; 0 when the user turned skirts off.
-            const skirt = this.options.skirts === false ? 0 : ((terrain as unknown as { getSkirtLength?: (z: number) => number }).getSkirtLength?.(map.getZoom()) ?? 0) * td.u_terrain_exaggeration
+            // in exaggerated metres.
+            const skirt = ((terrain as unknown as { getSkirtLength?: (z: number) => number }).getSkirtLength?.(map.getZoom()) ?? 0) * td.u_terrain_exaggeration
             gl.uniform1f(bundle.uSkirtLength, skirt)
           } else {
             gl.uniform1f(bundle.uSkirtLength, 0)

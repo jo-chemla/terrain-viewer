@@ -2724,16 +2724,6 @@
       "note": ""
     },
     {
-      "key": "terrainSkirts",
-      "stateKey": "terrainSkirts",
-      "type": "boolean",
-      "items": null,
-      "enum": null,
-      "default": true,
-      "defaultSource": "true",
-      "note": "MapLibre's terrain skirts (terrainSkirtLength auto/none) and the live GL layers' own, as one switch - see the Background section."
-    },
-    {
       "key": "matchThemeColors",
       "stateKey": "matchThemeColors",
       "type": "boolean",

@@ -62,8 +62,8 @@ import { orbitRequestAtom } from "@/lib/settings-atoms"
 /**
  * pose-codec.ts
  *
- * Compact JSON encode/decode of AppSnapshot for URL storage. A pose has 8 floats
- * (lat, lng, zoom, pitch, bearing, roll, vfov, refWidth) plus a variable-size
+ * Compact JSON encode/decode of AppSnapshot for URL storage. A pose has 9 floats
+ * (lat, lng, zoom, pitch, bearing, roll, vfov, refWidth, elevation) plus a variable-size
  * numericState map (only populated in "Complete" mode — see captureSnapshot).
  *
  * Format: `{"pose": {lat, lng, ...}, "numericState": {...}?}` — named keys rather
@@ -87,6 +87,11 @@ interface CameraPose {
   roll: number
   vfov: number
   refWidth: number
+  /** Camera-target elevation (metres, MapLibre's `getCameraTargetElevation`).
+   *  NaN when unknown: poses captured before this field existed encode it as
+   *  null and decode to NaN, and every delta through NaN stays NaN, so
+   *  playback falls back to the height held at play start for that pose. */
+  elevation: number
 }
 
 export interface AppSnapshot {
@@ -95,13 +100,13 @@ export interface AppSnapshot {
 }
 
 const POSE_KEYS: (keyof CameraPose)[] = [
-  "lat", "lng", "zoom", "pitch", "bearing", "roll", "vfov", "refWidth",
+  "lat", "lng", "zoom", "pitch", "bearing", "roll", "vfov", "refWidth", "elevation",
 ]
 
 // Fallback values for decoding a pose that's missing fields (e.g. an older/newer
 // URL than this build expects) — matches this app's own default camera view.
 const DEFAULT_POSE: CameraPose = {
-  lat: 21.4208, lng: 0, zoom: 1.52, pitch: 0, bearing: 0, roll: 0, vfov: 36.869898, refWidth: 800,
+  lat: 21.4208, lng: 0, zoom: 1.52, pitch: 0, bearing: 0, roll: 0, vfov: 36.869898, refWidth: 800, elevation: NaN,
 }
 
 // Default values for the numeric (non-camera) state fields that can end up in a
@@ -393,13 +398,21 @@ function applyProgress(
   // Roll rides in the same call: Map#setRoll is itself a jumpTo without an
   // elevation, and a second jumpTo per frame re-sampled the terrain under
   // the centre and threw the held height away (traced on 6.11.2).
+  //
+  // Elevation is a pose field too, so a flight from a high pose to a low
+  // one interpolates the target height instead of holding the start value;
+  // a pose captured before the field existed (NaN) uses the held height.
+  const held = playbackElevation.value
+  const e1 = Number.isFinite(p1.pose.elevation) ? p1.pose.elevation : held
+  const e2 = Number.isFinite(p2.pose.elevation) ? p2.pose.elevation : held
+  const elevation = e1 != null && e2 != null ? lerp(e1, e2, t) : held
   map.jumpTo({
     center: [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
     zoom:   lerp(p1.pose.zoom, p2.pose.zoom, t),
     pitch:  lerp(p1.pose.pitch, p2.pose.pitch, t),
     bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
     roll: lerp(p1.pose.roll, p2.pose.roll, t),
-    ...(playbackElevation.value != null ? { elevation: playbackElevation.value } : {}),
+    ...(elevation != null ? { elevation } : {}),
   } as Parameters<typeof map.jumpTo>[0])
   map.setVerticalFieldOfView(lerp(p1.pose.vfov, p2.pose.vfov, t))
   map.triggerRepaint()
@@ -814,6 +827,7 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
         roll: (map as any).getRoll?.() ?? 0,
         vfov: map.getVerticalFieldOfView(),
         refWidth: canvas.clientWidth,
+        elevation: (map as unknown as { getCameraTargetElevation?: () => number }).getCameraTargetElevation?.() ?? NaN,
       },
       numericState,
     }
