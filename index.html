@@ -64,6 +64,12 @@
         s.defer = true
         s.src = "https://cloud.umami.is/script.js"
         s.setAttribute("data-website-id", "89d911b9-9de7-4665-872e-5b91ff4b7b39")
+        // umami wraps history.pushState AND replaceState and records a
+        // pageview whenever the URL changes. Every setting and every camera
+        // move rewrites the query string (nuqs), so each pan counted as a
+        // pageview. Pageviews are counted on the path only; what users do is
+        // tracked with explicit events (lib/analytics.ts).
+        s.setAttribute("data-exclude-search", "true")
         document.head.appendChild(s)
       })()
     </script>

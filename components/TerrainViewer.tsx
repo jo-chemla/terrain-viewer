@@ -193,32 +193,50 @@ function matcapUrlFor(textureId: string): string {
 // Tiles that never land. MapLibre keeps every raster request in one queue
 // of 16 and a custom protocol holds its slot for the whole handler, so a
 // backlog of slow horizon-search tiles - or a service that stopped
-// answering - leaves the map "loading" with nothing arriving. Nothing in the
-// app can recover the queue; a reload can. Watch each map: pending tiles
-// for STALL_AFTER_MS with no tile landing in that time, one toast with a
-// Reload button, then
-// quiet for STALL_REPEAT_MS.
+// answering - leaves a layer "loading" with nothing arriving. Nothing in the
+// app can recover the queue; a reload can.
+//
+// Watched per source, not per map: a map-wide "no tile landed" never fired
+// while a single mode was stuck, because every other source kept landing
+// tiles (SVF waiting forever beside a busy basemap). A source that has had
+// tiles pending for STALL_AFTER_MS without one of its own landing in that
+// time raises one toast, with a Reload button, then stays quiet for
+// STALL_REPEAT_MS.
 const STALL_AFTER_MS = 20_000
 const STALL_REPEAT_MS = 300_000
-const stallWatchers = new WeakMap<object, { lastTileAt: number; pendingSince: number | null; lastToastAt: number; timer: ReturnType<typeof setInterval> }>()
+type StallWatch = { installedAt: number; lastTileAt: globalThis.Map<string, number>; pendingSince: globalThis.Map<string, number>; lastToastAt: number; timer: ReturnType<typeof setInterval> }
+const stallWatchers = new WeakMap<object, StallWatch>()
+/** "svfSource" -> "svf", "terrainSource" -> "terrain" */
+const friendlySourceName = (id: string) => id.replace(/Source(Unfiltered)?$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()
 function watchForStalledTiles(map: maplibregl.Map) {
   if (stallWatchers.has(map)) return
-  const w = { lastTileAt: Date.now(), pendingSince: null as number | null, lastToastAt: 0, timer: 0 as unknown as ReturnType<typeof setInterval> }
-  map.on("data", (e) => { if ((e as { tile?: unknown }).tile) w.lastTileAt = Date.now() })
+  const w: StallWatch = { installedAt: Date.now(), lastTileAt: new globalThis.Map(), pendingSince: new globalThis.Map(), lastToastAt: 0, timer: 0 as unknown as ReturnType<typeof setInterval> }
+  map.on("data", (e) => {
+    const ev = e as { tile?: unknown; sourceId?: string }
+    if (ev.tile && ev.sourceId) w.lastTileAt.set(ev.sourceId, Date.now())
+  })
   map.on("remove", () => { clearInterval(w.timer); stallWatchers.delete(map) })
   w.timer = setInterval(() => {
     const now = Date.now()
-    let loaded = true
-    try { loaded = map.areTilesLoaded() } catch { return }
-    if (loaded) { w.pendingSince = null; return }
-    if (w.pendingSince == null) w.pendingSince = now
-    const stalled = now - w.pendingSince > STALL_AFTER_MS && now - w.lastTileAt > STALL_AFTER_MS
-    if (stalled && now - w.lastToastAt > STALL_REPEAT_MS) {
+    const managers = (map as unknown as { style?: { tileManagers?: Record<string, { loaded(): boolean }> } }).style?.tileManagers
+    if (!managers) return
+    const stalled: string[] = []
+    for (const [id, tm] of Object.entries(managers)) {
+      let loaded = true
+      try { loaded = tm.loaded() } catch { continue }
+      if (loaded) { w.pendingSince.delete(id); continue }
+      const since = w.pendingSince.get(id) ?? now
+      w.pendingSince.set(id, since)
+      const lastLanded = Math.max(w.lastTileAt.get(id) ?? 0, w.installedAt)
+      if (now - since > STALL_AFTER_MS && now - lastLanded > STALL_AFTER_MS) stalled.push(id)
+    }
+    if (stalled.length && now - w.lastToastAt > STALL_REPEAT_MS) {
       w.lastToastAt = now
+      const names = stalled.map(friendlySourceName)
       pushToast({
         key: "tiles-stalled",
-        title: "Tiles have stopped arriving",
-        body: "The map has waited 20 seconds with nothing landing. A source may be down, or the tile queue is wedged behind slow requests. Reloading keeps your view: it is all in the URL.",
+        title: names.length === 1 ? `${names[0][0].toUpperCase()}${names[0].slice(1)} tiles have stopped arriving` : "Tiles have stopped arriving",
+        body: `Nothing has landed for 20 seconds from ${names.join(", ")}. The source may be down, or the tile queue is wedged behind slow requests. Reloading keeps your view: it is all in the URL.`,
         duration: 15000,
         action: { label: "Reload", onClick: () => window.location.reload() },
       })

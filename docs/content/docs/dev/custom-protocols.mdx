@@ -28,17 +28,15 @@ A few properties shape everything built on top:
 
 ## Every scheme this app registers
 
-Terrain sources, which read an elevation dataset MapLibre cannot read on its own and hand it back as Terrarium or Terrain-RGB tiles:
+Our own terrain sources, which read an elevation dataset MapLibre cannot read on its own and hand it back as Terrarium or Terrain-RGB tiles:
 
 | Scheme | What it serves | Page |
 |---|---|---|
-| `cog://` | Cloud-Optimized GeoTIFFs, read by range requests ([geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol)) | [Terrain sources](/features/terrain-sources) |
 | `float32dem://` | A WMS that returns float32 GeoTIFF elevation | [WMS Float32 DEM Protocol](/dev/wms-float32-protocol) |
 | `vrt://` | A GDAL VRT mosaic of COGs in any CRS, reprojected with proj4 | [VRT Mosaic Protocol](/dev/vrt-protocol) |
 | `lerc://` | Esri LERC tiles from an ArcGIS ImageServer | [ArcGIS LERC Elevation Protocol](/dev/lerc-protocol) |
 | `quantized-mesh://` | Cesium quantized-mesh terrain, rasterised | [Quantized Mesh Protocol](/dev/quantized-mesh-protocol) |
 | `demdiff://` | The difference of two sources (an nDSM, a change layer) | [Derived Terrain Protocol](/dev/demdiff-protocol) |
-| `pmtiles://` | Tiles packed in a PMTiles archive ([protomaps](https://docs.protomaps.com/pmtiles/maplibre)) | [PMTiles and COG Contours](/dev/vendored-protocols) |
 
 Derived modes, which read one of the sources above and compute something from it:
 
@@ -51,7 +49,15 @@ Derived modes, which read one of the sources above and compute something from it
 | `tells://` | Mound and pit candidates, as vector tiles | [Visualization modes](/features/visualization-modes) |
 | `cog-contour://` | Contours from a COG, computed in a worker | [PMTiles and COG Contours](/dev/vendored-protocols) |
 
-Contours over every other source use maplibre-contour's own `dem-contour://` scheme, fed as described [below](#contours).
+### Third-party schemes
+
+Registered through the same registry, but written by others:
+
+| Scheme | What it serves | Project |
+|---|---|---|
+| `cog://` | Cloud-Optimized GeoTIFFs, read by range requests | [geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol), see [Terrain sources](/features/terrain-sources) |
+| `pmtiles://` | Tiles packed in a PMTiles archive | [protomaps/PMTiles](https://docs.protomaps.com/pmtiles/maplibre), see [PMTiles and COG Contours](/dev/vendored-protocols) |
+| `dem-contour://` | Contour vector tiles computed from a DEM | [onthegomap/maplibre-contour](https://github.com/onthegomap/maplibre-contour), registered by its own `setupMaplibre` and fed as described [below](#contours) |
 
 ## The registry
 

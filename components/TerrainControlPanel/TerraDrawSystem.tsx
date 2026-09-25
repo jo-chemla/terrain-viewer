@@ -396,6 +396,16 @@ function fitBoundsWithinFence(map: maplibregl.Map, bounds: number[], options: Pa
     map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], options)
 }
 
+// terra-draw's snapshot also holds its guidance features: selection and
+// mid-points, a polygon's closing point, coordinate and snapping points. They
+// are not the user's drawing - they must not be counted, exported or tagged
+// with a layer (terra-draw throws "Guidance features are not allowed to be
+// updated directly", which showed up as console noise on every change).
+const GUIDANCE_KEYS = ["selectionPoint", "midPoint", "closingPoint", "coordinatePoint", "snappingPoint"]
+function userFeatures(snapshot: GeoJSONFeature[]): GeoJSONFeature[] {
+    return snapshot.filter((f) => !GUIDANCE_KEYS.some((k) => f.properties?.[k]))
+}
+
 // --- HOOK ---
 
 // export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
@@ -850,7 +860,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
                 // (only imported features, which call setFeatures directly, ever showed up).
                 newDraw.on('change', () => {
                     if (!isCurrent) return
-                    try { setFeatures(newDraw.getSnapshot() as GeoJSONFeature[]) } catch { }
+                    try { setFeatures(userFeatures(newDraw.getSnapshot() as GeoJSONFeature[])) } catch { }
 
                     // Tag any feature that just entered the store without a layer yet, so it
                     // renders (and counts) as belonging to whichever layer is active. Deferred
@@ -867,7 +877,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
                     setTimeout(() => {
                         if (!isCurrent) return
                         try {
-                            const snapshot = newDraw.getSnapshot() as GeoJSONFeature[]
+                            const snapshot = userFeatures(newDraw.getSnapshot() as GeoJSONFeature[])
                             snapshot.forEach((f) => {
                                 if (f.id == null || f.properties?.layerId != null) return
                                 try {

@@ -7,6 +7,7 @@
 - **Compare and Blend in terrain mode too.** Split style, the grid picker up to 4×2, blend mode and opacity, Match Colors, border colours and Capture Date, below Visualization Modes; General Settings loses its lone Split Mode toggle. A header button cycles Off, Overlay and Side without unfolding the section, and the Terrain and Basemap rows show one pill per view for whatever grid is picked.
 - **Every mode on every source.** One protocol registry now dispatches every custom tile scheme to every consumer, so each viz mode, the mound detector, contours, the GeoTIFF export and the 2D elevation picker work on every terrain source type: VRT mosaics, ArcGIS LERC, Cesium quantized mesh, WMS float32, TileJSON and differences (nDSMs). How it works is on the new [custom protocols](/docs/dev/custom-protocols) page.
 - **Undo and redo.** `Ctrl+Z` and `Ctrl+Shift+Z` walk every setting back and forth, and the camera too when it had been still for a minute.
+- **Libraries.** react-map-gl 8.1.3 for MapLibre 6; the COG reader 0.8 to 0.10, with GDAL-style transparency and alpha bands, fast reads of LERC- and WebP-compressed COGs, a NaN nodata fix and batched range requests; maplibre-contour 0.1.1.
 - **Camera animation that keeps its word.** A pose now records the camera target's elevation and playback interpolates it with the rest — centre, zoom, pitch, bearing, roll, field of view — so a flight from a summit pose to a valley pose no longer bobs over every ridge or holds the start height. Poses captured before this keep the old behaviour until re‑set.
 
 ### Features

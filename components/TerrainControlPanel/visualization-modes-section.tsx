@@ -127,7 +127,7 @@ export const VisualizationModesSection: React.FC<{
         <>
           <Separator className="bg-foreground/33" />
           <CheckboxWithSlider
-            id="tells-visibility"
+            id="tells-visibility" gotoSection="tellsDetector"
             checked={state.showTellsDetector}
             onCheckedChange={(checked) => setState({ showTellsDetector: checked === true })}
             label="Mound Detector"

@@ -3,7 +3,6 @@ import { useCallback } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Section, CycleButtonGroup, SegmentedToggle } from "./controls-components"
 import { TellsFields } from "./tells-options-section"
 import { ColorAlphaSwatch } from "./color-picker"
@@ -70,7 +69,7 @@ export const DetectorMoundsSection: React.FC<{
           ridges and saddles. Minima of the same signal are pits.
         </p>
         <div className="flex items-center gap-2">
-        <Label className="text-sm shrink-0">Type</Label>
+        <Label className="text-sm shrink-0 w-20">Type</Label>
         <SegmentedToggle
           className="flex-1"
           value={(state.tellsPolarity ?? "mounds") as "mounds" | "pits" | "both"}
@@ -82,22 +81,16 @@ export const DetectorMoundsSection: React.FC<{
           ]}
         />
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-col gap-0.5">
-            <Label htmlFor="tells-frozen" className="text-sm cursor-pointer">
-              {state.tellsFrozen ? "Frozen" : "Live"}
-            </Label>
-            <span className="text-xs text-muted-foreground">
-              {state.tellsFrozen
-                ? "Detections pinned — pan/zoom won't refresh them"
-                : "Detections refresh as you pan/zoom"}
-            </span>
-          </div>
-          <Switch
-            id="tells-frozen"
-            checked={state.tellsFrozen === true}
-            className="cursor-pointer"
-            onCheckedChange={(checked) => setState({ tellsFrozen: checked === true })}
+        <div className="flex items-center gap-2">
+          <Label className="text-sm shrink-0 w-20">Detections</Label>
+          <SegmentedToggle
+            className="flex-1"
+            value={state.tellsFrozen === true ? "frozen" : "live"}
+            onChange={(v) => setState({ tellsFrozen: v === "frozen" })}
+            options={[
+              { value: "live", label: "Live", tooltip: "Detections refresh as you pan and zoom" },
+              { value: "frozen", label: "Frozen", tooltip: "Detections pinned: panning and zooming won't refresh them" },
+            ]}
           />
         </div>
         <CycleButtonGroup

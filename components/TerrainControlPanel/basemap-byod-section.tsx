@@ -278,6 +278,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                         handleFitToBounds={handleFitToBounds}
                         handleEditSource={handleEditBasemap}
                         handleDeleteCustomSource={handleDeleteCustomBasemap}
+                        onSelect={selectBasemapA}
                         linkedSourceName={linkedTerrainName(source)}
                       />
                     </div>
