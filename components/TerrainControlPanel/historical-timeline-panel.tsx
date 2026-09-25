@@ -2,7 +2,7 @@ import type React from "react"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert, ArrowDownNarrowWide } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert, ArrowDownNarrowWide, History } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { cn } from "@/lib/utils"
 import { track } from "@/lib/analytics"
@@ -621,6 +621,16 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Moves each view's whole content (source, date, pills - see
   // permuteViewsUpdates), so the imagery keeps its own date; only which pane
   // it sits in changes. Stable: undated views keep their relative order.
+  // Every view (A-H, not just the ones the current grid shows, so a larger
+  // grid picked later is already historical) onto the historical basemap.
+  // Per-view fields and the single-view field both, whichever mode reads
+  // them; in terrain mode the raster basemap has to be on to see it.
+  const allViewsToHistorical = () => {
+    const patch: Record<string, unknown> = { basemapSource: "historical", basemapPerView: true }
+    for (const side of VIEW_IDS) patch[viewFieldName(side, "basemapSource", true)] = "historical"
+    if (state.appMode !== "historical") patch.showRasterBasemap = true
+    setState(patch)
+  }
   const sortViewsByDate = () => {
     const key = (side: ViewId) => (showFor(side) ? resolveDisplayTick(side)?.dateMs ?? null : null)
     const order = activeViews.map((side, i) => ({ side, i, k: key(side) }))
@@ -1541,6 +1551,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                   }
                 />
                 <TooltipContent>Reorder the views chronologically, oldest in A; views showing a plain (undated) basemap go last</TooltipContent>
+              </Tooltip>
+            )}
+            {dualMode && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button type="button" onClick={allViewsToHistorical} className="cursor-pointer p-1 rounded shrink-0 text-muted-foreground hover:text-foreground" aria-label="All views to historical imagery">
+                      <History className="h-4 w-4" />
+                    </button>
+                  }
+                />
+                <TooltipContent>Put historical imagery on every view, A to H, whatever grid is picked - each keeps its own date</TooltipContent>
               </Tooltip>
             )}
             {dualMode && (
