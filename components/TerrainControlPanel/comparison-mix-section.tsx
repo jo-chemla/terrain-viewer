@@ -272,6 +272,54 @@ export const ComparisonMixSection: React.FC<{
       </div>
 
       {isSplit && (
+        <div id="tour-historical-match-colors" className="flex items-center justify-between gap-2 pt-1">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="match-colors-to-a"
+              checked={state.matchColorsToA}
+              onCheckedChange={(checked) => setState({ matchColorsToA: checked === true })}
+              className="cursor-pointer"
+            />
+            <Tooltip>
+              <TooltipTrigger
+                delay={0}
+                render={<Label htmlFor="match-colors-to-a" className="text-sm font-medium cursor-pointer">Match Colors</Label>}
+              />
+              <TooltipContent className="max-w-60">
+                <p>Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          {/* Always shown (not just once checked) — same "pick it ahead of
+              time, dimmed to look disabled rather than actually locked"
+              convention as Blend Mode's own Select above. */}
+          <Select
+            value={state.matchColorsColorSpace}
+            onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
+          >
+            <SelectTrigger size="sm" className={cn("w-[140px] cursor-pointer", !state.matchColorsToA && "opacity-50")}>
+              <SelectValue>
+                <span className="flex items-center gap-1 text-xs uppercase">
+                  {state.matchColorsColorSpace}
+                  {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3" />}
+                </span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {COLOR_SPACE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <span className="flex items-center gap-1.5">
+                    {opt.label}
+                    {opt.slow && <Hourglass className="h-3 w-3 text-muted-foreground" />}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {isSplit && (
         <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
           <div className="flex items-center justify-between gap-2 pt-1">
             <CollapsibleTrigger className="flex-1 min-w-0 text-left cursor-pointer">
@@ -362,53 +410,6 @@ export const ComparisonMixSection: React.FC<{
         </Collapsible>
       )}
 
-      {isSplit && (
-        <div id="tour-historical-match-colors" className="flex items-center justify-between gap-2 pt-1">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="match-colors-to-a"
-              checked={state.matchColorsToA}
-              onCheckedChange={(checked) => setState({ matchColorsToA: checked === true })}
-              className="cursor-pointer"
-            />
-            <Tooltip>
-              <TooltipTrigger
-                delay={0}
-                render={<Label htmlFor="match-colors-to-a" className="text-sm font-medium cursor-pointer">Match Colors</Label>}
-              />
-              <TooltipContent className="max-w-60">
-                <p>Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          {/* Always shown (not just once checked) — same "pick it ahead of
-              time, dimmed to look disabled rather than actually locked"
-              convention as Blend Mode's own Select above. */}
-          <Select
-            value={state.matchColorsColorSpace}
-            onValueChange={(value) => value && setState({ matchColorsColorSpace: value })}
-          >
-            <SelectTrigger size="sm" className={cn("w-[140px] cursor-pointer", !state.matchColorsToA && "opacity-50")}>
-              <SelectValue>
-                <span className="flex items-center gap-1 text-xs uppercase">
-                  {state.matchColorsColorSpace}
-                  {state.matchColorsColorSpace !== "rgb" && <Hourglass className="h-3 w-3" />}
-                </span>
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {COLOR_SPACE_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  <span className="flex items-center gap-1.5">
-                    {opt.label}
-                    {opt.slow && <Hourglass className="h-3 w-3 text-muted-foreground" />}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
 
       {/* Moved out of the historical timeline panel's own footer (it used to
           sit centered between the A/B date captions there) to keep that
