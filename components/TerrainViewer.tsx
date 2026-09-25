@@ -255,7 +255,7 @@ export const QUERY_STATE_PARSERS = {
     // "2x1" regardless of this value (see the splitContainer render below).
     gridLayout: parseAsStringLiteral(GRID_LAYOUT_IDS).withDefault("2x1"),
     // "overlay"-only: pane B's CSS mix-blend-mode + opacity against pane A.
-    splitBlendMode: parseAsStringLiteral(BLEND_MODES).withDefault("normal"),
+    splitBlendMode: parseAsStringLiteral(BLEND_MODES).withDefault("difference"),
     // Lets a picked blend mode be toggled off (falls back to plain "normal")
     // without losing/resetting it — a quick way to flip back and forth
     // between a blended and a plain overlay comparison for the same picked

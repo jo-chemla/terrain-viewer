@@ -334,7 +334,7 @@
             "description": "State. \"overlay\"-only: pane B's CSS mix-blend-mode + opacity against pane A.",
             "schema": {
               "type": "string",
-              "default": "normal"
+              "default": "difference"
             }
           },
           {
@@ -1241,7 +1241,7 @@
             "description": "State. Off (default — briefly flipped to Camera on 2026-08-20, reverted the same day on the user's follow-up): illuminationDir is a compass azimuth, fixed to the world, matching maplibre's own hillshade ill…",
             "schema": {
               "type": "boolean",
-              "default": false
+              "default": true
             }
           },
           {
@@ -2425,7 +2425,7 @@
                 "precise",
                 "fast"
               ],
-              "default": "precise"
+              "default": "fast"
             }
           },
           {
@@ -2553,7 +2553,7 @@
                 "precise",
                 "fast"
               ],
-              "default": "precise"
+              "default": "fast"
             }
           },
           {

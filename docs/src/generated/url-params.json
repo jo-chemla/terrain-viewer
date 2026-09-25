@@ -116,8 +116,8 @@
       "type": "string",
       "items": null,
       "enum": null,
-      "default": "normal",
-      "defaultSource": "\"normal\"",
+      "default": "difference",
+      "defaultSource": "\"difference\"",
       "note": "\"overlay\"-only: pane B's CSS mix-blend-mode + opacity against pane A."
     },
     {
@@ -946,8 +946,8 @@
       "type": "boolean",
       "items": null,
       "enum": null,
-      "default": false,
-      "defaultSource": "false",
+      "default": true,
+      "defaultSource": "true",
       "note": "Off (default — briefly flipped to Camera on 2026-08-20, reverted the same day on the user's follow-up): illuminationDir is a compass azimuth, fixed to the world, matching maplibre's own hillshade ill…"
     },
     {
@@ -2125,8 +2125,8 @@
         "precise",
         "fast"
       ],
-      "default": "precise",
-      "defaultSource": "\"precise\"",
+      "default": "fast",
+      "defaultSource": "\"fast\"",
       "note": ""
     },
     {
@@ -2251,8 +2251,8 @@
         "precise",
         "fast"
       ],
-      "default": "precise",
-      "defaultSource": "\"precise\"",
+      "default": "fast",
+      "defaultSource": "\"fast\"",
       "note": ""
     },
     {

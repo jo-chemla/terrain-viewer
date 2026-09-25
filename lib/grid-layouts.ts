@@ -63,9 +63,16 @@ export type BlendModeOption = { value: string; label: string }
 // genuinely incompatible types (Standard's `value` narrowed to its own 12
 // members, Extra's to its own 6), which the Select's `items` prop then
 // rejects when handed the two side by side.
+// The four that get used when comparing two dates lead the list - Normal,
+// then Difference (the change), Color Burn (one darkens the other) and Hue
+// (one's colours on the other's light) - with the Select's own separator
+// after them; the rest follow in the Standard / Extra split.
+const FAVOURITE_BLEND_MODES = ["normal", "difference", "color-burn", "hue"] as const
+const isFavourite = (v: string) => (FAVOURITE_BLEND_MODES as readonly string[]).includes(v)
 export const BLEND_MODE_GROUPS: { label: string; items: BlendModeOption[] }[] = [
-  { label: "Standard", items: STANDARD_BLEND_MODES.map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
-  { label: "Extra", items: EXTRA_BLEND_MODES.map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
+  { label: "Favourites", items: FAVOURITE_BLEND_MODES.map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
+  { label: "Standard", items: STANDARD_BLEND_MODES.filter((v) => !isFavourite(v)).map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
+  { label: "Extra", items: EXTRA_BLEND_MODES.filter((v) => !isFavourite(v)).map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
 ]
 export const BLEND_MODE_OPTIONS = BLEND_MODE_GROUPS.flatMap((g) => g.items)
 
