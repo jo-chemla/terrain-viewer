@@ -1,6 +1,6 @@
 # Changelog — MapLibre 6, and Compare and Blend Everywhere
 
-<!-- released: unreleased (branch maplibre-v6) -->
+<!-- released: 2026-09-25 -->
 
 #### TL;DR
 - **MapLibre GL JS 6.** The renderer under everything moves from 5.24 to 6.11: a rebuilt terrain render‑to‑texture cache, less DEM allocation, one projection upload per frame, mipmapped draping at high pitch — most modes simply feel faster. The port took namespace imports, a worker URL for Vite, an accessor for the transform that `Map` no longer exposes, and three real fixes: sources with an undefined `minzoom` were rejected and every derived layer vanished; a shared link could land at a different zoom and centre than it asked for, one load in three, because the padding ease re‑solved the camera from a zero elevation whenever DEM tiles beat it; and the live Matcap and Phong layers showed MapLibre's terrain skirts as white dashes along every tile seam on the globe — they now draw their own skirts, the same construction MapLibre uses. Verified against a 5.24 baseline on 82 headless scenarios. What changed and why is on the [tech stack](/docs/dev/tech-stack), [camera sync](/docs/dev/camera-sync) and [lighting effects](/docs/dev/lighting-effects) pages.

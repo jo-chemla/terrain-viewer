@@ -5,8 +5,9 @@ metadata:
   type: project
 ---
 
-Branch `maplibre-v6`, pushed to both remotes 2026-09-24, six commits ahead
-of main. Not merged. See [[camera-sync-architecture]] for the 6 camera
+**Merged**: PR #11 into main and deployed to prod; see [[handoff-2026-09-25]] for current state.
+Historical below: branch `maplibre-v6`, pushed to both remotes 2026-09-24, six commits ahead
+of main at the time. See [[camera-sync-architecture]] for the 6 camera
 findings and docs `dev/tech-stack`, `dev/camera-sync`, `dev/lighting-effects`.
 
 ## Verified (headless Playwright, 82-scenario matrix vs a MapLibre 5 baseline)

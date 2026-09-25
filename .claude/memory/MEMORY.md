@@ -18,6 +18,7 @@
 - [Google 3D coverage](google-3d-coverage-dead-end.md) — the Maps vector-tile endpoint that answers it, the NON-zigzag delta rule (v / −(v+1)) that deflated every polygon 2× for two days, the z8 pipeline, and every route rejected
 - [Esri 3D coverage](esri-3d-coverage.md) — Esri has no global photorealistic mesh; typeKeywords:"IntegratedMesh" finds 10 900 services where the free-text tag finds 48; Scene Viewer ?url= opens one alone
 - [Sprint handoff 2026-09-24](handoff-2026-09-24.md) — VRT protocol, four 3D/LiDAR coverage overlays, Data layers picker, header shortcuts, Wayback gating, Esri camera: shipped, unverified, deferred, gotchas
-- [MapLibre 6 branch handoff](handoff-maplibre-v6.md) — maplibre-v6 state, open seams/pose items, Playwright harness under .cache/pw
+- [MapLibre 6 branch handoff](handoff-maplibre-v6.md) — merged and live; historical v6 port notes, open seams/pose items
 - [MapLibre isStyleLoaded gate](maplibre-style-loaded-gate.md) — isStyleLoaded() waits for every tile; gate addSource on style._loaded or slow sources never get the layer
 - [MapLibre load / terra-draw cursor gotchas](maplibre-load-and-terradraw-cursor-gotchas.md) — load never fires on a wedged queue; terra-draw resets cursors on updateOptions and clears them each move
+- [Sprint handoff 2026-09-25](handoff-2026-09-25.md) — registry, every mode/export/contour on every source, undo, pits, stall watchdog, umami fix; open items; how to test without wasting an hour
