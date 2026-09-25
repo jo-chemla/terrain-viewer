@@ -1,3 +1,5 @@
+import { outsideFence } from '@/lib/max-bounds'
+import { pushToast } from '@/components/ui/toast'
 import type * as maplibregl from "maplibre-gl"
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
@@ -376,6 +378,24 @@ function buildModeStyles(layersRef: { current: DrawLayer[] }) {
     }
 }
 
+
+// Same guard as the geocoder (GeocoderControl.tsx): with a Map Bounds fence
+// on, fitting to a layer outside it lurched the map and snapped it back.
+// Toast and stay instead.
+function fitBoundsWithinFence(map: maplibregl.Map, bounds: number[], options: Parameters<maplibregl.Map["fitBounds"]>[1], what: string) {
+    const target: [number, number, number, number] = [bounds[0], bounds[1], bounds[2], bounds[3]]
+    if (outsideFence(map, target)) {
+        pushToast({
+            key: "draw-outside-fence",
+            title: `${what} is outside the map bounds`,
+            body: "The current bounds constraint keeps the map from flying there. Settings → Map bounds constraints → None releases it.",
+            duration: 7000,
+        })
+        return
+    }
+    map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], options)
+}
+
 // --- HOOK ---
 
 // export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
@@ -588,7 +608,7 @@ function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef>) {
                 try {
                     const bounds = bbox(geojson)
                     if (bounds.length === 4 && !bounds.some(isNaN)) {
-                        map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 40, duration: 800 })
+                        fitBoundsWithinFence(map, bounds, { padding: 40, duration: 800 }, "The imported layer")
                     }
                 } catch (err) { console.error('Zoom error:', err) }
             }
@@ -607,6 +627,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
     const layersRef = useRef(layers)
     const activeLayerIdRef = useRef(activeLayerId)
     const drawRef = useRef<TerraDraw | null>(null)
+    const backspaceCleanupRef = useRef<(() => void) | null>(null)
 
     const persistVectorLayers = useAtomValue(persistVectorLayersAtom)
     // Gates the persist-on-change effect below until the OPFS restore has had
@@ -722,6 +743,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
             if (drawRef.current) {
                 try { drawRef.current.stop() } catch (e) { console.error('Error stopping draw:', e) }
                 drawRef.current = null
+                backspaceCleanupRef.current?.(); backspaceCleanupRef.current = null
                 setDraw(null)
             }
 
@@ -735,6 +757,22 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
                 // a slightly larger grab radius for vertex handles.
                 const DRAW_POINTER_DISTANCE = 8
                 const SELECT_POINTER_DISTANCE = 12
+                // terra-draw binds one delete key (Delete). A Mac keyboard has
+                // none without Fn, so Backspace deletes the selection too,
+                // outside text inputs, while select mode is active.
+                const onBackspace = (e: KeyboardEvent) => {
+                    if (e.key !== "Backspace") return
+                    const t = e.target as HTMLElement | null
+                    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+                    const d = drawRef.current
+                    if (!d || d.getMode() !== "select") return
+                    const selected = d.getSnapshot().filter((f) => f.properties?.selected).map((f) => f.id as string)
+                    if (!selected.length) return
+                    e.preventDefault()
+                    d.removeFeatures(selected)
+                }
+                window.addEventListener("keydown", onBackspace)
+                backspaceCleanupRef.current = () => window.removeEventListener("keydown", onBackspace)
                 const newDraw = new TerraDraw({
                     adapter,
                     modes: [
@@ -866,6 +904,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
             if (drawRef.current) {
                 try { drawRef.current.stop() } catch { }
                 drawRef.current = null
+                backspaceCleanupRef.current?.(); backspaceCleanupRef.current = null
             }
         }
 
@@ -1069,7 +1108,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
         try {
             const bounds = bbox({ type: 'FeatureCollection', features: layerFeatures } as any)
             if (bounds.length === 4 && !bounds.some((n: number) => Number.isNaN(n))) {
-                map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding: 40, duration: 800 })
+                fitBoundsWithinFence(map, bounds, { padding: 40, duration: 800 }, "This layer")
             }
         } catch (e) { console.error('Error zooming to layer bounds:', e) }
     }
@@ -1113,10 +1152,10 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                 const container = map.getContainer()
                 const padX = container.clientWidth * 0.2
                 const padY = container.clientHeight * 0.2
-                map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], {
+                fitBoundsWithinFence(map, bounds, {
                     padding: { top: padY, bottom: padY, left: padX, right: padX },
                     duration: 500,
-                })
+                }, "This feature")
             }
         } catch (e) { console.error('Error zooming to feature bounds:', e) }
     }

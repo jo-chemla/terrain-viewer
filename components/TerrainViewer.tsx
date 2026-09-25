@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils"
 
 import * as maplibregl from 'maplibre-gl'
 import { getTransform, ensureLegacyTransform } from '@/lib/maplibre-internals'
+import { registerProtocol } from '@/lib/protocol-registry'
 import { isPosePlaybackActive } from '@/components/TerrainControlPanel/CameraUtilities'
 import { applyBoundedView, sanitizeBounds } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
@@ -1584,11 +1585,11 @@ export function TerrainViewer() {
   // and re-request its tiles) replays finished bytes instead of recomputing —
   // cog is the external geomatico handler with its own fetch semantics, left bare.
   useEffect(() => {
-    maplibregl.addProtocol('cog', cogProtocol)
+    registerProtocol('cog', cogProtocol)
     // Own fetch semantics (delegates to a dedicated Worker) same as 'cog' — see
     // lib/cog-contour-protocol.ts for why this can't be maplibre-contour's own
     // DemSource/worker path.
-    maplibregl.addProtocol('cog-contour', cogContourProtocol)
+    registerProtocol('cog-contour', cogContourProtocol)
     // maplibre queues ALL raster and raster-dem tile loads through one global
     // budget (MAX_PARALLEL_IMAGE_REQUESTS, default 16), and a custom protocol's
     // tile holds its slot for as long as the handler takes. This app's handlers
@@ -1598,49 +1599,49 @@ export function TerrainViewer() {
     // lets requests to OTHER hosts through; the browser's own ~6-per-host cap
     // still does the real throttling.
     maplibregl.config.MAX_PARALLEL_IMAGE_REQUESTS = 48
-    maplibregl.addProtocol('float32dem', withTileResultCache(float32demProtocol))
+    registerProtocol('float32dem', withTileResultCache(float32demProtocol))
     // vrt://<encoded .vrt url>/{z}/{x}/{y} - a GDAL VRT mosaic read in the
     // browser: its XML index says which COGs a tile touches, geotiff.js
     // Range-reads them, proj4 warps. Used to be titiler-only.
-    maplibregl.addProtocol('vrt', withTileResultCache(vrtProtocol))
-    maplibregl.addProtocol('slope', withTileResultCache(slopeProtocol))
-    maplibregl.addProtocol('demdiff', withTileResultCache(demDiffProtocol))
+    registerProtocol('vrt', withTileResultCache(vrtProtocol))
+    registerProtocol('slope', withTileResultCache(slopeProtocol))
+    registerProtocol('demdiff', withTileResultCache(demDiffProtocol))
     // lerc://<arcgis tiled elevation service>/tile/{z}/{y}/{x} - Esri's own
     // float raster codec, decoded to Terrarium in the browser.
-    maplibregl.addProtocol('lerc', withTileResultCache(lercProtocol))
+    registerProtocol('lerc', withTileResultCache(lercProtocol))
     // quantized-mesh://ion/<asset>/<token>/{z}/{x}/{y} - Cesium terrain TINs
     // rasterised to Terrarium; see lib/quantized-mesh-protocol.ts.
-    maplibregl.addProtocol('quantized-mesh', withTileResultCache(quantizedMeshProtocol))
+    registerProtocol('quantized-mesh', withTileResultCache(quantizedMeshProtocol))
     // pmtiles://<archive url>/{z}/{x}/{y} - tile pyramids in one range-read
     // archive (e.g. the Smart Maps GEL Terrain-RGB library entry).
-    maplibregl.addProtocol('pmtiles', new PmtilesProtocol().tile)
-    maplibregl.addProtocol('aspect', withTileResultCache(aspectProtocol))
-    maplibregl.addProtocol('tri', withTileResultCache(triProtocol))
-    maplibregl.addProtocol('curvature', withTileResultCache(curvatureProtocol))
-    maplibregl.addProtocol('tpi', withTileResultCache(tpiProtocol))
-    maplibregl.addProtocol('lrm', withTileResultCache(lrmProtocol))
-    maplibregl.addProtocol('roughness', withTileResultCache(roughnessProtocol))
-    maplibregl.addProtocol('blobness', withTileResultCache(blobnessProtocol))
+    registerProtocol('pmtiles', new PmtilesProtocol().tile)
+    registerProtocol('aspect', withTileResultCache(aspectProtocol))
+    registerProtocol('tri', withTileResultCache(triProtocol))
+    registerProtocol('curvature', withTileResultCache(curvatureProtocol))
+    registerProtocol('tpi', withTileResultCache(tpiProtocol))
+    registerProtocol('lrm', withTileResultCache(lrmProtocol))
+    registerProtocol('roughness', withTileResultCache(roughnessProtocol))
+    registerProtocol('blobness', withTileResultCache(blobnessProtocol))
     // withSlowTileStats composes INSIDE withTileResultCache so it measures the
     // real ray-marching cost, not a cache hit — see tile-timing-stats.ts.
-    maplibregl.addProtocol('svf', withTileResultCache(withSlowTileStats('svf', svfProtocol)))
-    maplibregl.addProtocol('openness', withTileResultCache(withSlowTileStats('openness', opennessProtocol)))
-    maplibregl.addProtocol('local-dominance', withTileResultCache(withSlowTileStats('local-dominance', localDominanceProtocol)))
-    maplibregl.addProtocol('tells', withTileResultCache(tellsProtocol))
+    registerProtocol('svf', withTileResultCache(withSlowTileStats('svf', svfProtocol)))
+    registerProtocol('openness', withTileResultCache(withSlowTileStats('openness', opennessProtocol)))
+    registerProtocol('local-dominance', withTileResultCache(withSlowTileStats('local-dominance', localDominanceProtocol)))
+    registerProtocol('tells', withTileResultCache(tellsProtocol))
     // Not wrapped in withTileResultCache — this is a debug-only registration,
     // not consumed by any mounted Source (see its own header comment):
     // pointing a plain raster Source at `normals://...` visually sanity-
     // checks a normal map's output independent of matcap:// / phong://'s own
     // further per-pixel transform of that same normal data.
-    maplibregl.addProtocol('normals', normalsProtocol)
+    registerProtocol('normals', normalsProtocol)
     // Plain raster protocols, like every derived mode above — see
     // lib/matcap-protocol.ts / lib/phong-protocol.ts's headers for why these
     // are CPU-computed raster tiles (draped over 3D terrain AND globe
     // automatically, like the raster basemap) rather than a custom WebGL
     // layer with its own mesh/projection matrix.
-    maplibregl.addProtocol('matcap', withTileResultCache(matcapProtocol))
-    maplibregl.addProtocol('phong', withTileResultCache(phongProtocol))
-    maplibregl.addProtocol('shadow', withTileResultCache(shadowProtocol))
+    registerProtocol('matcap', withTileResultCache(matcapProtocol))
+    registerProtocol('phong', withTileResultCache(phongProtocol))
+    registerProtocol('shadow', withTileResultCache(shadowProtocol))
   }, [])
 
   // Keep the module-level cache flag in sync with the persisted Settings switch

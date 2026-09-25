@@ -1,3 +1,4 @@
+import { customScheme, dispatchTile, toBitmap } from "./protocol-registry"
 import { elevationToTerrarium } from "./elevation-encoding"
 import { cogProtocol } from "@geomatico/maplibre-cog-protocol"
 import { PMTiles } from "pmtiles"
@@ -121,10 +122,6 @@ async function loadPmtilesBitmap(url: string): Promise<ImageBitmap | null> {
 
 async function loadTileBitmap(url: string, signal: AbortSignal): Promise<ImageBitmap | null> {
   if (url.startsWith("pmtiles://")) return loadPmtilesBitmap(url)
-  if (url.startsWith("cog://")) {
-    const result = await cogProtocol({ url, type: "image" } as any)
-    return (result as any).data as ImageBitmap
-  }
   if (url.startsWith("float32dem-bbox://")) {
     const match = url.match(/^float32dem-bbox:\/\/(.+)\/(\d+)\/(\d+)\/(\d+)$/)
     if (!match) return null
@@ -138,32 +135,13 @@ async function loadTileBitmap(url: string, signal: AbortSignal): Promise<ImageBi
     if (result.data instanceof Uint8Array) return createImageBitmap(new Blob([result.data.buffer as ArrayBuffer], { type: "image/png" }))
     return result.data
   }
-  // Our own elevation protocols have to be dispatched, not fetched: the
-  // browser has no idea what lerc:// or quantized-mesh:// are, so they fell
-  // through to the plain fetch below and every client-side consumer - the
-  // difference source and every viz mode - saw nothing but holes. Loaded
-  // lazily so a session that never touches them does not pay for the decoders.
-  if (url.startsWith("lerc://")) {
-    const { lercProtocol } = await import("./lerc-protocol")
-    return asBitmap(await lercProtocol({ url }, { signal } as AbortController))
-  }
-  if (url.startsWith("quantized-mesh://")) {
-    const { quantizedMeshProtocol } = await import("./quantized-mesh-protocol")
-    return asBitmap(await quantizedMeshProtocol({ url }, { signal } as AbortController))
-  }
-  // Same for the VRT mosaics and the derived difference source: a Library
-  // entry on either reached every viz mode as a plain vrt:// or demdiff://
-  // template, the browser refused the scheme, and slope, aspect, LRM and
-  // SVF drew nothing over it while hillshade (MapLibre's own fetch, which
-  // knows the protocols) was fine.
-  if (url.startsWith("vrt://")) {
-    const { vrtProtocol } = await import("./vrt-protocol")
-    return asBitmap(await vrtProtocol({ url }, { signal } as AbortController))
-  }
-  if (url.startsWith("demdiff://")) {
-    const { demDiffProtocol } = await import("./demdiff-protocol")
-    return asBitmap(await demDiffProtocol({ url }, { signal } as AbortController))
-  }
+  // Every other scheme of ours - cog, lerc, quantized-mesh, vrt, demdiff and
+  // whatever is registered next - goes through the protocol registry, so a
+  // new protocol or a new consumer cannot miss each other (that happened
+  // twice: hillshade fine, every derived mode blank). An unregistered custom
+  // scheme throws a message naming the registry instead of the browser's
+  // "URL scheme is not supported".
+  if (customScheme(url)) return toBitmap(await dispatchTile(url, signal))
   const response = await fetch(url, { signal })
   if (!response.ok) return null
   const blob = await response.blob()

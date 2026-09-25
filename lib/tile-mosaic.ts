@@ -1,3 +1,4 @@
+import { customScheme, dispatchTile, toBitmap } from "./protocol-registry"
 // Generic XYZ tile fetcher + mosaicker — deliberately not terrain-specific, so it can
 // back a raster-imagery (basemap) export the same way it backs a DTM export today.
 // Callers supply `decodePixel` to turn each tile's RGBA into whatever scalar/vector
@@ -131,14 +132,19 @@ export async function fetchTileMosaic(opts: FetchTileMosaicOptions): Promise<Til
         .replace("{x}", String(tx))
         .replace("{y}", String(ty))
 
-      const blob = fetchTileBlob
-        ? await fetchTileBlob(url, signal)
-        : await (async () => {
-            const response = await fetch(url, { signal })
-            if (!response.ok) throw new Error(`Tile fetch failed (${response.status}): ${url}`)
-            return response.blob()
-          })()
-      const bitmap = await createImageBitmap(blob)
+      // A template on one of our own schemes (vrt://, lerc://, demdiff://...)
+      // is dispatched to its protocol through the registry, so export and
+      // 2D sampling work on every source the viz modes work on; a caller's
+      // own fetchTileBlob still wins when given.
+      const bitmap = fetchTileBlob
+        ? await createImageBitmap(await fetchTileBlob(url, signal))
+        : customScheme(url)
+          ? await toBitmap(await dispatchTile(url, signal))
+          : await (async () => {
+              const response = await fetch(url, { signal })
+              if (!response.ok) throw new Error(`Tile fetch failed (${response.status}): ${url}`)
+              return createImageBitmap(await response.blob())
+            })()
 
       const canvas = document.createElement("canvas")
       canvas.width = tileSize
