@@ -121,7 +121,7 @@ export const VisualizationModesSection: React.FC<{
           (and was rendering a dead control) in flat 2D — but lives last in this
           list whenever it does apply. */}
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
-        <CheckboxWithSlider id="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />
+        <CheckboxWithSlider id="background" gotoSection="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />
       )}
       {state.tellsBeta && (
         <>

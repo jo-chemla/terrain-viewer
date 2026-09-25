@@ -390,14 +390,17 @@ function applyProgress(
   // `elevation` writes that height last and skips the easing machinery, so
   // the pose interpolates in a straight line; the height is the one the
   // target had when playback (or the scrub) began.
+  // Roll rides in the same call: Map#setRoll is itself a jumpTo without an
+  // elevation, and a second jumpTo per frame re-sampled the terrain under
+  // the centre and threw the held height away (traced on 6.11.2).
   map.jumpTo({
     center: [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
     zoom:   lerp(p1.pose.zoom, p2.pose.zoom, t),
     pitch:  lerp(p1.pose.pitch, p2.pose.pitch, t),
     bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
+    roll: lerp(p1.pose.roll, p2.pose.roll, t),
     ...(playbackElevation.value != null ? { elevation: playbackElevation.value } : {}),
   } as Parameters<typeof map.jumpTo>[0])
-  ;(map as any).setRoll?.(lerp(p1.pose.roll, p2.pose.roll, t))
   map.setVerticalFieldOfView(lerp(p1.pose.vfov, p2.pose.vfov, t))
   map.triggerRepaint()
 
