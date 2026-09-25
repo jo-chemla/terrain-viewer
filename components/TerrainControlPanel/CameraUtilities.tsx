@@ -402,9 +402,20 @@ function applyProgress(
   // Elevation is a pose field too, so a flight from a high pose to a low
   // one interpolates the target height instead of holding the start value;
   // a pose captured before the field existed (NaN) uses the held height.
+  // A pose captured before the field existed (or through a stale module,
+  // e.g. Pose 1 set before a reload and Pose 2 after) decodes as NaN: use
+  // the terrain height under that pose's centre, which is what its capture
+  // would have recorded with the centre clamped to the ground, and only
+  // then the height held at play start.
   const held = playbackElevation.value
-  const e1 = Number.isFinite(p1.pose.elevation) ? p1.pose.elevation : held
-  const e2 = Number.isFinite(p2.pose.elevation) ? p2.pose.elevation : held
+  const groundAt = (lng: number, lat: number): number | null => {
+    const m = map as unknown as { terrain?: { getElevationForLngLat?: (c: { lng: number; lat: number }, tr: unknown) => number }; _camera?: { transform?: unknown }; transform?: unknown }
+    const tr = m._camera?.transform ?? m.transform
+    const e = m.terrain?.getElevationForLngLat?.({ lng, lat }, tr)
+    return Number.isFinite(e as number) ? (e as number) : null
+  }
+  const e1 = Number.isFinite(p1.pose.elevation) ? p1.pose.elevation : (groundAt(p1.pose.lng, p1.pose.lat) ?? held)
+  const e2 = Number.isFinite(p2.pose.elevation) ? p2.pose.elevation : (groundAt(p2.pose.lng, p2.pose.lat) ?? held)
   const elevation = e1 != null && e2 != null ? lerp(e1, e2, t) : held
   map.jumpTo({
     center: [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],

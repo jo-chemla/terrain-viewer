@@ -1,3 +1,32 @@
+# Changelog — MapLibre 6, and Compare and Blend Everywhere
+
+<!-- released: unreleased (branch maplibre-v6) -->
+
+#### TL;DR
+- **MapLibre GL JS 6.** The renderer under everything moves from 5.24 to 6.11: a rebuilt terrain render‑to‑texture cache, less DEM allocation, one projection upload per frame, mipmapped draping at high pitch — most modes simply feel faster. The port took namespace imports, a worker URL for Vite, an accessor for the transform that `Map` no longer exposes, and three real fixes: sources with an undefined `minzoom` were rejected and every derived layer vanished; a shared link could land at a different zoom and centre than it asked for, one load in three, because the padding ease re‑solved the camera from a zero elevation whenever DEM tiles beat it; and the live Matcap and Phong layers showed MapLibre's terrain skirts as white dashes along every tile seam on the globe — they now draw their own skirts, the same construction MapLibre uses. Verified against a 5.24 baseline on 82 headless scenarios. What changed and why is on the [tech stack](/docs/dev/tech-stack), [camera sync](/docs/dev/camera-sync) and [lighting effects](/docs/dev/lighting-effects) pages.
+- **Compare and Blend in terrain mode too.** Split style, the grid picker up to 4×2, blend mode and opacity, Match Colors, border colours and Capture Date, below Visualization Modes; General Settings loses its lone Split Mode toggle. A header button cycles Off, Overlay and Side without unfolding the section, and the Terrain and Basemap rows show one pill per view for whatever grid is picked.
+- **Camera animation that keeps its word.** A pose now records the camera target's elevation and playback interpolates it with the rest — centre, zoom, pitch, bearing, roll, field of view — so a flight from a summit pose to a valley pose no longer bobs over every ridge or holds the start height. Poses captured before this keep the old behaviour until re‑set.
+
+### Features
+- Nepal's four Bhotekoshi COGs read straight from NextGIS in the browser now that the server exposes `Content-Range`; their titiler pins are gone.
+- Hypsometric tint: two generic diverging ramps near the top of the classic list, blue‑white‑red and blue‑transparent‑red, for nDSMs and change layers; **Set from viewport** waits for a slow source's tiles to decode and says so if none arrive.
+- Graticule auto spacing halves with every zoom level, so each zoom's lines nest inside the next.
+- Contours + GeoGrid and Background + Fog/Sky rows get the same go‑to arrow as the other modes.
+- Planet monthly mosaics offer only the months the key can see, read from the Basemaps API (a 2020‑onward grant no longer shows 2016 ticks that 404).
+- Strava's global heatmap as an overlay in the Library, through a public CORS proxy, capped at z11.
+- A shared link seeds a derived source's operands even when the derived entry is already in the browser.
+- FLAI's coverage footprints are simplified at 20 m: 270 KB on the wire instead of 480.
+
+### Fixes
+- The Data layers picker: a card with a one‑line blurb drew a band above its thumbnail; turning off a group's last card turns the group off.
+- The ESRI Wayback pill kept spinning after it was switched off.
+- The symmetric hypsometric range snapped back to a value the user had not set: the auto range re‑ran on its own state write.
+- The 360° orbit eased in for a second and straight out again.
+- Switching 3D to globe with graticules threw inside geogrid, which reads a transform MapLibre 6 removed.
+- The built‑in AWS terrarium source asked for z16 tiles that do not exist.
+
+---
+
 # Changelog — Data Layers as Pictures, and Shortcuts on Section Headers
 
 <!-- released: 2026-09-24 -->
