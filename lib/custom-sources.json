@@ -1094,13 +1094,13 @@
     "SAMPLE_BASEMAPS_SOURCES": [
         {
             "id": "custom-basemap-strava-heatmap",
-            "name": "Global - Strava Global Heatmap (all activities, blue) - overlay, needs a CORS proxy",
-            "url": "https://heatmap-external-b.strava.com/tiles/all/blue/{z}/{x}/{y}.png",
+            "name": "Global - Strava Global Heatmap (all activities, blue) - overlay, via a CORS proxy",
+            "url": "https://cors-proxy.mrgriscom.workers.dev/?https://heatmap-external-b.strava.com/tiles/all/blue/{z}/{x}/{y}.png",
             "type": "tms",
             "role": "overlay",
             "maxzoom": 11,
             "loadWithSamples": false,
-            "description": "Where people run, ride, hike and ski: Strava's aggregated activity heatmap as PNG tiles, useful as a 'where are the paths' layer over terrain. Two catches, checked 2026-09-24. The server sends no Access-Control-Allow-Origin, so maplibre cannot fetch the tiles from a browser page - put a CORS proxy in front (rewrite the URL to your proxy and keep {z}/{x}/{y}). And anonymous access stops at z11 (z12+ answers 403 without a logged-in Strava session's cookies), hence the maxzoom. Colour variants: blue, hot, orange, purple, gray; activity filters: all, ride, run, water, winter. Strava terms apply; the heatmap is for personal use."
+            "description": "Where people run, ride, hike and ski: Strava's aggregated activity heatmap as PNG tiles, useful as a 'where are the paths' layer over terrain. Two catches, checked 2026-09-24. The server sends no Access-Control-Allow-Origin, so maplibre cannot fetch the tiles from a browser page; this entry goes through mrgriscom's public Cloudflare worker (cors-proxy.mrgriscom.workers.dev, checked 2026-09-24), a third-party proxy that can disappear or throttle at any time - swap the prefix for your own worker if it does. And anonymous access stops at z11 (z12+ answers 403 without a logged-in Strava session's cookies), hence the maxzoom. Colour variants: blue, hot, orange, purple, gray; activity filters: all, ride, run, water, winter. Strava terms apply; the heatmap is for personal use."
         },
         {
             "id": "custom-basemap-ign-planign",

@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useEffect, forwardRef, createContext, useContext, useId, Fragment } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin, ArrowRightToLine } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin, ArrowRightToLine, Link2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
@@ -623,7 +623,7 @@ export const CheckboxWithSlider: React.FC<{
   const fullId = `${sectionId}:${id}`
   const isDimmed = activeSlider !== null && activeSlider !== fullId
 
-  const labelEl = <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider ? "col-span-2" : ""}`}>{label}</Label>
+  const labelEl = <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider && !gotoSection ? "col-span-2" : ""}`}>{label}</Label>
 
   return (
     <div className={cn("grid grid-cols-[auto_1fr_1fr] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
@@ -640,7 +640,40 @@ export const CheckboxWithSlider: React.FC<{
           <MobileSlider sliderId={fullId} value={sliderValue} onValueChange={(v) => onSliderChange(v as number)} min={0} max={1} step={0.1} className="cursor-pointer flex-1" disabled={!checked || disabled} />
         </div>
       )}
+      {/* No slider (Contours + GeoGrid): keep the arrow in the same column, at
+          the same x as the other rows' arrows, over an empty slider slot. */}
+      {hideSlider && gotoSection && (
+        <div className="flex items-center gap-1.5 min-w-0">
+          <GotoOptionsButton section={gotoSection} modeActive={checked} modeLabel={label} />
+          <div className="flex-1" />
+        </div>
+      )}
     </div>
+  )
+}
+
+// ─── CopyModalLinkButton ────────────────────────────────────────────────────
+// Sits beside a modal's title: copies the current link with the one-shot
+// parameter that opens this modal on arrival (?openLibrary=terrain,
+// ?bookmarksGallery=true, ?openDataLayers=true), so nobody has to remember
+// the parameter names.
+export const CopyModalLinkButton: React.FC<{ param: string; value: string; label: string }> = ({ param, value, label }) => {
+  const toast = useToast()
+  return (
+    <TooltipIconButton
+      icon={Link2}
+      tooltip={`Copy a link that opens ${label} (?${param}=${value})`}
+      size="sm"
+      className="h-6 w-6 p-0 text-muted-foreground"
+      onClick={() => {
+        const url = new URL(window.location.href)
+        url.searchParams.set(param, value)
+        navigator.clipboard?.writeText(url.toString()).then(
+          () => toast({ key: "copy-modal-link", title: "Link copied", body: `Opens ${label} on arrival.` }),
+          () => toast({ key: "copy-modal-link", title: "Could not copy", body: url.toString() }),
+        )
+      }}
+    />
   )
 }
 

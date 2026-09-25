@@ -16,7 +16,7 @@ import type React from "react"
 import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import type { MapRef } from "react-map-gl/maplibre"
-import type maplibregl from "maplibre-gl"
+import type * as maplibregl from "maplibre-gl"
 import { QUERY_STATE_PARSERS } from "@/components/TerrainViewer"
 import { migrateLegacyUrlKeys, urlKeyOf } from "@/lib/url-keys"
 

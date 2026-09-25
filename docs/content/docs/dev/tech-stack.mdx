@@ -18,3 +18,12 @@ description: The libraries and services this app is built on
 - [Sugar High](https://github.com/huozhi/sugar-high) — lightweight syntax highlighting (Settings dialog code snippets, GDAL export commands)
 
 See [Setup](/dev) for how these fit together (state architecture, custom MapLibre protocols, no-backend design).
+
+## MapLibre 6
+
+The app runs MapLibre GL JS 6 (branch `maplibre-v6`, ported 2026-09-24). What changed for this codebase, and what did not:
+
+- **Worker.** Six is ESM-only and no longer finds its own worker under a bundler, so `main.tsx` points it at Vite's `?worker&url` chunk once at startup. It is the same worker as before; only the setup changed.
+- **Render-to-texture.** Draped layers, which is every custom raster protocol in this app, go through terrain's render-to-texture path. Six rebuilt that cache for a higher hit rate, reuses the DEM texture, skips sources that never drape, and samples the result through mipmaps at high pitch. None of it needed code changes here; it is the reason most modes feel faster.
+- **`map.transform` is gone.** `Map` composes a `Camera` now, and the live transform is `map._camera.transform`. `lib/maplibre-internals.ts` wraps that for the camera sync, the live GL layers and the bounds fence, and puts a read-only `map.transform` back on each map for plugins still written against 5.
+- **Elevation.** Six eases the camera target's elevation itself and re-solves zoom and centre at the end of a gesture. The app's own settle now defers to that; see [camera sync](/dev/camera-sync).

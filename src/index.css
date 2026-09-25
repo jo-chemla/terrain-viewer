@@ -397,8 +397,28 @@
    (below) now that our portaled icon is what needs to move to the middle
    of the collapsed 29x29 button instead. */
 .maplibregl-ctrl-geocoder.geocoder-collapsed .geocoder-search-icon {
-  left: 50%;
-  transform: translate(-50%, -50%);
+  /* Centred by a computed left rather than a translateX, so the glyph never
+     depends on which transform wins mid-toggle: the 14px glyph in the 29px
+     collapsed button is at left 7.5px whatever else is animating. */
+  left: calc(50% - 7px);
+  transform: translateY(-50%);
+}
+
+/* Loading spinner: a ring around the clear cross at the right, as the vendor
+   intends, but sized and centred for our 32px input (the vendor's margins
+   assume its own 36px one, and the pin-right translateY below cannot reach
+   it because its rotate animation owns `transform`): 20px tall, 6px from
+   the top, and right-aligned so the 14px cross at left 218 sits in its
+   centre. */
+.maplibregl-ctrl-geocoder--icon-loading {
+  position: absolute !important;
+  left: auto !important;
+  right: 5px !important;
+  top: 6px !important;
+  width: 20px !important;
+  height: 20px !important;
+  margin: 0 !important;
+  fill: var(--muted-foreground);
 }
 
 /* Clear (×) button: vendor hardcodes its background to a plain #fff with no
@@ -434,9 +454,11 @@
    sits visibly above center in our 32px-tall input (see
    .maplibregl-ctrl-geocoder--input above) — top:50% + a matching
    translateY recenters it regardless of input height. Targets `> *`
-   (not just the button) since the loading spinner is this same pin-right
-   container's other child and needs the identical treatment. */
-.maplibregl-ctrl-geocoder--pin-right > * {
+   (not just the button). The loading spinner is this container's other
+   child but is excluded: its rotate animation owns `transform`, so the
+   translateY never applied and it hung 10px low at the right edge; it has
+   its own placement, ringed around the search glyph (above). */
+.maplibregl-ctrl-geocoder--pin-right > :not(.maplibregl-ctrl-geocoder--icon-loading) {
   top: 50% !important;
   transform: translateY(-50%);
 }

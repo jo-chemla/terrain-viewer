@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useEffect, useRef } from "react"
 import { useAtomValue, useAtom } from "jotai"
-import maplibregl from "maplibre-gl"
+import * as maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import type { MapRef } from "react-map-gl/maplibre"
 import type { TerraDraw } from "terra-draw"

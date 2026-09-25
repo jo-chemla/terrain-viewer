@@ -86,7 +86,9 @@ export const VectorBasemapLayer: React.FC<{ opacity?: number; visible?: boolean 
       const p = prop[layer.type]
       if (!p) continue
       try {
-        map.setPaintProperty(layer.id, p, opacity)
+        // MapLibre 6 types the property name per layer type; p is one of
+        // them, looked up by layer.type above.
+        ;(map as unknown as { setPaintProperty: (id: string, name: string, value: number) => void }).setPaintProperty(layer.id, p, opacity)
         if (layer.type === "symbol") map.setPaintProperty(layer.id, "text-opacity", opacity)
       } catch { /* not yet added */ }
     }

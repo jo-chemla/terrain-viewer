@@ -14,7 +14,7 @@
 // permissive Access-Control-Allow-Origin. No proxy needed, in dev OR
 // production, so none is used here.
 import { useEffect, useState } from "react"
-import maplibregl from "maplibre-gl"
+import * as maplibregl from "maplibre-gl"
 import { registerGEHistorical } from "./ge-timemachine/ge-historical.js"
 import { quantizeLocation } from "./wayback"
 

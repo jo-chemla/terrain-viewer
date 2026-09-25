@@ -133,3 +133,26 @@ can be remounted under the same id with different tiles.
 5. Press-and-hold, pause, then drag — gesture not eaten, both panes.
 6. Toggle sidebar/timeline — glide together; split pill still 1:1 with pointer.
 7. Terrain load — no blinking.
+
+## MapLibre 6 (branch maplibre-v6, 2026-09-24)
+
+- `map.transform` is gone; `Map` composes a `Camera`, and the live transform
+  is `map._camera.transform`. Every internal read goes through
+  `getTransform(map)` in `lib/maplibre-internals.ts` (works on 5 and 6).
+- `Camera.elevationFreeze` replaces `Map#_elevationFreeze`, and 6 clears it
+  itself at the end of every ease (the Fix 3 wart is gone). The padding ease
+  therefore passes `freezeElevation` only on 5: on 6 that option's
+  `_finalizeElevation` re-solved zoom and center from a still-0 elevation
+  whenever the DEM tiles beat the 200 ms ease, and the view landed at a
+  different zoom and center than the link asked for (a race, ~1 run in 3).
+- 6 writes `tr.elevation` from `terrain.getElevationForLngLat(center, tr)`
+  (rendered surface), which differs from `getElevationForLngLatZoom(center,
+  tileZoom)` by tens of metres on steep ground. The settle samples the same
+  way, or the 1 m epsilon never held and it re-anchored on every idle.
+- The clamp hand-off (`setCenterClampedToGround(false)` on first idle) now
+  waits until the clamp has written a real height; while the clamp is on,
+  or the camera is frozen, the settle does nothing (6 also re-solves zoom
+  and center itself at gesture end, in handler_manager).
+- react-map-gl 8.1.2+ is required (it shims `map.transform` for 6); 8.1.1
+  throws on `transform.center` and mounts no map.
+

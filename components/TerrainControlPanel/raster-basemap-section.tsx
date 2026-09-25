@@ -163,7 +163,7 @@ export const RasterBasemapSection: React.FC<{
                   // picker kept showing whichever grid (e.g. 3x2, A-F) was
                   // last picked in Historical mode even after the map
                   // itself had already collapsed back to just A/B.
-                  const gridLayout: GridLayoutId = (state.splitStyle === "overlay" || !historicalMode) ? "2x1" : state.gridLayout
+                  const gridLayout: GridLayoutId = state.splitStyle === "overlay" ? "2x1" : (state.gridLayout ?? "2x1")
                   const setAllViewsToThisSource = () => {
                     const patch: Record<string, string> = {}
                     for (const side of activeViews(gridLayout)) patch[viewFieldName(side, "basemapSource", true)] = value

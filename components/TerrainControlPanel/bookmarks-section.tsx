@@ -566,7 +566,13 @@ export const BookmarksSection: React.FC<{
       // Full nuqs state lives entirely in the query string already (every
       // viewport/viz-mode/option param) — this is the same string a shared
       // link would carry, just snapshotted for later instead of copied now.
-      const search = window.location.search.replace(/^\?/, "")
+      // appMode is written even at its default: the default differs per
+      // host (historical-satellite.iconem.com opens in historical mode), so
+      // a terrain bookmark saved on one host must not open in historical
+      // mode on the other.
+      const searchParams = new URLSearchParams(window.location.search)
+      if (!searchParams.has("appMode")) searchParams.set("appMode", String(state.appMode ?? "terrain"))
+      const search = searchParams.toString()
       const ts = Date.now()
       // crypto.randomUUID() throws on a non-secure context (plain HTTP, not
       // localhost) — this 'uuid' package version works everywhere, same

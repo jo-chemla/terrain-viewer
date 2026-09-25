@@ -97,3 +97,20 @@ This is worth preserving when you add a parameter to a mode: if it affects the o
 ## Inspecting it
 
 In dev builds, `window.__tileResultCacheStats()` reports `{ enabled, entries, totalBytes, hits, misses }`. It is exposed as a global deliberately — importing the module from the console gets a different HMR-versioned instance with its own empty cache.
+
+## What reuses what
+
+A few places look like they should re-fetch and do not:
+
+- **The derived protocols** (slope, aspect, curvature, TPI, LRM, SVF, openness, matcap, phong in raster mode) share one result cache, keyed by the upstream template and the parameters. Switching a mode off and on, or a second view asking for the same tile, is a cache hit.
+- **The horizon search** behind SVF and openness reuses the decoded DEM neighbourhood rather than decoding each tile again per direction.
+- **Hypsometric "set from viewport"** reads the min and max MapLibre already decoded for the raster-dem tiles on screen (`tile.dem` on the source's tile manager: the terrain source under 3D terrain, the hillshade source in 2D, where nothing draws from the terrain source). No network, no second decode.
+- **The elevation picker** asks `queryTerrainElevation` in 3D, which samples the terrain already in memory. In 2D there is no terrain object, so it fetches the one tile under the point through the source's own protocol, which is again a cache hit when that tile is on screen.
+
+## Why SVF and openness feel slower than the other derivatives
+
+Slope, curvature and the rest need a one-pixel apron around a tile, so the padded grid of step 3 in the [terrain analysis pipeline](/dev/terrain-analysis-pipeline) costs one extra ring of neighbours, usually already cached. Sky-view factor and openness search the horizon over a radius of tens of pixels, so every output tile needs the DEM well beyond its own footprint, and beyond the viewport for the tiles along its edge. Three things follow, none of them a device-pixel-ratio bug:
+
+- **Tiles are requested outside the view.** They are the neighbours the horizon search reads, at the same zoom.
+- **A tile cannot paint until its whole neighbourhood has decoded**, so the tiles of a view tend to appear together rather than one by one, and a pan that brings back tiles the cache still holds paints those first while the new edge waits for its neighbours.
+- **Zooming out repeats the burst** at the coarser level, since the radius is in pixels and the neighbourhood is a fresh set of tiles.

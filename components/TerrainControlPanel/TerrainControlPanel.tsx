@@ -184,6 +184,12 @@ export function TerrainControlPanel({
   // Info).
   const appMode: AppMode = state.appMode
   const historicalMode = appMode === "historical"
+  // ?openDataLayers=true - one-shot, like ?bookmarksGallery=true and
+  // ?openLibrary=: opens the Data layers picker on arrival.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("openDataLayers") === "true") setIsDataLayersOpen(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
   const { theme } = useTheme()
 
@@ -283,8 +289,9 @@ export function TerrainControlPanel({
         showReliefVisualization: state.showReliefVisualization,
         showTerrainAnalysis: state.showTerrainAnalysis,
         showBackground: state.showBackground,
-        showTellsDetector: state.showTellsDetector,
       }
+      // The detector overlay stays: it is the thing being checked against
+      // the imagery, not a rendering of the terrain.
       setState({
         showContoursAndGraticules: false,
         showHillshade: false,
@@ -294,7 +301,6 @@ export function TerrainControlPanel({
         showReliefVisualization: false,
         showTerrainAnalysis: false,
         showBackground: false,
-        showTellsDetector: false,
       })
     }
   }, !historicalMode)

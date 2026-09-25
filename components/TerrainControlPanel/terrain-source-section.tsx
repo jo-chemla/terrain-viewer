@@ -21,7 +21,7 @@ import { type Bounds, templateLink, shouldZoomToTerrainBounds } from "@/lib/cont
 import { resolveLinkedBasemapId } from "@/lib/linked-sources"
 import { staticBoundsFor } from "@/lib/max-bounds"
 import { applyBoundedView, fitPaddingFor } from "@/lib/underzoom"
-import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
+import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
@@ -156,13 +156,10 @@ export const TerrainSourceSection: React.FC<{
       : { [sourceFieldName(side)]: id })
   }, [customTerrainSources, customBasemapSources, state.basemapPerView, setState, selectTerrainA])
 
-  // This section is only ever rendered in Terrain mode (see
-  // TerrainControlPanel's !historicalMode gate), where the map's own grid is
-  // always forced back to 2x1 regardless of state.gridLayout (which isn't
-  // reset on a mode switch — see TerrainViewer's effectiveGridLayout) — so
-  // unlike RasterBasemapSection, which renders in both modes, this picker
-  // has no case where showing anything but 2x1 would ever match the map.
-  const effectiveGridLayout = "2x1"
+  // Same rule as TerrainViewer's effectiveGridLayout: overlay is always a
+  // 2x1 pair, every other split honours the picked grid, in both app modes
+  // (terrain mode used to be pinned to 2x1 before it got Compare and Blend).
+  const effectiveGridLayout: GridLayoutId = state.splitStyle === "overlay" ? "2x1" : (state.gridLayout ?? "2x1")
 
   const handleSaveCustomSource = useCallback((source: Omit<CustomTerrainSource, "id"> & { id?: string }) => {
     if (source.id) {

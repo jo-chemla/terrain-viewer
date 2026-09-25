@@ -1,3 +1,4 @@
+import type * as maplibregl from "maplibre-gl"
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'

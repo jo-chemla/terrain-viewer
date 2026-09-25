@@ -37,10 +37,7 @@ const COLOR_SPACE_OPTIONS: { value: "rgb" | "hsl" | "hsv" | "lab" | "lch"; label
 // it would select (same rectangle logic, lighter primary) without
 // committing anything until an actual click. Fixed at 2 rows x 4 cols —
 // every cell is a real, fully wired-up GridLayoutId (up to "4x2", 8 views
-// A-H) EXCEPT row 0/col 0 ("1x1", a single unsplit view, meaningless as a
-// grid-layout choice since this control only ever shows once isSplit is
-// already true) — disabled rather than hidden, so the control still reads
-// as a clean fixed rectangle instead of a lopsided 7-cell one.
+// A-H); row 0/col 0 ("1x1") is the single unsplit view and sets split off.
 // Header shortcut: one icon button that cycles Off -> Overlay -> Side -> Off,
 // so the split style can be flipped without unfolding the section (same
 // idea as Home on General Settings and Gallery on Bookmarks). The icon shows
@@ -56,14 +53,19 @@ const SPLIT_CYCLE = [
 const GRID_PICKER_ROWS = 2
 const GRID_PICKER_COLS = 4
 
-const GridLayoutPicker: React.FC<{ value: GridLayoutId; onChange: (id: GridLayoutId) => void }> = ({ value, onChange }) => {
+// "1x1" is not a GridLayoutId: the single unsplit view. The picker offers it
+// anyway, as "split off", so the whole 2x4 rectangle is live.
+type PickerId = GridLayoutId | "1x1"
+const GridLayoutPicker: React.FC<{ value: GridLayoutId; onChange: (id: GridLayoutId) => void; onSingle: () => void }> = ({ value, onChange, onSingle }) => {
   const [hovered, setHovered] = useState<{ r: number; c: number } | null>(null)
-  const idFor = (r: number, c: number): GridLayoutId | null => {
+  const idFor = (r: number, c: number): PickerId | null => {
     const candidate = `${c + 1}x${r + 1}`
+    if (candidate === "1x1") return "1x1"
     return (GRID_LAYOUT_IDS as readonly string[]).includes(candidate) ? (candidate as GridLayoutId) : null
   }
   const previewId = hovered ? idFor(hovered.r, hovered.c) : null
-  const activeConfig = GRID_LAYOUTS[previewId ?? value]
+  const shown: PickerId = previewId ?? value
+  const activeConfig = shown === "1x1" ? { rows: 1, cols: 1 } : GRID_LAYOUTS[shown]
   return (
     <div className="flex items-center gap-2">
       <div
@@ -79,7 +81,7 @@ const GridLayoutPicker: React.FC<{ value: GridLayoutId; onChange: (id: GridLayou
                 key={`${r}-${c}`}
                 type="button"
                 disabled={!id}
-                onClick={() => id && onChange(id)}
+                onClick={() => { if (id === "1x1") onSingle(); else if (id) onChange(id) }}
                 onPointerEnter={() => id && setHovered({ r, c })}
                 title={id ? `${c + 1}×${r + 1}` : "Not available yet"}
                 aria-label={id ? `Grid layout ${c + 1} by ${r + 1}` : "Not available yet"}
@@ -192,7 +194,7 @@ export const ComparisonMixSection: React.FC<{
       {isSplit && !isOverlay && (
         <div className="flex items-center justify-between gap-2">
           <Label className="text-sm font-medium">Grid Layout</Label>
-          <GridLayoutPicker value={state.gridLayout ?? "2x1"} onChange={(id) => setState({ gridLayout: id })} />
+          <GridLayoutPicker value={state.gridLayout ?? "2x1"} onChange={(id) => setState({ gridLayout: id })} onSingle={() => setState({ splitStyle: "off" })} />
         </div>
       )}
 

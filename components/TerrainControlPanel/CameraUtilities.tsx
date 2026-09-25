@@ -62,8 +62,8 @@ import { orbitRequestAtom } from "@/lib/settings-atoms"
 /**
  * pose-codec.ts
  *
- * Compact JSON encode/decode of AppSnapshot for URL storage. A pose has 8 floats
- * (lat, lng, zoom, pitch, bearing, roll, vfov, refWidth) plus a variable-size
+ * Compact JSON encode/decode of AppSnapshot for URL storage. A pose has 9 floats
+ * (lat, lng, zoom, pitch, bearing, roll, vfov, refWidth, elevation) plus a variable-size
  * numericState map (only populated in "Complete" mode — see captureSnapshot).
  *
  * Format: `{"pose": {lat, lng, ...}, "numericState": {...}?}` — named keys rather
@@ -87,6 +87,11 @@ interface CameraPose {
   roll: number
   vfov: number
   refWidth: number
+  /** Camera-target elevation (metres, MapLibre's `getCameraTargetElevation`).
+   *  NaN when unknown: poses captured before this field existed encode it as
+   *  null and decode to NaN, and every delta through NaN stays NaN, so
+   *  playback falls back to the height held at play start for that pose. */
+  elevation: number
 }
 
 export interface AppSnapshot {
@@ -95,13 +100,13 @@ export interface AppSnapshot {
 }
 
 const POSE_KEYS: (keyof CameraPose)[] = [
-  "lat", "lng", "zoom", "pitch", "bearing", "roll", "vfov", "refWidth",
+  "lat", "lng", "zoom", "pitch", "bearing", "roll", "vfov", "refWidth", "elevation",
 ]
 
 // Fallback values for decoding a pose that's missing fields (e.g. an older/newer
 // URL than this build expects) — matches this app's own default camera view.
 const DEFAULT_POSE: CameraPose = {
-  lat: 21.4208, lng: 0, zoom: 1.52, pitch: 0, bearing: 0, roll: 0, vfov: 36.869898, refWidth: 800,
+  lat: 21.4208, lng: 0, zoom: 1.52, pitch: 0, bearing: 0, roll: 0, vfov: 36.869898, refWidth: 800, elevation: NaN,
 }
 
 // Default values for the numeric (non-camera) state fields that can end up in a
@@ -244,6 +249,22 @@ class RafEngine {
 
 /** Keyframe animation (pose1 → pose2) RAF engine */
 const animEngine = new RafEngine()
+/** Camera-target elevation held for the whole of a playback or scrub - see
+ *  applyProgress. Captured when playback starts, cleared when it stops. */
+const playbackElevation: { value: number | null } = { value: null }
+/** True while the keyframe playback (or a scrub) is driving the camera with a
+ *  held elevation. TerrainViewer's idle settle and view reconcile check it:
+ *  both would otherwise read the held height as "stale", re-solve zoom and
+ *  center onto the ground under the interpolated center, and the flight
+ *  would follow the terrain the flight is meant to ignore. */
+export function isPosePlaybackActive(): boolean {
+  return animEngine.isRunning() || playbackElevation.value != null
+}
+function holdPlaybackElevation(map: ReturnType<typeof getMap>) {
+  const m = map as unknown as { getCameraTargetElevation?: () => number; _camera?: { transform?: { elevation?: number } }; transform?: { elevation?: number } } | null
+  const e = m?.getCameraTargetElevation?.() ?? m?._camera?.transform?.elevation ?? m?.transform?.elevation
+  playbackElevation.value = Number.isFinite(e as number) ? (e as number) : null
+}
 
 /** 360° spin RAF engine */
 const spinEngine = new RafEngine()
@@ -365,15 +386,45 @@ function applyProgress(
   if (!map) return
   const t = smootherstep(clamp(raw, 0, 1))
 
-  map.easeTo({
+  // jumpTo, not easeTo, and with the elevation spelled out. MapLibre 6.11
+  // (maplibre-gl-js#8543) makes every unfrozen easeTo glide the camera
+  // target's elevation to the terrain under the destination, and #8471
+  // re-applies the terrain height the moment a freeze lifts - so a flight
+  // driven by one easeTo per frame bobs over every ridge as if it were
+  // avoiding the ground, freezeElevation or not. jumpTo with an explicit
+  // `elevation` writes that height last and skips the easing machinery, so
+  // the pose interpolates in a straight line; the height is the one the
+  // target had when playback (or the scrub) began.
+  // Roll rides in the same call: Map#setRoll is itself a jumpTo without an
+  // elevation, and a second jumpTo per frame re-sampled the terrain under
+  // the centre and threw the held height away (traced on 6.11.2).
+  //
+  // Elevation is a pose field too, so a flight from a high pose to a low
+  // one interpolates the target height instead of holding the start value;
+  // a pose captured before the field existed (NaN) uses the held height.
+  // A pose captured before the field existed (or through a stale module,
+  // e.g. Pose 1 set before a reload and Pose 2 after) decodes as NaN: use
+  // the terrain height under that pose's centre, which is what its capture
+  // would have recorded with the centre clamped to the ground, and only
+  // then the height held at play start.
+  const held = playbackElevation.value
+  const groundAt = (lng: number, lat: number): number | null => {
+    const m = map as unknown as { terrain?: { getElevationForLngLat?: (c: { lng: number; lat: number }, tr: unknown) => number }; _camera?: { transform?: unknown }; transform?: unknown }
+    const tr = m._camera?.transform ?? m.transform
+    const e = m.terrain?.getElevationForLngLat?.({ lng, lat }, tr)
+    return Number.isFinite(e as number) ? (e as number) : null
+  }
+  const e1 = Number.isFinite(p1.pose.elevation) ? p1.pose.elevation : (groundAt(p1.pose.lng, p1.pose.lat) ?? held)
+  const e2 = Number.isFinite(p2.pose.elevation) ? p2.pose.elevation : (groundAt(p2.pose.lng, p2.pose.lat) ?? held)
+  const elevation = e1 != null && e2 != null ? lerp(e1, e2, t) : held
+  map.jumpTo({
     center: [lerp(p1.pose.lng, p2.pose.lng, t), lerp(p1.pose.lat, p2.pose.lat, t)],
     zoom:   lerp(p1.pose.zoom, p2.pose.zoom, t),
     pitch:  lerp(p1.pose.pitch, p2.pose.pitch, t),
     bearing: lerpAngle(p1.pose.bearing, p2.pose.bearing, t),
-    duration: 0,
-    animate: false,
-  })
-  ;(map as any).setRoll?.(lerp(p1.pose.roll, p2.pose.roll, t))
+    roll: lerp(p1.pose.roll, p2.pose.roll, t),
+    ...(elevation != null ? { elevation } : {}),
+  } as Parameters<typeof map.jumpTo>[0])
   map.setVerticalFieldOfView(lerp(p1.pose.vfov, p2.pose.vfov, t))
   map.triggerRepaint()
 
@@ -787,6 +838,7 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
         roll: (map as any).getRoll?.() ?? 0,
         vfov: map.getVerticalFieldOfView(),
         refWidth: canvas.clientWidth,
+        elevation: (map as unknown as { getCameraTargetElevation?: () => number }).getCameraTargetElevation?.() ?? NaN,
       },
       numericState,
     }
@@ -797,12 +849,18 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
     animEngine.stop()
     const map = getMap(mapRef)
     map?.setCenterClampedToGround(false)
+    playbackElevation.value = null
     setPlaying(false)
   }, [mapRef, setPlaying])
 
   const startPlay = useCallback((fromProgress = 0) => {
     if (!p1Ref.current || !p2Ref.current) return
     animEngine.stop()
+    const playMap = getMap(mapRef)
+    // Off for the flight: with it on, MapLibre re-reads the ground under the
+    // center every rendered frame and the held elevation would not hold.
+    playMap?.setCenterClampedToGround(false)
+    holdPlaybackElevation(playMap)
     bounceDir.current = 1
     playOffsetRef.current = clamp(fromProgress, 0, 1)
     playStartRef.current = performance.now()
@@ -837,12 +895,18 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
     })
   }, [mapRef, setPlaying])
 
+  const scrubReleaseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleScrub = useCallback((val: number) => {
     const raw = val / 100
     const p1 = p1Ref.current; const p2 = p2Ref.current; const map = getMap(mapRef)
     if (!p1 || !p2 || !map) return
     setProgress(raw)
+    if (playbackElevation.value == null) holdPlaybackElevation(map)
     applyProgress(raw, p1, p2, map, appRef.current, cbRef.current, false)
+    if (!playing) {
+      if (scrubReleaseRef.current) clearTimeout(scrubReleaseRef.current)
+      scrubReleaseRef.current = setTimeout(() => { if (!animEngine.isRunning()) playbackElevation.value = null }, 1500)
+    }
     if (playing) { playOffsetRef.current = raw; playStartRef.current = performance.now() }
   }, [playing, mapRef])
 
@@ -890,7 +954,15 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
   // triggerStopSpin are defined further down.
   const orbitRequest = useAtomValue(orbitRequestAtom)
   const sawFirstOrbitRequestRef = useRef(false)
+  // Keyed on the request VALUE only. doStartSpin/triggerStopSpin change
+  // identity whenever the query-state setter does, and every bearing the
+  // spin writes is a query-state update: with them in the dependency list
+  // the effect re-ran a frame into the spin, saw orbitRequest false and
+  // stopped it - an orbit that eased in for a second and eased straight out.
+  const lastOrbitRequestRef = useRef(orbitRequest)
   useEffect(() => {
+    if (sawFirstOrbitRequestRef.current && lastOrbitRequestRef.current === orbitRequest) return
+    lastOrbitRequestRef.current = orbitRequest
     // Skip the mount pass. The mount-sync effect above resumes a spin that the
     // URL says is running; this one firing with its initial `false` would stop
     // it again a tick later, so reloading an animPlaying360=true link would

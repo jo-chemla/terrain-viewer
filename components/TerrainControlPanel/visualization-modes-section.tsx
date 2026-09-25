@@ -57,7 +57,7 @@ export const VisualizationModesSection: React.FC<{
       }
     >
       {!hideContours && (
-        <CheckboxWithSlider id="contours" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} tooltip="Controllable contours (minor/major elevation difference)" />
+        <CheckboxWithSlider id="contours" gotoSection="contour" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} tooltip="Controllable contours (minor/major elevation difference)" />
       )}
       {/* Native MapLibre hillshade — its own independent viz mode, entirely
           separate from "Lighting Effects" below. See Options: Hillshade for
@@ -121,7 +121,7 @@ export const VisualizationModesSection: React.FC<{
           (and was rendering a dead control) in flat 2D — but lives last in this
           list whenever it does apply. */}
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
-        <CheckboxWithSlider id="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />
+        <CheckboxWithSlider id="background" gotoSection="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />
       )}
       {state.tellsBeta && (
         <>

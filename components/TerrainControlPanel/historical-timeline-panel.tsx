@@ -11,7 +11,7 @@ import { OpenInLinksButton } from "./open-in-links"
 import { useWaybackItemsWithLocalChanges, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
 import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
-import { planetMonthlyTicks } from "@/lib/planet"
+import { planetMonthlyTicks, fetchPlanetMonthlyRange, type PlanetMonthlyRange } from "@/lib/planet"
 import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
@@ -238,6 +238,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Drag state for the horizontal pan gutter below the track — a plain ref
   // (not state) since it only needs to survive across pointermove events
   // within one drag gesture, not trigger renders itself.
+  const midPanRef = useRef<{ startClientX: number; startMin: number; widthPx: number } | null>(null)
   const gutterDragRef = useRef<{ startClientX: number; startMin: number; gutterWidthPx: number } | null>(null)
   const [planetKey] = useAtom(planetKeyAtom)
   const hasPlanetKey = !!planetKey
@@ -442,9 +443,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Real monthly mosaics (see lib/planet.ts) — only generated once a Planet
   // API key is set; otherwise this source simply contributes no ticks and
   // its pill is hidden below.
+  // The key's own first/last monthly mosaic bounds the ticks (a grant that
+  // starts in 2020 must not offer 2016, whose tiles 404); until the Basemaps
+  // API answers, the ticks fall back to the product's nominal range.
+  const [planetRange, setPlanetRange] = useState<PlanetMonthlyRange | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    setPlanetRange(null)
+    if (planetKey) fetchPlanetMonthlyRange(planetKey).then((r) => { if (!cancelled) setPlanetRange(r) })
+    return () => { cancelled = true }
+  }, [planetKey])
   const planetTicks = useMemo<TimelineTick[]>(
-    () => (hasPlanetKey ? planetMonthlyTicks().map((t) => ({ source: "planet", key: t.dateMs, dateMs: t.dateMs, label: t.label })) : []),
-    [hasPlanetKey],
+    () => (hasPlanetKey ? planetMonthlyTicks(planetRange).map((t) => ({ source: "planet", key: t.dateMs, dateMs: t.dateMs, label: t.label })) : []),
+    [hasPlanetKey, planetRange],
   )
   // Bing has no browsable historical archive — just its single "current"
   // mosaic — so this is always at most a one-item pool: the real capture
@@ -1633,10 +1644,33 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             ref={setTrackRef}
             className="relative flex-1 h-12 mx-2 cursor-pointer touch-none"
             onPointerDown={(e) => {
+              // Middle button: pan the whole visible window, like a
+              // horizontal wheel, instead of moving a handle. Only while
+              // the window is narrower than the full range.
+              if (e.button === 1) {
+                e.preventDefault()
+                if (!hasHiddenRange) return
+                hasZoomedRef.current = true
+                e.currentTarget.setPointerCapture(e.pointerId)
+                midPanRef.current = { startClientX: e.clientX, startMin: effectiveMin, widthPx: e.currentTarget.getBoundingClientRect().width }
+                return
+              }
               const which = showingViews.length === 1 ? showingViews[0] : activeSide
               setActiveSide(which)
               scrubTo(which, e.clientX)
             }}
+            onPointerMove={(e) => {
+              const pan = midPanRef.current
+              if (!pan || !e.currentTarget.hasPointerCapture(e.pointerId)) return
+              const span = effectiveMax - effectiveMin
+              // Dragging the ticks right shows earlier dates: the window moves the other way.
+              const deltaMs = -((e.clientX - pan.startClientX) / pan.widthPx) * span
+              const newMin = Math.max(paddedMin, Math.min(paddedMax - span, pan.startMin + deltaMs))
+              scheduleViewWindow({ min: newMin, max: newMin + span })
+            }}
+            onPointerUp={(e) => { if (midPanRef.current) { midPanRef.current = null; e.currentTarget.releasePointerCapture(e.pointerId) } }}
+            onPointerCancel={(e) => { if (midPanRef.current) { midPanRef.current = null; e.currentTarget.releasePointerCapture(e.pointerId) } }}
+            onAuxClick={(e) => { if (e.button === 1) e.preventDefault() }}
           >
             {/* overflow-hidden here (not on the outer track div) is a
                 deliberate backstop, not just cosmetic — the track sits

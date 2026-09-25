@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, type RefObject } from "react"
 import { Layer, type MapRef } from "react-map-gl/maplibre"
-import maplibregl, { type MapMouseEvent } from "maplibre-gl"
+import * as maplibregl from "maplibre-gl"
+import type { MapMouseEvent } from "maplibre-gl"
 import { useAtom } from "jotai"
 import { highResTerrainAtom } from "@/lib/settings-atoms"
 import { colorRampsFlat, remapColorRampStops, shiftCyclicRampStops, buildCustomRampColors, extractStops, applyBlackWhiteTransparent, DEFAULT_SLOPE_CUSTOM_STOPS, type CustomRampStop, type RampOverride } from "@/lib/color-ramps"

@@ -58,7 +58,9 @@ import { coverageOverlaysAtom, coverageGroups, parseAsCoverageOverlays } from "@
 import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
+import { getTransform, ensureLegacyTransform } from '@/lib/maplibre-internals'
+import { isPosePlaybackActive } from '@/components/TerrainControlPanel/CameraUtilities'
 import { applyBoundedView, sanitizeBounds } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
@@ -185,6 +187,42 @@ function matcapUrlFor(textureId: string): string {
 // hoisted to module scope (rather than inline inside useQueryStates below) so
 // lib/bookmarks.ts's restoreBookmarkInPlace can reuse the exact same parsers to
 // turn a saved query string back into typed state without a page reload.
+
+// Tiles that never land. MapLibre keeps every raster request in one queue
+// of 16 and a custom protocol holds its slot for the whole handler, so a
+// backlog of slow horizon-search tiles - or a service that stopped
+// answering - leaves the map "loading" with nothing arriving. Nothing in the
+// app can recover the queue; a reload can. Watch each map: pending tiles
+// for STALL_AFTER_MS with no tile landing in that time, one toast, then
+// quiet for STALL_REPEAT_MS.
+const STALL_AFTER_MS = 60_000
+const STALL_REPEAT_MS = 300_000
+const stallWatchers = new WeakMap<object, { lastTileAt: number; pendingSince: number | null; lastToastAt: number; timer: ReturnType<typeof setInterval> }>()
+function watchForStalledTiles(map: maplibregl.Map) {
+  if (stallWatchers.has(map)) return
+  const w = { lastTileAt: Date.now(), pendingSince: null as number | null, lastToastAt: 0, timer: 0 as unknown as ReturnType<typeof setInterval> }
+  map.on("data", (e) => { if ((e as { tile?: unknown }).tile) w.lastTileAt = Date.now() })
+  map.on("remove", () => { clearInterval(w.timer); stallWatchers.delete(map) })
+  w.timer = setInterval(() => {
+    const now = Date.now()
+    let loaded = true
+    try { loaded = map.areTilesLoaded() } catch { return }
+    if (loaded) { w.pendingSince = null; return }
+    if (w.pendingSince == null) w.pendingSince = now
+    const stalled = now - w.pendingSince > STALL_AFTER_MS && now - w.lastTileAt > STALL_AFTER_MS
+    if (stalled && now - w.lastToastAt > STALL_REPEAT_MS) {
+      w.lastToastAt = now
+      pushToast({
+        key: "tiles-stalled",
+        title: "Tiles have stopped arriving",
+        body: "The map has been waiting a minute with nothing landing. A source may be down, or the tile queue is wedged behind slow requests: reloading the page is the reliable fix.",
+        duration: 12000,
+      })
+    }
+  }, 5000)
+  stallWatchers.set(map, w)
+}
+
 export const QUERY_STATE_PARSERS = {
     // Embed/project convenience params: `project` looks up a named preset in
     // lib/projects.json (see lib/project-config.ts); terrainUrl/basemapUrl let an
@@ -446,7 +484,7 @@ export const QUERY_STATE_PARSERS = {
     // tile-recompute trigger the way it would if bearing were live-tracked.
     // (Matcap's own anchor keeps Camera as ITS default — the material
     // lookup is what a camera-held sphere means — unlike a scene light.)
-    phongLightRelativeToCamera: parseAsBoolean.withDefault(false),
+    phongLightRelativeToCamera: parseAsBoolean.withDefault(true),
     // "raster" (default): lib/phong-protocol.ts's plain raster-tile pipeline —
     // drapes correctly over 3D terrain exaggeration AND globe, but every
     // light/strength/exaggeration change costs a real tile refetch (~150ms
@@ -610,7 +648,7 @@ export const QUERY_STATE_PARSERS = {
     svfMax: parseAsFloat.withDefault(100),
     svfInvertColorRamp: parseAsBoolean.withDefault(false),
     svfRadius: parseAsFloat.withDefault(8),
-    svfPrecision: parseAsStringLiteral(HORIZON_PRECISIONS).withDefault("precise"),
+    svfPrecision: parseAsStringLiteral(HORIZON_PRECISIONS).withDefault("fast"),
     svfCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     svfCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     showOpenness: parseAsBoolean.withDefault(false),
@@ -622,7 +660,7 @@ export const QUERY_STATE_PARSERS = {
     opennessSymmetric: parseAsBoolean.withDefault(true),
     opennessRadius: parseAsFloat.withDefault(8),
     opennessMode: parseAsStringLiteral(OPENNESS_MODES).withDefault("positive"),
-    opennessPrecision: parseAsStringLiteral(HORIZON_PRECISIONS).withDefault("precise"),
+    opennessPrecision: parseAsStringLiteral(HORIZON_PRECISIONS).withDefault("fast"),
     opennessCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     opennessCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     // Local Dominance (Hesse 2016) — Relief Visualization mode, see
@@ -2273,6 +2311,9 @@ export function TerrainViewer() {
 
   const resettleTerrainElevation = useCallback(() => {
     if (pointerDownRef.current) return
+    // A keyframe flight holds the target elevation on purpose; re-anchoring
+    // it here would walk the camera back onto the ground every idle.
+    if (isPosePlaybackActive()) return
 
     const preferred = lastInteractedViewRef.current
     const order = activeViewIds.includes(preferred)
@@ -2281,7 +2322,7 @@ export function TerrainViewer() {
     const referenceSide = order.find((s) => mapRefs[s].current?.getMap()?.getTerrain())
     if (!referenceSide) return
     const reference = mapRefs[referenceSide].current!.getMap()
-    const tr = reference.transform
+    const tr = getTransform(reference)
 
     // Is the camera height actually stale? Only a pan across terrain leaves it
     // behind (MapLibre freezes elevation for the duration of a gesture); a
@@ -2292,7 +2333,23 @@ export function TerrainViewer() {
     // new center, whose ground height differs from the old one's by a hair, so
     // an exact-equality test would let it creep from idle to idle forever —
     // and every one of those iterations would fire the jumpTo loop below.
-    const groundElevation = reference.terrain.getElevationForLngLatZoom(tr.center, tr.tileZoom)
+    // While MapLibre's own clamp is on it re-derives the elevation every
+    // rendered frame (Map#_render in both 5 and 6) and, in 6, the camera
+    // re-solves zoom and center itself when a gesture ends. Re-anchoring here
+    // as well can run in the one frame between a padding ease finishing and
+    // that clamp writing the first real height: the elevation still reads 0,
+    // the ground is thousands of metres up, and recalculateZoomAndCenter
+    // walks the center along the view ray - the view lands at a different
+    // zoom and center than the link asked for (seen on MapLibre 6). So this
+    // settle only owns the elevation once the clamp has been handed off.
+    const camera = (reference as unknown as { _camera?: { elevationFreeze?: boolean } })._camera
+    if (reference.getCenterClampedToGround?.() || camera?.elevationFreeze) return
+
+    // Sample the ground the way MapLibre writes tr.elevation (6: the rendered
+    // surface via getElevationForLngLat; 5: the tile at tileZoom), or the two
+    // disagree by tens of metres on steep ground and the epsilon never holds.
+    const terrain = reference.terrain as unknown as { getElevationForLngLat?: (c: unknown, t: unknown) => number; getElevationForLngLatZoom: (c: unknown, z: number) => number }
+    const groundElevation = terrain.getElevationForLngLat ? terrain.getElevationForLngLat(tr.center, tr) : terrain.getElevationForLngLatZoom(tr.center, tr.tileZoom)
     if (!Number.isFinite(groundElevation)) return
     if (Math.abs(groundElevation - tr.elevation) < ELEVATION_SETTLE_EPSILON_M) return
 
@@ -2345,18 +2402,18 @@ export function TerrainViewer() {
   // Unlike resettleTerrainElevation it does not need terrain, so it also
   // covers 2D historical mode.
   const reconcileSyncedViews = useCallback(() => {
-    if (!isSplit || pointerDownRef.current || isSyncing.current) return
+    if (!isSplit || pointerDownRef.current || isSyncing.current || isPosePlaybackActive()) return
     const preferred = lastInteractedViewRef.current
     const referenceSide = activeViewIds.includes(preferred) ? preferred : activeViewIds[0]
     const reference = mapRefs[referenceSide]?.current?.getMap()
     if (!reference) return
-    const tr = reference.transform
+    const tr = getTransform(reference)
     const ZOOM_EPS = 1e-3, DEG_EPS = 1e-6, ANGLE_EPS = 1e-2
     const drifted = activeViewIds.filter((side) => {
       if (side === referenceSide) return false
       const map = mapRefs[side].current?.getMap()
       if (!map) return false
-      const t = map.transform
+      const t = getTransform(map)
       return Math.abs(t.zoom - tr.zoom) > ZOOM_EPS
         || Math.abs(t.center.lng - tr.center.lng) > DEG_EPS
         || Math.abs(t.center.lat - tr.center.lat) > DEG_EPS
@@ -2751,7 +2808,11 @@ export function TerrainViewer() {
       const onRender = () => {
         const terrain = (map as any).terrain
         const transitioning = !!terrain && map.getLayersOrder().some((id) => map.getLayer(id)?.hasTransition())
-        if (transitioning || wasTransitioning) terrain?.tileManager.freeRtt()
+        // MapLibre 6 renamed freeRtt to releaseAllRTT.
+        if (transitioning || wasTransitioning) {
+          const tm = terrain?.tileManager as { releaseAllRTT?: () => void; freeRtt?: () => void } | undefined
+          ;(tm?.releaseAllRTT ?? tm?.freeRtt)?.call(tm)
+        }
         if (!transitioning && wasTransitioning) map.triggerRepaint()
         wasTransitioning = transitioning
       }
@@ -2947,7 +3008,17 @@ export function TerrainViewer() {
         // It also keeps the camera's height steady across the ease instead of
         // re-deriving it per frame; resettleTerrainElevation below re-anchors
         // it once at the end, without moving the camera.
-        freezeElevation: true,
+        //
+        // MapLibre 6 (Map composes a Camera, `_camera` exists) clears its
+        // freeze at the end of every ease by itself, and its _finalizeElevation
+        // - the only thing freezeElevation adds there - re-solves zoom and
+        // center from whatever elevation the transform holds. On first load
+        // that is 0 while the DEM tiles have already landed during the ease,
+        // and the view jumps to another zoom and center than the link asked
+        // for (a race: it depends on the tiles beating the 200 ms ease). Left
+        // unfrozen, 6 eases the elevation itself and adjusts mid-flight when
+        // tiles land, with no jump.
+        freezeElevation: !(map as unknown as { _camera?: unknown })._camera,
       })
     }
     const timer = setTimeout(() => {
@@ -2974,8 +3045,8 @@ export function TerrainViewer() {
         const map = mapRefs[side].current?.getMap()
         if (!mapLoaded[side] || !map) continue
         const target = mapPaddingFor(side)
-        if (map.transform.isPaddingEqual(target)) continue
-        map.transform.setPadding(target)
+        if (getTransform(map).isPaddingEqual(target)) continue
+        getTransform(map).setPadding(target)
         map.triggerRepaint()
       }
       // A pane's pixel dimensions usually change in the same commit as its
@@ -3272,6 +3343,8 @@ export function TerrainViewer() {
             setViewLoaded(side, true)
             const mapInstance = mapRefs[side].current?.getMap()
             if (!mapInstance) return
+            ensureLegacyTransform(mapInstance)
+            watchForStalledTiles(mapInstance)
 
             // A new viewport needs a fresh "how many tiles are pending" count
             // for the slow ray-marched modes (SVF/Openness/Local Dominance) —
@@ -3344,6 +3417,18 @@ export function TerrainViewer() {
               // dragged is itself what suppresses the per-frame reclamp
               // (MapLibre freezes elevation for the duration of a gesture).
               if (mapInstance.getCenterClampedToGround()) {
+                // Hand off only once the clamp has written a real height. The
+                // first idle with terrain can land before it does (the padding
+                // ease froze elevation while the DEM tiles arrived, and
+                // MapLibre 6 writes the height on the next rendered frame):
+                // the elevation still reads 0 there, and re-anchoring from it
+                // would re-solve zoom and center along the view ray - a
+                // different view than the link asked for. Leave the clamp on
+                // for another idle instead; it costs one frame.
+                const tr = getTransform(mapInstance)
+                const terrain = mapInstance.terrain as unknown as { getElevationForLngLat?: (c: unknown, t: unknown) => number; getElevationForLngLatZoom: (c: unknown, z: number) => number }
+                const ground = terrain.getElevationForLngLat ? terrain.getElevationForLngLat(tr.center, tr) : terrain.getElevationForLngLatZoom(tr.center, tr.tileZoom)
+                if (Number.isFinite(ground) && Math.abs(ground - tr.elevation) >= ELEVATION_SETTLE_EPSILON_M) { reconcileOnIdleRef.current(); return }
                 mapInstance.setCenterClampedToGround(false)
               }
               resettleTerrainElevationOnIdleRef.current()
@@ -3824,7 +3909,9 @@ export function TerrainViewer() {
               showGraticules={state.showContoursAndGraticules && state.showGraticules && !isHistoricalMode}
               graticuleColor={state.graticuleColor || themeAntiColor}
               graticuleWidth={state.graticuleWidth}
-              showLabels={state.showGraticuleLabels}
+              // Labels are screen-space text pinned to the graticule's edge
+              // crossings; tilted or on the globe they drift off the lines.
+              showLabels={state.showGraticuleLabels && state.viewMode === "2d"}
               labelColor={graticuleLabelColor}
               labelTextShadow={graticuleLabelTextShadow}
               gridDensity={state.graticuleDensity || undefined}

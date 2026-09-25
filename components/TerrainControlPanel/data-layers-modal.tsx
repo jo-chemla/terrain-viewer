@@ -2,6 +2,7 @@ import { Check, Layers, ArrowRight } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSetAtom } from "jotai"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
+import { CopyModalLinkButton } from "./controls-components"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { revealSectionAtom } from "@/lib/settings-atoms"
@@ -197,7 +198,7 @@ export function DataLayersModal({ open, onOpenChange, state, setState }: {
         <div className="shrink-0 border-b px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <DialogHeader className="gap-0.5">
-              <DialogTitle className="flex items-center gap-2"><Layers className="h-4 w-4" /> Data layers</DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><Layers className="h-4 w-4" /> Data layers <CopyModalLinkButton param="openDataLayers" value="true" label="the Data layers picker" /></DialogTitle>
               <DialogDescription>Every way this app can draw terrain. Click a card to turn it on or off; {onCount} on now.</DialogDescription>
             </DialogHeader>
             <DialogClose render={<Button variant="ghost" size="sm" className="cursor-pointer">Done</Button>} />

@@ -106,3 +106,11 @@ There is no automated coverage for any of this — it is all gesture and frame t
 5. Press and hold, pause, then drag — the gesture is not eaten, in both panes.
 6. Toggle the sidebar and the timeline — panes glide together, and the split pill stays 1:1 with the pointer.
 7. Terrain load — no blinking.
+
+## MapLibre 6 and the pose animation
+
+Three upstream changes in 6.11 decide how a camera animation over terrain behaves. [#8543](https://github.com/maplibre/maplibre-gl-js/pull/8543) makes every unfrozen `easeTo` or `flyTo` glide the camera target's elevation from the start to the terrain under the destination. [#8471](https://github.com/maplibre/maplibre-gl-js/pull/8471) holds the elevation for every gesture and re-applies the terrain height the moment a freeze lifts, which is the end of every ease. [#8514](https://github.com/maplibre/maplibre-gl-js/issues/8514) is the bug they close. Together they mean a flight driven by one zero-duration `easeTo` per frame follows the ground under the interpolated centre, with `freezeElevation` or without it.
+
+The keyframe playback (`CameraUtilities.tsx`, `applyProgress`) therefore uses `jumpTo` with an explicit `elevation`: the height the target had when play or a scrub began. `jumpTo` writes that value last, after its own terrain lookup, and never enters the easing machinery, so the pose interpolates in a straight line. Ground clamping is switched off for the flight, or the per-frame clamp would rewrite the height anyway.
+
+`map.transform` is gone in 6 and, per the maintainers, was never public: "you can still achieve that using the `_camera` member to get to the transform object". That is what `getTransform` and `ensureLegacyTransform` in `lib/maplibre-internals.ts` do, and it is the sanctioned route, not a hack to replace.

@@ -338,8 +338,12 @@ export const TerrainSources = memo(({
                 // matching a 512px tile — see public/maplibre-raster-dem-wms-float32-generic.html.
                 // TileJSON sources carry their own tileSize in the manifest maplibre fetches.
                 ...(customSource.type === 'tilejson' ? {} : { tileSize: customSource.type === 'wms-raw' ? 512 : 256 }),
-                minzoom: effectiveMinzoom,
-                maxzoom,
+                // Omitted rather than undefined: MapLibre 6 validates raster-dem
+                // sources on addSource and rejects a present-but-undefined key
+                // ("minzoom: number expected, undefined found"), which dropped
+                // every derived layer of the source.
+                ...(effectiveMinzoom != null ? { minzoom: effectiveMinzoom } : {}),
+                ...(maxzoom != null ? { maxzoom } : {}),
                 encoding: customEncoding ? 'custom' : encoding,
                 ...(customEncoding ?? {}),
                 ...("tiles" in built ? { ...built, tiles: built.tiles.map((t) => withQuantizedMeshDetail(t, cesiumDetailOffset)) } : built),
@@ -998,8 +1002,8 @@ export const SlopeSource = memo(({
                 tiles={[url]}
                 tileSize={clientUpstream.tileSize}
                 encoding="mapbox"
-                minzoom={clientUpstream.minzoom}
-                maxzoom={clientUpstream.maxzoom}
+                {...(clientUpstream.minzoom != null ? { minzoom: clientUpstream.minzoom } : {})}
+                {...(clientUpstream.maxzoom != null ? { maxzoom: clientUpstream.maxzoom } : {})}
             />
         )
     }
@@ -1065,8 +1069,8 @@ const NormalDerivedSource = memo(({ enabled, sourceId, terrainSource, customTerr
             // whatever elevationTo* function normal-derived-protocol.ts/lrm-protocol.ts
             // actually encoded these tiles with.
             encoding="terrarium"
-            minzoom={clientUpstream.minzoom}
-            maxzoom={clientUpstream.maxzoom}
+            {...(clientUpstream.minzoom != null ? { minzoom: clientUpstream.minzoom } : {})}
+            {...(clientUpstream.maxzoom != null ? { maxzoom: clientUpstream.maxzoom } : {})}
         />
     )
 })

@@ -111,7 +111,9 @@ export function useWaybackItemsWithLocalChanges(latitudeRaw: number, longitudeRa
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!enabled) { setLoading(false); return }
+    // Drop the items too: a stale list would keep useWaybackRealCaptureDates
+    // resolving dates (and its spinner spinning) after the ESRI pill is off.
+    if (!enabled) { setItems([]); setLoading(false); return }
     let cancelled = false
     setLoading(true)
     const timer = setTimeout(() => {

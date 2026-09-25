@@ -6,6 +6,7 @@ import { disabledStacPresetsAtom, savedStacCatalogsAtom } from "@/lib/settings-a
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { CopyModalLinkButton } from "./controls-components"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { compareWithMapterhorn, resolutionOf, formatRes, type MapterhornComparison, type MapterhornVerdict, type ResolutionMetric } from "@/lib/mapterhorn-compare"
 
@@ -395,7 +396,7 @@ export function SampleSourcesModal<T extends SampleLike>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent id="tour-source-library" className="sm:max-w-3xl max-h-[88vh] flex flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">{title} <CopyModalLinkButton param="openLibrary" value={stacTarget === "basemap" ? "basemap" : "terrain"} label={`the ${stacTarget === "basemap" ? "Basemap" : "Terrain"} library`} /></DialogTitle>
           <DialogDescription>
             {loadedCount} of {samples.length} in your list. Add or remove one at a time, or take the whole set.
           </DialogDescription>

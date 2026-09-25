@@ -24,6 +24,12 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { startEmbedBridge } from "@/lib/embed-bridge"
 import { migrateLegacyUrlKeys } from "@/lib/url-keys"
+import { setWorkerUrl } from "maplibre-gl"
+// MapLibre 6 is ESM-only and, under a bundler, cannot find its own worker
+// from import.meta.url; Vite's ?worker&url emits a self-contained chunk.
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
+
+setWorkerUrl(maplibreWorkerUrl)
 
 // Links written before the terrain-source URL keys were renamed carry
 // sourceA=..; rewrite them before nuqs reads the address bar.
