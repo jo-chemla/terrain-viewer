@@ -151,6 +151,19 @@ async function loadTileBitmap(url: string, signal: AbortSignal): Promise<ImageBi
     const { quantizedMeshProtocol } = await import("./quantized-mesh-protocol")
     return asBitmap(await quantizedMeshProtocol({ url }, { signal } as AbortController))
   }
+  // Same for the VRT mosaics and the derived difference source: a Library
+  // entry on either reached every viz mode as a plain vrt:// or demdiff://
+  // template, the browser refused the scheme, and slope, aspect, LRM and
+  // SVF drew nothing over it while hillshade (MapLibre's own fetch, which
+  // knows the protocols) was fine.
+  if (url.startsWith("vrt://")) {
+    const { vrtProtocol } = await import("./vrt-protocol")
+    return asBitmap(await vrtProtocol({ url }, { signal } as AbortController))
+  }
+  if (url.startsWith("demdiff://")) {
+    const { demDiffProtocol } = await import("./demdiff-protocol")
+    return asBitmap(await demDiffProtocol({ url }, { signal } as AbortController))
+  }
   const response = await fetch(url, { signal })
   if (!response.ok) return null
   const blob = await response.blob()

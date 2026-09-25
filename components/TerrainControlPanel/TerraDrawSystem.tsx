@@ -333,6 +333,8 @@ function buildModeStyles(layersRef: { current: DrawLayer[] }) {
     // A hidden layer is drawn at zero opacity AND zero width — opacity alone
     // leaves a 1px hairline on some GPUs, width alone leaves polygon fills.
     const hiddenOf = (feature: any) => !!resolveLayer(layersRef.current, feature).hidden
+    const SELECT_ACCENT = "#f59e0b" as `#${string}`
+    const SELECT_WHITE = "#ffffff" as `#${string}`
     const fillOf = (feature: any): any => splitHexAlpha(resolveLayer(layersRef.current, feature).fillColor).color
     const fillOpacityOf = (feature: any): any => hiddenOf(feature) ? 0 : splitHexAlpha(resolveLayer(layersRef.current, feature).fillColor).opacity
     const strokeOf = (feature: any): any => splitHexAlpha(resolveLayer(layersRef.current, feature).strokeColor).color
@@ -358,12 +360,18 @@ function buildModeStyles(layersRef: { current: DrawLayer[] }) {
             fillColor: fillOf, fillOpacity: fillOpacityOf,
             outlineColor: strokeOf, outlineOpacity: strokeOpacityOf, outlineWidth: strokeWidthOf,
         },
+        // A selected feature used to be drawn in its own layer colours, so
+        // nothing said it was selected (and Delete then looked like it did
+        // nothing). Selection is a saturated accent stroke, wider than the
+        // layer's, with the vertex and midpoint handles in the same accent.
         select: {
-            selectedPointColor: fillOf, selectedPointOpacity: fillOpacityOf, selectedPointWidth: pointWidthOf,
-            selectedPointOutlineColor: strokeOf, selectedPointOutlineOpacity: strokeOpacityOf, selectedPointOutlineWidth: strokeWidthOf,
-            selectedLineStringColor: fillOf, selectedLineStringOpacity: fillOpacityOf, selectedLineStringWidth: strokeWidthOf,
+            selectedPointColor: fillOf, selectedPointOpacity: fillOpacityOf, selectedPointWidth: (f: any) => pointWidthOf(f) + 2,
+            selectedPointOutlineColor: SELECT_ACCENT, selectedPointOutlineOpacity: strokeOpacityOf, selectedPointOutlineWidth: (f: any) => strokeWidthOf(f) + 2,
+            selectedLineStringColor: SELECT_ACCENT, selectedLineStringOpacity: fillOpacityOf, selectedLineStringWidth: (f: any) => strokeWidthOf(f) + 2,
             selectedPolygonColor: fillOf, selectedPolygonFillOpacity: fillOpacityOf,
-            selectedPolygonOutlineColor: strokeOf, selectedPolygonOutlineOpacity: strokeOpacityOf, selectedPolygonOutlineWidth: strokeWidthOf,
+            selectedPolygonOutlineColor: SELECT_ACCENT, selectedPolygonOutlineOpacity: strokeOpacityOf, selectedPolygonOutlineWidth: (f: any) => strokeWidthOf(f) + 2,
+            selectionPointColor: SELECT_WHITE, selectionPointOutlineColor: SELECT_ACCENT, selectionPointWidth: 5, selectionPointOutlineWidth: 2,
+            midPointColor: SELECT_ACCENT, midPointOutlineColor: SELECT_WHITE, midPointWidth: 4, midPointOutlineWidth: 1,
         },
     }
 }

@@ -3188,15 +3188,21 @@ export function TerrainViewer() {
     const basemapSourceObj = customBasemapSources.find((s) => s.id === activeBasemapSourceA)
     const resolveOpts = { useCogProtocolVsTitiler, titilerEndpoint }
 
+    // Historical mode draws no terrain, so a fence around the terrain source
+    // picked in terrain mode has nothing to protect and only pins the imagery
+    // to that footprint (a regional LiDAR picked in terrain mode, then a
+    // switch to historical: stuck inside it). The terrain half is ignored
+    // there; "terrain" fences nothing, "union" fences the basemap alone.
+    const terrainFenced = !isHistoricalMode
     ;(async () => {
       let bounds: LngLatBoundsTuple | null = null
       if (state.maxBoundsMode === "terrain") {
-        bounds = await resolveCustomSourceBounds(terrainSourceObj, resolveOpts)
+        bounds = terrainFenced ? await resolveCustomSourceBounds(terrainSourceObj, resolveOpts) : null
       } else if (state.maxBoundsMode === "raster") {
         bounds = await resolveCustomSourceBounds(basemapSourceObj, resolveOpts)
       } else if (state.maxBoundsMode === "union") {
         const [terrainBounds, rasterBounds] = await Promise.all([
-          resolveCustomSourceBounds(terrainSourceObj, resolveOpts),
+          terrainFenced ? resolveCustomSourceBounds(terrainSourceObj, resolveOpts) : Promise.resolve(null),
           resolveCustomSourceBounds(basemapSourceObj, resolveOpts),
         ])
         bounds = unionBounds(terrainBounds, rasterBounds)
@@ -3219,7 +3225,7 @@ export function TerrainViewer() {
     return () => { cancelled = true }
   }, [
     state.maxBoundsMode, state.maxBoundsBuffer, state.maxBoundsWest, state.maxBoundsSouth, state.maxBoundsEast, state.maxBoundsNorth,
-    state.sourceA, activeBasemapSourceA, customTerrainSources, customBasemapSources, useCogProtocolVsTitiler, titilerEndpoint,
+    state.sourceA, activeBasemapSourceA, customTerrainSources, customBasemapSources, useCogProtocolVsTitiler, titilerEndpoint, isHistoricalMode,
   ])
 
   // A source that is not already Web Mercator has its tiles reprojected by
