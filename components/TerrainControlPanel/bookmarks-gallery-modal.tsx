@@ -5,6 +5,7 @@ import { Trash2, ImageOff, Pencil, Check, List, LayoutGrid, Star } from "lucide-
 import type { MapRef } from "react-map-gl/maplibre"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
+import { CopyModalLinkButton } from "./controls-components"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Switch } from "@/components/ui/switch"
@@ -327,7 +328,7 @@ export const BookmarksGalleryModal: React.FC<{
         <div className="shrink-0 border-b px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <DialogHeader className="gap-0.5">
-              <DialogTitle>Bookmarks</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">Bookmarks <CopyModalLinkButton param="bookmarksGallery" value="true" label="the Bookmarks gallery" /></DialogTitle>
               <DialogDescription>Every saved view — click a thumbnail to load it.</DialogDescription>
             </DialogHeader>
 

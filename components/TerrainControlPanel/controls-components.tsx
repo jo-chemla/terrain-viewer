@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useEffect, forwardRef, createContext, useContext, useId, Fragment } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin, ArrowRightToLine } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin, ArrowRightToLine, Link2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
@@ -649,6 +649,31 @@ export const CheckboxWithSlider: React.FC<{
         </div>
       )}
     </div>
+  )
+}
+
+// ─── CopyModalLinkButton ────────────────────────────────────────────────────
+// Sits beside a modal's title: copies the current link with the one-shot
+// parameter that opens this modal on arrival (?openLibrary=terrain,
+// ?bookmarksGallery=true, ?openDataLayers=true), so nobody has to remember
+// the parameter names.
+export const CopyModalLinkButton: React.FC<{ param: string; value: string; label: string }> = ({ param, value, label }) => {
+  const toast = useToast()
+  return (
+    <TooltipIconButton
+      icon={Link2}
+      tooltip={`Copy a link that opens ${label} (?${param}=${value})`}
+      size="sm"
+      className="h-6 w-6 p-0 text-muted-foreground"
+      onClick={() => {
+        const url = new URL(window.location.href)
+        url.searchParams.set(param, value)
+        navigator.clipboard?.writeText(url.toString()).then(
+          () => toast({ key: "copy-modal-link", title: "Link copied", body: `Opens ${label} on arrival.` }),
+          () => toast({ key: "copy-modal-link", title: "Could not copy", body: url.toString() }),
+        )
+      }}
+    />
   )
 }
 
