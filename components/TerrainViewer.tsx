@@ -187,6 +187,42 @@ function matcapUrlFor(textureId: string): string {
 // hoisted to module scope (rather than inline inside useQueryStates below) so
 // lib/bookmarks.ts's restoreBookmarkInPlace can reuse the exact same parsers to
 // turn a saved query string back into typed state without a page reload.
+
+// Tiles that never land. MapLibre keeps every raster request in one queue
+// of 16 and a custom protocol holds its slot for the whole handler, so a
+// backlog of slow horizon-search tiles - or a service that stopped
+// answering - leaves the map "loading" with nothing arriving. Nothing in the
+// app can recover the queue; a reload can. Watch each map: pending tiles
+// for STALL_AFTER_MS with no tile landing in that time, one toast, then
+// quiet for STALL_REPEAT_MS.
+const STALL_AFTER_MS = 60_000
+const STALL_REPEAT_MS = 300_000
+const stallWatchers = new WeakMap<object, { lastTileAt: number; pendingSince: number | null; lastToastAt: number; timer: ReturnType<typeof setInterval> }>()
+function watchForStalledTiles(map: maplibregl.Map) {
+  if (stallWatchers.has(map)) return
+  const w = { lastTileAt: Date.now(), pendingSince: null as number | null, lastToastAt: 0, timer: 0 as unknown as ReturnType<typeof setInterval> }
+  map.on("data", (e) => { if ((e as { tile?: unknown }).tile) w.lastTileAt = Date.now() })
+  map.on("remove", () => { clearInterval(w.timer); stallWatchers.delete(map) })
+  w.timer = setInterval(() => {
+    const now = Date.now()
+    let loaded = true
+    try { loaded = map.areTilesLoaded() } catch { return }
+    if (loaded) { w.pendingSince = null; return }
+    if (w.pendingSince == null) w.pendingSince = now
+    const stalled = now - w.pendingSince > STALL_AFTER_MS && now - w.lastTileAt > STALL_AFTER_MS
+    if (stalled && now - w.lastToastAt > STALL_REPEAT_MS) {
+      w.lastToastAt = now
+      pushToast({
+        key: "tiles-stalled",
+        title: "Tiles have stopped arriving",
+        body: "The map has been waiting a minute with nothing landing. A source may be down, or the tile queue is wedged behind slow requests: reloading the page is the reliable fix.",
+        duration: 12000,
+      })
+    }
+  }, 5000)
+  stallWatchers.set(map, w)
+}
+
 export const QUERY_STATE_PARSERS = {
     // Embed/project convenience params: `project` looks up a named preset in
     // lib/projects.json (see lib/project-config.ts); terrainUrl/basemapUrl let an
@@ -2837,8 +2873,11 @@ export function TerrainViewer() {
   // rendered at all, so a timeline scrubbing an invisible layer is noise.
   // (Historical mode always shows the basemap; see the opacity forcing in
   // the per-view render below.) The panel mirrors this same gate itself.
+  // Not gated on showRasterBasemap: the Ctrl/Shift "peek at the imagery"
+  // toggles flip that flag, and a timeline that came and went with it also
+  // moved the map padding every time. A historical basemap being selected
+  // is enough for its timeline to stay put.
   const historicalTimelineActive = state.historicalBeta && isHistoricalSourceActive(state)
-    && (isHistoricalMode || state.showRasterBasemap)
   const historicalTimelineVisible = historicalTimelineActive && !state.historicalTimelineCollapsed
   const isBasemapCustom = customBasemapSources.some(s => s.id === activeBasemapSourceA)
 
@@ -3308,6 +3347,7 @@ export function TerrainViewer() {
             const mapInstance = mapRefs[side].current?.getMap()
             if (!mapInstance) return
             ensureLegacyTransform(mapInstance)
+            watchForStalledTiles(mapInstance)
 
             // A new viewport needs a fresh "how many tiles are pending" count
             // for the slow ray-marched modes (SVF/Openness/Local Dominance) —
@@ -3872,7 +3912,9 @@ export function TerrainViewer() {
               showGraticules={state.showContoursAndGraticules && state.showGraticules && !isHistoricalMode}
               graticuleColor={state.graticuleColor || themeAntiColor}
               graticuleWidth={state.graticuleWidth}
-              showLabels={state.showGraticuleLabels}
+              // Labels are screen-space text pinned to the graticule's edge
+              // crossings; tilted or on the globe they drift off the lines.
+              showLabels={state.showGraticuleLabels && state.viewMode === "2d"}
               labelColor={graticuleLabelColor}
               labelTextShadow={graticuleLabelTextShadow}
               gridDensity={state.graticuleDensity || undefined}

@@ -120,23 +120,9 @@ export const LightingEffectsOptionsSection: React.FC<{
           />
           {state.showPhong && advanced && (
             <div className="space-y-3 pl-1">
-              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
-                <Label className="text-sm font-medium">Renderer</Label>
-                {/* Values ("live"/"raster") are URL params — labels only.
-                    Both renderers drape onto 3D terrain now, so the old
-                    "3D Slow / 2D Fast" framing was stale: Live is the
-                    modern per-fragment path, Legacy the raster-tile
-                    pipeline (still the only globe-capable one). */}
-                <SegmentedToggle
-                  className={SEG_WIDTH}
-                  value={state.phongRenderer}
-                  onChange={(value) => setState({ phongRenderer: value })}
-                  options={[
-                    { value: "live", label: "Live", tooltip: "Live GPU shader draped on the same terrain mesh MapLibre draws — per-fragment sharpness, true albedo compositing, instant light/strength updates, zero tile refetch. Not available on globe." },
-                    { value: "raster", label: "Legacy", tooltip: "Raster-tile pipeline — also correct on globe, but softer (baked 8-bit normals) and every light/strength change re-fetches tiles (~150ms debounced)." },
-                  ]}
-                />
-              </div>
+              {/* Renderer: live is the default and the only path offered; the
+                  raster ("legacy") pipeline stays reachable through the
+                  phongRenderer / matcapRenderer URL parameters for captures. */}
               {/* Intensities — albedo/diffuse/specular, foldable, above Light Anchor. */}
               <Collapsible open={isIntensitiesOpen} onOpenChange={setIsIntensitiesOpen}>
                 <CollapsibleTrigger className={cn("flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer", dimWhenSliding)}>
@@ -202,20 +188,9 @@ export const LightingEffectsOptionsSection: React.FC<{
           />
           {state.showMatcap && advanced && (
             <div className="space-y-3 pl-1">
-              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
-                <Label className="text-sm font-medium">Renderer</Label>
-                {/* Same Live/Legacy framing as Phong's toggle — see its
-                    comment; values stay "live"/"raster" (URL params). */}
-                <SegmentedToggle
-                  className={SEG_WIDTH}
-                  value={state.matcapRenderer}
-                  onChange={(value) => setState({ matcapRenderer: value })}
-                  options={[
-                    { value: "live", label: "Live", tooltip: "Live GPU shader draped on the same terrain mesh MapLibre draws — per-fragment sharpness, instant updates, zero tile refetch, and can anchor the material to the camera (classic matcap). Not available on globe." },
-                    { value: "raster", label: "Legacy", tooltip: "Raster-tile pipeline — also correct on globe, but softer (baked 8-bit normals) and every rotation/exaggeration change re-fetches tiles (~150ms debounced)." },
-                  ]}
-                />
-              </div>
+              {/* Renderer: live is the default and the only path offered; the
+                  raster ("legacy") pipeline stays reachable through the
+                  phongRenderer / matcapRenderer URL parameters for captures. */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Material</Label>
                 <div className="flex gap-2">

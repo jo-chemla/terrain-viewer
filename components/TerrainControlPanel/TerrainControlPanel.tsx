@@ -184,6 +184,12 @@ export function TerrainControlPanel({
   // Info).
   const appMode: AppMode = state.appMode
   const historicalMode = appMode === "historical"
+  // ?openDataLayers=true - one-shot, like ?bookmarksGallery=true and
+  // ?openLibrary=: opens the Data layers picker on arrival.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("openDataLayers") === "true") setIsDataLayersOpen(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const { getTilesUrl, getSourceConfig } = useSourceConfig()
   const { theme } = useTheme()
 
