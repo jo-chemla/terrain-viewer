@@ -99,6 +99,9 @@ export type MatcapLiveOptions = {
   rotationDeg: number
   exaggeration: number
   opacity: number
+  /** Draw skirts under tile edges (default true), mirroring the map's
+   *  terrainSkirtLength; false hides them together with MapLibre's own. */
+  skirts?: boolean
   /** "Light Anchor", ported from phong-live-gl-layer.ts's own
    *  lightRelativeToCamera: true ("Camera" / attached to camera, the
    *  default) samples the matcap by the VIEW-SPACE normal — the normal
@@ -123,9 +126,16 @@ ${TERRAIN_PRELUDE}
 in vec2 a_pos;
 out vec2 v_uv;
 const float TILE_EXTENT = 8192.0;
+uniform float u_skirt_length;
 void main() {
-  v_uv = a_pos / TILE_EXTENT;
-  gl_Position = projectTileFor3D(a_pos, get_elevation(a_pos));
+  // The mesh carries a border ring past every edge (generateBorders). Those
+  // vertices are folded back onto the edge and dropped by the skirt length:
+  // a vertical wall under each tile edge, exactly MapLibre's own terrain
+  // skirt, so no gap and no surface overlap between neighbouring tiles.
+  vec2 p = clamp(a_pos, 0.0, TILE_EXTENT);
+  float skirt = (p == a_pos) ? 0.0 : u_skirt_length;
+  v_uv = p / TILE_EXTENT;
+  gl_Position = projectTileFor3D(p, get_elevation(p) - skirt);
 }
 `
 }
@@ -265,6 +275,7 @@ interface ProgramBundle {
   uTerrainMatrix: WebGLUniformLocation | null
   uTerrainUnpack: WebGLUniformLocation | null
   uTerrainExaggeration: WebGLUniformLocation | null
+  uSkirtLength: WebGLUniformLocation | null
 }
 
 interface TextureEntry {
@@ -342,12 +353,11 @@ export class MatcapLiveLayer implements CustomLayerInterface {
     // rationales (the 8×8 grid read as blocky under per-fragment normals;
     // the apron double-composited translucent output along tile seams).
     const terrainMeshSize = ((map as unknown as { terrain?: { meshSize?: number } }).terrain?.meshSize) ?? 128
-    // generateBorders: an apron ring past each edge. MapLibre 6 draws terrain
-    // skirts ("auto") coloured by the draped layers, and our quads are drawn
-    // on top of the terrain: where a quad stops exactly at the tile edge the
-    // skirt strip peeks through as a white dash along every seam on the
-    // globe. The apron covers it. (Translucent output double-composites in
-    // the apron; opaque, which these layers normally are, does not.)
+    // generateBorders: a ring of vertices past each edge, which the vertex
+    // shader folds back onto the edge and drops by the skirt length - our
+    // own terrain skirts, matching MapLibre's. Without them MapLibre's
+    // skirts (coloured by the draped layers) peeked through as white dashes
+    // along every seam on the globe.
     const mesh = createTileMesh({ granularity: terrainMeshSize, generateBorders: true })
     this.vao = gl.createVertexArray()
     gl.bindVertexArray(this.vao)
@@ -457,6 +467,7 @@ export class MatcapLiveLayer implements CustomLayerInterface {
       uTerrainMatrix: gl.getUniformLocation(program, "u_terrain_matrix"),
       uTerrainUnpack: gl.getUniformLocation(program, "u_terrain_unpack"),
       uTerrainExaggeration: gl.getUniformLocation(program, "u_terrain_exaggeration"),
+      uSkirtLength: gl.getUniformLocation(program, "u_skirt_length"),
     }
     this.programs.set(shaderData.variantName, bundle)
     return bundle
@@ -677,7 +688,12 @@ export class MatcapLiveLayer implements CustomLayerInterface {
           gl.uniformMatrix4fv(bundle.uTerrainMatrix, false, td.u_terrain_matrix)
           gl.uniform4fv(bundle.uTerrainUnpack, td.u_terrain_unpack)
           gl.uniform1f(bundle.uTerrainExaggeration, td.u_terrain_exaggeration)
+          // Same length rule as MapLibre's own skirts (Terrain.getSkirtLength),
+          // in exaggerated metres; 0 when the user turned skirts off.
+          const skirt = this.options.skirts === false ? 0 : ((terrain as unknown as { getSkirtLength?: (z: number) => number }).getSkirtLength?.(map.getZoom()) ?? 0) * td.u_terrain_exaggeration
+          gl.uniform1f(bundle.uSkirtLength, skirt)
         } else {
+          gl.uniform1f(bundle.uSkirtLength, 0)
           gl.bindTexture(gl.TEXTURE_2D, this.flatTerrainTexture)
           gl.uniform1f(bundle.uTerrainDim, 1)
           gl.uniformMatrix4fv(bundle.uTerrainMatrix, false, MatcapLiveLayer.FLAT_TERRAIN_MATRIX)

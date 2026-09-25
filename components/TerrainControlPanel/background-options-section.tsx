@@ -95,6 +95,19 @@ export const BackgroundOptionsSection: React.FC<{
 
       <div className="flex items-center justify-between py-0.5">
         <Checkbox
+          id="terrain-skirts"
+          checked={state.terrainSkirts}
+          onCheckedChange={(checked) => setState({ terrainSkirts: checked === true })}
+          className="cursor-pointer"
+        />
+        <Tooltip>
+          <TooltipTrigger render={<Label htmlFor="terrain-skirts" className="text-sm font-medium cursor-pointer flex-1 ml-2">Terrain Skirts</Label>} />
+          <TooltipContent className="max-w-64"><p>Vertical walls under every terrain tile edge. On, they hide the hairline gaps between tiles of different zoom levels; off, a transparent background no longer shows them as ledges. Applies to the terrain and to the live Matcap and Phong layers.</p></TooltipContent>
+        </Tooltip>
+      </div>
+
+      <div className="flex items-center justify-between py-0.5">
+        <Checkbox
           id="bg-layer-active"
           checked={state.backgroundLayerActive}
           onCheckedChange={(checked) =>
