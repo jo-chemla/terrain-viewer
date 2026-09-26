@@ -3967,7 +3967,7 @@ export function TerrainViewer() {
               graticuleWidth={state.graticuleWidth}
               // Labels are screen-space text pinned to the graticule's edge
               // crossings; tilted or on the globe they drift off the lines.
-              showLabels={state.showGraticuleLabels && state.viewMode === "2d"}
+              showLabels={state.showGraticuleLabels && state.viewMode !== "3d"}
               labelColor={graticuleLabelColor}
               labelTextShadow={graticuleLabelTextShadow}
               gridDensity={state.graticuleDensity || undefined}

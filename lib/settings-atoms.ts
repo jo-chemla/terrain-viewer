@@ -145,6 +145,11 @@ export const timelineViewWindowAtom = atom<{ min: number; max: number } | null>(
 /** Fold state of the Terrain Analysis sub-groups, persisted. */
 export const terrainAnalysisGroupsOpenAtom = atomWithStorage<Record<string, boolean>>("terrainAnalysisGroupsOpen", {})
 export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
+/** GeoTIFF export resolution: "screen" exports at the zoom the map is
+ *  drawing (tiles already cached, seconds), "max" up to maxResolutionAtom
+ *  pixels (a deeper zoom, fetched afresh). Shared by the GeoTIFF button
+ *  and the Export layers dialog. */
+export const exportResolutionModeAtom = atomWithStorage<"screen" | "max">("exportResolutionMode", "screen")
 
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)
 // DTM export mode: client-side (browser range-reads/tile-mosaic, no titiler, no

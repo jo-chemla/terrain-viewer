@@ -3433,6 +3433,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "exportResolutionMode",
+      "default": "\"screen\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "useCogProtocolVsTitiler",
       "default": "true",
       "note": ""

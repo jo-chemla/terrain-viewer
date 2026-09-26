@@ -4,7 +4,8 @@ import { useAtom } from "jotai"
 import { Download, Camera, Copy, Loader2, X, Images, ChevronDown } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ExportMultiDialog } from "./export-multi-dialog"
-import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom } from "@/lib/settings-atoms"
+import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom, exportResolutionModeAtom } from "@/lib/settings-atoms"
+import { displayedTileZoom } from "@/lib/map-render-export"
 import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer } from "geotiff"
@@ -102,6 +103,7 @@ export const DownloadSection: React.FC<{
   const [isCopying, setIsCopying] = useState(false)
   const [isExportMultiOpen, setIsExportMultiOpen] = useState(false)
   const [isExportLayersOpen, setIsExportLayersOpen] = useState(false)
+  const [exportResolutionMode] = useAtom(exportResolutionModeAtom)
   const [exportProgress, setExportProgress] = useState<number | null>(null)
   const [exportError, setExportError] = useState("")
   // Non-fatal — the download still saved, but at less than the configured Max
@@ -246,10 +248,21 @@ export const DownloadSection: React.FC<{
       return
     }
     const bounds = getMapBounds()
+    // "screen" (default): the zoom the map draws, so the tiles come from the
+    // browser and result caches - the Max Resolution default of 4096 px made
+    // this export fetch a zoom level or two deeper than anything on screen,
+    // which is why it was so much slower than the layer exports.
+    const map = mapRef.current?.getMap()
+    const screen = exportResolutionMode === "screen" && !!map
+    const canvas = map?.getCanvas()
+    const zoom = screen && clientSource.type !== "cog"
+      ? Math.min(clientSource.maxzoom, displayedTileZoom(map!, ["terrainSource", "hillshadeSource"]) ?? Math.floor(map!.getZoom() + Math.log2(512 / clientSource.tileSize)))
+      : undefined
     const result = await exportElevationClientSide({
       source: clientSource,
       bbox: [bounds.west, bounds.south, bounds.east, bounds.north],
-      targetResolution: maxResolution,
+      targetResolution: screen && canvas ? Math.max(canvas.width, canvas.height) : maxResolution,
+      zoom,
       onProgress: setExportProgress,
       signal,
     })
@@ -258,7 +271,7 @@ export const DownloadSection: React.FC<{
     // before committing to a save, so a cancel that lands after the last
     // fetch resolves still doesn't produce a download.
     if (signal.aborted) throw new DOMException("Export cancelled", "AbortError")
-    if (result.resolutionLimited) {
+    if (!screen && result.resolutionLimited) {
       setExportWarning(
         `Exported at ${result.width}×${result.height}px, below the ${maxResolution}px Max Resolution setting — this source has no deeper zoom data over the selected area.`,
       )
@@ -266,7 +279,7 @@ export const DownloadSection: React.FC<{
     await saveElevationGeoTiff(result.data, result.width, result.height, {
       west: result.bbox[0], south: result.bbox[1], east: result.bbox[2], north: result.bbox[3],
     })
-  }, [state.sourceA, customTerrainSources, getTilesUrl, clientUpstream, getMapBounds, maxResolution, saveElevationGeoTiff])
+  }, [state.sourceA, customTerrainSources, getTilesUrl, clientUpstream, getMapBounds, maxResolution, saveElevationGeoTiff, mapRef, exportResolutionMode])
 
   const exportDTMViaTitiler = useCallback(async (signal: AbortSignal) => {
     const sourceConfig = getSourceConfig(state.sourceA)
@@ -545,7 +558,9 @@ export const DownloadSection: React.FC<{
         // Contour lines moved here from their own button: they are one more
         // visible layer to export, as GeoJSON.
         contoursVisible={!hideContoursExport && state.showContoursAndGraticules && state.showContours}
+        tellsVisible={state.tellsBeta && state.showTellsDetector}
         onExportContours={exportContours}
+        onExportDem={(signal) => (useClientExport ? exportDTMClientSide(signal) : exportDTMViaTitiler(signal))}
       />
     </Section>
   )

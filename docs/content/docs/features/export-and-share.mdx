@@ -21,13 +21,21 @@ The **Max Download Resolution (px)** field, in the **Export settings** fold belo
 
 ## Visible layers export
 
-The arrow beside **GeoTIFF** opens a menu: **Elevation (DEM) GeoTIFF**, the same as the button, and **Visible layers…**. The second lists every Terrain Analysis and Relief Visualization mode currently drawn on the map, grouped under its section's name, plus the contour lines when they are on. Everything visible is checked; untick what you don't want and press **Export**.
+The arrow beside **GeoTIFF** opens a menu: **Elevation (DEM) GeoTIFF**, the same as the button, and **Visible layers…**. The second opens a tree of what is on the map, one file per line. A group's checkbox ticks or unticks all its lines, and the chevron folds it.
 
-Each mode downloads as its own file, `terrain-viewer_<group>_<mode>_<time>.tif`: a single-band 32-bit-float GeoTIFF in WGS 84 holding the mode's own values, not the colours you see. Slope and aspect are in degrees, LRM, TPI and TRI in metres, sky-view factor in percent; nodata is NaN. The file covers the current viewport at the resolution the map is drawing, which means every tile is already in the app's cache and the export takes seconds. Zoom in for a finer export.
+| Group | What it holds | File |
+|---|---|---|
+| Everything as seen | The composite of all visible layers | RGBA GeoTIFF, EPSG:3857 |
+| Vector | Contour lines, mound candidates | GeoJSON |
+| Elevation | The DEM | float32 GeoTIFF, EPSG:4326 |
+| Terrain Analysis, Relief Visualization | Each visible mode's raw values: slope, aspect and orientation in degrees, LRM, TPI and TRI in metres, sky-view factor in percent | float32 GeoTIFF, EPSG:4326, NaN = nodata |
+| Rendered layers | Hillshade, hypso, lighting, the raster basemap, and the modes as coloured on screen | RGBA GeoTIFF, EPSG:3857 |
 
-Matcap, Phong, hard shadows and the hillshade are drawn as colours with no values behind them, so they are not listed; the elevation itself is the main **GeoTIFF** button.
+**Resolution.** *Screen* exports at the zoom the map is drawing, so every tile is already cached and the whole export takes seconds. *Up to N px* uses the Max Resolution setting (Export settings) and fetches a deeper zoom afresh. The choice applies to the DEM and the values, and also to the main **GeoTIFF** button. Rendered layers and the composite are always the screen's own pixels.
 
-The contour lines export as GeoJSON: the lines **currently rendered in the viewport**, with segments cut apart by tile boundaries stitched back into continuous lines. They are only listed while the [Contours & GeoGrid mode](/features/visualization-modes) is on with its contour-lines checkbox.
+Rendered layers are the canvas, so they need a flat, north-up map: in the globe or the tilted 3D view, or with the map rotated, they are greyed out with the reason. Each is drawn on its own for a moment while it is captured, then every layer comes back.
+
+The contour lines are the ones **currently rendered in the viewport**, with segments cut apart by tile boundaries stitched back into continuous lines. Mound candidates can also be exported from their own section.
 
 ## Export Multi (Historical)
 
