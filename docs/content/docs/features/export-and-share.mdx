@@ -21,17 +21,19 @@ The **Max Download Resolution (px)** field, in the **Export settings** fold belo
 
 ## Visible layers export
 
-The arrow beside **GeoTIFF** opens a menu: **Elevation (DEM) GeoTIFF**, the same as the button, and **Visible layers…**. The second opens a tree of what is on the map, one file per line. A group's checkbox ticks or unticks all its lines, and the chevron folds it.
+The arrow beside **GeoTIFF** opens a menu: **Elevation (DEM) GeoTIFF**, the same as the button, and **Visible layers…**. The second opens a tree with two branches, **Visible** and **Not visible**, one file per line. A branch's or group's checkbox ticks or unticks everything under it, and the chevrons fold. Everything visible starts ticked; the Not visible branch starts unticked and folded.
 
 | Group | What it holds | File |
 |---|---|---|
-| Everything as seen | The composite of all visible layers | RGBA GeoTIFF, EPSG:3857 |
-| Vector | Contour lines, mound candidates | GeoJSON |
 | Elevation | The DEM | float32 GeoTIFF, EPSG:4326 |
-| Terrain Analysis, Relief Visualization | Each visible mode's raw values: slope, aspect and orientation in degrees, LRM, TPI and TRI in metres, sky-view factor in percent | float32 GeoTIFF, EPSG:4326, NaN = nodata |
+| Snapshot | Every visible layer, as seen | RGBA GeoTIFF, EPSG:3857 |
+| Vector | Contour lines, mound candidates | GeoJSON |
+| Terrain Analysis, Relief Visualization | Each mode's raw values: slope, aspect and orientation in degrees, LRM, TPI and TRI in metres, sky-view factor in percent | float32 GeoTIFF, EPSG:4326, NaN = nodata |
 | Rendered layers | Hillshade, hypso, lighting, the raster basemap, and the modes as coloured on screen | RGBA GeoTIFF, EPSG:3857 |
 
-**Resolution.** *Screen* exports at the zoom the map is drawing, so every tile is already cached and the whole export takes seconds. *Up to N px* uses the Max Resolution setting (Export settings) and fetches a deeper zoom afresh. The choice applies to the DEM and the values, and also to the main **GeoTIFF** button. Rendered layers and the composite are always the screen's own pixels.
+Under **Not visible**, the modes that are switched off can be exported too, even when their whole section is off: their tiles are computed for the export. Hidden rendered layers are shown for the moment of their capture.
+
+**Resolution.** *Screen*, labelled with the canvas size in pixels, exports at the zoom the map is drawing, so every tile is already cached and the whole export takes seconds. *Up to N px* uses the Max Resolution setting (Export settings) and fetches a deeper zoom afresh. The choice applies to the DEM and the values, and also to the main **GeoTIFF** button. Rendered layers and the composite are always the screen's own pixels.
 
 Rendered layers are the canvas, so they need a flat, north-up map: in the globe or the tilted 3D view, or with the map rotated, they are greyed out with the reason. Each is drawn on its own for a moment while it is captured, then every layer comes back.
 

@@ -472,7 +472,7 @@ export const DownloadSection: React.FC<{
               // meant hovering during the first 1.5s faded this button to
               // nothing with no Cancel button underneath to replace it.
               className={cn(
-                "block w-full rounded-r-none",
+                "block w-full rounded-r-none bg-transparent",
                 isExporting && "[&_svg]:animate-spin",
                 isExporting && canCancelExport && "transition-opacity group-hover:opacity-0",
               )}
@@ -503,7 +503,7 @@ export const DownloadSection: React.FC<{
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button variant="outline" size="sm" className="cursor-pointer rounded-l-none border-l-0 px-1 shrink-0 h-auto" aria-label="More exports" disabled={isExporting}>
+                <Button variant="outline" size="sm" className="cursor-pointer rounded-l-none border-l-0 px-1 shrink-0 h-auto bg-transparent" aria-label="More exports" disabled={isExporting}>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               }
@@ -559,6 +559,13 @@ export const DownloadSection: React.FC<{
         // visible layer to export, as GeoJSON.
         contoursVisible={!hideContoursExport && state.showContoursAndGraticules && state.showContours}
         tellsVisible={state.tellsBeta && state.showTellsDetector}
+        upstream={clientUpstream}
+        derivedParams={{
+          curvatureMode: state.curvatureMode, lrmRadius: state.lrmRadius,
+          svfRadius: state.svfRadius, svfPrecision: state.svfPrecision,
+          opennessRadius: state.opennessRadius, opennessMode: state.opennessMode, opennessPrecision: state.opennessPrecision,
+          localDominanceMinRadius: state.localDominanceMinRadius, localDominanceMaxRadius: state.localDominanceMaxRadius,
+        }}
         onExportContours={exportContours}
         onExportDem={(signal) => (useClientExport ? exportDTMClientSide(signal) : exportDTMViaTitiler(signal))}
       />

@@ -37,19 +37,20 @@ const waitForIdle = (map: maplibregl.Map, timeoutMs: number) => new Promise<void
 })
 
 /** Renders the map with only the `keep` layers visible (all of them when
- *  `keep` is null), reads the canvas at its device resolution, and restores
- *  every layer's visibility. Hidden layers are switched with
+ *  `keep` is null) - a kept layer that is hidden is shown for the capture -
+ *  reads the canvas at its device resolution, and restores every layer's
+ *  visibility. Hidden layers are switched with
  *  layout.visibility, which MapLibre also accepts for custom layers; their
  *  tiles stay in MapLibre's own tile cache and come back on restore. */
 export async function renderLayers(map: maplibregl.Map, keep: Set<string> | null): Promise<{ rgba: Uint8ClampedArray; width: number; height: number; bbox: GeoBbox }> {
   const saved: [string, unknown][] = []
   if (keep) {
     for (const layer of map.getStyle().layers) {
-      if (keep.has(layer.id)) continue
       const v = map.getLayoutProperty(layer.id, "visibility")
-      if (v === "none") continue
+      const want = keep.has(layer.id) ? "visible" : "none"
+      if ((v ?? "visible") === want) continue
       saved.push([layer.id, v])
-      map.setLayoutProperty(layer.id, "visibility", "none")
+      map.setLayoutProperty(layer.id, "visibility", want)
     }
   }
   try {

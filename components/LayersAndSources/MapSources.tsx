@@ -735,6 +735,50 @@ export interface ClientDemUpstream {
     maxzoom?: number
 }
 
+/** Settings the derived modes' URLs depend on - the same state the mounted
+ *  sources below receive from TerrainViewer. */
+export interface DerivedModeParams {
+    curvatureMode: CurvatureMode
+    lrmRadius: number
+    svfRadius: number
+    svfPrecision: HorizonPrecision
+    opennessRadius: number
+    opennessMode: OpennessMode
+    opennessPrecision: HorizonPrecision
+    localDominanceMinRadius: number
+    localDominanceMaxRadius: number
+}
+
+/** A derived mode's tile template without its source on the map - for the
+ *  layer export of modes whose group is switched off (a mode's source is
+ *  mounted whenever its group is on, see TerrainViewer). Built with the same
+ *  builders and arguments as the Source components below. Slope re-encodes
+ *  as Terrain-RGB, every other mode as Terrarium. */
+export function derivedModeTemplate(sourceId: string, up: ClientDemUpstream, p: DerivedModeParams): { template: string; encoding: "terrarium" | "mapbox"; tileSize: number; maxzoom?: number } | null {
+    const t = up.template, e = up.encoding, n = up.tileSize
+    const url = (() => {
+        switch (sourceId) {
+            case "slopeSource": return buildSlopeProtocolUrl(t, e, n)
+            case "aspectSource": return buildAspectProtocolUrl(t, e, n)
+            case "triSource": return buildTriProtocolUrl(t, e, n)
+            case "curvatureSource": return buildCurvatureProtocolUrl(t, e, n, p.curvatureMode)
+            case "tpiSource": return buildTpiProtocolUrl(t, e, n)
+            case "roughnessSource": return buildRoughnessProtocolUrl(t, e, n)
+            case "shapeIndexSource": return buildCurvatureProtocolUrl(t, e, n, "shape-index")
+            case "blobnessSource": return buildBlobnessProtocolUrl(t, e, n, "blobness")
+            case "eigenRatioSource": return buildBlobnessProtocolUrl(t, e, n, "eigen-ratio")
+            case "orientationSource": return buildBlobnessProtocolUrl(t, e, n, "orientation")
+            case "lrmSource": return buildLrmProtocolUrl(t, e, n, p.lrmRadius)
+            case "svfSource": return buildSvfProtocolUrl(t, e, n, p.svfRadius, p.svfPrecision)
+            case "opennessSource": return buildOpennessProtocolUrl(t, e, n, p.opennessRadius, p.opennessMode, p.opennessPrecision)
+            case "localDominanceSource": return buildLocalDominanceProtocolUrl(t, e, n, p.localDominanceMinRadius, p.localDominanceMaxRadius)
+            default: return null
+        }
+    })()
+    if (!url) return null
+    return { template: url, encoding: sourceId === "slopeSource" ? "mapbox" : "terrarium", tileSize: n, maxzoom: up.maxzoom }
+}
+
 export const useClientDemUpstream = (
     terrainSource: TerrainSource | string,
     customTerrainSources: CustomTerrainSource[],

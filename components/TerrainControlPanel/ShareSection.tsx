@@ -605,7 +605,7 @@ const ShareModal: React.FC<{
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-sm bg-background border border-border [&>button]:cursor-pointer">
+      <DialogContent className="sm:max-w-3xl bg-background border border-border [&>button]:cursor-pointer">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <Share2 className="h-4 w-4" />

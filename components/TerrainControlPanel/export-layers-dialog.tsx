@@ -17,6 +17,7 @@ import { exportResolutionModeAtom } from "@/lib/settings-atoms"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { track } from "@/lib/analytics"
 import { SegmentedToggle } from "./controls-components"
+import { derivedModeTemplate, type ClientDemUpstream, type DerivedModeParams } from "@/components/LayersAndSources/MapSources"
 
 // Four kinds of export, one tree:
 // - vector:    GeoJSON of what is on screen (contour lines, mound candidates);
@@ -29,10 +30,15 @@ import { SegmentedToggle } from "./controls-components"
 //              (shaded on the GPU), lighting, the basemap, and the coloured
 //              version of the modes. Only a flat north-up view is a raster, see
 //              lib/map-render-export.ts.
-// "Everything as seen" at the top is the render of every layer at once.
+// "Snapshot" is the render of every layer at once.
+//
+// Two top-level branches: what is visible now, and what is not - the modes
+// that are off and the rendered layers that are hidden - so either set can
+// be toggled in one click.
 type Kind = "vector" | "dem" | "values" | "render" | "composite"
 type Item = { id: string; label: string; detail?: string; kind: Kind; sourceId?: string; layers?: string[]; vector?: "contours" | "tells" }
 type Group = { key: string; title: string; hint?: string; items: Item[] }
+type Branch = { key: "visible" | "hidden"; title: string; groups: Group[] }
 
 const VALUE_MODES: { group: "Terrain Analysis" | "Relief Visualization"; sourceId: string; layerId: string; label: string; unit?: string }[] = [
   { group: "Terrain Analysis", sourceId: "slopeSource", layerId: "slope-relief", label: "Slope", unit: "degrees" },
@@ -53,28 +59,38 @@ const VALUE_MODES: { group: "Terrain Analysis" | "Relief Visualization"; sourceI
 
 const isShown = (map: maplibregl.Map, id: string) => !!map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none"
 
-function buildTree(map: maplibregl.Map, contoursVisible: boolean, tellsVisible: boolean): Group[] {
-  const groups: Group[] = []
+function buildTree(map: maplibregl.Map, contoursVisible: boolean, tellsVisible: boolean): Branch[] {
   const all = map.getStyle().layers.map((l) => l.id)
-  groups.push({ key: "composite", title: "Everything as seen", hint: "RGBA GeoTIFF, EPSG:3857, screen resolution", items: [{ id: "composite", label: "Composite of all visible layers", kind: "composite" }] })
+  const visible: Group[] = []
+  const hidden: Group[] = []
+
+  visible.push({ key: "dem", title: "Elevation", hint: "float32 GeoTIFF, EPSG:4326", items: [{ id: "dem", label: "DEM", detail: "metres", kind: "dem" }] })
+  visible.push({ key: "composite", title: "Snapshot", hint: "RGBA GeoTIFF, EPSG:3857, screen resolution", items: [{ id: "composite", label: "Every visible layer, as seen", kind: "composite" }] })
 
   const vector: Item[] = []
   if (contoursVisible) vector.push({ id: "contours", label: "Contour lines", detail: "GeoJSON", kind: "vector", vector: "contours" })
   if (tellsVisible) vector.push({ id: "tells", label: "Mound candidates", detail: "GeoJSON", kind: "vector", vector: "tells" })
-  if (vector.length) groups.push({ key: "vector", title: "Vector", items: vector })
-
-  groups.push({ key: "dem", title: "Elevation", hint: "float32 GeoTIFF, EPSG:4326", items: [{ id: "dem", label: "DEM", detail: "metres", kind: "dem" }] })
+  if (vector.length) visible.push({ key: "vector", title: "Vector", items: vector })
 
   for (const title of ["Terrain Analysis", "Relief Visualization"] as const) {
-    const items = VALUE_MODES.filter((m) => m.group === title && isShown(map, m.layerId))
-      .map<Item>((m) => ({ id: `values:${m.sourceId}`, label: m.label, detail: m.unit, kind: "values", sourceId: m.sourceId }))
-    if (items.length) groups.push({ key: title, title, hint: "raw values, float32 GeoTIFF, EPSG:4326", items })
+    const modes = VALUE_MODES.filter((m) => m.group === title)
+    const toItem = (m: (typeof VALUE_MODES)[number]): Item => ({ id: `values:${m.sourceId}`, label: m.label, detail: m.unit, kind: "values", sourceId: m.sourceId })
+    const on = modes.filter((m) => isShown(map, m.layerId)).map(toItem)
+    const off = modes.filter((m) => !isShown(map, m.layerId)).map(toItem)
+    if (on.length) visible.push({ key: `v-${title}`, title, hint: "raw values, float32 GeoTIFF, EPSG:4326", items: on })
+    if (off.length) hidden.push({ key: `h-${title}`, title, hint: "raw values, float32 GeoTIFF, EPSG:4326", items: off })
   }
 
-  const render: Item[] = []
+  // Rendered layers: shown ones under Visible; hidden ones that still exist
+  // in the style (their group is on, the layer is switched off) under Not
+  // visible - they are shown for the moment of their capture.
+  const shownRender: Item[] = []
+  const hiddenRender: Item[] = []
   const add = (id: string, label: string, layers: string[]) => {
-    const shown = layers.filter((l) => isShown(map, l))
-    if (shown.length) render.push({ id: `render:${id}`, label, kind: "render", layers: shown })
+    const present = layers.filter((l) => !!map.getLayer(l))
+    const shown = present.filter((l) => isShown(map, l))
+    if (shown.length) shownRender.push({ id: `render:${id}`, label, kind: "render", layers: shown })
+    else if (present.length) hiddenRender.push({ id: `render:${id}`, label, kind: "render", layers: present })
   }
   add("hillshade", "Hillshade", ["hillshade"])
   add("hypso", "Elevation Hypso", ["color-relief"])
@@ -82,8 +98,13 @@ function buildTree(map: maplibregl.Map, contoursVisible: boolean, tellsVisible: 
   add("relief", "Relief Visualization, coloured", VALUE_MODES.filter((m) => m.group === "Relief Visualization").map((m) => m.layerId))
   add("lighting", "Lighting Effects", ["matcap-terrain", "phong-terrain", "shadow-terrain", "matcap-live", "phong-live"])
   add("basemap", "Raster Basemap", ["raster-basemap", ...all.filter((id) => id.startsWith("overlay-basemap-"))])
-  if (render.length) groups.push({ key: "render", title: "Rendered layers", hint: "RGBA GeoTIFF, EPSG:3857, screen resolution", items: render })
-  return groups
+  if (shownRender.length) visible.push({ key: "v-render", title: "Rendered layers", hint: "RGBA GeoTIFF, EPSG:3857, screen resolution", items: shownRender })
+  if (hiddenRender.length) hidden.push({ key: "h-render", title: "Rendered layers", hint: "RGBA GeoTIFF, EPSG:3857, screen resolution", items: hiddenRender })
+
+  return [
+    { key: "visible", title: "Visible", groups: visible },
+    ...(hidden.length ? [{ key: "hidden" as const, title: "Not visible", groups: hidden }] : []),
+  ]
 }
 
 type Status = "running" | "done" | { error: string }
@@ -99,8 +120,14 @@ export const ExportLayersDialog: React.FC<{
   tellsVisible: boolean
   onExportContours: () => void
   onExportDem: (signal: AbortSignal) => Promise<void>
-}> = ({ open, onOpenChange, mapRef, getMapBounds, maxResolution, contoursVisible, tellsVisible, onExportContours, onExportDem }) => {
-  const [groups, setGroups] = useState<Group[]>([])
+  /** Terrain upstream and settings, to build the template of a mode whose
+   *  group is off and whose source is therefore not on the map. */
+  upstream: ClientDemUpstream | null
+  derivedParams: DerivedModeParams
+}> = ({ open, onOpenChange, mapRef, getMapBounds, maxResolution, contoursVisible, tellsVisible, onExportContours, onExportDem, upstream, derivedParams }) => {
+  const [branches, setBranches] = useState<Branch[]>([])
+  const groups = branches.flatMap((b) => b.groups)
+  const [canvasSize, setCanvasSize] = useState<string>("")
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [folded, setFolded] = useState<Set<string>>(new Set())
   const [status, setStatus] = useState<Record<string, Status>>({})
@@ -110,16 +137,20 @@ export const ExportLayersDialog: React.FC<{
   const [resolutionMode, setResolutionMode] = useAtom(exportResolutionModeAtom)
   const abortRef = useRef<AbortController | null>(null)
 
-  // What is on screen when the dialog opens. Everything checked except the
-  // DEM (it has its own button) and the composite.
+  // What is on screen when the dialog opens.
   useEffect(() => {
     if (!open) return
     const map = mapRef.current?.getMap()
     if (!map) return
     const tree = buildTree(map, contoursVisible, tellsVisible)
-    setGroups(tree)
+    setBranches(tree)
     setRenderBlocker(renderExportBlocker(map))
-    setSelected(new Set(tree.flatMap((g) => g.items).filter((i) => i.kind !== "dem" && i.kind !== "composite").map((i) => i.id)))
+    const c = map.getCanvas()
+    setCanvasSize(`${c.width} × ${c.height} px`)
+    // Everything visible is ticked, the snapshot and DEM included; nothing
+    // hidden is, and that branch starts folded.
+    setSelected(new Set(tree.filter((b) => b.key === "visible").flatMap((b) => b.groups).flatMap((g) => g.items).map((i) => i.id)))
+    setFolded(new Set(["branch:hidden"]))
     setStatus({})
     setProgress(null)
   }, [open, mapRef, contoursVisible, tellsVisible])
@@ -157,14 +188,23 @@ export const ExportLayersDialog: React.FC<{
         } else if (item.kind === "dem") {
           await onExportDem(controller.signal)
         } else if (item.kind === "values") {
+          // The mode's source on the map when its group is on; otherwise its
+          // template is built from the terrain upstream with the same builder.
           const spec = map.getStyle().sources[item.sourceId!] as { tiles?: string[]; encoding?: string; tileSize?: number; maxzoom?: number } | undefined
-          const template = spec?.tiles?.[0]
-          if (!template) throw new Error("source not on the map any more")
-          // "screen": the zoom the map draws, every tile already in the result
-          // cache. "max": the Max Resolution setting picks a deeper zoom.
-          const zoom = resolutionMode === "screen" ? displayedTileZoom(map, [item.sourceId!]) ?? undefined : undefined
+          const built = spec?.tiles?.[0] ? null : upstream ? derivedModeTemplate(item.sourceId!, upstream, derivedParams) : null
+          const template = spec?.tiles?.[0] ?? built?.template
+          if (!template) throw new Error("this terrain source has no client-side tile path")
+          const encoding = spec?.tiles?.[0] ? spec.encoding : built!.encoding
+          const tileSize = spec?.tileSize ?? built?.tileSize ?? 256
+          const maxzoom = spec?.maxzoom ?? built?.maxzoom ?? 20
+          // "screen": the zoom the map draws, so every tile is already in the
+          // result cache (a hidden mode has none drawn: the zoom it would be
+          // drawn at). "max": the Max Resolution setting picks a deeper zoom.
+          const zoom = resolutionMode === "screen"
+            ? Math.min(maxzoom, displayedTileZoom(map, [item.sourceId!]) ?? Math.floor(map.getZoom() + Math.log2(512 / tileSize)))
+            : undefined
           const result = await exportElevationClientSide({
-            source: { type: spec?.encoding === "terrarium" ? "terrarium" : "terrainrgb", url: template, tileSize: spec?.tileSize ?? 256, maxzoom: spec?.maxzoom ?? 20 },
+            source: { type: encoding === "terrarium" ? "terrarium" : "terrainrgb", url: template, tileSize, maxzoom },
             bbox: [b.west, b.south, b.east, b.north],
             targetResolution: maxResolution,
             zoom,
@@ -190,7 +230,7 @@ export const ExportLayersDialog: React.FC<{
     setRunning(false)
     abortRef.current = null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapRef, running, groups, selected, renderBlocker, resolutionMode, getMapBounds, maxResolution, onExportContours, onExportDem])
+  }, [mapRef, running, groups, selected, renderBlocker, resolutionMode, getMapBounds, maxResolution, onExportContours, onExportDem, upstream, derivedParams])
 
   const statusIcon = (id: string) => {
     const s = status[id]
@@ -200,6 +240,25 @@ export const ExportLayersDialog: React.FC<{
     return null
   }
   const count = groups.flatMap((g) => g.items).filter((i) => selected.has(i.id) && !blocked(i)).length
+  const toggleFold = (key: string) => setFolded((f) => { const n = new Set(f); if (n.has(key)) n.delete(key); else n.add(key); return n })
+  const headerId = (key: string) => `export-group-${key.replace(/[^a-zA-Z0-9-]/g, "-")}`
+  const treeHeader = (key: string, title: string, ids: string[], on: number, isFolded: boolean, hint?: string, top = false) => (
+    <div className="flex items-center gap-1.5">
+      <button type="button" aria-label={isFolded ? "Unfold" : "Fold"} className="cursor-pointer text-muted-foreground" onClick={() => toggleFold(key)}>
+        <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isFolded ? "" : "rotate-90"}`} />
+      </button>
+      <Checkbox
+        id={headerId(key)}
+        checked={ids.length > 0 && on === ids.length}
+        indeterminate={on > 0 && on < ids.length}
+        disabled={running || ids.length === 0}
+        onCheckedChange={() => setMany(ids, on < ids.length)}
+        className="cursor-pointer"
+      />
+      <Label htmlFor={headerId(key)} className={`cursor-pointer ${top ? "text-xs font-bold uppercase tracking-wide" : "text-sm font-semibold"}`}>{title}</Label>
+      {hint && <span className="text-[11px] text-muted-foreground truncate">{hint}</span>}
+    </div>
+  )
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) abortRef.current?.abort(); onOpenChange(o) }}>
@@ -219,45 +278,45 @@ export const ExportLayersDialog: React.FC<{
             onChange={(v) => setResolutionMode(v)}
             disabled={running}
             options={[
-              { value: "screen", label: "Screen", tooltip: "The resolution the map is drawing: every tile is already cached, so it takes seconds" },
+              { value: "screen", label: canvasSize ? `Screen, ${canvasSize}` : "Screen", tooltip: "The resolution the map is drawing: every tile is already cached, so it takes seconds" },
               { value: "max", label: `Up to ${maxResolution} px`, tooltip: "The Max Resolution setting (Export settings): a deeper zoom, fetched and computed afresh" },
             ]}
           />
         </div>
-        <p className="text-xs text-muted-foreground -mt-1">Applies to the DEM and the values. Renders are always at screen resolution.</p>
-        {renderBlocker && <p className="text-xs text-amber-600 dark:text-amber-500">Rendered layers and the composite: {renderBlocker.toLowerCase()}.</p>}
-        <div className="space-y-2">
-          {groups.map((g) => {
-            const ids = g.items.filter((i) => !blocked(i)).map((i) => i.id)
-            const on = ids.filter((id) => selected.has(id)).length
-            const isFolded = folded.has(g.key)
+        <p className="text-xs text-muted-foreground -mt-1">Applies to the DEM and the values. Snapshot and rendered layers are always the screen's own pixels.</p>
+        {renderBlocker && <p className="text-xs text-amber-600 dark:text-amber-500">Snapshot and rendered layers: {renderBlocker.toLowerCase()}.</p>}
+        <div className="space-y-3">
+          {branches.map((br) => {
+            const branchIds = br.groups.flatMap((g) => g.items).filter((i) => !blocked(i)).map((i) => i.id)
+            const branchOn = branchIds.filter((id) => selected.has(id)).length
+            const branchFolded = folded.has(`branch:${br.key}`)
             return (
-              <div key={g.key}>
-                <div className="flex items-center gap-1.5">
-                  <button type="button" aria-label={isFolded ? "Unfold" : "Fold"} className="cursor-pointer text-muted-foreground" onClick={() => setFolded((f) => { const n = new Set(f); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n })}>
-                    <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isFolded ? "" : "rotate-90"}`} />
-                  </button>
-                  <Checkbox
-                    id={`export-group-${g.key}`}
-                    checked={ids.length > 0 && on === ids.length}
-                    indeterminate={on > 0 && on < ids.length}
-                    disabled={running || ids.length === 0}
-                    onCheckedChange={() => setMany(ids, on < ids.length)}
-                    className="cursor-pointer"
-                  />
-                  <Label htmlFor={`export-group-${g.key}`} className="text-sm font-semibold cursor-pointer">{g.title}</Label>
-                  {g.hint && <span className="text-[11px] text-muted-foreground truncate">{g.hint}</span>}
-                </div>
-                {!isFolded && (
-                  <div className="ml-[42px] mt-1 space-y-1">
-                    {g.items.map((i) => (
-                      <div key={i.id} className="flex items-center gap-2 min-w-0">
-                        <Checkbox id={`export-${i.id}`} checked={selected.has(i.id) && !blocked(i)} disabled={running || blocked(i)} onCheckedChange={(c) => setMany([i.id], c === true)} className="cursor-pointer" />
-                        <Label htmlFor={`export-${i.id}`} className={`text-sm cursor-pointer ${blocked(i) ? "opacity-50" : ""}`}>{i.label}</Label>
-                        {i.detail && <span className="text-xs text-muted-foreground">{i.detail}</span>}
-                        <span className="ml-auto flex items-center">{statusIcon(i.id)}</span>
-                      </div>
-                    ))}
+              <div key={br.key}>
+                {treeHeader(`branch:${br.key}`, br.title, branchIds, branchOn, branchFolded, undefined, true)}
+                {!branchFolded && (
+                  <div className="ml-5 mt-1.5 space-y-2">
+                    {br.groups.map((g) => {
+                      const ids = g.items.filter((i) => !blocked(i)).map((i) => i.id)
+                      const on = ids.filter((id) => selected.has(id)).length
+                      const isFolded = folded.has(g.key)
+                      return (
+                        <div key={g.key}>
+                          {treeHeader(g.key, g.title, ids, on, isFolded, g.hint)}
+                          {!isFolded && (
+                            <div className="ml-[42px] mt-1 space-y-1">
+                              {g.items.map((i) => (
+                                <div key={i.id} className="flex items-center gap-2 min-w-0">
+                                  <Checkbox id={`export-${i.id}`} checked={selected.has(i.id) && !blocked(i)} disabled={running || blocked(i)} onCheckedChange={(c) => setMany([i.id], c === true)} className="cursor-pointer" />
+                                  <Label htmlFor={`export-${i.id}`} className={`text-sm cursor-pointer ${blocked(i) ? "opacity-50" : ""}`}>{i.label}</Label>
+                                  {i.detail && <span className="text-xs text-muted-foreground">{i.detail}</span>}
+                                  <span className="ml-auto flex items-center">{statusIcon(i.id)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
