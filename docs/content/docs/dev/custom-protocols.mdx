@@ -104,6 +104,19 @@ maplibre-contour's `DemSource` fetches its DEM tiles itself, in a worker, with `
 
 Isolines for these sources are computed on the main thread, the price of the custom `getTile`. A remote COG with the client toggle on goes to the same worker a local COG file uses (`cog-contour://`) instead.
 
+### Region reads
+
+A tile handler answers one z/x/y at a time; an export wants one area at one size. Where a source can deliver that area directly, its scheme also registers a **region reader** (`registerRegionReader` in the registry, the readers in `lib/region-readers.ts`), and the export (`readRegionGrid` in `lib/client-export.ts`) uses it instead of a tile mosaic:
+
+| Scheme | Region read |
+|---|---|
+| `float32dem://`, `float32dem-bbox://` (WMS) | One GetMap per 2048 px chunk of the area |
+| `vrt://` | Each source file read once per 2048 px chunk, reprojected with the same approximate transformer as the tiles |
+| `demdiff://` | The difference of its two operands' region reads, each through its own reader or tiles |
+| everything else | A tile mosaic at the zoom that meets the export size |
+
+The IGN LiDAR nDSM, a difference of two WMS layers, exports in two GetMap requests instead of a tile mosaic of each operand. COGs already had their own windowed read. A reader returns floats with NaN for nodata; the export resamples them onto its EPSG:4326 grid.
+
 ## Writing a new one
 
 1. Write the handler in `lib/<name>-protocol.ts`. Return a bitmap through `toTileImage` (`lib/tile-image.ts`), or MVT bytes for a vector source.

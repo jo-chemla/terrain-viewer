@@ -61,6 +61,8 @@ import { cn } from "@/lib/utils"
 import * as maplibregl from 'maplibre-gl'
 import { getTransform, ensureLegacyTransform } from '@/lib/maplibre-internals'
 import { registerProtocol } from '@/lib/protocol-registry'
+// Region readers (WMS, VRT, difference) for exports: see lib/region-readers.ts.
+import '@/lib/region-readers'
 import { isPosePlaybackActive } from '@/components/TerrainControlPanel/CameraUtilities'
 import { applyBoundedView, sanitizeBounds } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'

@@ -316,36 +316,37 @@ export async function getVrtInfo(vrtUrl: string, signal?: AbortSignal): Promise<
  */
 function projectTilePixels(
   toPixel: (mercX: number, mercY: number) => [number, number],
-  tileMinX: number, tileMaxY: number, span: number,
+  minX: number, maxY: number, spanX: number, spanY: number, W: number, H: number,
 ) {
   const at = (col: number, row: number) =>
-    toPixel(tileMinX + (col / TILE_SIZE) * span, tileMaxY - (row / TILE_SIZE) * span)
+    toPixel(minX + (col / W) * spanX, maxY - (row / H) * spanY)
 
   let cells = APPROX_GRID
   let nodes = cells + 1
   let gx = new Float64Array(0), gy = new Float64Array(0)
+  const maxCells = Math.max(W, H)
   for (;;) {
     nodes = cells + 1
     gx = new Float64Array(nodes * nodes)
     gy = new Float64Array(nodes * nodes)
-    const step = TILE_SIZE / cells
+    const stepX = W / cells, stepY = H / cells
     for (let r = 0; r < nodes; r++) {
       for (let c = 0; c < nodes; c++) {
-        const [px, py] = at(c * step, r * step)
+        const [px, py] = at(c * stepX, r * stepY)
         gx[r * nodes + c] = px
         gy[r * nodes + c] = py
       }
     }
-    if (cells >= TILE_SIZE) break                 // a node per pixel: exact
+    if (cells >= maxCells) break                 // a node per pixel: exact
     // The tolerance is in OUTPUT pixels, like GDAL's -et, so it has to be
     // scaled by how many source pixels one output pixel covers. Getting this
     // wrong is not academic: an error of 3.5 source pixels sounds alarming and
     // is 0.011 of an output pixel at z9, while the same 3.5 at z18 would be a
     // visible smear. The span of the corner grid gives the scale directly.
     const sourcePxPerOutputPx = Math.max(
-      Math.hypot(gx[nodes - 1] - gx[0], gy[nodes - 1] - gy[0]),
-      Math.hypot(gx[nodes * (nodes - 1)] - gx[0], gy[nodes * (nodes - 1)] - gy[0]),
-    ) / (TILE_SIZE / cells) / cells || 1
+      Math.hypot(gx[nodes - 1] - gx[0], gy[nodes - 1] - gy[0]) / W,
+      Math.hypot(gx[nodes * (nodes - 1)] - gx[0], gy[nodes * (nodes - 1)] - gy[0]) / H,
+    ) || 1
     const tolerance = APPROX_MAX_ERR_PX * sourcePxPerOutputPx
 
     // Bilinear error over a cell is not reliably worst at its centre - for a
@@ -361,7 +362,7 @@ function projectTilePixels(
         for (const [fx, fy] of [[0.5, 0.5], [0.5, 0], [0.5, 1], [0, 0.5], [1, 0.5]]) {
           const ix = (gx[a] * (1 - fx) + gx[b] * fx) * (1 - fy) + (gx[d] * (1 - fx) + gx[e] * fx) * fy
           const iy = (gy[a] * (1 - fx) + gy[b] * fx) * (1 - fy) + (gy[d] * (1 - fx) + gy[e] * fx) * fy
-          const [ex, ey] = at((c + fx) * step, (r + fy) * step)
+          const [ex, ey] = at((c + fx) * stepX, (r + fy) * stepY)
           if (!Number.isFinite(ex) || !Number.isFinite(ey)) continue
           worst = Math.max(worst, Math.hypot(ix - ex, iy - ey))
         }
@@ -371,20 +372,20 @@ function projectTilePixels(
     cells *= 2
   }
 
-  const vx = new Float64Array(TILE_SIZE * TILE_SIZE)
-  const vy = new Float64Array(TILE_SIZE * TILE_SIZE)
+  const vx = new Float64Array(W * H)
+  const vy = new Float64Array(W * H)
   let minVX = Infinity, minVY = Infinity, maxVX = -Infinity, maxVY = -Infinity
-  const cell = TILE_SIZE / cells
-  for (let row = 0; row < TILE_SIZE; row++) {
-    const fy = (row + 0.5) / cell
+  const cellX = W / cells, cellY = H / cells
+  for (let row = 0; row < H; row++) {
+    const fy = (row + 0.5) / cellY
     const r0 = Math.min(cells - 1, Math.floor(fy)), ty = fy - r0
-    for (let col = 0; col < TILE_SIZE; col++) {
-      const fx = (col + 0.5) / cell
+    for (let col = 0; col < W; col++) {
+      const fx = (col + 0.5) / cellX
       const c0 = Math.min(cells - 1, Math.floor(fx)), tx = fx - c0
       const a = r0 * nodes + c0, b = a + 1, d = a + nodes, e = d + 1
       const px = (gx[a] * (1 - tx) + gx[b] * tx) * (1 - ty) + (gx[d] * (1 - tx) + gx[e] * tx) * ty
       const py = (gy[a] * (1 - tx) + gy[b] * tx) * (1 - ty) + (gy[d] * (1 - tx) + gy[e] * tx) * ty
-      const i = row * TILE_SIZE + col
+      const i = row * W + col
       vx[i] = px; vy[i] = py
       if (Number.isFinite(px) && Number.isFinite(py)) {
         if (px < minVX) minVX = px
@@ -397,24 +398,18 @@ function projectTilePixels(
   return { vx, vy, minVX, minVY, maxVX, maxVY }
 }
 
-export async function vrtProtocol(
-  params: { url: string },
-  abortController: AbortController,
-): Promise<{ data: TileImage }> {
-  const m = params.url.match(VRT_URL_RE)
-  if (!m) throw new Error(`Invalid vrt protocol URL: ${params.url}`)
-  const [, encoded, zS, xS, yS] = m
-  const vrtUrl = decodeURIComponent(encoded)
-  const z = parseInt(zS, 10), x = parseInt(xS, 10), y = parseInt(yS, 10)
-  const signal = abortController.signal
-
+/** The VRT's values over a Web Mercator window (minX, maxY, spans in
+ *  metres) at W x H pixels, NaN where no source has data; null when no source
+ *  file touches the window. Shared by the tile handler (256 x 256) and the
+ *  region reader the export uses (readVrtRegion). */
+async function readVrtGrid(
+  vrtUrl: string, minX: number, maxY: number, spanX: number, spanY: number, W: number, H: number,
+  signal: AbortSignal, label: string, maxSources: number, maxReadPixels: number,
+): Promise<Float32Array | null> {
   const vrt = await loadVrt(vrtUrl, signal)
   const { toVrt } = await makeTransforms(vrt.srs)
   const [ox, pxW, , oy, , pxH] = vrt.gt
 
-  const span = (2 * ORIGIN) / 2 ** z
-  const tileMinX = -ORIGIN + x * span
-  const tileMaxY = ORIGIN - y * span
 
   // Every output pixel's position in VRT pixel space, computed once up front
   // rather than once per source: a tile commonly straddles several.
@@ -435,17 +430,17 @@ export async function vrtProtocol(
   // should not have to know that.
   const { vx, vy, minVX, minVY, maxVX, maxVY } = projectTilePixels(
     (mx, my) => { const [wx, wy] = toVrt(mx, my); return [(wx - ox) / pxW, (wy - oy) / pxH] },
-    tileMinX, tileMaxY, span,
+    minX, maxY, spanX, spanY, W, H,
   )
   if (!Number.isFinite(minVX) || maxVX <= 0 || maxVY <= 0 || minVX >= vrt.width || minVY >= vrt.height) {
-    throw new TileNotFound(params.url)
+    return null
   }
 
   const touched = vrt.sources.filter((s) =>
     s.dstX < maxVX && s.dstX + s.dstW > minVX && s.dstY < maxVY && s.dstY + s.dstH > minVY)
-  if (!touched.length) throw new TileNotFound(params.url)
-  if (touched.length > MAX_SOURCES_PER_TILE) {
-    throw new Error(`vrt://: tile z${z}/${x}/${y} spans ${touched.length} source files (limit ${MAX_SOURCES_PER_TILE}) - zoom in, or serve this source through titiler`)
+  if (!touched.length) return null
+  if (touched.length > maxSources) {
+    throw new Error(`vrt://: ${label} spans ${touched.length} source files (limit ${maxSources}) - zoom in, or serve this source through titiler`)
   }
 
   const { fromUrl } = await import("geotiff")
@@ -473,8 +468,8 @@ export async function vrtProtocol(
       Math.min(s.srcY + s.srcH, Math.ceil(s.srcY + (y1 - s.dstY) * sy)),
     ]
     if (win[2] <= win[0] || win[3] <= win[1]) return null
-    const outW = Math.max(1, Math.min(TILE_SIZE, win[2] - win[0]))
-    const outH = Math.max(1, Math.min(TILE_SIZE, win[3] - win[1]))
+    const outW = Math.max(1, Math.min(W, win[2] - win[0]))
+    const outH = Math.max(1, Math.min(H, win[3] - win[1]))
     try {
       const tiff = await openTiff(s.filename)
       // A file with no overviews has to decode its full-resolution window
@@ -489,7 +484,7 @@ export async function vrtProtocol(
       }
       const levels = await levelCache.get(s.filename)!
       const decoded = Math.max(outW * outH, ((win[2] - win[0]) * (win[3] - win[1])) / 4 ** (levels - 1))
-      if (decoded > MAX_READ_PIXELS) return { tooLarge: Math.round(decoded / 1e6) }
+      if (decoded > maxReadPixels) return { tooLarge: Math.round(decoded / 1e6) }
       // Nearest, NOT bilinear: these mosaics carry a nodata sentinel in the
       // same band (-99999 for RGE ALTI), and interpolating across its edge
       // produced values like -11 650 m - inside every sane guard, and a
@@ -530,20 +525,20 @@ export async function vrtProtocol(
   // reads as "no data here" rather than "too expensive to read" - so one
   // oversized source fails the tile outright.
   if (tooLarge) {
-    throw new Error(`vrt://: tile z${z}/${x}/${y} would decode ~${tooLarge.tooLarge} Mpx from one source file - zoom in, or serve this source through titiler`)
+    throw new Error(`vrt://: ${label} would decode ~${tooLarge.tooLarge} Mpx from one source file - zoom in, or serve this source through titiler`)
   }
-  if (!usable.length) throw new TileNotFound(params.url)
+  if (!usable.length) return null
 
-  const out = new Uint8ClampedArray(TILE_SIZE * TILE_SIZE * 4)
   // The range guards are the usual DEM sentinels: OpenTopography's LiDAR
   // mosaics carry +1.70141e38 (the float32 max GDAL writes as nodata), which
   // would otherwise encode as ground somewhere past the top of the ramp.
   const isHole = (v: number, nd: number | null) =>
     !Number.isFinite(v) || (nd != null && v === nd) || v < -12000 || v > 9000
 
-  for (let row = 0; row < TILE_SIZE; row++) {
-    for (let col = 0; col < TILE_SIZE; col++) {
-      const i = row * TILE_SIZE + col
+  const grid = new Float32Array(W * H)
+  for (let row = 0; row < H; row++) {
+    for (let col = 0; col < W; col++) {
+      const i = row * W + col
       const px = vx[i], py = vy[i]
       let value = NaN
       // Last source wins where two overlap, which is GDAL's own z-order: a VRT
@@ -561,18 +556,71 @@ export async function vrtProtocol(
         if (isHole(sample, s.nodata ?? vrt.nodata)) continue
         value = sample
       }
-      const hole = !Number.isFinite(value)
-      // Same alpha-254 hole convention as demdiff:// and the COG reader: a
-      // transparent pixel premultiplies to RGB 0, which in Terrain-RGB is
-      // -10 000 m, so a nodata edge would draw a 10 km cliff. See
-      // /docs/dev/demdiff-protocol.
-      const [r8, g8, b8] = elevationToTerrainrgb(hole ? 0 : value)
-      const o = i * 4
-      out[o] = r8; out[o + 1] = g8; out[o + 2] = b8
-      out[o + 3] = hole ? 254 : 255
+      grid[i] = value
     }
   }
+  return grid
+}
+
+export async function vrtProtocol(
+  params: { url: string },
+  abortController: AbortController,
+): Promise<{ data: TileImage }> {
+  const m = params.url.match(VRT_URL_RE)
+  if (!m) throw new Error(`Invalid vrt protocol URL: ${params.url}`)
+  const [, encoded, zS, xS, yS] = m
+  const vrtUrl = decodeURIComponent(encoded)
+  const z = parseInt(zS, 10), x = parseInt(xS, 10), y = parseInt(yS, 10)
+  const signal = abortController.signal
+
+  const span = (2 * ORIGIN) / 2 ** z
+  const grid = await readVrtGrid(vrtUrl, -ORIGIN + x * span, ORIGIN - y * span, span, span, TILE_SIZE, TILE_SIZE,
+    signal, `tile z${z}/${x}/${y}`, MAX_SOURCES_PER_TILE, MAX_READ_PIXELS)
+  if (!grid) throw new TileNotFound(params.url)
+
+  const out = new Uint8ClampedArray(TILE_SIZE * TILE_SIZE * 4)
+  for (let i = 0; i < grid.length; i++) {
+    const value = grid[i]
+    const hole = !Number.isFinite(value)
+    // Same alpha-254 hole convention as demdiff:// and the COG reader: a
+    // transparent pixel premultiplies to RGB 0, which in Terrain-RGB is
+    // -10 000 m, so a nodata edge would draw a 10 km cliff. See
+    // /docs/dev/demdiff-protocol.
+    const [r8, g8, b8] = elevationToTerrainrgb(hole ? 0 : value)
+    const o = i * 4
+    out[o] = r8; out[o + 1] = g8; out[o + 2] = b8
+    out[o + 3] = hole ? 254 : 255
+  }
   return { data: await toTileImage(out, TILE_SIZE, TILE_SIZE) }
+}
+
+const REGION_CHUNK = 2048
+const mercXOf = (lon: number) => (EARTH * lon * Math.PI) / 180
+const mercYOf = (lat: number) => EARTH * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+
+/** An export's whole area in one pass per source file instead of one per
+ *  tile: W x H pixels over a lon/lat bbox, rows spaced in Web Mercator (the
+ *  export resamples to its own grid). Read in chunks of REGION_CHUNK so the
+ *  per-pixel coordinate arrays stay small; a source file is range-read once
+ *  per chunk it touches, with geotiff's block cache in between. */
+export async function readVrtRegion(
+  vrtUrl: string, bbox: [number, number, number, number], W: number, H: number, signal: AbortSignal,
+): Promise<Float32Array> {
+  const [w, s, e, n] = bbox
+  const minX = mercXOf(w), maxX = mercXOf(e), maxY = mercYOf(n), minY = mercYOf(s)
+  const out = new Float32Array(W * H).fill(NaN)
+  for (let cy = 0; cy < H; cy += REGION_CHUNK) {
+    for (let cx = 0; cx < W; cx += REGION_CHUNK) {
+      if (signal.aborted) throw new DOMException("aborted", "AbortError")
+      const cw = Math.min(REGION_CHUNK, W - cx), ch = Math.min(REGION_CHUNK, H - cy)
+      const x0 = minX + ((maxX - minX) * cx) / W, y0 = maxY - ((maxY - minY) * cy) / H
+      const grid = await readVrtGrid(vrtUrl, x0, y0, ((maxX - minX) * cw) / W, ((maxY - minY) * ch) / H, cw, ch,
+        signal, "this export", 400, 256e6)
+      if (!grid) continue
+      for (let r = 0; r < ch; r++) out.set(grid.subarray(r * cw, (r + 1) * cw), (cy + r) * W + cx)
+    }
+  }
+  return out
 }
 
 /** The tile template for a VRT read in-browser: `vrt://<url>/{z}/{x}/{y}`. */

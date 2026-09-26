@@ -238,11 +238,13 @@ function boxDownsample(src: ArrayLike<number>, width: number, height: number, fa
   return { data: out, width: outW, height: outH }
 }
 
-export async function float32demProtocol(
-  params: { url: string },
-  abortController: AbortController,
-): Promise<{ data: TileImage }> {
-  let url = "https://" + params.url.replace(/^float32dem:\/\//, "")
+/** Fetches and decodes one float32 GeoTIFF GetMap/WCS response into
+ *  elevations, with every marker (supersample, WCS 2.0, nodata fill) applied.
+ *  The tile handler below encodes the result; the export's region reader
+ *  (lib/region-readers.ts) uses the floats directly, for a whole area in one
+ *  request. */
+export async function fetchFloat32Raster(rawUrl: string, signal?: AbortSignal): Promise<{ data: ArrayLike<number>; width: number; height: number }> {
+  let url = "https://" + rawUrl.replace(/^float32dem:\/\//, "")
 
   // Captured before any marker rewriting, since the WCS 2.0 branch below removes
   // BBOX outright. Used after decode to detect a server that answered with a
@@ -301,7 +303,7 @@ export async function float32demProtocol(
   })
   const holeFloor = nodata?.floor ?? -Infinity
 
-  const response = await fetch(url, { signal: abortController.signal })
+  const response = await fetch(url, { signal })
   const arrayBuffer = await response.arrayBuffer()
 
   const tiff = await fromArrayBuffer(arrayBuffer)
@@ -347,6 +349,15 @@ export async function float32demProtocol(
     width = down.width
     height = down.height
   }
+
+  return { data: elevationData, width, height }
+}
+
+export async function float32demProtocol(
+  params: { url: string },
+  abortController: AbortController,
+): Promise<{ data: TileImage }> {
+  const { data: elevationData, width, height } = await fetchFloat32Raster(params.url, abortController.signal)
 
   // Encode to Terrarium (same formula as elevationToTerrarium in MapSources.tsx):
   // height = (R*256 + G + B/256) - 32768, so R/G pack the integer meters (16-bit split

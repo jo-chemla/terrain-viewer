@@ -779,6 +779,31 @@ export function derivedModeTemplate(sourceId: string, up: ClientDemUpstream, p: 
     return { template: url, encoding: sourceId === "slopeSource" ? "mapbox" : "terrarium", tileSize: n, maxzoom: up.maxzoom }
 }
 
+/** Settings the lighting tiles depend on. The raster (tile) renderer of
+ *  Matcap and Phong takes the light as an absolute direction; the live
+ *  renderer's "light follows the camera" option does not apply to them. */
+export interface LightingParams {
+    matcapUrl: string
+    matcapRotationDeg: number
+    phongDiffuse: number
+    phongSpecular: number
+    lightDir: number
+    lightAlt: number
+    exaggeration: number
+    shadowRadiusPx: number
+}
+
+/** Matcap, Phong or hard-shadow tile template over the terrain upstream,
+ *  built like MatcapSource/PhongSource/ShadowSource below, whether or not the
+ *  map currently draws them with the live GL renderer. Tiles are RGBA. */
+export function lightingTemplate(kind: "matcap" | "phong" | "shadow", up: ClientDemUpstream, p: LightingParams): { template: string; tileSize: number; maxzoom?: number } {
+    const t = up.template, e = up.encoding, n = up.tileSize
+    const template = kind === "matcap" ? buildMatcapProtocolUrl(p.matcapUrl, p.matcapRotationDeg, p.exaggeration, t, e, n)
+        : kind === "phong" ? buildPhongProtocolUrl(p.phongDiffuse, p.phongSpecular, p.lightDir, p.lightAlt, p.exaggeration, t, e, n)
+        : buildShadowProtocolUrl(p.lightDir, p.lightAlt, p.shadowRadiusPx, t, e, n)
+    return { template, tileSize: n, maxzoom: up.maxzoom }
+}
+
 export const useClientDemUpstream = (
     terrainSource: TerrainSource | string,
     customTerrainSources: CustomTerrainSource[],

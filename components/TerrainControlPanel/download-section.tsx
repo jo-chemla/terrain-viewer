@@ -6,6 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ExportMultiDialog } from "./export-multi-dialog"
 import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom, exportResolutionModeAtom } from "@/lib/settings-atoms"
 import { displayedTileZoom, exportOutputSize } from "@/lib/map-render-export"
+import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from "@/lib/matcap-textures"
 import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer } from "geotiff"
@@ -567,6 +568,20 @@ export const DownloadSection: React.FC<{
         tellsVisible={state.tellsBeta && state.showTellsDetector}
         upstream={clientUpstream}
         demSource={useClientExport ? getClientExportSource(state.sourceA, customTerrainSources, getTilesUrl, clientUpstream) : null}
+        lighting={{
+          params: {
+            matcapUrl: (MATCAP_TEXTURES.find((t) => t.id === state.matcapTextureId) ?? MATCAP_TEXTURES.find((t) => t.id === DEFAULT_MATCAP_ID)!).url,
+            matcapRotationDeg: state.matcapRotationDeg,
+            phongDiffuse: state.phongDiffuseStrength, phongSpecular: state.phongSpecularStrength,
+            lightDir: state.illuminationDir, lightAlt: state.illuminationAlt,
+            exaggeration: state.exaggeration, shadowRadiusPx: state.shadowRadiusPx,
+          },
+          shown: {
+            matcap: state.showLightingEffects && state.showMatcap,
+            phong: state.showLightingEffects && state.showPhong,
+            shadow: state.showLightingEffects && state.showShadows,
+          },
+        }}
         onMakeFlat={() => {
           setState?.({ viewMode: "2d", pitch: 0, bearing: 0 })
           mapRef.current?.getMap()?.easeTo({ pitch: 0, bearing: 0, duration: 400 })

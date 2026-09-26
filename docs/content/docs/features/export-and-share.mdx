@@ -35,6 +35,10 @@ Under **Not visible**, the modes that are switched off can be exported too, even
 
 **Resolution.** *Screen*, labelled with the canvas size in pixels, exports exactly that many pixels at the zoom the map is drawing, so every tile is already cached and the whole export takes seconds. *Custom size* takes a longest edge, up to 16 384 px, and shows the other edge from the view's shape; tiles are fetched at the zoom that meets it. Either way the DEM and the values are resampled onto a regular EPSG:4326 grid covering exactly the view. The same choice drives the main **GeoTIFF** button. The snapshot and rendered layers are always the screen's own pixels.
 
+Under the resolution, one line says what the batch will read: the terrain tiles at the source's own tile size, or a region read for WMS, VRT and difference sources (a few requests for the whole area), then how many tiles each mode computes from them, cached after the first.
+
+**Lighting Effects** (Matcap, Phong, hard shadows) export from their own tiles as RGBA on the same EPSG:4326 grid, at the export size and in any view, including while the live renderer draws them on screen. They use the light direction as set; the live renderer's "light follows the camera" option does not apply.
+
 **Values as.** *Raw values* is the float32 GeoTIFF. *Coloured* runs the values through the mode's own colour ramp, with the bounds, symmetric and inverted settings you set, into an RGBA image on the same grid. *Both* writes the two. Curvature and shape index are stored ×1000 in their tiles for precision; the export divides that back out.
 
 **Images as.** RGBA outputs, the snapshot, rendered layers and coloured values, can be a GeoTIFF, or a PNG or JPEG with a world file (`.pgw`/`.jgw`), a `.prj`, and a `.aux.xml` from which GDAL and QGIS read the CRS. JPEG has no transparency, so nodata becomes white. Raw values and the DEM are always float32 GeoTIFF.

@@ -91,3 +91,35 @@ export async function fetchTileBitmap(url: string, signal?: AbortSignal): Promis
   if (!response.ok) return null
   return createImageBitmap(await response.blob())
 }
+
+// ─── Region reads ───────────────────────────────────────────────────────────
+//
+// A tile handler answers one z/x/y at a time. An export wants one area at
+// one size, and for some sources a single request can deliver that: a WMS
+// GetMap takes any bbox and size, a VRT can read each source file once over
+// the whole area, a difference is the difference of its operands' areas.
+// A scheme that can do that registers a region reader next to its tile
+// handler; the export (readRegionGrid in lib/client-export.ts) uses it when
+// there is one and falls back to a tile mosaic otherwise.
+
+/** An area of values, NaN = nodata. `grid` says how rows are spaced:
+ *  "lonlat" is already the export's regular EPSG:4326 grid over `bbox`,
+ *  "mercator" rows are Web Mercator and still need resampling. */
+export type RegionRaster = { data: Float32Array; width: number; height: number; bbox: [number, number, number, number]; grid: "mercator" | "lonlat" }
+export type RegionReader = {
+  read: (template: string, bbox: [number, number, number, number], width: number, height: number, signal?: AbortSignal) => Promise<RegionRaster>
+  /** What the read will request, for the export dialog ("2 WMS requests"). */
+  describe: (template: string, width: number, height: number) => string
+}
+
+const regionReaders: Map<string, RegionReader> =
+  ((globalThis as { __tvRegionReaders?: Map<string, RegionReader> }).__tvRegionReaders ??= new Map())
+
+export function registerRegionReader(scheme: string, reader: RegionReader): void {
+  regionReaders.set(scheme, reader)
+}
+
+export function regionReaderFor(url: string): RegionReader | null {
+  const scheme = customScheme(url)
+  return scheme ? regionReaders.get(scheme) ?? null : null
+}

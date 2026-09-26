@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { exportElevationClientSide } from "@/lib/client-export"
+import { exportElevationClientSide, describeRegionRead, tileCountFor, readRgbaRegion } from "@/lib/client-export"
 import { encodeFloat32GeoTiff, encodeRgbaGeoTiff, encodeImageWithWorldFile, type GeoBbox } from "@/lib/float-geotiff"
 import { compileRamp, colorize } from "@/lib/color-ramp-eval"
 import { renderLayers, renderExportBlocker, displayedTileZoom, exportOutputSize, MAX_EXPORT_EDGE, tileCount } from "@/lib/map-render-export"
@@ -20,7 +20,7 @@ import { exportResolutionModeAtom, exportValueFormatAtom, exportImageFormatAtom,
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { track } from "@/lib/analytics"
 import { SegmentedToggle } from "./controls-components"
-import { derivedModeTemplate, type ClientDemUpstream, type DerivedModeParams } from "@/components/LayersAndSources/MapSources"
+import { derivedModeTemplate, lightingTemplate, type ClientDemUpstream, type DerivedModeParams, type LightingParams } from "@/components/LayersAndSources/MapSources"
 
 // Four kinds of export, one tree:
 // - vector:    GeoJSON of what is on screen (contour lines, mound candidates);
@@ -38,8 +38,8 @@ import { derivedModeTemplate, type ClientDemUpstream, type DerivedModeParams } f
 // Two top-level branches: what is visible now, and what is not - the modes
 // that are off and the rendered layers that are hidden - so either set can
 // be toggled in one click.
-type Kind = "vector" | "dem" | "values" | "render" | "composite"
-type Item = { id: string; label: string; detail?: string; kind: Kind; sourceId?: string; layers?: string[]; vector?: "contours" | "tells" }
+type Kind = "vector" | "dem" | "values" | "render" | "composite" | "lighting"
+type Item = { id: string; label: string; detail?: string; kind: Kind; sourceId?: string; layers?: string[]; vector?: "contours" | "tells"; light?: "matcap" | "phong" | "shadow" }
 type Group = { key: string; title: string; hint?: string; items: Item[] }
 type Branch = { key: "visible" | "hidden"; title: string; groups: Group[] }
 
@@ -65,7 +65,7 @@ const VALUE_MODES: { group: "Terrain Analysis" | "Relief Visualization"; sourceI
 
 const isShown = (map: maplibregl.Map, id: string) => !!map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none"
 
-function buildTree(map: maplibregl.Map, contoursVisible: boolean, tellsVisible: boolean): Branch[] {
+function buildTree(map: maplibregl.Map, contoursVisible: boolean, tellsVisible: boolean, lightShown: Record<"matcap" | "phong" | "shadow", boolean> | null): Branch[] {
   const all = map.getStyle().layers.map((l) => l.id)
   const visible: Group[] = []
   const hidden: Group[] = []
@@ -102,8 +102,18 @@ function buildTree(map: maplibregl.Map, contoursVisible: boolean, tellsVisible: 
   add("hypso", "Elevation Hypso", ["color-relief"])
   add("terrain-analysis", "Terrain Analysis, coloured", VALUE_MODES.filter((m) => m.group === "Terrain Analysis").map((m) => m.layerId))
   add("relief", "Relief Visualization, coloured", VALUE_MODES.filter((m) => m.group === "Relief Visualization").map((m) => m.layerId))
-  add("lighting", "Lighting Effects", ["matcap-terrain", "phong-terrain", "shadow-terrain", "matcap-live", "phong-live"])
   add("basemap", "Raster Basemap", ["raster-basemap", ...all.filter((id) => id.startsWith("overlay-basemap-"))])
+  // Lighting from its own tiles (matcap://, phong://, shadow://), not the
+  // canvas: any size, any view, and also while the live GL renderer draws it.
+  if (lightShown) {
+    const lights: [keyof typeof lightShown, string][] = [["matcap", "Matcap"], ["phong", "Phong"], ["shadow", "Hard shadows"]]
+    const mk = (k: keyof typeof lightShown, label: string): Item => ({ id: `light:${k}`, label, detail: "RGBA", kind: "lighting", light: k })
+    const on = lights.filter(([k]) => lightShown[k]).map(([k, l]) => mk(k, l))
+    const off = lights.filter(([k]) => !lightShown[k]).map(([k, l]) => mk(k, l))
+    const hint = "rendered from tiles, EPSG:4326, export size"
+    if (on.length) visible.push({ key: "v-light", title: "Lighting Effects", hint, items: on })
+    if (off.length) hidden.push({ key: "h-light", title: "Lighting Effects", hint, items: off })
+  }
   if (shownRender.length) visible.push({ key: "v-render", title: "Rendered layers", hint: "RGBA GeoTIFF, EPSG:3857, screen resolution", items: shownRender })
   if (hiddenRender.length) hidden.push({ key: "h-render", title: "Rendered layers", hint: "RGBA GeoTIFF, EPSG:3857, screen resolution", items: hiddenRender })
 
@@ -135,7 +145,9 @@ export const ExportLayersDialog: React.FC<{
   /** How the DEM export reads the terrain: its template and tile size, or
    *  null when it goes through titiler. For the tile count. */
   demSource: ClientExportSource | null
-}> = ({ open, onOpenChange, mapRef, getMapBounds, maxResolution, contoursVisible, tellsVisible, onExportContours, onExportDem, upstream, derivedParams, onMakeFlat, demSource }) => {
+  /** Lighting tile settings, and which effects are on. */
+  lighting: { params: LightingParams; shown: Record<"matcap" | "phong" | "shadow", boolean> }
+}> = ({ open, onOpenChange, mapRef, getMapBounds, maxResolution, contoursVisible, tellsVisible, onExportContours, onExportDem, upstream, derivedParams, onMakeFlat, demSource, lighting }) => {
   const [branches, setBranches] = useState<Branch[]>([])
   const groups = branches.flatMap((b) => b.groups)
   const [canvasSize, setCanvasSize] = useState<string>("")
@@ -163,7 +175,7 @@ export const ExportLayersDialog: React.FC<{
     if (!open) return
     const map = mapRef.current?.getMap()
     if (!map) return
-    const tree = buildTree(map, contoursVisible, tellsVisible)
+    const tree = buildTree(map, contoursVisible, tellsVisible, upstream ? lighting.shown : null)
     setBranches(tree)
     setRenderBlocker(renderExportBlocker(map))
     const c = map.getCanvas()
@@ -265,6 +277,16 @@ export const ExportLayersDialog: React.FC<{
             const data = mode.scale ? result.data.map((v) => v / mode.scale!) : result.data
             saveAs(new Blob([encodeFloat32GeoTiff(data, result.width, result.height, { west, south, east, north })], { type: "image/tiff" }), `${base}.tif`)
           }
+        } else if (item.kind === "lighting") {
+          if (!upstream) throw new Error("this terrain source has no client-side tile path")
+          const lt = lightingTemplate(item.light!, upstream, lighting.params)
+          const maxzoom = lt.maxzoom ?? 20
+          const outputSize = exportOutputSize(map, resolutionMode, longestEdge)
+          const zoom = resolutionMode === "screen"
+            ? Math.min(maxzoom, displayedTileZoom(map, [`${item.light}Source`, "terrainSource", "hillshadeSource"]) ?? Math.floor(map.getZoom() + Math.log2(512 / lt.tileSize)))
+            : undefined
+          const rgba = await readRgbaRegion(lt.template, lt.tileSize, maxzoom, [b.west, b.south, b.east, b.north], outputSize.width, outputSize.height, { signal: controller.signal, zoom })
+          await saveRgba(rgba, outputSize.width, outputSize.height, b, 4326, `terrain-viewer_lighting_${slug(item.label)}_${stamp}`)
         } else {
           const r = await renderLayers(map, item.kind === "composite" ? null : new Set(item.layers))
           await saveRgba(r.rgba, r.width, r.height, r.bbox, 3857, `terrain-viewer_${item.kind === "composite" ? "snapshot" : "rendered_" + slug(item.label)}_${stamp}`)
@@ -279,7 +301,7 @@ export const ExportLayersDialog: React.FC<{
     setRunning(false)
     abortRef.current = null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapRef, running, groups, selected, renderBlocker, resolutionMode, longestEdge, valueFormat, imageFormat, getMapBounds, onExportContours, onExportDem, upstream, derivedParams])
+  }, [mapRef, running, groups, selected, renderBlocker, resolutionMode, longestEdge, valueFormat, imageFormat, getMapBounds, onExportContours, onExportDem, upstream, derivedParams, lighting])
 
   const statusIcon = (id: string) => {
     const s = status[id]
@@ -290,42 +312,28 @@ export const ExportLayersDialog: React.FC<{
   }
   const count = groups.flatMap((g) => g.items).filter((i) => selected.has(i.id) && !blocked(i)).length
 
-  // How many source tiles each export will request, at the source's own
-  // tile size (512 px for Mapterhorn) and the zoom the export will use.
-  // Derived modes also read neighbouring and coarser upstream tiles, mostly
-  // already cached.
-  const tileInfo = (() => {
+  // What the batch will fetch, once: the terrain read (tiles, or a region
+  // read for WMS / VRT / differences), then each mode computes its tiles
+  // from those, which are cached after the first mode.
+  const batchLine = (() => {
     const map = mapRef.current?.getMap()
-    if (!map || !open) return {} as Record<string, string>
+    if (!map || !open || !size) return ""
     const b = getMapBounds()
     const bbox: [number, number, number, number] = [b.west, b.south, b.east, b.north]
-    const out = exportOutputSize(map, resolutionMode, longestEdge)
-    const edge = Math.max(out.width, out.height)
-    const zoomFor = (tileSize: number, maxzoom: number, sourceId?: string) => resolutionMode === "screen"
-      ? Math.min(maxzoom, (sourceId ? displayedTileZoom(map, [sourceId]) : null) ?? Math.floor(map.getZoom() + Math.log2(512 / tileSize)))
-      : pickZoomForResolution(bbox, edge, edge, tileSize, maxzoom)
-    const info: Record<string, string> = {}
-    let total = 0
-    for (const i of groups.flatMap((g) => g.items)) {
-      if (i.kind === "dem") {
-        if (!demSource) info[i.id] = "via titiler"
-        else if (demSource.type === "cog") info[i.id] = "one windowed COG read"
-        else {
-          const n = tileCount(bbox, zoomFor(demSource.tileSize, demSource.maxzoom, "terrainSource"))
-          info[i.id] = `${n} tiles of ${demSource.tileSize} px`
-          if (selected.has(i.id)) total += n
-        }
-      } else if (i.kind === "values") {
-        const spec = map.getStyle().sources[i.sourceId!] as { tileSize?: number; maxzoom?: number } | undefined
-        const built = spec ? null : upstream ? derivedModeTemplate(i.sourceId!, upstream, derivedParams) : null
-        const tileSize = spec?.tileSize ?? built?.tileSize ?? 256
-        const n = tileCount(bbox, zoomFor(tileSize, spec?.maxzoom ?? built?.maxzoom ?? 20, i.sourceId))
-        info[i.id] = `${n} tiles of ${tileSize} px`
-        if (selected.has(i.id)) total += n
-      }
+    const screenZoom = (tileSize: number, maxzoom: number) =>
+      Math.min(maxzoom, displayedTileZoom(map, ["terrainSource", "hillshadeSource"]) ?? Math.floor(map.getZoom() + Math.log2(512 / tileSize)))
+    const parts: string[] = []
+    if (!demSource) parts.push("Terrain: via titiler")
+    else if (demSource.type === "cog") parts.push("Terrain: one windowed COG read")
+    else parts.push(`Terrain: ${describeRegionRead(demSource.url, demSource.tileSize, demSource.maxzoom, bbox, size.width, size.height,
+      resolutionMode === "screen" ? screenZoom(demSource.tileSize, demSource.maxzoom) : undefined)}`)
+    const anyMode = groups.flatMap((g) => g.items).some((i) => selected.has(i.id) && (i.kind === "values" || i.kind === "lighting"))
+    if (anyMode && upstream) {
+      const mz = upstream.maxzoom ?? 20
+      const z = resolutionMode === "screen" ? screenZoom(upstream.tileSize, mz) : pickZoomForResolution(bbox, size.width, size.height, upstream.tileSize, mz)
+      parts.push(`each mode ${tileCountFor(bbox, z)} tiles of ${upstream.tileSize} px, computed from those and cached`)
     }
-    info.__total = total ? `${total} tiles to compute or fetch` : ""
-    return info
+    return parts.join("; ")
   })()
   const toggleFold = (key: string) => setFolded((f) => { const n = new Set(f); if (n.has(key)) n.delete(key); else n.add(key); return n })
   const headerId = (key: string) => `export-group-${key.replace(/[^a-zA-Z0-9-]/g, "-")}`
@@ -411,6 +419,12 @@ export const ExportLayersDialog: React.FC<{
               )}
             </>
           )}
+          {batchLine && (
+            <>
+              <span />
+              <p className="text-xs text-muted-foreground">{batchLine}.</p>
+            </>
+          )}
           <Label className="text-sm">Values as</Label>
           <SegmentedToggle
             className="w-full"
@@ -463,7 +477,6 @@ export const ExportLayersDialog: React.FC<{
                                   <Checkbox id={`export-${i.id}`} checked={selected.has(i.id) && !blocked(i)} disabled={running || blocked(i)} onCheckedChange={(c) => setMany([i.id], c === true)} className="cursor-pointer" />
                                   <Label htmlFor={`export-${i.id}`} className={`text-sm cursor-pointer ${blocked(i) ? "opacity-50" : ""}`}>{i.label}</Label>
                                   {i.detail && <span className="text-xs text-muted-foreground">{i.detail}</span>}
-                                  {tileInfo[i.id] && <span className="text-[11px] text-muted-foreground/80">· {tileInfo[i.id]}</span>}
                                   <span className="ml-auto flex items-center">{statusIcon(i.id)}</span>
                                 </div>
                               ))}
@@ -480,7 +493,6 @@ export const ExportLayersDialog: React.FC<{
         </div>
         {progress !== null && <Progress value={progress * 100} className="h-1" />}
         <div className="flex items-center justify-end gap-2 pt-1">
-          {tileInfo.__total && <span className="mr-auto text-xs text-muted-foreground">{tileInfo.__total}</span>}
           {running ? (
             <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => abortRef.current?.abort()}>
               <X className="h-4 w-4 mr-1" /> Cancel

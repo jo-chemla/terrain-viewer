@@ -9,6 +9,7 @@
 // and tilejson are low-value enough to not justify a bespoke client path). Those
 // types keep working through the existing titiler export in download-section.tsx.
 
+import { regionReaderFor, fetchTileBitmap } from "./protocol-registry"
 import { terrainrgbToElevation, terrariumToElevation } from "./elevation-encoding"
 import { fetchTileMosaic, pickZoomForResolution, isRetryableTileError } from "./tile-mosaic"
 import { terrainSources } from "./terrain-sources"
@@ -252,6 +253,122 @@ export function resampleMosaic(
   return { data: out, width, height, bbox }
 }
 
+/** Tiles covering a lon/lat bbox at a zoom. */
+export function tileCountFor(bbox: [number, number, number, number], zoom: number): number {
+  const n = 2 ** zoom
+  const tx = (lon: number) => Math.floor(((lon + 180) / 360) * n)
+  const ty = (lat: number) => {
+    const r = (Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI) / 180
+    return Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n)
+  }
+  const [w, s, e, nn] = bbox
+  return (Math.min(n - 1, tx(e)) - Math.max(0, tx(w)) + 1) * (Math.min(n - 1, ty(s)) - Math.max(0, ty(nn)) + 1)
+}
+
+/** One template's values over exactly `bbox` at width x height, on the
+ *  export's regular EPSG:4326 grid, NaN = nodata. A scheme with a region
+ *  reader (WMS, VRT, difference: lib/region-readers.ts) delivers the area in
+ *  a few requests; anything else is a tile mosaic at `zoom`, or the lowest
+ *  zoom that meets the size, walking down on 404 where coverage stops. */
+export async function readRegionGrid(
+  template: string, encoding: "terrarium" | "mapbox", tileSize: number, maxzoom: number,
+  bbox: [number, number, number, number], width: number, height: number,
+  opts: { signal?: AbortSignal; onProgress?: (f: number) => void; zoom?: number } = {},
+): Promise<{ data: Float32Array; resolutionLimited: boolean }> {
+  const reader = regionReaderFor(template)
+  if (reader) {
+    opts.onProgress?.(0)
+    const r = await reader.read(template, bbox, width, height, opts.signal)
+    opts.onProgress?.(1)
+    return { data: r.grid === "lonlat" ? r.data : resampleMosaic(r, bbox, width, height).data, resolutionLimited: false }
+  }
+  const decodeRgb = encoding === "mapbox" ? terrainrgbToElevation : terrariumToElevation
+  const decodePixel = (r: number, g: number, b: number, a: number) => (a < 255 ? NaN : decodeRgb(r, g, b))
+  const startZoom = opts.zoom ?? pickZoomForResolution(bbox, width, height, tileSize, maxzoom)
+  let lastErr: unknown
+  for (let zoom = startZoom; zoom >= Math.max(0, startZoom - 6); zoom--) {
+    try {
+      const mosaic = await fetchTileMosaic({ tileUrlTemplate: template, tileSize, bbox, zoom, decodePixel, onProgress: opts.onProgress, signal: opts.signal })
+      const lonSpan = ((bbox[2] - bbox[0]) / (mosaic.bbox[2] - mosaic.bbox[0])) * mosaic.width
+      return { data: resampleMosaic(mosaic, bbox, width, height).data, resolutionLimited: lonSpan < width * 0.99 }
+    } catch (err) {
+      if (!isRetryableTileError(err)) throw err
+      lastErr = err
+    }
+  }
+  throw lastErr
+}
+
+/** What readRegionGrid will request, for the export dialog. */
+export function describeRegionRead(
+  template: string, tileSize: number, maxzoom: number,
+  bbox: [number, number, number, number], width: number, height: number, zoom?: number,
+): string {
+  const reader = regionReaderFor(template)
+  if (reader) return reader.describe(template, width, height)
+  const z = zoom ?? pickZoomForResolution(bbox, width, height, tileSize, maxzoom)
+  return `${tileCountFor(bbox, z)} tiles of ${tileSize} px`
+}
+
+/** RGBA tiles (matcap://, phong://, shadow://) over exactly `bbox` at
+ *  width x height on the export's EPSG:4326 grid: a tile mosaic through the
+ *  registry, bilinear per channel. For the lighting exports, which are
+ *  colours rather than values. */
+export async function readRgbaRegion(
+  template: string, tileSize: number, maxzoom: number,
+  bbox: [number, number, number, number], width: number, height: number,
+  opts: { signal?: AbortSignal; zoom?: number } = {},
+): Promise<Uint8ClampedArray> {
+  const z = opts.zoom ?? pickZoomForResolution(bbox, width, height, tileSize, maxzoom)
+  const n = 2 ** z
+  const fx = (lon: number) => ((lon + 180) / 360) * n
+  const fy = (lat: number) => { const r = (lat * Math.PI) / 180; return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n }
+  const x0 = Math.floor(fx(bbox[0])), x1 = Math.floor(fx(bbox[2])), y0 = Math.floor(fy(bbox[3])), y1 = Math.floor(fy(bbox[1]))
+  const cols = x1 - x0 + 1, rows = y1 - y0 + 1
+  const MW = cols * tileSize, MH = rows * tileSize
+  const mosaic = new Uint8ClampedArray(MW * MH * 4)
+  const canvas = document.createElement("canvas")
+  canvas.width = canvas.height = tileSize
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!
+  const jobs: [number, number][] = []
+  for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) jobs.push([tx, ty])
+  let failed: unknown = null
+  const worker = async () => {
+    while (jobs.length && failed === null) {
+      const [tx, ty] = jobs.shift()!
+      try {
+        const bitmap = await fetchTileBitmap(template.replace("{z}", String(z)).replace("{x}", String(tx)).replace("{y}", String(ty)), opts.signal)
+        if (!bitmap) continue
+        ctx.clearRect(0, 0, tileSize, tileSize)
+        ctx.drawImage(bitmap, 0, 0, tileSize, tileSize)
+        bitmap.close()
+        const px = ctx.getImageData(0, 0, tileSize, tileSize).data
+        const ox = (tx - x0) * tileSize, oy = (ty - y0) * tileSize
+        for (let r = 0; r < tileSize; r++) mosaic.set(px.subarray(r * tileSize * 4, (r + 1) * tileSize * 4), ((oy + r) * MW + ox) * 4)
+      } catch (e) { if (failed === null) failed = e }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(6, jobs.length) }, worker))
+  if (failed !== null) throw failed
+  // Output pixel centres -> mosaic pixels (Web Mercator rows), bilinear.
+  const out = new Uint8ClampedArray(width * height * 4)
+  const [w, s, e, nn] = bbox
+  for (let j = 0; j < height; j++) {
+    const lat = nn - ((j + 0.5) * (nn - s)) / height
+    const my = (fy(lat) - y0) * tileSize - 0.5
+    const r0 = Math.max(0, Math.min(MH - 1, Math.floor(my))), r1 = Math.min(MH - 1, r0 + 1), ty = Math.min(1, Math.max(0, my - r0))
+    for (let i = 0; i < width; i++) {
+      const lon = w + ((i + 0.5) * (e - w)) / width
+      const mx = (fx(lon) - x0) * tileSize - 0.5
+      const c0 = Math.max(0, Math.min(MW - 1, Math.floor(mx))), c1 = Math.min(MW - 1, c0 + 1), tx = Math.min(1, Math.max(0, mx - c0))
+      const a = (r0 * MW + c0) * 4, b = (r0 * MW + c1) * 4, c = (r1 * MW + c0) * 4, d = (r1 * MW + c1) * 4
+      const o = (j * width + i) * 4
+      for (let k = 0; k < 4; k++) out[o + k] = (mosaic[a + k] * (1 - tx) + mosaic[b + k] * tx) * (1 - ty) + (mosaic[c + k] * (1 - tx) + mosaic[d + k] * tx) * ty
+    }
+  }
+  return out
+}
+
 export async function exportElevationClientSide(
   params: ExportElevationClientSideParams,
 ): Promise<ClientExportResult> {
@@ -265,6 +382,15 @@ export async function exportElevationClientSide(
     const result = await exportCogWindow(source.url, bbox, size.width, size.height, signal)
     onProgress?.(1)
     return result
+  }
+
+  // An exact output size goes through readRegionGrid: a region reader when
+  // the scheme has one (a WMS source is then a few GetMaps, not a tile per
+  // 256 px), else tiles at the zoom that meets the size in both directions.
+  if (params.outputSize) {
+    const { width, height } = params.outputSize
+    const r = await readRegionGrid(source.url, source.type === "terrainrgb" ? "mapbox" : "terrarium", source.tileSize, source.maxzoom, bbox, width, height, { signal, onProgress, zoom: params.zoom })
+    return { data: r.data, width, height, bbox, resolutionLimited: r.resolutionLimited }
   }
 
   const startZoom = params.zoom ?? pickZoomForResolution(bbox, targetResolution, targetResolution, source.tileSize, source.maxzoom)
@@ -284,14 +410,6 @@ export async function exportElevationClientSide(
   for (let zoom = startZoom; zoom >= Math.max(0, startZoom - 6); zoom--) {
     try {
       const mosaic = await fetchTileMosaic({ tileUrlTemplate: source.url, tileSize: source.tileSize, bbox, zoom, decodePixel, onProgress, signal })
-      if (params.outputSize) {
-        const out = resampleMosaic(mosaic, bbox, params.outputSize.width, params.outputSize.height)
-        // Coarser than asked: the source has no deeper zoom here, so the
-        // output is an upsample. One mosaic pixel spans more than one output
-        // pixel in either direction.
-        const lonSpan = (bbox[2] - bbox[0]) / (mosaic.bbox[2] - mosaic.bbox[0]) * mosaic.width
-        return { ...out, resolutionLimited: lonSpan < params.outputSize.width * 0.99 }
-      }
       return { ...mosaic, resolutionLimited: mosaic.width < targetResolution || mosaic.height < targetResolution }
     } catch (err) {
       if (!isRetryableTileError(err)) throw err
