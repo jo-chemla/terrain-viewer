@@ -13,7 +13,9 @@ import { Progress } from "@/components/ui/progress"
 import { exportElevationClientSide } from "@/lib/client-export"
 import { encodeFloat32GeoTiff, encodeRgbaGeoTiff, encodeImageWithWorldFile, type GeoBbox } from "@/lib/float-geotiff"
 import { compileRamp, colorize } from "@/lib/color-ramp-eval"
-import { renderLayers, renderExportBlocker, displayedTileZoom, exportOutputSize, MAX_EXPORT_EDGE } from "@/lib/map-render-export"
+import { renderLayers, renderExportBlocker, displayedTileZoom, exportOutputSize, MAX_EXPORT_EDGE, tileCount } from "@/lib/map-render-export"
+import { pickZoomForResolution } from "@/lib/tile-mosaic"
+import type { ClientExportSource } from "@/lib/client-export"
 import { exportResolutionModeAtom, exportValueFormatAtom, exportImageFormatAtom, maxResolutionAtom } from "@/lib/settings-atoms"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { track } from "@/lib/analytics"
@@ -130,7 +132,10 @@ export const ExportLayersDialog: React.FC<{
   derivedParams: DerivedModeParams
   /** Switches the view to 2D, north up, untilted. */
   onMakeFlat: () => void
-}> = ({ open, onOpenChange, mapRef, getMapBounds, maxResolution, contoursVisible, tellsVisible, onExportContours, onExportDem, upstream, derivedParams, onMakeFlat }) => {
+  /** How the DEM export reads the terrain: its template and tile size, or
+   *  null when it goes through titiler. For the tile count. */
+  demSource: ClientExportSource | null
+}> = ({ open, onOpenChange, mapRef, getMapBounds, maxResolution, contoursVisible, tellsVisible, onExportContours, onExportDem, upstream, derivedParams, onMakeFlat, demSource }) => {
   const [branches, setBranches] = useState<Branch[]>([])
   const groups = branches.flatMap((b) => b.groups)
   const [canvasSize, setCanvasSize] = useState<string>("")
@@ -284,6 +289,44 @@ export const ExportLayersDialog: React.FC<{
     return null
   }
   const count = groups.flatMap((g) => g.items).filter((i) => selected.has(i.id) && !blocked(i)).length
+
+  // How many source tiles each export will request, at the source's own
+  // tile size (512 px for Mapterhorn) and the zoom the export will use.
+  // Derived modes also read neighbouring and coarser upstream tiles, mostly
+  // already cached.
+  const tileInfo = (() => {
+    const map = mapRef.current?.getMap()
+    if (!map || !open) return {} as Record<string, string>
+    const b = getMapBounds()
+    const bbox: [number, number, number, number] = [b.west, b.south, b.east, b.north]
+    const out = exportOutputSize(map, resolutionMode, longestEdge)
+    const edge = Math.max(out.width, out.height)
+    const zoomFor = (tileSize: number, maxzoom: number, sourceId?: string) => resolutionMode === "screen"
+      ? Math.min(maxzoom, (sourceId ? displayedTileZoom(map, [sourceId]) : null) ?? Math.floor(map.getZoom() + Math.log2(512 / tileSize)))
+      : pickZoomForResolution(bbox, edge, edge, tileSize, maxzoom)
+    const info: Record<string, string> = {}
+    let total = 0
+    for (const i of groups.flatMap((g) => g.items)) {
+      if (i.kind === "dem") {
+        if (!demSource) info[i.id] = "via titiler"
+        else if (demSource.type === "cog") info[i.id] = "one windowed COG read"
+        else {
+          const n = tileCount(bbox, zoomFor(demSource.tileSize, demSource.maxzoom, "terrainSource"))
+          info[i.id] = `${n} tiles of ${demSource.tileSize} px`
+          if (selected.has(i.id)) total += n
+        }
+      } else if (i.kind === "values") {
+        const spec = map.getStyle().sources[i.sourceId!] as { tileSize?: number; maxzoom?: number } | undefined
+        const built = spec ? null : upstream ? derivedModeTemplate(i.sourceId!, upstream, derivedParams) : null
+        const tileSize = spec?.tileSize ?? built?.tileSize ?? 256
+        const n = tileCount(bbox, zoomFor(tileSize, spec?.maxzoom ?? built?.maxzoom ?? 20, i.sourceId))
+        info[i.id] = `${n} tiles of ${tileSize} px`
+        if (selected.has(i.id)) total += n
+      }
+    }
+    info.__total = total ? `${total} tiles to compute or fetch` : ""
+    return info
+  })()
   const toggleFold = (key: string) => setFolded((f) => { const n = new Set(f); if (n.has(key)) n.delete(key); else n.add(key); return n })
   const headerId = (key: string) => `export-group-${key.replace(/[^a-zA-Z0-9-]/g, "-")}`
   const treeHeader = (key: string, title: string, ids: string[], on: number, isFolded: boolean, hint?: string, top = false) => (
@@ -420,6 +463,7 @@ export const ExportLayersDialog: React.FC<{
                                   <Checkbox id={`export-${i.id}`} checked={selected.has(i.id) && !blocked(i)} disabled={running || blocked(i)} onCheckedChange={(c) => setMany([i.id], c === true)} className="cursor-pointer" />
                                   <Label htmlFor={`export-${i.id}`} className={`text-sm cursor-pointer ${blocked(i) ? "opacity-50" : ""}`}>{i.label}</Label>
                                   {i.detail && <span className="text-xs text-muted-foreground">{i.detail}</span>}
+                                  {tileInfo[i.id] && <span className="text-[11px] text-muted-foreground/80">· {tileInfo[i.id]}</span>}
                                   <span className="ml-auto flex items-center">{statusIcon(i.id)}</span>
                                 </div>
                               ))}
@@ -435,7 +479,8 @@ export const ExportLayersDialog: React.FC<{
           })}
         </div>
         {progress !== null && <Progress value={progress * 100} className="h-1" />}
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex items-center justify-end gap-2 pt-1">
+          {tileInfo.__total && <span className="mr-auto text-xs text-muted-foreground">{tileInfo.__total}</span>}
           {running ? (
             <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => abortRef.current?.abort()}>
               <X className="h-4 w-4 mr-1" /> Cancel

@@ -98,3 +98,15 @@ export function exportOutputSize(map: maplibregl.Map, mode: "screen" | "max", lo
     ? { width: n, height: Math.max(1, Math.round((n * c.height) / c.width)) }
     : { width: Math.max(1, Math.round((n * c.width) / c.height)), height: n }
 }
+
+/** Number of z/x/y tiles covering a lon/lat bbox at a zoom. */
+export function tileCount(bbox: [number, number, number, number], zoom: number): number {
+  const n = 2 ** zoom
+  const x = (lon: number) => Math.floor(((lon + 180) / 360) * n)
+  const y = (lat: number) => {
+    const r = (Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI) / 180
+    return Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n)
+  }
+  const [w, s, e, nn] = bbox
+  return (Math.min(n - 1, x(e)) - Math.max(0, x(w)) + 1) * (Math.min(n - 1, y(s)) - Math.max(0, y(nn)) + 1)
+}

@@ -566,6 +566,7 @@ export const DownloadSection: React.FC<{
         contoursVisible={!hideContoursExport && state.showContoursAndGraticules && state.showContours}
         tellsVisible={state.tellsBeta && state.showTellsDetector}
         upstream={clientUpstream}
+        demSource={useClientExport ? getClientExportSource(state.sourceA, customTerrainSources, getTilesUrl, clientUpstream) : null}
         onMakeFlat={() => {
           setState?.({ viewMode: "2d", pitch: 0, bearing: 0 })
           mapRef.current?.getMap()?.easeTo({ pitch: 0, bearing: 0, duration: 400 })
