@@ -208,9 +208,48 @@ export interface ExportElevationClientSideParams {
    *  export passes the zoom the map is drawing, so every tile is already in
    *  the result cache. */
   zoom?: number
+  /** Resample to exactly this many pixels over exactly `bbox`, on a regular
+   *  EPSG:4326 grid. Without it the result is the raw tile mosaic: larger
+   *  than the bbox (whole tiles) and spaced in Web Mercator rows, which a
+   *  4326 GeoTIFF then stretches slightly in latitude. */
+  outputSize?: { width: number; height: number }
   /** Lets a caller cancel an in-flight export — aborts the COG range read or the
    *  tile mosaic's next per-tile fetch (see fetchTileMosaic/exportCogWindow). */
   signal?: AbortSignal
+}
+
+const R = 6378137
+const mercY = (lat: number) => R * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+
+/** Samples a Web Mercator tile mosaic onto a regular EPSG:4326 grid of
+ *  exactly width x height over bbox, bilinearly. A pixel whose four
+ *  neighbours include nodata takes the nearest one instead, so holes keep
+ *  hard edges rather than bleeding NaN or averaging into the data. */
+export function resampleMosaic(
+  mosaic: { data: Float32Array; width: number; height: number; bbox: [number, number, number, number] },
+  bbox: [number, number, number, number], width: number, height: number,
+): { data: Float32Array; width: number; height: number; bbox: [number, number, number, number] } {
+  const [mw, ms, me, mn] = mosaic.bbox
+  const W = mosaic.width, H = mosaic.height
+  const yTop = mercY(mn), ySpan = yTop - mercY(ms)
+  const out = new Float32Array(width * height)
+  const [w, s, e, n] = bbox
+  const colX = new Float32Array(width)
+  for (let i = 0; i < width; i++) colX[i] = ((w + ((i + 0.5) * (e - w)) / width - mw) / (me - mw)) * W - 0.5
+  for (let j = 0; j < height; j++) {
+    const lat = n - ((j + 0.5) * (n - s)) / height
+    const y = ((yTop - mercY(lat)) / ySpan) * H - 0.5
+    const y0 = Math.max(0, Math.min(H - 1, Math.floor(y))), y1 = Math.min(H - 1, y0 + 1), fy = Math.min(1, Math.max(0, y - y0))
+    for (let i = 0; i < width; i++) {
+      const x = colX[i]
+      const x0 = Math.max(0, Math.min(W - 1, Math.floor(x))), x1 = Math.min(W - 1, x0 + 1), fx = Math.min(1, Math.max(0, x - x0))
+      const a = mosaic.data[y0 * W + x0], b = mosaic.data[y0 * W + x1], c = mosaic.data[y1 * W + x0], d = mosaic.data[y1 * W + x1]
+      out[j * width + i] = Number.isNaN(a + b + c + d)
+        ? mosaic.data[(fy < 0.5 ? y0 : y1) * W + (fx < 0.5 ? x0 : x1)]
+        : (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
+    }
+  }
+  return { data: out, width, height, bbox }
 }
 
 export async function exportElevationClientSide(
@@ -220,7 +259,10 @@ export async function exportElevationClientSide(
 
   if (source.type === "cog") {
     onProgress?.(0)
-    const result = await exportCogWindow(source.url, bbox, targetResolution, targetResolution, signal)
+    // Used to read targetResolution x targetResolution whatever the view's
+    // shape, so every COG export came out square.
+    const size = params.outputSize ?? { width: targetResolution, height: targetResolution }
+    const result = await exportCogWindow(source.url, bbox, size.width, size.height, signal)
     onProgress?.(1)
     return result
   }
@@ -242,6 +284,14 @@ export async function exportElevationClientSide(
   for (let zoom = startZoom; zoom >= Math.max(0, startZoom - 6); zoom--) {
     try {
       const mosaic = await fetchTileMosaic({ tileUrlTemplate: source.url, tileSize: source.tileSize, bbox, zoom, decodePixel, onProgress, signal })
+      if (params.outputSize) {
+        const out = resampleMosaic(mosaic, bbox, params.outputSize.width, params.outputSize.height)
+        // Coarser than asked: the source has no deeper zoom here, so the
+        // output is an upsample. One mosaic pixel spans more than one output
+        // pixel in either direction.
+        const lonSpan = (bbox[2] - bbox[0]) / (mosaic.bbox[2] - mosaic.bbox[0]) * mosaic.width
+        return { ...out, resolutionLimited: lonSpan < params.outputSize.width * 0.99 }
+      }
       return { ...mosaic, resolutionLimited: mosaic.width < targetResolution || mosaic.height < targetResolution }
     } catch (err) {
       if (!isRetryableTileError(err)) throw err

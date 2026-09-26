@@ -11,9 +11,10 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { exportElevationClientSide } from "@/lib/client-export"
-import { encodeFloat32GeoTiff, encodeRgbaGeoTiff3857 } from "@/lib/float-geotiff"
-import { renderLayers, renderExportBlocker, displayedTileZoom } from "@/lib/map-render-export"
-import { exportResolutionModeAtom } from "@/lib/settings-atoms"
+import { encodeFloat32GeoTiff, encodeRgbaGeoTiff, encodeImageWithWorldFile, type GeoBbox } from "@/lib/float-geotiff"
+import { compileRamp, colorize } from "@/lib/color-ramp-eval"
+import { renderLayers, renderExportBlocker, displayedTileZoom, exportOutputSize, MAX_EXPORT_EDGE } from "@/lib/map-render-export"
+import { exportResolutionModeAtom, exportValueFormatAtom, exportImageFormatAtom, maxResolutionAtom } from "@/lib/settings-atoms"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { track } from "@/lib/analytics"
 import { SegmentedToggle } from "./controls-components"
@@ -40,14 +41,17 @@ type Item = { id: string; label: string; detail?: string; kind: Kind; sourceId?:
 type Group = { key: string; title: string; hint?: string; items: Item[] }
 type Branch = { key: "visible" | "hidden"; title: string; groups: Group[] }
 
-const VALUE_MODES: { group: "Terrain Analysis" | "Relief Visualization"; sourceId: string; layerId: string; label: string; unit?: string }[] = [
+// `scale`: the protocol stores value x scale in the tile (curvature and
+// shape index, CURVATURE_ENCODE_SCALE in lib/curvature-protocol.ts, for
+// precision); the export divides it back out.
+const VALUE_MODES: { group: "Terrain Analysis" | "Relief Visualization"; sourceId: string; layerId: string; label: string; unit?: string; scale?: number }[] = [
   { group: "Terrain Analysis", sourceId: "slopeSource", layerId: "slope-relief", label: "Slope", unit: "degrees" },
   { group: "Terrain Analysis", sourceId: "aspectSource", layerId: "aspect-relief", label: "Aspect", unit: "degrees" },
-  { group: "Terrain Analysis", sourceId: "curvatureSource", layerId: "curvature-relief", label: "Curvature" },
+  { group: "Terrain Analysis", sourceId: "curvatureSource", layerId: "curvature-relief", label: "Curvature", scale: 1000 },
   { group: "Terrain Analysis", sourceId: "tpiSource", layerId: "tpi-relief", label: "TPI", unit: "m" },
   { group: "Terrain Analysis", sourceId: "triSource", layerId: "tri-relief", label: "TRI", unit: "m" },
   { group: "Terrain Analysis", sourceId: "roughnessSource", layerId: "roughness-relief", label: "Roughness" },
-  { group: "Terrain Analysis", sourceId: "shapeIndexSource", layerId: "shape-index-relief", label: "Shape Index" },
+  { group: "Terrain Analysis", sourceId: "shapeIndexSource", layerId: "shape-index-relief", label: "Shape Index", scale: 1000 },
   { group: "Terrain Analysis", sourceId: "blobnessSource", layerId: "blobness-relief", label: "Blobness" },
   { group: "Terrain Analysis", sourceId: "eigenRatioSource", layerId: "eigen-ratio-relief", label: "Eigen Ratio" },
   { group: "Terrain Analysis", sourceId: "orientationSource", layerId: "orientation-relief", label: "Orientation", unit: "degrees" },
@@ -124,7 +128,9 @@ export const ExportLayersDialog: React.FC<{
    *  group is off and whose source is therefore not on the map. */
   upstream: ClientDemUpstream | null
   derivedParams: DerivedModeParams
-}> = ({ open, onOpenChange, mapRef, getMapBounds, maxResolution, contoursVisible, tellsVisible, onExportContours, onExportDem, upstream, derivedParams }) => {
+  /** Switches the view to 2D, north up, untilted. */
+  onMakeFlat: () => void
+}> = ({ open, onOpenChange, mapRef, getMapBounds, maxResolution, contoursVisible, tellsVisible, onExportContours, onExportDem, upstream, derivedParams, onMakeFlat }) => {
   const [branches, setBranches] = useState<Branch[]>([])
   const groups = branches.flatMap((b) => b.groups)
   const [canvasSize, setCanvasSize] = useState<string>("")
@@ -135,6 +141,16 @@ export const ExportLayersDialog: React.FC<{
   const [running, setRunning] = useState(false)
   const [renderBlocker, setRenderBlocker] = useState<string | null>(null)
   const [resolutionMode, setResolutionMode] = useAtom(exportResolutionModeAtom)
+  const [longestEdge, setLongestEdge] = useAtom(maxResolutionAtom)
+  const [valueFormat, setValueFormat] = useAtom(exportValueFormatAtom)
+  const [imageFormat, setImageFormat] = useAtom(exportImageFormatAtom)
+  const [edgeDraft, setEdgeDraft] = useState(String(longestEdge))
+  useEffect(() => setEdgeDraft(String(longestEdge)), [longestEdge])
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (open && map) setSize(exportOutputSize(map, resolutionMode, longestEdge))
+  }, [open, mapRef, resolutionMode, longestEdge, canvasSize])
   const abortRef = useRef<AbortController | null>(null)
 
   // What is on screen when the dialog opens.
@@ -161,6 +177,23 @@ export const ExportLayersDialog: React.FC<{
     for (const id of ids) { if (on) next.add(id); else next.delete(id) }
     return next
   })
+
+  // RGBA outputs in the chosen format: GeoTIFF, or PNG/JPEG with a world
+  // file and a .prj beside it.
+  const saveRgba = async (rgba: Uint8ClampedArray, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326, base: string) => {
+    if (imageFormat === "tiff") {
+      saveAs(new Blob([encodeRgbaGeoTiff(rgba, width, height, bbox, epsg)], { type: "image/tiff" }), `${base}.tif`)
+      return
+    }
+    const f = await encodeImageWithWorldFile(rgba, width, height, bbox, epsg, imageFormat)
+    const ext = imageFormat === "png" ? "png" : "jpg"
+    saveAs(f.image, `${base}.${ext}`)
+    saveAs(new Blob([f.worldFile], { type: "text/plain" }), `${base}.${ext === "png" ? "pgw" : "jgw"}`)
+    saveAs(new Blob([f.prj], { type: "text/plain" }), `${base}.prj`)
+    // GDAL (and QGIS through it) takes a PNG/JPEG's CRS from this sidecar,
+    // not from the .prj, which other tools read.
+    saveAs(new Blob([`<PAMDataset><SRS>${f.prj.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</SRS></PAMDataset>`], { type: "text/xml" }), `${base}.${ext}.aux.xml`)
+  }
 
   const runExport = useCallback(async () => {
     const map = mapRef.current?.getMap()
@@ -199,26 +232,37 @@ export const ExportLayersDialog: React.FC<{
           const maxzoom = spec?.maxzoom ?? built?.maxzoom ?? 20
           // "screen": the zoom the map draws, so every tile is already in the
           // result cache (a hidden mode has none drawn: the zoom it would be
-          // drawn at). "max": the Max Resolution setting picks a deeper zoom.
+          // drawn at). Custom: the zoom that meets the longest edge.
           const zoom = resolutionMode === "screen"
             ? Math.min(maxzoom, displayedTileZoom(map, [item.sourceId!]) ?? Math.floor(map.getZoom() + Math.log2(512 / tileSize)))
             : undefined
+          const outputSize = exportOutputSize(map, resolutionMode, longestEdge)
           const result = await exportElevationClientSide({
             source: { type: encoding === "terrarium" ? "terrarium" : "terrainrgb", url: template, tileSize, maxzoom },
             bbox: [b.west, b.south, b.east, b.north],
-            targetResolution: maxResolution,
+            targetResolution: Math.max(outputSize.width, outputSize.height),
             zoom,
+            outputSize,
             onProgress: (p) => setProgress((n + p) / todo.length),
             signal: controller.signal,
           })
           const [west, south, east, north] = result.bbox
-          const group = VALUE_MODES.find((m) => m.sourceId === item.sourceId)!.group
-          saveAs(new Blob([encodeFloat32GeoTiff(result.data, result.width, result.height, { west, south, east, north })], { type: "image/tiff" }),
-            `terrain-viewer_${slug(group)}_${slug(item.label)}_${stamp}.tif`)
+          const mode = VALUE_MODES.find((m) => m.sourceId === item.sourceId)!
+          const base = `terrain-viewer_${slug(mode.group)}_${slug(item.label)}_${stamp}`
+          if (valueFormat !== "raw") {
+            // The ramp is the layer's own expression, in tile units: bounds,
+            // symmetric and inverted settings included, as on screen.
+            const ramp = compileRamp(map.getLayer(mode.layerId) ? map.getPaintProperty(mode.layerId, "color-relief-color") : undefined)
+            if (!ramp) throw new Error("no colour ramp: switch this mode's section on")
+            await saveRgba(colorize(result.data, ramp), result.width, result.height, { west, south, east, north }, 4326, `${base}_coloured`)
+          }
+          if (valueFormat !== "color") {
+            const data = mode.scale ? result.data.map((v) => v / mode.scale!) : result.data
+            saveAs(new Blob([encodeFloat32GeoTiff(data, result.width, result.height, { west, south, east, north })], { type: "image/tiff" }), `${base}.tif`)
+          }
         } else {
           const r = await renderLayers(map, item.kind === "composite" ? null : new Set(item.layers))
-          saveAs(new Blob([encodeRgbaGeoTiff3857(r.rgba, r.width, r.height, r.bbox)], { type: "image/tiff" }),
-            `terrain-viewer_${item.kind === "composite" ? "composite" : "rendered_" + slug(item.label)}_${stamp}.tif`)
+          await saveRgba(r.rgba, r.width, r.height, r.bbox, 3857, `terrain-viewer_${item.kind === "composite" ? "snapshot" : "rendered_" + slug(item.label)}_${stamp}`)
         }
         setStatus((s) => ({ ...s, [item.id]: "done" }))
       } catch (e) {
@@ -230,7 +274,7 @@ export const ExportLayersDialog: React.FC<{
     setRunning(false)
     abortRef.current = null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapRef, running, groups, selected, renderBlocker, resolutionMode, getMapBounds, maxResolution, onExportContours, onExportDem, upstream, derivedParams])
+  }, [mapRef, running, groups, selected, renderBlocker, resolutionMode, longestEdge, valueFormat, imageFormat, getMapBounds, onExportContours, onExportDem, upstream, derivedParams])
 
   const statusIcon = (id: string) => {
     const s = status[id]
@@ -270,21 +314,88 @@ export const ExportLayersDialog: React.FC<{
             rendered layers are the pixels as drawn.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex items-center gap-2">
-          <Label className="text-sm shrink-0">Resolution</Label>
+        {renderBlocker && (
+          <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5">
+            <p className="text-xs text-amber-700 dark:text-amber-400 flex-1">
+              2D, north up is recommended for export: the snapshot and rendered layers need it ({renderBlocker.toLowerCase()}). Values and the DEM export either way.
+            </p>
+            <Button size="sm" variant="outline" className="cursor-pointer shrink-0 h-7" disabled={running} onClick={() => {
+              onMakeFlat()
+              const map = mapRef.current?.getMap()
+              if (map) map.once("idle", () => { setRenderBlocker(renderExportBlocker(map)); setCanvasSize(`${map.getCanvas().width} × ${map.getCanvas().height} px`) })
+            }}>
+              Switch to 2D, north up
+            </Button>
+          </div>
+        )}
+        <div className="grid grid-cols-[80px_1fr] items-center gap-x-2 gap-y-2">
+          <Label className="text-sm">Resolution</Label>
           <SegmentedToggle
-            className="flex-1"
+            className="w-full"
             value={resolutionMode}
             onChange={(v) => setResolutionMode(v)}
             disabled={running}
             options={[
-              { value: "screen", label: canvasSize ? `Screen, ${canvasSize}` : "Screen", tooltip: "The resolution the map is drawing: every tile is already cached, so it takes seconds" },
-              { value: "max", label: `Up to ${maxResolution} px`, tooltip: "The Max Resolution setting (Export settings): a deeper zoom, fetched and computed afresh" },
+              { value: "screen", label: canvasSize ? `Screen, ${canvasSize}` : "Screen", tooltip: "The canvas's own pixels, at the zoom the map is drawing: every tile is already cached, so it takes seconds" },
+              { value: "max", label: "Custom size", tooltip: "Set the longest edge; tiles are fetched at the zoom that meets it" },
+            ]}
+          />
+          {resolutionMode === "max" && (
+            <>
+              <span />
+              <div className="flex items-center gap-2 text-sm">
+                <input
+                  type="number" min={16} max={MAX_EXPORT_EDGE} step={256}
+                  value={edgeDraft}
+                  disabled={running}
+                  onChange={(e) => setEdgeDraft(e.target.value)}
+                  onBlur={() => { const v = Number(edgeDraft); if (Number.isFinite(v) && v > 0) setLongestEdge(Math.min(MAX_EXPORT_EDGE, Math.max(16, Math.round(v)))); else setEdgeDraft(String(longestEdge)) }}
+                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur() }}
+                  className="h-7 w-24 rounded border bg-transparent px-2 text-right"
+                  aria-label="Longest edge in pixels"
+                />
+                <span className="text-muted-foreground">
+                  px longest edge{size ? `: ${size.width} × ${size.height} px` : ""}
+                </span>
+              </div>
+              {size && size.width * size.height > 64e6 && (
+                <>
+                  <span />
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    About {Math.round((size.width * size.height * 4 * 3) / 1e6)} MB of memory per layer while exporting; a browser tab may run out past a few GB.
+                  </p>
+                </>
+              )}
+            </>
+          )}
+          <Label className="text-sm">Values as</Label>
+          <SegmentedToggle
+            className="w-full"
+            value={valueFormat}
+            onChange={(v) => setValueFormat(v)}
+            disabled={running}
+            options={[
+              { value: "raw", label: "Raw values", tooltip: "float32, one band: the mode's own numbers" },
+              { value: "color", label: "Coloured", tooltip: "RGBA through the mode's ramp, with its bounds, symmetric and inverted settings" },
+              { value: "both", label: "Both" },
+            ]}
+          />
+          <Label className="text-sm">Images as</Label>
+          <SegmentedToggle
+            className="w-full"
+            value={imageFormat}
+            onChange={(v) => setImageFormat(v)}
+            disabled={running}
+            options={[
+              { value: "tiff", label: "GeoTIFF", tooltip: "RGBA GeoTIFF with its CRS inside" },
+              { value: "png", label: "PNG + pgw", tooltip: "PNG with a world file and a .prj; keeps transparency" },
+              { value: "jpeg", label: "JPEG + jgw", tooltip: "JPEG with a world file and a .prj; transparent areas become white" },
             ]}
           />
         </div>
-        <p className="text-xs text-muted-foreground -mt-1">Applies to the DEM and the values. Snapshot and rendered layers are always the screen's own pixels.</p>
-        {renderBlocker && <p className="text-xs text-amber-600 dark:text-amber-500">Snapshot and rendered layers: {renderBlocker.toLowerCase()}.</p>}
+        <p className="text-xs text-muted-foreground -mt-1">
+          The size applies to the DEM and the values. The snapshot and rendered layers are the screen's own pixels. Raw values and the DEM are always float32 GeoTIFF.
+        </p>
         <div className="space-y-3">
           {branches.map((br) => {
             const branchIds = br.groups.flatMap((g) => g.items).filter((i) => !blocked(i)).map((i) => i.id)

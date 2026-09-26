@@ -150,6 +150,10 @@ export const maxResolutionAtom = atomWithStorage("maxResolution", 4096)
  *  pixels (a deeper zoom, fetched afresh). Shared by the GeoTIFF button
  *  and the Export layers dialog. */
 export const exportResolutionModeAtom = atomWithStorage<"screen" | "max">("exportResolutionMode", "screen")
+/** Layer export: a mode's raw values, its colour-mapped rendering, or both. */
+export const exportValueFormatAtom = atomWithStorage<"raw" | "color" | "both">("exportValueFormat", "raw")
+/** Layer export: file format for RGBA outputs (float32 is always GeoTIFF). */
+export const exportImageFormatAtom = atomWithStorage<"tiff" | "png" | "jpeg">("exportImageFormat", "tiff")
 
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)
 // DTM export mode: client-side (browser range-reads/tile-mosaic, no titiler, no

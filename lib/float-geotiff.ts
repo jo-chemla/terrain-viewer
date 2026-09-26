@@ -98,10 +98,11 @@ export function encodeFloat32GeoTiff(data: Float32Array, width: number, height: 
   ], new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
 }
 
-/** 8-bit RGBA, EPSG:3857 (bbox in Web Mercator metres), alpha as a real
- *  band so transparent areas stay transparent in GIS. */
-export function encodeRgbaGeoTiff3857(rgba: Uint8Array | Uint8ClampedArray, width: number, height: number, bbox: GeoBbox): ArrayBuffer {
-  if (rgba.length !== width * height * 4) throw new Error(`encodeRgbaGeoTiff3857: ${rgba.length} bytes for ${width}x${height} RGBA`)
+/** 8-bit RGBA with alpha as a real band, so transparent areas stay
+ *  transparent in GIS. EPSG:3857 (bbox in Web Mercator metres) for renders
+ *  of the canvas, EPSG:4326 (degrees) for colour-mapped values. */
+export function encodeRgbaGeoTiff(rgba: Uint8Array | Uint8ClampedArray, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326 = 3857): ArrayBuffer {
+  if (rgba.length !== width * height * 4) throw new Error(`encodeRgbaGeoTiff: ${rgba.length} bytes for ${width}x${height} RGBA`)
   return writeTiff([
     { tag: 256, type: LONG, values: [width] },
     { tag: 257, type: LONG, values: [height] },
@@ -116,7 +117,38 @@ export function encodeRgbaGeoTiff3857(rgba: Uint8Array | Uint8ClampedArray, widt
     { tag: 338, type: SHORT, values: [2] },               // ExtraSamples: unassociated alpha
     { tag: 339, type: SHORT, values: [1, 1, 1, 1] },      // SampleFormat: unsigned
     ...georef(bbox, width, height),
-    // GeoKeyDirectory: projected model, pixel is area, EPSG:3857.
-    { tag: 34735, type: SHORT, values: [1, 1, 0, 3, 1024, 0, 1, 1, 1025, 0, 1, 1, 3072, 0, 1, 3857] },
+    // GeoKeyDirectory, pixel is area: projected EPSG:3857 or geographic 4326.
+    { tag: 34735, type: SHORT, values: epsg === 3857
+      ? [1, 1, 0, 3, 1024, 0, 1, 1, 1025, 0, 1, 1, 3072, 0, 1, 3857]
+      : [1, 1, 0, 3, 1024, 0, 1, 2, 1025, 0, 1, 1, 2048, 0, 1, 4326] },
   ], new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength))
 }
+
+/** Image + world file + .prj for RGBA outputs, for tools that prefer them
+ *  to a GeoTIFF. The world file holds the pixel size and the centre of the
+ *  top-left pixel; JPEG has no alpha, so transparent pixels become white. */
+export async function encodeImageWithWorldFile(
+  rgba: Uint8Array | Uint8ClampedArray, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326, format: "png" | "jpeg",
+): Promise<{ image: Blob; worldFile: string; prj: string }> {
+  const canvas = document.createElement("canvas")
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext("2d")!
+  if (format === "jpeg") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, width, height) }
+  const img = new ImageData(new Uint8ClampedArray(rgba), width, height)
+  if (format === "jpeg") {
+    const tmp = document.createElement("canvas")
+    tmp.width = width; tmp.height = height
+    tmp.getContext("2d")!.putImageData(img, 0, 0)
+    ctx.drawImage(tmp, 0, 0)
+  } else ctx.putImageData(img, 0, 0)
+  const image = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("image encoding failed"))), format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.95 : undefined))
+  const px = (bbox.east - bbox.west) / width
+  const py = (bbox.north - bbox.south) / height
+  const worldFile = [px, 0, 0, -py, bbox.west + px / 2, bbox.north - py / 2].map((v) => v.toFixed(12)).join("\n")
+  return { image, worldFile, prj: epsg === 3857 ? WKT_3857 : WKT_4326 }
+}
+
+const WKT_4326 = 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]]'
+const WKT_3857 = 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1],EXTENSION["PROJ4","+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs"],AUTHORITY["EPSG","3857"]]'

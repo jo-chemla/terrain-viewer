@@ -33,7 +33,13 @@ The arrow beside **GeoTIFF** opens a menu: **Elevation (DEM) GeoTIFF**, the same
 
 Under **Not visible**, the modes that are switched off can be exported too, even when their whole section is off: their tiles are computed for the export. Hidden rendered layers are shown for the moment of their capture.
 
-**Resolution.** *Screen*, labelled with the canvas size in pixels, exports at the zoom the map is drawing, so every tile is already cached and the whole export takes seconds. *Up to N px* uses the Max Resolution setting (Export settings) and fetches a deeper zoom afresh. The choice applies to the DEM and the values, and also to the main **GeoTIFF** button. Rendered layers and the composite are always the screen's own pixels.
+**Resolution.** *Screen*, labelled with the canvas size in pixels, exports exactly that many pixels at the zoom the map is drawing, so every tile is already cached and the whole export takes seconds. *Custom size* takes a longest edge, up to 16 384 px, and shows the other edge from the view's shape; tiles are fetched at the zoom that meets it. Either way the DEM and the values are resampled onto a regular EPSG:4326 grid covering exactly the view. The same choice drives the main **GeoTIFF** button. The snapshot and rendered layers are always the screen's own pixels.
+
+**Values as.** *Raw values* is the float32 GeoTIFF. *Coloured* runs the values through the mode's own colour ramp, with the bounds, symmetric and inverted settings you set, into an RGBA image on the same grid. *Both* writes the two. Curvature and shape index are stored ×1000 in their tiles for precision; the export divides that back out.
+
+**Images as.** RGBA outputs, the snapshot, rendered layers and coloured values, can be a GeoTIFF, or a PNG or JPEG with a world file (`.pgw`/`.jgw`), a `.prj`, and a `.aux.xml` from which GDAL and QGIS read the CRS. JPEG has no transparency, so nodata becomes white. Raw values and the DEM are always float32 GeoTIFF.
+
+When the view is tilted, rotated or on the globe, a banner recommends 2D, north up, with a button that switches to it.
 
 Rendered layers are the canvas, so they need a flat, north-up map: in the globe or the tilted 3D view, or with the map rotated, they are greyed out with the reason. Each is drawn on its own for a moment while it is captured, then every layer comes back.
 

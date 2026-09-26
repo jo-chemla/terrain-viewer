@@ -82,3 +82,19 @@ export function displayedTileZoom(map: maplibregl.Map, sourceIds: string[]): num
   }
   return null
 }
+
+/** Largest edge a client-side export may ask for. A float32 raster this
+ *  size is 1 GB per copy, and an export holds about three (the tile mosaic,
+ *  the resampled grid, the file); past it a browser tab runs out of memory. */
+export const MAX_EXPORT_EDGE = 16384
+
+/** The exact pixel size of an export: the canvas itself for "screen", or the
+ *  view's shape scaled so its longest edge is `longestEdge`. */
+export function exportOutputSize(map: maplibregl.Map, mode: "screen" | "max", longestEdge: number): { width: number; height: number } {
+  const c = map.getCanvas()
+  if (mode === "screen") return { width: c.width, height: c.height }
+  const n = Math.max(16, Math.min(MAX_EXPORT_EDGE, Math.round(longestEdge)))
+  return c.width >= c.height
+    ? { width: n, height: Math.max(1, Math.round((n * c.height) / c.width)) }
+    : { width: Math.max(1, Math.round((n * c.width) / c.height)), height: n }
+}

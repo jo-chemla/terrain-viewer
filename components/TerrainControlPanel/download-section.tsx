@@ -5,7 +5,7 @@ import { Download, Camera, Copy, Loader2, X, Images, ChevronDown } from "lucide-
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ExportMultiDialog } from "./export-multi-dialog"
 import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom, exportResolutionModeAtom } from "@/lib/settings-atoms"
-import { displayedTileZoom } from "@/lib/map-render-export"
+import { displayedTileZoom, exportOutputSize } from "@/lib/map-render-export"
 import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer } from "geotiff"
@@ -41,6 +41,8 @@ function isAbortError(error: unknown): boolean {
 }
 
 export const DownloadSection: React.FC<{
+  /** For the export dialog's "Switch to 2D, north up". */
+  setState?: (updates: Record<string, unknown>) => void
   state: any
   getMapBounds: () => { west: number; south: number; east: number; north: number }
   getSourceConfig: (key: string) => SourceConfig | null
@@ -52,7 +54,7 @@ export const DownloadSection: React.FC<{
   // — just the three actions that apply to any 2D view (Snapshot/Copy/Share),
   // shown as one equal-width row instead of the full DEM/Contours layout.
   historicalMode?: boolean
-}> = ({ state, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange, withSeparator, historicalMode = false }) => {
+}> = ({ state, setState, getMapBounds, getSourceConfig, mapRef, isOpen, onOpenChange, withSeparator, historicalMode = false }) => {
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [maxResolution, setMaxResolution] = useAtom(maxResolutionAtom)
   // Saved, copied and shared snapshots alike (see captureMapScreenshot).
@@ -258,11 +260,15 @@ export const DownloadSection: React.FC<{
     const zoom = screen && clientSource.type !== "cog"
       ? Math.min(clientSource.maxzoom, displayedTileZoom(map!, ["terrainSource", "hillshadeSource"]) ?? Math.floor(map!.getZoom() + Math.log2(512 / clientSource.tileSize)))
       : undefined
+    // Exactly the view, at exactly this many pixels: the screen's own size,
+    // or the custom longest edge in the view's shape.
+    const outputSize = map ? exportOutputSize(map, exportResolutionMode, maxResolution) : undefined
     const result = await exportElevationClientSide({
       source: clientSource,
       bbox: [bounds.west, bounds.south, bounds.east, bounds.north],
-      targetResolution: screen && canvas ? Math.max(canvas.width, canvas.height) : maxResolution,
+      targetResolution: outputSize ? Math.max(outputSize.width, outputSize.height) : screen && canvas ? Math.max(canvas.width, canvas.height) : maxResolution,
       zoom,
+      outputSize,
       onProgress: setExportProgress,
       signal,
     })
@@ -560,6 +566,10 @@ export const DownloadSection: React.FC<{
         contoursVisible={!hideContoursExport && state.showContoursAndGraticules && state.showContours}
         tellsVisible={state.tellsBeta && state.showTellsDetector}
         upstream={clientUpstream}
+        onMakeFlat={() => {
+          setState?.({ viewMode: "2d", pitch: 0, bearing: 0 })
+          mapRef.current?.getMap()?.easeTo({ pitch: 0, bearing: 0, duration: 400 })
+        }}
         derivedParams={{
           curvatureMode: state.curvatureMode, lrmRadius: state.lrmRadius,
           svfRadius: state.svfRadius, svfPrecision: state.svfPrecision,
