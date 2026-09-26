@@ -3965,9 +3965,15 @@ export function TerrainViewer() {
               showGraticules={state.showContoursAndGraticules && state.showGraticules && !isHistoricalMode}
               graticuleColor={state.graticuleColor || themeAntiColor}
               graticuleWidth={state.graticuleWidth}
-              // Labels are screen-space text pinned to the graticule's edge
-              // crossings; tilted or on the globe they drift off the lines.
-              showLabels={state.showGraticuleLabels && state.viewMode !== "3d"}
+              // Labels are screen-space text placed where each line crosses
+              // the screen edge. Tested 2026-09-26 in 2D, 3D and globe: they
+              // sit on their lines in any mode while the view is not tilted.
+              // From ~30 degrees of pitch the longitude labels pile up and
+              // drift off their lines, and with the horizon in view they float
+              // in the sky. A rotated map gets no labels at all (geogrid does
+              // not handle bearing; asked upstream). state.pitch follows the
+              // camera on moveend.
+              showLabels={state.showGraticuleLabels && state.pitch <= 5}
               labelColor={graticuleLabelColor}
               labelTextShadow={graticuleLabelTextShadow}
               gridDensity={state.graticuleDensity || undefined}
