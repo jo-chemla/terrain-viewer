@@ -38,7 +38,7 @@ import { derivedModeTemplate, lightingTemplate, type ClientDemUpstream, type Der
 // Two top-level branches: what is visible now, and what is not - the modes
 // that are off and the rendered layers that are hidden - so either set can
 // be toggled in one click.
-type Kind = "vector" | "dem" | "values" | "render" | "composite" | "lighting"
+type Kind = "vector" | "dem" | "values" | "render" | "composite" | "lighting" | "basemap"
 type Item = { id: string; label: string; detail?: string; kind: Kind; sourceId?: string; layers?: string[]; vector?: "contours" | "tells"; light?: "matcap" | "phong" | "shadow" }
 type Group = { key: string; title: string; hint?: string; items: Item[] }
 type Branch = { key: "visible" | "hidden"; title: string; groups: Group[] }
@@ -71,6 +71,11 @@ function buildTree(map: maplibregl.Map, contoursVisible: boolean, tellsVisible: 
   const hidden: Group[] = []
 
   visible.push({ key: "dem", title: "Elevation", hint: "float32 GeoTIFF, EPSG:4326", items: [{ id: "dem", label: "DEM", detail: "metres", kind: "dem" }] })
+  // The raster basemap from its own tiles, right under the DEM whether it is
+  // shown or not: its source stays on the map while the layer is hidden.
+  if (map.getSource("raster-basemap-source")) {
+    visible.push({ key: "basemap", title: "Raster Basemap", hint: "RGBA from its tiles, EPSG:4326, export size", items: [{ id: "basemap", label: isShown(map, "raster-basemap") ? "Basemap imagery" : "Basemap imagery (hidden on the map)", kind: "basemap" }] })
+  }
   visible.push({ key: "composite", title: "Snapshot", hint: "RGBA GeoTIFF, EPSG:3857, screen resolution", items: [{ id: "composite", label: "Every visible layer, as seen", kind: "composite" }] })
 
   const vector: Item[] = []
@@ -102,7 +107,7 @@ function buildTree(map: maplibregl.Map, contoursVisible: boolean, tellsVisible: 
   add("hypso", "Elevation Hypso", ["color-relief"])
   add("terrain-analysis", "Terrain Analysis, coloured", VALUE_MODES.filter((m) => m.group === "Terrain Analysis").map((m) => m.layerId))
   add("relief", "Relief Visualization, coloured", VALUE_MODES.filter((m) => m.group === "Relief Visualization").map((m) => m.layerId))
-  add("basemap", "Raster Basemap", ["raster-basemap", ...all.filter((id) => id.startsWith("overlay-basemap-"))])
+  add("overlays", "Basemap overlays", all.filter((id) => id.startsWith("overlay-basemap-")))
   // Lighting from its own tiles (matcap://, phong://, shadow://), not the
   // canvas: any size, any view, and also while the live GL renderer draws it.
   if (lightShown) {
@@ -182,7 +187,8 @@ export const ExportLayersDialog: React.FC<{
     setCanvasSize(`${c.width} × ${c.height} px`)
     // Everything visible is ticked, the snapshot and DEM included; nothing
     // hidden is, and that branch starts folded.
-    setSelected(new Set(tree.filter((b) => b.key === "visible").flatMap((b) => b.groups).flatMap((g) => g.items).map((i) => i.id)))
+    setSelected(new Set(tree.filter((b) => b.key === "visible").flatMap((b) => b.groups).flatMap((g) => g.items)
+      .filter((i) => i.kind !== "basemap" || isShown(map, "raster-basemap")).map((i) => i.id)))
     setFolded(new Set(["branch:hidden"]))
     setStatus({})
     setProgress(null)
@@ -277,6 +283,19 @@ export const ExportLayersDialog: React.FC<{
             const data = mode.scale ? result.data.map((v) => v / mode.scale!) : result.data
             saveAs(new Blob([encodeFloat32GeoTiff(data, result.width, result.height, { west, south, east, north })], { type: "image/tiff" }), `${base}.tif`)
           }
+        } else if (item.kind === "basemap") {
+          const spec = map.getStyle().sources["raster-basemap-source"] as { tiles?: string[]; tileSize?: number; maxzoom?: number } | undefined
+          const template = spec?.tiles?.[0]
+          if (!template) throw new Error("the basemap has no tile template")
+          if (/\{(quadkey|bbox-epsg-3857)\}/.test(template)) throw new Error("this basemap is not a z/x/y tile source")
+          const tileSize = spec?.tileSize ?? 256
+          const maxzoom = spec?.maxzoom ?? 19
+          const outputSize = exportOutputSize(map, resolutionMode, longestEdge)
+          const zoom = resolutionMode === "screen"
+            ? Math.min(maxzoom, displayedTileZoom(map, ["raster-basemap-source"]) ?? Math.floor(map.getZoom() + Math.log2(512 / tileSize)))
+            : undefined
+          const rgba = await readRgbaRegion(template, tileSize, maxzoom, [b.west, b.south, b.east, b.north], outputSize.width, outputSize.height, { signal: controller.signal, zoom })
+          await saveRgba(rgba, outputSize.width, outputSize.height, b, 4326, `terrain-viewer_basemap_${stamp}`)
         } else if (item.kind === "lighting") {
           if (!upstream) throw new Error("this terrain source has no client-side tile path")
           const lt = lightingTemplate(item.light!, upstream, lighting.params)
