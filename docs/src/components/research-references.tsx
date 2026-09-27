@@ -3,25 +3,32 @@ import datasetDois from "@/data/dataset-dois.json";
 
 // The research references page (docs/content/docs/resources/research-references.mdx).
 // Every entry was found and its DOI or official page fetched before being
-// added; the data lives in src/data/research-references.json. A case study
-// with a study area gets a link that opens Terrain Viewer there, with the
-// modes that match what the paper used, and on the matching library dataset
-// when the app has one.
+// added; the data lives in src/data/research-references.json, one `group` per
+// section of the page. A study with an area gets a link that opens Terrain
+// Viewer there: with the modes the paper used, on the matching library dataset
+// when the app has one; in historical mode for imagery studies, before and
+// after side by side when the paper gives dates; and on the before/after
+// difference when the library has both surveys (`change`).
 
 type Ref = {
   category: string;
+  group: string;
   authors: string;
   year: number | string;
   title: string;
-  venue?: string;
+  venue?: string | null;
   doi?: string | null;
   url: string;
+  oa_url?: string | null;
+  cites?: string[];
   dataset?: string | null;
   modes?: string[];
   study_area?: { name?: string; lat: number; lng: number; zoom: number } | null;
   library_id?: string | null;
-  one_line?: string;
-  field?: string | null;
+  app_basemaps?: string[] | null;
+  date_hint?: number[] | null;
+  change?: { id: string; range: number; lat: number; lng: number; zoom: number };
+  one_line?: string | null;
 };
 
 const APP = "https://terrain-viewer.iconem.com/";
@@ -45,14 +52,33 @@ const MODE_PARAMS: Record<string, Record<string, string>> = {
   "mound detector": { tellsBeta: "true", showTerrainAnalysis: "true", showTellsDetector: "true" },
 };
 
+const camera = (a: { lat: number; lng: number; zoom: number }) =>
+  new URLSearchParams({ viewMode: "2d", lat: a.lat.toFixed(4), lng: a.lng.toFixed(4), zoom: String(a.zoom) });
+
+// The historical archive that has imagery for a given year: Wayback starts in
+// 2014, Google Earth's timeline goes further back.
+const archiveFor = (year: number, preferred?: string[] | null) =>
+  year < 2014 ? "ge-historical" : preferred?.find((b) => b === "wayback" || b === "eox-s2" || b === "hls") ?? "wayback";
+
 export function openUrl(r: Ref): string | null {
   if (!r.study_area) return null;
-  const q = new URLSearchParams({
-    viewMode: "2d",
-    lat: r.study_area.lat.toFixed(4),
-    lng: r.study_area.lng.toFixed(4),
-    zoom: String(r.study_area.zoom),
-  });
+  const q = camera(r.study_area);
+  if (r.category === "Historical imagery") {
+    q.set("appMode", "historical");
+    const [before, after] = r.date_hint ?? [];
+    if (before && after) {
+      q.set("splitStyle", "side-by-side");
+      for (const [pane, year] of [["A", before], ["B", after]] as const) {
+        q.set(`basemapSource${pane}`, "historical");
+        q.set(`historicalActiveSource${pane}`, archiveFor(year, r.app_basemaps));
+        q.set(`date${pane}`, String(Date.UTC(year, 5, 1)));
+      }
+    } else {
+      q.set("basemapSourceA", "historical");
+      q.set("historicalActiveSourceA", r.app_basemaps?.[0] ?? "wayback");
+    }
+    return `${APP}?${q.toString()}`;
+  }
   if (r.library_id) q.set("terrainSourceA", r.library_id);
   // Two modes at most, so the view stays readable; hillshade underneath.
   for (const m of (r.modes ?? []).map((x) => x.toLowerCase()).filter((x) => MODE_PARAMS[x]).slice(0, 2)) {
@@ -62,33 +88,41 @@ export function openUrl(r: Ref): string | null {
   return `${APP}?${q.toString()}`;
 }
 
-const ORDER = ["Case studies across fields", "Relief visualization", "Geomorphometry", "Global DEMs", "Geoarchaeology case studies"];
+// The difference of two surveys, on a diverging ramp centred on 0.
+export function changeUrl(c: NonNullable<Ref["change"]>): string {
+  const q = camera(c);
+  q.set("terrainSourceA", c.id);
+  q.set("showHillshade", "true");
+  q.set("showColorRelief", "true");
+  q.set("colorReliefOpacity", "0.8");
+  q.set("colorRamp", "diverging-blue-white-red");
+  q.set("customHypsoMinMax", "true");
+  q.set("hypsoSymmetric", "true");
+  q.set("minElevation", String(-c.range));
+  q.set("maxElevation", String(c.range));
+  return `${APP}?${q.toString()}`;
+}
 
-export function ResearchReferences({ category }: { category: string }) {
-  const rows = (references as Ref[])
-    .filter((r) => r.category === category)
-    // Case studies are grouped by field, everything else runs by year.
-    .sort((a, b) => (a.field ?? "").localeCompare(b.field ?? "") || Number(a.year) - Number(b.year));
+const ext = { target: "_blank", rel: "noopener noreferrer" } as const;
+
+export function ResearchReferences({ group }: { group: string }) {
+  const rows = (references as Ref[]).filter((r) => r.group === group).sort((a, b) => Number(a.year) - Number(b.year));
   return (
     <ul>
       {rows.map((r) => {
         const open = openUrl(r);
+        const place = r.study_area?.name ?? "the study area";
         return (
           <li key={r.url}>
-            {r.field ? <><strong>{r.field}.</strong> </> : null}
-            {r.authors} ({r.year}). <a href={r.url} target="_blank" rel="noopener noreferrer">{r.title}</a>
+            {r.authors} ({r.year}). <a href={r.url} {...ext}>{r.title}</a>
             {r.venue ? <>. <em>{r.venue}</em></> : null}.
-            {r.doi && !r.url.includes(r.doi) ? <> <a href={`https://doi.org/${r.doi}`} target="_blank" rel="noopener noreferrer">doi:{r.doi}</a>.</> : null}
+            {r.doi && !r.url.includes(r.doi) ? <> <a href={`https://doi.org/${r.doi}`} {...ext}>doi:{r.doi}</a>.</> : null}
+            {r.oa_url ? <> <a href={r.oa_url} {...ext} title="An open-access copy of the paper">Free copy</a>.</> : null}
+            {r.cites?.length ? <> <span className="text-fd-muted-foreground" title="Cites RVT's founding papers or the Copernicus DEM, per OpenAlex or the paper itself">[cites {r.cites.join(", ")}]</span></> : null}
             {r.one_line ? <> {r.one_line}</> : null}
             {r.dataset ? <> <span className="text-fd-muted-foreground">Data: {r.dataset}.</span></> : null}
-            {open ? (
-              <>
-                {" "}
-                <a href={open} target="_blank" rel="noopener noreferrer" title={`Open ${r.study_area?.name ?? "the study area"} in Terrain Viewer`}>
-                  Open {r.study_area?.name ?? "the study area"} in Terrain Viewer ↗
-                </a>
-              </>
-            ) : null}
+            {open ? <> <a href={open} {...ext}>Open {place} in Terrain Viewer ↗</a></> : null}
+            {r.change ? <> · <a href={changeUrl(r.change)} {...ext}>See the elevation change ↗</a></> : null}
           </li>
         );
       })}
@@ -96,20 +130,31 @@ export function ResearchReferences({ category }: { category: string }) {
   );
 }
 
-export const referenceCategories = ORDER;
+// Dataset citations, from the same list as the National Datasets table
+// (src/data/dataset-dois.json): datasets with a DOI of their own, then those
+// only cited through a DOI'd copy, then the producers' pages for the rest.
+type Dataset = { name: string; doi?: string | null; mirror_doi?: string | null; mirror_publisher?: string | null; citation?: string; program_page?: string | null };
 
-// Dataset citations, from the same DOI list as the National Datasets table.
-export function DatasetCitations() {
-  const rows = Object.entries(datasetDois as Record<string, { doi: string; citation?: string; mirrors?: { doi: string; publisher?: string }[] }>);
+const doiLink = (doi: string) => <a href={`https://doi.org/${doi}`} target="_blank" rel="noopener noreferrer">doi:{doi}</a>;
+
+export function DatasetCitations({ kind }: { kind: "doi" | "mirror" | "page" }) {
+  const all = Object.values(datasetDois as Record<string, Dataset>);
+  const seen = new Set<string>();
+  const rows = all.filter((d) => {
+    const k = kind === "doi" ? d.doi : kind === "mirror" ? (!d.doi && d.mirror_doi) : (!d.doi && !d.mirror_doi && d.program_page);
+    if (!k || seen.has(k)) return false; // DTM and DSM of one survey share a DOI or a page
+    seen.add(k);
+    return true;
+  });
   return (
     <ul>
-      {rows.map(([id, d]) => (
-        <li key={id}>
-          {d.citation ?? d.doi}
-          {" "}<a href={`https://doi.org/${d.doi}`} target="_blank" rel="noopener noreferrer">doi:{d.doi}</a>.
-          {d.mirrors?.map((m) => (
-            <span key={m.doi}> Also {m.publisher ? `as served by ${m.publisher}` : "mirrored"}: <a href={`https://doi.org/${m.doi}`} target="_blank" rel="noopener noreferrer">doi:{m.doi}</a>.</span>
-          ))}
+      {rows.map((d) => (
+        <li key={d.name}>
+          {kind === "page" ? (
+            <><a href={d.program_page!} target="_blank" rel="noopener noreferrer">{d.name}</a>{d.citation ? <>: {d.citation}.</> : null}</>
+          ) : (
+            <>{d.citation || d.name}. {doiLink((kind === "doi" ? d.doi : d.mirror_doi)!)}{kind === "mirror" ? <> ({d.mirror_publisher ?? "a copy"}; producer page: <a href={d.program_page ?? "#"} target="_blank" rel="noopener noreferrer">{new URL(d.program_page ?? "https://example.org").hostname}</a>)</> : null}.</>
+          )}
         </li>
       ))}
     </ul>

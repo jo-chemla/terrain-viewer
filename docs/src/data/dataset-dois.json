@@ -1,89 +1,668 @@
 {
- "custom-africa-deafrica-cop30": {
-  "doi": "10.5270/ESA-c5d3d65",
-  "citation": "European Space Agency (2022). Copernicus DEM [Dataset].",
-  "publisher": "European Space Agency",
-  "mirrors": [
-   {
-    "doi": "10.60489/RODA.MXYOG0",
-    "publisher": "Registry of Open Data on AWS"
-   }
-  ]
- },
- "custom-pgc-arcticdem": {
-  "doi": "10.7910/DVN/3VDC4W",
-  "citation": "Porter, C., Howat, I., Noh, M.-J., et al. (2023). ArcticDEM - Mosaics, Version 4.1 [Dataset]. Harvard Dataverse.",
-  "publisher": "Harvard Dataverse"
- },
- "custom-pgc-rema": {
-  "doi": "10.7910/DVN/EBW8UC",
-  "citation": "Howat, I., Porter, C., Noh, M.-J., et al. (2022). The Reference Elevation Model of Antarctica - Mosaics, Version 2 [Dataset]. Harvard Dataverse.",
-  "publisher": "Harvard Dataverse"
- },
- "custom-global-aw3d30": {
-  "doi": "10.57746/EO.01KKFX0EJW8R5NDC9BG5NT13WS",
-  "citation": "Japan Aerospace Exploration Agency (JAXA) (2015). ALOS World 3D - 30m (AW3D30) Global DSM [Dataset].",
-  "publisher": "Japan Aerospace Exploration Agency (JAXA)",
-  "mirrors": [
-   {
-    "doi": "10.5069/G94M92HB",
-    "publisher": "OpenTopography"
-   }
-  ]
- },
- "custom-gedtm30": {
-  "doi": "10.5281/zenodo.14900180",
-  "citation": "Ho, Y., & Hengl, T. (2026). Global Ensemble Digital Terrain Model 30m (GEDTM30) [Dataset]. Zenodo.",
-  "publisher": "Zenodo"
- },
- "custom-sam-anadem": {
-  "doi": "10.5069/G9736P4G",
-  "citation": "OpenTopography (2025). ANADEM: A Digital Terrain Model for South America.",
-  "publisher": "OpenTopography"
- },
- "custom-it-tinitaly": {
-  "doi": "10.13127/TINITALY/1.1",
-  "citation": "Tarquini, S., Isola, I., Favalli, M., Battistini, A., & Dotta, G. (2023). TINITALY, a digital elevation model of Italy with a 10 meters cell size, version 1.1 [Dataset]. INGV.",
-  "publisher": "Istituto Nazionale di Geofisica e Vulcanologia (INGV)"
- },
- "custom-global-smartmaps-gel": {
-  "doi": "10.5067/MEaSUREs/NASADEM/NASADEM_HGT.001",
-  "citation": "NASA JPL (2020). NASADEM Merged DEM Global 1 arc second V001 [Dataset]. NASA LP DAAC.",
-  "publisher": "NASA Land Processes Distributed Active Archive Center"
- },
- "custom-emodnet-bathymetry": {
-  "doi": "10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1",
-  "citation": "EMODnet Bathymetry Consortium (2024). EMODnet Digital Bathymetry (DTM 2024) [Dataset].",
-  "publisher": "EMODnet Bathymetry Consortium"
- },
- "custom-basemap-dlr-polardem-ant-hillshade": {
-  "doi": "10.15489/9jhr18jepi65",
-  "citation": "Wessel, B., & Huber, M. (2020). TanDEM-X - PolarDEM - Antarctica, 90m [Dataset]. DLR.",
-  "publisher": "German Aerospace Center (DLR)"
- },
- "custom-mx-aguadafenix-lidar": {
-  "doi": "10.5069/G95B00NF",
-  "citation": "OpenTopography (2022). Lidar Survey of Middle Usumacinta Region, Mexico.",
-  "publisher": "OpenTopography"
- },
- "custom-ht-cnigs-dtm15": {
-  "doi": "10.5069/G9GX48R8",
-  "citation": "OpenTopography (2021). Haiti Digital Terrain Model 2014 - 2016.",
-  "publisher": "OpenTopography"
- },
- "custom-ca-nrcan-mrdem30": {
-  "doi": "10.5069/G9N8780J",
-  "citation": "OpenTopography (2025). Medium Resolution Digital Elevation Model of Canada.",
-  "publisher": "OpenTopography"
- },
- "custom-us-ak-ifsar-dtm5": {
-  "doi": "10.5066/P9C064CO",
-  "citation": "Earth Resources Observation and Science (EROS) Center (2018). Interferometric Synthetic Aperture Radar (IFSAR) Alaska [Dataset]. USGS.",
-  "publisher": "U.S. Geological Survey"
+ "mapterhorn": {
+  "name": "Mapterhorn (built-in default terrain)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Mapterhorn (2025). Public terrain tiles",
+  "program_page": "https://mapterhorn.com/attribution/",
+  "licence": "Code BSD-3-Clause; terrain data under each source's own licence (per mapterhorn.com)"
  },
  "aws": {
+  "name": "AWS Terrain Tiles (Mapzen Terrarium, built-in)",
   "doi": "10.60489/RODA.6W7PSW",
-  "citation": "Mapzen, a Linux Foundation project (2018). Terrain Tiles (Version 1.0) [Dataset]. Registry of Open Data on AWS.",
-  "publisher": "Registry of Open Data on AWS"
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Mapzen, a Linux Foundation project (2018). Terrain Tiles (Version 1.0) [Dataset]. Registry of Open Data on AWS",
+  "program_page": "https://registry.opendata.aws/terrain-tiles/",
+  "licence": "Per-source attribution, see https://github.com/tilezen/joerd/blob/master/docs/attribution.md"
+ },
+ "custom-at-tirol-dgm5": {
+  "name": "Land Tirol DGM 5m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Land Tirol (n.d.). Digitales Geländemodell Tirol 5 m. data.gv.at. CC BY 4.0",
+  "program_page": "https://data-tiris.opendata.arcgis.com/maps/fd330c925ce44e2ea44b3e1086d72a1b/about",
+  "licence": "CC BY 4.0 AT (; not shown in fetched HTML, which is a JS app"
+ },
+ "custom-be-vlaanderen-dtm1": {
+  "name": "Digitaal Vlaanderen DHMV II DTM 1m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Digitaal Vlaanderen (n.d.). Digitaal Hoogtemodel Vlaanderen II, DTM, raster, 1 m",
+  "program_page": "https://www.vlaanderen.be/datavindplaats/catalogus/digitaal-hoogtemodel-vlaanderen-ii-dtm-raster-1-m",
+  "licence": "Modellicentie gratis hergebruik (Model licence for free reuse)"
+ },
+ "custom-ca-nrcan-mrdem30": {
+  "name": "NRCan MRDEM 30m DTM",
+  "doi": null,
+  "mirror_doi": "10.5069/G9N8780J",
+  "mirror_publisher": "OpenTopography",
+  "citation": "Natural Resources Canada (2025). Medium Resolution Digital Elevation Model (MRDEM) - CanElevation Series. Distributed by OpenTopography,",
+  "program_page": "https://open.canada.ca/data/en/dataset/18752265-bda3-498c-a4ba-9dfe68cb98da",
+  "licence": "Open Government Licence - Canada"
+ },
+ "custom-ch-swissaltiregio": {
+  "name": "swisstopo swissALTIRegio 10m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Bundesamt für Landestopografie swisstopo, swissALTIRegio (plus the contributing datasets swisstopo lists: TINITALY 10.13127/tinitaly/1.1, Austrian DGM, IGN RGE ALTI, German DGM1)",
+  "program_page": "https://www.swisstopo.admin.ch/en/height-model-swissaltiregio",
+  "licence": "swisstopo free geodata (OGD) terms: use, redistribution and commercial use allowed with source attribution"
+ },
+ "custom-ch-swisstopo-terrain3d-qm": {
+  "name": "swisstopo Terrain 3D (quantized mesh, from swissALTI3D)",
+  "doi": null,
+  "mirror_doi": "10.5069/G9513WFJ",
+  "mirror_publisher": "OpenTopography",
+  "citation": "©swisstopo (or 'Federal Office of Topography swisstopo'). swissALTI3D",
+  "program_page": "https://www.swisstopo.admin.ch/en/height-model-swissalti3d",
+  "licence": "swisstopo free geodata (OGD) terms; source attribution required"
+ },
+ "custom-cz-cuzk-dmp05": {
+  "name": "ČÚZK DMP 1G 0.5m (surface)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "ČÚZK (n.d.). Digitální model povrchu (DMP 1G). CC BY 4.0",
+  "program_page": "https://geoportal.cuzk.gov.cz/Default.aspx?mode=TextMeta&side=vyskopis&metadataID=CZ-CUZK-DMP1G-V",
+  "licence": "CC BY 4.0"
+ },
+ "custom-cz-cuzk-dmr5g": {
+  "name": "ČÚZK DMR 5G",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "ČÚZK (n.d.). Digitální model reliéfu České republiky 5. generace (DMR 5G). CC BY 4.0",
+  "program_page": "https://geoportal.cuzk.gov.cz/Default.aspx?mode=TextMeta&side=vyskopis&metadataID=CZ-CUZK-DMR5G-V",
+  "licence": "CC BY 4.0"
+ },
+ "custom-1762932753467": {
+  "name": "IGN/CNIG XYZ Modelo Digital de Elevaciones (TerrainRGB)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "CC BY 4.0 scne.es (form CNIG uses for its MDT products)",
+  "program_page": "https://centrodedescargas.cnig.es/CentroDescargas/modelos-digitales-elevaciones",
+  "licence": "CC BY 4.0 (CNIG MDT products, per Mapterhorn attribution.json)"
+ },
+ "custom-1762932753466": {
+  "name": "Andalucía MDE del PNOA-LiDAR 2020-21 (REDIAM COG)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Junta de Andalucía, REDIAM (2021). MDE del PNOA-LiDAR de Andalucía 2020-21",
+  "program_page": "https://www.juntadeandalucia.es/medioambiente/portal/acceso-rediam/geoportal/raster-formato-cog/bases-referencia-y-elevaciones/modelos-digitales-elevaciones",
+  "licence": null
+ },
+ "custom-ee-maaamet-dtm1": {
+  "name": "Maa-amet LiDAR DTM 1m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Elevation data <years>, Republic of Estonia Land and Spatial Development Board (page asks to cite source and date)",
+  "program_page": "https://geoportaal.maaamet.ee/eng/spatial-data/elevation-data-p308.html",
+  "licence": "Estonian Land and Spatial Development Board Open Data Licence"
+ },
+ "custom-fi-nls-dem10": {
+  "name": "NLS Elevation model 10 m (via CSC Paituli)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Contains data from the National Land Survey of Finland Elevation model 10 m <MM/YYYY>",
+  "program_page": "https://www.maanmittauslaitos.fi/en/maps-and-spatial-data/datasets-and-interfaces/product-descriptions/elevation-model-10-m",
+  "licence": "CC BY 4.0"
+ },
+ "custom-ign-lidarhd-dsm-wms-raw": {
+  "name": "IGN LiDAR HD MNS (DSM)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "IGN (2021-). LiDAR HD - Modèle numérique de surface. Licence Ouverte 2.0",
+  "program_page": "https://geoservices.ign.fr/lidarhd",
+  "licence": "Licence Ouverte / Open Licence 2.0 (Etalab)"
+ },
+ "custom-ign-lidarhd-dtm-wms-raw": {
+  "name": "IGN LiDAR HD MNT (DTM)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "IGN (2021-). MNT LiDAR HD. Licence Ouverte 2.0",
+  "program_page": "https://geoservices.ign.fr/lidarhd",
+  "licence": "Licence Ouverte / Open Licence 2.0 (Etalab)"
+ },
+ "custom-fr-ign-lidarhd-reunion": {
+  "name": "IGN LiDAR HD DTM 0.5m Réunion",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "IGN (2021-). MNT LiDAR HD (La Réunion). Licence Ouverte 2.0",
+  "program_page": "https://geoservices.ign.fr/lidarhd",
+  "licence": "Licence Ouverte / Open Licence 2.0 (Etalab)"
+ },
+ "custom-fr-ign-rgealti-highres": {
+  "name": "IGN RGE ALTI 1-5m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "IGN (n.d.). RGE ALTI®. Licence Ouverte 2.0",
+  "program_page": "https://geoservices.ign.fr/rgealti",
+  "licence": "Licence Ouverte / Open Licence 2.0 (Etalab)"
+ },
+ "custom-1763115512226": {
+  "name": "IGN RGE ALTI, Christian Quest COG repack (vrt://)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "IGN, RGE ALTI® 1 m (Licence Ouverte 2.0); COG repack by Christian Quest, data.cquest.org",
+  "program_page": "https://geoservices.ign.fr/rgealti",
+  "licence": "Licence Ouverte / Open Licence 2.0 (IGN source data)"
+ },
+ "custom-1763118373252": {
+  "name": "RGE ALTI 1m, Christian Quest COG repack (VRT)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "IGN, RGE ALTI® 1 m (Licence Ouverte 2.0); COG repack by Christian Quest, data.cquest.org",
+  "program_page": "https://geoservices.ign.fr/rgealti",
+  "licence": "Licence Ouverte / Open Licence 2.0 (IGN source data)"
+ },
+ "custom-hk-landsd-dtm5": {
+  "name": "Lands Department DTM 5m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Lands Department, HKSAR Government (n.d.). Digital Terrain Model (DTM) 5 m grid. DATA.GOV.HK (attribution to the Government, LandsD and DATA.GOV.HK required)",
+  "program_page": "https://data.gov.hk/en-data/dataset/hk-landsd-openmap-5m-grid-dtm",
+  "licence": "DATA.GOV.HK Terms and Conditions of Use (attribution required)"
+ },
+ "custom-us-hi-dtm1-lerc": {
+  "name": "Hawaii statewide LiDAR DTM 1m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Hawaii Statewide GIS Program (n.d.). Hawaii statewide LiDAR DTM 1 m",
+  "program_page": "https://planning.hawaii.gov/gis/",
+  "licence": null
+ },
+ "custom-us-hi-maui-dtm03-lerc": {
+  "name": "Hawaii Maui & Molokai 2019 LiDAR DTM 0.3m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Hawaii Statewide GIS Program (2019). Maui and Molokai LiDAR DTM",
+  "program_page": "https://planning.hawaii.gov/gis/",
+  "licence": null
+ },
+ "custom-us-hi-dsm1": {
+  "name": "Hawaii statewide LiDAR DSM 1m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Hawaii Statewide GIS Program (n.d.). Hawaii statewide LiDAR DSM 1 m",
+  "program_page": "https://planning.hawaii.gov/gis/",
+  "licence": null
+ },
+ "custom-ca-nb-dtm1": {
+  "name": "New Brunswick GeoNB LiDAR DEM 1m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Government of New Brunswick / Service New Brunswick (n.d.). LiDAR Digital Elevation Model (DEM). GeoNB",
+  "program_page": "https://open.canada.ca/data/en/dataset/213fbdff-93dd-b7df-7bcd-8239fca8fce8",
+  "licence": "Open Government Licence - New Brunswick"
+ },
+ "custom-ca-nb-dsm1": {
+  "name": "New Brunswick GeoNB LiDAR DSM 1m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Government of New Brunswick / Service New Brunswick (n.d.). LiDAR Digital Surface Model. GeoNB",
+  "program_page": "https://open.canada.ca/data/en/dataset/213fbdff-93dd-b7df-7bcd-8239fca8fce8",
+  "licence": "Open Government Licence - New Brunswick"
+ },
+ "custom-us-ak-ifsar-dtm5": {
+  "name": "Alaska DGGS IfSAR DTM 5m",
+  "doi": "10.5066/P9C064CO",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Earth Resources Observation and Science (EROS) Center (2018). Interferometric Synthetic Aperture Radar (IFSAR) Alaska [Dataset]. USGS",
+  "program_page": "https://elevation.alaska.gov/",
+  "licence": "Public domain"
+ },
+ "custom-us-ak-ifsar-dsm5": {
+  "name": "Alaska DGGS IfSAR DSM 5m",
+  "doi": "10.5066/P9C064CO",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Earth Resources Observation and Science (EROS) Center (2018). Interferometric Synthetic Aperture Radar (IFSAR) Alaska [Dataset]. USGS",
+  "program_page": "https://elevation.alaska.gov/",
+  "licence": "Public domain"
+ },
+ "custom-au-sa-murray-dtm05": {
+  "name": "SA River Murray 2021 LiDAR DTM 0.5m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "SA Department for Environment and Water (2021). River Murray LiDAR 2021, DTM 50 cm. Via ELVIS / MDBA",
+  "program_page": "https://elevation.fsdf.org.au/",
+  "licence": "CC BY 4.0 on ELVIS ; the MDBA service text names no licence"
+ },
+ "custom-au-nsw-dem5": {
+  "name": "NSW 5m statewide DEM",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "NSW Spatial Services (DCS) (n.d.). NSW Elevation Data Service, 5 m",
+  "program_page": "https://www.data.nsw.gov.au/data/dataset/1-437c0697e6524d8ebf10ad0d915bc219",
+  "licence": "Page says 'License Not Specified' (library description says CC BY 4.0)"
+ },
+ "custom-au-qld-dem": {
+  "name": "Queensland QldDem best-available",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "© State of Queensland (n.d.). Queensland Elevation DEM Public Time Series Service. CC BY 4.0",
+  "program_page": "https://www.data.qld.gov.au/dataset/queensland-elevation-dem-public-time-series-service",
+  "licence": "CC BY 4.0"
+ },
+ "custom-mx-aguadafenix-lidar": {
+  "name": "Aguada Fenix / Middle Usumacinta LiDAR 0.5m (DTM)",
+  "doi": "10.5069/G95B00NF",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "OpenTopography (2022). Lidar Survey of Middle Usumacinta Region, Mexico",
+  "program_page": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.042022.32615.1",
+  "licence": "CC BY 4.0"
+ },
+ "custom-mx-aguadafenix-dsm": {
+  "name": "Aguada Fenix LiDAR 0.5m DSM",
+  "doi": "10.5069/G95B00NF",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "OpenTopography (2022). Lidar Survey of Middle Usumacinta Region, Mexico",
+  "program_page": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.042022.32615.1",
+  "licence": "CC BY 4.0"
+ },
+ "custom-tz-msimbazi-dtm05": {
+  "name": "Msimbazi LiDAR DTM 0.5m 2019",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Resilience Academy (2020). Msimbazi Digital Elevation Model_ LiDAR 0.50m 2019. Aerial survey data, Resilience Academy",
+  "program_page": "https://crd.resilienceacademy.ac.tz/catalogue/#/dataset/880",
+  "licence": "CC BY 4.0"
+ },
+ "custom-tz-msimbazi-uav-dsm05": {
+  "name": "Msimbazi UAV DSM 0.5m 2019",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Resilience Academy (2020). Msimbazi Digital Elevation Model_ UAV 2019. Aerial survey data, Resilience Academy",
+  "program_page": "https://crd.resilienceacademy.ac.tz/catalogue/#/dataset/882",
+  "licence": "CC BY 4.0"
+ },
+ "custom-global-aw3d30": {
+  "name": "JAXA ALOS World 3D 30m (AW3D30)",
+  "doi": "10.57746/EO.01KKFX0EJW8R5NDC9BG5NT13WS",
+  "mirror_doi": "10.5069/G94M92HB",
+  "mirror_publisher": "OpenTopography",
+  "citation": "Japan Aerospace Exploration Agency (JAXA) (2015). ALOS World 3D - 30m (AW3D30) Global DSM [Dataset]",
+  "program_page": "https://www.eorc.jaxa.jp/ALOS/en/dataset/aw3d30/aw3d30_e.htm",
+  "licence": null
+ },
+ "custom-us-ny-dem1": {
+  "name": "New York statewide LiDAR DEM 1m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "NYS GIS Program Office / NYS Elevation Program (n.d.). Latest DEM, 1 m",
+  "program_page": "https://gis.ny.gov/elevation",
+  "licence": "Public data"
+ },
+ "custom-lt-klaipeda-dtm05": {
+  "name": "Klaipėda city LiDAR DTM 0.5m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Klaipėda City Municipality (2017). Reljefo modelis (city LiDAR DTM)",
+  "program_page": "https://www.geoportal.lt/geoportal/",
+  "licence": null
+ },
+ "custom-fo-us-dsm25": {
+  "name": "Umhvørvisstovan FO_DSM_2017 25m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Data from the Faroese Environment Agency, Umhvørvisstovan: FO_DSM_2017, <date> (webservice)",
+  "program_page": "https://www.foroyakort.fo/um-foeroyakort/terms-and-conditions-in-english",
+  "licence": "Umhvørvisstovan open terms (worldwide use, commercial allowed, attribution required)"
+ },
+ "custom-uk-ea-lidar-dtm1": {
+  "name": "England EA LIDAR Composite DTM 1m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "© Environment Agency copyright and/or database right 2022. All rights reserved",
+  "program_page": "https://environment.data.gov.uk/dataset/13787b9a-26a4-4775-8523-806d13af58fc",
+  "licence": "Open Government Licence v3"
+ },
+ "custom-ht-cnigs-dtm15": {
+  "name": "CNIGS / World Bank LiDAR DTM 1.5m",
+  "doi": "10.5069/G9GX48R8",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "OpenTopography (2021). Haiti Digital Terrain Model 2014 - 2016",
+  "program_page": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.082021.32618.1",
+  "licence": null
+ },
+ "custom-np-bhotekoshi-dsm-rasuwagadhi": {
+  "name": "Bhotekoshi 2026 post-event DSM 0.5m, Rasuwagadhi-Timure",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "geo-pera (2026). bhotekoshi-2026-reconstruction v1.1 [GitHub release]. CC BY 4.0",
+  "program_page": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1",
+  "licence": "CC BY 4.0"
+ },
+ "custom-np-bhotekoshi-dh-rasuwagadhi": {
+  "name": "Bhotekoshi 2026 elevation change (dh) 2m, Rasuwagadhi-Timure (producer's product)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "geo-pera (2026). bhotekoshi-2026-reconstruction v1.1 [GitHub release]. CC BY 4.0",
+  "program_page": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1",
+  "licence": "CC BY 4.0"
+ },
+ "custom-np-bhotekoshi-dsm-syabrubesi": {
+  "name": "Bhotekoshi 2026 post-event DSM 0.5m, Syabrubesi",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "geo-pera (2026). bhotekoshi-2026-reconstruction v1.1 [GitHub release]. CC BY 4.0",
+  "program_page": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1",
+  "licence": "CC BY 4.0"
+ },
+ "custom-np-bhotekoshi-dh-syabrubesi": {
+  "name": "Bhotekoshi 2026 elevation change (dh) 2m, Syabrubesi (producer's product)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "geo-pera (2026). bhotekoshi-2026-reconstruction v1.1 [GitHub release]. CC BY 4.0",
+  "program_page": "https://github.com/geo-pera/bhotekoshi-2026-reconstruction/releases/tag/v1.1",
+  "licence": "CC BY 4.0"
+ },
+ "custom-idn-big-demnas": {
+  "name": "BIG DEMNAS ~8m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Badan Informasi Geospasial (n.d.). DEMNAS - DEM Nasional",
+  "program_page": "https://tanahair.indonesia.go.id/demnas/",
+  "licence": null
+ },
+ "custom-it-tinitaly": {
+  "name": "INGV TINITALY 10m",
+  "doi": "10.13127/TINITALY/1.1",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Tarquini, S., Isola, I., Favalli, M., Battistini, A., & Dotta, G. (2023). TINITALY, a digital elevation model of Italy with a 10 meters cell size, version 1.1 [Dataset]. INGV",
+  "program_page": "https://tinitaly.pi.ingv.it/",
+  "licence": "CC BY 4.0"
+ },
+ "custom-jp-gsj-terrainrgb": {
+  "name": "GSI/GSJ seamless elevation tiles (Terrain-RGB)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "産総研地質調査総合センター シームレス標高タイル (GSJ, AIST); source data 出典: 国土地理院 (GSI)",
+  "program_page": "https://gbank.gsj.jp/seamless/elev/",
+  "licence": "AIST GSJ website terms of use (free secondary use incl. commercial, compatible with CC BY 4.0); GSI tiles: source credit '国土地理院' / '地理院タイル' (GSI content terms, PDL1.0-based)"
+ },
+ "custom-mx-inegi-cem": {
+  "name": "INEGI Continuo de Elevaciones Mexicano 3.0",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "INEGI (n.d.). Continuo de Elevaciones Mexicano 3.0 (CEM 3.0)",
+  "program_page": "https://www.inegi.org.mx/app/geo2/elevacionesmex/",
+  "licence": "Términos de Libre Uso de la Información del INEGI"
+ },
+ "custom-nl-ahn-dtm": {
+  "name": "AHN DTM 0.5m",
+  "doi": null,
+  "mirror_doi": "10.5069/G9CN725M",
+  "mirror_publisher": "OpenTopography",
+  "citation": "AHN (Actueel Hoogtebestand Nederland). Via PDOK",
+  "program_page": "https://www.ahn.nl/",
+  "licence": "CC BY 4.0 per Mapterhorn attribution.json for AHN5; library description says CC0 - licence not stated on the ahn.nl home page, verify"
+ },
+ "custom-nl-ahn-dsm": {
+  "name": "AHN DSM 0.5m",
+  "doi": null,
+  "mirror_doi": "10.5069/G9CN725M",
+  "mirror_publisher": "OpenTopography",
+  "citation": "AHN (Actueel Hoogtebestand Nederland). Via PDOK",
+  "program_page": "https://www.ahn.nl/",
+  "licence": "see DTM entry"
+ },
+ "custom-no-kartverket-dtm1": {
+  "name": "Kartverket NDH DTM 0.25m",
+  "doi": null,
+  "mirror_doi": "10.5069/G9DF6PFH",
+  "mirror_publisher": "OpenTopography",
+  "citation": "© Kartverket",
+  "program_page": "https://www.kartverket.no/en/geodataarbeid/nasjonal-detaljert-hoydemodell",
+  "licence": "CC BY 4.0"
+ },
+ "custom-no-kartverket-dom1": {
+  "name": "Kartverket NDH DOM 0.25m (surface)",
+  "doi": null,
+  "mirror_doi": "10.5069/G9DF6PFH",
+  "mirror_publisher": "OpenTopography",
+  "citation": "© Kartverket",
+  "program_page": "https://www.kartverket.no/en/api-and-data/terrengdata",
+  "licence": "CC BY 4.0"
+ },
+ "custom-nz-linz-dem1": {
+  "name": "LINZ national 1m LiDAR DEM (Basemaps Terrain-RGB)",
+  "doi": null,
+  "mirror_doi": "10.5069/G9ZK5DW0",
+  "mirror_publisher": "OpenTopography",
+  "citation": "Toitū Te Whenua Land Information New Zealand (n.d.). New Zealand LiDAR 1m DEM. CC BY 4.0",
+  "program_page": "https://www.linz.govt.nz/products-services/data/types-linz-data/elevation-data",
+  "licence": "CC BY 4.0 (per Mapterhorn attribution.json; the LINZ pages fetched give no licence text)"
+ },
+ "custom-uy-ideuy-mdt30": {
+  "name": "IDEuy MDT nacional 30m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "IDEuy / AGESIC (2021). Ortoimagen y modelo digital del terreno de cobertura nacional",
+  "program_page": "https://catalogodatos.gub.uy/dataset/ide-ortoimagen-mdt-de-cobertura-nacional",
+  "licence": "Licencia de Datos Abiertos de Uruguay"
+ },
+ "custom-us-3dep": {
+  "name": "USGS 3DEP seamless DEM (ImageServer)",
+  "doi": null,
+  "mirror_doi": "10.5069/G98K778D",
+  "mirror_publisher": "OpenTopography",
+  "citation": "U.S. Geological Survey (n.d.). 3D Elevation Program (3DEP) seamless DEM. Public domain",
+  "program_page": "https://www.usgs.gov/3d-elevation-program",
+  "licence": "Public domain ('All 3DEP products are available free of charge and without use restrictions')"
+ },
+ "custom-us-3dep-wms": {
+  "name": "USGS 3DEP (WMS)",
+  "doi": null,
+  "mirror_doi": "10.5069/G98K778D",
+  "mirror_publisher": "OpenTopography",
+  "citation": "U.S. Geological Survey (n.d.). 3D Elevation Program (3DEP) seamless DEM. Public domain",
+  "program_page": "https://www.usgs.gov/3d-elevation-program",
+  "licence": "Public domain"
+ },
+ "custom-global-esri-terrain3d": {
+  "name": "Esri World Elevation 3D (Terrain3D)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Esri (n.d.). World Elevation 3D / Terrain 3D. Sources: see Esri item",
+  "program_page": "https://www.arcgis.com/home/item.html?id=7029fb60158543ad845c7e1527af11e4",
+  "licence": "Esri Terms of Use (not an open licence); use from non-Esri clients not clearly granted"
+ },
+ "custom-sam-anadem": {
+  "name": "ANADEM South America DTM",
+  "doi": "10.5069/G9736P4G",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "OpenTopography (2025). ANADEM: A Digital Terrain Model for South America",
+  "program_page": "https://hge-iph.github.io/anadem/",
+  "licence": null
+ },
+ "custom-africa-deafrica-cop30": {
+  "name": "Digital Earth Africa Copernicus GLO-30",
+  "doi": "10.5270/ESA-c5d3d65",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "European Space Agency (2022). Copernicus DEM [Dataset]",
+  "program_page": "https://docs.digitalearthafrica.org/en/latest/data_specs/COP_DEM_specs.html",
+  "licence": "Copernicus DEM licence (full, free and open); DE Africa service CC BY 4.0"
+ },
+ "custom-emodnet-bathymetry": {
+  "name": "EMODnet Bathymetry DTM 2024",
+  "doi": "10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "EMODnet Bathymetry Consortium (2024). EMODnet Digital Bathymetry (DTM 2024) [Dataset]",
+  "program_page": "https://emodnet.ec.europa.eu/en/bathymetry",
+  "licence": null
+ },
+ "custom-gedtm30": {
+  "name": "OpenLandMap GEDTM30",
+  "doi": "10.5281/zenodo.14900180",
+  "mirror_doi": "10.5069/G9BV7DT1",
+  "mirror_publisher": "OpenTopography",
+  "citation": "Ho, Y., & Hengl, T. (2026). Global Ensemble Digital Terrain Model 30m (GEDTM30) [Dataset]. Zenodo",
+  "program_page": "https://github.com/openlandmap/GEDTM30",
+  "licence": null
+ },
+ "custom-global-geoid-egm96": {
+  "name": "EGM96 geoid undulation 15'",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "NGA. EGM96 geoid undulation grid (us_nga_egm96_15.tif), via PROJ CDN",
+  "program_page": "https://earth-info.nga.mil/",
+  "licence": "Public domain (; not stated on fetched pages"
+ },
+ "custom-global-geoid-egm2008": {
+  "name": "EGM2008 geoid undulation 2.5'",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Pavlis, N. K., Holmes, S. A., Kenyon, S. C., & Factor, J. K. (2012). The development and evaluation of the Earth Gravitational Model 2008 (EGM2008). JGR Solid Earth, 117(B4)",
+  "program_page": "https://earth-info.nga.mil/",
+  "licence": "Public domain"
+ },
+ "custom-global-smartmaps-gel": {
+  "name": "Smart Maps GEL NASADEM 30m Terrain-RGB",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "UN Smart Maps Group, Global Elevation Tiles (source.coop/smartmaps/gel), from NASADEM: NASA JPL (2020). NASADEM Merged DEM Global 1 arc second V001",
+  "program_page": "https://source.coop/smartmaps/gel",
+  "licence": "CC0 (per library name)"
+ },
+ "custom-openwaters-seascape": {
+  "name": "Open Waters Seascape bathymetry",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Open Waters, Seascape (github.com/openwatersio/seascape); main input GEBCO_2025 Grid",
+  "program_page": "https://github.com/openwatersio/seascape",
+  "licence": null
+ },
+ "custom-pgc-arcticdem": {
+  "name": "PGC ArcticDEM 2m",
+  "doi": "10.7910/DVN/3VDC4W",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Porter, C., Howat, I., Noh, M.-J., et al. (2023). ArcticDEM - Mosaics, Version 4.1 [Dataset]. Harvard Dataverse",
+  "program_page": "https://www.pgc.umn.edu/data/arcticdem/",
+  "licence": null
+ },
+ "custom-pgc-rema": {
+  "name": "PGC REMA 2m",
+  "doi": "10.7910/DVN/EBW8UC",
+  "mirror_doi": "10.5069/G9X63K5S",
+  "mirror_publisher": "OpenTopography",
+  "citation": "Howat, I., Porter, C., Noh, M.-J., et al. (2022). The Reference Elevation Model of Antarctica - Mosaics, Version 2 [Dataset]. Harvard Dataverse",
+  "program_page": "https://www.pgc.umn.edu/data/rema/",
+  "licence": "CC BY 4.0"
+ },
+ "custom-reearth-terrarium": {
+  "name": "Re:Earth Terrain (Terrarium, ellipsoid)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Re:Earth, reearth-terrain (github.com/reearth/reearth-terrain), with the attributions its TileJSON carries for each source",
+  "program_page": "https://github.com/reearth/reearth-terrain",
+  "licence": null
+ },
+ "custom-global-openbuildings-2023": {
+  "name": "Google Open Buildings 2.5D Temporal 2023 (BRA sample)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Google Research (n.d.). Open Buildings 2.5D Temporal Dataset",
+  "program_page": "https://sites.research.google/gr/open-buildings/temporal/",
+  "licence": "CC BY 4.0 or ODbL v1.0 (user's choice)"
+ },
+ "custom-global-openbuildings-2016": {
+  "name": "Google Open Buildings 2.5D Temporal 2016 (BRA sample)",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Google Research (n.d.). Open Buildings 2.5D Temporal Dataset",
+  "program_page": "https://sites.research.google/gr/open-buildings/temporal/",
+  "licence": "CC BY 4.0 or ODbL v1.0 (user's choice)"
+ },
+ "custom-ca-ontario-dtm05": {
+  "name": "Ontario LiDAR-derived DTM 0.5m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Ontario Ministry of Natural Resources (n.d.). Ontario Digital Terrain Model (Lidar-Derived). © King's/Queen's Printer for Ontario",
+  "program_page": "https://geohub.lio.gov.on.ca/maps/mnrf::ontario-digital-terrain-model-lidar-derived/about",
+  "licence": null
+ },
+ "custom-de-nrw-dgm1": {
+  "name": "Geobasis NRW DGM1 1m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Geobasis NRW (n.d.). Digitales Geländemodell (DGM1). dl-de/zero-2.0 (no attribution required)",
+  "program_page": "https://www.bezreg-koeln.nrw.de/geobasis-nrw/produkte-und-dienste/hoehenmodelle/digitale-gelaendemodelle/digitales-gelaendemodell",
+  "licence": "Datenlizenz Deutschland – Zero – Version 2.0"
+ },
+ "custom-basemap-1770049293518": {
+  "name": "Basemap - Sentinel-2 L2A COG",
+  "doi": "10.60489/RODA.9J28F8",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Sentinel-2 Cloud-Optimized GeoTIFFs [Dataset]. Registry of Open Data on AWS",
+  "program_page": "https://registry.opendata.aws/sentinel-2-l2a-cogs/",
+  "licence": "Copernicus Sentinel data terms"
+ },
+ "custom-basemap-dlr-polardem-ant-hillshade": {
+  "name": "Basemap - DLR TanDEM-X PolarDEM 90m Antarctica",
+  "doi": "10.15489/9jhr18jepi65",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "German Aerospace Center (DLR) (2020): TanDEM-X - PolarDEM - Antarctica, 90m",
+  "program_page": "https://geoservice.dlr.de/data-assets/9jhr18jepi65.html",
+  "licence": "TanDEM-X PolarDEM User Licence (DLR)"
  }
 }

@@ -26,18 +26,22 @@ type Source = {
 };
 
 // Dataset DOIs, each resolved through DataCite, Crossref or doi.org before
-// being added (src/data/dataset-dois.json). Most national services have none.
-const DOIS = DATASET_DOIS as Record<string, { doi: string; citation?: string }>;
+// being added (src/data/dataset-dois.json). Most national services have none;
+// several have a DOI'd copy on OpenTopography, and the rest get a link to the
+// producer's page presenting the programme.
+type DatasetId = { doi?: string | null; mirror_doi?: string | null; mirror_publisher?: string | null; citation?: string; program_page?: string | null };
+const DOIS = DATASET_DOIS as Record<string, DatasetId>;
 
-function DoiLink({ id }: { id: string }) {
+function DoiLink({ id, infoUrl }: { id: string; infoUrl?: string }) {
   const d = DOIS[id];
   if (!d) return null;
-  return (
-    <>
-      {" "}
-      <a href={`https://doi.org/${d.doi}`} target="_blank" rel="noopener noreferrer" title={d.citation ?? d.doi} className="text-xs">DOI</a>
-    </>
+  const a = (href: string, text: string, title?: string) => (
+    <>{" "}<a href={href} target="_blank" rel="noopener noreferrer" title={title} className="text-xs">{text}</a></>
   );
+  if (d.doi) return a(`https://doi.org/${d.doi}`, "DOI", d.citation ?? d.doi);
+  if (d.mirror_doi) return a(`https://doi.org/${d.mirror_doi}`, `DOI (${d.mirror_publisher ?? "copy"})`, `No DOI from the producer; this is the DOI of the ${d.mirror_publisher ?? "mirrored"} copy`);
+  if (d.program_page && d.program_page !== infoUrl) return a(d.program_page, "about", "The producer's page for this dataset (it has no DOI)");
+  return null;
 }
 
 // ISO 3166-1 alpha-3 -> English short name, for the codes actually in use.
@@ -150,6 +154,10 @@ const ISO_RE = /^([A-Z]{3}) - /;
 // Heritage/site surveys, not national elevation products — excluded from the
 // national tables entirely.
 const PROJECT_SCANS = new Set(["dura-w-05mm", "dura-grid-2mm", "custom-1763032004272"]);
+
+// Before/after surveys of single events (earthquakes, eruptions, glaciers),
+// added for the Research References page: event studies, not national products.
+const EVENT_PAIRS = /^custom-(nz-kaikoura|us-hi-kilauea-2018|is-fagradalsfjall|us-ak-columbia|in-chamoli|us-ridgecrest)-/;
 
 // Sub-national or otherwise partial coverage. Shown in their own section rather
 // than mixed in with national datasets, and kept out of Load Sample Sources.
@@ -284,7 +292,7 @@ function loadRows(): Row[] {
     // documented and still importable by permalink. Only the site-specific scans
     // are dropped, since they are not national elevation products at all.
     .filter((r): r is { s: Source; iso: string } =>
-      Boolean(r.iso) && r.iso !== "AFR" && !PROJECT_SCANS.has(r.s.id))
+      Boolean(r.iso) && r.iso !== "AFR" && !PROJECT_SCANS.has(r.s.id) && !EVENT_PAIRS.test(r.s.id))
     .map(({ s, iso }) => ({ s, iso, ours: s.resolutionM ?? parseRes(FACTS[s.id]?.res), mh: MAPTERHORN_RES[iso] }))
     .sort((a, b) => a.iso.localeCompare(b.iso) || a.s.name.localeCompare(b.s.name));
 }
@@ -398,7 +406,7 @@ export function NationalDatasetsTable() {
                     <tr key={s.id}>
                       <td><code>{iso}</code></td>
                       <td>{COUNTRY[iso] ?? iso}</td>
-                      <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} /></td>
+                      <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} infoUrl={s.infoUrl} /></td>
                       <td>{SERVING_LABEL(s.type)}</td>
                       <td>
                         <a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a>
@@ -446,7 +454,7 @@ export function SubNationalTable() {
             <tr key={s.id}>
               <td><code>{iso}</code></td>
               <td>{COUNTRY[iso] ?? iso}</td>
-              <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} /></td>
+              <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} infoUrl={s.infoUrl} /></td>
               <td>{SERVING_LABEL(s.type)}</td>
               <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
               <td>{FACTS[s.id]?.res ?? "—"}</td>
@@ -479,7 +487,7 @@ export function GlobalDatasetsTable() {
         <tbody>
           {rows.map((s) => (
             <tr key={s.id}>
-              <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(/^Global - /, "")}</a> : s.name.replace(/^Global - /, "")}</td>
+              <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(/^Global - /, "")}</a> : s.name.replace(/^Global - /, "")}<DoiLink id={s.id} infoUrl={s.infoUrl} /></td>
               <td>{SERVING_LABEL(s.type)}</td>
               <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
               <td>{FACTS[s.id]?.res ?? "—"}</td>

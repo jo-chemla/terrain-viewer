@@ -1,49 +1,153 @@
 ---
 title: Research References
-description: Peer-reviewed work on relief visualization, geomorphometry, global DEMs and LiDAR archaeology behind Terrain Viewer's modes, each case study linked to its area in the app
+description: Studies from earthquake geology, volcanology, glaciology, rivers, ecology, landscape archaeology and heritage monitoring that read the ground from elevation data and historical imagery, each linked to its area in Terrain Viewer, with the methods and datasets behind the app's modes
 ---
 
 import { ResearchReferences, DatasetCitations } from "@/components/research-references";
 
-The same few terrain modes serve very different sciences: a sky-view factor that finds a Maya causeway also finds a shell crater at Verdun or a sinkhole in Kentucky. This page gathers studies from those fields first, then the methods and elevation models behind the app's modes. Where a study has a clear area, a link opens the app there with the modes it used, on the same data when the app has it, so the method can be seen on real terrain in the browser. Some areas are regional, where a paper covers a whole region or its sites could not be located exactly.
+Few datasets serve as many fields as the shape of the ground. The same elevation model that shows a fault scarp to a seismologist shows a lava flow to a volcanologist, a moraine to a glaciologist, an abandoned meander to a river scientist, a sinkhole to an engineer and a buried causeway to an archaeologist. What changed in the last twenty years is the data. Airborne LiDAR sees the ground through forest canopy at half-metre detail, and whole countries now publish it openly: England, the Netherlands, France with LiDAR HD, Switzerland, the United States with 3DEP, and more on [National Datasets](/features/national-datasets). Where there is no LiDAR, global models such as Copernicus GLO-30 still give every place on Earth a 30 m surface.
 
-Every reference below was checked against its DOI or publisher page. To suggest one, open an issue on [GitHub](https://github.com/Iconem/terrain-viewer/issues).
+Four things turn that grid of heights into evidence, and they recur through every section below:
 
-## Case studies across fields
+- **Relief visualizations** (hillshade, sky-view factor, openness, local relief) make centimetre-to-metre features legible to the eye, whatever their orientation, which is how most features below were first spotted.
+- **Terrain derivatives** (slope, curvature, TPI, ruggedness) put numbers on form, so landforms can be classified, compared, and mapped automatically.
+- **Differences between two surveys** measure change: the uplift of an earthquake, the thickness of a lava flow, the ice a glacier lost, the rock an avalanche removed.
+- **Historical imagery** adds the time axis for the surface itself: looting pits appearing year by year, a site disappearing under a new town, a coastline retreating.
 
-Volcanoes, glaciers, fault scarps, battlefields, charcoal kilns and dunes, each read from a DEM or LiDAR with the kind of modes the app offers. Studies that measure change between two surveys (lava volumes, glacier loss, earthquake uplift) correspond to the app's [DEM difference](/features/ndsm-and-comparison).
+### The fields at a glance
 
-<ResearchReferences category="Case studies across fields" />
+- **Faults and earthquakes.** Scarps a few decimetres high, hard to follow on the ground under vegetation, run clearly across a hillshade; surveys before and after an earthquake measure how much the ground moved.
+- **Volcanoes.** Lava flows have their own roughness and edges; a pre-eruption surface subtracted from a post-eruption one gives the thickness and volume of the lava, and from those the eruption rate.
+- **Landslides.** Head scarps, hummocky deposits and cracks under forest stand out in sky-view factor and openness, and LiDAR inventories have replaced field mapping for whole regions.
+- **Glaciers and glacial landforms.** Moraines, drumlins and eskers record where ice sheets stood; repeated models measure how fast today's glaciers thin.
+- **Rivers and palaeochannels.** Meander scrolls and abandoned channels are metre-scale relief on nearly flat floodplains, lost in the colours of an elevation map and plain in a local relief model or a [river relative elevation model](/features/river-rem).
+- **Karst.** Sinkholes and dolines are closed depressions, the pits the [mound and pit detector](/features/visualization-modes) finds.
+- **Dunes, coasts and permafrost.** Repeat surveys follow dunes moving, coasts retreating and ground sinking as permafrost thaws.
+- **Soils and ecology.** Position on a slope, ruggedness and wetness predict soils, habitats and where species live.
+- **Landscape archaeology.** Settlements under rainforest, mounds and tells, field systems, battlefields and industrial remains, all as relief.
+- **Heritage monitoring.** Satellite imagery archives, read year by year, show looting, war damage, urban growth and erosion at sites that are hard or dangerous to visit.
 
-## Relief visualization
+### How to read the entries
+
+Each entry links the publisher's page and its DOI, and a **free copy** when an open-access version exists (from [OpenAlex](https://openalex.org) and the authors' repositories). **[cites RVT]** marks papers that cite the founding papers of the Relief Visualization Toolbox and **[cites GLO-30]** those citing the Copernicus DEM, from OpenAlex's citation records or the paper itself. **Open … in Terrain Viewer** opens the study area with the modes the paper used, on the same dataset when the app has it; **See the elevation change** opens the difference of two surveys the app has for that event. Where a paper covers a whole region or its exact sites could not be located, the link opens on the region.
+
+Every reference was checked against its DOI or publisher record, not written from memory. To suggest one, open an issue on [GitHub](https://github.com/Iconem/terrain-viewer/issues).
+
+## Earth surface processes
+
+### Faults and earthquakes
+
+Also in the app without a paper here: the [2019 Ridgecrest earthquakes](https://terrain-viewer.iconem.com/?viewMode=2d&lat=35.766&lng=-117.605&zoom=13&terrainSourceA=custom-us-ridgecrest-change&showHillshade=true&showColorRelief=true&colorReliefOpacity=0.8&colorRamp=diverging-blue-white-red&customHypsoMinMax=true&hypsoSymmetric=true&minElevation=-3&maxElevation=3), as the difference of two stereo surface models from before and after. The slip was mostly horizontal, so look along the rupture rather than for broad change.
+
+<ResearchReferences group="Faults and earthquakes" />
+
+### Volcanoes
+
+<ResearchReferences group="Volcanoes" />
+
+### Landslides and mass movements
+
+<ResearchReferences group="Landslides and mass movements" />
+
+### Glaciers and glacial landforms
+
+Also in the app: [Columbia Glacier, Alaska, 2012 to 2021](https://terrain-viewer.iconem.com/?viewMode=2d&lat=61.14&lng=-147.07&zoom=12&terrainSourceA=custom-us-ak-columbia-thinning&showHillshade=true&showColorRelief=true&colorReliefOpacity=0.8&colorRamp=diverging-blue-white-red&customHypsoMinMax=true&hypsoSymmetric=true&minElevation=-150&maxElevation=150), two ArcticDEM strips subtracted: tens of metres of ice lost near the front of one of the fastest-retreating tidewater glaciers.
+
+<ResearchReferences group="Glaciers and glacial landforms" />
+
+### Rivers and palaeochannels
+
+<ResearchReferences group="Rivers and palaeochannels" />
+
+### Karst
+
+<ResearchReferences group="Karst" />
+
+### Dunes, coasts and permafrost
+
+<ResearchReferences group="Dunes, coasts and permafrost" />
+
+### Soils and ecology
+
+<ResearchReferences group="Soils and ecology" />
+
+## Landscape archaeology
+
+LiDAR changed archaeological survey more than any method since aerial photography: whole cities under rainforest, thousands of mounds, field systems and roads mapped in months rather than decades.
+
+### Settlements under forest
+
+<ResearchReferences group="Settlements under forest" />
+
+### Mounds, tells and field systems
+
+<ResearchReferences group="Mounds, tells and field systems" />
+
+### Conflict landscapes
+
+The First World War left millions of shell craters, trenches and dugouts, still preserved under the forests of the Western Front and the Alps.
+
+<ResearchReferences group="Conflict landscapes" />
+
+### Historic industry and mining
+
+<ResearchReferences group="Historic industry and mining" />
+
+## Historical imagery
+
+The app's historical mode shows, in split views by date, Esri World Imagery Wayback (since 2014), Google Earth's historical imagery (often back to the early 2000s), Bing, and Sentinel-2 and Landsat mosaics; see [Basemaps and Historical Imagery](/features/basemaps-and-historical). The studies below used the same archives, or declassified CORONA spy photographs of the 1960s, which the app does not have. Links open the site in historical mode, before and after side by side when the paper gives dates. No peer-reviewed study using the Wayback archive itself turned up yet.
+
+### Looting, damage and threats
+
+<ResearchReferences group="Looting, damage and threats" />
+
+### Prospection with Google Earth
+
+<ResearchReferences group="Prospection with Google Earth" />
+
+### Declassified CORONA imagery
+
+<ResearchReferences group="Declassified CORONA imagery" />
+
+### Sentinel-2 and Landsat time series
+
+<ResearchReferences group="Sentinel-2 and Landsat time series" />
+
+## Methods
+
+### Relief visualization
 
 Sky-view factor, openness, local relief model and their blends: the toolbox of archaeological LiDAR interpretation, most of it collected in RVT. In the app: [Relief Visualization](/features/visualization-modes).
 
-<ResearchReferences category="Relief visualization" />
+<ResearchReferences group="Relief visualization" />
 
-## Geomorphometry
+### Geomorphometry
 
 The derivatives behind slope, aspect, curvature, TPI and roughness. The formulas as implemented are on [Equations](/dev/equations).
 
-<ResearchReferences category="Geomorphometry" />
+<ResearchReferences group="Geomorphometry" />
 
-## Global DEMs
+## Elevation data
 
-The elevation models a study reaches for when there is no LiDAR, and their accuracy. The app's global terrain is [Mapterhorn](https://mapterhorn.com), which merges them with national data; see [Terrain sources](/features/terrain-sources). Mapterhorn is recent and no published study citing it turned up yet; one comparing GLO-30 with other global models for morphology is under Case studies.
+### Global DEMs
 
-<ResearchReferences category="Global DEMs" />
+The elevation models a study reaches for when there is no LiDAR, and their accuracy. The app's global terrain is [Mapterhorn](https://mapterhorn.com), which merges them with national data; see [Terrain sources](/features/terrain-sources). Mapterhorn is recent and no published study citing it turned up yet.
 
-## Geoarchaeology case studies
+<ResearchReferences group="Global DEMs" />
 
-LiDAR and DEM relief visualization finding and mapping sites, from Maya cities under forest to Mesopotamian tells.
+### Citing the data
 
-<ResearchReferences category="Geoarchaeology case studies" />
+Datasets in the app with a DOI of their own:
 
-## Citing the data
+<DatasetCitations kind="doi" />
 
-The datasets in the app that have a DOI, to cite alongside the papers. Most national LiDAR services publish none; for those, cite the producer and the service as given on [National Datasets](/features/national-datasets), where every dataset with a DOI also has a link to it.
+National datasets whose producer publishes no DOI, but whose copy on OpenTopography has one:
 
-<DatasetCitations />
+<DatasetCitations kind="mirror" />
+
+The rest have no DOI; cite the producer, as they ask, and link their page:
+
+<DatasetCitations kind="page" />
 
 ## Using this with an assistant
 
