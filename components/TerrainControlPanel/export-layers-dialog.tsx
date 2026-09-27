@@ -20,6 +20,7 @@ import { exportResolutionModeAtom, exportValueFormatAtom, exportImageFormatAtom,
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { track } from "@/lib/analytics"
 import { SegmentedToggle } from "./controls-components"
+import { defaultExportName, sanitizeExportName } from "@/lib/export-names"
 import { derivedModeTemplate, lightingTemplate, type ClientDemUpstream, type DerivedModeParams, type LightingParams } from "@/components/LayersAndSources/MapSources"
 
 // Four kinds of export, one tree:
@@ -150,8 +151,8 @@ export const ExportLayersDialog: React.FC<{
   maxResolution: number
   contoursVisible: boolean
   tellsVisible: boolean
-  onExportContours: () => void
-  onExportDem: (signal: AbortSignal) => Promise<void>
+  onExportContours: (filename: string) => void
+  onExportDem: (signal: AbortSignal, filename: string) => Promise<void>
   /** Terrain upstream and settings, to build the template of a mode whose
    *  group is off and whose source is therefore not on the map. */
   upstream: ClientDemUpstream | null
@@ -167,6 +168,9 @@ export const ExportLayersDialog: React.FC<{
   const [branches, setBranches] = useState<Branch[]>([])
   const groups = branches.flatMap((b) => b.groups)
   const [canvasSize, setCanvasSize] = useState<string>("")
+  // Prefix of every file in the batch: terrain-viewer_<time the dialog
+  // opened> unless the user types their own ("maya", "site-12"...).
+  const [exportName, setExportName] = useState(defaultExportName())
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [folded, setFolded] = useState<Set<string>>(new Set())
   const [status, setStatus] = useState<Record<string, Status>>({})
@@ -202,6 +206,7 @@ export const ExportLayersDialog: React.FC<{
     setSelected(new Set(tree.filter((b) => b.key !== "hidden").flatMap((b) => b.groups).flatMap((g) => g.items)
       .filter((i) => i.kind !== "basemap" || isShown(map, "raster-basemap")).map((i) => i.id)))
     setFolded(new Set(["branch:hidden"]))
+    setExportName(defaultExportName())
     setStatus({})
     setProgress(null)
   }, [open, mapRef, contoursVisible, tellsVisible])
@@ -237,7 +242,7 @@ export const ExportLayersDialog: React.FC<{
     abortRef.current = controller
     setRunning(true)
     const todo = groups.flatMap((g) => g.items).filter((i) => selected.has(i.id) && !blocked(i))
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")
+    const name = sanitizeExportName(exportName)
     track("actions-export", { kind: "layers", count: todo.length, resolution: resolutionMode })
     const b = getMapBounds()
     for (let n = 0; n < todo.length; n++) {
@@ -247,14 +252,14 @@ export const ExportLayersDialog: React.FC<{
       setProgress(n / todo.length)
       try {
         if (item.kind === "vector") {
-          if (item.vector === "contours") onExportContours()
+          if (item.vector === "contours") onExportContours(`${name}_contours`)
           else {
             const source = map.getSource("tellsSourceFrozen") && !map.getSource("tellsSource") ? "tellsSourceFrozen" : "tellsSource"
             const features = source === "tellsSource" ? map.querySourceFeatures(source, { sourceLayer: "tells" }) : map.querySourceFeatures(source)
-            downloadGeoJSON(features as GeoJSON.Feature[], "mound-candidates")
+            downloadGeoJSON(features as GeoJSON.Feature[], `${name}_mound-candidates`, { exact: true })
           }
         } else if (item.kind === "dem") {
-          await onExportDem(controller.signal)
+          await onExportDem(controller.signal, `${name}_dem`)
         } else if (item.kind === "values") {
           // The mode's source on the map when its group is on; otherwise its
           // template is built from the terrain upstream with the same builder.
@@ -284,7 +289,7 @@ export const ExportLayersDialog: React.FC<{
           const [west, south, east, north] = result.bbox
           const mercBbox = toMercatorBbox({ west, south, east, north })
           const mode = VALUE_MODES.find((m) => m.sourceId === item.sourceId)!
-          const base = `terrain-viewer_${slug(mode.group)}_${slug(item.label)}`
+          const base = `${name}_${slug(mode.group)}_${slug(item.label)}`
           if (valueFormat !== "raw") {
             // The ramp is the mode's own expression, in tile units: bounds,
             // symmetric and inverted settings included, as on screen. From
@@ -292,11 +297,11 @@ export const ExportLayersDialog: React.FC<{
             // TerrainViewer publishes for every mode (modeColorRampsAtom).
             const ramp = compileRamp((map.getLayer(mode.layerId) ? map.getPaintProperty(mode.layerId, "color-relief-color") : undefined) ?? modeRamps[mode.layerId])
             if (!ramp) throw new Error("no colour ramp for this mode")
-            await saveRgba(colorize(result.data, ramp), result.width, result.height, mercBbox, 3857, `${base}_colormapped_${stamp}`)
+            await saveRgba(colorize(result.data, ramp), result.width, result.height, mercBbox, 3857, `${base}_colormapped`)
           }
           if (valueFormat !== "color") {
             const data = mode.scale ? result.data.map((v) => v / mode.scale!) : result.data
-            saveAs(new Blob([encodeFloat32GeoTiff(data, result.width, result.height, mercBbox, 3857)], { type: "image/tiff" }), `${base}_${stamp}.tif`)
+            saveAs(new Blob([encodeFloat32GeoTiff(data, result.width, result.height, mercBbox, 3857)], { type: "image/tiff" }), `${base}.tif`)
           }
         } else if (item.kind === "basemap") {
           const spec = map.getStyle().sources["raster-basemap-source"] as { tiles?: string[]; tileSize?: number; maxzoom?: number } | undefined
@@ -309,7 +314,7 @@ export const ExportLayersDialog: React.FC<{
             ? Math.min(maxzoom, displayedTileZoom(map, ["raster-basemap-source"]) ?? Math.floor(map.getZoom() + Math.log2(512 / tileSize)))
             : undefined
           const rgba = await readRgbaRegion(template, tileSize, maxzoom, [b.west, b.south, b.east, b.north], outputSize.width, outputSize.height, { signal: controller.signal, zoom })
-          await saveRgba(rgba, outputSize.width, outputSize.height, toMercatorBbox(b), 3857, `terrain-viewer_basemap_${stamp}`)
+          await saveRgba(rgba, outputSize.width, outputSize.height, toMercatorBbox(b), 3857, `${name}_basemap`)
         } else if (item.kind === "lighting") {
           if (!upstream) throw new Error("this terrain source has no client-side tile path")
           const lt = lightingTemplate(item.light!, upstream, lighting.params)
@@ -319,10 +324,10 @@ export const ExportLayersDialog: React.FC<{
             ? Math.min(maxzoom, displayedTileZoom(map, [`${item.light}Source`, "terrainSource", "hillshadeSource"]) ?? Math.floor(map.getZoom() + Math.log2(512 / lt.tileSize)))
             : undefined
           const rgba = await readRgbaRegion(lt.template, lt.tileSize, maxzoom, [b.west, b.south, b.east, b.north], outputSize.width, outputSize.height, { signal: controller.signal, zoom })
-          await saveRgba(rgba, outputSize.width, outputSize.height, toMercatorBbox(b), 3857, `terrain-viewer_lighting_${slug(item.label)}_${stamp}`)
+          await saveRgba(rgba, outputSize.width, outputSize.height, toMercatorBbox(b), 3857, `${name}_lighting_${slug(item.label)}`)
         } else {
           const r = await renderLayers(map, item.kind === "composite" ? null : new Set(item.layers))
-          await saveRgba(r.rgba, r.width, r.height, r.bbox, 3857, `terrain-viewer_${item.kind === "composite" ? "snapshot" : "rendered_" + slug(item.label)}_${stamp}`)
+          await saveRgba(r.rgba, r.width, r.height, r.bbox, 3857, `${name}_${item.kind === "composite" ? "snapshot" : "rendered_" + slug(item.label)}`)
         }
         setStatus((s) => ({ ...s, [item.id]: "done" }))
       } catch (e) {
@@ -334,7 +339,7 @@ export const ExportLayersDialog: React.FC<{
     setRunning(false)
     abortRef.current = null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapRef, running, groups, selected, renderBlocker, resolutionMode, longestEdge, valueFormat, imageFormat, getMapBounds, onExportContours, onExportDem, upstream, derivedParams, lighting, modeRamps])
+  }, [mapRef, running, groups, selected, renderBlocker, exportName, resolutionMode, longestEdge, valueFormat, imageFormat, getMapBounds, onExportContours, onExportDem, upstream, derivedParams, lighting, modeRamps])
 
   const statusIcon = (id: string) => {
     const s = status[id]
@@ -413,6 +418,19 @@ export const ExportLayersDialog: React.FC<{
           </div>
         )}
         <div className="grid grid-cols-[80px_1fr] items-center gap-x-2 gap-y-2">
+          <Label className="text-sm" htmlFor="export-name">Name</Label>
+          <div className="flex items-center gap-1 min-w-0">
+            <input
+              id="export-name"
+              value={exportName}
+              disabled={running}
+              onChange={(e) => setExportName(e.target.value)}
+              className="h-7 flex-1 min-w-0 rounded border bg-transparent px-2 text-sm"
+              aria-label="Export name, the prefix of every file"
+              spellCheck={false}
+            />
+            <span className="text-xs text-muted-foreground shrink-0">_dem.tif…</span>
+          </div>
           <Label className="text-sm">Resolution</Label>
           <SegmentedToggle
             className="w-full"

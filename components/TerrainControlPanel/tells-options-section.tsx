@@ -1,3 +1,4 @@
+import { defaultExportName } from "@/lib/export-names"
 import type React from "react"
 import { useCallback, useState } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -49,7 +50,7 @@ export const TellsFields: React.FC<{
     const sourceId = exportUnfiltered ? "tellsSourceUnfiltered" : "tellsSource"
     if (!map.getSource(sourceId)) return
     const features = map.querySourceFeatures(sourceId, { sourceLayer: "tells" })
-    downloadGeoJSON(features as GeoJSON.Feature[], exportUnfiltered ? "tells-unfiltered" : "tells")
+    downloadGeoJSON(features as GeoJSON.Feature[], `${defaultExportName()}_${exportUnfiltered ? "mound-candidates-unfiltered" : "mound-candidates"}`, { exact: true })
   }, [mapRef, exportUnfiltered])
 
   return (

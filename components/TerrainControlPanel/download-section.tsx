@@ -10,7 +10,8 @@ import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from "@/lib/matcap-textures"
 import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer } from "geotiff"
-import { encodeFloat32GeoTiff, toMercatorBbox } from "@/lib/float-geotiff"
+import { encodeFloat32GeoTiff, toMercatorBbox, WKT_3857 } from "@/lib/float-geotiff"
+import { defaultExportName } from "@/lib/export-names"
 import { ExportLayersDialog } from "./export-layers-dialog"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import saveAs from "file-saver"
@@ -176,7 +177,7 @@ export const DownloadSection: React.FC<{
 
   const downloadScreenshot = useCallback(async () => {
     if (!mapRef.current) return
-    const filename = `terrain-composited-${new Date().toISOString()}${state.viewMode === "2d" ? "-epsg4326" : ""}`
+    const filename = `${defaultExportName()}_snapshot`
 
     try {
       // Use JPEG for faster screenshot generation and smaller file size
@@ -200,28 +201,34 @@ export const DownloadSection: React.FC<{
       pushToast({
         key: "snapshot",
         title: "Snapshot saved",
-        body: `${filename}.jpg${wroteWorldFile ? ` + ${filename}.jgw (world file)` : ""}`,
+        body: `${filename}.jpg${wroteWorldFile ? ` + ${filename}.jgw and .prj (world file, EPSG:3857)` : ""}`,
       })
 
       // Generate world file if in 2D mode - only when the image is view A's
       // extent (single view or overlay split). A side-by-side / grid snapshot
       // holds several extents, which no single world file can describe.
       if (state.viewMode === "2d" && snapshotMatchesViewA(mapRef)) {
+        // The canvas is Web Mercator, so the world file is in EPSG:3857 metres
+        // (it used to be degrees, which stretched in latitude), at the
+        // captured image's own pixel size: the snapshot is taken at the
+        // device pixel ratio, not the CSS size. The origin is the centre of
+        // the top-left pixel, as the format expects.
         const canvas = mapRef.current.getMap().getCanvas()
-        const { clientWidth: width, clientHeight: height } = canvas
-        const bounds = getMapBounds()
-        const pixelSizeX = (bounds.east - bounds.west) / width
-        const pixelSizeY = (bounds.north - bounds.south) / height
+        const width = canvas.width, height = canvas.height
+        const m = toMercatorBbox(getMapBounds())
+        const pixelSizeX = (m.east - m.west) / width
+        const pixelSizeY = (m.north - m.south) / height
         const pgwContent = [
           pixelSizeX.toFixed(10),
           "0.0",
           "0.0",
           (-pixelSizeY).toFixed(10),
-          bounds.west.toFixed(10),
-          bounds.north.toFixed(10),
+          (m.west + pixelSizeX / 2).toFixed(10),
+          (m.north - pixelSizeY / 2).toFixed(10),
         ].join("\n")
         // Use .jgw for JPEG world file (instead of .pgw for PNG)
         saveAs(new Blob([pgwContent], { type: "text/plain" }), `${filename}.jgw`)
+        saveAs(new Blob([WKT_3857], { type: "text/plain" }), `${filename}.prj`)
       }
     } catch (error) {
       console.error("Failed to download screenshot:", error)
@@ -239,15 +246,16 @@ export const DownloadSection: React.FC<{
     // The client path exports on the tiles' own Web Mercator grid; titiler's
     // bbox request comes back in lon/lat.
     epsg: 3857 | 4326 = 4326,
+    filename = `${defaultExportName()}_dem`,
   ) => {
     // lib/float-geotiff.ts, not geotiff.js's writeArrayBuffer: that one writes
     // one byte per sample whatever BitsPerSample says, so every float DEM it
     // produced was unreadable (GDAL: "TIFFReadEncodedStrip ... failed").
     const blob = new Blob([encodeFloat32GeoTiff(elevationData, width, height, epsg === 3857 ? toMercatorBbox(bbox) : bbox, epsg)], { type: "image/tiff" })
-    saveAs(blob, `terrain-dtm-${Date.now()}.tif`)
+    saveAs(blob, `${filename}.tif`)
   }, [])
 
-  const exportDTMClientSide = useCallback(async (signal: AbortSignal) => {
+  const exportDTMClientSide = useCallback(async (signal: AbortSignal, filename?: string) => {
     const clientSource = getClientExportSource(state.sourceA, customTerrainSources, getTilesUrl, clientUpstream)
     if (!clientSource) {
       setExportError("This source has no client-side tile path to export from — switch off Client-side mode to export via Titiler instead.")
@@ -288,10 +296,10 @@ export const DownloadSection: React.FC<{
     }
     await saveElevationGeoTiff(result.data, result.width, result.height, {
       west: result.bbox[0], south: result.bbox[1], east: result.bbox[2], north: result.bbox[3],
-    }, outputSize ? 3857 : 4326)
+    }, outputSize ? 3857 : 4326, filename)
   }, [state.sourceA, customTerrainSources, getTilesUrl, clientUpstream, getMapBounds, maxResolution, saveElevationGeoTiff, mapRef, exportResolutionMode])
 
-  const exportDTMViaTitiler = useCallback(async (signal: AbortSignal) => {
+  const exportDTMViaTitiler = useCallback(async (signal: AbortSignal, filename?: string) => {
     const sourceConfig = getSourceConfig(state.sourceA)
     if (!sourceConfig) {
       setExportError("Source config not found")
@@ -335,7 +343,7 @@ export const DownloadSection: React.FC<{
     // rest is a synchronous decode, so this is the last point a cancel can
     // still stop the file from being written.
     if (signal.aborted) throw new DOMException("Export cancelled", "AbortError")
-    await saveElevationGeoTiff(elevationData, width, height, getMapBounds())
+    await saveElevationGeoTiff(elevationData, width, height, getMapBounds(), 4326, filename)
   }, [getTitilerDownloadUrl, getSourceConfig, state.sourceA, getMapBounds, saveElevationGeoTiff])
 
   const exportDTM = useCallback(async () => {
@@ -380,13 +388,13 @@ export const DownloadSection: React.FC<{
 
   // Moved here from ContourOptionsSection — contour export is a download action like
   // the others in this section, not a contour-rendering option.
-  const exportContours = useCallback(() => {
+  const exportContours = useCallback((filename?: string) => {
     const map = mapRef.current?.getMap()
     if (!map) return
     const features = map.queryRenderedFeatures({ layers: ['contour-lines'] })
     // Stitches contour segments that were only cut apart by tile boundaries back
     // into single continuous lines — see lib/merge-contours.ts.
-    downloadGeoJSON(mergeContourLines(features as GeoJSON.Feature[]), 'contours')
+    downloadGeoJSON(mergeContourLines(features as GeoJSON.Feature[]), filename ?? `${defaultExportName()}_contours`, { exact: true })
     track("actions-export", { kind: "contours" })
   }, [mapRef])
 
@@ -596,7 +604,7 @@ export const DownloadSection: React.FC<{
           localDominanceMinRadius: state.localDominanceMinRadius, localDominanceMaxRadius: state.localDominanceMaxRadius,
         }}
         onExportContours={exportContours}
-        onExportDem={(signal) => (useClientExport ? exportDTMClientSide(signal) : exportDTMViaTitiler(signal))}
+        onExportDem={(signal, filename) => (useClientExport ? exportDTMClientSide(signal, filename) : exportDTMViaTitiler(signal, filename))}
       />
     </Section>
   )

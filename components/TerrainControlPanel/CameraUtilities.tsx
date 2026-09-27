@@ -783,7 +783,18 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
   useEffect(() => {
     // If URL says playing but engine stopped (e.g. animation finished while unmounted)
     if (playing && !animEngine.isRunning()) {
-      startPlay(progress >= 1 ? 0 : progress)
+      // A shared link with animPlaying=true mounts this before the map
+      // exists; starting then stopped on the first frame ("no map") and
+      // cleared animPlaying, so animation links never autoplayed. Wait for
+      // the map to have loaded, up to 20 s.
+      let tries = 80
+      const tryStart = () => {
+        const m = getMap(mapRef) as unknown as { _loaded?: boolean } | undefined
+        if (m && m._loaded) startPlay(progress >= 1 ? 0 : progress)
+        else if (--tries > 0) autoplayTimer = setTimeout(tryStart, 250)
+      }
+      let autoplayTimer: ReturnType<typeof setTimeout> | undefined = setTimeout(tryStart, 0)
+      return () => clearTimeout(autoplayTimer)
     }
     if (spinning && !spinEngine.isRunning()) {
       doStartSpin()

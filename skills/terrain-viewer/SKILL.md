@@ -1,6 +1,6 @@
 ---
 name: terrain-viewer
-description: Build links that open Terrain Viewer (terrain-viewer.iconem.com), a free browser viewer for elevation data, on a place and visualization of the user's choice. Use when someone asks to see, explore, visualize, compare or share the terrain, relief or elevation of a place (hillshade, slope, contours, sky-view factor, local relief model, 3D or globe views), or wants to look at a DEM, DTM, DSM or LiDAR file or tile URL (COG, GeoTIFF, Terrarium or Terrain-RGB tiles) without installing GIS software.
+description: Build links that open Terrain Viewer (terrain-viewer.iconem.com), a free browser viewer for elevation data, on a place and visualization of the user's choice, including animations. Use when someone asks to see, explore, visualize, animate, compare or share the terrain, relief or elevation of a place (hillshade, slope, contours, sky-view factor, local relief model, 3D or globe views), or wants to look at a DEM, DTM, DSM or LiDAR file or tile URL (COG, GeoTIFF, Terrarium or Terrain-RGB tiles) without installing GIS software.
 ---
 
 # Terrain Viewer links
@@ -42,6 +42,25 @@ A mode's section switch (`showTerrainAnalysis`, `showReliefVisualization`, `show
 ## Comparing
 
 `splitStyle=side-by-side&terrainSourceB=<id or URL>` shows two sources next to each other; `splitStyle=overlay` stacks them with a slider.
+
+## Animation
+
+A link can play an animation on open: the camera flies between two poses while any numeric setting moves with it, such as the light's azimuth for a sweeping sun, one mode fading out while another fades in, or terrain exaggeration growing.
+
+- `animPose1Delta`: the start, as JSON `{"pose": {...}, "numericState": {...}}`. `pose` must list all of `lat`, `lng`, `zoom`, `pitch`, `bearing`, `roll`, `vfov`, `refWidth` (use `roll` 0, `vfov` 36.869898, `refWidth` 1400); a missing field falls back to the world view. `numericState` holds the settings to animate with their start values.
+- `animPose2Delta`: the end, as the DIFFERENCE from the start, same shape, every pose field present (0 when unchanged). A key in its `numericState` is the change of that setting, e.g. `illuminationDir: -180` sweeps the light half-way round.
+- `animDuration` in seconds, `animLoopMode` `none`, `forward` or `bounce`.
+- `animSmoothCamera=false` to animate the settings too; `true` moves the camera only.
+- `animPlaying=true` starts playback on open, and `openSections=animation` shows the Animation panel, which runs it.
+- `animPlaying360=true` instead orbits the camera around the view's centre.
+
+Settings that animate well: `illuminationDir` (light azimuth, degrees), `illuminationAlt` (sun height), `exaggeration`, and every mode's opacity (`hillshadeOpacity`, `slopeOpacity`, `colorReliefOpacity`, `rasterBasemapOpacity`, `lightingEffectsOpacity`...). A faded mode must still be switched on (`showSlope=true`...). Percent-encode the JSON.
+
+Example, flying 90 degrees round the Matterhorn while the light swings and slope fades in:
+
+https://terrain-viewer.iconem.com/?viewMode=3d&lat=45.9763&lng=7.6586&zoom=12.5&pitch=55&showTerrainAnalysis=true&showSlope=true&animPose1Delta=%7B%22pose%22%3A%7B%22lat%22%3A45.9763%2C%22lng%22%3A7.6586%2C%22zoom%22%3A12.5%2C%22pitch%22%3A55%2C%22bearing%22%3A0%2C%22roll%22%3A0%2C%22vfov%22%3A36.869898%2C%22refWidth%22%3A1400%7D%2C%22numericState%22%3A%7B%22illuminationDir%22%3A315%2C%22slopeOpacity%22%3A0%7D%7D&animPose2Delta=%7B%22pose%22%3A%7B%22lat%22%3A0%2C%22lng%22%3A0%2C%22zoom%22%3A0.5%2C%22pitch%22%3A0%2C%22bearing%22%3A90%2C%22roll%22%3A0%2C%22vfov%22%3A0%2C%22refWidth%22%3A0%7D%2C%22numericState%22%3A%7B%22illuminationDir%22%3A-180%2C%22slopeOpacity%22%3A1%7D%7D&animDuration=6&animLoopMode=bounce&animSmoothCamera=false&animPlaying=true&openSections=animation
+
+In the app, the Animation panel's Export Video button records it as an MP4.
 
 ## Examples
 

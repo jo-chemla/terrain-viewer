@@ -83,6 +83,7 @@ Agents that support skills can install one that does this for them: `npx skills 
 
 ## Resources
 
+- [Compared with Other Tools](https://terrain-viewer.iconem.com/docs/resources/compared-with-other-tools/): Where Terrain Viewer fits next to RVT, QGIS, Google Earth, Cesium, OpenTopography, GeoLibre, forge3d and the rest, and when each is the better choice
 - [Credits & Inspiration](https://terrain-viewer.iconem.com/docs/resources/credits/): Who built this, related projects, and what it's inspired by
 - [Topography, Geomorphometry, Hydrology](https://terrain-viewer.iconem.com/docs/resources/geomorphometry/): Scientific literature and tools behind the terrain-analysis modes
 - [MapLibre GL Features](https://terrain-viewer.iconem.com/docs/resources/maplibre/): MapLibre GL JS issues, PRs, and plugins this app builds on or tracks

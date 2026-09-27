@@ -1,0 +1,22 @@
+---
+title: Compared with Other Tools
+description: Where Terrain Viewer fits next to RVT, QGIS, Google Earth, Cesium, OpenTopography, GeoLibre, forge3d and the rest, and when each is the better choice
+---
+
+Terrain Viewer is a browser viewer for elevation data: nothing to install, data streamed from where it already lives, every view shareable as a link. That makes it quick for looking, comparing and sharing, and lighter than the tools below for heavy processing. When one of them is the better choice, it says so.
+
+| Tool | Best at | Terrain Viewer, by comparison |
+|---|---|---|
+| [RVT, Relief Visualization Toolbox](https://github.com/EarthObservation/RVT_py) | The reference set of relief visualizations for archaeology (sky-view factor, openness, local relief model, multi-scale and blended recipes), computed at full resolution on local files, as a Python library and QGIS plugin | Several of the same visualizations, computed in the browser on streamed data, with no download and a link to share. RVT has more algorithms and blend recipes and processes a whole survey exactly; use it for publication or for a whole survey. |
+| [QGIS](https://qgis.org) | A complete desktop GIS: any data, any projection, analysis, map layout and printing | Nothing to set up for just looking, and national LiDAR services already wired in. QGIS for anything beyond viewing, measuring and exporting a view. |
+| [Google Earth](https://earth.google.com) | Imagery, photorealistic 3D cities and, in Earth Pro, historical imagery | Terrain analysis and your own elevation data, which Google Earth does not do; Terrain Viewer's historical mode reads the same Google Earth historical imagery. Google Earth for photorealistic 3D. |
+| [Cesium](https://cesium.com) (CesiumJS, Cesium ion) | Streaming 3D Tiles, photogrammetry and global terrain on a precise ellipsoid, plus hosting | Terrain analysis and relief visualization, which Cesium leaves to the developer; Terrain Viewer reads Cesium quantized-mesh terrain as one of its sources. Cesium for 3D Tiles, meshes and building your own 3D application. |
+| [OpenTopography](https://opentopography.org) | Finding, downloading and processing high-resolution topography: point clouds, on-demand DEMs and derivatives | Viewing that data without downloading it: Terrain Viewer reads OpenTopography's VRT mosaics in the browser. OpenTopography for the data itself and point-cloud processing. |
+| [GeoLibre](https://gishub.org/blog/geolibre/) | A cloud-native GIS in the browser, desktop, mobile and Jupyter, for any geospatial layer, 3D Tiles included | Specialised in terrain: more elevation sources and relief modes, comparison and export built for DEMs. GeoLibre as a general-purpose GIS. |
+| [forge3d](https://github.com/milos-agathon/forge3d) | Path-traced, print-resolution terrain renders from Python, with global illumination and headless batch rendering | Interactive and live rather than offline, with analysis modes; its Matcap and Phong shading are real-time approximations. forge3d for the most beautiful still image of a place. |
+| [Tangram Heightmapper](https://tangrams.github.io/heightmapper/) | A quick greyscale heightmap of the current view, with auto-contrast, in one page | Real elevation values as GeoTIFF, plus every other mode. Heightmapper for a fast greyscale image. |
+| [ShadeMap](https://shademap.app) | Where terrain and building shadows fall at any date and time, worldwide | The reverse question as well: the Sun and Shadow Calculator finds the date and time from a shadow in a photograph. ShadeMap for sun and shade planning. |
+
+## Where the algorithms come from
+
+Much here is ported rather than invented: slope and aspect follow GDAL's `gdaldem` (the Horn gradient), the relief visualizations follow RVT's formulations, Google Earth historical imagery follows [GEHistoricalImagery](https://github.com/Mbucari/GEHistoricalImagery), and the histogram matching of Compare and Blend comes from Iconem's historical-satellite. The full list is on [Credits and Inspiration](/resources/credits).

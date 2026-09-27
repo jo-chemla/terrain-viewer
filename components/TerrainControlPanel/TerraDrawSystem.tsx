@@ -1,3 +1,4 @@
+import { defaultExportName } from '@/lib/export-names'
 import { outsideFence } from '@/lib/max-bounds'
 import { pushToast } from '@/components/ui/toast'
 import type * as maplibregl from "maplibre-gl"
@@ -1710,9 +1711,9 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
         if (exportScope === "perLayer") downloadGeoJSONByLayer(features, layers, 'drawings')
         else if (exportScope === "active") {
             const own = features.filter((f) => (f.properties?.layerId ?? layers[0]?.id) === activeLayer?.id)
-            downloadGeoJSON(own, `drawings-${(activeLayer?.name ?? "layer").trim().replace(/[^\w\- ]+/g, "-").replace(/\s+/g, "_")}`)
+            downloadGeoJSON(own, `${defaultExportName()}_drawings_${(activeLayer?.name ?? "layer").trim().replace(/[^\w\- ]+/g, "-").replace(/\s+/g, "_")}`, { exact: true })
         }
-        else downloadGeoJSON(features, 'drawings')
+        else downloadGeoJSON(features, `${defaultExportName()}_drawings`, { exact: true })
     }
 
     const importDrawing = useDrawingImport(draw, mapRef)
