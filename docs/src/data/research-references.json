@@ -1,0 +1,759 @@
+[
+ {
+  "category": "Relief visualization",
+  "authors": "Zakšek, K., Oštir, K., Kokalj, Ž.",
+  "year": 2011,
+  "title": "Sky-View Factor as a Relief Visualization Technique",
+  "venue": "Remote Sensing 3(2)",
+  "doi": "10.3390/rs3020398",
+  "url": "https://doi.org/10.3390/rs3020398",
+  "dataset": "high-resolution DEMs (airborne LiDAR)",
+  "modes": [
+   "SVF"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Introduces sky-view factor, a diffuse-illumination relief visualization that shows small features without the directional bias of hillshade."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Kokalj, Ž., Zakšek, K., Oštir, K.",
+  "year": 2011,
+  "title": "Application of sky-view factor for the visualisation of historic landscape features in lidar-derived relief models",
+  "venue": "Antiquity 85",
+  "doi": "10.1017/S0003598X00067594",
+  "url": "https://doi.org/10.1017/S0003598X00067594",
+  "dataset": "airborne LiDAR",
+  "modes": [
+   "SVF",
+   "hillshade"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Shows on a Slovenian test site that sky-view factor reveals historic landscape features more clearly than single-source hillshade."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Kokalj, Ž., Hesse, R.",
+  "year": 2017,
+  "title": "Airborne laser scanning raster data visualization: A guide to good practice",
+  "venue": "Prostor, kraj, čas 14 (ZRC SAZU, Založba ZRC)",
+  "doi": "10.3986/9789612549848",
+  "url": "https://doi.org/10.3986/9789612549848",
+  "dataset": "airborne LiDAR",
+  "modes": [
+   "hillshade",
+   "slope",
+   "LRM",
+   "SVF",
+   "openness"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Open-access practical guide to choosing and parameterising relief visualizations for archaeological interpretation of LiDAR DEMs."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Kokalj, Ž., Somrak, M.",
+  "year": 2019,
+  "title": "Why Not a Single Image? Combining Visualizations to Facilitate Fieldwork and On-Screen Mapping",
+  "venue": "Remote Sensing 11(7)",
+  "doi": "10.3390/rs11070747",
+  "url": "https://doi.org/10.3390/rs11070747",
+  "dataset": "airborne LiDAR",
+  "modes": [
+   "hillshade",
+   "slope",
+   "SVF",
+   "openness"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Defines the VAT blend (visualization for archaeological topography), which combines several relief visualizations with blend modes into one image."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Yokoyama, R., Shirasawa, M., Pike, R. J.",
+  "year": 2002,
+  "title": "Visualizing Topography by Openness: A New Application of Image Processing to Digital Elevation Models",
+  "venue": "Photogrammetric Engineering & Remote Sensing 68(3), 257-265",
+  "doi": null,
+  "url": "https://gbank.gsj.jp/ld/resource/geolis/200201001",
+  "dataset": "DEMs",
+  "modes": [
+   "openness"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Introduces positive and negative topographic openness, an angular measure of how exposed or enclosed each DEM cell is."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Doneus, M.",
+  "year": 2013,
+  "title": "Openness as Visualization Technique for Interpretative Mapping of Airborne Lidar Derived Digital Terrain Models",
+  "venue": "Remote Sensing 5(12)",
+  "doi": "10.3390/rs5126427",
+  "url": "https://doi.org/10.3390/rs5126427",
+  "dataset": "airborne LiDAR DTM",
+  "modes": [
+   "openness",
+   "SVF",
+   "LRM"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Argues openness is free of directional bias and horizontal displacement, making it well suited to outlining archaeological features."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Hesse, R.",
+  "year": 2010,
+  "title": "LiDAR-derived Local Relief Models - a new tool for archaeological prospection",
+  "venue": "Archaeological Prospection 17",
+  "doi": "10.1002/arp.374",
+  "url": "https://doi.org/10.1002/arp.374",
+  "dataset": "airborne LiDAR DEM",
+  "modes": [
+   "LRM"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Introduces the local relief model, which removes large-scale landforms so small shallow features can be seen and measured."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Štular, B., Kokalj, Ž., Oštir, K., Nuninger, L.",
+  "year": 2012,
+  "title": "Visualization of lidar-derived relief models for detection of archaeological features",
+  "venue": "Journal of Archaeological Science 39",
+  "doi": "10.1016/j.jas.2012.05.029",
+  "url": "https://doi.org/10.1016/j.jas.2012.05.029",
+  "dataset": "airborne LiDAR",
+  "modes": [
+   "hillshade",
+   "slope",
+   "LRM",
+   "SVF",
+   "openness"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Systematically compares relief visualization techniques for detecting archaeological features in lidar DEMs."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Bennett, R., Welham, K., Hill, R. A., Ford, A.",
+  "year": 2012,
+  "title": "A Comparison of Visualization Techniques for Models Created from Airborne Laser Scanned Data",
+  "venue": "Archaeological Prospection 19",
+  "doi": "10.1002/arp.1414",
+  "url": "https://doi.org/10.1002/arp.1414",
+  "dataset": "airborne LiDAR",
+  "modes": [
+   "hillshade",
+   "LRM",
+   "SVF"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Quantitatively compares five techniques, from shaded relief to local relief and sky-view factor, against aerial-photo mapping of a UK study area."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Devereux, B. J., Amable, G. S., Crow, P.",
+  "year": 2008,
+  "title": "Visualisation of LiDAR terrain models for archaeological feature detection",
+  "venue": "Antiquity 82",
+  "doi": "10.1017/S0003598X00096952",
+  "url": "https://doi.org/10.1017/S0003598X00096952",
+  "dataset": "airborne LiDAR",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Shows how hillshades lit from different directions can be combined into one image, the idea behind multidirectional hillshading for archaeology."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Orengo, H. A., Petrie, C. A.",
+  "year": 2018,
+  "title": "Multi-scale relief model (MSRM): a new algorithm for the visualization of subtle topographic change of variable size in digital elevation models",
+  "venue": "Earth Surface Processes and Landforms 43",
+  "doi": "10.1002/esp.4317",
+  "url": "https://doi.org/10.1002/esp.4317",
+  "dataset": "medium-resolution global DSMs (e.g. SRTM, ASTER GDEM, ALOS, TanDEM-X)",
+  "modes": [
+   "LRM",
+   "TPI"
+  ],
+  "study_area": {
+   "name": "Sutlej-Yamuna interfluve, northwest India",
+   "lat": 29.9,
+   "lng": 76.0,
+   "zoom": 8
+  },
+  "library_id": null,
+  "one_line": "Multi-scale relief model that brings out subtle landforms of any size in global 30 m-class DSMs, used to map palaeochannels on an alluvial plain."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Guyot, A., Hubert-Moy, L., Lorho, T.",
+  "year": 2018,
+  "title": "Detecting Neolithic Burial Mounds from LiDAR-Derived Elevation Data Using a Multi-Scale Approach and Machine Learning Techniques",
+  "venue": "Remote Sensing 10(2)",
+  "doi": "10.3390/rs10020225",
+  "url": "https://doi.org/10.3390/rs10020225",
+  "dataset": "airborne LiDAR DTM",
+  "modes": [
+   "TPI",
+   "mound detector"
+  ],
+  "study_area": {
+   "name": "Carnac and Gulf of Morbihan, Brittany, France",
+   "lat": 47.585,
+   "lng": -3.077,
+   "zoom": 12
+  },
+  "library_id": "custom-ign-lidarhd-dtm-wms-raw",
+  "one_line": "Combines multi-scale topographic position with random forests to map megalithic burial mounds, finding a previously unknown mound at Carnac."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "Phong, B. T.",
+  "year": 1975,
+  "title": "Illumination for computer generated pictures",
+  "venue": "Communications of the ACM 18(6)",
+  "doi": "10.1145/360825.360839",
+  "url": "https://doi.org/10.1145/360825.360839",
+  "dataset": null,
+  "modes": [
+   "matcap"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "The Phong reflection model (ambient, diffuse and specular terms) behind the app's Phong lighting mode."
+ },
+ {
+  "category": "Relief visualization",
+  "authors": "ZRC SAZU (EarthObservation)",
+  "year": null,
+  "title": "Relief Visualization Toolbox in Python (RVT_py)",
+  "venue": "Software, GitHub",
+  "doi": null,
+  "url": "https://github.com/EarthObservation/RVT_py",
+  "dataset": null,
+  "modes": [
+   "hillshade",
+   "slope",
+   "LRM",
+   "SVF",
+   "openness"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Open-source reference implementation of the RVT visualizations (hillshade, multidirectional hillshade, SVF, openness, LRM, VAT blends)."
+ },
+ {
+  "category": "Geomorphometry",
+  "authors": "Horn, B. K. P.",
+  "year": 1981,
+  "title": "Hill shading and the reflectance map",
+  "venue": "Proceedings of the IEEE 69(1)",
+  "doi": "10.1109/PROC.1981.11918",
+  "url": "https://doi.org/10.1109/PROC.1981.11918",
+  "dataset": null,
+  "modes": [
+   "hillshade",
+   "slope",
+   "aspect"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Classic treatment of hill shading, including the 3x3 gradient estimator widely used for slope and aspect."
+ },
+ {
+  "category": "Geomorphometry",
+  "authors": "Zevenbergen, L. W., Thorne, C. R.",
+  "year": 1987,
+  "title": "Quantitative analysis of land surface topography",
+  "venue": "Earth Surface Processes and Landforms 12",
+  "doi": "10.1002/esp.3290120107",
+  "url": "https://doi.org/10.1002/esp.3290120107",
+  "dataset": "grid DEMs",
+  "modes": [
+   "curvature",
+   "slope",
+   "aspect"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Fits a partial quartic surface to a 3x3 window to derive slope, aspect and profile and plan curvature."
+ },
+ {
+  "category": "Geomorphometry",
+  "authors": "Florinsky, I. V.",
+  "year": 1998,
+  "title": "Accuracy of local topographic variables derived from digital elevation models",
+  "venue": "International Journal of Geographical Information Science 12",
+  "doi": "10.1080/136588198242003",
+  "url": "https://doi.org/10.1080/136588198242003",
+  "dataset": "grid DEMs",
+  "modes": [
+   "slope",
+   "aspect",
+   "curvature"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Analyses the errors of slope, aspect and curvature computed from gridded DEMs."
+ },
+ {
+  "category": "Geomorphometry",
+  "authors": "Minár, J., Evans, I. S., Jenčo, M.",
+  "year": 2020,
+  "title": "A comprehensive system of definitions of land surface (topographic) curvatures, with implications for their application in geoscience modelling and prediction",
+  "venue": "Earth-Science Reviews 211",
+  "doi": "10.1016/j.earscirev.2020.103414",
+  "url": "https://doi.org/10.1016/j.earscirev.2020.103414",
+  "dataset": null,
+  "modes": [
+   "curvature"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "A systematic set of definitions for the many land-surface curvatures, with guidance on which to use."
+ },
+ {
+  "category": "Geomorphometry",
+  "authors": "Guisan, A., Weiss, S. B., Weiss, A. D.",
+  "year": 1999,
+  "title": "GLM versus CCA spatial modeling of plant species distribution",
+  "venue": "Plant Ecology 143",
+  "doi": "10.1023/A:1009841519580",
+  "url": "https://doi.org/10.1023/A:1009841519580",
+  "dataset": "DEM",
+  "modes": [
+   "TPI"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Early published use of the topographic position index (elevation relative to the neighbourhood mean) as a predictor."
+ },
+ {
+  "category": "Geomorphometry",
+  "authors": "De Reu, J., Bourgeois, J., Bats, M., et al.",
+  "year": 2013,
+  "title": "Application of the topographic position index to heterogeneous landscapes",
+  "venue": "Geomorphology 186",
+  "doi": "10.1016/j.geomorph.2012.12.015",
+  "url": "https://doi.org/10.1016/j.geomorph.2012.12.015",
+  "dataset": "DEM",
+  "modes": [
+   "TPI"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Adapts TPI-based landform classification to landscapes of mixed relief."
+ },
+ {
+  "category": "Geomorphometry",
+  "authors": "Wilson, J. P.",
+  "year": 2012,
+  "title": "Digital terrain modeling",
+  "venue": "Geomorphology 137",
+  "doi": "10.1016/j.geomorph.2011.03.012",
+  "url": "https://doi.org/10.1016/j.geomorph.2011.03.012",
+  "dataset": null,
+  "modes": [
+   "slope",
+   "aspect",
+   "curvature",
+   "TPI",
+   "roughness"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Review of digital terrain modelling and the land-surface parameters derived from DEMs."
+ },
+ {
+  "category": "Geomorphometry",
+  "authors": "Hengl, T., Reuter, H. I. (eds.)",
+  "year": 2009,
+  "title": "Geomorphometry: Concepts, Software, Applications",
+  "venue": "Developments in Soil Science 33, Elsevier",
+  "doi": null,
+  "url": "https://geomorphometry.envirometrix.nl/geomorphometry-concepts-software-applications/",
+  "dataset": null,
+  "modes": [
+   "slope",
+   "aspect",
+   "curvature",
+   "TPI",
+   "roughness",
+   "hillshade"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Standard reference book on land-surface parameters and objects extracted from DEMs."
+ },
+ {
+  "category": "Global DEMs",
+  "authors": "European Space Agency",
+  "year": 2022,
+  "title": "Copernicus DEM - Global and European Digital Elevation Model",
+  "venue": "Copernicus Data Space Ecosystem (dataset)",
+  "doi": "10.5270/ESA-c5d3d65",
+  "url": "https://doi.org/10.5270/ESA-c5d3d65",
+  "dataset": "Copernicus DEM GLO-30 / GLO-90",
+  "modes": [
+   "hillshade",
+   "slope",
+   "aspect",
+   "curvature",
+   "TPI",
+   "roughness",
+   "LRM",
+   "SVF",
+   "openness"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "The Copernicus DEM (GLO-30 at 30 m worldwide), the surface model behind much of the app's global terrain."
+ },
+ {
+  "category": "Global DEMs",
+  "authors": "Farr, T. G., Rosen, P. A., Caro, E., et al.",
+  "year": 2007,
+  "title": "The Shuttle Radar Topography Mission",
+  "venue": "Reviews of Geophysics 45",
+  "doi": "10.1029/2005RG000183",
+  "url": "https://doi.org/10.1029/2005RG000183",
+  "dataset": "SRTM",
+  "modes": [
+   "hillshade",
+   "slope"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Reference description of SRTM, the first near-global 1 to 3 arc-second DEM."
+ },
+ {
+  "category": "Global DEMs",
+  "authors": "Guth, P. L., Geoffroy, T. M.",
+  "year": 2021,
+  "title": "LiDAR point cloud and ICESat-2 evaluation of 1 second global digital elevation models: Copernicus wins",
+  "venue": "Transactions in GIS 25",
+  "doi": "10.1111/tgis.12825",
+  "url": "https://doi.org/10.1111/tgis.12825",
+  "dataset": "Copernicus DEM GLO-30, ALOS, ASTER, NASADEM, SRTM vs LiDAR and ICESat-2",
+  "modes": [
+   "hillshade",
+   "slope"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Finds the Copernicus DEM consistently beats the other 1 arc-second global DEMs against LiDAR point clouds."
+ },
+ {
+  "category": "Global DEMs",
+  "authors": "Marešová, J., Gdulová, K., Pracná, P., et al.",
+  "year": 2021,
+  "title": "Applicability of Data Acquisition Characteristics to the Identification of Local Artefacts in Global Digital Elevation Models: Comparison of the Copernicus and TanDEM-X DEMs",
+  "venue": "Remote Sensing 13(19)",
+  "doi": "10.3390/rs13193931",
+  "url": "https://doi.org/10.3390/rs13193931",
+  "dataset": "Copernicus DEM, TanDEM-X DEM",
+  "modes": [
+   "hillshade",
+   "slope"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Evaluates the Copernicus DEM against the unedited TanDEM-X DEM in the Alps, Carpathians and Pyrenees, and how artefacts can be flagged."
+ },
+ {
+  "category": "Global DEMs",
+  "authors": "Bielski, C., López-Vázquez, C., Grohmann, C. H., et al.",
+  "year": 2024,
+  "title": "Novel Approach for Ranking DEMs: Copernicus DEM Improves One Arc Second Open Global Topography",
+  "venue": "IEEE Transactions on Geoscience and Remote Sensing 62",
+  "doi": "10.1109/TGRS.2024.3368015",
+  "url": "https://doi.org/10.1109/TGRS.2024.3368015",
+  "dataset": "Copernicus DEM GLO-30 and other 1 arc-second global DEMs",
+  "modes": [
+   "hillshade",
+   "slope",
+   "roughness"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Ranks open global DEMs with a multi-criteria method and confirms the Copernicus DEM as the best 1 arc-second option."
+ },
+ {
+  "category": "Global DEMs",
+  "authors": "Registry of Open Data on AWS",
+  "year": null,
+  "title": "Copernicus Digital Elevation Model (DEM)",
+  "venue": "AWS Open Data registry",
+  "doi": null,
+  "url": "https://registry.opendata.aws/copernicus-dem/",
+  "dataset": "Copernicus DEM GLO-30 / GLO-90 (Cloud Optimized GeoTIFF)",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Public cloud-optimised copy of the Copernicus DEM on AWS."
+ },
+ {
+  "category": "Global DEMs",
+  "authors": "Registry of Open Data on AWS",
+  "year": null,
+  "title": "Terrain Tiles",
+  "venue": "AWS Open Data registry",
+  "doi": null,
+  "url": "https://registry.opendata.aws/terrain-tiles/",
+  "dataset": "Mapzen/Tilezen terrain tiles (composite of global and national DEMs)",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "The Mapzen/Tilezen global Terrarium and GeoTIFF elevation tiles, one of the app's global sources."
+ },
+ {
+  "category": "Global DEMs",
+  "authors": "Mapterhorn",
+  "year": null,
+  "title": "Mapterhorn",
+  "venue": "Project website",
+  "doi": null,
+  "url": "https://mapterhorn.com/",
+  "dataset": "open global terrain tiles",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Open global terrain tileset used as the app's default elevation source."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "authors": "Inomata, T., Triadan, D., Vázquez López, V. A., et al.",
+  "year": 2020,
+  "title": "Monumental architecture at Aguada Fénix and the rise of Maya civilization",
+  "venue": "Nature 582",
+  "doi": "10.1038/s41586-020-2343-4",
+  "url": "https://doi.org/10.1038/s41586-020-2343-4",
+  "dataset": "airborne LiDAR",
+  "modes": [
+   "hillshade",
+   "LRM",
+   "SVF",
+   "mound detector"
+  ],
+  "study_area": {
+   "name": "Aguada Fénix, Tabasco, Mexico",
+   "lat": 17.7338,
+   "lng": -91.2886,
+   "zoom": 15
+  },
+  "library_id": "custom-mx-aguadafenix-lidar",
+  "one_line": "Lidar reveals Aguada Fénix, the largest and oldest known monumental Maya platform."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "authors": "Inomata, T., Fernandez-Diaz, J. C., Triadan, D., et al.",
+  "year": 2021,
+  "title": "Origins and spread of formal ceremonial complexes in the Olmec and Maya regions revealed by airborne lidar",
+  "venue": "Nature Human Behaviour 5",
+  "doi": "10.1038/s41562-021-01218-1",
+  "url": "https://doi.org/10.1038/s41562-021-01218-1",
+  "dataset": "airborne LiDAR (about 85,000 km2)",
+  "modes": [
+   "hillshade",
+   "LRM",
+   "SVF"
+  ],
+  "study_area": {
+   "name": "Tabasco and southern Veracruz, Mexico",
+   "lat": 18.0,
+   "lng": -92.8,
+   "zoom": 8
+  },
+  "library_id": "custom-mx-inegi-cem",
+  "one_line": "Lidar over about 85,000 km2 of southern Mexico identifies 478 early ceremonial complexes sharing a common layout."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "authors": "Canuto, M. A., Estrada-Belli, F., Garrison, T. G., et al.",
+  "year": 2018,
+  "title": "Ancient lowland Maya complexity as revealed by airborne laser scanning of northern Guatemala",
+  "venue": "Science 361",
+  "doi": "10.1126/science.aau0137",
+  "url": "https://doi.org/10.1126/science.aau0137",
+  "dataset": "airborne LiDAR (PACUNAM, over 2,000 km2)",
+  "modes": [
+   "hillshade",
+   "slope",
+   "LRM",
+   "SVF"
+  ],
+  "study_area": {
+   "name": "Maya Biosphere Reserve, Petén, Guatemala",
+   "lat": 17.4,
+   "lng": -89.7,
+   "zoom": 9
+  },
+  "library_id": null,
+  "one_line": "Over 2,000 km2 of lidar across the Maya lowlands yields population estimates, agricultural works and defensive features."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "authors": "Chase, A. F., Chase, D. Z., Weishampel, J. F., et al.",
+  "year": 2011,
+  "title": "Airborne LiDAR, archaeology, and the ancient Maya landscape at Caracol, Belize",
+  "venue": "Journal of Archaeological Science 38",
+  "doi": "10.1016/j.jas.2010.09.018",
+  "url": "https://doi.org/10.1016/j.jas.2010.09.018",
+  "dataset": "airborne LiDAR",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Caracol, Cayo District, Belize",
+   "lat": 16.7636,
+   "lng": -89.1172,
+   "zoom": 13
+  },
+  "library_id": null,
+  "one_line": "Landmark lidar survey of the settlement, causeways and terraces of Caracol under rainforest canopy."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "authors": "Evans, D. H., Fletcher, R. J., Pottier, C., et al.",
+  "year": 2013,
+  "title": "Uncovering archaeological landscapes at Angkor using lidar",
+  "venue": "Proceedings of the National Academy of Sciences 110",
+  "doi": "10.1073/pnas.1306539110",
+  "url": "https://doi.org/10.1073/pnas.1306539110",
+  "dataset": "airborne LiDAR",
+  "modes": [
+   "hillshade",
+   "LRM"
+  ],
+  "study_area": {
+   "name": "Angkor, Siem Reap, Cambodia",
+   "lat": 13.4125,
+   "lng": 103.8667,
+   "zoom": 11
+  },
+  "library_id": null,
+  "one_line": "Lidar reveals the forested urban grid and ceremonial centres of medieval Angkor."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "authors": "Doneus, M., Briese, C., Fera, M., Janner, M.",
+  "year": 2008,
+  "title": "Archaeological prospection of forested areas using full-waveform airborne laser scanning",
+  "venue": "Journal of Archaeological Science 35",
+  "doi": "10.1016/j.jas.2007.06.013",
+  "url": "https://doi.org/10.1016/j.jas.2007.06.013",
+  "dataset": "full-waveform airborne LiDAR",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Leithagebirge near Mannersdorf, Lower Austria",
+   "lat": 47.95,
+   "lng": 16.6,
+   "zoom": 13
+  },
+  "library_id": null,
+  "one_line": "Shows full-waveform ALS can map an Iron Age hillfort and other earthworks under deciduous forest."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "authors": "Verschoof-van der Vaart, W. B., Lambers, K.",
+  "year": 2019,
+  "title": "Learning to Look at LiDAR: The Use of R-CNN in the Automated Detection of Archaeological Objects in LiDAR Data from the Netherlands",
+  "venue": "Journal of Computer Applications in Archaeology 2(1)",
+  "doi": "10.5334/jcaa.32",
+  "url": "https://doi.org/10.5334/jcaa.32",
+  "dataset": "airborne LiDAR (AHN)",
+  "modes": [
+   "mound detector",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Veluwe, Gelderland, Netherlands",
+   "lat": 52.2,
+   "lng": 5.85,
+   "zoom": 10
+  },
+  "library_id": "custom-nl-ahn-dtm",
+  "one_line": "Deep-learning detection of barrows and Celtic fields in Dutch lidar, in an area with over 1,000 recorded barrows."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "authors": "Menze, B. H., Ur, J. A., Sherratt, A. G.",
+  "year": 2006,
+  "title": "Detection of Ancient Settlement Mounds: Archaeological Survey Based on the SRTM Terrain Model",
+  "venue": "Photogrammetric Engineering & Remote Sensing 72(3)",
+  "doi": "10.14358/PERS.72.3.321",
+  "url": "https://doi.org/10.14358/PERS.72.3.321",
+  "dataset": "SRTM 3 arc-second",
+  "modes": [
+   "mound detector",
+   "TPI",
+   "LRM"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Uses the SRTM terrain model to detect and map tells (settlement mounds) across the Near East."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "authors": "Menze, B. H., Ur, J. A.",
+  "year": 2012,
+  "title": "Mapping patterns of long-term settlement in Northern Mesopotamia at a large scale",
+  "venue": "Proceedings of the National Academy of Sciences 109(14)",
+  "doi": "10.1073/pnas.1115472109",
+  "url": "https://doi.org/10.1073/pnas.1115472109",
+  "dataset": "multispectral satellite time series plus a DEM (site volumes)",
+  "modes": [
+   "mound detector"
+  ],
+  "study_area": {
+   "name": "Upper Khabur basin, northeastern Syria",
+   "lat": 36.7,
+   "lng": 41.0,
+   "zoom": 8
+  },
+  "library_id": null,
+  "one_line": "Maps about 14,000 settlement sites, tells included, over 23,000 km2 and uses DEM-derived mound volume as a proxy for how long a site was occupied."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "authors": "Orengo, H. A., Conesa, F. C., Garcia-Molsosa, A., et al.",
+  "year": 2020,
+  "title": "Automated detection of archaeological mounds using machine-learning classification of multisensor and multitemporal satellite data",
+  "venue": "Proceedings of the National Academy of Sciences 117(31)",
+  "doi": "10.1073/pnas.2005583117",
+  "url": "https://doi.org/10.1073/pnas.2005583117",
+  "dataset": "Sentinel-1 SAR and Sentinel-2 multispectral time series (no DEM)",
+  "modes": [
+   "mound detector"
+  ],
+  "study_area": {
+   "name": "Cholistan Desert, Punjab, Pakistan",
+   "lat": 28.8,
+   "lng": 71.5,
+   "zoom": 8
+  },
+  "library_id": null,
+  "one_line": "Machine-learning classification of satellite imagery maps Indus-period mounded settlements in Cholistan, a non-DEM counterpart to relief-based mound detection."
+ }
+]

@@ -1,0 +1,38 @@
+---
+title: Research References
+description: Peer-reviewed work on relief visualization, geomorphometry, global DEMs and LiDAR archaeology behind Terrain Viewer's modes, each case study linked to its area in the app
+---
+
+import { ResearchReferences } from "@/components/research-references";
+
+Terrain Viewer's modes follow published methods: the relief visualizations of archaeological LiDAR, the classic terrain derivatives of geomorphometry, and the global elevation models most studies start from. This page gathers the papers behind them. Where a study has a clear area, a link opens the app there with the modes it used, on the same data when the app has it, so the method can be seen on real terrain in the browser.
+
+Every reference below was checked against its DOI or publisher page. To suggest one, open an issue on [GitHub](https://github.com/Iconem/terrain-viewer/issues).
+
+## Relief visualization
+
+Sky-view factor, openness, local relief model and their blends: the toolbox of archaeological LiDAR interpretation, most of it collected in RVT. In the app: [Relief Visualization](/features/visualization-modes).
+
+<ResearchReferences category="Relief visualization" />
+
+## Geomorphometry
+
+The derivatives behind slope, aspect, curvature, TPI and roughness. The formulas as implemented are on [Equations](/dev/equations).
+
+<ResearchReferences category="Geomorphometry" />
+
+## Global DEMs
+
+The elevation models a study reaches for when there is no LiDAR, and their accuracy. The app's global terrain is [Mapterhorn](https://mapterhorn.com), which merges them with national data; see [Terrain sources](/features/terrain-sources).
+
+<ResearchReferences category="Global DEMs" />
+
+## Geoarchaeology case studies
+
+LiDAR and DEM relief visualization finding and mapping sites, from Maya cities under forest to Mesopotamian tells.
+
+<ResearchReferences category="Geoarchaeology case studies" />
+
+## Using this with an assistant
+
+Each "Open in Terrain Viewer" link is an ordinary URL. An assistant can build the same for any place with the [Terrain Viewer skill or llms.txt](/features/ai-assistants): "show me the sky-view factor over the area of this paper".
