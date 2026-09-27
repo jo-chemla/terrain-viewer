@@ -2,6 +2,10 @@
 
 A comprehensive terrain visualization and downloading tool, built on top of MapLibre GL via react-map-gl. Explore different terrain visualization modes introduced in 2025 including hillshade, hypsometric tinting, contour lines, and more.
 
+**[Open Terrain Viewer](https://terrain-viewer.iconem.com)** · [Documentation](https://terrain-viewer.iconem.com/docs/) · [URL API](https://terrain-viewer.iconem.com/docs/dev/url-api/) · [llms.txt](https://terrain-viewer.iconem.com/llms.txt)
+
+Free and open source, by [Iconem](https://iconem.com). Hillshade, hypsometric tint, contours, slope, aspect, curvature, local relief model, sky-view factor, openness, matcap and Phong lighting, side-by-side comparison, and GeoTIFF export of the DEM and every mode, over global terrain, national LiDAR and open-data services, and your own COG, VRT, WMS, ArcGIS LERC or Cesium quantized-mesh terrain, all read in the browser. Every setting lives in the URL, so a link opens a place in a given mode.
+
 ![terrainn-viewer-screenshot](terrain-viewer.jpg)
 
 ![bring-your-own-data](byod.jpg)

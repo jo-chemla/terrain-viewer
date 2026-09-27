@@ -8,6 +8,28 @@
          env(safe-area-inset-bottom) when docked full-bleed on mobile). -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Terrain Viewer</title>
+    <meta name="description" content="Free, open-source web viewer for elevation data: hillshade, hypsometric tint, contours, slope, local relief model, sky-view factor and lighting over global terrain, national LiDAR and your own COG, VRT or WMS, in 2D, 3D and on a globe, with GeoTIFF export." />
+    <!-- schema.org description of the app, read by search engines and AI
+         assistants that do not run the JavaScript. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Terrain Viewer",
+      "url": "https://terrain-viewer.iconem.com/",
+      "description": "Free, open-source web viewer for elevation data (DEM, DTM, DSM, LiDAR). Hillshade, hypsometric tint, contours, slope, aspect, curvature, local relief model, sky-view factor, openness, matcap and Phong lighting, side-by-side comparison and GeoTIFF export, over global terrain, national LiDAR and open-data services, and your own COG, VRT or WMS.",
+      "applicationCategory": "GIS",
+      "operatingSystem": "Any (web browser)",
+      "browserRequirements": "Requires JavaScript and WebGL",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+      "license": "https://github.com/jo-chemla/terrain-viewer",
+      "codeRepository": "https://github.com/jo-chemla/terrain-viewer",
+      "author": { "@type": "Organization", "name": "Iconem", "url": "https://iconem.com" },
+      "image": "https://terrain-viewer.iconem.com/terrain-viewer.jpg",
+      "featureList": ["Hillshade", "Hypsometric tint", "Contour lines", "Slope, aspect, curvature, TPI, roughness", "Local relief model, sky-view factor, openness", "Matcap and Phong lighting", "Side-by-side and overlay comparison", "GeoTIFF export of the DEM and every mode", "COG, VRT, WMS, ArcGIS LERC and Cesium quantized mesh terrain in the browser"]
+    }
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Purple favicon everywhere except the real production domains (any local
          dev port, preview/staging deploy, etc.) so an open prod tab is never
@@ -80,7 +102,31 @@
     <meta property="og:url" content="https://terrain-viewer.iconem.com/" />   
   </head>
   <body>
-    <div id="root"></div>
+    <!-- What crawlers and AI fetchers that do not run JavaScript see; React
+         replaces it on its first render. Faded in only after 2 s, so a
+         normal load never shows it. -->
+    <style>
+      .shell { max-width: 44rem; margin: 3rem auto; padding: 0 1.25rem; font: 15px/1.55 system-ui, sans-serif; color: #444; opacity: 0; animation: shell-in 0s 2s forwards }
+      .shell a { color: #2563eb }
+      @keyframes shell-in { to { opacity: 1 } }
+    </style>
+    <div id="root">
+      <main class="shell">
+        <h1>Terrain Viewer</h1>
+        <p>A free, open-source web viewer for elevation data by <a href="https://iconem.com">Iconem</a>, built on MapLibre GL JS. It shows terrain in 2D, 3D and on a globe with hillshade, hypsometric tint, contours, slope, aspect, curvature, local relief model, sky-view factor, openness and matcap or Phong lighting; compares sources side by side; and exports the DEM and every mode as GeoTIFF.</p>
+        <p>It reads global terrain (Mapterhorn, AWS, Mapbox, MapTiler), national LiDAR and open-data services, and your own Cloud-Optimized GeoTIFF, GDAL VRT, WMS, ArcGIS LERC or Cesium quantized-mesh terrain, all in the browser. Every setting lives in the URL, so a link opens a place in a given mode.</p>
+        <p>This page needs JavaScript and WebGL. Documentation:</p>
+        <ul>
+          <li><a href="/docs/">Documentation home</a></li>
+          <li><a href="/docs/features/visualization-modes/">Visualization modes</a></li>
+          <li><a href="/docs/features/terrain-sources/">Terrain sources</a> and <a href="/docs/features/national-datasets/">national open-data terrain</a></li>
+          <li><a href="/docs/features/export-and-share/">Export and share</a></li>
+          <li><a href="/docs/dev/url-api/">URL API</a>: build a link to any place and mode</li>
+          <li><a href="/docs/dev/custom-protocols/">Custom protocols</a> for developers</li>
+          <li><a href="https://github.com/jo-chemla/terrain-viewer">Source code on GitHub</a></li>
+        </ul>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

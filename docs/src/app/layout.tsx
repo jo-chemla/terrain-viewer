@@ -47,6 +47,21 @@ export default function Layout({ children }: LayoutProps<'/'>) {
             main app: it's a real deploy of this same docs site, just a
             different domain — same for jo-chemla.github.io, the plain
             GitHub Pages URL this same build is also served from. */}
+        {/* Umami, the same website as the app (index.html), so docs visits
+            and the app share one dashboard. Not on localhost, where every dev
+            session would otherwise report into production. */}
+        <Script id="umami-loader" strategy="afterInteractive">
+          {`(function () {
+            var host = location.hostname
+            if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "") return
+            var s = document.createElement("script")
+            s.defer = true
+            s.src = "https://cloud.umami.is/script.js"
+            s.setAttribute("data-website-id", "89d911b9-9de7-4665-872e-5b91ff4b7b39")
+            s.setAttribute("data-exclude-search", "true")
+            document.head.appendChild(s)
+          })()`}
+        </Script>
         <Script id="favicon-swap" strategy="beforeInteractive">
           {`(function () {
             var host = location.hostname

@@ -1,0 +1,88 @@
+# Terrain Viewer
+
+> Free, open-source web viewer for elevation data (DEM, DTM, DSM, LiDAR) by Iconem, built on MapLibre GL JS. It shows terrain in 2D, 3D and on a globe with hillshade, hypsometric tint, contours, slope, aspect, curvature, local relief model, sky-view factor, openness, matcap and Phong lighting, compares sources side by side, and exports GeoTIFFs. It reads global terrain (Mapterhorn, AWS, Mapbox, MapTiler) and national LiDAR and open-data services, COG, VRT, WMS, ArcGIS LERC and Cesium quantized mesh, all in the browser.
+
+Every setting lives in the URL, so a link opens a place in a given mode. To send someone to a view, build a URL on https://terrain-viewer.iconem.com/ with query parameters. The full list, with types and defaults, is the OpenAPI description at https://terrain-viewer.iconem.com/docs/openapi.json and the page https://terrain-viewer.iconem.com/docs/dev/url-api/.
+
+## Building a link
+
+- Camera: `lat`, `lng`, `zoom`, `pitch`, `bearing`; `viewMode` is `2d`, `3d` or `globe`.
+- Terrain source: `terrainSourceA`, for example `mapterhorn` (global, the default), `aws`, or a library id such as `custom-mx-aguadafenix-lidar`.
+- Modes: `showHillshade`, `showColorRelief` (hypsometric tint), `showContoursAndGraticules` with `showContours`, `showTerrainAnalysis` with `showSlope`, `showAspect`, `showCurvature`, `showReliefVisualization` with `showLrm`, `showSvf`, `showOpenness`, `showLightingEffects` with `showMatcap`, `showPhong`, `showRasterBasemap`.
+- Comparison: `splitStyle` (`side-by-side` or `overlay`) with `terrainSourceB`.
+
+Examples:
+
+- Slope around the Matterhorn in 3D: https://terrain-viewer.iconem.com/?viewMode=3d&zoom=13&lat=45.9763&lng=7.6586&pitch=55&showTerrainAnalysis=true&showSlope=true
+- Contours over a Maya LiDAR survey: https://terrain-viewer.iconem.com/?viewMode=2d&zoom=15&lat=17.7338&lng=-91.2886&terrainSourceA=custom-mx-aguadafenix-lidar&showContoursAndGraticules=true&showContours=true&showHillshade=true
+- Hillshade and sky-view factor anywhere: https://terrain-viewer.iconem.com/?zoom=12&lat=<lat>&lng=<lng>&showHillshade=true&showReliefVisualization=true&showSvf=true
+
+## Overview
+
+- [Changelog](https://terrain-viewer.iconem.com/docs/changelog/): What shipped, and when — the TL;DR of every release
+- [Setup](https://terrain-viewer.iconem.com/docs/dev/): Running the app, its structure, and its architecture
+- [Feature Overview](https://terrain-viewer.iconem.com/docs/features/): A map of what's in the sidebar
+- [Overview](https://terrain-viewer.iconem.com/docs/overview/): What Terrain Viewer is and how the sidebar is organized
+
+## Developer documentation
+
+- [Camera Sync](https://terrain-viewer.iconem.com/docs/dev/camera-sync/): Keeping up to eight map views on one camera — elevation as the sixth parameter, the idle settle, and the rules that keep gestures intact
+- [Custom Protocols](https://terrain-viewer.iconem.com/docs/dev/custom-protocols/): What a MapLibre custom protocol is, every scheme this app registers, and the registry that lets every consumer reach every one of them
+- [Derived Terrain Protocol](https://terrain-viewer.iconem.com/docs/dev/demdiff-protocol/): demdiff:// — subtracting one elevation source from another, tile by tile, and the alpha-254 convention that keeps holes flat
+- [Equations & Formulas](https://terrain-viewer.iconem.com/docs/dev/equations/): The exact math behind every terrain-derivative visualization mode
+- [ESRI Wayback](https://terrain-viewer.iconem.com/docs/dev/esri-wayback/): The release-chained alternative to Google Earth Historical's per-tile dates
+- [Fumadocs customization](https://terrain-viewer.iconem.com/docs/dev/fumadocs-customization/): What this documentation site adds on top of a stock Fumadocs install — components, generators, and the Next base-path fixes
+- [Google Earth Historical (Time Machine) Protocol](https://terrain-viewer.iconem.com/docs/dev/ge-historical/): How the gehist:// protocol reverse-engineers Google Earth's historical imagery, and how it's wired into this app
+- [Layer Order and Slots](https://terrain-viewer.iconem.com/docs/dev/layer-order/): Why every layer is inserted beforeId an invisible placeholder, and the order those placeholders are in
+- [ArcGIS LERC Elevation Protocol](https://terrain-viewer.iconem.com/docs/dev/lerc-protocol/): lerc:// — decoding Esri's float raster codec into Terrarium tiles, and why the tile pyramid is the only anonymous way into an ArcGIS elevation service
+- [Lighting Effects (Matcap / Phong / Hard Shadows)](https://terrain-viewer.iconem.com/docs/dev/lighting-effects/): Why these use a real surface normal and a live-GL fast path instead of the pseudo-elevation trick
+- [LRM (Local Relief Model)](https://terrain-viewer.iconem.com/docs/dev/lrm/): Why LRM needs a genuinely different pipeline than slope/curvature/etc
+- [Map Bounds and Underzoom](https://terrain-viewer.iconem.com/docs/dev/map-bounds-and-underzoom/): Fencing the camera to a dataset's footprint without making the dataset impossible to see — maplibre-xy's Underzoom, the 1-degree floor, and the footprints that crash constrain
+- [Non-Geo Relief Visualization](https://terrain-viewer.iconem.com/docs/dev/non-geo-relief-visualization/): Preparing non-georeferenced DSM/RGB data (frescoes, artifact scans) as web-ready COGs
+- [Product Tour (Coachmark)](https://terrain-viewer.iconem.com/docs/dev/product-tour/): How the walkthrough drives the real app — step preparation, the state snapshot, the spotlight-dismiss problem, and what the coachmark library does and does not give you
+- [Quantized Mesh Protocol](https://terrain-viewer.iconem.com/docs/dev/quantized-mesh-protocol/): quantized-mesh:// — rasterising Cesium's terrain TINs into Terrarium tiles, the geographic-to-Mercator tile mapping, and why the meshing libraries do not help
+- [State reference (URL & storage)](https://terrain-viewer.iconem.com/docs/dev/state/): Every URL parameter the app reads, generated from the source at build time — state parameters mirrored by nuqs, instruction parameters read once on load, and the settings kept in localStorage
+- [Tech Stack](https://terrain-viewer.iconem.com/docs/dev/tech-stack/): The libraries and services this app is built on
+- [Terrain Analysis Rendering Pipeline](https://terrain-viewer.iconem.com/docs/dev/terrain-analysis-pipeline/): How Slope, Aspect, Curvature and friends turn a raster-dem source into a colored layer
+- [Tile Caches](https://terrain-viewer.iconem.com/docs/dev/tile-caches/): The two caches every custom protocol sits on, and the ArrayBuffer detachment rule that governs both
+- [URL as an API (Scalar)](https://terrain-viewer.iconem.com/docs/dev/url-api/): The viewer's URL described as an OpenAPI document, browsed with Scalar — every parameter with the right control for its type
+- [PMTiles and COG Contours](https://terrain-viewer.iconem.com/docs/dev/vendored-protocols/): The two protocols this app registers but does not compute — a third-party archive reader and a worker-backed contour generator
+- [VRT Mosaic Protocol](https://terrain-viewer.iconem.com/docs/dev/vrt-protocol/): vrt:// — reading a GDAL VRT mosaic in the browser, reprojecting it with proj4, and the two ways it refuses a tile rather than stalling
+- [WMS Float32 DEM Protocol](https://terrain-viewer.iconem.com/docs/dev/wms-float32-protocol/): Bridging a plain WMS elevation service into MapLibre's raster-dem pipeline
+
+## Features
+
+- [Basemaps & Historical Imagery](https://terrain-viewer.iconem.com/docs/features/basemaps-and-historical/): Satellite basemaps and the historical imagery timeline
+- [Bookmarks](https://terrain-viewer.iconem.com/docs/features/bookmarks/): Saving and organizing views
+- [Bring Your Own Data (BYOD)](https://terrain-viewer.iconem.com/docs/features/byod/): Adding your own terrain/basemap sources, including local files
+- [Coverage Overlays](https://terrain-viewer.iconem.com/docs/features/coverage-overlays/): See where each terrain or basemap source actually has data, before switching to it
+- [Embedding & URL parameters](https://terrain-viewer.iconem.com/docs/features/embedding/): Everything the app shows is in its URL — how to compose a link or an iframe that loads your own COGs and vector data, the parameters that are instructions rather than state, and the project JSON preset format
+- [Export & Share](https://terrain-viewer.iconem.com/docs/features/export-and-share/): Snapshots, DEM GeoTIFF and contour exports, historical batch export, and social sharing
+- [Frescoes & Artifact Scans](https://terrain-viewer.iconem.com/docs/features/frescoes-and-artifacts/): Using the relief-visualization toolkit on non-georeferenced photogrammetry — wall paintings, reliefs, small finds
+- [Keyboard Shortcuts](https://terrain-viewer.iconem.com/docs/features/keyboard-shortcuts/): Every global keyboard shortcut, in one place
+- [National Open-Data Terrain](https://terrain-viewer.iconem.com/docs/features/national-datasets/): Government elevation services from national mapping agencies, ready to load as terrain sources
+- [nDSM and Comparison (DSM − DTM, change detection)](https://terrain-viewer.iconem.com/docs/features/ndsm-and-comparison/): A terrain source made from two others, subtracted tile by tile — normalised surface models (nDSM, canopy height), and elevation change between two surveys — with the caveats on references and datums
+- [Open In](https://terrain-viewer.iconem.com/docs/features/open-in/): Hand the current viewport off to other web map viewers — River-REM, Search-EO, ESRI Wayback, Google Earth/Maps, BBBike, or your own URL template
+- [Projects (Import / Export)](https://terrain-viewer.iconem.com/docs/features/projects/): Bundling sources, bookmarks, drawings, settings, and view state into a portable file — plus ?project= URL presets
+- [River-REM](https://terrain-viewer.iconem.com/docs/features/river-rem/): Iconem's companion app for river-relative elevation models, and how this app hands off to it
+- [Settings](https://terrain-viewer.iconem.com/docs/features/settings/): The Settings dialog — appearance, caching, storage, beta features, API keys, map bounds and project presets
+- [Split & Compare Modes](https://terrain-viewer.iconem.com/docs/features/split-modes/): Off, Overlay, and Side — comparing terrain/basemap sources against each other
+- [Streaming & Storage Settings](https://terrain-viewer.iconem.com/docs/features/streaming-settings/): COG streaming engine, elevation quantization precision, client-side export, tile caching, and browser storage persistence
+- [Sun Position](https://terrain-viewer.iconem.com/docs/features/sun-position/): The astronomy behind the app's light direction, shadow calculator, and the standalone sun estimator
+- [Terrain and Basemap Sources](https://terrain-viewer.iconem.com/docs/features/terrain-sources/): The built-in DEM tile sources (Mapterhorn, Mapbox, MapTiler, AWS Terrain Tiles, Esri World Elevation) and worldwide basemap providers
+- [Tools (Drawing, Elevation Picker, Anim)](https://terrain-viewer.iconem.com/docs/features/tools/): Drawing, Elevation Picker, Sun/Shadow Calculator, Animation, and the catalog searches that find new data
+- [Terrain Visualization Modes](https://terrain-viewer.iconem.com/docs/features/visualization-modes/): Hillshade, hypsometric tint, relief and terrain-analysis derivatives
+- [Visualization Modes Description](https://terrain-viewer.iconem.com/docs/features/visualization-modes-description/): Not a standalone page — single source of truth embedded into the Visualization Modes docs page and the app's own Settings dialog
+- [Walkthrough](https://terrain-viewer.iconem.com/docs/features/walkthrough/): Every step of the in-app guided tour (Coachmark) — intro, Terrain deep dive, Historical Imagery deep dive
+
+## Resources
+
+- [Credits & Inspiration](https://terrain-viewer.iconem.com/docs/resources/credits/): Who built this, related projects, and what it's inspired by
+- [Topography, Geomorphometry, Hydrology](https://terrain-viewer.iconem.com/docs/resources/geomorphometry/): Scientific literature and tools behind the terrain-analysis modes
+- [MapLibre GL Features](https://terrain-viewer.iconem.com/docs/resources/maplibre/): MapLibre GL JS issues, PRs, and plugins this app builds on or tracks
+
+## Optional
+
+- [All documentation in one file](https://terrain-viewer.iconem.com/docs/llms-full.txt)
+- [Documentation index for agents](https://terrain-viewer.iconem.com/docs/llms.txt)
+- [Source code](https://github.com/jo-chemla/terrain-viewer)
