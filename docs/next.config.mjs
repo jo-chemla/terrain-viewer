@@ -27,7 +27,10 @@ const config = {
   // style protection); without this, every script silently 404s, hydration
   // never completes, and every client-interactive widget (theme toggle,
   // search, collapsible sidebar sections) looks present but dead.
-  allowedDevOrigins: ['127.0.0.1', 'localhost'],
+  // The private-network ranges too, so the docs work when opened from a
+  // phone on the same network (http://<LAN IP>:5173/docs/): otherwise the
+  // same silent block leaves every page dead on mobile.
+  allowedDevOrigins: ['127.0.0.1', 'localhost', '192.168.*.*', '10.*.*.*', '172.*.*.*'],
   // This app has its own pnpm-lock.yaml (deliberately standalone from the
   // main app's, since Next 16/React 19 here would otherwise fight the root
   // app's React 18/Vite toolchain) — without this, Turbopack sees both

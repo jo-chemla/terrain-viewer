@@ -1,0 +1,89 @@
+{
+ "custom-africa-deafrica-cop30": {
+  "doi": "10.5270/ESA-c5d3d65",
+  "citation": "European Space Agency (2022). Copernicus DEM [Dataset].",
+  "publisher": "European Space Agency",
+  "mirrors": [
+   {
+    "doi": "10.60489/RODA.MXYOG0",
+    "publisher": "Registry of Open Data on AWS"
+   }
+  ]
+ },
+ "custom-pgc-arcticdem": {
+  "doi": "10.7910/DVN/3VDC4W",
+  "citation": "Porter, C., Howat, I., Noh, M.-J., et al. (2023). ArcticDEM - Mosaics, Version 4.1 [Dataset]. Harvard Dataverse.",
+  "publisher": "Harvard Dataverse"
+ },
+ "custom-pgc-rema": {
+  "doi": "10.7910/DVN/EBW8UC",
+  "citation": "Howat, I., Porter, C., Noh, M.-J., et al. (2022). The Reference Elevation Model of Antarctica - Mosaics, Version 2 [Dataset]. Harvard Dataverse.",
+  "publisher": "Harvard Dataverse"
+ },
+ "custom-global-aw3d30": {
+  "doi": "10.57746/EO.01KKFX0EJW8R5NDC9BG5NT13WS",
+  "citation": "Japan Aerospace Exploration Agency (JAXA) (2015). ALOS World 3D - 30m (AW3D30) Global DSM [Dataset].",
+  "publisher": "Japan Aerospace Exploration Agency (JAXA)",
+  "mirrors": [
+   {
+    "doi": "10.5069/G94M92HB",
+    "publisher": "OpenTopography"
+   }
+  ]
+ },
+ "custom-gedtm30": {
+  "doi": "10.5281/zenodo.14900180",
+  "citation": "Ho, Y., & Hengl, T. (2026). Global Ensemble Digital Terrain Model 30m (GEDTM30) [Dataset]. Zenodo.",
+  "publisher": "Zenodo"
+ },
+ "custom-sam-anadem": {
+  "doi": "10.5069/G9736P4G",
+  "citation": "OpenTopography (2025). ANADEM: A Digital Terrain Model for South America.",
+  "publisher": "OpenTopography"
+ },
+ "custom-it-tinitaly": {
+  "doi": "10.13127/TINITALY/1.1",
+  "citation": "Tarquini, S., Isola, I., Favalli, M., Battistini, A., & Dotta, G. (2023). TINITALY, a digital elevation model of Italy with a 10 meters cell size, version 1.1 [Dataset]. INGV.",
+  "publisher": "Istituto Nazionale di Geofisica e Vulcanologia (INGV)"
+ },
+ "custom-global-smartmaps-gel": {
+  "doi": "10.5067/MEaSUREs/NASADEM/NASADEM_HGT.001",
+  "citation": "NASA JPL (2020). NASADEM Merged DEM Global 1 arc second V001 [Dataset]. NASA LP DAAC.",
+  "publisher": "NASA Land Processes Distributed Active Archive Center"
+ },
+ "custom-emodnet-bathymetry": {
+  "doi": "10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1",
+  "citation": "EMODnet Bathymetry Consortium (2024). EMODnet Digital Bathymetry (DTM 2024) [Dataset].",
+  "publisher": "EMODnet Bathymetry Consortium"
+ },
+ "custom-basemap-dlr-polardem-ant-hillshade": {
+  "doi": "10.15489/9jhr18jepi65",
+  "citation": "Wessel, B., & Huber, M. (2020). TanDEM-X - PolarDEM - Antarctica, 90m [Dataset]. DLR.",
+  "publisher": "German Aerospace Center (DLR)"
+ },
+ "custom-mx-aguadafenix-lidar": {
+  "doi": "10.5069/G95B00NF",
+  "citation": "OpenTopography (2022). Lidar Survey of Middle Usumacinta Region, Mexico.",
+  "publisher": "OpenTopography"
+ },
+ "custom-ht-cnigs-dtm15": {
+  "doi": "10.5069/G9GX48R8",
+  "citation": "OpenTopography (2021). Haiti Digital Terrain Model 2014 - 2016.",
+  "publisher": "OpenTopography"
+ },
+ "custom-ca-nrcan-mrdem30": {
+  "doi": "10.5069/G9N8780J",
+  "citation": "OpenTopography (2025). Medium Resolution Digital Elevation Model of Canada.",
+  "publisher": "OpenTopography"
+ },
+ "custom-us-ak-ifsar-dtm5": {
+  "doi": "10.5066/P9C064CO",
+  "citation": "Earth Resources Observation and Science (EROS) Center (2018). Interferometric Synthetic Aperture Radar (IFSAR) Alaska [Dataset]. USGS.",
+  "publisher": "U.S. Geological Survey"
+ },
+ "aws": {
+  "doi": "10.60489/RODA.6W7PSW",
+  "citation": "Mapzen, a Linux Foundation project (2018). Terrain Tiles (Version 1.0) [Dataset]. Registry of Open Data on AWS.",
+  "publisher": "Registry of Open Data on AWS"
+ }
+}

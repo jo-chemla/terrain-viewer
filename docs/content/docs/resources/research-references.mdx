@@ -3,11 +3,17 @@ title: Research References
 description: Peer-reviewed work on relief visualization, geomorphometry, global DEMs and LiDAR archaeology behind Terrain Viewer's modes, each case study linked to its area in the app
 ---
 
-import { ResearchReferences } from "@/components/research-references";
+import { ResearchReferences, DatasetCitations } from "@/components/research-references";
 
-Terrain Viewer's modes follow published methods: the relief visualizations of archaeological LiDAR, the classic terrain derivatives of geomorphometry, and the global elevation models most studies start from. This page gathers the papers behind them. Where a study has a clear area, a link opens the app there with the modes it used, on the same data when the app has it, so the method can be seen on real terrain in the browser.
+The same few terrain modes serve very different sciences: a sky-view factor that finds a Maya causeway also finds a shell crater at Verdun or a sinkhole in Kentucky. This page gathers studies from those fields first, then the methods and elevation models behind the app's modes. Where a study has a clear area, a link opens the app there with the modes it used, on the same data when the app has it, so the method can be seen on real terrain in the browser. Some areas are regional, where a paper covers a whole region or its sites could not be located exactly.
 
 Every reference below was checked against its DOI or publisher page. To suggest one, open an issue on [GitHub](https://github.com/Iconem/terrain-viewer/issues).
+
+## Case studies across fields
+
+Volcanoes, glaciers, fault scarps, battlefields, charcoal kilns and dunes, each read from a DEM or LiDAR with the kind of modes the app offers. Studies that measure change between two surveys (lava volumes, glacier loss, earthquake uplift) correspond to the app's [DEM difference](/features/ndsm-and-comparison).
+
+<ResearchReferences category="Case studies across fields" />
 
 ## Relief visualization
 
@@ -23,7 +29,7 @@ The derivatives behind slope, aspect, curvature, TPI and roughness. The formulas
 
 ## Global DEMs
 
-The elevation models a study reaches for when there is no LiDAR, and their accuracy. The app's global terrain is [Mapterhorn](https://mapterhorn.com), which merges them with national data; see [Terrain sources](/features/terrain-sources).
+The elevation models a study reaches for when there is no LiDAR, and their accuracy. The app's global terrain is [Mapterhorn](https://mapterhorn.com), which merges them with national data; see [Terrain sources](/features/terrain-sources). Mapterhorn is recent and no published study citing it turned up yet; one comparing GLO-30 with other global models for morphology is under Case studies.
 
 <ResearchReferences category="Global DEMs" />
 
@@ -32,6 +38,12 @@ The elevation models a study reaches for when there is no LiDAR, and their accur
 LiDAR and DEM relief visualization finding and mapping sites, from Maya cities under forest to Mesopotamian tells.
 
 <ResearchReferences category="Geoarchaeology case studies" />
+
+## Citing the data
+
+The datasets in the app that have a DOI, to cite alongside the papers. Most national LiDAR services publish none; for those, cite the producer and the service as given on [National Datasets](/features/national-datasets), where every dataset with a DOI also has a link to it.
+
+<DatasetCitations />
 
 ## Using this with an assistant
 

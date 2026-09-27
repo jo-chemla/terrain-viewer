@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import WORLD from "./world-110m.json";
+import DATASET_DOIS from "@/data/dataset-dois.json";
 
 type Country = { iso: string; name: string; rings: number[][] };
 
@@ -23,6 +24,21 @@ type Source = {
   infoUrl?: string;
   description?: string;
 };
+
+// Dataset DOIs, each resolved through DataCite, Crossref or doi.org before
+// being added (src/data/dataset-dois.json). Most national services have none.
+const DOIS = DATASET_DOIS as Record<string, { doi: string; citation?: string }>;
+
+function DoiLink({ id }: { id: string }) {
+  const d = DOIS[id];
+  if (!d) return null;
+  return (
+    <>
+      {" "}
+      <a href={`https://doi.org/${d.doi}`} target="_blank" rel="noopener noreferrer" title={d.citation ?? d.doi} className="text-xs">DOI</a>
+    </>
+  );
+}
 
 // ISO 3166-1 alpha-3 -> English short name, for the codes actually in use.
 const COUNTRY: Record<string, string> = {
@@ -382,7 +398,7 @@ export function NationalDatasetsTable() {
                     <tr key={s.id}>
                       <td><code>{iso}</code></td>
                       <td>{COUNTRY[iso] ?? iso}</td>
-                      <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}</td>
+                      <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} /></td>
                       <td>{SERVING_LABEL(s.type)}</td>
                       <td>
                         <a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a>
@@ -430,7 +446,7 @@ export function SubNationalTable() {
             <tr key={s.id}>
               <td><code>{iso}</code></td>
               <td>{COUNTRY[iso] ?? iso}</td>
-              <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}</td>
+              <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} /></td>
               <td>{SERVING_LABEL(s.type)}</td>
               <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
               <td>{FACTS[s.id]?.res ?? "—"}</td>

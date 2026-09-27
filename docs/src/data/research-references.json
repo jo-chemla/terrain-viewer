@@ -497,7 +497,7 @@
   "year": null,
   "title": "Copernicus Digital Elevation Model (DEM)",
   "venue": "AWS Open Data registry",
-  "doi": null,
+  "doi": "10.60489/RODA.MXYOG0",
   "url": "https://registry.opendata.aws/copernicus-dem/",
   "dataset": "Copernicus DEM GLO-30 / GLO-90 (Cloud Optimized GeoTIFF)",
   "modes": [
@@ -513,7 +513,7 @@
   "year": null,
   "title": "Terrain Tiles",
   "venue": "AWS Open Data registry",
-  "doi": null,
+  "doi": "10.60489/RODA.6W7PSW",
   "url": "https://registry.opendata.aws/terrain-tiles/",
   "dataset": "Mapzen/Tilezen terrain tiles (composite of global and national DEMs)",
   "modes": [
@@ -724,6 +724,8 @@
   "url": "https://doi.org/10.1073/pnas.1115472109",
   "dataset": "multispectral satellite time series plus a DEM (site volumes)",
   "modes": [
+   "LRM",
+   "hillshade",
    "mound detector"
   ],
   "study_area": {
@@ -755,5 +757,777 @@
   },
   "library_id": null,
   "one_line": "Machine-learning classification of satellite imagery maps Indus-period mounded settlements in Cholistan, a non-DEM counterpart to relief-based mound detection."
+ },
+ {
+  "category": "Relief visualization",
+  "field": null,
+  "authors": "Crutchley, S., Crow, P.",
+  "year": 2018,
+  "title": "Using Airborne Lidar in Archaeological Survey: The Light Fantastic",
+  "venue": "Historic England guidance (HEAG179), Swindon",
+  "doi": null,
+  "url": "https://historicengland.org.uk/images-books/publications/using-airborne-lidar-in-archaeological-survey/",
+  "dataset": "airborne lidar (guidance)",
+  "modes": [
+   "hillshade",
+   "slope",
+   "LRM",
+   "SVF",
+   "openness"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Historic England's guidance on deciding whether airborne lidar suits an archaeological project and how to process, visualise and interpret the data; it revises the 2010 English Heritage edition."
+ },
+ {
+  "category": "Geomorphometry",
+  "field": null,
+  "authors": "Riley, S. J., DeGloria, S. D., Elliot, R.",
+  "year": 1999,
+  "title": "A Terrain Ruggedness Index That Quantifies Topographic Heterogeneity",
+  "venue": "Intermountain Journal of Sciences 5, 23-27",
+  "doi": null,
+  "url": "https://arc.lib.montana.edu/ojs/index.php/IJS/article/view/2914",
+  "dataset": "DEM",
+  "modes": [
+   "TRI"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Defines the Terrain Ruggedness Index (TRI), which measures the elevation difference between a cell and its eight neighbours."
+ },
+ {
+  "category": "Geomorphometry",
+  "field": null,
+  "authors": "Weiss, A. D.",
+  "year": 2001,
+  "title": "Topographic Position and Landforms Analysis",
+  "venue": "Poster, ESRI User Conference, San Diego (The Nature Conservancy, Northwest Division)",
+  "doi": null,
+  "url": "https://www.jennessent.com/downloads/TPI-poster-TNC_18x22.pdf",
+  "dataset": "DEM",
+  "modes": [
+   "TPI"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Introduces landform classification from the Topographic Position Index (TPI) at two neighbourhood scales, giving ten classes from canyons to mountain tops."
+ },
+ {
+  "category": "Geomorphometry",
+  "field": null,
+  "authors": "Sappington, J. M., Longshore, K. M., Thompson, D. B.",
+  "year": 2007,
+  "title": "Quantifying Landscape Ruggedness for Animal Habitat Analysis: A Case Study Using Bighorn Sheep in the Mojave Desert",
+  "venue": "The Journal of Wildlife Management",
+  "doi": "10.2193/2005-723",
+  "url": "https://doi.org/10.2193/2005-723",
+  "dataset": "DEM",
+  "modes": [
+   "roughness",
+   "TRI",
+   "slope"
+  ],
+  "study_area": {
+   "name": "Mojave Desert, southwestern USA",
+   "lat": 35.0,
+   "lng": -116.0,
+   "zoom": 8
+  },
+  "library_id": "custom-us-3dep",
+  "one_line": "Defines the Vector Ruggedness Measure (VRM), which correlates less with slope than earlier indices, and shows that ruggedness and slope are separate parts of desert bighorn sheep habitat in three Mojave ranges."
+ },
+ {
+  "category": "Global DEMs",
+  "field": null,
+  "authors": "Hawker, L., Uhe, P., Paulo, L., et al.",
+  "year": 2022,
+  "title": "A 30 m global map of elevation with forests and buildings removed",
+  "venue": "Environmental Research Letters",
+  "doi": "10.1088/1748-9326/ac4d4f",
+  "url": "https://doi.org/10.1088/1748-9326/ac4d4f",
+  "dataset": "Copernicus DEM GLO-30 (corrected with machine learning: FABDEM)",
+  "modes": [],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Removes forests and buildings from the Copernicus GLO-30 DEM with machine learning (FABDEM), lowering mean absolute error from 1.61 to 1.12 m in built-up areas and from 5.15 to 2.88 m in forests."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "field": null,
+  "authors": "Chase, A. F., Chase, D. Z., Fisher, C. T., et al.",
+  "year": 2012,
+  "title": "Geospatial revolution and remote sensing LiDAR in Mesoamerican archaeology",
+  "venue": "Proceedings of the National Academy of Sciences",
+  "doi": "10.1073/pnas.1205198109",
+  "url": "https://doi.org/10.1073/pnas.1205198109",
+  "dataset": "airborne lidar",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Caracol, Cayo, Belize",
+   "lat": 16.7639,
+   "lng": -89.1175,
+   "zoom": 13
+  },
+  "library_id": null,
+  "one_line": "Uses new lidar data from Caracol (Belize) and Angamuco (Mexico) to show how lidar maps whole ancient cities hidden under forest canopy."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "field": null,
+  "authors": "Evans, D.",
+  "year": 2016,
+  "title": "Airborne laser scanning as a method for exploring long-term socio-ecological dynamics in Cambodia",
+  "venue": "Journal of Archaeological Science",
+  "doi": "10.1016/j.jas.2016.05.009",
+  "url": "https://doi.org/10.1016/j.jas.2016.05.009",
+  "dataset": "airborne laser scanning (including the 2015 campaign)",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Angkor, Cambodia",
+   "lat": 13.4125,
+   "lng": 103.8667,
+   "zoom": 11
+  },
+  "library_id": null,
+  "one_line": "Reports on airborne laser scanning at Angkor and elsewhere in Cambodia, including the 2015 campaign, which the paper calls the largest ever made for archaeology."
+ },
+ {
+  "category": "Relief visualization",
+  "field": null,
+  "authors": "Guyot, A., Lennon, M., Hubert-Moy, L.",
+  "year": 2021,
+  "title": "Objective comparison of relief visualization techniques with deep CNN for archaeology",
+  "venue": "Journal of Archaeological Science: Reports",
+  "doi": "10.1016/j.jasrep.2021.103027",
+  "url": "https://doi.org/10.1016/j.jasrep.2021.103027",
+  "dataset": "airborne laser scanning DTM",
+  "modes": [
+   "TPI",
+   "SVF",
+   "openness",
+   "LRM",
+   "slope",
+   "hillshade"
+  ],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Benchmarks thirteen relief visualizations with a deep CNN that detects archaeological structures; e2MSTP, which builds on multiscale topographic position, performed best."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "field": null,
+  "authors": "Casana, J.",
+  "year": 2013,
+  "title": "Radial route systems and agro-pastoral strategies in the Fertile Crescent: New discoveries from western Syria and southwestern Iran",
+  "venue": "Journal of Anthropological Archaeology",
+  "doi": "10.1016/j.jaa.2012.12.004",
+  "url": "https://doi.org/10.1016/j.jaa.2012.12.004",
+  "dataset": "not confirmed in this session (hollow-way mapping)",
+  "modes": [],
+  "study_area": null,
+  "library_id": null,
+  "one_line": "Reports newly found radial route systems (hollow ways) around sites in western Syria and southwestern Iran and discusses the agro-pastoral strategies they suggest."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "field": null,
+  "authors": "Johnson, K. M., Ouimet, W. B.",
+  "year": 2014,
+  "title": "Rediscovering the lost archaeological landscape of southern New England using airborne light detection and ranging (LiDAR)",
+  "venue": "Journal of Archaeological Science",
+  "doi": "10.1016/j.jas.2013.12.004",
+  "url": "https://doi.org/10.1016/j.jas.2013.12.004",
+  "dataset": "airborne LiDAR",
+  "modes": [
+   "hillshade",
+   "slope"
+  ],
+  "study_area": {
+   "name": "Southern New England, USA",
+   "lat": 41.6,
+   "lng": -72.7,
+   "zoom": 8
+  },
+  "library_id": "custom-us-3dep",
+  "one_line": "Uses airborne lidar to rediscover relict historical land-use features hidden under the forests of southern New England."
+ },
+ {
+  "category": "Geoarchaeology case studies",
+  "field": null,
+  "authors": "Trier, Ø. D., Cowley, D. C., Waldeland, A. U.",
+  "year": 2019,
+  "title": "Using deep neural networks on airborne laser scanning data: Results from a case study of semi-automatic mapping of archaeological topography on Arran, Scotland",
+  "venue": "Archaeological Prospection 26(2), 165-175 (online 2018)",
+  "doi": "10.1002/arp.1731",
+  "url": "https://doi.org/10.1002/arp.1731",
+  "dataset": "airborne laser scanning",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Isle of Arran, Scotland",
+   "lat": 55.5775,
+   "lng": -5.2375,
+   "zoom": 10
+  },
+  "library_id": null,
+  "one_line": "Tests whether a deep-learning detector developed in Norway transfers to Arran for roundhouses, shieling huts and clearance cairns; results range from usable to chaotic depending on the monument class."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Paleoseismology",
+  "authors": "Clark, K. J., Nissen, E. K., Howarth, J. D., et al.",
+  "year": 2017,
+  "title": "Highly variable coastal deformation in the 2016 MW7.8 Kaikōura earthquake reflects rupture complexity along a transpressional plate boundary",
+  "venue": "Earth and Planetary Science Letters",
+  "doi": "10.1016/j.epsl.2017.06.048",
+  "url": "https://doi.org/10.1016/j.epsl.2017.06.048",
+  "dataset": "pre- and post-earthquake airborne lidar (differenced)",
+  "modes": [
+   "dem difference",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Kaikōura coast and Kaikōura Peninsula, New Zealand",
+   "lat": -42.423,
+   "lng": 173.7,
+   "zoom": 9
+  },
+  "library_id": "custom-nz-linz-dem1",
+  "one_line": "Differences lidar from before and after the earthquake along about 110 km of coast and finds vertical displacements from -2.5 to +6.5 m, which require a revised multi-fault slip model."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Active faults",
+  "authors": "Haugerud, R. A., Harding, D. J., Johnson, S. Y., et al.",
+  "year": 2003,
+  "title": "High-Resolution Lidar Topography of the Puget Lowland, Washington - A Bonanza for Earth Science",
+  "venue": "GSA Today",
+  "doi": "10.1130/1052-5173(2003)13<0004:hltotp>2.0.co;2",
+  "url": "https://doi.org/10.1130/1052-5173(2003)13%3C0004:HLTOTP%3E2.0.CO;2",
+  "dataset": "airborne lidar (Puget Sound Lidar Consortium), >10,000 km2",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Puget Lowland, Washington, USA",
+   "lat": 47.6,
+   "lng": -122.4,
+   "zoom": 9
+  },
+  "library_id": "custom-us-3dep",
+  "one_line": "Leaf-off lidar of the forested Puget Lowland revealed previously unknown postglacial fault scarps, deep-seated landslides, uplifted beaches and glacial landforms."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Tectonic geomorphology and landslides",
+  "authors": "Chen, R.-F., Lin, C.-W., Chen, Y.-H., et al.",
+  "year": 2015,
+  "title": "Detecting and Characterizing Active Thrust Fault and Deep-Seated Landslides in Dense Forest Areas of Southern Taiwan Using Airborne LiDAR DEM",
+  "venue": "Remote Sensing",
+  "doi": "10.3390/rs71115443",
+  "url": "https://doi.org/10.3390/rs71115443",
+  "dataset": "airborne LiDAR DEM 1 m",
+  "modes": [
+   "slope",
+   "openness",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Meilongshan Fault near Xinfa, Laolung River, Liugui District, Kaohsiung, Taiwan",
+   "lat": 23.0292,
+   "lng": 120.6633,
+   "zoom": 11
+  },
+  "library_id": null,
+  "one_line": "Uses grayscale slope, openness with tinted slope and a red relief image map from 1 m lidar to confirm the Meilongshan Fault as an east-dipping thrust and to map a deep-seated landslide under dense forest."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Earthquake geology",
+  "authors": "Scott, C. P., Arrowsmith, J. R., Nissen, E., et al.",
+  "year": 2018,
+  "title": "The M7 2016 Kumamoto, Japan, Earthquake: 3-D Deformation Along the Fault and Within the Damage Zone Constrained From Differential Lidar Topography",
+  "venue": "Journal of Geophysical Research: Solid Earth",
+  "doi": "10.1029/2018jb015581",
+  "url": "https://doi.org/10.1029/2018JB015581",
+  "dataset": "pre- and post-event airborne lidar (differential topography)",
+  "modes": [
+   "dem difference",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Futagawa-Hinagu Fault Zone at Mashiki, Kumamoto, Kyushu, Japan",
+   "lat": 32.7833,
+   "lng": 130.8,
+   "zoom": 11
+  },
+  "library_id": "custom-jp-gsj-terrainrgb",
+  "one_line": "3-D differencing of lidar from before and after the earthquake shows that only about 36% of horizontal and 62% of vertical deformation happened on the main fault trace; the rest was spread through the damage zone."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Mass movements (Himalaya)",
+  "authors": "Shugar, D. H., Jacquemart, M., Shean, D., et al.",
+  "year": 2021,
+  "title": "A massive rock and ice avalanche caused the 2021 disaster at Chamoli, Indian Himalaya",
+  "venue": "Science",
+  "doi": "10.1126/science.abh4455",
+  "url": "https://doi.org/10.1126/science.abh4455",
+  "dataset": "satellite imagery and DEMs (data details not checked in this session)",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Ronti Peak north face and Ronti Gad, Chamoli, Uttarakhand, India",
+   "lat": 30.3692,
+   "lng": 79.7194,
+   "zoom": 11
+  },
+  "library_id": null,
+  "one_line": "Traces the February 2021 disaster to a rock and glacier-ice collapse from Ronti Peak that turned into a highly mobile debris flow and struck hydropower plants downstream."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Volcanology",
+  "authors": "Dietterich, H. R., Diefenbach, A. K., Soule, S. A., et al.",
+  "year": 2021,
+  "title": "Lava effusion rate evolution and erupted volume during the 2018 Kīlauea lower East Rift Zone eruption",
+  "venue": "Bulletin of Volcanology",
+  "doi": "10.1007/s00445-021-01443-6",
+  "url": "https://doi.org/10.1007/s00445-021-01443-6",
+  "dataset": "repeat DEMs from small UAS, airborne lidar and airborne InSAR, plus bathymetry",
+  "modes": [
+   "dem difference"
+  ],
+  "study_area": {
+   "name": "Kīlauea lower East Rift Zone, Hawaii",
+   "lat": 19.4736,
+   "lng": -154.9203,
+   "zoom": 11
+  },
+  "library_id": "custom-us-hi-dtm1-lerc",
+  "one_line": "Repeat topography during the eruption gives 0.9-1.4 km3 of lava (dense-rock equivalent), 0.4 km3 of it on land, with effusion rates rising to 200 m3/s or more by mid-June."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Volcanology",
+  "authors": "Aufaristama, M., Höskuldsson, Á., Ulfarsson, M. O., et al.",
+  "year": 2020,
+  "title": "Lava Flow Roughness on the 2014-2015 Lava Flow-Field at Holuhraun, Iceland, Derived from Airborne LiDAR and Photogrammetry",
+  "venue": "Geosciences",
+  "doi": "10.3390/geosciences10040125",
+  "url": "https://doi.org/10.3390/geosciences10040125",
+  "dataset": "airborne LiDAR and photogrammetric DEMs",
+  "modes": [
+   "TPI",
+   "roughness"
+  ],
+  "study_area": {
+   "name": "Holuhraun lava field, Iceland",
+   "lat": 64.85,
+   "lng": -16.83,
+   "zoom": 11
+  },
+  "library_id": null,
+  "one_line": "Uses the Topographic Position Index and the Hurst exponent to characterise the roughness of spiny lava, a lava pond, blocky surfaces and an inflated channel."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Volcanology",
+  "authors": "Pedersen, G. B. M., Belart, J. M. C., Óskarsson, B. V., et al.",
+  "year": 2022,
+  "title": "Volume, Effusion Rate, and Lava Transport During the 2021 Fagradalsfjall Eruption: Results From Near Real-Time Photogrammetric Monitoring",
+  "venue": "Geophysical Research Letters",
+  "doi": "10.1029/2021gl097125",
+  "url": "https://doi.org/10.1029/2021GL097125",
+  "dataset": "33 repeat photogrammetric DEMs (satellite and airborne)",
+  "modes": [
+   "dem difference"
+  ],
+  "study_area": {
+   "name": "Fagradalsfjall, Reykjanes Peninsula, Iceland",
+   "lat": 63.905,
+   "lng": -22.2725,
+   "zoom": 13
+  },
+  "library_id": null,
+  "one_line": "Near-real-time DEM differencing over the six-month eruption gives a 4.8 km2 lava field with a bulk volume of 150 +/- 3 million m3 and a mean thickness over 30 m."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Glaciology",
+  "authors": "Mannerfelt, E. S., Dehecq, A., Hugonnet, R., et al.",
+  "year": 2022,
+  "title": "Halving of Swiss glacier volume since 1931 observed from terrestrial image photogrammetry",
+  "venue": "The Cryosphere",
+  "doi": "10.5194/tc-16-3249-2022",
+  "url": "https://doi.org/10.5194/tc-16-3249-2022",
+  "dataset": "historical DEMs from terrestrial photographs (1916-1947) differenced with modern DEMs",
+  "modes": [
+   "dem difference"
+  ],
+  "study_area": {
+   "name": "Swiss Alps",
+   "lat": 46.4422,
+   "lng": 8.0772,
+   "zoom": 8
+  },
+  "library_id": "custom-ch-swissaltiregio",
+  "one_line": "Builds DEMs from about 21,700 archived terrestrial photographs (median date 1931) and differences them with modern DEMs, finding that Swiss glacier volume halved between 1931 and 2016."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Glacial geomorphology",
+  "authors": "Yu, P., Eyles, N., Sookhan, S.",
+  "year": 2015,
+  "title": "Automated drumlin shape and volume estimation using high resolution LiDAR imagery (Curvature Based Relief Separation): A test from the Wadena Drumlin Field, Minnesota",
+  "venue": "Geomorphology",
+  "doi": "10.1016/j.geomorph.2015.07.020",
+  "url": "https://doi.org/10.1016/j.geomorph.2015.07.020",
+  "dataset": "high-resolution LiDAR DEM",
+  "modes": [
+   "curvature",
+   "LRM",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Wadena Drumlin Field, Minnesota, USA",
+   "lat": 46.4425,
+   "lng": -95.1361,
+   "zoom": 10
+  },
+  "library_id": "custom-us-3dep",
+  "one_line": "Separates drumlins from the regional surface with a curvature-based method on lidar and estimates the shape and volume of each drumlin automatically."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Permafrost",
+  "authors": "Jones, B. M., Grosse, G., Arp, C. D., et al.",
+  "year": 2015,
+  "title": "Recent Arctic tundra fire initiates widespread thermokarst development",
+  "venue": "Scientific Reports",
+  "doi": "10.1038/srep15865",
+  "url": "https://doi.org/10.1038/srep15865",
+  "dataset": "airborne LiDAR DTMs 1 m, 2009 and 2014 (differenced)",
+  "modes": [
+   "dem difference",
+   "roughness"
+  ],
+  "study_area": {
+   "name": "Anaktuvuk River tundra fire scar, North Slope, Alaska",
+   "lat": 68.669,
+   "lng": -151.2283,
+   "zoom": 8
+  },
+  "library_id": "custom-us-ak-ifsar-dtm5",
+  "one_line": "Differencing lidar DTMs from two and seven years after the 2007 fire detects thaw subsidence across 34% of the burned tundra, compared with less than 1% in similar unburned terrain."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Karst",
+  "authors": "Zhu, J., Taylor, T. P., Currens, J. C., et al.",
+  "year": 2014,
+  "title": "Improved Karst Sinkhole Mapping in Kentucky Using Lidar Techniques: A Pilot Study in Floyds Fork Watershed",
+  "venue": "Journal of Cave and Karst Studies",
+  "doi": "10.4311/2013es0135",
+  "url": "https://doi.org/10.4311/2013ES0135",
+  "dataset": "LiDAR DEM",
+  "modes": [
+   "mound detector",
+   "hillshade",
+   "contours"
+  ],
+  "study_area": {
+   "name": "Floyds Fork watershed, Jefferson County, Kentucky, USA",
+   "lat": 38.1693,
+   "lng": -85.5021,
+   "zoom": 11
+  },
+  "library_id": "custom-us-3dep",
+  "one_line": "Extracting closed depressions from a lidar DEM found 1,683 probable sinkholes where 383 had been mapped; field checks confirmed 106 of 121."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Karst",
+  "authors": "Stefanovski, S., Kokalj, Ž., Stepišnik, U.",
+  "year": 2024,
+  "title": "Sky-view factor enhanced doline delineation: A comparative methodological review based on case studies in Slovenia",
+  "venue": "Geomorphology",
+  "doi": "10.1016/j.geomorph.2024.109389",
+  "url": "https://doi.org/10.1016/j.geomorph.2024.109389",
+  "dataset": "lidar DEM 1 m",
+  "modes": [
+   "SVF",
+   "mound detector"
+  ],
+  "study_area": {
+   "name": "Slovenian karst",
+   "lat": 46.1,
+   "lng": 14.8,
+   "zoom": 8
+  },
+  "library_id": null,
+  "one_line": "Delineates dolines by combining hydrological tools with the sky-view factor on a 1 m DEM and compares the result with depression filling (fit for identification only) and U-Net segmentation."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Conflict landscapes",
+  "authors": "de Matos-Machado, R., Toumazet, J.-P., Bergès, J.-C., et al.",
+  "year": 2019,
+  "title": "War landform mapping and classification on the Verdun battlefield (France) using airborne LiDAR and multivariate analysis",
+  "venue": "Earth Surface Processes and Landforms",
+  "doi": "10.1002/esp.4586",
+  "url": "https://doi.org/10.1002/esp.4586",
+  "dataset": "airborne LiDAR DTM of the whole battlefield",
+  "modes": [
+   "mound detector",
+   "hillshade",
+   "curvature"
+  ],
+  "study_area": {
+   "name": "Verdun battlefield, Meuse, France",
+   "lat": 49.2169,
+   "lng": 5.4383,
+   "zoom": 12
+  },
+  "library_id": "custom-ign-lidarhd-dtm-wms-raw",
+  "one_line": "Self-organising maps and clustering of lidar morphometry map more than a million First World War landforms (shell craters, shelters, gun positions) in eight shape classes; 93% of shell craters were correctly classified."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Conflict landscapes",
+  "authors": "Gheyle, W., Stichelbaut, B., Saey, T., et al.",
+  "year": 2018,
+  "title": "Scratching the surface of war. Airborne laser scans of the Great War conflict landscape in Flanders (Belgium)",
+  "venue": "Applied Geography",
+  "doi": "10.1016/j.apgeog.2017.11.011",
+  "url": "https://doi.org/10.1016/j.apgeog.2017.11.011",
+  "dataset": "DTM Flanders II (airborne LiDAR, 2013-2015)",
+  "modes": [
+   "SVF",
+   "LRM",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Former Ypres front zone, West Flanders, Belgium",
+   "lat": 50.8508,
+   "lng": 2.885,
+   "zoom": 11
+  },
+  "library_id": "custom-be-vlaanderen-dtm1",
+  "one_line": "The Flanders lidar DTM reveals previously unknown Great War remains (trenches, dugouts, shelled ground) in the former front zone, using sky-view factor and relief-model visualizations."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Conflict landscapes",
+  "authors": "Magnini, L., Bettineschi, C., De Guio, A.",
+  "year": 2016,
+  "title": "Object-based Shell Craters Classification from LiDAR-derived Sky-view Factor",
+  "venue": "Archaeological Prospection",
+  "doi": "10.1002/arp.1565",
+  "url": "https://doi.org/10.1002/arp.1565",
+  "dataset": "airborne LiDAR DTM",
+  "modes": [
+   "SVF",
+   "mound detector"
+  ],
+  "study_area": {
+   "name": "Vezzena/Luserna/Lavarone plateau, Trento, Italy",
+   "lat": 45.9214,
+   "lng": 11.3245,
+   "zoom": 12
+  },
+  "library_id": "custom-it-tinitaly",
+  "one_line": "Counts the remaining First World War shell craters on an Alpine plateau by object-based classification of a lidar sky-view factor image."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Historic industry",
+  "authors": "Suh, J. W., Anderson, E., Ouimet, W., et al.",
+  "year": 2021,
+  "title": "Mapping Relict Charcoal Hearths in New England Using Deep Convolutional Neural Networks and LiDAR Data",
+  "venue": "Remote Sensing",
+  "doi": "10.3390/rs13224630",
+  "url": "https://doi.org/10.3390/rs13224630",
+  "dataset": "regional open-access airborne LiDAR",
+  "modes": [
+   "slope",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "New England, USA",
+   "lat": 41.6,
+   "lng": -72.7,
+   "zoom": 8
+  },
+  "library_id": "custom-us-3dep",
+  "one_line": "A U-Net fed with slope, hillshade and VAT rasters detects relict charcoal hearths, with F1 up to 95.5% in small test regions and 86% over a 493 km2 town."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Historic industry",
+  "authors": "Raab, A., Bonhage, A., Schneider, A., et al.",
+  "year": 2019,
+  "title": "Spatial distribution of relict charcoal hearths in the former royal forest district Tauer (SE Brandenburg, Germany)",
+  "venue": "Quaternary International",
+  "doi": "10.1016/j.quaint.2017.07.022",
+  "url": "https://doi.org/10.1016/j.quaint.2017.07.022",
+  "dataset": "LiDAR-derived shaded-relief maps",
+  "modes": [
+   "hillshade",
+   "mound detector"
+  ],
+  "study_area": {
+   "name": "Tauer forest district near Peitz, Spree-Neisse, Brandenburg, Germany",
+   "lat": 51.8963,
+   "lng": 14.4553,
+   "zoom": 11
+  },
+  "library_id": null,
+  "one_line": "About 6,000 relict charcoal hearths were digitised from shaded-relief maps over 109 km2 of former royal forest that fuelled the Peitz ironworks (16th-19th century)."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Coastal dunes",
+  "authors": "Laporte-Fauret, Q., Castelle, B., Marieu, V., et al.",
+  "year": 2020,
+  "title": "Coastal Dune Morphology Evolution Combining Lidar and UAV Surveys, Truc Vert beach 2011-2019",
+  "venue": "Journal of Coastal Research (Special Issue 95)",
+  "doi": "10.2112/si95-032.1",
+  "url": "https://doi.org/10.2112/SI95-032.1",
+  "dataset": "airborne lidar and UAV photogrammetry, plus historical aerial photographs",
+  "modes": [
+   "dem difference",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Le Truc Vert, Lège-Cap-Ferret, Gironde, France",
+   "lat": 44.7142,
+   "lng": -1.24,
+   "zoom": 13
+  },
+  "library_id": "custom-ign-lidarhd-dtm-wms-raw",
+  "one_line": "Combines historical aerial photographs, airborne lidar and UAV surveys to track how the coastal dune at Truc Vert changed between 2011 and 2019."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Soil science",
+  "authors": "Fink, C. M., Drohan, P. J.",
+  "year": 2016,
+  "title": "High Resolution Hydric Soil Mapping using LiDAR Digital Terrain Modeling",
+  "venue": "Soil Science Society of America Journal",
+  "doi": "10.2136/sssaj2015.07.0270",
+  "url": "https://doi.org/10.2136/sssaj2015.07.0270",
+  "dataset": "1 m and 5 m LiDAR DEMs (Pennsylvania)",
+  "modes": [
+   "slope",
+   "mound detector"
+  ],
+  "study_area": {
+   "name": "Pennsylvania, northern Appalachians, USA",
+   "lat": 41.0,
+   "lng": -78.0,
+   "zoom": 8
+  },
+  "library_id": "custom-us-3dep",
+  "one_line": "A logistic regression on 1 m lidar slope and 5 m lidar depressions predicts hydric soils better than the 10 m USGS DEM."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Global DEM evaluation",
+  "authors": "Trevisani, S., Skrypitsyna, T. N., Florinsky, I. V.",
+  "year": 2023,
+  "title": "Global digital elevation models for terrain morphology analysis in mountain environments: insights on Copernicus GLO-30 and ALOS AW3D30 for a large Alpine area",
+  "venue": "Environmental Earth Sciences",
+  "doi": "10.1007/s12665-023-10882-7",
+  "url": "https://doi.org/10.1007/s12665-023-10882-7",
+  "dataset": "Copernicus DEM GLO-30 and ALOS AW3D30 against an airborne lidar reference DEM",
+  "modes": [
+   "roughness",
+   "curvature",
+   "slope"
+  ],
+  "study_area": {
+   "name": "Trentino Province, Italian Alps",
+   "lat": 46.4456,
+   "lng": 11.1731,
+   "zoom": 9
+  },
+  "library_id": "custom-it-tinitaly",
+  "one_line": "Across 6,210 km2 of Trentino, GLO-30 beats AW3D30 on gentle, unvegetated and urban terrain, AW3D30 does slightly better on rough, steep terrain, and neither captures fine-scale morphology on steep slopes."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Ancient field systems",
+  "authors": "Kooistra, M. J., Maas, G. J.",
+  "year": 2008,
+  "title": "The widespread occurrence of Celtic field systems in the central part of the Netherlands",
+  "venue": "Journal of Archaeological Science",
+  "doi": "10.1016/j.jas.2008.03.007",
+  "url": "https://doi.org/10.1016/j.jas.2008.03.007",
+  "dataset": "AHN (airborne laser altimetry)",
+  "modes": [
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Central Netherlands just north of the Rhine",
+   "lat": 52.0333,
+   "lng": 5.35,
+   "zoom": 10
+  },
+  "library_id": "custom-nl-ahn-dtm",
+  "one_line": "AHN laser altimetry detected about 1,200 ha of Iron Age Celtic field systems, about 1,050 ha of them new, and suggests about 4,500 ha originally."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Archaeology",
+  "authors": "Prümers, H., Betancourt, C. J., Iriarte, J., et al.",
+  "year": 2022,
+  "title": "Lidar reveals pre-Hispanic low-density urbanism in the Bolivian Amazon",
+  "venue": "Nature",
+  "doi": "10.1038/s41586-022-04780-4",
+  "url": "https://doi.org/10.1038/s41586-022-04780-4",
+  "dataset": "airborne lidar (with TanDEM-X 12 m for context)",
+  "modes": [
+   "hillshade",
+   "contours"
+  ],
+  "study_area": {
+   "name": "Casarabe culture sites, Llanos de Mojos, Beni, Bolivia",
+   "lat": -14.9898,
+   "lng": -64.5969,
+   "zoom": 10
+  },
+  "library_id": null,
+  "one_line": "Lidar reveals two large Casarabe-culture settlements, Cotoca (147 ha) and Landívar (315 ha), with platforms, ramparts, causeways and canals in a four-tier settlement system."
+ },
+ {
+  "category": "Case studies across fields",
+  "field": "Soil erosion",
+  "authors": "Khan, S., Bartley, R., Kinsey-Henderson, A., et al.",
+  "year": 2024,
+  "title": "Assessing gully erosion and rehabilitation using multi temporal LiDAR DEMs: Case study from the Great Barrier Reef catchments, Australia",
+  "venue": "International Soil and Water Conservation Research",
+  "doi": "10.1016/j.iswcr.2023.06.005",
+  "url": "https://doi.org/10.1016/j.iswcr.2023.06.005",
+  "dataset": "multi-temporal airborne LiDAR DEMs 0.5 m (DEMs of Difference)",
+  "modes": [
+   "dem difference",
+   "slope"
+  ],
+  "study_area": {
+   "name": "Bowen-Bogie catchment, Burdekin Basin, Queensland, Australia",
+   "lat": -20.3944,
+   "lng": 147.3486,
+   "zoom": 9
+  },
+  "library_id": "custom-au-qld-dem",
+  "one_line": "Repeat 0.5 m lidar at three gullies gives untreated erosion rates of 14-53 t/ha/yr and shows that rehabilitation raises the share of fine sediment kept in the gully to about 60%."
  }
 ]

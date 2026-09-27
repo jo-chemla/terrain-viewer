@@ -7,15 +7,15 @@ description: Not a standalone page — single source of truth embedded into the 
      mechanism — this one isn't listed in features/meta.json's pages array,
      so it never appears in the sidebar nav on its own. */}
 
-Grouped as they are in the panel — **Terrain Analysis** (surface derivatives + neighborhood statistics), **Relief Visualization** (multi-scale relief / visibility) and **Light** (normal-based shading). Most are supported by — and inspired by — **gdaldem** and the **RVT (Relief Visualization Toolbox)** QGIS plugin.
+Grouped as they are in the panel — **Terrain Analysis** (surface derivatives + neighborhood statistics), **Relief Visualization** (multi-scale relief / visibility) and **Light** (normal-based shading). Most are supported by — and inspired by — **gdaldem** and the **RVT (Relief Visualization Toolbox)** QGIS plugin ([Kokalj & Hesse 2017](https://doi.org/10.3986/9789612549848) is its guide). Each mode links its original paper; more on [Research References](https://terrain-viewer.iconem.com/docs/resources/research-references/).
 
 ### Terrain Analysis
 
 #### Surface derivatives
 
-- **Slope:** magnitude of the gradient
-- **Aspect:** direction of the gradient
-- **Curvature:** rate of slope change — Profile, Plan, Mean/Combined, Gaussian (Det Hessian), or Casorati
+- **Slope:** magnitude of the gradient, by Horn's 3×3 method as in gdaldem ([Horn 1981](https://doi.org/10.1109/PROC.1981.11918))
+- **Aspect:** direction of the gradient ([Horn 1981](https://doi.org/10.1109/PROC.1981.11918))
+- **Curvature:** rate of slope change — Profile, Plan, Mean/Combined, Gaussian (Det Hessian), or Casorati ([Zevenbergen & Thorne 1987](https://doi.org/10.1002/esp.3290120107); definitions in [Minár et al. 2020](https://doi.org/10.1016/j.earscirev.2020.103414))
   - **Profile (Flow Acceleration):** rate of slope change along the steepest-descent direction, affects flow acceleration
   - **Plan (Convergence/Divergence):** rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)
   - **Mean/Combined:** discrete Laplacian (∇²z) — mean curvature H = (κ₁+κ₂)/2, general surface bending that doesn't separate flow direction from contour direction
@@ -24,8 +24,8 @@ Grouped as they are in the panel — **Terrain Analysis** (surface derivatives +
 
 #### Neighborhood statistics
 
-- **TRI (Terrain Ruggedness Index):** mean elevation difference to neighbors
-- **TPI (Topographic Position Index):** elevation relative to neighborhood mean
+- **TRI (Terrain Ruggedness Index):** mean elevation difference to neighbors ([Riley, DeGloria & Elliot 1999](https://arc.lib.montana.edu/ojs/index.php/IJS/article/view/2914))
+- **TPI (Topographic Position Index):** elevation relative to neighborhood mean ([Weiss 2001](https://www.jennessent.com/downloads/TPI-poster-TNC_18x22.pdf); [Guisan, Weiss & Weiss 1999](https://doi.org/10.1023/A:1009841519580); on archaeological landscapes, [De Reu et al. 2013](https://doi.org/10.1016/j.geomorph.2012.12.015))
 - **Roughness:** max−min elevation in a neighborhood
 - **Shape Index:** SI = (2/π)·atan2(κ₁+κ₂, κ₁−κ₂) — Koenderink & van Doorn (1992); scale-free and bounded to [−1, 1] regardless of curvature magnitude: +1 dome/peak, +0.5 ridge, 0 saddle, −0.5 valley, −1 pit/bowl
 
@@ -39,15 +39,15 @@ A local 2D PCA of the window's gradient vectors, via the Förstner/Harris struct
 
 ### Relief Visualization
 
-- **LRM (Local Relief Model):** raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree. Conceptually close to **HAG (Height Above Ground)**, but with the "ground" being that smoothed local trend surface rather than a classified bare-earth model.
-- **SVF (Sky-View Factor):** the fraction of the sky hemisphere visible from a point (0–1), estimated from horizon angles sampled in many directions — darkens enclosed valleys and pits, brightens exposed ridges and summits, independent of any light direction
-- **Openness (Positive / Negative):** the mean zenith (positive) or nadir (negative) horizon angle over a search radius — positive openness emphasizes convex, exposed features (ridges, crests), negative openness emphasizes concave ones (channels, pits); a diffuse, illumination-free relief
+- **LRM (Local Relief Model):** raw elevation minus a low-pass-filtered version, isolating small features from large-scale topography — the low-pass mean is bilinearly interpolated from a lower-resolution tile further up the pyramid tree. Conceptually close to **HAG (Height Above Ground)**, but with the "ground" being that smoothed local trend surface rather than a classified bare-earth model ([Hesse 2010](https://doi.org/10.1002/arp.374)).
+- **SVF (Sky-View Factor):** the fraction of the sky hemisphere visible from a point (0–1), estimated from horizon angles sampled in many directions — darkens enclosed valleys and pits, brightens exposed ridges and summits, independent of any light direction ([Zakšek, Oštir & Kokalj 2011](https://doi.org/10.3390/rs3020398))
+- **Openness (Positive / Negative):** the mean zenith (positive) or nadir (negative) horizon angle over a search radius — positive openness emphasizes convex, exposed features (ridges, crests), negative openness emphasizes concave ones (channels, pits); a diffuse, illumination-free relief ([Yokoyama et al. 2002](https://gbank.gsj.jp/ld/resource/geolis/200201001); in archaeology, [Doneus 2013](https://doi.org/10.3390/rs5126427))
 - **Local Dominance:** how much a location visually towers over its surroundings — the mean angular drop to the terrain around it across a radius range, highlighting locally elevated features such as mounds, plateaus and terraces
 
 ### Light
 
 - **Matcap (material capture):** looks up a surface colour from a pre-lit sphere image using the surface normal as UV coordinates — a stylized, art-directable shading that doesn't depend on a directional light
-- **Phong:** real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; the "Live" renderer is a per-fragment GPU shader draped on the terrain mesh, "Legacy" the raster-tile pipeline (still the globe-capable one) — see the Lighting Effects panel
+- **Phong:** real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; the "Live" renderer is a per-fragment GPU shader draped on the terrain mesh, "Legacy" the raster-tile pipeline (still the globe-capable one) — see the Lighting Effects panel ([Phong 1975](https://doi.org/10.1145/360825.360839))
 - **Shadows:** hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light (a single-ray horizon-angle march toward the sun's azimuth); shares Phong/Hillshade's light direction, no separate control of its own beyond opacity and search radius
 
 *Neighborhood usually refers to a 3×3 kernel centered on the pixel.*
