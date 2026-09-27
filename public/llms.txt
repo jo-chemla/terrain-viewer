@@ -37,6 +37,7 @@ Agents that support skills can install one that does this for them: `npx skills 
 - [ESRI Wayback](https://terrain-viewer.iconem.com/docs/dev/esri-wayback/): The release-chained alternative to Google Earth Historical's per-tile dates
 - [Fumadocs customization](https://terrain-viewer.iconem.com/docs/dev/fumadocs-customization/): What this documentation site adds on top of a stock Fumadocs install — components, generators, and the Next base-path fixes
 - [Google Earth Historical (Time Machine) Protocol](https://terrain-viewer.iconem.com/docs/dev/ge-historical/): How the gehist:// protocol reverse-engineers Google Earth's historical imagery, and how it's wired into this app
+- [Indexing, SEO and Agents](https://terrain-viewer.iconem.com/docs/dev/indexing-and-seo/): What each discovery file and tag does, and how to register the site with Google and Bing
 - [Layer Order and Slots](https://terrain-viewer.iconem.com/docs/dev/layer-order/): Why every layer is inserted beforeId an invisible placeholder, and the order those placeholders are in
 - [ArcGIS LERC Elevation Protocol](https://terrain-viewer.iconem.com/docs/dev/lerc-protocol/): lerc:// — decoding Esri's float raster codec into Terrarium tiles, and why the tile pyramid is the only anonymous way into an ArcGIS elevation service
 - [Lighting Effects (Matcap / Phong / Hard Shadows)](https://terrain-viewer.iconem.com/docs/dev/lighting-effects/): Why these use a real surface normal and a live-GL fast path instead of the pseudo-elevation trick
