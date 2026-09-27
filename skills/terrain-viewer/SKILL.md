@@ -43,6 +43,34 @@ A mode's section switch (`showTerrainAnalysis`, `showReliefVisualization`, `show
 
 `splitStyle=side-by-side&terrainSourceB=<id or URL>` shows two sources next to each other; `splitStyle=overlay` stacks them with a slider.
 
+## Light and sun
+
+One light drives hillshade, Phong, Matcap and cast shadows. Three ways to set it:
+
+- **Free direction:** `illuminationDir` is the azimuth the light comes from, in degrees clockwise from north (315, north-west, by default); `illuminationAlt` its height above the horizon, 0 to 90 (45 by default).
+- **Attached to the world or to the camera:** `phongLightRelativeToCamera` and `matcapLightRelativeToCamera` (true by default) keep the light at the same angle to the viewer while the map rotates, so shading reads the same from any side; `false` pins it to the compass, like a real sun.
+- **From a date and time:** `lightUseDatetime=true` computes the sun's azimuth and height for the map centre from `lightDayOfYear` (1 to 366; 172 is about 21 June) and `lightTimeOfDay` (hours, 15.5 is 15:30). `lightTimeMode=local` (default) reads that hour on the civil clock at the map centre, daylight saving included; `utc` reads it as UTC. Add `showLightingEffects=true&showShadows=true` to cast terrain shadows for that moment.
+
+Example, shadows over the Grand Canyon on a winter afternoon: `https://terrain-viewer.iconem.com/?viewMode=3d&zoom=11&lat=36.10&lng=-112.11&pitch=60&lightUseDatetime=true&lightDayOfYear=355&lightTimeOfDay=15.5&showLightingEffects=true&showShadows=true`
+
+To sweep the light in an animation, put `illuminationDir` or `illuminationAlt` in the poses' `numericState` (see Animation).
+
+## Vector data: points, lines, polygons
+
+- **From a URL, in the link:** `drawingUrl=<percent-encoded URL>` loads GeoJSON, KML, GPX, FlatGeobuf or a Shapefile as a layer, re-fetched on every load and framed unless the link sets its own camera. Several: repeat the parameter, or separate URLs with commas (a comma inside a URL as `%2C`). The server must allow cross-origin requests.
+- **In the app, for the user to do:** the Drawing tool (Tools section, `openSections=drawing`) draws points, lines, polygons, rectangles and circles into named layers; **Import** reads a GeoJSON, KML, GPX or FlatGeobuf file from disk, and the arrow next to it reads one from a URL; **Export** saves GeoJSON. Drawings last for the session; **Settings, Browser Local Storage Persistence, Vector Layers** keeps them across reloads, in the user's own browser only.
+- A link cannot carry a user's local drawings: to share them, the user exports GeoJSON, puts it online and uses `drawingUrl`.
+
+## Sources, library, bookmarks and panels
+
+- **Terrain or basemap from a URL:** `terrainSourceA=<URL>` (see Terrain sources); `basemapSource=<id or URL>` with `showRasterBasemap=true` for imagery underneath (`{z}` in the URL means XYZ tiles, otherwise a COG).
+- **Make sources available without activating them:** `addSources=id1,id2` (library ids), `addTerrainUrl=`, `addBasemapUrl=`, `addOverlayUrl=` (repeatable). `overlayBasemapIds=` turns overlays on.
+- **Open a dialog on arrival:** `openLibrary=terrain` or `openLibrary=basemap` (the library of national and global datasets), `openDataLayers=true` (the data layers picker), `bookmarksGallery=true` (the user's bookmarks).
+- **Bookmarks** live in the user's browser. A bookmark to share is simply the link; bookmark lists move between browsers through the Bookmarks section's JSON export and import.
+- **Files on the user's disk:** a local COG can be added in the app (Terrain, add a source, local file); it stays in the browser and cannot travel in a link.
+- **Historical imagery:** `appMode=historical&basemapSourceA=wayback` (also `ge-historical`, `bing`, `hls`, `eox-s2`) with `dateA=<epoch milliseconds>`.
+- **Panels:** `openSections=animation,drawing` and `closeSections=` fold or unfold sidebar sections; `sidebarCollapsed=true` hides the panel, for embeds; `project=<name>` loads a preset.
+
 ## Animation
 
 A link can play an animation on open: the camera flies between two poses while any numeric setting moves with it, such as the light's azimuth for a sweeping sun, one mode fading out while another fades in, or terrain exaggeration growing.

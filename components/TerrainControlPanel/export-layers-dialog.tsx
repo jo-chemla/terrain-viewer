@@ -395,7 +395,7 @@ export const ExportLayersDialog: React.FC<{
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) abortRef.current?.abort(); onOpenChange(o) }}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[33.6rem] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Export layers</DialogTitle>
           <DialogDescription>

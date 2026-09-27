@@ -1,5 +1,7 @@
 "use client"
 
+import { solarPosition } from "@/lib/solar-position"
+import { utcOffsetHoursAt, utcInstantForDayOfYear } from "@/lib/timezone"
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsInteger, parseAsStringLiteral, parseAsArrayOf } from "nuqs"
 import Map, {
@@ -1462,6 +1464,29 @@ export function TerrainViewer() {
     }),
     [ state.localDominanceColorRamp, state.localDominanceCustomStops, state.localDominanceCustomStopsDiscrete, state.localDominanceMin, state.localDominanceMax, state.localDominanceOpacity, state.reliefVisualizationOpacity, state.localDominanceInvertColorRamp, rampOverrides[state.localDominanceColorRamp] ]
   )
+
+  // A link in datetime light mode (lightUseDatetime with lightDayOfYear and
+  // lightTimeOfDay) used to load with the default light: the sun direction
+  // is only written when the Date/Time sliders move. Compute it once on
+  // load, for the map centre, with the sliders' own conversion (local civil
+  // time including DST, or UTC, to true solar time).
+  const datetimeLightApplied = useRef(false)
+  useEffect(() => {
+    if (datetimeLightApplied.current) return
+    datetimeLightApplied.current = true
+    if (!state.lightUseDatetime) return
+    const day = state.lightDayOfYear, uiHour = state.lightTimeOfDay
+    const wrap24 = (h: number) => ((h % 24) + 24) % 24
+    const solarHour = state.lightTimeMode === "utc"
+      ? wrap24(uiHour + state.lng / 15)
+      : wrap24(uiHour - utcOffsetHoursAt(state.lat, state.lng, utcInstantForDayOfYear(day)) + state.lng / 15)
+    const sun = solarPosition(state.lat, state.lng, day, solarHour)
+    setState({
+      illuminationDir: Math.round((((sun.azimuth % 360) + 360) % 360) * 10) / 10,
+      illuminationAlt: Math.round(Math.max(0, Math.min(90, sun.altitude)) * 10) / 10,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Publish every mode's ramp for the export dialog, which colours modes
   // whose layer is not on the map (their section switched off).
