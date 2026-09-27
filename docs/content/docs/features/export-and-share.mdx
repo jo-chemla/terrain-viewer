@@ -25,19 +25,24 @@ The arrow beside **GeoTIFF** opens a menu: **Elevation (DEM) GeoTIFF**, the same
 
 | Group | What it holds | File |
 |---|---|---|
-| Elevation | The DEM | float32 GeoTIFF, EPSG:4326 |
-| Snapshot | Every visible layer, as seen | RGBA GeoTIFF, EPSG:3857 |
+| Snapshot | Every visible layer, as seen; above both branches | RGBA |
+| Elevation | The DEM | float32 GeoTIFF |
+| Raster Basemap | The basemap imagery, from its own tiles, listed even when hidden | RGBA |
+| Hillshade and Hypso | The terrain's own renders | RGBA |
 | Vector | Contour lines, mound candidates | GeoJSON |
-| Terrain Analysis, Relief Visualization | Each mode's raw values: slope, aspect and orientation in degrees, LRM, TPI and TRI in metres, sky-view factor in percent | float32 GeoTIFF, EPSG:4326, NaN = nodata |
-| Rendered layers | Hillshade, hypso, lighting, the raster basemap, and the modes as coloured on screen | RGBA GeoTIFF, EPSG:3857 |
+| Terrain Analysis, Relief Visualization | Each mode's raw values: slope, aspect and orientation in degrees, LRM, TPI and TRI in metres, sky-view factor in percent | float32 GeoTIFF, NaN = nodata |
+| Lighting Effects | Matcap, Phong, hard shadows, from their own tiles | RGBA |
+| Rendered layers | The modes as coloured on screen, basemap overlays | RGBA |
+
+Every raster is in Web Mercator (EPSG:3857), the grid of the tiles and of the map itself, so the exports line up with each other and with the snapshot without resampling. A colour-mapped mode is written next to its raw values as `…_colormapped_<date>.tif`.
 
 Under **Not visible**, the modes that are switched off can be exported too, even when their whole section is off: their tiles are computed for the export. Hidden rendered layers are shown for the moment of their capture.
 
-**Resolution.** *Screen*, labelled with the canvas size in pixels, exports exactly that many pixels at the zoom the map is drawing, so every tile is already cached and the whole export takes seconds. *Custom size* takes a longest edge, up to 16 384 px, and shows the other edge from the view's shape; tiles are fetched at the zoom that meets it. Either way the DEM and the values are resampled onto a regular EPSG:4326 grid covering exactly the view. The same choice drives the main **GeoTIFF** button. The snapshot and rendered layers are always the screen's own pixels.
+**Resolution.** *Screen*, labelled with the canvas size in pixels, exports exactly that many pixels at the zoom the map is drawing, so every tile is already cached and the whole export takes seconds. *Custom size* takes a longest edge, up to 16 384 px, and shows the other edge from the view's shape; tiles are fetched at the zoom that meets it. Either way the DEM and the values come out on a regular EPSG:3857 grid covering exactly the view. The same choice drives the main **GeoTIFF** button. The snapshot and rendered layers are always the screen's own pixels.
 
 Under the resolution, one line says what the batch will read: the terrain tiles at the source's own tile size, or a region read for WMS, VRT and difference sources (a few requests for the whole area), then how many tiles each mode computes from them, cached after the first.
 
-**Lighting Effects** (Matcap, Phong, hard shadows) export from their own tiles as RGBA on the same EPSG:4326 grid, at the export size and in any view, including while the live renderer draws them on screen. They use the light direction as set; the live renderer's "light follows the camera" option does not apply.
+**Lighting Effects** (Matcap, Phong, hard shadows) export from their own tiles as RGBA on the same EPSG:3857 grid, at the export size and in any view, including while the live renderer draws them on screen. They use the light direction as set; the live renderer's "light follows the camera" option does not apply.
 
 **Values as.** *Raw values* is the float32 GeoTIFF. *Coloured* runs the values through the mode's own colour ramp, with the bounds, symmetric and inverted settings you set, into an RGBA image on the same grid. *Both* writes the two. Curvature and shape index are stored ×1000 in their tiles for precision; the export divides that back out.
 

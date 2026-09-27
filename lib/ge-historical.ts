@@ -13,6 +13,7 @@
 // including a full dbRoot+tile round-trip) succeeds — they already send a
 // permissive Access-Control-Allow-Origin. No proxy needed, in dev OR
 // production, so none is used here.
+import { registerProtocol } from "./protocol-registry"
 import { useEffect, useState } from "react"
 import * as maplibregl from "maplibre-gl"
 import { registerGEHistorical } from "./ge-timemachine/ge-historical.js"
@@ -25,7 +26,11 @@ let geInstance: ReturnType<typeof registerGEHistorical> | null = null
  *  (see TerrainViewer.tsx), just lazily on first use instead of on mount. */
 function getGe() {
   if (!geInstance) {
-    geInstance = registerGEHistorical(maplibregl, {})
+    // The library registers its scheme by calling `addProtocol` on the object
+    // it is given. Handing it the registry instead of maplibregl means every
+    // consumer reaches gehist:// too (the basemap export failed with "No
+    // protocol registered for gehist://").
+    geInstance = registerGEHistorical({ addProtocol: registerProtocol } as unknown as typeof maplibregl, {})
   }
   return geInstance
 }

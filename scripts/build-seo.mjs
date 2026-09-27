@@ -85,7 +85,7 @@ Examples:
 
 ## Skill
 
-Agents that support skills can install one that does this for them: \`npx skills add jo-chemla/terrain-viewer\` (source: https://github.com/jo-chemla/terrain-viewer/blob/main/skills/terrain-viewer/SKILL.md).
+Agents that support skills can install one that does this for them: \`npx skills add Iconem/terrain-viewer\` (source: https://github.com/Iconem/terrain-viewer/blob/main/skills/terrain-viewer/SKILL.md).
 
 ${docsList}
 
@@ -93,7 +93,7 @@ ${docsList}
 
 - [All documentation in one file](${SITE}/docs/llms-full.txt)
 - [Documentation index for agents](${SITE}/docs/llms.txt)
-- [Source code](https://github.com/jo-chemla/terrain-viewer)
+- [Source code](https://github.com/Iconem/terrain-viewer)
 `
 writeFileSync("public/llms.txt", llms)
 console.log(`seo: sitemap.xml and llms.txt with ${pages.length} docs pages`)

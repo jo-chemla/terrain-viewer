@@ -98,6 +98,6 @@ registerRegionReader("demdiff", {
     const off = parseFloat(offset) || 0
     const data = new Float32Array(W * H)
     for (let i = 0; i < data.length; i++) data[i] = a.data[i] - b.data[i] + off // NaN on either side stays NaN
-    return { data, width: W, height: H, bbox, grid: "lonlat" }
+    return { data, width: W, height: H, bbox, grid: "mercator" }
   },
 })

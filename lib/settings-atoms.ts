@@ -604,3 +604,8 @@ export const galleryFlattenGroupsAtom = atomWithStorage("galleryFlattenGroups", 
 // off lets someone hide the curated examples entirely once their own list
 // has grown past needing them.
 export const galleryShowFeaturedAtom = atomWithStorage("galleryShowFeatured", true)
+
+/** Each derived mode's color-relief expression by layer id, published by
+ *  TerrainViewer whether or not the mode is on, so the export can colour a
+ *  mode whose layer is not on the map. */
+export const modeColorRampsAtom = atom<Record<string, unknown>>({})

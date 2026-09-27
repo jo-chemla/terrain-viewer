@@ -10,7 +10,7 @@ import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from "@/lib/matcap-textures"
 import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer } from "geotiff"
-import { encodeFloat32GeoTiff } from "@/lib/float-geotiff"
+import { encodeFloat32GeoTiff, toMercatorBbox } from "@/lib/float-geotiff"
 import { ExportLayersDialog } from "./export-layers-dialog"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import saveAs from "file-saver"
@@ -236,11 +236,14 @@ export const DownloadSection: React.FC<{
   const saveElevationGeoTiff = useCallback(async (
     elevationData: Float32Array, width: number, height: number,
     bbox: { west: number; south: number; east: number; north: number },
+    // The client path exports on the tiles' own Web Mercator grid; titiler's
+    // bbox request comes back in lon/lat.
+    epsg: 3857 | 4326 = 4326,
   ) => {
     // lib/float-geotiff.ts, not geotiff.js's writeArrayBuffer: that one writes
     // one byte per sample whatever BitsPerSample says, so every float DEM it
     // produced was unreadable (GDAL: "TIFFReadEncodedStrip ... failed").
-    const blob = new Blob([encodeFloat32GeoTiff(elevationData, width, height, bbox)], { type: "image/tiff" })
+    const blob = new Blob([encodeFloat32GeoTiff(elevationData, width, height, epsg === 3857 ? toMercatorBbox(bbox) : bbox, epsg)], { type: "image/tiff" })
     saveAs(blob, `terrain-dtm-${Date.now()}.tif`)
   }, [])
 
@@ -285,7 +288,7 @@ export const DownloadSection: React.FC<{
     }
     await saveElevationGeoTiff(result.data, result.width, result.height, {
       west: result.bbox[0], south: result.bbox[1], east: result.bbox[2], north: result.bbox[3],
-    })
+    }, outputSize ? 3857 : 4326)
   }, [state.sourceA, customTerrainSources, getTilesUrl, clientUpstream, getMapBounds, maxResolution, saveElevationGeoTiff, mapRef, exportResolutionMode])
 
   const exportDTMViaTitiler = useCallback(async (signal: AbortSignal) => {

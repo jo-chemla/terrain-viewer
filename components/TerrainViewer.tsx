@@ -22,7 +22,7 @@ import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   viewportCenterAtom, activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
-  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom } from "@/lib/settings-atoms"
+  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
 import { withSlowTileStats, resetSlowTileProgress } from "@/lib/tile-timing-stats"
@@ -1462,6 +1462,20 @@ export function TerrainViewer() {
     }),
     [ state.localDominanceColorRamp, state.localDominanceCustomStops, state.localDominanceCustomStopsDiscrete, state.localDominanceMin, state.localDominanceMax, state.localDominanceOpacity, state.reliefVisualizationOpacity, state.localDominanceInvertColorRamp, rampOverrides[state.localDominanceColorRamp] ]
   )
+
+  // Publish every mode's ramp for the export dialog, which colours modes
+  // whose layer is not on the map (their section switched off).
+  const setModeColorRamps = useSetAtom(modeColorRampsAtom)
+  useEffect(() => {
+    const pick = (p: unknown) => (p as Record<string, unknown> | undefined)?.["color-relief-color"]
+    setModeColorRamps({
+      "slope-relief": pick(slopeReliefPaint), "aspect-relief": pick(aspectReliefPaint), "tri-relief": pick(triReliefPaint),
+      "curvature-relief": pick(curvatureReliefPaint), "tpi-relief": pick(tpiReliefPaint), "lrm-relief": pick(lrmReliefPaint),
+      "roughness-relief": pick(roughnessReliefPaint), "shape-index-relief": pick(shapeIndexReliefPaint), "blobness-relief": pick(blobnessReliefPaint),
+      "eigen-ratio-relief": pick(eigenRatioReliefPaint), "orientation-relief": pick(orientationReliefPaint), "svf-relief": pick(svfReliefPaint),
+      "openness-relief": pick(opennessReliefPaint), "local-dominance-relief": pick(localDominanceReliefPaint),
+    })
+  }, [setModeColorRamps, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint, tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint, svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint])
 
   // circle-color expressions for the tells color-by marker styles, built from
   // the SAME ramp/range/invert state as the corresponding Slope-and-More layer

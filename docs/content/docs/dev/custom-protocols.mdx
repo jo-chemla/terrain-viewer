@@ -115,7 +115,7 @@ A tile handler answers one z/x/y at a time; an export wants one area at one size
 | `demdiff://` | The difference of its two operands' region reads, each through its own reader or tiles |
 | everything else | A tile mosaic at the zoom that meets the export size |
 
-The IGN LiDAR nDSM, a difference of two WMS layers, exports in two GetMap requests instead of a tile mosaic of each operand. COGs already had their own windowed read. A reader returns floats with NaN for nodata; the export resamples them onto its EPSG:4326 grid.
+The IGN LiDAR nDSM, a difference of two WMS layers, exports in two GetMap requests instead of a tile mosaic of each operand. COGs already had their own windowed read. A reader returns floats with NaN for nodata; on the export's EPSG:3857 grid, so they go straight into the file.
 
 ## Writing a new one
 

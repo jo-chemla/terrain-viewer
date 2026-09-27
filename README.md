@@ -31,7 +31,7 @@ Free and open source, by [Iconem](https://iconem.com). Hillshade, hypsometric ti
 Every setting lives in the URL, so an assistant can answer "show me the slope around the Matterhorn in 3D" with a link that opens exactly that. Install the [Terrain Viewer skill](skills/terrain-viewer/SKILL.md) for Claude Code, Codex, Cursor and other agents:
 
 ```bash
-npx skills add jo-chemla/terrain-viewer
+npx skills add Iconem/terrain-viewer
 ```
 
 Assistants that read the web use [llms.txt](https://terrain-viewer.iconem.com/llms.txt). More on the [AI assistants](https://terrain-viewer.iconem.com/docs/features/ai-assistants/) docs page.

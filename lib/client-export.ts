@@ -157,7 +157,13 @@ async function exportCogWindow(
   // default of the WHOLE image (confirmed against geotiffimage.js: it
   // destructures window/width/height/etc. but never bbox).
   const rasters = await tiff.readRasters({ bbox: reqBbox, width, height, resampleMethod: "bilinear", signal })
-  const data = Float32Array.from(rasters[0] as ArrayLike<number>)
+  let data: Float32Array<ArrayBuffer> = Float32Array.from(rasters[0] as ArrayLike<number>)
+  // The window's rows are evenly spaced in the COG's own CRS. Exports are
+  // written in EPSG:3857, which a Web Mercator COG already matches; a
+  // geographic one is re-spaced, a projected one (UTM...) is close enough
+  // over an export's extent.
+  const keys = image.getGeoKeys() as { GTModelTypeGeoKey?: number } | null
+  if (keys?.GTModelTypeGeoKey === 2) data = latRowsToMercator(data, width, height, bbox)
   return { data, width, height, bbox }
 }
 
@@ -222,8 +228,9 @@ export interface ExportElevationClientSideParams {
 const R = 6378137
 const mercY = (lat: number) => R * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
 
-/** Samples a Web Mercator tile mosaic onto a regular EPSG:4326 grid of
- *  exactly width x height over bbox, bilinearly. A pixel whose four
+/** Samples a Web Mercator tile mosaic onto a regular EPSG:3857 grid of
+ *  exactly width x height over bbox (rows evenly spaced in Web Mercator, the
+ *  same grid as the tiles and the canvas), bilinearly. A pixel whose four
  *  neighbours include nodata takes the nearest one instead, so holes keep
  *  hard edges rather than bleeding NaN or averaging into the data. */
 export function resampleMosaic(
@@ -237,9 +244,10 @@ export function resampleMosaic(
   const [w, s, e, n] = bbox
   const colX = new Float32Array(width)
   for (let i = 0; i < width; i++) colX[i] = ((w + ((i + 0.5) * (e - w)) / width - mw) / (me - mw)) * W - 0.5
+  const oTop = mercY(n), oSpan = oTop - mercY(s)
   for (let j = 0; j < height; j++) {
-    const lat = n - ((j + 0.5) * (n - s)) / height
-    const y = ((yTop - mercY(lat)) / ySpan) * H - 0.5
+    const my = oTop - ((j + 0.5) * oSpan) / height
+    const y = ((yTop - my) / ySpan) * H - 0.5
     const y0 = Math.max(0, Math.min(H - 1, Math.floor(y))), y1 = Math.min(H - 1, y0 + 1), fy = Math.min(1, Math.max(0, y - y0))
     for (let i = 0; i < width; i++) {
       const x = colX[i]
@@ -266,7 +274,7 @@ export function tileCountFor(bbox: [number, number, number, number], zoom: numbe
 }
 
 /** One template's values over exactly `bbox` at width x height, on the
- *  export's regular EPSG:4326 grid, NaN = nodata. A scheme with a region
+ *  export's regular EPSG:3857 grid, NaN = nodata. A scheme with a region
  *  reader (WMS, VRT, difference: lib/region-readers.ts) delivers the area in
  *  a few requests; anything else is a tile mosaic at `zoom`, or the lowest
  *  zoom that meets the size, walking down on 404 where coverage stops. */
@@ -280,7 +288,9 @@ export async function readRegionGrid(
     opts.onProgress?.(0)
     const r = await reader.read(template, bbox, width, height, opts.signal)
     opts.onProgress?.(1)
-    return { data: r.grid === "lonlat" ? r.data : resampleMosaic(r, bbox, width, height).data, resolutionLimited: false }
+    // A reader answers exactly the requested bbox and size on the same Web
+    // Mercator grid the export uses, so its pixels go straight through.
+    return { data: r.data, resolutionLimited: false }
   }
   const decodeRgb = encoding === "mapbox" ? terrainrgbToElevation : terrariumToElevation
   const decodePixel = (r: number, g: number, b: number, a: number) => (a < 255 ? NaN : decodeRgb(r, g, b))
@@ -310,15 +320,18 @@ export function describeRegionRead(
   return `${tileCountFor(bbox, z)} tiles of ${tileSize} px`
 }
 
-/** RGBA tiles (matcap://, phong://, shadow://) over exactly `bbox` at
- *  width x height on the export's EPSG:4326 grid: a tile mosaic through the
- *  registry, bilinear per channel. For the lighting exports, which are
- *  colours rather than values. */
+/** RGBA over exactly `bbox` at width x height on the export's EPSG:3857
+ *  grid, for colours rather than values: lighting (matcap://, phong://,
+ *  shadow://) and basemaps. A `{bbox-epsg-3857}` template (a WMS) is read as
+ *  a region, a GetMap per 2048 px chunk; anything else as tiles through the
+ *  registry, with `{quadkey}` (Bing) and custom schemes (gehist://) handled,
+ *  bilinear per channel. */
 export async function readRgbaRegion(
   template: string, tileSize: number, maxzoom: number,
   bbox: [number, number, number, number], width: number, height: number,
   opts: { signal?: AbortSignal; zoom?: number } = {},
 ): Promise<Uint8ClampedArray> {
+  if (template.includes("{bbox-epsg-3857}")) return readRgbaWmsRegion(template, bbox, width, height, opts.signal)
   const z = opts.zoom ?? pickZoomForResolution(bbox, width, height, tileSize, maxzoom)
   const n = 2 ** z
   const fx = (lon: number) => ((lon + 180) / 360) * n
@@ -337,7 +350,7 @@ export async function readRgbaRegion(
     while (jobs.length && failed === null) {
       const [tx, ty] = jobs.shift()!
       try {
-        const bitmap = await fetchTileBitmap(template.replace("{z}", String(z)).replace("{x}", String(tx)).replace("{y}", String(ty)), opts.signal)
+        const bitmap = await fetchTileBitmap(fillTileUrl(template, z, tx, ty), opts.signal)
         if (!bitmap) continue
         ctx.clearRect(0, 0, tileSize, tileSize)
         ctx.drawImage(bitmap, 0, 0, tileSize, tileSize)
@@ -353,9 +366,11 @@ export async function readRgbaRegion(
   // Output pixel centres -> mosaic pixels (Web Mercator rows), bilinear.
   const out = new Uint8ClampedArray(width * height * 4)
   const [w, s, e, nn] = bbox
+  // Output rows are evenly spaced in Web Mercator: tile-space y is linear in
+  // it, so this is a straight line between the bbox's north and south edges.
+  const fyN = fy(nn), fyS = fy(s)
   for (let j = 0; j < height; j++) {
-    const lat = nn - ((j + 0.5) * (nn - s)) / height
-    const my = (fy(lat) - y0) * tileSize - 0.5
+    const my = (fyN + ((j + 0.5) * (fyS - fyN)) / height - y0) * tileSize - 0.5
     const r0 = Math.max(0, Math.min(MH - 1, Math.floor(my))), r1 = Math.min(MH - 1, r0 + 1), ty = Math.min(1, Math.max(0, my - r0))
     for (let i = 0; i < width; i++) {
       const lon = w + ((i + 0.5) * (e - w)) / width
@@ -365,6 +380,72 @@ export async function readRgbaRegion(
       const o = (j * width + i) * 4
       for (let k = 0; k < 4; k++) out[o + k] = (mosaic[a + k] * (1 - tx) + mosaic[b + k] * tx) * (1 - ty) + (mosaic[c + k] * (1 - tx) + mosaic[d + k] * tx) * ty
     }
+  }
+  return out
+}
+
+/** A tile URL from a template: {z}/{x}/{y}, Bing's {quadkey}, and a
+ *  per-tile {bbox-epsg-3857}. */
+function fillTileUrl(template: string, z: number, x: number, y: number): string {
+  let url = template.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
+  if (url.includes("{quadkey}")) {
+    let q = ""
+    for (let i = z; i > 0; i--) {
+      const mask = 1 << (i - 1)
+      q += String((x & mask ? 1 : 0) + (y & mask ? 2 : 0))
+    }
+    url = url.replace("{quadkey}", q)
+  }
+  if (url.includes("{bbox-epsg-3857}")) {
+    const span = (2 * Math.PI * 6378137) / 2 ** z, o = Math.PI * 6378137
+    url = url.replace("{bbox-epsg-3857}", `${-o + x * span},${o - (y + 1) * span},${-o + (x + 1) * span},${o - y * span}`)
+  }
+  return url
+}
+
+/** A WMS basemap as one region: GetMap per 2048 px chunk at exactly the
+ *  export's size, drawn into place. */
+async function readRgbaWmsRegion(template: string, bbox: [number, number, number, number], W: number, H: number, signal?: AbortSignal): Promise<Uint8ClampedArray> {
+  const R = 6378137
+  const mx = (lon: number) => (R * lon * Math.PI) / 180
+  const my = (lat: number) => R * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+  const [w, s, e, n] = bbox
+  const x0 = mx(w), x1 = mx(e), y0 = my(s), y1 = my(n)
+  const CH = 2048
+  const out = new Uint8ClampedArray(W * H * 4)
+  const canvas = document.createElement("canvas")
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!
+  for (let cy = 0; cy < H; cy += CH) {
+    for (let cx = 0; cx < W; cx += CH) {
+      const cw = Math.min(CH, W - cx), ch = Math.min(CH, H - cy)
+      const b = `${x0 + ((x1 - x0) * cx) / W},${y1 - ((y1 - y0) * (cy + ch)) / H},${x0 + ((x1 - x0) * (cx + cw)) / W},${y1 - ((y1 - y0) * cy) / H}`
+      const url = template.replace("{bbox-epsg-3857}", b).replace(/([?&]WIDTH=)\d+/i, `$1${cw}`).replace(/([?&]HEIGHT=)\d+/i, `$1${ch}`)
+      const bitmap = await fetchTileBitmap(url, signal)
+      if (!bitmap) continue
+      canvas.width = cw; canvas.height = ch
+      ctx.clearRect(0, 0, cw, ch)
+      ctx.drawImage(bitmap, 0, 0, cw, ch)
+      bitmap.close()
+      const px = ctx.getImageData(0, 0, cw, ch).data
+      for (let r = 0; r < ch; r++) out.set(px.subarray(r * cw * 4, (r + 1) * cw * 4), ((cy + r) * W + cx) * 4)
+    }
+  }
+  return out
+}
+
+/** A geographic (lat/lon) raster's rows re-spaced to Web Mercator, for the
+ *  export grid; columns are linear in both and stay put. */
+function latRowsToMercator(data: Float32Array, width: number, height: number, bbox: [number, number, number, number]): Float32Array<ArrayBuffer> {
+  const R = 6378137
+  const my = (lat: number) => R * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+  const [, s, , n] = bbox
+  const top = my(n), span = top - my(s)
+  const out = new Float32Array(width * height)
+  for (let j = 0; j < height; j++) {
+    const m = top - ((j + 0.5) * span) / height
+    const lat = (Math.atan(Math.exp(m / R)) * 360) / Math.PI - 90
+    const src = Math.max(0, Math.min(height - 1, Math.round(((n - lat) / (n - s)) * height - 0.5)))
+    out.set(data.subarray(src * width, (src + 1) * width), j * width)
   }
   return out
 }

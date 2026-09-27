@@ -76,8 +76,10 @@ const georef = (bbox: GeoBbox, width: number, height: number): Entry[] => [
   { tag: 33922, type: DOUBLE, values: [0, 0, 0, bbox.west, bbox.north, 0] },                                   // ModelTiepoint
 ]
 
-/** Single band float32, EPSG:4326 (bbox in degrees), NaN = nodata. */
-export function encodeFloat32GeoTiff(data: Float32Array, width: number, height: number, bbox: GeoBbox): ArrayBuffer {
+/** Single band float32, NaN = nodata. EPSG:3857 (bbox in Web Mercator
+ *  metres, the grid of the tiles and of every export in the app) or
+ *  EPSG:4326 (bbox in degrees, the titiler DEM path). */
+export function encodeFloat32GeoTiff(data: Float32Array, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326 = 4326): ArrayBuffer {
   if (data.length !== width * height) throw new Error(`encodeFloat32GeoTiff: ${data.length} values for ${width}x${height}`)
   return writeTiff([
     { tag: 256, type: LONG, values: [width] },            // ImageWidth
@@ -92,8 +94,10 @@ export function encodeFloat32GeoTiff(data: Float32Array, width: number, height: 
     { tag: 284, type: SHORT, values: [1] },               // PlanarConfiguration
     { tag: 339, type: SHORT, values: [3] },               // SampleFormat: IEEE float
     ...georef(bbox, width, height),
-    // GeoKeyDirectory: geographic model, pixel is area, EPSG:4326.
-    { tag: 34735, type: SHORT, values: [1, 1, 0, 3, 1024, 0, 1, 2, 1025, 0, 1, 1, 2048, 0, 1, 4326] },
+    // GeoKeyDirectory, pixel is area: projected EPSG:3857 or geographic 4326.
+    { tag: 34735, type: SHORT, values: epsg === 3857
+      ? [1, 1, 0, 3, 1024, 0, 1, 1, 1025, 0, 1, 1, 3072, 0, 1, 3857]
+      : [1, 1, 0, 3, 1024, 0, 1, 2, 1025, 0, 1, 1, 2048, 0, 1, 4326] },
     { tag: 42113, type: ASCII, values: "nan\0" },         // GDAL_NODATA
   ], new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
 }
@@ -152,3 +156,11 @@ export async function encodeImageWithWorldFile(
 
 const WKT_4326 = 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]]'
 const WKT_3857 = 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1],EXTENSION["PROJ4","+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs"],AUTHORITY["EPSG","3857"]]'
+
+const R = 6378137
+/** A lon/lat bbox as Web Mercator metres, for the EPSG:3857 writers. */
+export function toMercatorBbox(b: GeoBbox): GeoBbox {
+  const x = (lon: number) => (R * lon * Math.PI) / 180
+  const y = (lat: number) => R * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+  return { west: x(b.west), south: y(b.south), east: x(b.east), north: y(b.north) }
+}
