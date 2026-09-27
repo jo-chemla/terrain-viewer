@@ -333,6 +333,30 @@ export function MapterhornSummary() {
   );
 }
 
+/** A link that opens the dataset in the app, framed on its footprint, with
+ *  hillshade: one indexable deep link per dataset, so "Swiss LiDAR hillshade"
+ *  and the like find a page that opens exactly that. */
+function openUrl(s: Source): string {
+  const q = new URLSearchParams({ terrainSourceA: s.id, showHillshade: "true", viewMode: "2d" })
+  if (s.bounds && s.bounds.length === 4) {
+    const [w, so, e, n] = s.bounds
+    const span = Math.max(e - w, (n - so) * 1.4, 1e-4)
+    const zoom = Math.max(3, Math.min(15, Math.round(Math.log2(360 / span)) + 1))
+    q.set("lat", ((so + n) / 2).toFixed(4))
+    q.set("lng", ((w + e) / 2).toFixed(4))
+    q.set("zoom", String(zoom))
+  }
+  return `https://terrain-viewer.iconem.com/?${q.toString()}`
+}
+
+function OpenLink({ s, label }: { s: Source; label: string }) {
+  return (
+    <a href={openUrl(s)} target="_blank" rel="noopener noreferrer" title={`Open ${label} in Terrain Viewer, with hillshade`}>
+      Open ↗
+    </a>
+  )
+}
+
 export function NationalDatasetsTable() {
   const rows = loadRows();
   return (
@@ -348,7 +372,7 @@ export function NationalDatasetsTable() {
               <thead>
                 <tr>
                   <th>ISO A3</th><th>Country</th><th>Dataset</th><th>Served as</th>
-                  <th>Endpoint</th><th>API resolution</th><th>Bulk download</th><th>Coverage</th><th>Mapterhorn</th>
+                  <th>Endpoint</th><th>API resolution</th><th>Bulk download</th><th>Coverage</th><th>Mapterhorn</th><th>View</th>
                 </tr>
               </thead>
               <tbody>
@@ -367,6 +391,7 @@ export function NationalDatasetsTable() {
                       <td>{s.bulkResolutionM !== undefined ? `${s.bulkResolutionM} m` : facts?.res ? "same" : "—"}</td>
                       <td>{facts?.coverage ?? "—"}</td>
                       <td>{mh === null || mh === undefined ? "not ingested" : `${mh} m`}</td>
+                      <td><OpenLink s={s} label={`${COUNTRY[iso] ?? iso} ${s.name.replace(ISO_RE, "")}`} /></td>
                     </tr>
                   );
                 })}
@@ -398,7 +423,7 @@ export function SubNationalTable() {
     <div className="overflow-x-auto">
       <table className="text-sm">
         <thead>
-          <tr><th>ISO A3</th><th>Region</th><th>Dataset</th><th>Served as</th><th>Endpoint</th><th>Resolution</th><th>Coverage</th></tr>
+          <tr><th>ISO A3</th><th>Region</th><th>Dataset</th><th>Served as</th><th>Endpoint</th><th>Resolution</th><th>Coverage</th><th>View</th></tr>
         </thead>
         <tbody>
           {rows.map(({ s, iso }) => (
@@ -410,6 +435,7 @@ export function SubNationalTable() {
               <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
               <td>{FACTS[s.id]?.res ?? "—"}</td>
               <td>{FACTS[s.id]?.coverage ?? "—"}</td>
+              <td><OpenLink s={s} label={s.name} /></td>
             </tr>
           ))}
         </tbody>
@@ -432,7 +458,7 @@ export function GlobalDatasetsTable() {
     <div className="overflow-x-auto">
       <table className="text-sm">
         <thead>
-          <tr><th>Dataset</th><th>Served as</th><th>Endpoint</th><th>Resolution</th><th>Coverage</th></tr>
+          <tr><th>Dataset</th><th>Served as</th><th>Endpoint</th><th>Resolution</th><th>Coverage</th><th>View</th></tr>
         </thead>
         <tbody>
           {rows.map((s) => (
@@ -442,6 +468,7 @@ export function GlobalDatasetsTable() {
               <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
               <td>{FACTS[s.id]?.res ?? "—"}</td>
               <td>{FACTS[s.id]?.coverage ?? "—"}</td>
+              <td><OpenLink s={s} label={s.name} /></td>
             </tr>
           ))}
         </tbody>

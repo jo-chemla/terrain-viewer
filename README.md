@@ -26,6 +26,16 @@ Free and open source, by [Iconem](https://iconem.com). Hillshade, hypsometric ti
 - **Download**: Export terrain as GeoTIFF via Titiler or screenshot canvas, and copy source URL for QGIS integration/gdal download (terrarium/terrainrgb encoding) + procedures
 - **User configuration**: Settings persisted to localStorage via jotai like titiler instance and maximum resolution, theme style switcher, API keys, additional terrain sources, and info
 
+## Use with AI assistants
+
+Every setting lives in the URL, so an assistant can answer "show me the slope around the Matterhorn in 3D" with a link that opens exactly that. Install the [Terrain Viewer skill](skills/terrain-viewer/SKILL.md) for Claude Code, Codex, Cursor and other agents:
+
+```bash
+npx skills add jo-chemla/terrain-viewer
+```
+
+Assistants that read the web use [llms.txt](https://terrain-viewer.iconem.com/llms.txt). More on the [AI assistants](https://terrain-viewer.iconem.com/docs/features/ai-assistants/) docs page.
+
 ## Getting Started
 
 ### Installation

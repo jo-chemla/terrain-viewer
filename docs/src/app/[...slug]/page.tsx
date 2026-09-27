@@ -73,6 +73,10 @@ export async function generateMetadata(props: PageProps<'/[...slug]'>): Promise<
   return {
     title: page.data.title,
     description: page.data.description,
+    // One address per page for search engines, whichever domain served it
+    // (the same export is on the GitHub Pages mirror and the historical
+    // domain). Relative to metadataBase (layout.tsx).
+    alternates: { canonical: `${params.slug.join('/')}/` },
     openGraph: {
       images: getPageImageUrl(page).url,
     },

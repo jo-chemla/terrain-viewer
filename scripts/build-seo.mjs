@@ -83,6 +83,10 @@ Examples:
 - Contours over a Maya LiDAR survey: ${SITE}/?viewMode=2d&zoom=15&lat=17.7338&lng=-91.2886&terrainSourceA=custom-mx-aguadafenix-lidar&showContoursAndGraticules=true&showContours=true&showHillshade=true
 - Hillshade and sky-view factor anywhere: ${SITE}/?zoom=12&lat=<lat>&lng=<lng>&showHillshade=true&showReliefVisualization=true&showSvf=true
 
+## Skill
+
+Agents that support skills can install one that does this for them: \`npx skills add jo-chemla/terrain-viewer\` (source: https://github.com/jo-chemla/terrain-viewer/blob/main/skills/terrain-viewer/SKILL.md).
+
 ${docsList}
 
 ## Optional

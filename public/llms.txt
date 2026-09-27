@@ -17,6 +17,10 @@ Examples:
 - Contours over a Maya LiDAR survey: https://terrain-viewer.iconem.com/?viewMode=2d&zoom=15&lat=17.7338&lng=-91.2886&terrainSourceA=custom-mx-aguadafenix-lidar&showContoursAndGraticules=true&showContours=true&showHillshade=true
 - Hillshade and sky-view factor anywhere: https://terrain-viewer.iconem.com/?zoom=12&lat=<lat>&lng=<lng>&showHillshade=true&showReliefVisualization=true&showSvf=true
 
+## Skill
+
+Agents that support skills can install one that does this for them: `npx skills add jo-chemla/terrain-viewer` (source: https://github.com/jo-chemla/terrain-viewer/blob/main/skills/terrain-viewer/SKILL.md).
+
 ## Overview
 
 - [Changelog](https://terrain-viewer.iconem.com/docs/changelog/): What shipped, and when — the TL;DR of every release
@@ -52,6 +56,7 @@ Examples:
 
 ## Features
 
+- [Use with AI Assistants](https://terrain-viewer.iconem.com/docs/features/ai-assistants/): A skill and an llms.txt that let ChatGPT, Claude and coding agents open Terrain Viewer on any place and visualization
 - [Basemaps & Historical Imagery](https://terrain-viewer.iconem.com/docs/features/basemaps-and-historical/): Satellite basemaps and the historical imagery timeline
 - [Bookmarks](https://terrain-viewer.iconem.com/docs/features/bookmarks/): Saving and organizing views
 - [Bring Your Own Data (BYOD)](https://terrain-viewer.iconem.com/docs/features/byod/): Adding your own terrain/basemap sources, including local files

@@ -8,6 +8,20 @@
          env(safe-area-inset-bottom) when docked full-bleed on mobile). -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Terrain Viewer</title>
+    <!-- Canonical: search engines treat every shared link (/?lat=...&zoom=...)
+         as the same page, the root, instead of thousands of near-duplicates.
+         Links keep working; this only tells crawlers which address to rank.
+         Each deploy points at its own root, so historical-satellite keeps
+         its own; the GitHub Pages mirror defers to the main domain. -->
+    <link rel="canonical" href="https://terrain-viewer.iconem.com/" />
+    <script>
+      (function () {
+        var h = location.hostname
+        if (h === "historical-satellite.iconem.com" || /\.historical-satellite\.iconem\.com$/.test(h)) {
+          document.querySelector('link[rel="canonical"]').href = location.origin + "/"
+        }
+      })()
+    </script>
     <meta name="description" content="Free, open-source web viewer for elevation data: hillshade, hypsometric tint, contours, slope, local relief model, sky-view factor and lighting over global terrain, national LiDAR and your own COG, VRT or WMS, in 2D, 3D and on a globe, with GeoTIFF export." />
     <!-- schema.org description of the app, read by search engines and AI
          assistants that do not run the JavaScript. -->
