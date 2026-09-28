@@ -3168,6 +3168,16 @@
       "note": ""
     },
     {
+      "key": "place",
+      "stateKey": "place",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": "A place name to show in the geocoder, expanded, as its placeholder: set by links that open a named site (the docs' Research References), so the view says where it is."
+    },
+    {
       "key": "invertColorRamp",
       "stateKey": "invertColorRamp",
       "type": "boolean",
@@ -3435,6 +3445,18 @@
       "file": "lib/settings-atoms.ts",
       "key": "exportResolutionMode",
       "default": "\"screen\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "exportValueFormat",
+      "default": "\"raw\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "exportImageFormat",
+      "default": "\"tiff\"",
       "note": ""
     },
     {

@@ -3485,6 +3485,16 @@
             }
           },
           {
+            "name": "place",
+            "in": "query",
+            "required": false,
+            "description": "State. A place name to show in the geocoder, expanded, as its placeholder: set by links that open a named site (the docs' Research References), so the view says where it is.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
             "name": "invertColorRamp",
             "in": "query",
             "required": false,
