@@ -329,13 +329,13 @@ const GROUPS = [
 
 const SERVING_LABEL = (t: string) => SERVING[t] ?? t;
 
-/** The comparison with Mapterhorn as a coloured text chevron (the MDX group
- *  headings use the same three), not an emoji. */
+/** The comparison with Mapterhorn as a chevron in the text's own size and
+ *  colour (the MDX group headings use the same three), not an emoji. */
 export function Trend({ dir }: { dir: string }) {
   const cls = "inline-block size-[1em] align-[-0.125em] shrink-0";
-  if (dir === "up") return <ChevronUp aria-label="finer or new" className={`${cls} text-emerald-600 dark:text-emerald-400`} strokeWidth={3} />;
-  if (dir === "down") return <ChevronDown aria-label="coarser" className={`${cls} text-amber-600 dark:text-amber-400`} strokeWidth={3} />;
-  return <Equal aria-label="same" className={`${cls} text-fd-muted-foreground`} strokeWidth={3} />;
+  if (dir === "up") return <ChevronUp aria-label="finer or new" className={cls} />;
+  if (dir === "down") return <ChevronDown aria-label="coarser" className={cls} />;
+  return <Equal aria-label="same" className={cls} />;
 }
 const hostOf = (u: string) =>
   u.replace(/^[a-z]+:\/\/\/vsicurl\//i, "").replace(/^WMS:/i, "").replace(/^https?:\/\//, "").split(/[/?]/)[0];
