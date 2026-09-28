@@ -685,7 +685,7 @@ export function TerrainControlPanel({
             )}
             {/* The same link as in the Settings dialog's header, one click
                 away. Relative "docs/" for the same reason as there. */}
-            <TooltipIconButton icon={BookOpen} tooltip="Documentation (new tab)" href="docs/" />
+            <TooltipIconButton icon={BookOpen} tooltip="Documentation" href="docs/" />
             <DataLayersModal open={isDataLayersOpen} onOpenChange={setIsDataLayersOpen} state={state} setState={setState} />
             <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState} historicalMode={historicalMode}/>
             <TooltipIconButton

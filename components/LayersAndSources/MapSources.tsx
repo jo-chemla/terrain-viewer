@@ -337,7 +337,7 @@ export const TerrainSources = memo(({
                 // wms-raw's URL requests a fixed WIDTH/HEIGHT (e.g. 514 = 512 + 1px buffer per side)
                 // matching a 512px tile — see public/maplibre-raster-dem-wms-float32-generic.html.
                 // TileJSON sources carry their own tileSize in the manifest maplibre fetches.
-                ...(customSource.type === 'tilejson' ? {} : { tileSize: customSource.type === 'wms-raw' ? 512 : 256 }),
+                ...(customSource.type === 'tilejson' ? {} : { tileSize: customSource.type === 'wms-raw' ? (customSource.tileSize ?? 512) : 256 }),
                 // Omitted rather than undefined: MapLibre 6 validates raster-dem
                 // sources on addSource and rejects a present-but-undefined key
                 // ("minzoom: number expected, undefined found"), which dropped
@@ -879,8 +879,11 @@ export const useClientDemUpstream = (
         if (customSource?.type === "dem-diff") {
             if (_nested || !diffA || !diffB) return null
             const a = diffA, b = diffB
-            const mins = [a.minzoom, b.minzoom].filter((v): v is number => typeof v === "number")
-            const maxs = [a.maxzoom, b.maxzoom].filter((v): v is number => typeof v === "number")
+            // Zooms in the difference's own 256 px tiles: an operand with
+            // 1024 px tiles at z16 has the pixels of a 256 px one at z18.
+            const shift = (op: { tileSize?: number }) => Math.max(0, Math.round(Math.log2((op.tileSize ?? 256) / 256)))
+            const mins = [a, b].filter((op) => typeof op.minzoom === "number").map((op) => op.minzoom! + shift(op))
+            const maxs = [a, b].filter((op) => typeof op.maxzoom === "number").map((op) => op.maxzoom! + shift(op))
             // maxzoom is the FINER operand's: the protocol upsamples the coarser
             // one from its ancestor tiles (see demdiff-protocol.ts), so the
             // difference keeps the detail of the finer side. With the coarser
@@ -965,7 +968,7 @@ export const useClientDemUpstream = (
             return {
                 template: `float32dem-bbox://${encodeURIComponent(appendNodataMarkers(customSource.url.replace(/^https?:\/\//, ""), customSource))}/{z}/{x}/{y}`,
                 encoding: "terrarium" as const,
-                tileSize: 512,
+                tileSize: customSource.tileSize ?? 512,
                 maxzoom: customSource.maxzoom,
             }
         }

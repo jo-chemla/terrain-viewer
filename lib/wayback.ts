@@ -150,13 +150,7 @@ async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: n
   if (pending) return pending
   const p = (async () => {
     try {
-      // Esri's metadata endpoint sometimes never answers; without a timeout
-      // one such request kept a view on its provisional release for good
-      // (useResolvedWaybackRelease waits for every date before its final pick).
-      const meta = await Promise.race([
-        getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("wayback metadata timeout")), 8000)),
-      ])
+      const meta = await getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber)
       fullMetaCache.set(key, meta)
       return meta
     } catch {
@@ -342,7 +336,12 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
   const heldRef = useRef<{ item: WaybackItem; targetDateMs: number } | null>(null)
 
   const item = useMemo(() => {
-    if (!targetDateMs || !items.length) return null
+    if (!targetDateMs) return null
+    // While a new place's releases or dates load (after a pan or a zoom), the
+    // imagery on screen stays up as a placeholder instead of the layer going
+    // blank until the new pick is known.
+    const placeholder = (itemsLoading || datesLoading) ? heldRef.current?.item ?? null : null
+    if (!items.length) return placeholder
     // While dates stream in, only releases whose REAL capture date is known
     // are candidates. Guessing from the release date picked the wrong
     // imagery: at Palmyra the release of 2014-02-20 carries imagery of 2009,
@@ -359,6 +358,7 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
       if (dist < bestDist) { bestDist = dist; best = it }
     }
     const held = heldRef.current
+    if (!best) return placeholder
     if (
       datesLoading && held && held.targetDateMs === targetDateMs &&
       items.some((it) => it.releaseNum === held.item.releaseNum)
@@ -371,7 +371,7 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
     }
     heldRef.current = best ? { item: best, targetDateMs } : null
     return best
-  }, [items, resolved, targetDateMs, datesLoading])
+  }, [items, resolved, targetDateMs, datesLoading, itemsLoading])
 
   return { item, loading: itemsLoading || datesLoading }
 }

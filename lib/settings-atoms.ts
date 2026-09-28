@@ -283,6 +283,13 @@ export interface CustomTerrainSource {
    *  which also produces an absurd detected zoom range. titiler warps
    *  server-side and gets both right. */
   cogViaTitiler?: boolean
+  /** Tile size in pixels for a 'wms-raw' source (default 512): the map asks
+   *  for tiles this size, the GetMap's WIDTH/HEIGHT should be it plus 2. A
+   *  slow WMS answers one 1026 px GetMap faster than four 514 px ones (IGN
+   *  LiDAR HD, measured 2026-09-28: 0.8-1.7 s against 3.9-4.8 s), since one
+   *  slow tile of four no longer sets the pace. Halve maxzoom's worth: a
+   *  1024 px tile at z16 has the pixels of a 512 px one at z17. */
+  tileSize?: number
   /** Value handed to titiler as its `nodata=` override for a 'cog' or 'vrt'
    *  source served through it. Defaults to 0 for COG and -999 for VRT, which
    *  is what the shipped RGE ALTI repack needs, but a UInt16 file such as the

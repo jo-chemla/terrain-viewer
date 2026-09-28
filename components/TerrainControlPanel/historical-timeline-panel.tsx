@@ -2,7 +2,7 @@ import type React from "react"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert, ArrowDownNarrowWide, History, ArrowLeftRight } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert, ArrowDownNarrowWide, History, Columns2, Layers2 } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { cn } from "@/lib/utils"
 import { track } from "@/lib/analytics"
@@ -442,6 +442,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => rawGeItems.map((t) => ({ source: "ge-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [rawGeItems],
   )
+  // A view asked for a date past Google Earth's newest capture here (a link
+  // saying "today", like the docs' old-against-recent comparisons) resolves
+  // to that newest capture once the dates are in, so the timeline shows the
+  // real date of the imagery on screen rather than the date asked for.
+  useEffect(() => {
+    if (geDatesLoading || !rawGeItems.length) return
+    const newest = Math.max(...rawGeItems.map((t) => t.dateMs))
+    const patch: Record<string, number> = {}
+    for (const side of activeViews) {
+      if (activeBasemapSourceFor(side) !== "ge-historical") continue
+      const field = viewFieldName(side, "date", state.basemapPerView)
+      if (state[field] > newest + 86400000) patch[field] = newest
+    }
+    if (Object.keys(patch).length) setState(patch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geDatesLoading, rawGeItems, activeViews.join(",")])
   // Real monthly mosaics (see lib/planet.ts) — only generated once a Planet
   // API key is set; otherwise this source simply contributes no ticks and
   // its pill is hidden below.
@@ -1186,33 +1202,44 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // every active+showing view — replaces the old tickA/tickB/captionLabelA/
   // captionLabelB/handleLeftPctA/handleLeftPctB pairs.
   const showingViews = activeViews.filter(showFor)
-  // Which view the timeline drives, switched from its header: each click
-  // moves to the next view on historical imagery. Arrow keys, clicks on the
-  // track and the pills all follow activeSide already.
-  const drivenSide = showingViews.includes(activeSide) ? activeSide : showingViews[0]
-  const sideSwitch = dualMode && showingViews.length > 1 ? (
+  // Compare dates from the timeline's header: one button puts historical
+  // imagery on every view of the split, syncs the timeline's source pills
+  // across them, and switches the split between overlay and side by side
+  // (from off, side by side). Each view keeps its own date; one that has
+  // none yet takes view A's.
+  const toSide = state.splitStyle !== "side-by-side"
+  const compareDates = () => {
+    const next = toSide ? "side-by-side" : "overlay"
+    const views: ViewId[] = next === "overlay" ? ["A", "B"] : GRID_LAYOUTS[(state.gridLayout ?? "2x1") as GridLayoutId].grid.flat()
+    const aSource = state[viewFieldName("A", "historicalActiveSource", true)] ?? state.historicalActiveSource
+    const aDate = state[viewFieldName("A", "date", true)] ?? state.date
+    const patch: Record<string, unknown> = { splitStyle: next, basemapPerView: true }
+    for (const side of views) {
+      patch[viewFieldName(side, "basemapSource", true)] = "historical"
+      if (!state[viewFieldName(side, "historicalActiveSource", true)]) patch[viewFieldName(side, "historicalActiveSource", true)] = aSource
+      if (!state[viewFieldName(side, "date", true)]) patch[viewFieldName(side, "date", true)] = aDate
+    }
+    setState(patch)
+    if (!syncEnabled) setSyncEnabled(true)
+  }
+  const CompareIcon = toSide ? Columns2 : Layers2
+  const compareButton = (
     <Tooltip>
       <TooltipTrigger
         render={
           <button
             type="button"
-            onClick={() => setActiveSide(showingViews[(showingViews.indexOf(drivenSide) + 1) % showingViews.length])}
-            className="cursor-pointer flex items-center gap-1 rounded px-1 py-0.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
-            aria-label={`Timeline drives view ${drivenSide}; switch to the next view`}
+            onClick={compareDates}
+            className="cursor-pointer p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+            aria-label={toSide ? "Historical imagery on every view, side by side" : "Historical imagery on every view, overlaid"}
           >
-            <span
-              className="inline-flex h-4 w-4 items-center justify-center rounded-sm text-[10px] text-white bg-primary"
-              style={colorFor(drivenSide) ? { backgroundColor: colorFor(drivenSide) } : undefined}
-            >
-              {drivenSide}
-            </span>
-            <ArrowLeftRight className="h-3.5 w-3.5" />
+            <CompareIcon className="h-4 w-4" />
           </button>
         }
       />
-      <TooltipContent>The timeline drives view {drivenSide}. Click for the next view ({showingViews.join(", ")})</TooltipContent>
+      <TooltipContent>{toSide ? "Compare dates side by side: historical imagery on every view, sources synced" : "Compare dates overlaid: historical imagery on both views, sources synced"}</TooltipContent>
     </Tooltip>
-  ) : null
+  )
   const tickBySide: Partial<Record<ViewId, TimelineTick>> = {}
   const captionBySide: Partial<Record<ViewId, string>> = {}
   const handleLeftPctBySide: Partial<Record<ViewId, number>> = {}
@@ -1463,7 +1490,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               reported mobile overflow). Mobile keeps every pill reachable in
               a single horizontally-scrollable line instead. */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {sideSwitch}
+            {compareButton}
             <h2 className="hidden sm:block text-sm font-semibold shrink-0">Historical Timeline</h2>
           </div>
           <div className="flex items-center gap-1.5 min-w-0 flex-nowrap overflow-x-auto justify-start sm:flex-wrap sm:overflow-x-visible sm:justify-end">
@@ -1658,7 +1685,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         // floating chip hovering over the track's own top-right corner, so
         // the panel doesn't grow a whole extra line just to hold 2 buttons.
         <div className="absolute top-2 right-3 z-20 flex items-center gap-0.5 rounded-md border border-border bg-background/90 backdrop-blur-sm shadow-sm px-0.5 py-0.5">
-          {sideSwitch}
+          {compareButton}
           {rasterBasemapOff && (
             <Tooltip>
               <TooltipTrigger

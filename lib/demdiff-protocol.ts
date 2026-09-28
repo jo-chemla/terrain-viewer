@@ -27,18 +27,25 @@ import { toTileImage, type TileImage } from "./tile-image"
  *
  * URL: demdiff://<encA>/<encB>/<tileSize>/<encoded template A>/<encoded template B>/{z}/{x}/{y}
  */
-const DEMDIFF_URL_RE = /^demdiff:\/\/(terrarium|mapbox)\/(terrarium|mapbox)\/(\d+)\/(-?[\d.]+)\/([^/]+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
+// The size segment may carry each operand's start depth, "256~2~0": an
+// operand whose tiles are larger than the output's (a 1024 px WMS under
+// 256 px difference tiles) is read from its ancestor that many levels up, at
+// its own pixel density, instead of asking it for every small tile.
+const DEMDIFF_URL_RE = /^demdiff:\/\/(terrarium|mapbox)\/(terrarium|mapbox)\/(\d+)(?:~(\d+)~(\d+))?\/(-?[\d.]+)\/([^/]+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
 export function buildDemDiffUrl(
-  minuend: { template: string; encoding: UpstreamEncoding },
-  subtrahend: { template: string; encoding: UpstreamEncoding },
+  minuend: { template: string; encoding: UpstreamEncoding; tileSize?: number },
+  subtrahend: { template: string; encoding: UpstreamEncoding; tileSize?: number },
   tileSize: number,
   /** Metres added to every difference (see CustomTerrainSource.diffOffsetM). */
   offsetM = 0,
 ): string {
   // Embedded templates keep their own {z}/{x}/{y} percent-encoded so
   // maplibre's literal placeholder substitution only touches the trailing ones.
-  return `demdiff://${minuend.encoding}/${subtrahend.encoding}/${tileSize}/${offsetM}/${encodeURIComponent(minuend.template)}/${encodeURIComponent(subtrahend.template)}/{z}/{x}/{y}`
+  const depth = (op: { tileSize?: number }) => Math.max(0, Math.round(Math.log2((op.tileSize ?? tileSize) / tileSize)))
+  const dA = depth(minuend), dB = depth(subtrahend)
+  const size = dA || dB ? `${tileSize}~${dA}~${dB}` : `${tileSize}`
+  return `demdiff://${minuend.encoding}/${subtrahend.encoding}/${size}/${offsetM}/${encodeURIComponent(minuend.template)}/${encodeURIComponent(subtrahend.template)}/{z}/{x}/{y}`
 }
 
 export const fillTileTemplate = (u: string, z: number, x: number, y: number) => u.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
@@ -48,8 +55,8 @@ export const fillTileTemplate = (u: string, z: number, x: number, y: number) => 
  *  the sub-window to read: the coarser side is then upsampled bilinearly
  *  on the fly, up to 6 levels, instead of going missing above its maxzoom. */
 export type Operand = { tile: DecodedTile; scale: number; ox: number; oy: number }
-export async function fetchOperand(template: string, enc: UpstreamEncoding, z: number, x: number, y: number, signal: AbortSignal): Promise<Operand | null> {
-  for (let d = 0; d <= 6 && z - d >= 0; d++) {
+export async function fetchOperand(template: string, enc: UpstreamEncoding, z: number, x: number, y: number, signal: AbortSignal, startDepth = 0): Promise<Operand | null> {
+  for (let d = startDepth; d <= startDepth + 6 && z - d >= 0; d++) {
     const tile = await fetchDecodedTile(sharedTileCache, fillTileTemplate(template, z - d, x >> d, y >> d), enc, signal)
     if (tile) {
       const scale = 1 << d
@@ -88,13 +95,14 @@ export async function demDiffProtocol(
 ): Promise<{ data: TileImage }> {
   const m = params.url.match(DEMDIFF_URL_RE)
   if (!m) throw new Error(`Invalid demdiff protocol URL: ${params.url}`)
-  const [, encA, encB, sizeStr, offsetStr, tplA, tplB, zS, xS, yS] = m
+  const [, encA, encB, sizeStr, dAStr, dBStr, offsetStr, tplA, tplB, zS, xS, yS] = m
+  const dA = parseInt(dAStr ?? "0", 10) || 0, dB = parseInt(dBStr ?? "0", 10) || 0
   const z = parseInt(zS, 10), x = parseInt(xS, 10), y = parseInt(yS, 10)
   const n = parseInt(sizeStr, 10)
   const offset = parseFloat(offsetStr) || 0
   const [a, b] = await Promise.all([
-    fetchOperand(decodeURIComponent(tplA), encA as UpstreamEncoding, z, x, y, abortController.signal),
-    fetchOperand(decodeURIComponent(tplB), encB as UpstreamEncoding, z, x, y, abortController.signal),
+    fetchOperand(decodeURIComponent(tplA), encA as UpstreamEncoding, z, x, y, abortController.signal, dA),
+    fetchOperand(decodeURIComponent(tplB), encB as UpstreamEncoding, z, x, y, abortController.signal, dB),
   ])
   if (abortController.signal.aborted) throw new Error("aborted")
 
