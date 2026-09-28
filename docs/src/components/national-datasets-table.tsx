@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import WORLD from "./world-110m.json";
+import { ChevronUp, ChevronDown, Equal } from "lucide-react";
 import DATASET_DOIS from "@/data/dataset-dois.json";
 
 type Country = { iso: string; name: string; rings: number[][] };
@@ -316,17 +317,26 @@ function bucketOf(r: Row): "new" | "finer" | "same" | "coarser" {
 }
 
 const GROUPS = [
-  { key: "new", icon: "⬆️", title: "Not in Mapterhorn",
+  { key: "new", icon: "up", title: "Not in Mapterhorn",
     blurb: "Countries Mapterhorn has no national source for, so it falls back to global Copernicus GLO-30 (~30 m). These add coverage that does not otherwise exist." },
-  { key: "finer", icon: "⬆️", title: "In Mapterhorn, but finer here",
+  { key: "finer", icon: "up", title: "In Mapterhorn, but finer here",
     blurb: "The agency's live API serves a finer grid than the bulk data Mapterhorn ingested." },
-  { key: "same", icon: "↔️", title: "In Mapterhorn at the same resolution",
+  { key: "same", icon: "same", title: "In Mapterhorn at the same resolution",
     blurb: "No resolution gain. Worth using only when you want data straight from the agency rather than a re-published tileset." },
-  { key: "coarser", icon: "⬇️", title: "In Mapterhorn at finer resolution",
+  { key: "coarser", icon: "down", title: "In Mapterhorn at finer resolution",
     blurb: "Mapterhorn ingested higher-resolution bulk data than the agency exposes over its API — for these, Mapterhorn is the better choice." },
 ] as const;
 
 const SERVING_LABEL = (t: string) => SERVING[t] ?? t;
+
+/** The comparison with Mapterhorn as a coloured text chevron (the MDX group
+ *  headings use the same three), not an emoji. */
+export function Trend({ dir }: { dir: string }) {
+  const cls = "inline-block size-[1em] align-[-0.125em] shrink-0";
+  if (dir === "up") return <ChevronUp aria-label="finer or new" className={`${cls} text-emerald-600 dark:text-emerald-400`} strokeWidth={3} />;
+  if (dir === "down") return <ChevronDown aria-label="coarser" className={`${cls} text-amber-600 dark:text-amber-400`} strokeWidth={3} />;
+  return <Equal aria-label="same" className={`${cls} text-fd-muted-foreground`} strokeWidth={3} />;
+}
 const hostOf = (u: string) =>
   u.replace(/^[a-z]+:\/\/\/vsicurl\//i, "").replace(/^WMS:/i, "").replace(/^https?:\/\//, "").split(/[/?]/)[0];
 const endpointOf = (u: string) => {
@@ -345,10 +355,10 @@ export function MapterhornSummary() {
     return r.ours === r.mh ? mine : `${mine} vs ${r.mh} m`;
   };
   const LINES = [
-    { icon: "⬆️", verdict: "Not in Mapterhorn", rows: by("new") },
-    { icon: "⬆️", verdict: "Finer here", rows: by("finer") },
-    { icon: "↔️", verdict: "Same as Mapterhorn", rows: by("same") },
-    { icon: "⬇️", verdict: "Finer in Mapterhorn", rows: by("coarser") },
+    { icon: "up", verdict: "Not in Mapterhorn", rows: by("new") },
+    { icon: "up", verdict: "Finer here", rows: by("finer") },
+    { icon: "same", verdict: "Same as Mapterhorn", rows: by("same") },
+    { icon: "down", verdict: "Finer in Mapterhorn", rows: by("coarser") },
   ];
   return (
     <table className="text-sm">
@@ -358,7 +368,7 @@ export function MapterhornSummary() {
       <tbody>
         {LINES.map((l) => (
           <tr key={l.verdict}>
-            <td><strong>{l.icon} {l.verdict}</strong></td>
+            <td><strong><Trend dir={l.icon} /> {l.verdict}</strong></td>
             <td>{l.rows.length}</td>
             <td>{l.rows.length ? [...new Set(l.rows.map(label))].join(" · ") : "—"}</td>
           </tr>
@@ -424,13 +434,13 @@ export function NationalDatasetsTable({ group }: { group?: (typeof GROUPS)[numbe
         if (!group.length) return null;
         return (
           <div key={g.key} className="overflow-x-auto">
-            {group ? null : <h3>{g.icon} {g.title}</h3>}
+            {group ? null : <h3><Trend dir={g.icon} /> {g.title}</h3>}
             <p className="text-sm text-fd-muted-foreground">{g.blurb}</p>
             <table className="text-sm">
               <thead>
                 <tr>
-                  <th>ISO A3</th><th>Country</th><th>Dataset</th><th>View</th><th>API resolution</th>
-                  <th>Bulk download</th><th>Coverage</th><th>Mapterhorn</th><th>Served as</th><th>Endpoint</th>
+                  <th>ISO A3</th><th>Country</th><th>Dataset</th><th>View</th><th>Coverage</th>
+                  <th>API resolution</th><th>Mapterhorn</th><th>Bulk download</th><th>Served as</th><th>Endpoint</th>
                 </tr>
               </thead>
               <tbody>
@@ -442,10 +452,10 @@ export function NationalDatasetsTable({ group }: { group?: (typeof GROUPS)[numbe
                       <td>{COUNTRY[iso] ?? iso}</td>
                       <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} infoUrl={s.infoUrl} /></td>
                       <td><OpenLink s={s} label={`${COUNTRY[iso] ?? iso} ${s.name.replace(ISO_RE, "")}`} /></td>
-                      <td>{facts?.res ?? "—"}</td>
-                      <td>{s.bulkResolutionM !== undefined ? `${s.bulkResolutionM} m` : facts?.res ? "same" : "—"}</td>
                       <td>{facts?.coverage ?? "—"}</td>
+                      <td>{facts?.res ?? "—"}</td>
                       <td>{mh === null || mh === undefined ? "not ingested" : `${mh} m`}</td>
+                      <td>{s.bulkResolutionM !== undefined ? `${s.bulkResolutionM} m` : facts?.res ? "same" : "—"}</td>
                       <td>{SERVING_LABEL(s.type)}</td>
                       <td>
                         <a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a>
@@ -493,24 +503,30 @@ export function SubNationalTable() {
     <div className="overflow-x-auto">
       <table className="text-sm">
         <thead>
-          <tr><th>ISO A3</th><th>Region</th><th>Dataset</th><th>View</th><th>Resolution</th><th>Coverage</th><th>Served as</th><th>Endpoint</th></tr>
+          <tr><th>ISO A3</th><th>Region</th><th>Dataset</th><th>View</th><th>Coverage</th><th>API resolution</th><th>Mapterhorn</th><th>Bulk download</th><th>Served as</th><th>Endpoint</th></tr>
         </thead>
         <tbody>
-          {rows.map(({ s, iso }) => (
+          {rows.map((r) => {
+            const { s, iso, mh } = r;
+            return (
             <tr key={s.id}>
               <td><code>{iso}</code></td>
               <td>{COUNTRY[iso] ?? iso}</td>
               <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} infoUrl={s.infoUrl} /></td>
               <td><OpenLink s={s} label={s.name} /></td>
-              <td>{FACTS[s.id]?.res ?? "—"}</td>
               <td>{FACTS[s.id]?.coverage ?? "—"}</td>
+              <td>{FACTS[s.id]?.res ?? "—"}</td>
+              <td>{mh === null || mh === undefined ? "not ingested" : <><Trend dir={bucketOf(r) === "coarser" ? "down" : bucketOf(r) === "same" ? "same" : "up"} /> {mh} m</>}</td>
+              <td>{s.bulkResolutionM !== undefined ? `${s.bulkResolutionM} m` : FACTS[s.id]?.res ? "same" : "—"}</td>
               <td>{SERVING_LABEL(s.type)}</td>
               <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       <p className="text-xs text-fd-muted-foreground">
+        <em>Mapterhorn</em> is its finest source anywhere in the country, which may not be this region: the chevron compares the two.{" "}
         {rows.length} regional datasets. Kept out of <em>Load Sample Sources</em> so the list stays
         national, but each remains importable with a <code>?terrainSourceA=&lt;id&gt;</code> link.
       </p>

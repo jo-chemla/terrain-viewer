@@ -1490,8 +1490,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               reported mobile overflow). Mobile keeps every pill reachable in
               a single horizontally-scrollable line instead. */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {compareButton}
             <h2 className="hidden sm:block text-sm font-semibold shrink-0">Historical Timeline</h2>
+            {compareButton}
           </div>
           <div className="flex items-center gap-1.5 min-w-0 flex-nowrap overflow-x-auto justify-start sm:flex-wrap sm:overflow-x-visible sm:justify-end">
             {visibleSourceIds.map((id) => {
