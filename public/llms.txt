@@ -88,6 +88,7 @@ Agents that support skills can install one that does this for them: `npx skills 
 - [Topography, Geomorphometry, Hydrology](https://terrain-viewer.iconem.com/docs/resources/geomorphometry/): Scientific literature and tools behind the terrain-analysis modes
 - [MapLibre GL Features](https://terrain-viewer.iconem.com/docs/resources/maplibre/): MapLibre GL JS issues, PRs, and plugins this app builds on or tracks
 - [Research References](https://terrain-viewer.iconem.com/docs/resources/research-references/): Studies from earthquake geology, volcanology, glaciology, rivers, ecology, landscape archaeology and heritage monitoring that read the ground from elevation data and historical imagery, each linked to its area in Terrain Viewer, with the methods and datasets behind the app's modes
+- [Research References Table](https://terrain-viewer.iconem.com/docs/resources/research-references-table/): All of Terrain Viewer's research references in one sortable, filterable table, by field, year, whether a study opens in the app, has a free copy or an elevation change, and whether it cites RVT or the Copernicus DEM
 
 ## Optional
 
