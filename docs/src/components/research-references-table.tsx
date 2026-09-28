@@ -22,8 +22,8 @@ const ROWS = references as unknown as Ref[];
 
 // Sections and their groups, in the order of the sectioned page.
 const SECTIONS: [string, string[]][] = [
-  ["Earth surface processes", ["Faults and earthquakes", "Volcanoes", "Landslides and mass movements", "Glaciers and glacial landforms", "Rivers and palaeochannels", "Karst", "Dunes, coasts and permafrost", "Soils and ecology"]],
   ["Landscape archaeology", ["Settlements under forest", "Mounds, tells and field systems", "Conflict landscapes", "Historic industry and mining"]],
+  ["Earth surface processes", ["Faults and earthquakes", "Volcanoes", "Landslides and mass movements", "Glaciers and glacial landforms", "Rivers and palaeochannels", "Karst", "Dunes, coasts and permafrost", "Soils and ecology"]],
   ["Historical imagery", ["Looting, damage and threats", "Prospection with Google Earth", "Declassified CORONA imagery", "Sentinel-2 and Landsat time series"]],
   ["Methods", ["Relief visualization", "Geomorphometry"]],
   ["Elevation data", ["Global DEMs"]],
