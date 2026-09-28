@@ -238,12 +238,83 @@ function boxDownsample(src: ArrayLike<number>, width: number, height: number, fa
   return { data: out, width: outW, height: outH }
 }
 
+// Cells within this many pixels of a hole are holes too. The server's
+// reprojection blends the -9999 sentinel into its valid neighbours, and while
+// most of that fringe lands below the floor, the cells nearest to valid ground
+// land ABOVE it: blending 0.1% of -9999 into 100 m of ground gives 90 m. Those
+// pass as terrain and, in a difference (DSM - DTM), stand up as spikes along
+// every coverage edge, up to the full height of the other surface. Measured on
+// IGN LiDAR HD at the Rade de Brest: two pixels left a few metres of residue
+// below coastal cells, three cleared it.
+const HOLE_FRINGE_PX = 3
+
+/** Grows a hole mask by `r` pixels (a square neighbourhood). */
+function dilateMask(mask: Uint8Array, w: number, h: number, r: number): Uint8Array {
+  // Separable: rows, then columns.
+  const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let on = 0
+      for (let d = -r; d <= r && !on; d++) { const xx = x + d; if (xx >= 0 && xx < w && mask[y * w + xx]) on = 1 }
+      tmp[y * w + x] = on
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let on = 0
+      for (let d = -r; d <= r && !on; d++) { const yy = y + d; if (yy >= 0 && yy < h && tmp[yy * w + x]) on = 1 }
+      out[y * w + x] = on
+    }
+  }
+  return out
+}
+
+/** The hole mask carried through resampleToBbox: a cell is a hole if any of
+ *  the four source cells its bilinear sample reads is. */
+function resampleMaskToBbox(
+  mask: Uint8Array, sw: number, sh: number,
+  srcBbox: [number, number, number, number], dstBbox: [number, number, number, number],
+  dw: number, dh: number,
+): Uint8Array {
+  const [sx0, sy0, sx1, sy1] = srcBbox
+  const [dx0, dy0, dx1, dy1] = dstBbox
+  const out = new Uint8Array(dw * dh)
+  const at = (x: number, y: number) => mask[Math.min(sh - 1, Math.max(0, y)) * sw + Math.min(sw - 1, Math.max(0, x))]
+  for (let y = 0; y < dh; y++) {
+    const fy = ((sy1 - (dy1 - ((y + 0.5) * (dy1 - dy0)) / dh)) * sh) / (sy1 - sy0) - 0.5
+    const y0 = Math.floor(fy)
+    for (let x = 0; x < dw; x++) {
+      const fx = ((dx0 + ((x + 0.5) * (dx1 - dx0)) / dw - sx0) * sw) / (sx1 - sx0) - 0.5
+      const x0 = Math.floor(fx)
+      out[y * dw + x] = at(x0, y0) | at(x0 + 1, y0) | at(x0, y0 + 1) | at(x0 + 1, y0 + 1)
+    }
+  }
+  return out
+}
+
+/** The hole mask carried through boxDownsample: a block is a hole if any cell in it is. */
+function downsampleMask(mask: Uint8Array, width: number, height: number, factor: number): Uint8Array {
+  const outW = Math.floor(width / factor), outH = Math.floor(height / factor)
+  const out = new Uint8Array(outW * outH)
+  for (let oy = 0; oy < outH; oy++) {
+    for (let ox = 0; ox < outW; ox++) {
+      let on = 0
+      for (let dy = 0; dy < factor && !on; dy++) {
+        const row = (oy * factor + dy) * width + ox * factor
+        for (let dx = 0; dx < factor && !on; dx++) if (mask[row + dx]) on = 1
+      }
+      out[oy * outW + ox] = on
+    }
+  }
+  return out
+}
+
 /** Fetches and decodes one float32 GeoTIFF GetMap/WCS response into
  *  elevations, with every marker (supersample, WCS 2.0, nodata fill) applied.
  *  The tile handler below encodes the result; the export's region reader
  *  (lib/region-readers.ts) uses the floats directly, for a whole area in one
  *  request. */
-export async function fetchFloat32Raster(rawUrl: string, signal?: AbortSignal): Promise<{ data: ArrayLike<number>; width: number; height: number }> {
+export async function fetchFloat32Raster(rawUrl: string, signal?: AbortSignal): Promise<{ data: ArrayLike<number>; width: number; height: number; hole?: Uint8Array }> {
   let url = "https://" + rawUrl.replace(/^float32dem:\/\//, "")
 
   // Captured before any marker rewriting, since the WCS 2.0 branch below removes
@@ -321,11 +392,22 @@ export async function fetchFloat32Raster(rawUrl: string, signal?: AbortSignal): 
   // Runs FIRST, before the re-grid below, because that step interpolates: filling
   // here means there is no -9999 left to smear into its valid neighbours. Doing it
   // the other way round would reintroduce exactly the fringe this exists to kill.
+  //
+  // The holes, grown by the smear fringe (HOLE_FRINGE_PX), are also kept as a
+  // mask: the tile is encoded with those cells marked as nodata, so a
+  // difference or a derived mode skips them instead of reading the fill as
+  // ground.
+  let hole: Uint8Array | undefined
   if (nodata) {
     const out = elevationData as Float32Array | Float64Array
+    let raw: Uint8Array | undefined
     for (let i = 0; i < out.length; i++) {
       const v = out[i]
-      if (isSentinel(v) || v <= nodata.floor) out[i] = nodata.fill
+      if (isSentinel(v) || v <= nodata.floor) (raw ??= new Uint8Array(out.length))[i] = 1
+    }
+    if (raw) {
+      hole = dilateMask(raw, width, height, HOLE_FRINGE_PX)
+      for (let i = 0; i < out.length; i++) if (hole[i]) out[i] = nodata.fill
     }
   }
 
@@ -340,24 +422,26 @@ export async function fetchFloat32Raster(rawUrl: string, signal?: AbortSignal): 
     const drifted = got.some((v, i) => Math.abs(v - requestedBbox[i]) > tol)
     if (drifted && isFinite(got[0]) && got[2] !== got[0] && got[3] !== got[1]) {
       elevationData = resampleToBbox(elevationData, width, height, got, requestedBbox, width, height)
+      if (hole) hole = resampleMaskToBbox(hole, width, height, got, requestedBbox, width, height)
     }
   }
 
   if (supersample > 1) {
     const down = boxDownsample(elevationData, width, height, supersample, holeFloor)
+    if (hole) hole = downsampleMask(hole, width, height, supersample)
     elevationData = down.data
     width = down.width
     height = down.height
   }
 
-  return { data: elevationData, width, height }
+  return hole ? { data: elevationData, width, height, hole } : { data: elevationData, width, height }
 }
 
 export async function float32demProtocol(
   params: { url: string },
   abortController: AbortController,
 ): Promise<{ data: TileImage }> {
-  const { data: elevationData, width, height } = await fetchFloat32Raster(params.url, abortController.signal)
+  const { data: elevationData, width, height, hole } = await fetchFloat32Raster(params.url, abortController.signal)
 
   // Encode to Terrarium (same formula as elevationToTerrarium in MapSources.tsx):
   // height = (R*256 + G + B/256) - 32768, so R/G pack the integer meters (16-bit split
@@ -371,7 +455,10 @@ export async function float32demProtocol(
     rgbaData[i * 4 + 0] = Math.floor(intPart / 256) & 0xff
     rgbaData[i * 4 + 1] = intPart & 0xff
     rgbaData[i * 4 + 2] = Math.floor((v - intPart) * 256) & 0xff
-    rgbaData[i * 4 + 3] = 255
+    // A hole keeps the fill height (MapLibre reads only the colour channels, so
+    // terrain stays level there) with alpha 254, which the app's own decoders
+    // read as nodata - the convention of the COG reader and demdiff tiles.
+    rgbaData[i * 4 + 3] = hole?.[i] ? 254 : 255
   }
 
   return { data: await toTileImage(rgbaData, width, height) }

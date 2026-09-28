@@ -52,7 +52,9 @@ const wmsReader = {
         for (let i = 0; i < cw; i++) {
           const si = Math.min(r.width - 1, Math.floor(((i + 0.5) * r.width) / cw))
           const v = r.data[sj * r.width + si]
-          out[(cy + j) * W + cx + i] = Number.isFinite(v) && !isSentinel(v) ? v : NaN
+          // A masked hole (sentinel, below the floor, or its smear fringe) is
+          // nodata in the export, not the fill height.
+          out[(cy + j) * W + cx + i] = Number.isFinite(v) && !isSentinel(v) && !r.hole?.[sj * r.width + si] ? v : NaN
         }
       }
     }))

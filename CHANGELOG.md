@@ -34,6 +34,7 @@
 - FLAI's coverage footprints are simplified at 20 m: 270 KB on the wire instead of 480.
 
 ### Fixes
+- **No more spikes along the edges of the IGN nDSM.** The difference read its WMS operands without the sources' nodata settings, so the -9999 sentinel's reprojection smear counted as ground and DSM minus DTM stood up in spikes of up to 1000 m along coastlines and coverage edges. The operands now carry the settings, and the WMS reader marks holes plus a three-pixel smear fringe as nodata (the fill height stays for 3D terrain), so differences, derived modes and exports skip them; an export writes them as nodata instead of 0 m.
 - Curvature and shape index exports were 1000 times too large: their tiles store the value ×1000, and the export now divides it back out.
 - COG DEM exports were always square, whatever the view's shape; they now match the view.
 - The Data layers picker: a card with a one‑line blurb drew a band above its thumbnail; turning off a group's last card turns the group off.

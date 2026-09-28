@@ -12,7 +12,7 @@ import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction } from '@geomatico/maplibre-cog-protocol'
 import { useCogMetadata, zoomRangeFromMetadata, type CogMetadata } from "@/lib/cog-metadata"
 import { elevationToTerrainrgb, elevationToTerrarium, resolveCustomEncoding } from "@/lib/elevation-encoding"
-import { resolveNodata, isSentinel } from "@/lib/nodata"
+import { resolveNodata, isSentinel, appendNodataMarkers } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
 import { buildDemDiffUrl } from "@/lib/demdiff-protocol"
@@ -958,8 +958,12 @@ export const useClientDemUpstream = (
             // that's also unset, MatcapSource/PhongSource fall back to a hardcoded
             // default themselves (a plain `type: "raster"` source can't take an
             // explicit `undefined` maxzoom at all).
+            // The source's nodata pair rides along as it does on the display
+            // path (source-builder.ts): without it a difference, a derived mode
+            // or an export read the WMS's -9999 and its reprojection smear as
+            // ground, and an nDSM grew spikes up to 1000 m along coverage edges.
             return {
-                template: `float32dem-bbox://${encodeURIComponent(customSource.url.replace(/^https?:\/\//, ""))}/{z}/{x}/{y}`,
+                template: `float32dem-bbox://${encodeURIComponent(appendNodataMarkers(customSource.url.replace(/^https?:\/\//, ""), customSource))}/{z}/{x}/{y}`,
                 encoding: "terrarium" as const,
                 tileSize: 512,
                 maxzoom: customSource.maxzoom,
