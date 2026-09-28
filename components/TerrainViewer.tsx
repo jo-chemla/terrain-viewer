@@ -878,6 +878,10 @@ export const QUERY_STATE_PARSERS = {
     showGraticuleLabels: parseAsBoolean.withDefault(false),
     graticuleDensity: parseAsFloat.withDefault(0),
     minimapMinimized: parseAsBoolean.withDefault(true),
+    // A place name to show in the geocoder, expanded, as its placeholder: set
+    // by links that open a named site (the docs' Research References), so the
+    // view says where it is. Not a search; typing replaces it.
+    place: parseAsString.withDefault(""),
     // Keyframe/360 animation state (animDuration, animLoopMode, animSmoothCamera,
     // animPlaying, animPlaying360, animPose1, animPose2Delta) lives in its own nuqs
     // hook inside CameraUtilities.tsx, not in this shared bag.
@@ -925,10 +929,24 @@ export function TerrainViewer() {
   // wedged tile queue never produces, so the watchdog used to be missing in
   // exactly the case it exists for. Idempotent (a WeakMap guards it), and
   // cheap enough to check after every render.
+  // Maps whose one-time setup (renderMap's onMapReady) has run, and each
+  // view's latest onMapReady, so the hook below can run it before "load".
+  const readyMaps = useRef(new WeakSet<object>()).current
+  const readyHandlers = useRef<Partial<Record<ViewId, () => void>>>({})
+  const styleLoadHooked = useRef(new WeakSet<object>()).current
   useEffect(() => {
     for (const side of VIEW_IDS) {
       const m = mapRefs[side].current?.getMap()
-      if (m) watchForStalledTiles(m)
+      if (!m) continue
+      watchForStalledTiles(m)
+      // The same early start for the view's setup: MapLibre's "load" waits
+      // for every tile of every source, which a slow or wedged one never
+      // delivers - the style document being in is enough for terrain.
+      if (!styleLoadHooked.has(m)) {
+        styleLoadHooked.add(m)
+        if ((m as unknown as { style?: { _loaded?: boolean } }).style?._loaded) readyHandlers.current[side]?.()
+        else m.once("style.load", () => readyHandlers.current[side]?.())
+      }
     }
   })
   const isSyncing = useRef(false)
@@ -3409,6 +3427,138 @@ export function TerrainViewer() {
       // flat-only (no terrain-elevation drape); that trade-off is unchanged.
       const effectivePhongRenderer = state.phongRenderer
 
+      // What each map sets up once it is ready: listeners, and the mapLoaded
+      // flag every terrain and camera effect waits on. MapLibre's "load" only
+      // fires once every tile of every source has arrived, which a slow source
+      // (the IGN WMS behind the nDSM, 20-150 s a tile) can hold off for good:
+      // 3D terrain then never came on. So it also runs on "style.load".
+        const onMapReady = () => {
+          const mapInstance = mapRefs[side].current?.getMap()
+          if (!mapInstance) return
+          setViewLoaded(side, true)
+          // Once per map: this runs on MapLibre's "load" or earlier on
+          // "style.load" (see the ready hook near watchForStalledTiles).
+          if (readyMaps.has(mapInstance)) return
+          readyMaps.add(mapInstance)
+          ensureLegacyTransform(mapInstance)
+
+          // A new viewport needs a fresh "how many tiles are pending" count
+          // for the slow ray-marched modes (SVF/Openness/Local Dominance) —
+          // see tile-timing-stats.ts. Reset at the START of a move/zoom
+          // (not continuously during it) so the counts actually accumulate
+          // while the map is settled instead of being wiped every frame.
+          mapInstance.on('movestart', () => resetSlowTileProgress())
+          mapInstance.on('zoomstart', () => resetSlowTileProgress())
+
+          // Source/tile load failures, deduped per (view, source) via
+          // trackedSourceErrors — only events carrying a sourceId (a
+          // failing source/tile, e.g. a CORS-blocked or 404ing BYOD COG),
+          // not MapLibre's generic error chatter.
+          mapInstance.on('error', (e) => {
+            const sourceId = (e as { sourceId?: string }).sourceId
+            if (!sourceId) return
+            const key = `${side}:${sourceId}`
+            if (trackedSourceErrors.current.has(key)) return
+            trackedSourceErrors.current.add(key)
+            track("error-map-source", { source: sourceId, message: String(e?.error?.message ?? "").slice(0, 120) })
+          })
+
+          // Once terrain is on, several routine operations leave the
+          // camera-target elevation stale — DEM tiles arriving AFTER
+          // setTerrain() already resolved elevation against nothing,
+          // resize() when a pane's pixel dimensions change between
+          // Overlay/Side/grid shapes, the padding easeTo below — and
+          // MapLibre will not re-resolve it on its own here, because
+          // `centerClampedToGround` is deliberately off (see just below)
+          // and the render loop's own re-resolve is gated on it
+          // (maplibre-gl 5.24, Map#_render). Left alone, a high-elevation
+          // focal point (the default viewport's Matterhorn summit, ~4478m)
+          // renders visibly off true screen-centre.
+          //
+          // 'idle' fires after every one of those settles, whatever caused
+          // it, so it's the one uniform place to re-resolve — but the work
+          // done there has to be cheap, since it can fire many times a
+          // second while DEM tiles stream in. resettleTerrainElevation is
+          // one DEM lookup plus a float assignment that MapLibre itself
+          // no-ops when unchanged; it is NOT a setTerrain() call, which
+          // would rebuild the Terrain + RenderToTexture pair and throw away
+          // the render-to-texture tile cache on every single idle (the
+          // "terrain blinks through several states while loading" flicker).
+          mapInstance.on('idle', () => {
+            // No terrain (2D historical mode): nothing to re-resolve, but the
+            // views still have to be pulled back together. Returning early
+            // here used to skip that too, so a pane mounted by a layout
+            // change (2x1 to 4x2) from the URL's camera - which trails the
+            // live one - stayed wherever it was born until the next gesture.
+            if (!mapInstance.getTerrain()) { reconcileOnIdleRef.current(); return }
+            // Live ground-clamping (centerClampedToGround, default true)
+            // re-resolves the camera's height from the DEM on EVERY rendered
+            // frame (maplibre-gl 5.24, Map#_render), which is the
+            // "follow-terrain" bob/climb while panning. Turn it off once
+            // terrain has settled — same knob this file's keyframe-recording
+            // animation already disables for its own one map instance (see
+            // setCenterClampedToGround(false) in CameraUtilities.tsx), just
+            // applied to every split view too. From here on elevation is
+            // resolved explicitly instead, by resettleTerrainElevation.
+            //
+            // Gated on the map's OWN live state, not on a per-view-id "have
+            // we done this yet" flag. A view id outlives the map instance
+            // behind it: turning split mode off unmounts view B and turning
+            // it back on builds a brand new <Map>, and an id-keyed flag then
+            // reads "already done" for a map that has never had it done —
+            // leaving that one pane permanently ground-clamped. That is
+            // exactly the "pan one view and the OTHER one follows the
+            // terrain" asymmetry: whichever pane still has clamping on only
+            // misbehaves when it ISN'T the pane being dragged, because being
+            // dragged is itself what suppresses the per-frame reclamp
+            // (MapLibre freezes elevation for the duration of a gesture).
+            if (mapInstance.getCenterClampedToGround()) {
+              // Hand off only once the clamp has written a real height. The
+              // first idle with terrain can land before it does (the padding
+              // ease froze elevation while the DEM tiles arrived, and
+              // MapLibre 6 writes the height on the next rendered frame):
+              // the elevation still reads 0 there, and re-anchoring from it
+              // would re-solve zoom and center along the view ray - a
+              // different view than the link asked for. Leave the clamp on
+              // for another idle instead; it costs one frame.
+              const tr = getTransform(mapInstance)
+              const terrain = mapInstance.terrain as unknown as { getElevationForLngLat?: (c: unknown, t: unknown) => number; getElevationForLngLatZoom: (c: unknown, z: number) => number }
+              const ground = terrain.getElevationForLngLat ? terrain.getElevationForLngLat(tr.center, tr) : terrain.getElevationForLngLatZoom(tr.center, tr.tileZoom)
+              if (Number.isFinite(ground) && Math.abs(ground - tr.elevation) >= ELEVATION_SETTLE_EPSILON_M) { reconcileOnIdleRef.current(); return }
+              mapInstance.setCenterClampedToGround(false)
+            }
+            resettleTerrainElevationOnIdleRef.current()
+          })
+
+          // const applyTerrain = () => {
+          //   if (mapInstance.getSource("terrainSource")) {
+          //     mapInstance.setTerrain({
+          //       source: "terrainSource",
+          //       exaggeration: state.exaggeration || 1,
+          //     })
+          //     mapInstance.off('sourcedata', applyTerrain)
+          //   }
+          // }
+          // mapInstance.on('sourcedata', applyTerrain)
+          // applyTerrain()
+
+
+
+
+          // // Override all texture bindings to use LINEAR
+          // const gl = (mapInstance.painter as any).context.gl
+          // const originalBindTexture = gl.bindTexture
+          // gl.bindTexture = function(target: number, texture: WebGLTexture) {
+          //   originalBindTexture.call(this, target, texture)
+          //   if (target === gl.TEXTURE_2D) {
+          //     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+          //     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+          //     console.log('🔥 Forced LINEAR filtering')
+          //   }
+          // }
+
+        }
+        readyHandlers.current[side] = onMapReady
       return (
         <Map
           ref={mapRefs[side]}
@@ -3436,128 +3586,7 @@ export function TerrainViewer() {
           }}
           onMove={(evt) => handleViewMove(side, evt)}
           onMoveEnd={handleViewMoveEnd}
-          onLoad={() => {
-            setViewLoaded(side, true)
-            const mapInstance = mapRefs[side].current?.getMap()
-            if (!mapInstance) return
-            ensureLegacyTransform(mapInstance)
-
-            // A new viewport needs a fresh "how many tiles are pending" count
-            // for the slow ray-marched modes (SVF/Openness/Local Dominance) —
-            // see tile-timing-stats.ts. Reset at the START of a move/zoom
-            // (not continuously during it) so the counts actually accumulate
-            // while the map is settled instead of being wiped every frame.
-            mapInstance.on('movestart', () => resetSlowTileProgress())
-            mapInstance.on('zoomstart', () => resetSlowTileProgress())
-
-            // Source/tile load failures, deduped per (view, source) via
-            // trackedSourceErrors — only events carrying a sourceId (a
-            // failing source/tile, e.g. a CORS-blocked or 404ing BYOD COG),
-            // not MapLibre's generic error chatter.
-            mapInstance.on('error', (e) => {
-              const sourceId = (e as { sourceId?: string }).sourceId
-              if (!sourceId) return
-              const key = `${side}:${sourceId}`
-              if (trackedSourceErrors.current.has(key)) return
-              trackedSourceErrors.current.add(key)
-              track("error-map-source", { source: sourceId, message: String(e?.error?.message ?? "").slice(0, 120) })
-            })
-
-            // Once terrain is on, several routine operations leave the
-            // camera-target elevation stale — DEM tiles arriving AFTER
-            // setTerrain() already resolved elevation against nothing,
-            // resize() when a pane's pixel dimensions change between
-            // Overlay/Side/grid shapes, the padding easeTo below — and
-            // MapLibre will not re-resolve it on its own here, because
-            // `centerClampedToGround` is deliberately off (see just below)
-            // and the render loop's own re-resolve is gated on it
-            // (maplibre-gl 5.24, Map#_render). Left alone, a high-elevation
-            // focal point (the default viewport's Matterhorn summit, ~4478m)
-            // renders visibly off true screen-centre.
-            //
-            // 'idle' fires after every one of those settles, whatever caused
-            // it, so it's the one uniform place to re-resolve — but the work
-            // done there has to be cheap, since it can fire many times a
-            // second while DEM tiles stream in. resettleTerrainElevation is
-            // one DEM lookup plus a float assignment that MapLibre itself
-            // no-ops when unchanged; it is NOT a setTerrain() call, which
-            // would rebuild the Terrain + RenderToTexture pair and throw away
-            // the render-to-texture tile cache on every single idle (the
-            // "terrain blinks through several states while loading" flicker).
-            mapInstance.on('idle', () => {
-              // No terrain (2D historical mode): nothing to re-resolve, but the
-              // views still have to be pulled back together. Returning early
-              // here used to skip that too, so a pane mounted by a layout
-              // change (2x1 to 4x2) from the URL's camera - which trails the
-              // live one - stayed wherever it was born until the next gesture.
-              if (!mapInstance.getTerrain()) { reconcileOnIdleRef.current(); return }
-              // Live ground-clamping (centerClampedToGround, default true)
-              // re-resolves the camera's height from the DEM on EVERY rendered
-              // frame (maplibre-gl 5.24, Map#_render), which is the
-              // "follow-terrain" bob/climb while panning. Turn it off once
-              // terrain has settled — same knob this file's keyframe-recording
-              // animation already disables for its own one map instance (see
-              // setCenterClampedToGround(false) in CameraUtilities.tsx), just
-              // applied to every split view too. From here on elevation is
-              // resolved explicitly instead, by resettleTerrainElevation.
-              //
-              // Gated on the map's OWN live state, not on a per-view-id "have
-              // we done this yet" flag. A view id outlives the map instance
-              // behind it: turning split mode off unmounts view B and turning
-              // it back on builds a brand new <Map>, and an id-keyed flag then
-              // reads "already done" for a map that has never had it done —
-              // leaving that one pane permanently ground-clamped. That is
-              // exactly the "pan one view and the OTHER one follows the
-              // terrain" asymmetry: whichever pane still has clamping on only
-              // misbehaves when it ISN'T the pane being dragged, because being
-              // dragged is itself what suppresses the per-frame reclamp
-              // (MapLibre freezes elevation for the duration of a gesture).
-              if (mapInstance.getCenterClampedToGround()) {
-                // Hand off only once the clamp has written a real height. The
-                // first idle with terrain can land before it does (the padding
-                // ease froze elevation while the DEM tiles arrived, and
-                // MapLibre 6 writes the height on the next rendered frame):
-                // the elevation still reads 0 there, and re-anchoring from it
-                // would re-solve zoom and center along the view ray - a
-                // different view than the link asked for. Leave the clamp on
-                // for another idle instead; it costs one frame.
-                const tr = getTransform(mapInstance)
-                const terrain = mapInstance.terrain as unknown as { getElevationForLngLat?: (c: unknown, t: unknown) => number; getElevationForLngLatZoom: (c: unknown, z: number) => number }
-                const ground = terrain.getElevationForLngLat ? terrain.getElevationForLngLat(tr.center, tr) : terrain.getElevationForLngLatZoom(tr.center, tr.tileZoom)
-                if (Number.isFinite(ground) && Math.abs(ground - tr.elevation) >= ELEVATION_SETTLE_EPSILON_M) { reconcileOnIdleRef.current(); return }
-                mapInstance.setCenterClampedToGround(false)
-              }
-              resettleTerrainElevationOnIdleRef.current()
-            })
-
-            // const applyTerrain = () => {
-            //   if (mapInstance.getSource("terrainSource")) {
-            //     mapInstance.setTerrain({
-            //       source: "terrainSource",
-            //       exaggeration: state.exaggeration || 1,
-            //     })
-            //     mapInstance.off('sourcedata', applyTerrain)
-            //   }
-            // }
-            // mapInstance.on('sourcedata', applyTerrain)
-            // applyTerrain()
-
-
-
-
-            // // Override all texture bindings to use LINEAR
-            // const gl = (mapInstance.painter as any).context.gl
-            // const originalBindTexture = gl.bindTexture
-            // gl.bindTexture = function(target: number, texture: WebGLTexture) {
-            //   originalBindTexture.call(this, target, texture)
-            //   if (target === gl.TEXTURE_2D) {
-            //     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-            //     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-            //     console.log('🔥 Forced LINEAR filtering')
-            //   }
-            // }
-
-          }}
+          onLoad={onMapReady}
           sky={state.showBackground && !isHistoricalMode ? getSkyConfig() : getNoSkyConfig()}
           minPitch={0}
           // 2D is a locked nadir top-down view: no pitch (maxPitch 0) and no
@@ -4027,7 +4056,8 @@ export function TerrainViewer() {
               {!activeProjectConfig?.hideMapControls?.includes("geocoder") && (
                 <GeocoderControl
                   position="top-left"
-                  placeholder="Search and press Enter"
+                  placeholder={state.place || "Search and press Enter"}
+                  startExpanded={Boolean(state.place)}
                   // A small dot instead of maplibre-gl-geocoder's default big pin,
                   // matching the Elevation Picker's point markers for visual consistency.
                   marker={{

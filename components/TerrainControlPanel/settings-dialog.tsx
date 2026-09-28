@@ -574,7 +574,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             // copied into dist/docs alongside the app by the GH Pages
             // workflow; in dev, vite.config.ts's own /docs proxy forwards
             // here to the docs app's separate dev server instead).
-            onClick={() => window.open("docs/", "_blank", "noopener,noreferrer")}
+            href="docs/"
           />
           <TooltipIconButton
             icon={allSettingsFolded ? ChevronsUpDown : ChevronsDownUp}

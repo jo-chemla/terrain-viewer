@@ -150,7 +150,13 @@ async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: n
   if (pending) return pending
   const p = (async () => {
     try {
-      const meta = await getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber)
+      // Esri's metadata endpoint sometimes never answers; without a timeout
+      // one such request kept a view on its provisional release for good
+      // (useResolvedWaybackRelease waits for every date before its final pick).
+      const meta = await Promise.race([
+        getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("wayback metadata timeout")), 8000)),
+      ])
       fullMetaCache.set(key, meta)
       return meta
     } catch {
@@ -337,17 +343,31 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
 
   const item = useMemo(() => {
     if (!targetDateMs || !items.length) return null
+    // While dates stream in, only releases whose REAL capture date is known
+    // are candidates. Guessing from the release date picked the wrong
+    // imagery: at Palmyra the release of 2014-02-20 carries imagery of 2009,
+    // so a view asked for 2014 showed 2009 until every date had arrived.
+    // An empty view for the second or two before the first dates is better
+    // than a wrong one (see MapSources.tsx's Wayback source).
+    const dateOf = (it: WaybackItem) => resolved[it.releaseNum]?.dateMs ?? (datesLoading ? null : it.releaseDatetime)
+    let best: WaybackItem | null = null
+    let bestDist = Infinity
+    for (const it of items) {
+      const d = dateOf(it)
+      if (d == null) continue
+      const dist = Math.abs(d - targetDateMs)
+      if (dist < bestDist) { bestDist = dist; best = it }
+    }
     const held = heldRef.current
     if (
       datesLoading && held && held.targetDateMs === targetDateMs &&
       items.some((it) => it.releaseNum === held.item.releaseNum)
-    ) return held.item
-    let best: WaybackItem | null = null
-    let bestDist = Infinity
-    for (const it of items) {
-      const realDateMs = resolved[it.releaseNum]?.dateMs ?? it.releaseDatetime
-      const dist = Math.abs(realDateMs - targetDateMs)
-      if (dist < bestDist) { bestDist = dist; best = it }
+    ) {
+      // Keep the held pick unless a newly dated release is clearly closer
+      // (three months), so a view swaps imagery once, not with every date.
+      const heldDate = dateOf(held.item)
+      const heldDist = heldDate == null ? Infinity : Math.abs(heldDate - targetDateMs)
+      if (!best || bestDist >= heldDist - 90 * 86400000) return held.item
     }
     heldRef.current = best ? { item: best, targetDateMs } : null
     return best

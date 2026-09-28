@@ -3,7 +3,7 @@ import { useState, useMemo, useCallback, useEffect, useRef  } from "react"
 import { useQueryStates } from "nuqs"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home, ArrowLeftRight, Layers } from "lucide-react"
+import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home, ArrowLeftRight, Layers, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -683,6 +683,9 @@ export function TerrainControlPanel({
                 onClick={() => setIsDataLayersOpen(true)}
               />
             )}
+            {/* The same link as in the Settings dialog's header, one click
+                away. Relative "docs/" for the same reason as there. */}
+            <TooltipIconButton icon={BookOpen} tooltip="Documentation (new tab)" href="docs/" />
             <DataLayersModal open={isDataLayersOpen} onOpenChange={setIsDataLayersOpen} state={state} setState={setState} />
             <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState} historicalMode={historicalMode}/>
             <TooltipIconButton

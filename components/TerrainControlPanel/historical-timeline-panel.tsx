@@ -2,7 +2,7 @@ import type React from "react"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert, ArrowDownNarrowWide, History } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert, ArrowDownNarrowWide, History, ArrowLeftRight } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { cn } from "@/lib/utils"
 import { track } from "@/lib/analytics"
@@ -238,7 +238,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Drag state for the horizontal pan gutter below the track — a plain ref
   // (not state) since it only needs to survive across pointermove events
   // within one drag gesture, not trigger renders itself.
-  const midPanRef = useRef<{ startClientX: number; startMin: number; widthPx: number } | null>(null)
+  // dx accumulates movementX while the pointer is locked (see the track's
+  // onPointerDown): the drag has no screen edge, like Blender's wrapped cursor.
+  const midPanRef = useRef<{ startClientX: number; startMin: number; widthPx: number; dx: number } | null>(null)
   const gutterDragRef = useRef<{ startClientX: number; startMin: number; gutterWidthPx: number } | null>(null)
   const [planetKey] = useAtom(planetKeyAtom)
   const hasPlanetKey = !!planetKey
@@ -1184,6 +1186,33 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // every active+showing view — replaces the old tickA/tickB/captionLabelA/
   // captionLabelB/handleLeftPctA/handleLeftPctB pairs.
   const showingViews = activeViews.filter(showFor)
+  // Which view the timeline drives, switched from its header: each click
+  // moves to the next view on historical imagery. Arrow keys, clicks on the
+  // track and the pills all follow activeSide already.
+  const drivenSide = showingViews.includes(activeSide) ? activeSide : showingViews[0]
+  const sideSwitch = dualMode && showingViews.length > 1 ? (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            onClick={() => setActiveSide(showingViews[(showingViews.indexOf(drivenSide) + 1) % showingViews.length])}
+            className="cursor-pointer flex items-center gap-1 rounded px-1 py-0.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+            aria-label={`Timeline drives view ${drivenSide}; switch to the next view`}
+          >
+            <span
+              className="inline-flex h-4 w-4 items-center justify-center rounded-sm text-[10px] text-white bg-primary"
+              style={colorFor(drivenSide) ? { backgroundColor: colorFor(drivenSide) } : undefined}
+            >
+              {drivenSide}
+            </span>
+            <ArrowLeftRight className="h-3.5 w-3.5" />
+          </button>
+        }
+      />
+      <TooltipContent>The timeline drives view {drivenSide}. Click for the next view ({showingViews.join(", ")})</TooltipContent>
+    </Tooltip>
+  ) : null
   const tickBySide: Partial<Record<ViewId, TimelineTick>> = {}
   const captionBySide: Partial<Record<ViewId, string>> = {}
   const handleLeftPctBySide: Partial<Record<ViewId, number>> = {}
@@ -1433,7 +1462,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               stacked lines and the panel ballooned to half the screen (the
               reported mobile overflow). Mobile keeps every pill reachable in
               a single horizontally-scrollable line instead. */}
-          <h2 className="hidden sm:block text-sm font-semibold shrink-0">Historical Timeline</h2>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {sideSwitch}
+            <h2 className="hidden sm:block text-sm font-semibold shrink-0">Historical Timeline</h2>
+          </div>
           <div className="flex items-center gap-1.5 min-w-0 flex-nowrap overflow-x-auto justify-start sm:flex-wrap sm:overflow-x-visible sm:justify-end">
             {visibleSourceIds.map((id) => {
               const active = timelineSourcesForPills.includes(id)
@@ -1626,6 +1658,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         // floating chip hovering over the track's own top-right corner, so
         // the panel doesn't grow a whole extra line just to hold 2 buttons.
         <div className="absolute top-2 right-3 z-20 flex items-center gap-0.5 rounded-md border border-border bg-background/90 backdrop-blur-sm shadow-sm px-0.5 py-0.5">
+          {sideSwitch}
           {rasterBasemapOff && (
             <Tooltip>
               <TooltipTrigger
@@ -1673,8 +1706,17 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 e.preventDefault()
                 if (!hasHiddenRange) return
                 hasZoomedRef.current = true
-                e.currentTarget.setPointerCapture(e.pointerId)
-                midPanRef.current = { startClientX: e.clientX, startMin: effectiveMin, widthPx: e.currentTarget.getBoundingClientRect().width }
+                const track = e.currentTarget
+                track.setPointerCapture(e.pointerId)
+                midPanRef.current = { startClientX: e.clientX, startMin: effectiveMin, widthPx: track.getBoundingClientRect().width, dx: 0 }
+                // Endless drag, Blender style: lock the pointer so the cursor
+                // hides and movement keeps coming past the screen edge; one
+                // press pans as far as the range goes. A browser that refuses
+                // the lock (or a user's Escape) leaves plain pointer capture.
+                try {
+                  const p = track.requestPointerLock?.() as Promise<void> | void
+                  if (p && typeof (p as Promise<void>).catch === "function") (p as Promise<void>).catch(() => {})
+                } catch { /* pointer capture still works */ }
                 return
               }
               const which = showingViews.length === 1 ? showingViews[0] : activeSide
@@ -1683,15 +1725,18 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             }}
             onPointerMove={(e) => {
               const pan = midPanRef.current
-              if (!pan || !e.currentTarget.hasPointerCapture(e.pointerId)) return
+              const locked = document.pointerLockElement === e.currentTarget
+              if (!pan || !(locked || e.currentTarget.hasPointerCapture(e.pointerId))) return
+              pan.dx += e.movementX
               const span = effectiveMax - effectiveMin
               // Dragging the ticks right shows earlier dates: the window moves the other way.
-              const deltaMs = -((e.clientX - pan.startClientX) / pan.widthPx) * span
+              // Locked, clientX stays put and only movementX tells how far the drag went.
+              const deltaMs = -((locked ? pan.dx : e.clientX - pan.startClientX) / pan.widthPx) * span
               const newMin = Math.max(paddedMin, Math.min(paddedMax - span, pan.startMin + deltaMs))
               scheduleViewWindow({ min: newMin, max: newMin + span })
             }}
-            onPointerUp={(e) => { if (midPanRef.current) { midPanRef.current = null; e.currentTarget.releasePointerCapture(e.pointerId) } }}
-            onPointerCancel={(e) => { if (midPanRef.current) { midPanRef.current = null; e.currentTarget.releasePointerCapture(e.pointerId) } }}
+            onPointerUp={(e) => { if (midPanRef.current) { midPanRef.current = null; e.currentTarget.releasePointerCapture(e.pointerId); if (document.pointerLockElement) document.exitPointerLock() } }}
+            onPointerCancel={(e) => { if (midPanRef.current) { midPanRef.current = null; e.currentTarget.releasePointerCapture(e.pointerId); if (document.pointerLockElement) document.exitPointerLock() } }}
             onAuxClick={(e) => { if (e.button === 1) e.preventDefault() }}
           >
             {/* overflow-hidden here (not on the outer track div) is a

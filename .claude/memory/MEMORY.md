@@ -22,4 +22,4 @@
 - [MapLibre isStyleLoaded gate](maplibre-style-loaded-gate.md) — isStyleLoaded() waits for every tile; gate addSource on style._loaded or slow sources never get the layer
 - [MapLibre load / terra-draw cursor gotchas](maplibre-load-and-terradraw-cursor-gotchas.md) — load never fires on a wedged queue; terra-draw resets cursors on updateOptions and clears them each move
 - [Sprint handoff 2026-09-25](handoff-2026-09-25.md) — registry, every mode/export/contour on every source, undo, pits, stall watchdog, umami fix; open items; how to test without wasting an hour
-- [WMS nodata: two paths](wms-nodata-two-paths.md) — wms-raw is built for display and for client readers; both need the nodata markers; holes are a mask with a 3 px smear fringe
+- [WMS nodata: two paths](wms-nodata-two-paths.md) — wms-raw is built for display and for client readers; both need the nodata markers; holes are a mask (alpha 254), no smear band needed

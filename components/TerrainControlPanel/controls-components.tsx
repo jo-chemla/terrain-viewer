@@ -773,6 +773,9 @@ interface TooltipIconButtonProps {
   // Plain DOM id on the underlying button — a stable hook for the guided
   // product tour (product-tour.tsx) to target this control.
   id?: string
+  // A link rather than an action: click and middle-click both open it in a
+  // new tab (a button gets no middle-click "open in new tab" of its own).
+  href?: string
 }
 
 export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButtonProps>(({
@@ -784,7 +787,9 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
   variant = "ghost",
   size = "icon",
   id,
+  href,
 }, ref) => {
+  const open = href ? () => window.open(href, "_blank", "noopener,noreferrer") : undefined
   return (
     <Tooltip>
       <TooltipTrigger
@@ -795,7 +800,9 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
             id={id}
             variant={variant}
             size={size}
-            onClick={onClick}
+            onClick={onClick ?? open}
+            onAuxClick={open ? (e: React.MouseEvent) => { if (e.button === 1) { e.preventDefault(); open() } } : undefined}
+            onMouseDown={open ? (e: React.MouseEvent) => { if (e.button === 1) e.preventDefault() } : undefined}
             disabled={disabled}
             className={`cursor-pointer ${className}`}
           >

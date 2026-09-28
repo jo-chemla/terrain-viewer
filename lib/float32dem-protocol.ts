@@ -238,37 +238,6 @@ function boxDownsample(src: ArrayLike<number>, width: number, height: number, fa
   return { data: out, width: outW, height: outH }
 }
 
-// Cells within this many pixels of a hole are holes too. The server's
-// reprojection blends the -9999 sentinel into its valid neighbours, and while
-// most of that fringe lands below the floor, the cells nearest to valid ground
-// land ABOVE it: blending 0.1% of -9999 into 100 m of ground gives 90 m. Those
-// pass as terrain and, in a difference (DSM - DTM), stand up as spikes along
-// every coverage edge, up to the full height of the other surface. Measured on
-// IGN LiDAR HD at the Rade de Brest: two pixels left a few metres of residue
-// below coastal cells, three cleared it.
-const HOLE_FRINGE_PX = 3
-
-/** Grows a hole mask by `r` pixels (a square neighbourhood). */
-function dilateMask(mask: Uint8Array, w: number, h: number, r: number): Uint8Array {
-  // Separable: rows, then columns.
-  const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h)
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let on = 0
-      for (let d = -r; d <= r && !on; d++) { const xx = x + d; if (xx >= 0 && xx < w && mask[y * w + xx]) on = 1 }
-      tmp[y * w + x] = on
-    }
-  }
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let on = 0
-      for (let d = -r; d <= r && !on; d++) { const yy = y + d; if (yy >= 0 && yy < h && tmp[yy * w + x]) on = 1 }
-      out[y * w + x] = on
-    }
-  }
-  return out
-}
-
 /** The hole mask carried through resampleToBbox: a cell is a hole if any of
  *  the four source cells its bilinear sample reads is. */
 function resampleMaskToBbox(
@@ -393,21 +362,20 @@ export async function fetchFloat32Raster(rawUrl: string, signal?: AbortSignal): 
   // here means there is no -9999 left to smear into its valid neighbours. Doing it
   // the other way round would reintroduce exactly the fringe this exists to kill.
   //
-  // The holes, grown by the smear fringe (HOLE_FRINGE_PX), are also kept as a
-  // mask: the tile is encoded with those cells marked as nodata, so a
-  // difference or a derived mode skips them instead of reading the fill as
-  // ground.
+  // The holes are also kept as a mask: the tile is encoded with those cells
+  // marked as nodata, so a difference or a derived mode skips them instead of
+  // reading the fill as ground. (A band grown around the holes to catch smear
+  // that lands above the floor was measured unnecessary on IGN LiDAR HD once
+  // every reader carries the floor: no cell over 60 m in an nDSM without it.)
   let hole: Uint8Array | undefined
   if (nodata) {
     const out = elevationData as Float32Array | Float64Array
-    let raw: Uint8Array | undefined
     for (let i = 0; i < out.length; i++) {
       const v = out[i]
-      if (isSentinel(v) || v <= nodata.floor) (raw ??= new Uint8Array(out.length))[i] = 1
-    }
-    if (raw) {
-      hole = dilateMask(raw, width, height, HOLE_FRINGE_PX)
-      for (let i = 0; i < out.length; i++) if (hole[i]) out[i] = nodata.fill
+      if (isSentinel(v) || v <= nodata.floor) {
+        (hole ??= new Uint8Array(out.length))[i] = 1
+        out[i] = nodata.fill
+      }
     }
   }
 

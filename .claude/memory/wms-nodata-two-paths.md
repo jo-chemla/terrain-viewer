@@ -18,8 +18,9 @@ de Brest coast. Any new route to the protocol must go through
 above the -20 m floor pass any threshold, and the fill value (0 m) is itself
 valid-looking ground to a difference.
 
-**How to apply:** `fetchFloat32Raster` returns a `hole` mask (sentinel, below
-floor, dilated `HOLE_FRINGE_PX` = 3); tiles encode holes at the fill height
+**How to apply:** `fetchFloat32Raster` returns a `hole` mask (sentinel or at/
+below the floor; a dilated smear band was tried and measured unnecessary once
+both paths carry the floor); tiles encode holes at the fill height
 with alpha 254 (app decoders treat alpha < 255 as nodata, MapLibre reads only
 RGB). Keep the mask through any new resampling step. Test with
 `.cache/pw/ndsmspikes.mjs`-style decoding of demdiff tiles (count cells > 60 m),

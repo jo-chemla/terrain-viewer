@@ -13,6 +13,9 @@ import MaplibreGeocoder, {
 } from '@maplibre/maplibre-gl-geocoder';
 
 type GeocoderControlProps = Omit<MaplibreGeocoderOptions, 'maplibregl' | 'marker'> & {
+  /** Open expanded rather than as the bare search icon: a link that names its
+   *  place (?place=) shows the name as the placeholder straight away. */
+  startExpanded?: boolean;
   marker?: boolean | Omit<MarkerProps, 'longitude' | 'latitude'>;
 
   position: ControlPosition;
@@ -235,6 +238,7 @@ export default function GeocoderControl({
   onResults = () => { },
   onResult = () => { },
   onError = () => { },
+  startExpanded = false,
   ...props
 }: GeocoderControlProps) {
 
@@ -444,7 +448,7 @@ export default function GeocoderControl({
           setExpanded(true);
           inputEl?.focus();
         });
-        setExpanded(false);
+        setExpanded(startExpanded);
         setIcons({
           container,
           clearButton: container.querySelector<HTMLElement>(".maplibregl-ctrl-geocoder--button") ?? undefined,
