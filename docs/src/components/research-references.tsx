@@ -31,7 +31,11 @@ type Ref = {
   one_line?: string | null;
 };
 
-const APP = "https://terrain-viewer.iconem.com/";
+// Relative, so the links open the app the docs are served with: production
+// from production, the local app from a local docs server (whose unreleased
+// URL parameters, like ?place=, then work), historical-satellite from its own
+// domain. The Research References pages sit at /docs/resources/<page>/.
+const APP = "../../../";
 
 // A paper's modes as URL parameters: each mode's section switch plus the mode.
 const MODE_PARAMS: Record<string, Record<string, string>> = {
@@ -69,8 +73,9 @@ export function openUrl(r: Ref): string | null {
   const q = camera(r.study_area);
   if (r.category === "Historical imagery") {
     // Always old against recent, side by side: the paper's "before" year (or
-    // 2010, when Google Earth's archive thickens) on the left, today's newest
-    // Wayback capture on the right.
+    // 2010, when Google Earth's archive thickens) on the left, Google Earth's
+    // newest capture on the right (asked for today; the timeline resolves it
+    // to the real capture date once the dates are in).
     q.set("appMode", "historical");
     q.set("splitStyle", "side-by-side");
     const before = r.date_hint?.[0] ?? 2010;
@@ -78,7 +83,7 @@ export function openUrl(r: Ref): string | null {
     q.set("historicalActiveSourceA", before < 2014 ? "ge-historical" : "wayback");
     q.set("dateA", String(Date.UTC(before, 5, 1)));
     q.set("basemapSourceB", "historical");
-    q.set("historicalActiveSourceB", "wayback");
+    q.set("historicalActiveSourceB", "ge-historical");
     q.set("dateB", String(TODAY_MS));
     return `${APP}?${q.toString()}`;
   }

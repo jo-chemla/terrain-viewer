@@ -191,12 +191,18 @@ const csvCell = (v: unknown) => {
 
 // ---- the filter bar ---------------------------------------------------------------
 
-export function ReferencesTableControls() {
+/** The filter bar: on top of the page for every section, or attached to one
+ *  section's table (`section`), where it counts and exports that section and
+ *  offers its groups. Either way the filters are shared by every table. */
+export function ReferencesTableControls({ section }: { section?: string }) {
   const s = useTableState();
-  const rows = useMemo(() => filtered(s).filter((r) => !s.sections.length || s.sections.includes(sectionOf(r))), [s]);
+  const rows = useMemo(() => filtered(s).filter((r) => section ? sectionOf(r) === section : !s.sections.length || s.sections.includes(sectionOf(r))), [s, section]);
+  const total = section ? ROWS.filter((r) => sectionOf(r) === section).length : ROWS.length;
   const anyFilter = Boolean(s.q || s.sections.length || s.groups.length || Object.keys(s.flags).length || s.from != null || s.to != null);
   const years = ROWS.map((r) => Number(r.year)).filter(Boolean);
-  const groupsShown = SECTIONS.filter(([sec]) => !s.sections.length || s.sections.includes(sec)).flatMap(([, gs]) => gs);
+  const groupsShown = section
+    ? SECTIONS.find(([sec]) => sec === section)?.[1] ?? []
+    : SECTIONS.filter(([sec]) => !s.sections.length || s.sections.includes(sec)).flatMap(([, gs]) => gs);
 
   const csv = () => {
     const head = ["Section", "Group", "Year", "Authors", "Title", "Venue", "DOI", "URL", "Free copy", "Study area", "Lat", "Lng", "Open in Terrain Viewer", "Elevation change", "Cites", "Data", "Modes", "Summary"];
@@ -204,13 +210,13 @@ export function ReferencesTableControls() {
     const url = URL.createObjectURL(new Blob([head.join(",") + "\n" + body.join("\n")], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = "terrain-viewer-research-references.csv";
+    a.download = `terrain-viewer-research-references${section ? "-" + section.toLowerCase().replace(/[^a-z]+/g, "-") : ""}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="tv-wide not-prose flex flex-col gap-2 rounded-lg border border-fd-border bg-fd-card p-3 text-sm">
+    <div className={`tv-wide not-prose flex flex-col gap-2 border border-fd-border bg-fd-card p-3 text-sm ${section ? "rounded-t-lg border-b-0" : "rounded-lg"}`}>
       <div className="flex flex-wrap items-center gap-2">
         <input type="search" value={s.q} onChange={(e) => set({ q: e.target.value })} placeholder="Search authors, titles, places, data…"
           className="h-8 min-w-[14rem] flex-1 rounded-md border border-fd-border bg-fd-background px-2 text-sm outline-none focus:border-fd-primary" />
@@ -224,7 +230,7 @@ export function ReferencesTableControls() {
         </span>
         <button type="button" onClick={csv} className={chip(false)}>Export CSV</button>
         <button type="button" disabled={!anyFilter} onClick={() => set({ q: "", sections: [], groups: [], flags: {}, from: null, to: null })} className={`${chip(false)} disabled:opacity-40`}>Clear filters</button>
-        <span className="ml-auto text-xs text-fd-muted-foreground tabular-nums">{rows.length} of {ROWS.length} references</span>
+        <span className="ml-auto text-xs text-fd-muted-foreground tabular-nums">{rows.length} of {total} references{section ? ` in ${section}` : ""}</span>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="w-16 text-xs text-fd-muted-foreground">Has</span>
@@ -233,7 +239,7 @@ export function ReferencesTableControls() {
             onChange={(v) => { const flags = { ...s.flags }; if (v) flags[f.key] = v; else delete flags[f.key]; set({ flags }); }} />
         ))}
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
+      {section ? null : <div className="flex flex-wrap items-center gap-1.5">
         <span className="w-16 text-xs text-fd-muted-foreground">Section</span>
         {SECTIONS.map(([sec]) => (
           <button key={sec} type="button" className={chip(s.sections.includes(sec))}
@@ -241,7 +247,7 @@ export function ReferencesTableControls() {
             {sec}
           </button>
         ))}
-      </div>
+      </div>}
       <details>
         <summary className="cursor-pointer text-xs text-fd-muted-foreground">Groups{s.groups.length ? ` (${s.groups.length})` : ""} and columns</summary>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -265,6 +271,72 @@ export function ReferencesTableControls() {
       </details>
     </div>
   );
+}
+
+// ---- filters in the column headers --------------------------------------------------
+
+// Which yes/no filter a column's header drives.
+const COLUMN_FLAG: Record<string, string> = { app: "app", area: "app", change: "change", free: "free", doi: "doi" };
+
+function setFlag(s: State, key: string, v?: "yes" | "no") {
+  const flags = { ...s.flags };
+  if (v) flags[key] = v; else delete flags[key];
+  set({ flags });
+}
+
+/** The small control after a column's title: yes/no for a link column, a
+ *  range for the year, RVT / GLO-30 / neither for Cites. */
+function HeaderFilter({ col, s }: { col: string; s: State }) {
+  const btn = (on: boolean) => `ml-1 rounded px-1 text-[11px] font-normal ${on ? "bg-fd-primary/15 text-fd-primary" : "text-fd-muted-foreground hover:bg-fd-accent"}`;
+  const flag = COLUMN_FLAG[col];
+  if (flag) {
+    const v = s.flags[flag];
+    const next = v === undefined ? "yes" : v === "yes" ? "no" : undefined;
+    return (
+      <button type="button" className={btn(v !== undefined)} onClick={() => setFlag(s, flag, next)}
+        title={v === "yes" ? "Only rows with it. Click: only rows without" : v === "no" ? "Only rows without it. Click: all rows" : "All rows. Click: only rows with it"}>
+        {v === "yes" ? "has ✓" : v === "no" ? "none ✗" : "▿"}
+      </button>
+    );
+  }
+  if (col === "cites") {
+    const state = s.flags.rvt === "yes" ? "rvt" : s.flags.glo30 === "yes" ? "glo30" : s.flags.rvt === "no" && s.flags.glo30 === "no" ? "none" : "any";
+    const order = ["any", "rvt", "glo30", "none"] as const;
+    const next = order[(order.indexOf(state) + 1) % order.length];
+    const apply = () => {
+      const flags = { ...s.flags };
+      delete flags.rvt; delete flags.glo30;
+      if (next === "rvt") flags.rvt = "yes";
+      if (next === "glo30") flags.glo30 = "yes";
+      if (next === "none") { flags.rvt = "no"; flags.glo30 = "no"; }
+      set({ flags });
+    };
+    return (
+      <button type="button" className={btn(state !== "any")} onClick={apply} title="All rows, then citing RVT, citing GLO-30, citing neither">
+        {state === "rvt" ? "RVT" : state === "glo30" ? "GLO-30" : state === "none" ? "neither" : "▿"}
+      </button>
+    );
+  }
+  if (col === "year") {
+    const on = s.from != null || s.to != null;
+    return (
+      <details className="relative ml-1 inline-block font-normal">
+        <summary className={`${btn(on)} cursor-pointer list-none`} title="Published between">
+          {on ? `${s.from ?? "…"}–${s.to ?? "…"}` : "▿"}
+        </summary>
+        <div className="absolute left-0 top-6 z-30 flex items-center gap-1 rounded-md border border-fd-border bg-fd-background p-2 text-xs shadow-lg">
+          after
+          <input type="number" value={s.from ?? ""} placeholder="1975" onChange={(e) => set({ from: e.target.value ? Number(e.target.value) : null })}
+            className="h-7 w-[4.5rem] rounded border border-fd-border bg-fd-background px-1" />
+          before
+          <input type="number" value={s.to ?? ""} placeholder="2026" onChange={(e) => set({ to: e.target.value ? Number(e.target.value) : null })}
+            className="h-7 w-[4.5rem] rounded border border-fd-border bg-fd-background px-1" />
+          {on ? <button type="button" className="underline" onClick={() => set({ from: null, to: null })}>clear</button> : null}
+        </div>
+      </details>
+    );
+  }
+  return null;
 }
 
 // ---- one section's table ------------------------------------------------------------
@@ -305,6 +377,7 @@ export function ReferencesTableSection({ section }: { section: string }) {
   }, [s, section]);
 
   if (hidden) return <p className="text-sm text-fd-muted-foreground">Hidden by the Section filter.</p>;
+  const controls = <ReferencesTableControls section={section} />;
 
   // Group rows while ordered by group: over rows sorted by year they would
   // draw boundaries that are not there. A section with one group has none.
@@ -345,7 +418,9 @@ export function ReferencesTableSection({ section }: { section: string }) {
 
   let lastGroup = "";
   return (
-    <div ref={wrapRef} className={`tv-wide not-prose rounded-lg border border-fd-border text-sm ${overflows ? "overflow-x-auto" : ""}`}>
+    <>
+    {controls}
+    <div ref={wrapRef} className={`tv-wide not-prose rounded-b-lg border border-fd-border text-sm ${overflows ? "overflow-x-auto" : ""}`}>
       <table ref={tableRef} className="w-full border-collapse text-left">
         <thead className={overflows ? "" : "sticky top-0 z-10"}>
           <tr className="bg-fd-card shadow-[0_1px_0_var(--color-fd-border)]">
@@ -356,11 +431,14 @@ export function ReferencesTableSection({ section }: { section: string }) {
             </th>
             {visible.map((c) => (
               <th key={c.key} className="border-l border-fd-border bg-fd-card px-2 py-2 text-xs font-semibold">
-                {c.sort ? (
-                  <button type="button" onClick={() => onHeader(c.sort!)} className="flex items-center gap-1 whitespace-nowrap">
-                    {c.title}<span className="text-fd-muted-foreground">{s.sort.key === c.sort ? (s.sort.dir === "asc" ? "▲" : "▼") : ""}</span>
-                  </button>
-                ) : c.title}
+                <span className="flex items-center whitespace-nowrap">
+                  {c.sort ? (
+                    <button type="button" onClick={() => onHeader(c.sort!)} className="flex items-center gap-1 whitespace-nowrap">
+                      {c.title}<span className="text-fd-muted-foreground">{s.sort.key === c.sort ? (s.sort.dir === "asc" ? "▲" : "▼") : ""}</span>
+                    </button>
+                  ) : c.title}
+                  <HeaderFilter col={c.key} s={s} />
+                </span>
               </th>
             ))}
           </tr>
@@ -397,5 +475,6 @@ export function ReferencesTableSection({ section }: { section: string }) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }

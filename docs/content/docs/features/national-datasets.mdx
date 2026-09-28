@@ -3,7 +3,7 @@ title: National Open-Data Terrain
 description: Government elevation services from national mapping agencies, ready to load as terrain sources
 ---
 
-import { NationalDatasetsTable, NationalCoverageMap, UnusableDatasetsTable, MapterhornSummary, Glo30Table, SubNationalTable, GlobalDatasetsTable, RegionalDocsOnlyTable, SurfaceModelsTable } from "@/components/national-datasets-table";
+import { NationalDatasetsTable, NationalDatasetsFootnote, NationalCoverageMap, UnusableDatasetsTable, MapterhornSummary, Glo30Table, SubNationalTable, GlobalDatasetsTable, RegionalDocsOnlyTable, SurfaceModelsTable } from "@/components/national-datasets-table";
 
 The built-in sources on [Terrain and Basemap Sources](/features/terrain-sources) are worldwide tilesets. This page covers the other half of the library: **elevation services published directly by national mapping agencies**, at resolutions global tilesets can't match — 0.5 m LiDAR for France and the Netherlands against ~30 m for a global DEM.
 
@@ -39,7 +39,23 @@ One caveat on both sides: Mapterhorn's delivered detail is also capped by its ti
 
 ## The datasets
 
-<NationalDatasetsTable />
+### ⬆️ Not in Mapterhorn
+
+<NationalDatasetsTable group="new" />
+
+### ⬆️ In Mapterhorn, but finer here
+
+<NationalDatasetsTable group="finer" />
+
+### ↔️ In Mapterhorn at the same resolution
+
+<NationalDatasetsTable group="same" />
+
+### ⬇️ In Mapterhorn at finer resolution
+
+<NationalDatasetsTable group="coarser" />
+
+<NationalDatasetsFootnote />
 
 ## Regional datasets
 
@@ -102,7 +118,7 @@ Three different transports end up as the same `raster-dem` source in the app:
 - **Single COG** — Switzerland and ANADEM are each one national file. Neither is in Web Mercator (LV95 and geographic EPSG:4674), and the in-browser COG reader does not reproject, so these are pinned to titiler with the source's *Always serve via titiler* switch, whatever the global COG setting says.
 - **XYZ tiles** — a normal tile pyramid. Spain, New Zealand and Japan are standard Terrain-RGB. Mexico is not: its layer is *named* "terranium" but packs elevation with Terrain-RGB's factors and a `baseShift` of 1000 instead of 10000, so it is configured with [custom RGB encoding](/features/byod) and reads ~9 km too low without it.
 
-## Surveyed, but not API-usable
+## Surveyed, not API-usable, possibly useful to Mapterhorn
 
 These countries do publish a national elevation product — often an excellent one — that still cannot be consumed here. Each row is a reproduced failure, not an assumption.
 

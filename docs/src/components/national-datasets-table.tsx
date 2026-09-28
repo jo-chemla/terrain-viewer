@@ -415,22 +415,22 @@ function OpenLink({ s, label }: { s: Source; label: string }) {
   )
 }
 
-export function NationalDatasetsTable() {
+export function NationalDatasetsTable({ group }: { group?: (typeof GROUPS)[number]["key"] }) {
   const rows = splitSurface(loadRows()).terrain;
   return (
     <>
-      {GROUPS.map((g) => {
+      {GROUPS.filter((g) => !group || g.key === group).map((g) => {
         const group = rows.filter((r) => bucketOf(r) === g.key && !isSubNational(r.s));
         if (!group.length) return null;
         return (
           <div key={g.key} className="overflow-x-auto">
-            <h3>{g.icon} {g.title}</h3>
+            {group ? null : <h3>{g.icon} {g.title}</h3>}
             <p className="text-sm text-fd-muted-foreground">{g.blurb}</p>
             <table className="text-sm">
               <thead>
                 <tr>
                   <th>ISO A3</th><th>Country</th><th>Dataset</th><th>View</th><th>API resolution</th>
-                  <th>Coverage</th><th>Bulk download</th><th>Mapterhorn</th><th>Served as</th><th>Endpoint</th>
+                  <th>Bulk download</th><th>Coverage</th><th>Mapterhorn</th><th>Served as</th><th>Endpoint</th>
                 </tr>
               </thead>
               <tbody>
@@ -443,8 +443,8 @@ export function NationalDatasetsTable() {
                       <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} infoUrl={s.infoUrl} /></td>
                       <td><OpenLink s={s} label={`${COUNTRY[iso] ?? iso} ${s.name.replace(ISO_RE, "")}`} /></td>
                       <td>{facts?.res ?? "—"}</td>
-                      <td>{facts?.coverage ?? "—"}</td>
                       <td>{s.bulkResolutionM !== undefined ? `${s.bulkResolutionM} m` : facts?.res ? "same" : "—"}</td>
+                      <td>{facts?.coverage ?? "—"}</td>
                       <td>{mh === null || mh === undefined ? "not ingested" : `${mh} m`}</td>
                       <td>{SERVING_LABEL(s.type)}</td>
                       <td>
@@ -458,6 +458,16 @@ export function NationalDatasetsTable() {
           </div>
         );
       })}
+      {group ? null : <NationalDatasetsFootnote />}
+    </>
+  );
+}
+
+/** The notes under the national tables: what the two resolution columns mean. */
+export function NationalDatasetsFootnote() {
+  const rows = splitSurface(loadRows()).terrain;
+  return (
+    <>
       <p className="text-xs text-fd-muted-foreground">
         <em>API resolution</em> is the grid the live service streams (what the viewer renders and what the grading above uses);{" "}
         <em>Bulk download</em> is the finest grid the agency advertises for download, which is what Mapterhorn itself ingests.
