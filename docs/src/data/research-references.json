@@ -261,7 +261,7 @@
    "lng": -3.077,
    "zoom": 12
   },
-  "library_id": "custom-ign-lidarhd-dtm-wms-raw",
+  "library_id": null,
   "one_line": "Combines multi-scale topographic position with random forests to map megalithic burial mounds, finding a previously unknown mound at Carnac.",
   "group": "Relief visualization",
   "oa_url": "https://www.mdpi.com/2072-4292/10/2/225/pdf?version=1517890720",
@@ -979,7 +979,7 @@
    "lng": -116.0,
    "zoom": 8
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "Defines the Vector Ruggedness Measure (VRM), which correlates less with slope than earlier indices, and shows that ruggedness and slope are separate parts of desert bighorn sheep habitat in three Mojave ranges.",
   "group": "Geomorphometry",
   "cites": [],
@@ -1118,7 +1118,7 @@
    "lng": -72.7,
    "zoom": 8
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "Uses airborne lidar to rediscover relict historical land-use features hidden under the forests of southern New England.",
   "group": "Settlements under forest",
   "cites": [
@@ -1173,7 +1173,7 @@
    "lng": 173.7,
    "zoom": 9
   },
-  "library_id": "custom-nz-linz-dem1",
+  "library_id": null,
   "one_line": "Differences lidar from before and after the earthquake along about 110 km of coast and finds vertical displacements from -2.5 to +6.5 m, which require a revised multi-fault slip model.",
   "group": "Faults and earthquakes",
   "oa_url": "https://www.sciencedirect.com/science/article/am/pii/S0012821X17303722?via%3Dihub",
@@ -1205,7 +1205,7 @@
    "lng": -122.4,
    "zoom": 9
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "Leaf-off lidar of the forested Puget Lowland revealed previously unknown postglacial fault scarps, deep-seated landslides, uplifted beaches and glacial landforms.",
   "group": "Faults and earthquakes",
   "oa_url": null,
@@ -1258,7 +1258,7 @@
    "lng": 130.8,
    "zoom": 11
   },
-  "library_id": "custom-jp-gsj-terrainrgb",
+  "library_id": null,
   "one_line": "3-D differencing of lidar from before and after the earthquake shows that only about 36% of horizontal and 62% of vertical deformation happened on the main fault trace; the rest was spread through the damage zone.",
   "group": "Faults and earthquakes",
   "cites": [],
@@ -1315,7 +1315,7 @@
    "lng": -154.9203,
    "zoom": 11
   },
-  "library_id": "custom-us-hi-dtm1-lerc",
+  "library_id": null,
   "one_line": "Repeat topography during the eruption gives 0.9-1.4 km3 of lava (dense-rock equivalent), 0.4 km3 of it on land, with effusion rates rising to 200 m3/s or more by mid-June.",
   "group": "Volcanoes",
   "oa_url": "https://digitalcommons.uri.edu/gsofacpubs/2493",
@@ -1405,7 +1405,7 @@
    "lng": 8.0772,
    "zoom": 8
   },
-  "library_id": "custom-ch-swissaltiregio",
+  "library_id": null,
   "one_line": "Builds DEMs from about 21,700 archived terrestrial photographs (median date 1931) and differences them with modern DEMs, finding that Swiss glacier volume halved between 1931 and 2016.",
   "group": "Glaciers and glacial landforms",
   "oa_url": null,
@@ -1432,7 +1432,7 @@
    "lng": -95.1361,
    "zoom": 10
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "Separates drumlins from the regional surface with a curvature-based method on lidar and estimates the shape and volume of each drumlin automatically.",
   "group": "Glaciers and glacial landforms",
   "cites": [],
@@ -1458,7 +1458,7 @@
    "lng": -151.2283,
    "zoom": 8
   },
-  "library_id": "custom-us-ak-ifsar-dtm5",
+  "library_id": null,
   "one_line": "Differencing lidar DTMs from two and seven years after the 2007 fire detects thaw subsidence across 34% of the burned tundra, compared with less than 1% in similar unburned terrain.",
   "group": "Dunes, coasts and permafrost",
   "oa_url": "https://www.nature.com/articles/srep15865.pdf",
@@ -1485,7 +1485,7 @@
    "lng": -85.5021,
    "zoom": 11
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "Extracting closed depressions from a lidar DEM found 1,683 probable sinkholes where 383 had been mapped; field checks confirmed 106 of 121.",
   "group": "Karst",
   "oa_url": null,
@@ -1540,7 +1540,7 @@
    "lng": 5.4383,
    "zoom": 12
   },
-  "library_id": "custom-ign-lidarhd-dtm-wms-raw",
+  "library_id": null,
   "one_line": "Self-organising maps and clustering of lidar morphometry map more than a million First World War landforms (shell craters, shelters, gun positions) in eight shape classes; 93% of shell craters were correctly classified.",
   "group": "Conflict landscapes",
   "cites": [
@@ -1569,7 +1569,7 @@
    "lng": 2.885,
    "zoom": 11
   },
-  "library_id": "custom-be-vlaanderen-dtm1",
+  "library_id": null,
   "one_line": "The Flanders lidar DTM reveals previously unknown Great War remains (trenches, dugouts, shelled ground) in the former front zone, using sky-view factor and relief-model visualizations.",
   "group": "Conflict landscapes",
   "cites": [
@@ -1597,7 +1597,7 @@
    "lng": 11.3245,
    "zoom": 12
   },
-  "library_id": "custom-it-tinitaly",
+  "library_id": null,
   "one_line": "Counts the remaining First World War shell craters on an Alpine plateau by object-based classification of a lidar sky-view factor image.",
   "group": "Conflict landscapes",
   "cites": [
@@ -1625,7 +1625,7 @@
    "lng": -72.7,
    "zoom": 8
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "A U-Net fed with slope, hillshade and VAT rasters detects relict charcoal hearths, with F1 up to 95.5% in small test regions and 86% over a 493 km2 town.",
   "group": "Historic industry and mining",
   "oa_url": "https://www.mdpi.com/2072-4292/13/22/4630/pdf?version=1637148653",
@@ -1679,7 +1679,7 @@
    "lng": -1.24,
    "zoom": 13
   },
-  "library_id": "custom-ign-lidarhd-dtm-wms-raw",
+  "library_id": null,
   "one_line": "Combines historical aerial photographs, airborne lidar and UAV surveys to track how the coastal dune at Truc Vert changed between 2011 and 2019.",
   "group": "Dunes, coasts and permafrost",
   "cites": [],
@@ -1712,7 +1712,7 @@
    "lng": -78.0,
    "zoom": 8
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "A logistic regression on 1 m lidar slope and 5 m lidar depressions predicts hydric soils better than the 10 m USGS DEM.",
   "group": "Soils and ecology",
   "cites": [],
@@ -1739,7 +1739,7 @@
    "lng": 11.1731,
    "zoom": 9
   },
-  "library_id": "custom-it-tinitaly",
+  "library_id": null,
   "one_line": "Across 6,210 km2 of Trentino, GLO-30 beats AW3D30 on gentle, unvegetated and urban terrain, AW3D30 does slightly better on rough, steep terrain, and neither captures fine-scale morphology on steep slopes.",
   "group": "Global DEMs",
   "oa_url": "https://air.iuav.it/bitstream/11578/330688/1/PreprintGlobalVersion1.pdf",
@@ -1846,7 +1846,7 @@
    "lng": -121.848,
    "zoom": 14
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "The ~8 million m³ Oso landslide started on a 180 m riverside bluff and crossed the whole ~1 km floodplain; the authors argue that liquefaction of saturated sediment at its base made it far more mobile than earlier slides at the site.",
   "oa_url": "https://www.sciencedirect.com/science/article/pii/S0012821X1400781X/pdf",
   "cites": [],
@@ -1908,7 +1908,7 @@
    "lng": 10.3815,
    "zoom": 15
   },
-  "library_id": "custom-it-tinitaly",
+  "library_id": null,
   "one_line": "A 1:1500 geomorphological map of an active landslide from 2014 lidar; differencing with a 1973 DEM shows about 6.2 × 10⁵ m³ of material left its upper sector in ~40 years.",
   "oa_url": null,
   "cites": [
@@ -1940,7 +1940,7 @@
    "lng": -122.9251,
    "zoom": 12
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "SICCM, a semi-automatic scarp-and-contour method, turned lidar DEMs into landslide inventories that matched DOGAMI's expert maps reasonably well across three geologically different areas of western Oregon.",
   "oa_url": "https://www.mdpi.com/2072-4292/11/3/303/pdf?version=1549095118",
   "cites": [],
@@ -1971,7 +1971,7 @@
    "lng": 3.6428,
    "zoom": 12
   },
-  "library_id": "custom-be-vlaanderen-dtm1",
+  "library_id": null,
   "one_line": "Object-oriented classification of lidar slope, roughness and curvature recovered about 70% of an expert inventory of old deep-seated landslides under forest in the Flemish Ardennes.",
   "oa_url": null,
   "cites": [
@@ -2003,7 +2003,7 @@
    "lng": -91.4259,
    "zoom": 10
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "Ten large Mississippi point bars in lidar show a hierarchy of scrolls, depositional packages and point-bar complexes; scrolls repeat every ~167 m, and across 19 rivers scroll spacing is about half the channel width.",
   "oa_url": "https://www.sciencedirect.com/science/article/pii/S0169555X18301065/pdfft?md5=30de04ac6a185ac8cceb8cea25d05dd9&pid=1-s2.0-S0169555X18301065-main.pdf",
   "cites": [],
@@ -2062,7 +2062,7 @@
    "lng": 2.3703,
    "zoom": 13
   },
-  "library_id": "custom-ign-lidarhd-dtm-wms-raw",
+  "library_id": null,
   "one_line": "Lidar DEM analysis plus geophysics and coring dated thirteen Holocene palaeomeanders, showing the Cher went from an actively meandering river to a stable course under human forcing.",
   "oa_url": "https://hal.science/hal-02922125/document",
   "cites": [],
@@ -2123,7 +2123,7 @@
    "lng": -1.517,
    "zoom": 14
   },
-  "library_id": "custom-uk-ea-lidar-dtm1",
+  "library_id": null,
   "one_line": "Gypsum collapse sinkholes on the floodplain guided a 2019 chute cutoff at Ripon Loop; openness and red-relief views of the lidar DTM showed the enclosed hollows best.",
   "oa_url": "https://ray.yorksj.ac.uk/id/eprint/5521/11/Schwendel%20and%20Cooper%202021%20Geomorphology%20AAM.pdf",
   "cites": [],
@@ -2153,7 +2153,7 @@
    "lng": -80.2664,
    "zoom": 15
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "Geomorphons on a 1 m lidar DTM picked out active beaver ponds as noiseless flat patches just upstream of each dam, and three decades of imagery showed beaver activity cycling between active and fallow in this rare Appalachian peatland.",
   "oa_url": "https://vtechworks.lib.vt.edu/bitstreams/a7d5a2c5-a3da-4d00-ac5c-c941b8329c3a/download",
   "cites": [],
@@ -2275,7 +2275,7 @@
    "lng": -111.778,
    "zoom": 13
   },
-  "library_id": "custom-us-3dep",
+  "library_id": null,
   "one_line": "Lidar neotectonic mapping and a trench across an 8 m scarp near Alpine recorded six Holocene earthquakes with about 1.1 m of slip each, which suggests ruptures that crossed the segment boundary.",
   "oa_url": null,
   "cites": [],
@@ -2305,7 +2305,7 @@
    "lng": 168.0,
    "zoom": 11
   },
-  "library_id": "custom-nz-linz-dem1",
+  "library_id": null,
   "one_line": "Lidar-based mapping and zircon dating of offset basement rocks give ~70-90 km of right-lateral slip on the active strand of the southern Alpine Fault, which the authors take to be Plio-Quaternary.",
   "oa_url": null,
   "cites": [
@@ -2367,7 +2367,7 @@
    "lng": 24.8287,
    "zoom": 11
   },
-  "library_id": "custom-fi-nls-dem10",
+  "library_id": null,
   "one_line": "Principal-curvature features from a 2 m lidar DEM, fed to a neural network, recognised earthquake-induced Pulju moraines and liquefaction spreads with 94% accuracy, which supports mapping them nationwide.",
   "oa_url": null,
   "cites": [
@@ -2463,7 +2463,7 @@
    "lng": -6.3733,
    "zoom": 12
   },
-  "library_id": "custom-1762932753467",
+  "library_id": null,
   "one_line": "Roman hydraulic gold mining left river captures, widened drainages and reworked fans, moraines and rock ridges; the paper gives geomorphic criteria for telling these man-made landforms from natural ones.",
   "oa_url": null,
   "cites": [
@@ -2495,7 +2495,7 @@
    "lng": -2.4076,
    "zoom": 12
   },
-  "library_id": "custom-uk-ea-lidar-dtm1",
+  "library_id": null,
   "one_line": "Lidar mapping plus Landsat change detection showed old lead-mining sites on Alston Moor are eroding, mostly by gullying, which moves heavily contaminated sediment into the wider catchment.",
   "oa_url": "https://durham-repository.worktribe.com/output/1381534",
   "cites": [],

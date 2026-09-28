@@ -3,7 +3,7 @@ title: National Open-Data Terrain
 description: Government elevation services from national mapping agencies, ready to load as terrain sources
 ---
 
-import { NationalDatasetsTable, NationalCoverageMap, UnusableDatasetsTable, MapterhornSummary, Glo30Table, SubNationalTable, GlobalDatasetsTable, RegionalDocsOnlyTable } from "@/components/national-datasets-table";
+import { NationalDatasetsTable, NationalCoverageMap, UnusableDatasetsTable, MapterhornSummary, Glo30Table, SubNationalTable, GlobalDatasetsTable, RegionalDocsOnlyTable, SurfaceModelsTable } from "@/components/national-datasets-table";
 
 The built-in sources on [Terrain and Basemap Sources](/features/terrain-sources) are worldwide tilesets. This page covers the other half of the library: **elevation services published directly by national mapping agencies**, at resolutions global tilesets can't match — 0.5 m LiDAR for France and the Netherlands against ~30 m for a global DEM.
 
@@ -60,6 +60,12 @@ Not every good source belongs to a country. These are worldwide, polar or sea-fl
 <GlobalDatasetsTable />
 
 Two things to know. **ArcticDEM and REMA are ellipsoidal**: the Polar Geospatial Center publishes heights above the WGS84 ellipsoid, so summits sit tens of metres off their map values and open sea reads +28 m off Greenland. And the two ML terrain models, GEDTM30 and ANADEM, are explained in the next section.
+
+## Surface models and heights above ground
+
+Where a country has both, the tables above list its terrain model (DTM, bare earth) and this one its surface model (DSM, or DOM: the top of canopy and roofs), with the normalised height the app derives from the two (nDSM: surface minus terrain, trees and buildings at their height above the ground). See [nDSM and Comparison](/features/ndsm-and-comparison).
+
+<SurfaceModelsTable />
 
 ## Copernicus GLO-30, the supra-national fallback
 

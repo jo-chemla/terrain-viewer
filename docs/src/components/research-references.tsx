@@ -52,31 +52,34 @@ const MODE_PARAMS: Record<string, Record<string, string>> = {
   "mound detector": { tellsBeta: "true", showTerrainAnalysis: "true", showTellsDetector: "true" },
 };
 
-const camera = (a: { lat: number; lng: number; zoom: number }) =>
-  new URLSearchParams({ viewMode: "2d", lat: a.lat.toFixed(4), lng: a.lng.toFixed(4), zoom: String(a.zoom) });
+// Every link says where it lands: the place name in the search box and the
+// minimap open (?place=, ?minimapMinimized=false).
+const camera = (a: { lat: number; lng: number; zoom: number; name?: string }) => {
+  const q = new URLSearchParams({ viewMode: "2d", lat: a.lat.toFixed(4), lng: a.lng.toFixed(4), zoom: String(a.zoom), minimapMinimized: "false" });
+  if (a.name) q.set("place", a.name);
+  return q;
+};
 
-// The historical archive that has imagery for a given year: Wayback starts in
-// 2014, Google Earth's timeline goes further back.
-const archiveFor = (year: number, preferred?: string[] | null) =>
-  year < 2014 ? "ge-historical" : preferred?.find((b) => b === "wayback" || b === "eox-s2" || b === "hls") ?? "wayback";
+// "Today" for the recent side of a historical comparison: the build date,
+// so the link asks Wayback for its newest capture.
+const TODAY_MS = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1);
 
 export function openUrl(r: Ref): string | null {
   if (!r.study_area) return null;
   const q = camera(r.study_area);
   if (r.category === "Historical imagery") {
+    // Always old against recent, side by side: the paper's "before" year (or
+    // 2010, when Google Earth's archive thickens) on the left, today's newest
+    // Wayback capture on the right.
     q.set("appMode", "historical");
-    const [before, after] = r.date_hint ?? [];
-    if (before && after) {
-      q.set("splitStyle", "side-by-side");
-      for (const [pane, year] of [["A", before], ["B", after]] as const) {
-        q.set(`basemapSource${pane}`, "historical");
-        q.set(`historicalActiveSource${pane}`, archiveFor(year, r.app_basemaps));
-        q.set(`date${pane}`, String(Date.UTC(year, 5, 1)));
-      }
-    } else {
-      q.set("basemapSourceA", "historical");
-      q.set("historicalActiveSourceA", r.app_basemaps?.[0] ?? "wayback");
-    }
+    q.set("splitStyle", "side-by-side");
+    const before = r.date_hint?.[0] ?? 2010;
+    q.set("basemapSourceA", "historical");
+    q.set("historicalActiveSourceA", before < 2014 ? "ge-historical" : "wayback");
+    q.set("dateA", String(Date.UTC(before, 5, 1)));
+    q.set("basemapSourceB", "historical");
+    q.set("historicalActiveSourceB", "wayback");
+    q.set("dateB", String(TODAY_MS));
     return `${APP}?${q.toString()}`;
   }
   if (r.library_id) q.set("terrainSourceA", r.library_id);
@@ -89,8 +92,8 @@ export function openUrl(r: Ref): string | null {
 }
 
 // The difference of two surveys, on a diverging ramp centred on 0.
-export function changeUrl(c: NonNullable<Ref["change"]>): string {
-  const q = camera(c);
+export function changeUrl(c: NonNullable<Ref["change"]>, place?: string): string {
+  const q = camera({ ...c, name: place });
   q.set("terrainSourceA", c.id);
   q.set("showHillshade", "true");
   q.set("showColorRelief", "true");
@@ -122,7 +125,7 @@ export function ResearchReferences({ group }: { group: string }) {
             {r.one_line ? <> {r.one_line}</> : null}
             {r.dataset ? <> <span className="text-fd-muted-foreground">Data: {r.dataset}.</span></> : null}
             {open ? <> <a href={open} {...ext}>Open {place} in Terrain Viewer ↗</a></> : null}
-            {r.change ? <> · <a href={changeUrl(r.change)} {...ext}>See the elevation change ↗</a></> : null}
+            {r.change ? <> · <a href={changeUrl(r.change, r.study_area?.name)} {...ext}>See the elevation change ↗</a></> : null}
           </li>
         );
       })}

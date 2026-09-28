@@ -297,6 +297,17 @@ function loadRows(): Row[] {
     .sort((a, b) => a.iso.localeCompare(b.iso) || a.s.name.localeCompare(b.s.name));
 }
 
+// Surface models (DSM, DOM, nDSM): listed apart, at the bottom of the page,
+// whenever the same country also has a terrain model here, so each section
+// reads as one bare-earth dataset per country. "from the GLO-30 DSM" in a
+// bare-earth product's name does not count.
+const isSurfaceModel = (s: Source) => /\(surface\)|\bn?DSM\b|\bDOM\b/.test(s.name) && !/bare-earth DTM/.test(s.name);
+function splitSurface(rows: Row[]): { terrain: Row[]; surface: Row[] } {
+  const hasTerrain = new Set(rows.filter((r) => !isSurfaceModel(r.s)).map((r) => r.iso));
+  const surface = rows.filter((r) => isSurfaceModel(r.s) && hasTerrain.has(r.iso));
+  return { terrain: rows.filter((r) => !surface.includes(r)), surface };
+}
+
 /** Which bucket a source falls into versus Mapterhorn's best ingested resolution. */
 function bucketOf(r: Row): "new" | "finer" | "same" | "coarser" {
   if (r.mh === null || r.mh === undefined) return "new";
@@ -405,7 +416,7 @@ function OpenLink({ s, label }: { s: Source; label: string }) {
 }
 
 export function NationalDatasetsTable() {
-  const rows = loadRows();
+  const rows = splitSurface(loadRows()).terrain;
   return (
     <>
       {GROUPS.map((g) => {
@@ -418,8 +429,8 @@ export function NationalDatasetsTable() {
             <table className="text-sm">
               <thead>
                 <tr>
-                  <th>ISO A3</th><th>Country</th><th>Dataset</th><th>Served as</th>
-                  <th>Endpoint</th><th>API resolution</th><th>Bulk download</th><th>Coverage</th><th>Mapterhorn</th><th>View</th>
+                  <th>ISO A3</th><th>Country</th><th>Dataset</th><th>View</th><th>API resolution</th>
+                  <th>Coverage</th><th>Bulk download</th><th>Mapterhorn</th><th>Served as</th><th>Endpoint</th>
                 </tr>
               </thead>
               <tbody>
@@ -430,15 +441,15 @@ export function NationalDatasetsTable() {
                       <td><code>{iso}</code></td>
                       <td>{COUNTRY[iso] ?? iso}</td>
                       <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} infoUrl={s.infoUrl} /></td>
+                      <td><OpenLink s={s} label={`${COUNTRY[iso] ?? iso} ${s.name.replace(ISO_RE, "")}`} /></td>
+                      <td>{facts?.res ?? "—"}</td>
+                      <td>{facts?.coverage ?? "—"}</td>
+                      <td>{s.bulkResolutionM !== undefined ? `${s.bulkResolutionM} m` : facts?.res ? "same" : "—"}</td>
+                      <td>{mh === null || mh === undefined ? "not ingested" : `${mh} m`}</td>
                       <td>{SERVING_LABEL(s.type)}</td>
                       <td>
                         <a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a>
                       </td>
-                      <td>{facts?.res ?? "—"}</td>
-                      <td>{s.bulkResolutionM !== undefined ? `${s.bulkResolutionM} m` : facts?.res ? "same" : "—"}</td>
-                      <td>{facts?.coverage ?? "—"}</td>
-                      <td>{mh === null || mh === undefined ? "not ingested" : `${mh} m`}</td>
-                      <td><OpenLink s={s} label={`${COUNTRY[iso] ?? iso} ${s.name.replace(ISO_RE, "")}`} /></td>
                     </tr>
                   );
                 })}
@@ -465,12 +476,14 @@ export function NationalDatasetsTable() {
 
 /** Regional / sub-national datasets — real data, partial footprint. */
 export function SubNationalTable() {
-  const rows = loadRows().filter((r) => isSubNational(r.s));
+  const all = loadRows();
+  const surface = new Set(splitSurface(all).surface.map((r) => r.s.id));
+  const rows = all.filter((r) => isSubNational(r.s) && !surface.has(r.s.id));
   return (
     <div className="overflow-x-auto">
       <table className="text-sm">
         <thead>
-          <tr><th>ISO A3</th><th>Region</th><th>Dataset</th><th>Served as</th><th>Endpoint</th><th>Resolution</th><th>Coverage</th><th>View</th></tr>
+          <tr><th>ISO A3</th><th>Region</th><th>Dataset</th><th>View</th><th>Resolution</th><th>Coverage</th><th>Served as</th><th>Endpoint</th></tr>
         </thead>
         <tbody>
           {rows.map(({ s, iso }) => (
@@ -478,11 +491,11 @@ export function SubNationalTable() {
               <td><code>{iso}</code></td>
               <td>{COUNTRY[iso] ?? iso}</td>
               <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} infoUrl={s.infoUrl} /></td>
-              <td>{SERVING_LABEL(s.type)}</td>
-              <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
+              <td><OpenLink s={s} label={s.name} /></td>
               <td>{FACTS[s.id]?.res ?? "—"}</td>
               <td>{FACTS[s.id]?.coverage ?? "—"}</td>
-              <td><OpenLink s={s} label={s.name} /></td>
+              <td>{SERVING_LABEL(s.type)}</td>
+              <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
             </tr>
           ))}
         </tbody>
@@ -505,21 +518,54 @@ export function GlobalDatasetsTable() {
     <div className="overflow-x-auto">
       <table className="text-sm">
         <thead>
-          <tr><th>Dataset</th><th>Served as</th><th>Endpoint</th><th>Resolution</th><th>Coverage</th><th>View</th></tr>
+          <tr><th>Dataset</th><th>View</th><th>Resolution</th><th>Coverage</th><th>Served as</th><th>Endpoint</th></tr>
         </thead>
         <tbody>
           {rows.map((s) => (
             <tr key={s.id}>
               <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(/^Global - /, "")}</a> : s.name.replace(/^Global - /, "")}<DoiLink id={s.id} infoUrl={s.infoUrl} /></td>
-              <td>{SERVING_LABEL(s.type)}</td>
-              <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
+              <td><OpenLink s={s} label={s.name} /></td>
               <td>{FACTS[s.id]?.res ?? "—"}</td>
               <td>{FACTS[s.id]?.coverage ?? "—"}</td>
-              <td><OpenLink s={s} label={s.name} /></td>
+              <td>{SERVING_LABEL(s.type)}</td>
+              <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** Surface models (DSM, DOM) and the heights above ground derived from them
+ *  (nDSM), for countries that also have a terrain model above. */
+export function SurfaceModelsTable() {
+  const rows = splitSurface(loadRows()).surface;
+  return (
+    <div className="overflow-x-auto">
+      <table className="text-sm">
+        <thead>
+          <tr><th>ISO A3</th><th>Country</th><th>Dataset</th><th>View</th><th>Resolution</th><th>Coverage</th><th>Served as</th><th>Endpoint</th></tr>
+        </thead>
+        <tbody>
+          {rows.map(({ s, iso }) => (
+            <tr key={s.id}>
+              <td><code>{iso}</code></td>
+              <td>{COUNTRY[iso] ?? iso}</td>
+              <td>{s.infoUrl ? <a href={s.infoUrl} target="_blank" rel="noopener noreferrer">{s.name.replace(ISO_RE, "")}</a> : s.name.replace(ISO_RE, "")}<DoiLink id={s.id} infoUrl={s.infoUrl} /></td>
+              <td><OpenLink s={s} label={s.name} /></td>
+              <td>{s.resolutionM !== undefined ? `${s.resolutionM} m` : FACTS[s.id]?.res ?? "—"}</td>
+              <td>{FACTS[s.id]?.coverage ?? "—"}</td>
+              <td>{SERVING_LABEL(s.type)}</td>
+              <td>{s.type === "dem-diff" ? "derived in the browser" : <a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-xs text-fd-muted-foreground">
+        {rows.length} surface and height models. A DSM is the top of whatever the survey hit: canopy, roofs, bridges. An nDSM is
+        that surface minus the terrain model, so the ground is at 0 and trees and buildings at their height.
+      </p>
     </div>
   );
 }

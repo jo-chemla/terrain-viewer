@@ -1,11 +1,32 @@
 ---
 title: Research References Table
-description: All of Terrain Viewer's research references in one sortable, filterable table, by field, year, whether a study opens in the app, has a free copy or an elevation change, and whether it cites RVT or the Copernicus DEM
-full: true
+description: All of Terrain Viewer's research references as sortable, filterable tables by section, by field, year, whether a study opens in the app, has a free copy or an elevation change, and whether it cites RVT or the Copernicus DEM
 ---
 
-import { ResearchReferencesTable } from "@/components/research-references-table";
+import { ReferencesTableControls, ReferencesTableSection } from "@/components/research-references-table";
 
-The same references as [Research References](/resources/research-references), as a table. Click a column to sort, click **Grouped** to go back to sections and groups, and click a section or group row to fold it. **Has** filters cycle through any, yes and no. The search, sort, filters and columns are kept in the address bar, so a filtered table can be shared as a link. **Export CSV** saves the rows shown.
+The same references as [Research References](/resources/research-references), as tables, one per section. The filters below apply to all of them. Click a column to sort; **By group** orders by group again, and a group row folds. **Has** filters cycle through any, yes and no. Search, sort, filters and columns are kept in the address bar, so a filtered view can be shared as a link, and **Export CSV** saves the rows shown. Scroll down and each table's header row stays at the top of the window.
 
-<ResearchReferencesTable />
+Study links open on Mapterhorn, unless the app has a finer dataset for the place; each says where it lands, with the place in the search box and the minimap open. Historical imagery studies open old against recent imagery, side by side.
+
+<ReferencesTableControls />
+
+## Landscape archaeology
+
+<ReferencesTableSection section="Landscape archaeology" />
+
+## Earth surface processes
+
+<ReferencesTableSection section="Earth surface processes" />
+
+## Historical imagery
+
+<ReferencesTableSection section="Historical imagery" />
+
+## Methods
+
+<ReferencesTableSection section="Methods" />
+
+## Elevation data
+
+<ReferencesTableSection section="Elevation data" />
