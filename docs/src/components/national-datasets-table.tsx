@@ -373,11 +373,34 @@ function openUrl(s: Source): string {
   return `https://terrain-viewer.iconem.com/?${q.toString()}`
 }
 
+// The dataset in view A beside Mapterhorn in view B, side by side with the
+// cameras synced, zoomed in to where a 1 m survey and a 30 m model part ways.
+// At the centre of the dataset's bounds, which for a coastline-shaped country
+// can be sea: pan from there.
+function compareUrl(s: Source): string {
+  const u = new URL(openUrl(s))
+  u.searchParams.set("terrainSourceB", "mapterhorn")
+  u.searchParams.set("splitStyle", "side-by-side")
+  u.searchParams.set("gridLayout", "2x1")
+  u.searchParams.set("zoom", String(Math.max(Number(u.searchParams.get("zoom") ?? 3), 13)))
+  return u.toString()
+}
+
 function OpenLink({ s, label }: { s: Source; label: string }) {
   return (
-    <a href={openUrl(s)} target="_blank" rel="noopener noreferrer" title={`Open ${label} in Terrain Viewer, with hillshade`}>
-      Open ↗
-    </a>
+    <span className="whitespace-nowrap">
+      <a href={openUrl(s)} target="_blank" rel="noopener noreferrer" title={`Open ${label} in Terrain Viewer, with hillshade`}>
+        Open ↗
+      </a>
+      {s.id === "mapterhorn" ? null : (
+        <>
+          <br />
+          <a href={compareUrl(s)} target="_blank" rel="noopener noreferrer" title={`${label} (left) beside Mapterhorn (right), side by side`}>
+            vs Mapterhorn ↗
+          </a>
+        </>
+      )}
+    </span>
   )
 }
 

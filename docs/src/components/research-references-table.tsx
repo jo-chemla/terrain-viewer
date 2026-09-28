@@ -52,13 +52,16 @@ const COLUMNS: { key: string; title: string; sort?: SortKey; off?: boolean }[] =
   { key: "year", title: "Year", sort: "year" },
   { key: "authors", title: "Authors", sort: "authors" },
   { key: "title", title: "Title", sort: "title" },
-  { key: "group", title: "Group", off: true },
+  { key: "summary", title: "Description" },
   { key: "area", title: "Study area", sort: "area" },
-  { key: "links", title: "Links" },
+  { key: "app", title: "In the app" },
+  { key: "change", title: "Change" },
+  { key: "free", title: "Free copy" },
+  { key: "doi", title: "DOI" },
   { key: "cites", title: "Cites" },
+  { key: "group", title: "Group", off: true },
   { key: "data", title: "Data", off: true },
   { key: "modes", title: "Modes", off: true },
-  { key: "summary", title: "Summary", off: true },
 ];
 
 // ---- URL state ----------------------------------------------------------------
@@ -212,37 +215,33 @@ export function ResearchReferencesTable() {
   const cell = (r: Ref, key: string): ReactNode => {
     switch (key) {
       case "year": return <span className="tabular-nums">{r.year || "—"}</span>;
-      case "authors": return <span className="block max-w-[14rem]">{r.authors}</span>;
+      case "authors": return <span className="block min-w-[8rem] max-w-[14rem]">{r.authors}</span>;
       case "title": return (
-        <span className="block max-w-[26rem]">
+        <span className="block min-w-[14rem] max-w-[26rem]">
           <a href={r.url} {...ext} className="font-medium">{r.title}</a>
           {r.venue ? <span className="block text-xs text-fd-muted-foreground"><em>{r.venue}</em></span> : null}
         </span>
       );
       case "group": return <span className="text-xs">{sectionOf(r)} › {r.group}</span>;
       case "area": return <span className="block max-w-[12rem] text-xs">{r.study_area?.name ?? "—"}</span>;
-      case "links": {
+      case "app": {
         const open = openUrl(r as never);
-        return (
-          <span className="flex flex-wrap gap-1">
-            {open ? <a href={open} {...ext} className={LINK} title={`Open ${r.study_area?.name ?? "the study area"} in Terrain Viewer`}>App ↗</a> : null}
-            {r.change ? <a href={changeUrl(r.change)} {...ext} className={LINK} title="See the elevation change between two surveys">Change ↗</a> : null}
-            {r.oa_url ? <a href={r.oa_url} {...ext} className={LINK} title="Open-access copy">Free ↗</a> : null}
-            {r.doi ? <a href={`https://doi.org/${r.doi}`} {...ext} className={LINK} title={`doi:${r.doi}`}>DOI ↗</a> : null}
-          </span>
-        );
+        return open ? <a href={open} {...ext} className={LINK} title={`Open ${r.study_area?.name ?? "the study area"} in Terrain Viewer`}>Open ↗</a> : <span className="text-fd-muted-foreground">—</span>;
       }
+      case "change": return r.change ? <a href={changeUrl(r.change)} {...ext} className={LINK} title="The difference of two surveys, before and after">Change ↗</a> : <span className="text-fd-muted-foreground">—</span>;
+      case "free": return r.oa_url ? <a href={r.oa_url} {...ext} className={LINK} title="Open-access copy">Free ↗</a> : <span className="text-fd-muted-foreground">—</span>;
+      case "doi": return r.doi ? <a href={`https://doi.org/${r.doi}`} {...ext} className="block max-w-[11rem] text-xs break-all" title={`doi:${r.doi}`}>{r.doi}</a> : <span className="text-fd-muted-foreground">—</span>;
       case "cites": return <span className="flex flex-wrap gap-1">{(r.cites ?? []).map((c) => <span key={c} className={`${CHIP} border-fd-border`}>{c}</span>)}</span>;
       case "data": return <span className="block max-w-[14rem] text-xs">{r.dataset ?? "—"}</span>;
       case "modes": return <span className="block max-w-[12rem] text-xs">{(r.modes ?? []).join(", ") || "—"}</span>;
-      case "summary": return <span className="block max-w-[24rem] text-xs">{r.one_line ?? ""}</span>;
+      case "summary": return <span className="block min-w-[16rem] max-w-[30rem] text-xs">{r.one_line ?? ""}</span>;
     }
     return null;
   };
 
   let lastSection = "", lastGroup = "";
   return (
-    <div className="not-prose flex flex-col gap-3 text-sm">
+    <div className="tv-wide not-prose flex flex-col gap-3 text-sm">
       <div className="flex flex-col gap-2 rounded-lg border border-fd-border bg-fd-card p-3">
         <div className="flex flex-wrap items-center gap-2">
           <input type="search" value={s.q} onChange={(e) => set({ q: e.target.value })} placeholder="Search authors, titles, places, data…"

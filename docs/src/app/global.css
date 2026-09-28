@@ -11,3 +11,13 @@ html > body[data-scroll-locked] {
   margin-right: 0px !important;
   --removed-body-scroll-bar-size: 0px !important;
 }
+
+/* Pages with a wide data table (the Research References Table) use the whole
+   screen: the layout's 97rem cap and the article's own max-width are lifted,
+   the sidebar stays at the left edge. */
+#nd-docs-layout:has(.tv-wide) {
+  --fd-layout-width: 100vw;
+}
+#nd-docs-layout:has(.tv-wide) #nd-page {
+  max-width: none;
+}
