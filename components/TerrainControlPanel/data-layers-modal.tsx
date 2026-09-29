@@ -185,7 +185,15 @@ export function DataLayersModal({ open, onOpenChange, state, setState }: {
     }
     const next = !isOn(m)
     // A card turning ON has to bring its section with it, or nothing draws.
-    if (next) { setState(m.master ? { [m.key]: true, [m.master]: true } : { [m.key]: true }); return }
+    // If the section was off, its other modes go off first: their flags keep
+    // their last value (Slope is on by default) while the section hides them,
+    // so turning the section on for Aspect used to bring Slope back with it.
+    if (next) {
+      if (!m.master) { setState({ [m.key]: true }); return }
+      const siblingsOff = state[m.master] ? {} : Object.fromEntries((MASTER_MEMBERS[m.master] ?? []).filter((k) => k !== m.key).map((k) => [k, false]))
+      setState({ ...siblingsOff, [m.key]: true, [m.master]: true })
+      return
+    }
     // The last one OFF takes the master down with it.
     const othersOn = !!m.master && (MASTER_MEMBERS[m.master] ?? []).some((k) => k !== m.key && !!state[k])
     setState(m.master && !othersOn ? { [m.key]: false, [m.master]: false } : { [m.key]: false })
@@ -242,8 +250,12 @@ export function DataLayersModal({ open, onOpenChange, state, setState }: {
                         on && "border-primary ring-2 ring-primary/40",
                       )}
                     >
-                      <div className="relative aspect-[16/10] w-full bg-muted">
-                        <img src={thumbUrl(m.image)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                      {/* The image is out of flow (absolute), so the 16:10 box
+                          alone sets the height: in flow, a portrait picture
+                          (the camera animation's, 640 x 918) stretched the
+                          box and every card in its row with it. */}
+                      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-muted">
+                        <img src={thumbUrl(m.image)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
                         {on && (
                           <span className="absolute right-1.5 top-1.5 rounded-full bg-primary p-0.5 text-primary-foreground shadow">
                             <Check className="h-3 w-3" />
