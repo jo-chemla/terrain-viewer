@@ -164,6 +164,28 @@ export function parseBookmarkSearch(search: string): Record<string, unknown> {
  *  call below), so comparing the newly selected bookmark's own family id
  *  (its parentId, or its own id if it has none) against it covers all three
  *  relationships in one check. */
+/** The link a bookmark stands for: this app with the bookmark's saved query. */
+export function bookmarkHref(b: { search: string }): string {
+  const q = b.search.startsWith("?") ? b.search.slice(1) : b.search
+  return `${window.location.origin}${window.location.pathname}${q ? `?${q}` : ""}`
+}
+
+/** Click handlers that make a bookmark behave like a link: a plain click
+ *  restores it in place (`restore`), a middle click or Ctrl/Cmd/Shift-click
+ *  opens it in a new tab. The middle button's own mousedown is cancelled so
+ *  the browser does not start its autoscroll. */
+export function bookmarkClickProps<B extends { search: string }>(b: B, restore: (b: B) => void) {
+  const openNew = () => window.open(bookmarkHref(b), "_blank", "noopener,noreferrer")
+  return {
+    onClick: (e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey) openNew()
+      else restore(b)
+    },
+    onAuxClick: (e: { button: number; preventDefault: () => void }) => { if (e.button === 1) { e.preventDefault(); openNew() } },
+    onMouseDown: (e: { button: number; preventDefault: () => void }) => { if (e.button === 1) e.preventDefault() },
+  }
+}
+
 export function restoreBookmark(
   bookmark: Bookmark,
   setState: (updates: Record<string, unknown>) => void,

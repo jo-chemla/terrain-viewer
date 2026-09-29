@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useIsTruncated } from "@/hooks/use-is-truncated"
 import { cn } from "@/lib/utils"
-import { restoreBookmark, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, type Bookmark } from "@/lib/bookmarks"
+import { restoreBookmark, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, type Bookmark, bookmarkClickProps } from "@/lib/bookmarks"
 import { PRESET_BOOKMARKS, restorePreset } from "@/lib/preset-bookmarks"
 import { galleryFlattenGroupsAtom, galleryShowFeaturedAtom, bookmarksGalleryViewModeAtom } from "@/lib/settings-atoms"
 
@@ -56,7 +56,7 @@ const BookmarkCard: React.FC<BookmarkItemProps> = ({
   const label = parentName ? `${parentName} — ${b.name}` : b.name
 
   const nameButton = (
-    <button className="min-w-0 flex-1 text-left cursor-pointer" onClick={() => onRestore(b)}>
+    <button className="min-w-0 flex-1 text-left cursor-pointer" {...bookmarkClickProps(b, onRestore)}>
       {parentName && (
         <div ref={parentNameRef} className="truncate text-[10px] leading-tight text-muted-foreground">{parentName}</div>
       )}
@@ -72,7 +72,7 @@ const BookmarkCard: React.FC<BookmarkItemProps> = ({
         isActive && "border-2 border-primary p-1",
       )}
     >
-      <button className="relative block w-full cursor-pointer" onClick={() => onRestore(b)}>
+      <button className="relative block w-full cursor-pointer" {...bookmarkClickProps(b, onRestore)}>
         <div className="aspect-[16/10] w-full bg-muted">
           {b.thumb ? (
             <img src={b.thumb} alt="" className="h-full w-full object-cover" />
@@ -134,7 +134,7 @@ const BookmarkListRow: React.FC<BookmarkItemProps> = ({
   const label = parentName ? `${parentName} — ${b.name}` : b.name
 
   const nameButton = (
-    <button className="min-w-0 flex-1 text-left cursor-pointer" onClick={() => onRestore(b)}>
+    <button className="min-w-0 flex-1 text-left cursor-pointer" {...bookmarkClickProps(b, onRestore)}>
       {parentName && (
         <div ref={parentNameRef} className="truncate text-[10px] leading-tight text-muted-foreground">{parentName}</div>
       )}
@@ -152,7 +152,7 @@ const BookmarkListRow: React.FC<BookmarkItemProps> = ({
     >
       <button
         className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
-        onClick={() => onRestore(b)}
+        {...bookmarkClickProps(b, onRestore)}
         aria-label="Load this view"
       >
         {b.thumb ? (

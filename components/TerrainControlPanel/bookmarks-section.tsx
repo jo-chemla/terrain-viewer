@@ -18,8 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useIsTruncated } from "@/hooks/use-is-truncated"
 import {
   bookmarksAtom, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, restoreBookmark, exportBookmarksJson,
-  mergeImportedBookmarks, summarizeActiveVizModes, type Bookmark,
-} from "@/lib/bookmarks"
+  mergeImportedBookmarks, summarizeActiveVizModes, type Bookmark, bookmarkClickProps } from "@/lib/bookmarks"
 import { bookmarksListHeightAtom, collapsedBookmarkGroupsAtom, bookmarksViewModeAtom } from "@/lib/settings-atoms"
 import { reverseGeocodeLabel } from "@/lib/geocode"
 import { captureBookmarkThumbnail } from "@/lib/controls-utils"
@@ -36,7 +35,7 @@ const PresetBookmarkRow: React.FC<{ preset: Bookmark; onRestore: (b: Bookmark) =
       delay={0}
       render={
         <button
-          onClick={() => onRestore(preset)}
+          {...bookmarkClickProps(preset, onRestore)}
           className="flex w-full items-center gap-2 min-w-0 rounded-md p-0.5 text-left cursor-pointer hover:bg-muted/50"
         >
           <span className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center text-muted-foreground">
@@ -69,7 +68,7 @@ const BookmarkGridTile: React.FC<{
       delay={0}
       render={
         <button
-          onClick={() => onRestore(b)}
+          {...bookmarkClickProps(b, onRestore)}
           className={cn(
             "overflow-hidden rounded-md border text-left cursor-pointer transition-colors hover:border-foreground/40",
             isActive && "border-2 border-primary",
@@ -127,7 +126,7 @@ const BookmarkRow: React.FC<{
   const [isDragOver, setIsDragOver] = useState(false)
 
   const nameButton = (
-    <button className="flex-1 min-w-0 text-left cursor-pointer" onClick={() => onRestore(b)}>
+    <button className="flex-1 min-w-0 text-left cursor-pointer" {...bookmarkClickProps(b, onRestore)}>
       <div ref={nameRef} className="text-sm truncate">{b.name}</div>
     </button>
   )
@@ -155,7 +154,7 @@ const BookmarkRow: React.FC<{
           render={
             <button
               className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
-              onClick={() => onRestore(b)}
+              {...bookmarkClickProps(b, onRestore)}
               aria-label="Load this view"
             >
               {b.thumb ? (
@@ -268,7 +267,7 @@ const BookmarkGroupHeader: React.FC<{
   const [nameRef, isNameTruncated] = useIsTruncated<HTMLDivElement>()
 
   const nameButton = (
-    <button className="flex-1 min-w-0 text-left cursor-pointer" onClick={() => onRestore(b)}>
+    <button className="flex-1 min-w-0 text-left cursor-pointer" {...bookmarkClickProps(b, onRestore)}>
       <div ref={nameRef} className="text-sm font-medium truncate">{b.name}</div>
       <div className="text-xs text-muted-foreground">{childCount} view{childCount === 1 ? "" : "s"}</div>
     </button>
@@ -310,7 +309,7 @@ const BookmarkGroupHeader: React.FC<{
             render={
               <button
                 className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted cursor-pointer"
-                onClick={() => onRestore(b)}
+                {...bookmarkClickProps(b, onRestore)}
                 aria-label="Load this view"
               >
                 {thumb ? (
@@ -677,7 +676,9 @@ export const BookmarksSection: React.FC<{
           icon={Images}
           tooltip="Gallery - every saved view, fullscreen"
           onClick={() => setIsGalleryOpen(true)}
-          disabled={bookmarks.length === 0}
+          // The Featured bookmarks are in the gallery too, so it opens even
+          // before the visitor has saved a view of their own.
+          disabled={bookmarks.length === 0 && PRESET_BOOKMARKS.length === 0}
         />
       }
     >

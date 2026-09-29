@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useEffect, forwardRef, createContext, useContext, useId, Fragment } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin, ArrowRightToLine, Link2 } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin, ArrowRightToLine, Link2, Search, X } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
@@ -911,16 +911,28 @@ export const matchesByodQuery = (s: { name: string; description?: string }, q: s
 export const BYOD_FILTER_MIN = 6
 
 export function ByodFilter({ value, onChange, shown, total }: { value: string; onChange: (v: string) => void; shown: number; total: number }) {
+  // The app's own Input (not a bare type="search", whose native clear button
+  // is a blue browser glyph), with a lucide Search and a clear X of our own.
   return (
-    <div className="flex items-center gap-2">
-      <input
-        type="search"
+    <div className="relative flex items-center">
+      <Search className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-muted-foreground" />
+      <Input
+        type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={`Filter ${total} sources by name or description`}
-        className="h-7 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 text-xs outline-none placeholder:text-muted-foreground focus:border-ring cursor-text"
+        onKeyDown={(e) => { if (e.key === "Escape" && value) { e.stopPropagation(); onChange("") } }}
+        placeholder={`Filter ${total} sources`}
+        aria-label="Filter your sources by name or description"
+        className="h-7 pl-7 pr-14 text-xs md:text-xs cursor-text"
       />
-      {value ? <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{shown} of {total}</span> : null}
+      {value ? (
+        <span className="absolute right-1.5 flex items-center gap-1">
+          <span className="text-[11px] tabular-nums text-muted-foreground">{shown}/{total}</span>
+          <button type="button" onClick={() => onChange("")} aria-label="Clear the filter" className="cursor-pointer rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground">
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ) : null}
     </div>
   )
 }
