@@ -23,3 +23,4 @@
 - [MapLibre load / terra-draw cursor gotchas](maplibre-load-and-terradraw-cursor-gotchas.md) — load never fires on a wedged queue; terra-draw resets cursors on updateOptions and clears them each move
 - [Sprint handoff 2026-09-25](handoff-2026-09-25.md) — registry, every mode/export/contour on every source, undo, pits, stall watchdog, umami fix; open items; how to test without wasting an hour
 - [WMS nodata: two paths](wms-nodata-two-paths.md) — wms-raw is built for display and for client readers; both need the nodata markers; holes are a mask (alpha 254), no smear band needed
+- [Sprint handoff 2026-09-29](handoff-2026-09-29.md) — research references and tables, datasets page, nDSM/3D/Wayback/IGN fixes; 4 local unpushed commits; every GitHub post still to make, with draft paths
