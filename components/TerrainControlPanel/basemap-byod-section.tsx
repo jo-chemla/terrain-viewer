@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { TooltipButton, SourceGridToggle, GroupHeading } from "./controls-components"
+import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN } from "./controls-components"
 import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
@@ -217,8 +217,10 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   // Layers in MapSources.tsx/MapLayers.tsx) instead of being one themselves — keep
   // them out of the basemap radio/toggle lists below, and multi-select them in their
   // own checkbox list further down.
-  const basemapRoleSources = customBasemapSources.filter((s) => (s.role ?? "basemap") === "basemap")
-  const overlaySources = customBasemapSources.filter((s) => s.role === "overlay")
+  const [byodQuery, setByodQuery] = useState("")
+  const byodQ = byodQuery.trim().toLowerCase()
+  const basemapRoleSources = customBasemapSources.filter((s) => (s.role ?? "basemap") === "basemap" && matchesByodQuery(s, byodQ))
+  const overlaySources = customBasemapSources.filter((s) => s.role === "overlay" && matchesByodQuery(s, byodQ))
 
   const handleToggleOverlay = useCallback((id: string, checked: boolean) => {
     const current: string[] = state.overlayBasemapIds || []
@@ -234,6 +236,9 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         </CollapsibleTrigger>
 
         <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
+          {customBasemapSources.length >= BYOD_FILTER_MIN && (
+            <ByodFilter value={byodQuery} onChange={setByodQuery} shown={basemapRoleSources.length + overlaySources.length} total={customBasemapSources.length} />
+          )}
           <TooltipProvider>
             <div className="flex gap-2">
               <TooltipButton

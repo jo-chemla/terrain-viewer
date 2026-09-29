@@ -16,7 +16,7 @@ import { deletePersistedCogFile } from "@/lib/opfs-file-store"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import type { MapRef } from "react-map-gl/maplibre"
 import saveAs from "file-saver"
-import { Section, SourceGridToggle, GroupHeading } from "./controls-components"
+import { Section, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN } from "./controls-components"
 import { type Bounds, templateLink, shouldZoomToTerrainBounds } from "@/lib/controls-utils"
 import { resolveLinkedBasemapId } from "@/lib/linked-sources"
 import { staticBoundsFor } from "@/lib/max-bounds"
@@ -117,8 +117,10 @@ export const TerrainSourceSection: React.FC<{
     })
   }, [setCustomTerrainSources])
 
-  const plainTerrainSources = useMemo(() => customTerrainSources.filter((s) => s.type !== "dem-diff"), [customTerrainSources])
-  const ndsmTerrainSources = useMemo(() => customTerrainSources.filter((s) => s.type === "dem-diff"), [customTerrainSources])
+  const [byodQuery, setByodQuery] = useState("")
+  const byodQ = byodQuery.trim().toLowerCase()
+  const plainTerrainSources = useMemo(() => customTerrainSources.filter((s) => s.type !== "dem-diff" && matchesByodQuery(s, byodQ)), [customTerrainSources, byodQ])
+  const ndsmTerrainSources = useMemo(() => customTerrainSources.filter((s) => s.type === "dem-diff" && matchesByodQuery(s, byodQ)), [customTerrainSources, byodQ])
 
   const linkCallback = useCallback((link: string) => () => window.open(templateLink(link, state.lat, state.lng), "_blank"), [state.lat, state.lng])
 
@@ -361,6 +363,9 @@ export const TerrainSourceSection: React.FC<{
           </CollapsibleTrigger>
 
           <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
+            {customTerrainSources.length >= BYOD_FILTER_MIN && (
+              <ByodFilter value={byodQuery} onChange={setByodQuery} shown={plainTerrainSources.length + ndsmTerrainSources.length} total={customTerrainSources.length} />
+            )}
             <TooltipProvider>
               <div id="tour-byod-terrain-row" className="flex gap-2">
                 <TooltipButton

@@ -899,3 +899,28 @@ export function clampMinCommit(v: number | undefined, currentMax: number): numbe
 export function clampMaxCommit(v: number | undefined, currentMin: number): number | undefined {
   return v === undefined ? undefined : Math.max(v, currentMin)
 }
+// ─── ByodFilter ───────────────────────────────────────────────────────────────
+//
+// Filters a Bring Your Own Data list by name and description. Shown only once
+// the list is long enough to need it; plain component state, not in the URL.
+
+/** Rows matching a lower-cased query in their name or description. */
+export const matchesByodQuery = (s: { name: string; description?: string }, q: string) =>
+  !q || `${s.name} ${s.description ?? ""}`.toLowerCase().includes(q)
+
+export const BYOD_FILTER_MIN = 6
+
+export function ByodFilter({ value, onChange, shown, total }: { value: string; onChange: (v: string) => void; shown: number; total: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={`Filter ${total} sources by name or description`}
+        className="h-7 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 text-xs outline-none placeholder:text-muted-foreground focus:border-ring cursor-text"
+      />
+      {value ? <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{shown} of {total}</span> : null}
+    </div>
+  )
+}

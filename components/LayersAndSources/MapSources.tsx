@@ -114,7 +114,10 @@ const rasterBasemaps: Record<string, { url: string; tileSize: number; maxzoom: n
     osm:       { url: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", tileSize: 256, maxzoom: 19 },
     googlesat: { url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 21 },
     google:    { url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 21 },
-    esri:      { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.jpg", tileSize: 256, maxzoom: 19 },
+    // blankTile=false: past its imagery, Esri answers a 404 instead of a 200
+    // "Map data not yet available" placeholder JPEG, so MapLibre shows the
+    // parent tile enlarged rather than drawing the placeholder.
+    esri:      { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.jpg?blankTile=false", tileSize: 256, maxzoom: 19 },
     mapbox:    { url: "https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token={API_KEY}", tileSize: 256, maxzoom: 22 },
     maptiler:  { url: "https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key={API_KEY}", tileSize: 256, maxzoom: 20 },
     // Public quadkey endpoint (no session token to expire), same one historical-satellite uses.

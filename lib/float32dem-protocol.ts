@@ -278,6 +278,73 @@ function downsampleMask(mask: Uint8Array, width: number, height: number, factor:
   return out
 }
 
+// A GetMap that has not answered in this long is asked again. A slow WMS
+// (IGN LiDAR HD, whose 1026 px tiles usually take 1 to 5 s) sometimes leaves
+// a request hanging for minutes while the same tile, asked again, comes back
+// at once: the server has rendered and cached it meanwhile. Waiting on the
+// first request is what left tiles missing until a pan re-requested them, and
+// the stalled-tiles toast up.
+const GETMAP_ATTEMPT_TIMEOUT_MS = 25_000
+const GETMAP_ATTEMPTS = 3
+
+// Our own queue, six GetMaps at a time per host: a browser runs at most six
+// HTTP/1.1 requests per host (IGN's data.geopf.fr is HTTP/1.1) and queues the
+// rest where no timer can see them, so a request that merely waited its turn
+// would time out and retry for nothing. The attempt timer starts once a
+// request holds one of these slots.
+const GETMAP_PER_HOST = 6
+const hostSlots = new Map<string, { active: number; waiting: (() => void)[] }>()
+async function acquireSlot(host: string, signal?: AbortSignal): Promise<() => void> {
+  let h = hostSlots.get(host)
+  if (!h) { h = { active: 0, waiting: [] }; hostSlots.set(host, h) }
+  const slots = h
+  if (slots.active >= GETMAP_PER_HOST) {
+    await new Promise<void>((resolve, reject) => {
+      const go = () => { signal?.removeEventListener("abort", cancel); resolve() }
+      const cancel = () => { slots.waiting = slots.waiting.filter((w) => w !== go); reject(new DOMException("Aborted", "AbortError")) }
+      slots.waiting.push(go)
+      signal?.addEventListener("abort", cancel, { once: true })
+    })
+  }
+  slots.active++
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    slots.active--
+    slots.waiting.shift()?.()
+  }
+}
+
+/** The GetMap body, with a per-attempt timeout and a retry on a hang, a
+ *  network error, a 429 or a 5xx. The caller's signal still aborts it all. */
+async function fetchGetMapWithRetry(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
+  let lastError: unknown
+  const host = new URL(url).host
+  for (let attempt = 0; attempt < GETMAP_ATTEMPTS; attempt++) {
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
+    const release = await acquireSlot(host, signal)
+    const controller = new AbortController()
+    const onAbort = () => controller.abort()
+    signal?.addEventListener("abort", onAbort, { once: true })
+    const timer = setTimeout(() => controller.abort(), GETMAP_ATTEMPT_TIMEOUT_MS)
+    try {
+      const response = await fetch(url, { signal: controller.signal })
+      if (response.status === 429 || response.status >= 500) throw new Error(`GetMap answered ${response.status}`)
+      return await response.arrayBuffer()
+    } catch (e) {
+      if (signal?.aborted) throw e
+      lastError = e
+    } finally {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", onAbort)
+      release()
+    }
+    await new Promise((r) => setTimeout(r, 500 * (attempt + 1)))
+  }
+  throw lastError instanceof Error ? lastError : new Error("GetMap failed")
+}
+
 /** Fetches and decodes one float32 GeoTIFF GetMap/WCS response into
  *  elevations, with every marker (supersample, WCS 2.0, nodata fill) applied.
  *  The tile handler below encodes the result; the export's region reader
@@ -343,8 +410,7 @@ export async function fetchFloat32Raster(rawUrl: string, signal?: AbortSignal): 
   })
   const holeFloor = nodata?.floor ?? -Infinity
 
-  const response = await fetch(url, { signal })
-  const arrayBuffer = await response.arrayBuffer()
+  const arrayBuffer = await fetchGetMapWithRetry(url, signal)
 
   const tiff = await fromArrayBuffer(arrayBuffer)
   const image = await tiff.getImage()

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, Search, Library, type LucideIcon } from "lucide-react"
+import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, Search, Library, Layers2, type LucideIcon } from "lucide-react"
 import { STAC_PRESETS } from "@/lib/stac-presets"
 import { useAtom } from "jotai"
 import { disabledStacPresetsAtom, savedStacCatalogsAtom } from "@/lib/settings-atoms"
@@ -46,10 +46,12 @@ const SECTIONS: { key: SectionKey; title: string; blurb: string }[] = [
 const CITY_MAX_KM = 30
 
 /** Top-level split for terrain: is this an upgrade over the built-in Mapterhorn? */
-type TierKey = "better" | "notBetter" | "bathy"
+type TierKey = "better" | "derived" | "notBetter" | "bathy"
 const TIERS: { key: TierKey; title: string; icon: LucideIcon; blurb: string }[] = [
   { key: "better", title: "Potentially better than Mapterhorn", icon: ArrowUp,
     blurb: "Finer than the bulk data Mapterhorn ingested for the country, the only national data where Mapterhorn falls back to global 30 m, or an AI bare-earth model where Mapterhorn only has the GLO-30 surface." },
+  { key: "derived", title: "nDSM and change", icon: Layers2,
+    blurb: "Differences computed in the browser: height above ground (a surface model minus a terrain model) and change between two surveys of one event, with the before and after surveys they need. Not comparable to Mapterhorn." },
   { key: "notBetter", title: "Not better than Mapterhorn", icon: ArrowDown,
     blurb: "Same or coarser grid. Worth it for data straight from the agency, or for a surface model where Mapterhorn only has bare earth." },
   { key: "bathy", title: "Bathymetry", icon: Waves,
@@ -109,7 +111,7 @@ function kindOf(name: string): { label: string; title: string } | null {
   // close-range scans are surface models even though nothing in the name says so.
   // Derived normalised height models (DSM − DTM) and elevation-change rasters
   // are neither surface nor terrain: what stands on the ground, or what moved.
-  if (/\bnDSM\b|DSM − DTM|height above ground|elevation change|\(dh\)/i.test(name)) return { label: "nDSM", title: "nDSM, normalised digital surface model: DSM − DTM, the height of what stands on the ground (a CHM, canopy height model, over forest). Also used here for elevation-change grids: 0 is the ground, or no change" }
+  if (/\bnDSM\b|DSM − DTM|height above ground|elevation change|\(dh\)|\bChange:/i.test(name)) return { label: "nDSM", title: "nDSM, normalised digital surface model: DSM − DTM, the height of what stands on the ground (a CHM, canopy height model, over forest). Also used here for elevation-change grids: 0 is the ground, or no change" }
   if (/\(surface\)|\b(DSM|DOM|DMP|MNS)\b|FO_DSM|ArcticDEM|REMA|GLO-30|Amphipolis/i.test(name)) {
     return { label: "DSM", title: "Digital Surface Model: buildings and trees included" }
   }
@@ -182,10 +184,18 @@ export function SampleSourcesModal<T extends SampleLike>({
     if (compareToMapterhorn) for (const s of samples) m.set(s.id, compareWithMapterhorn(s, metric))
     return m
   }, [samples, compareToMapterhorn, metric])
+  // The before and after surveys of an event ("Change:" differences), which
+  // are nothing on their own: listed with their difference, not graded
+  // against Mapterhorn. A national DSM behind an nDSM stays with the nationals.
+  const eventOperands = useMemo(() => new Set(samples
+    .filter((s) => s.type === "dem-diff" && /\bChange:/.test(s.name))
+    .flatMap((s) => [(s as any).diffMinuendId, (s as any).diffSubtrahendId])
+    .filter((id): id is string => typeof id === "string" && samples.some((x) => x.id === id && x.loadWithSamples === false))), [samples])
   // tier -> section -> rows. Without comparison everything sits in one tier.
   const grouped = useMemo(() => {
     const out: Record<TierKey, Record<SectionKey, T[]>> = {
       better: { national: [], global: [], regional: [], city: [] },
+      derived: { national: [], global: [], regional: [], city: [] },
       notBetter: { national: [], global: [], regional: [], city: [] },
       bathy: { national: [], global: [], regional: [], city: [] },
     }
@@ -194,11 +204,12 @@ export function SampleSourcesModal<T extends SampleLike>({
       const c = comparisons.get(s.id)
       const tier: TierKey = !compareToMapterhorn ? "better"
         : kindOf(s.name)?.label === "Bathy" ? "bathy"
+        : s.type === "dem-diff" || eventOperands.has(s.id) ? "derived"
         : c?.verdict === "new" || c?.verdict === "finer" || c?.verdict === "bareearth" ? "better" : "notBetter"
       out[tier][sectionOf(s, i, lastGlobal)].push(s)
     })
     return out
-  }, [samples, comparisons, compareToMapterhorn, lastGlobal, q])
+  }, [samples, comparisons, compareToMapterhorn, lastGlobal, q, eventOperands])
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
   // Everything is open by default EXCEPT the "not better than Mapterhorn"
   // tier. That tier is the majority of the list and, by its own definition,

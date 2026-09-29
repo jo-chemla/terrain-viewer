@@ -1341,7 +1341,7 @@
         {
             "id": "custom-basemap-1770049293519",
             "name": "ESRI World_Imagery",
-            "url": "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            "url": "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false",
             "type": "tms",
             "description": ""
         },
