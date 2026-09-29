@@ -56,3 +56,28 @@ Registered as `maplibregl.addProtocol('float32dem', withTileResultCache(float32d
 ## 5. Exposure in the app UI
 
 `components/TerrainControlPanel/wms-picker-panel.tsx` is a generic "bring your own WMS" picker — fetches `GetCapabilities`, lists available layers, builds a `{bbox-epsg-3857}`-templated `GetMap` URL — shared between the basemap and terrain "Add Source" flows. A `format` prop selects `image/png` for ordinary basemap layers or `image/geotiff` for elevation/terrain sources; the resulting URL is routed through `source-builder.ts`'s `"wms-raw"` case described above. It sits alongside COG uploads as one more entry in [Bring Your Own Data](/features/byod), not a separate standalone feature.
+
+## 6. Slow servers: tile size, a queue of our own, and retries
+
+IGN's LiDAR HD service is the hardest source the app streams: the finest data it has for France, served by a WMS that renders every GetMap on demand from the LiDAR tiles, and that sometimes answers in under a second and sometimes not at all. Three measures, all in `lib/float32dem-protocol.ts`, took it from "tiles keep stalling" to loading like a tile service. Measured on 2026-09-28 at the Rade de Brest and in the Beauce.
+
+**Fewer, larger GetMaps.** A `wms-raw` source can set `tileSize` (default 512, the GetMap `WIDTH`/`HEIGHT` two pixels more). The IGN LiDAR HD sources use 1024, asking for 1026 px. One GetMap over an area came back two to five times faster than the four smaller ones covering it:
+
+| Area | 4 × 514 px in parallel | 1 × 1026 px |
+|---|---|---|
+| Rade de Brest, z16 | 3.9 s | 0.8 s |
+| Rade de Brest, z15 | 4.8 s | 1.7 s |
+| Beauce, z16 | 4.6 s | 1.6 s |
+
+With four requests in flight, the slowest one sets the pace, and one of four is often slow. A difference source (nDSM) reads a larger-tiled operand from its parent tile at the same pixel density, so its own 256 px tiles do not multiply the requests (the `256~2~2` depth segment in `demdiff://` URLs).
+
+**A queue of our own, six per host.** `data.geopf.fr` speaks HTTP/1.1, and a browser runs at most six HTTP/1.1 requests per host, queueing the rest where no script can see them. With the terrain, the hillshade and both operands of an nDSM all asking the same host, most requests spent their time in that invisible queue. The protocol now keeps the queue itself (`acquireSlot`): six GetMaps per host at a time, the rest waiting in order, and an aborted tile leaves the queue without ever being sent.
+
+**A timeout that only counts the request, and retries.** Some GetMaps hang for minutes while the same tile, asked again, comes back at once: the server finished and cached it meanwhile. Panning a little made missing tiles appear, which is what gave this away. Each attempt now gets 25 s from the moment it holds a slot (time spent waiting in the queue does not count, or a queued request would time out and retry for nothing), then is sent again, up to three attempts, also on a 429 or a 5xx. The caller's abort still cancels everything.
+
+The result on the IGN nDSM (DSM minus DTM, two GetMaps per tile): the nine tiles around the Rade de Brest load in 12 s where they took 43 s, and the stalled-tiles toast no longer shows in normal use.
+
+**Two related gotchas.**
+
+- Nodata travels as URL markers (`__nodatafloor`, `__nodatafill`) and has to be appended on both paths to this protocol: the map's own tiles (`lib/source-builder.ts`) and the client reads that derived modes, differences, contours and exports use (`useClientDemUpstream` in `MapSources.tsx`). Missing on the second path, IGN's reprojected -9999 sentinel passed as ground and an nDSM stood up in spikes of up to 1000 m along coastlines. Holes are returned as a mask, encoded with alpha 254 at the fill height, so 3D terrain stays level while every other reader skips them.
+- IGN's GetMap responses are cacheable (`Cache-Control: private, max-age=1814400`, 21 days), and the derived modes build the exact same URL as the terrain source (same bbox formula as MapLibre's `getTileBBox`, checked over 1 200 random tiles). So turning on slope or aspect reuses the terrain's tiles from the browser's HTTP cache; what it does fetch is the ring of neighbour tiles its kernel needs at tile edges (measured: 4 GetMaps from the cache, 12 from the network for a 2 × 2 view). Each tile is decoded again.

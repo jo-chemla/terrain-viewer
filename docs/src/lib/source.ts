@@ -1,4 +1,5 @@
 import { loader } from 'fumadocs-core/source';
+import { lucideIconsPlugin } from 'fumadocs-core/source/plugins/lucide-icons';
 import { docsContentRoute, docsImageRoute, docsRoute } from './shared';
 import { defineDocs } from 'fumadocs-mdx/macro';
 import { metaSchema, pageSchema } from 'fumadocs-core/source/schema';
@@ -20,7 +21,9 @@ const docs = defineDocs({
 export const source = loader({
   baseUrl: docsRoute,
   source: docs.toFumadocsSource(),
-  plugins: [],
+  // `icon: <LucideName>` in a page's frontmatter draws that icon before its
+  // sidebar entry, outline and in the text colour.
+  plugins: [lucideIconsPlugin()],
 });
 
 export function getPageImageUrl(page: (typeof source)['$inferPage']) {

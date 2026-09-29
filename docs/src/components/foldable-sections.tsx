@@ -30,10 +30,12 @@ export function FoldableSections() {
     for (const h of headings) {
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = "⌄";
+      // An inline SVG chevron (lucide's chevron-down path), not a "⌄" glyph:
+      // the glyph sat on the font's baseline and looked low next to the title.
+      button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
       button.title = "Fold or unfold this section";
       button.setAttribute("aria-expanded", "true");
-      button.className = "tv-fold mr-1.5 inline-flex size-6 items-center justify-center rounded align-middle text-base leading-none text-fd-muted-foreground transition-transform hover:bg-fd-accent hover:text-fd-foreground";
+      button.className = "tv-fold mr-1.5 inline-flex size-6 shrink-0 items-center justify-center rounded align-[-0.2em] text-fd-muted-foreground transition-transform hover:bg-fd-accent hover:text-fd-foreground";
       button.addEventListener("click", (e) => {
         e.preventDefault();
         setFolded(h, button, button.getAttribute("aria-expanded") === "true");
