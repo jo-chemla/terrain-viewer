@@ -60,7 +60,7 @@
   "library_id": null,
   "one_line": "Open-access practical guide to choosing and parameterising relief visualizations for archaeological interpretation of LiDAR DEMs.",
   "group": "Relief visualization",
-  "oa_url": null,
+  "oa_url": "https://omp.zrc-sazu.si/zalozba/catalog/download/824/3485/287",
   "cites": []
  },
  {
@@ -237,7 +237,7 @@
   "library_id": null,
   "one_line": "Multi-scale relief model that brings out subtle landforms of any size in global 30 m-class DSMs, used to map palaeochannels on an alluvial plain.",
   "group": "Relief visualization",
-  "oa_url": null,
+  "oa_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6036439/",
   "cites": [
    "RVT"
   ]
@@ -285,7 +285,7 @@
   "library_id": null,
   "one_line": "The Phong reflection model (ambient, diffuse and specular terms) behind the app's Phong lighting mode.",
   "group": "Relief visualization",
-  "oa_url": null,
+  "oa_url": "https://dl.acm.org/doi/pdf/10.1145/360825.360839",
   "cites": []
  },
  {
@@ -522,7 +522,7 @@
   "library_id": null,
   "one_line": "Reference description of SRTM, the first near-global 1 to 3 arc-second DEM.",
   "group": "Global DEMs",
-  "oa_url": null,
+  "oa_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1029/2005RG000183",
   "cites": []
  },
  {
@@ -720,7 +720,7 @@
   "library_id": null,
   "one_line": "Over 2,000 km2 of lidar across the Maya lowlands yields population estimates, agricultural works and defensive features.",
   "group": "Settlements under forest",
-  "oa_url": "http://americanae.aecid.es/americanae/es/registros/registro.do?tipoRegistro=MTD&idBib=1463840",
+  "oa_url": null,
   "cites": [
    "RVT"
   ]
@@ -746,7 +746,7 @@
   "library_id": null,
   "one_line": "Landmark lidar survey of the settlement, causeways and terraces of Caracol under rainforest canopy.",
   "group": "Settlements under forest",
-  "oa_url": "https://stars.library.ucf.edu/facultybib2010/1152",
+  "oa_url": null,
   "cites": []
  },
  {
@@ -771,7 +771,7 @@
   "library_id": null,
   "one_line": "Lidar reveals the forested urban grid and ceremonial centres of medieval Angkor.",
   "group": "Settlements under forest",
-  "oa_url": "http://europepmc.org/articles/PMC3732978",
+  "oa_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3732978/",
   "cites": []
  },
  {
@@ -820,7 +820,7 @@
   "library_id": "custom-nl-ahn-dtm",
   "one_line": "Deep-learning detection of barrows and Celtic fields in Dutch lidar, in an area with over 1,000 recorded barrows.",
   "group": "Mounds, tells and field systems",
-  "oa_url": null,
+  "oa_url": "https://storage.googleapis.com/jnl-up-j-jcaa-files/journals/1/articles/281/6ab269a590cca.pdf",
   "cites": []
  },
  {
@@ -867,7 +867,7 @@
   "library_id": null,
   "one_line": "Maps about 14,000 settlement sites, tells included, over 23,000 km2 and uses DEM-derived mound volume as a proxy for how long a site was occupied.",
   "group": "Mounds, tells and field systems",
-  "oa_url": "https://www.ncbi.nlm.nih.gov/pmc/articles/3325708",
+  "oa_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3325708/",
   "cites": []
  },
  {
@@ -891,7 +891,7 @@
   "library_id": null,
   "one_line": "Machine-learning classification of satellite imagery maps Indus-period mounded settlements in Cholistan, a non-DEM counterpart to relief-based mound detection.",
   "group": "Mounds, tells and field systems",
-  "oa_url": null,
+  "oa_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7414161/",
   "cites": []
  },
  {
@@ -1000,7 +1000,7 @@
   "library_id": null,
   "one_line": "Removes forests and buildings from the Copernicus GLO-30 DEM with machine learning (FABDEM), lowering mean absolute error from 1.61 to 1.12 m in built-up areas and from 5.15 to 2.88 m in forests.",
   "group": "Global DEMs",
-  "oa_url": null,
+  "oa_url": "https://iopscience.iop.org/article/10.1088/1748-9326/ac4d4f/pdf",
   "cites": []
  },
  {
@@ -1025,7 +1025,7 @@
   "library_id": null,
   "one_line": "Uses new lidar data from Caracol (Belize) and Angamuco (Mexico) to show how lidar maps whole ancient cities hidden under forest canopy.",
   "group": "Settlements under forest",
-  "oa_url": "https://www.ncbi.nlm.nih.gov/pmc/articles/3420181",
+  "oa_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3420181/",
   "cites": []
  },
  {
@@ -1208,7 +1208,7 @@
   "library_id": null,
   "one_line": "Leaf-off lidar of the forested Puget Lowland revealed previously unknown postglacial fault scarps, deep-seated landslides, uplifted beaches and glacial landforms.",
   "group": "Faults and earthquakes",
-  "oa_url": null,
+  "oa_url": "https://rock.geosociety.org/net/gsatoday/archive/13/6/pdf/i1052-5173-13-6-4.pdf",
   "cites": []
  },
  {
@@ -1286,7 +1286,7 @@
   "library_id": null,
   "one_line": "Traces the February 2021 disaster to a rock and glacier-ice collapse from Ronti Peak that turned into a highly mobile debris flow and struck hydropower plants downstream.",
   "group": "Landslides and mass movements",
-  "oa_url": "https://discovery.dundee.ac.uk/en/publications/cd9567f5-1430-46d5-b8f5-81132306087a",
+  "oa_url": "https://discovery.dundee.ac.uk/ws/files/59332693/Shugar_et_al_Uttarakhand_FINAL_Maintext_wFigs.pdf",
   "cites": [],
   "change": {
    "id": "custom-in-chamoli-avalanche",
@@ -1318,7 +1318,7 @@
   "library_id": null,
   "one_line": "Repeat topography during the eruption gives 0.9-1.4 km3 of lava (dense-rock equivalent), 0.4 km3 of it on land, with effusion rates rising to 200 m3/s or more by mid-June.",
   "group": "Volcanoes",
-  "oa_url": "https://digitalcommons.uri.edu/gsofacpubs/2493",
+  "oa_url": null,
   "cites": [],
   "change": {
    "id": "custom-us-hi-kilauea-2018-lava",
@@ -1376,7 +1376,7 @@
   "library_id": null,
   "one_line": "Near-real-time DEM differencing over the six-month eruption gives a 4.8 km2 lava field with a bulk volume of 150 +/- 3 million m3 and a mean thickness over 30 m.",
   "group": "Volcanoes",
-  "oa_url": null,
+  "oa_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1029/2021GL097125",
   "cites": [],
   "change": {
    "id": "custom-is-fagradalsfjall-lava",
@@ -1408,7 +1408,7 @@
   "library_id": null,
   "one_line": "Builds DEMs from about 21,700 archived terrestrial photographs (median date 1931) and differences them with modern DEMs, finding that Swiss glacier volume halved between 1931 and 2016.",
   "group": "Glaciers and glacial landforms",
-  "oa_url": null,
+  "oa_url": "https://tc.copernicus.org/articles/16/3249/2022/tc-16-3249-2022.pdf",
   "cites": []
  },
  {
@@ -1514,7 +1514,7 @@
   "library_id": null,
   "one_line": "Delineates dolines by combining hydrological tools with the sky-view factor on a 1 m DEM and compares the result with depression filling (fit for identification only) and U-Net segmentation.",
   "group": "Karst",
-  "oa_url": "https://www.sciencedirect.com/science/article/pii/S0169555X24003398",
+  "oa_url": "https://repozitorij.uni-lj.si/Dokument.php?lang=slv&id=226030&dn=",
   "cites": [
    "RVT"
   ]
@@ -1767,7 +1767,7 @@
   "library_id": "custom-nl-ahn-dtm",
   "one_line": "AHN laser altimetry detected about 1,200 ha of Iron Age Celtic field systems, about 1,050 ha of them new, and suggests about 4,500 ha originally.",
   "group": "Mounds, tells and field systems",
-  "oa_url": "https://research.wur.nl/en/publications/the-widespread-occurrence-of-celtic-field-systems-in-the-central-",
+  "oa_url": null,
   "cites": []
  },
  {
@@ -1910,7 +1910,7 @@
   },
   "library_id": null,
   "one_line": "A 1:1500 geomorphological map of an active landslide from 2014 lidar; differencing with a 1973 DEM shows about 6.2 × 10⁵ m³ of material left its upper sector in ~40 years.",
-  "oa_url": null,
+  "oa_url": "https://www.tandfonline.com/doi/pdf/10.1080/17445647.2023.2277898",
   "cites": [
    "RVT"
   ],
@@ -2093,7 +2093,7 @@
   },
   "library_id": null,
   "one_line": "Oxbows, ridge-and-swale point bars, crevasse splays and levees in a 1 m lidar DTM record a once meandering and anabranching floodplain that was turned into stable mill races and engineered channels over 400 years.",
-  "oa_url": null,
+  "oa_url": "https://egqsj.copernicus.org/articles/74/355/2025/egqsj-74-355-2025.pdf",
   "cites": [
    "RVT"
   ],
@@ -2185,7 +2185,7 @@
   },
   "library_id": "custom-cz-cuzk-dmr5g",
   "one_line": "A new lidar method found over a million rocky outcrops; GPS-collared lynx in Slovenia and the Bohemian Forest chose rugged, rocky terrain for day resting, and selected it more strongly where it was scarcer.",
-  "oa_url": null,
+  "oa_url": "https://link.springer.com/content/pdf/10.1007/s10980-024-01923-y.pdf",
   "cites": [
    "RVT"
   ],
@@ -2247,7 +2247,7 @@
   },
   "library_id": null,
   "one_line": "Lidar measures of terrain and vegetation structure explained much of the species richness of plants, fungi, lichens and bryophytes at 130 sites across Denmark, from open grassland to forest.",
-  "oa_url": null,
+  "oa_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6852470/",
   "cites": [],
   "app_basemaps": null,
   "date_hint": null,
@@ -2433,7 +2433,7 @@
   },
   "library_id": null,
   "one_line": "Re-mapping from high-resolution elevation data and fieldwork largely confirmed the known ice-marginal positions NE of Feldberg, rejected a few, and added many previously undescribed moraines as targets for dating.",
-  "oa_url": null,
+  "oa_url": "https://egqsj.copernicus.org/articles/74/1/2025/egqsj-74-1-2025.pdf",
   "cites": [
    "RVT"
   ],
@@ -2497,7 +2497,7 @@
   },
   "library_id": null,
   "one_line": "Lidar mapping plus Landsat change detection showed old lead-mining sites on Alston Moor are eroding, mostly by gullying, which moves heavily contaminated sediment into the wider catchment.",
-  "oa_url": "https://durham-repository.worktribe.com/output/1381534",
+  "oa_url": null,
   "cites": [],
   "app_basemaps": null,
   "date_hint": null,
@@ -2527,7 +2527,7 @@
   },
   "library_id": null,
   "one_line": "Imja and Lower Barun lakes are much deeper than earlier measurements showed and still growing; differencing DEMs of their ice-cored moraine dams measured how fast the dams are lowering, which matters for outburst-flood hazard.",
-  "oa_url": null,
+  "oa_url": "https://digital.lib.washington.edu/server/api/core/bitstreams/8a997cff-72ae-44bd-a315-2332b9f16d04/content",
   "cites": [
    "RVT"
   ],
@@ -2559,7 +2559,7 @@
   },
   "library_id": null,
   "one_line": "Lidar morphometry of a fixed cold-climate dune field in the European Sand Belt shows lengthwise zoning of dune types and several phases of Lateglacial wind activity, with streams limiting how far the dunes spread.",
-  "oa_url": null,
+  "oa_url": "https://www.degruyter.com/document/doi/10.1515/geo-2022-0518/pdf",
   "cites": [
    "RVT"
   ],
@@ -2586,7 +2586,7 @@
   },
   "library_id": null,
   "one_line": "Evaluating nearly 5000 sites in Syria, northern Iraq and southern Turkey, it logged the timing, severity and location of war-time looting and damage, with sites such as Dura-Europos and Mari riddled with new pits.",
-  "oa_url": null,
+  "oa_url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0188589&type=printable",
   "cites": [],
   "app_basemaps": [
    "ge-historical",
@@ -2703,7 +2703,7 @@
   },
   "library_id": null,
   "one_line": "Free satellite imagery around Kandahar yielded a new inventory of settlement mounds, fortresses, religious monuments and traditional water systems in an area closed to fieldwork.",
-  "oa_url": null,
+  "oa_url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0259228&type=printable",
   "cites": [],
   "app_basemaps": [
    "ge-historical",
@@ -2761,7 +2761,7 @@
   },
   "library_id": null,
   "one_line": "Of more than 400 sites recorded in the 1970s in the lower Moche Valley, less than a quarter survived the urban and agricultural growth mapped from Landsat between 1985 and 2020.",
-  "oa_url": null,
+  "oa_url": "https://dl.acm.org/doi/pdf/10.1145/3586079",
   "cites": [],
   "app_basemaps": [
    "hls",
@@ -2784,9 +2784,9 @@
   "modes": [],
   "study_area": {
    "name": "Temple of Bel, Palmyra, Syria",
-   "lat": 34.547,
-   "lng": 38.274,
-   "zoom": 16
+   "lat": 34.5474,
+   "lng": 38.2717,
+   "zoom": 15.5
   },
   "library_id": null,
   "one_line": "Satellite images before and after August-October 2015 show ISIL/Daesh demolishing the Temple of Bel and other Palmyra monuments, alongside damage at Nimrud, Hatra and sites in Yemen and Nepal.",
@@ -2798,8 +2798,7 @@
    "bing"
   ],
   "date_hint": [
-   2014,
-   2016
+   "2014-02-20"
   ],
   "group": "Looting, damage and threats"
  },
@@ -3014,7 +3013,7 @@
   },
   "library_id": null,
   "one_line": "Multi-temporal Landsat data in Earth Engine helped detect buried Neolithic tells in Thessaly, and night-light time series tracked urban sprawl near World Heritage sites.",
-  "oa_url": null,
+  "oa_url": "https://ktisis.cut.ac.cy/server/api/core/bitstreams/002677eb-7419-48d3-a82b-60cec44d9b2c/content",
   "cites": [],
   "app_basemaps": [
    "hls",
@@ -3042,7 +3041,7 @@
   },
   "library_id": null,
   "one_line": "Orthorectified CORONA images across the Near East preserve sites and landscapes since lost to dams, cities and farming, and led to new discoveries (the app has no CORONA, so compare against modern imagery).",
-  "oa_url": "https://intarch.ac.uk/journal/issue32/2/toc.html",
+  "oa_url": "https://intarch.ac.uk/journal/issue32/casana_index.html",
   "cites": [],
   "app_basemaps": [
    "ge-historical",
@@ -3129,7 +3128,7 @@
   },
   "library_id": null,
   "one_line": "Shoreline change from Landsat and VHR imagery shows erosion is speeding up at the harbour sites of Apollonia, Ptolemais and Tocra, likely worsened by sand mining and urbanisation.",
-  "oa_url": null,
+  "oa_url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0283703&type=printable",
   "cites": [],
   "app_basemaps": [
    "ge-historical",

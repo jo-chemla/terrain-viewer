@@ -18,17 +18,14 @@ export const metadata: Metadata = {
   // colored one. Deliberately a book-open glyph (not the main app's mountain
   // icon) since this is the docs site, not the viewer — but same
   // purple(dev)/blue(prod) color convention as the main app's own favicon
-  // (index.html at the repo root). Defaults to the DEV (purple) icon, not
-  // prod — a static-exported Next app has no request-time hostname to branch
-  // on at render time, so this literal tag is what the browser sees (and may
-  // already cache as the tab icon) before the client-side swap below ever
-  // runs: next/script's "beforeInteractive" scripts are queued through
-  // Next's own self.__next_s bootstrap rather than a truly synchronous inline
-  // <script>, unlike index.html's — confirmed live, it can lose the race to
-  // this static tag. Defaulting to dev and only swapping UP to the prod icon
-  // once confirmed means a lost race still shows purple in dev (safe) rather
-  // than blue on a non-prod tab (confusable with the real site).
-  icons: { icon: '/docs/favicon-dev.svg' },
+  // (index.html at the repo root). Defaults to the PROD (blue) icon: a
+  // static-exported Next app has no request-time hostname, and production is
+  // what visitors see. The script below turns it purple on a dev host. It
+  // used to be the other way round (purple by default, swapped up to blue),
+  // but after hydration the head could hold a second, purple icon link that
+  // the swap never saw, and the browser uses the last one: production docs
+  // showed the dev icon.
+  icons: { icon: '/docs/favicon.svg' },
 };
 
 export default function Layout({ children }: LayoutProps<'/'>) {
@@ -36,17 +33,11 @@ export default function Layout({ children }: LayoutProps<'/'>) {
     <html lang="en" className={inter.className} suppressHydrationWarning>
       <head>
         {/* beforeInteractive so this swaps as early as possible, same intent
-            as the main app's own inline favicon script (index.html) — but
-            unlike that literal synchronous <script>, next/script's
-            "beforeInteractive" is only queued via Next's self.__next_s
-            bootstrap, not guaranteed to beat the browser to the static
-            metadata <link> tag above. Swaps UP to the prod icon (the tag
-            above already defaults to dev/purple, the safe fallback if this
-            loses that race) rather than the reverse. historical-satellite.
-            iconem.com (and any subdomain) counts as "prod" too, same as the
-            main app: it's a real deploy of this same docs site, just a
-            different domain — same for jo-chemla.github.io, the plain
-            GitHub Pages URL this same build is also served from. */}
+            as the main app's own inline favicon script (index.html). Only on
+            a dev host (localhost, a LAN address): every icon link turns
+            purple, and so does any added later, which a MutationObserver
+            catches. Production, historical-satellite.iconem.com and
+            jo-chemla.github.io keep the blue default. */}
         {/* Umami, the same website as the app (index.html), so docs visits
             and the app share one dashboard. Not on localhost, where every dev
             session would otherwise report into production. */}
@@ -65,11 +56,18 @@ export default function Layout({ children }: LayoutProps<'/'>) {
         <Script id="favicon-swap" strategy="beforeInteractive">
           {`(function () {
             var host = location.hostname
-            var isProd = host === "terrain-viewer.iconem.com" || host === "jo-chemla.github.io" ||
-              host === "historical-satellite.iconem.com" || /\\.historical-satellite\\.iconem\\.com$/.test(host)
-            if (!isProd) return
-            var link = document.querySelector('link[rel="icon"]')
-            if (link) link.href = "/docs/favicon.svg"
+            var isDev = host === "localhost" || host === "127.0.0.1" || host === "::1" ||
+              /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./.test(host)
+            if (!isDev) return
+            // Every icon link, and any added later: after hydration the head
+            // can hold a second icon link, and the browser uses the last one.
+            var swap = function () {
+              document.querySelectorAll('link[rel~="icon"]').forEach(function (l) {
+                if (l.getAttribute("href") !== "/docs/favicon-dev.svg") l.setAttribute("href", "/docs/favicon-dev.svg")
+              })
+            }
+            swap()
+            new MutationObserver(swap).observe(document.head, { childList: true, subtree: true, attributes: true, attributeFilter: ["href"] })
           })()`}
         </Script>
       </head>

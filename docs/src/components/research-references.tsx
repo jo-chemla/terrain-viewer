@@ -26,7 +26,8 @@ type Ref = {
   study_area?: { name?: string; lat: number; lng: number; zoom: number } | null;
   library_id?: string | null;
   app_basemaps?: string[] | null;
-  date_hint?: number[] | null;
+  /** Years (2014) or exact dates ("2014-02-20"): the "before" date is the first. */
+  date_hint?: (number | string)[] | null;
   change?: { id: string; range: number; lat: number; lng: number; zoom: number };
   one_line?: string | null;
 };
@@ -72,16 +73,21 @@ export function openUrl(r: Ref): string | null {
   if (!r.study_area) return null;
   const q = camera(r.study_area);
   if (r.category === "Historical imagery") {
-    // Always old against recent, side by side: the paper's "before" year (or
-    // 2010, when Google Earth's archive thickens) on the left, Google Earth's
-    // newest capture on the right (asked for today; the timeline resolves it
-    // to the real capture date once the dates are in).
+    // Always old against recent, side by side, both on Google Earth, whose
+    // archive goes deepest: the paper's "before" date (a year means its
+    // June, or 2010 when the paper gives none, when the archive thickens) on
+    // the left, the newest capture on the right (asked for today; the
+    // timeline resolves it to the real capture date once the dates are in).
+    // Imagery only: no hillshade or contours over it.
     q.set("appMode", "historical");
     q.set("splitStyle", "side-by-side");
-    const before = r.date_hint?.[0] ?? 2010;
+    q.set("showRasterBasemap", "true");
+    q.set("showHillshade", "false");
+    q.set("showContours", "false");
+    const hint = r.date_hint?.[0] ?? 2010;
     q.set("basemapSourceA", "historical");
-    q.set("historicalActiveSourceA", before < 2014 ? "ge-historical" : "wayback");
-    q.set("dateA", String(Date.UTC(before, 5, 1)));
+    q.set("historicalActiveSourceA", "ge-historical");
+    q.set("dateA", String(typeof hint === "string" ? Date.parse(hint) : Date.UTC(hint, 5, 1)));
     q.set("basemapSourceB", "historical");
     q.set("historicalActiveSourceB", "ge-historical");
     q.set("dateB", String(TODAY_MS));

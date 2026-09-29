@@ -4,6 +4,11 @@ description: All of Terrain Viewer's research references as sortable, filterable
 ---
 
 import { ReferencesTableSection } from "@/components/research-references-table";
+import { FoldableSections } from "@/components/foldable-sections";
+
+<FoldableSections />
+
+<include>./research-references.mdx#intro</include>
 
 The same references as [Research References](/resources/research-references), as tables, one per section. Each table has its filter bar, and the filters apply to all of them: set one on any table and the others follow. Click a column to sort; **By group** orders by group again, and a group row folds. **Has** filters cycle through any, yes and no, and so do the small filters in the column headers: a year range, links present or absent, citations of RVT, GLO-30 or neither. Search, sort, filters and columns are kept in the address bar, so a filtered view can be shared as a link, and **Export CSV** saves the rows shown. Scroll down and each table's header row stays at the top of the window.
 

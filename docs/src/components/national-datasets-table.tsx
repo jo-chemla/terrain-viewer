@@ -410,8 +410,8 @@ function compareUrl(s: Source): string {
 function OpenLink({ s, label }: { s: Source; label: string }) {
   return (
     <span className="whitespace-nowrap">
-      <a href={openUrl(s)} target="_blank" rel="noopener noreferrer" title={`Open ${label} in Terrain Viewer, with hillshade`}>
-        Open ↗
+      <a href={openUrl(s)} target="_blank" rel="noopener noreferrer" title={`Open ${label} alone in Terrain Viewer, with hillshade`}>
+        Open Solo ↗
       </a>
       {s.id === "mapterhorn" ? null : (
         <>
