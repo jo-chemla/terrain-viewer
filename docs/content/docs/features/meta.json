@@ -9,6 +9,7 @@
     "basemaps-and-historical",
     "split-modes",
     "bookmarks",
+    "../resources/research-references-table",
     "river-rem",
     "---Sources---",
     "terrain-sources",
@@ -17,17 +18,12 @@
     "byod",
     "ndsm-and-comparison",
     "---Tools---",
+    "embedding",
     "tools",
     "export-and-share",
-    "embedding",
     "sun-position",
     "ai-assistants",
     "keyboard-shortcuts",
-    "---Advanced Features---",
-    "settings",
-    "projects",
-    "open-in",
-    "frescoes-and-artifacts",
-    "streaming-settings"
+    "advanced"
   ]
 }

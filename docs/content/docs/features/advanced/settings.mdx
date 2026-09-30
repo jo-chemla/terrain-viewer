@@ -28,7 +28,7 @@ Reference copy of the [visualization modes](/features/visualization-modes) descr
 
 COG streaming behaviour — how aggressively remote COGs are read, and the **Cache computed viz-mode tiles** switch.
 
-That switch is worth understanding: viz modes are computed per pixel in the browser, and MapLibre discards a source's tiles whenever the layer using it is hidden. Without the cache, toggling a mode off and back on recomputes everything — measured at about 1.2 s for LRM over a z13 viewport. With it, re-toggling is near-instant, at a cost of up to 96 MB. Turning it off also frees whatever is already held. Details in [Tile Caches](/dev/tile-caches); the full page is [Streaming Settings](/features/streaming-settings).
+That switch is worth understanding: viz modes are computed per pixel in the browser, and MapLibre discards a source's tiles whenever the layer using it is hidden. Without the cache, toggling a mode off and back on recomputes everything — measured at about 1.2 s for LRM over a z13 viewport. With it, re-toggling is near-instant, at a cost of up to 96 MB. Turning it off also frees whatever is already held. Details in [Tile Caches](/dev/tile-caches); the full page is [Streaming Settings](/features/advanced/streaming-settings).
 
 ## Browser Local Storage Persistence
 
@@ -80,7 +80,7 @@ This one *is* shareable, as `maxBoundsMode` (and the custom tuple) — see [Embe
 
 ## Save Project Preset
 
-Captures the current configuration as a named preset — hidden panels, initial state, bundled sources — for the `?project=` parameter. See [Projects](/features/projects).
+Captures the current configuration as a named preset — hidden panels, initial state, bundled sources — for the `?project=` parameter. See [Projects](/features/advanced/projects).
 
 ## Resources
 

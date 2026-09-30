@@ -1,0 +1,11 @@
+{
+  "title": "Advanced Features",
+  "defaultOpen": false,
+  "pages": [
+    "settings",
+    "projects",
+    "open-in",
+    "frescoes-and-artifacts",
+    "streaming-settings"
+  ]
+}

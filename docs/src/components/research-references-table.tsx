@@ -19,6 +19,8 @@ type Ref = (typeof references)[number] & {
   group: string;
   oa_url?: string | null;
   cites?: string[];
+  /** Tools the full text confirms the study ran (WBT, LSP). */
+  ran?: string[];
   change?: { id: string; range: number; lat: number; lng: number; zoom: number };
 };
 
@@ -45,6 +47,7 @@ const FLAGS: { key: string; label: string; tip: string; test: (r: Ref) => boolea
   { key: "doi", label: "Has a DOI", tip: "", test: (r) => Boolean(r.doi) },
   { key: "rvt", label: "Cites RVT", tip: "Cites the founding papers of the Relief Visualization Toolbox", test: (r) => Boolean(r.cites?.includes("RVT")) },
   { key: "glo30", label: "Cites GLO-30", tip: "Cites the Copernicus DEM", test: (r) => Boolean(r.cites?.includes("GLO-30")) },
+  { key: "wbt", label: "Cites WBT", tip: "Cites WhiteboxTools (Whitebox GAT, Lindsay 2016); 'ran' where the full text says it was used", test: (r) => Boolean(r.cites?.includes("WBT")) },
 ];
 
 type SortKey = "section" | "year" | "authors" | "title" | "area";
@@ -300,20 +303,21 @@ function HeaderFilter({ col, s }: { col: string; s: State }) {
     );
   }
   if (col === "cites") {
-    const state = s.flags.rvt === "yes" ? "rvt" : s.flags.glo30 === "yes" ? "glo30" : s.flags.rvt === "no" && s.flags.glo30 === "no" ? "none" : "any";
-    const order = ["any", "rvt", "glo30", "none"] as const;
+    const state = s.flags.rvt === "yes" ? "rvt" : s.flags.glo30 === "yes" ? "glo30" : s.flags.wbt === "yes" ? "wbt" : s.flags.rvt === "no" && s.flags.glo30 === "no" && s.flags.wbt === "no" ? "none" : "any";
+    const order = ["any", "rvt", "glo30", "wbt", "none"] as const;
     const next = order[(order.indexOf(state) + 1) % order.length];
     const apply = () => {
       const flags = { ...s.flags };
-      delete flags.rvt; delete flags.glo30;
+      delete flags.rvt; delete flags.glo30; delete flags.wbt;
       if (next === "rvt") flags.rvt = "yes";
       if (next === "glo30") flags.glo30 = "yes";
-      if (next === "none") { flags.rvt = "no"; flags.glo30 = "no"; }
+      if (next === "wbt") flags.wbt = "yes";
+      if (next === "none") { flags.rvt = "no"; flags.glo30 = "no"; flags.wbt = "no"; }
       set({ flags });
     };
     return (
-      <button type="button" className={btn(state !== "any")} onClick={apply} title="All rows, then citing RVT, citing GLO-30, citing neither">
-        {state === "rvt" ? "RVT" : state === "glo30" ? "GLO-30" : state === "none" ? "neither" : "▿"}
+      <button type="button" className={btn(state !== "any")} onClick={apply} title="All rows, then citing RVT, GLO-30, WhiteboxTools, none of them">
+        {state === "rvt" ? "RVT" : state === "glo30" ? "GLO-30" : state === "wbt" ? "WBT" : state === "none" ? "none" : "▿"}
       </button>
     );
   }
@@ -409,7 +413,7 @@ export function ReferencesTableSection({ section }: { section: string }) {
       case "change": return r.change ? <a href={changeUrl(r.change, r.study_area?.name)} {...ext} className={LINK} title="The difference of two surveys, before and after">Change ↗</a> : NONE;
       case "free": return r.oa_url ? <a href={r.oa_url} {...ext} className={LINK} title="Open-access copy">Free ↗</a> : NONE;
       case "doi": return r.doi ? <a href={`https://doi.org/${r.doi}`} {...ext} className="block max-w-[10rem] text-xs break-all" title={`doi:${r.doi}`}>{r.doi}</a> : NONE;
-      case "cites": return <span className="flex flex-wrap gap-1">{(r.cites ?? []).map((c) => <span key={c} className={`${CHIP} border-fd-border`}>{c}</span>)}</span>;
+      case "cites": return <span className="flex flex-wrap gap-1">{(r.cites ?? []).map((c) => <span key={c} className={`${CHIP} border-fd-border`} title={r.ran?.includes(c) ? `The full text says the study ran ${c}` : `Cites ${c}`}>{r.ran?.includes(c) ? `ran ${c}` : c}</span>)}</span>;
       case "data": return <span className="block max-w-[14rem] text-xs">{r.dataset ?? "—"}</span>;
       case "modes": return <span className="block max-w-[12rem] text-xs">{(r.modes ?? []).join(", ") || "—"}</span>;
     }

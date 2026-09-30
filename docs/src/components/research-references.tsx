@@ -21,6 +21,7 @@ type Ref = {
   url: string;
   oa_url?: string | null;
   cites?: string[];
+  ran?: string[];
   dataset?: string | null;
   modes?: string[];
   study_area?: { name?: string; lat: number; lng: number; zoom: number } | null;
@@ -132,7 +133,7 @@ export function ResearchReferences({ group }: { group: string }) {
             {r.venue ? <>. <em>{r.venue}</em></> : null}.
             {r.doi && !r.url.includes(r.doi) ? <> <a href={`https://doi.org/${r.doi}`} {...ext}>doi:{r.doi}</a>.</> : null}
             {r.oa_url ? <> <a href={r.oa_url} {...ext} title="An open-access copy of the paper">Free copy</a>.</> : null}
-            {r.cites?.length ? <> <span className="text-fd-muted-foreground" title="Cites RVT's founding papers or the Copernicus DEM, per OpenAlex or the paper itself">[cites {r.cites.join(", ")}]</span></> : null}
+            {r.cites?.length ? <> <span className="text-fd-muted-foreground" title="Cites RVT's founding papers, the Copernicus DEM or WhiteboxTools, per OpenAlex or the paper itself; 'ran' where the full text says the tool was used">[{r.cites.map((c) => (r.ran?.includes(c) ? `ran ${c}` : `cites ${c}`)).join(", ")}]</span></> : null}
             {r.one_line ? <> {r.one_line}</> : null}
             {r.dataset ? <> <span className="text-fd-muted-foreground">Data: {r.dataset}.</span></> : null}
             {open ? <> <a href={open} {...ext}>Open {place} in Terrain Viewer ↗</a></> : null}

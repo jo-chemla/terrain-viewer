@@ -2,9 +2,9 @@
   "title": "Dev",
   "defaultOpen": true,
   "pages": [
+    "equations",
     "index",
     "tech-stack",
-    "equations",
     "non-geo-relief-visualization",
     "fumadocs-customization",
     "url-api",

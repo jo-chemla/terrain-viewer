@@ -23,7 +23,7 @@ MapLibre releases a source's tiles when the layer using it goes `visibility: non
 
 No network, but measured **~1.2 s of recompute for LRM over a z13 viewport**. Caching the finished tile makes re-toggling near-instant.
 
-It is gated by **Cache computed viz-mode tiles** in [Settings](/features/settings) (`cacheVizTilesAtom`, synced through `setTileResultCacheEnabled`). Turning it off also frees everything already held — the point of turning it off is reclaiming memory, not merely stopping new inserts.
+It is gated by **Cache computed viz-mode tiles** in [Settings](/features/advanced/settings) (`cacheVizTilesAtom`, synced through `setTileResultCacheEnabled`). Turning it off also frees everything already held — the point of turning it off is reclaiming memory, not merely stopping new inserts.
 
 ## Handing tiles to maplibre
 

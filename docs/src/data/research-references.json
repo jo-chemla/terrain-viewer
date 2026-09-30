@@ -1001,7 +1001,9 @@
   "one_line": "Removes forests and buildings from the Copernicus GLO-30 DEM with machine learning (FABDEM), lowering mean absolute error from 1.61 to 1.12 m in built-up areas and from 5.15 to 2.88 m in forests.",
   "group": "Global DEMs",
   "oa_url": "https://iopscience.iop.org/article/10.1088/1748-9326/ac4d4f/pdf",
-  "cites": []
+  "cites": [
+   "WBT"
+  ]
  },
  {
   "category": "Landscape archaeology",

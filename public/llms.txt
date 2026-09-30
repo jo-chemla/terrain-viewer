@@ -57,23 +57,23 @@ Agents that support skills can install one that does this for them: `npx skills 
 
 ## Features
 
+- [Frescoes & Artifact Scans](https://terrain-viewer.iconem.com/docs/features/advanced/frescoes-and-artifacts/): Using the relief-visualization toolkit on non-georeferenced photogrammetry — wall paintings, reliefs, small finds
+- [Open In](https://terrain-viewer.iconem.com/docs/features/advanced/open-in/): Hand the current viewport off to other web map viewers — River-REM, Search-EO, ESRI Wayback, Google Earth/Maps, BBBike, or your own URL template
+- [Projects (Import / Export)](https://terrain-viewer.iconem.com/docs/features/advanced/projects/): Bundling sources, bookmarks, drawings, settings, and view state into a portable file — plus ?project= URL presets
+- [Settings](https://terrain-viewer.iconem.com/docs/features/advanced/settings/): The Settings dialog — appearance, caching, storage, beta features, API keys, map bounds and project presets
+- [Streaming & Storage Settings](https://terrain-viewer.iconem.com/docs/features/advanced/streaming-settings/): COG streaming engine, elevation quantization precision, client-side export, tile caching, and browser storage persistence
 - [Use with AI Assistants](https://terrain-viewer.iconem.com/docs/features/ai-assistants/): A skill and an llms.txt that let ChatGPT, Claude and coding agents open Terrain Viewer on any place and visualization
-- [Basemaps & Historical Imagery](https://terrain-viewer.iconem.com/docs/features/basemaps-and-historical/): Satellite basemaps and the historical imagery timeline
+- [Basemaps and Historical](https://terrain-viewer.iconem.com/docs/features/basemaps-and-historical/): Satellite basemaps and the historical imagery timeline
 - [Bookmarks](https://terrain-viewer.iconem.com/docs/features/bookmarks/): Saving and organizing views
 - [Bring Your Own Data (BYOD)](https://terrain-viewer.iconem.com/docs/features/byod/): Adding your own terrain/basemap sources, including local files
 - [Coverage Overlays](https://terrain-viewer.iconem.com/docs/features/coverage-overlays/): See where each terrain or basemap source actually has data, before switching to it
 - [Embedding & URL parameters](https://terrain-viewer.iconem.com/docs/features/embedding/): Everything the app shows is in its URL — how to compose a link or an iframe that loads your own COGs and vector data, the parameters that are instructions rather than state, and the project JSON preset format
 - [Export & Share](https://terrain-viewer.iconem.com/docs/features/export-and-share/): Snapshots, DEM GeoTIFF and contour exports, historical batch export, and social sharing
-- [Frescoes & Artifact Scans](https://terrain-viewer.iconem.com/docs/features/frescoes-and-artifacts/): Using the relief-visualization toolkit on non-georeferenced photogrammetry — wall paintings, reliefs, small finds
 - [Keyboard Shortcuts](https://terrain-viewer.iconem.com/docs/features/keyboard-shortcuts/): Every global keyboard shortcut, in one place
 - [National Open-Data Terrain](https://terrain-viewer.iconem.com/docs/features/national-datasets/): Government elevation services from national mapping agencies, ready to load as terrain sources
 - [nDSM and Comparison (DSM − DTM, change detection)](https://terrain-viewer.iconem.com/docs/features/ndsm-and-comparison/): A terrain source made from two others, subtracted tile by tile — normalised surface models (nDSM, canopy height), and elevation change between two surveys — with the caveats on references and datums
-- [Open In](https://terrain-viewer.iconem.com/docs/features/open-in/): Hand the current viewport off to other web map viewers — River-REM, Search-EO, ESRI Wayback, Google Earth/Maps, BBBike, or your own URL template
-- [Projects (Import / Export)](https://terrain-viewer.iconem.com/docs/features/projects/): Bundling sources, bookmarks, drawings, settings, and view state into a portable file — plus ?project= URL presets
 - [River-REM](https://terrain-viewer.iconem.com/docs/features/river-rem/): Iconem's companion app for river-relative elevation models, and how this app hands off to it
-- [Settings](https://terrain-viewer.iconem.com/docs/features/settings/): The Settings dialog — appearance, caching, storage, beta features, API keys, map bounds and project presets
 - [Split & Compare Modes](https://terrain-viewer.iconem.com/docs/features/split-modes/): Off, Overlay, and Side — comparing terrain/basemap sources against each other
-- [Streaming & Storage Settings](https://terrain-viewer.iconem.com/docs/features/streaming-settings/): COG streaming engine, elevation quantization precision, client-side export, tile caching, and browser storage persistence
 - [Sun Position](https://terrain-viewer.iconem.com/docs/features/sun-position/): The astronomy behind the app's light direction, shadow calculator, and the standalone sun estimator
 - [Terrain and Basemap Sources](https://terrain-viewer.iconem.com/docs/features/terrain-sources/): The built-in DEM tile sources (Mapterhorn, Mapbox, MapTiler, AWS Terrain Tiles, Esri World Elevation) and worldwide basemap providers
 - [Tools (Drawing, Elevation Picker, Anim)](https://terrain-viewer.iconem.com/docs/features/tools/): Drawing, Elevation Picker, Sun/Shadow Calculator, Animation, and the catalog searches that find new data
