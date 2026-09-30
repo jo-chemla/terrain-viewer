@@ -323,49 +323,63 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
             </Button>
           } />
           <PopoverContent align="end" className="w-80 p-2 max-h-96 overflow-y-auto space-y-1">
-            {groups.map((g, gi) => {
-              const on = g.leaves.filter((l) => set.has(l.id)).length
-              const all = on === g.leaves.length
-              const isOpen = expanded[g.key] ?? false
-              const newSection = gi === 0 || groups[gi - 1].section !== g.section
-              return (
-                <div key={g.key}>
-                  {newSection && (
-                    <div className={`text-[10px] uppercase tracking-wide text-muted-foreground px-0.5 ${gi === 0 ? "pb-0.5" : "pt-2 pb-0.5 border-t mt-1"}`}>{g.section}</div>
-                  )}
-                  <div className="flex items-center gap-1.5 py-0.5">
-                    <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpen ? "Collapse" : "Expand"}
-                      onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !isOpen }))}>
-                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
-                    </button>
-                    <Checkbox id={`cov-g-${g.key}`} checked={all && g.leaves.length > 0} indeterminate={!all && on > 0} disabled={g.leaves.length === 0} onCheckedChange={(v) => setMany(g.leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
-                    {/* One swatch for the group when its leaves share a
-                        colour; otherwise each leaf carries its own below
-                        (the 3D and LiDAR group, one colour per provider). */}
-                    {!g.leaves.some((l) => l.color !== g.color) && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />}
-                    <Label htmlFor={`cov-g-${g.key}`} className="text-xs font-medium cursor-pointer truncate flex-1" title={g.note}>{g.label}</Label>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{g.leaves.length}</span>
-                  </div>
-                  {isOpen && (
-                    <div className="pl-[42px] space-y-0.5 max-h-48 overflow-y-auto">
-                      {g.leaves.length === 0 && <p className="text-xs text-muted-foreground italic">None</p>}
-                      {g.leaves.map((l) => (
-                        <div key={l.id} className="flex items-center gap-1.5">
-                          <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
-                          {g.leaves.some((x) => x.color !== g.color) && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: l.color }} />}
-                          {/* The label wins the width fight: `detail` used to be
-                              shrink-0, so a long one (the Esri leaf's) pushed the
-                              layer's own NAME down to zero width and the row read
-                              as subtitle-only. */}
-                          <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate shrink-0 max-w-full" title={l.label}>{l.label}</Label>
-                          {l.detail && <span className="text-[10px] text-muted-foreground truncate min-w-0" title={l.detail}>{l.detail}</span>}
-                        </div>
-                      ))}
+            {(() => {
+              // Groups nest one level (`parent`): the OpenTopography group
+              // sits inside 3D and LiDAR coverage. A parent's checkbox and
+              // count take in its children's leaves.
+              const leavesOf = (g: (typeof groups)[number]): (typeof g.leaves) => [...g.leaves, ...groups.filter((c) => c.parent === g.key).flatMap(leavesOf)]
+              const top = groups.filter((g) => !g.parent)
+              const renderGroup = (g: (typeof groups)[number], gi: number, depth: number) => {
+                const leaves = leavesOf(g)
+                const on = leaves.filter((l) => set.has(l.id)).length
+                const all = on === leaves.length
+                const isOpen = expanded[g.key] ?? false
+                const newSection = depth === 0 && (gi === 0 || top[gi - 1].section !== g.section)
+                const mixed = g.leaves.some((l) => l.color !== g.color)
+                const children = groups.filter((c) => c.parent === g.key)
+                return (
+                  <div key={g.key} className={depth ? "pl-[21px]" : undefined}>
+                    {newSection && (
+                      <div className={`text-[10px] uppercase tracking-wide text-muted-foreground px-0.5 ${gi === 0 ? "pb-0.5" : "pt-2 pb-0.5 border-t mt-1"}`}>{g.section}</div>
+                    )}
+                    <div className="flex items-center gap-1.5 py-0.5">
+                      <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpen ? "Collapse" : "Expand"}
+                        onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !isOpen }))}>
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                      </button>
+                      <Checkbox id={`cov-g-${g.key}`} checked={all && leaves.length > 0} indeterminate={!all && on > 0} disabled={leaves.length === 0} onCheckedChange={(v) => setMany(leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
+                      {/* One swatch for the group when its leaves share a
+                          colour; otherwise each leaf carries its own below
+                          (3D and LiDAR: one colour per provider). */}
+                      {!mixed && !children.length && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />}
+                      <Label htmlFor={`cov-g-${g.key}`} className="text-xs font-medium cursor-pointer truncate flex-1" title={g.note}>{g.label}</Label>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{leaves.length}</span>
                     </div>
-                  )}
-                </div>
-              )
-            })}
+                    {isOpen && (
+                      <>
+                        <div className="pl-[42px] space-y-0.5 max-h-48 overflow-y-auto">
+                          {leaves.length === 0 && <p className="text-xs text-muted-foreground italic">None</p>}
+                          {g.leaves.map((l) => (
+                            <div key={l.id} className="flex items-center gap-1.5">
+                              <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
+                              {(mixed || children.length > 0) && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: l.color }} />}
+                              {/* The label wins the width fight: `detail` used to be
+                                  shrink-0, so a long one (the Esri leaf's) pushed the
+                                  layer's own NAME down to zero width and the row read
+                                  as subtitle-only. */}
+                              <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate shrink-0 max-w-full" title={l.label}>{l.label}</Label>
+                              {l.detail && <span className="text-[10px] text-muted-foreground truncate min-w-0" title={l.detail}>{l.detail}</span>}
+                            </div>
+                          ))}
+                        </div>
+                        {children.map((c) => renderGroup(c, 0, depth + 1))}
+                      </>
+                    )}
+                  </div>
+                )
+              }
+              return top.map((g, gi) => renderGroup(g, gi, 0))
+            })()}
           </PopoverContent>
         </Popover>
       </div>

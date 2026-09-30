@@ -2145,8 +2145,10 @@ export function TerrainViewer() {
       const ids = new Set<string>()
       for (const token of coverageTokens) {
         const group = groups.find((g) => g.key === token)
-        if (group) for (const leaf of group.leaves) ids.add(leaf.id)
-        else ids.add(token)
+        // A group key stands for its own leaves and those of the groups
+        // nested in it (OpenTopography inside 3D and LiDAR coverage).
+        if (group) for (const g of groups) if (g === group || g.parent === group.key) for (const leaf of g.leaves) ids.add(leaf.id)
+        if (!group) ids.add(token)
       }
       if (ids.size) {
         stateOverrides.coverageOverlays = [...ids]

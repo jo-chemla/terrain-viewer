@@ -48,7 +48,7 @@ export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSour
 }
 
 export interface CoverageLeaf { id: string; label: string; color: string; detail?: string }
-export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps" }
+export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps"; parent?: string }
 
 export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6", esri3d: "#a855f7", otRaster: "#84cc16", otPointCloud: "#eab308" }
 
@@ -85,10 +85,10 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
       leaves: [
         { id: "bing3d", label: "Bing Maps 3D", color: OVERLAY_COLORS.bing3d, detail: "photogrammetry mesh, ~2.4 km" },
         { id: "google3d", label: "Google photorealistic 3D", color: OVERLAY_COLORS.google3d, detail: "decoded from Google's layer" },
-        { id: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai, detail: "114 open COPC surveys" },
         { id: "esri3d", label: "Esri Integrated Mesh", color: OVERLAY_COLORS.esri3d, detail: "open I3S, \u2265 5 km\u00b2" },
+        { id: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai, detail: "114 open COPC surveys" },
       ] },
-    { section: "Terrain", key: "opentopo", label: "OpenTopography", color: OVERLAY_COLORS.otRaster,
+    { section: "Terrain", key: "opentopo", parent: "sources3d", label: "OpenTopography", color: OVERLAY_COLORS.otRaster,
       note: "Datasets hosted on OpenTopography (opentopography.org): gridded DEMs, and the LiDAR point clouds many were made from. Global rasters (SRTM, GLO-30, ALOS...) are left out, continental ones drawn hollow. Click a footprint for the dataset page and its DOI.",
       leaves: [
         { id: "otRaster", label: "Rasters (DEMs)", color: OVERLAY_COLORS.otRaster, detail: "hosted, ~675 datasets" },
@@ -116,8 +116,10 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
 const STATIC_GROUP_LEAVES: Record<string, string[]> = {
   library: TERRAIN_LIB.filter((s) => s.bounds).map((s) => `lib:${s.id}`),
   basemapLibrary: BASEMAP_LIB.filter((s) => s.bounds).map((s) => `blib:${s.id}`),
-  sources3d: ["bing3d", "google3d", "flai", "esri3d"],
+  // opentopo before sources3d, its parent: serialize folds in this order,
+  // so a wholly selected parent wins over the child key inside it.
   opentopo: ["otRaster", "otPointCloud"],
+  sources3d: ["bing3d", "google3d", "esri3d", "flai", "otRaster", "otPointCloud"],
 }
 
 /** Coverage overlays in the URL, folded to group keys wherever a group is
