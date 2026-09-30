@@ -24,6 +24,7 @@
     "google-3d-dissolve": "node --max-old-space-size=8192 docs/scripts/dissolve-google-3d-coverage.mjs .cache/google3d-z8.geojson",
     "flai-coverage": "node docs/scripts/build-flai-coverage.mjs",
     "esri-3d-coverage": "node docs/scripts/build-esri-3d-coverage.mjs",
+    "opentopo-coverage": "node scripts/build-opentopo-coverage.mjs",
     "open-buildings-vrt": "node docs/scripts/build-open-buildings-vrt.mjs"
   },
   "packageManager": "pnpm@10.20.0",
