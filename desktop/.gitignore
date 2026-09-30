@@ -1,0 +1,8 @@
+.hutch/
+node_modules/
+build/
+artifacts/
+*.tsbuildinfo
+# generated from ../dist by gen-config.mjs
+electrobun.config.ts
+hutch.lock

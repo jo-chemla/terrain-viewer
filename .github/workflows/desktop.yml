@@ -1,0 +1,65 @@
+# Desktop bundles with Electrobun, one native runner per platform (Hutch
+# builds for the OS it runs on). Manual: nothing here is released, the
+# artifacts are for trying the app offline. See desktop/README.md.
+name: Desktop bundles (Electrobun, experimental)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macos-arm64
+          - os: windows-latest
+            label: windows-x64
+          - os: ubuntu-latest
+            label: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Build the web app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Linux webview packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libpipewire-0.3-dev librsvg2-dev
+      - name: Install Hutch (macOS, Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          curl -fsSL https://hutch.blackboard.sh/hutch/install.sh | sh
+          echo "$HOME/.hutch/bin" >> "$GITHUB_PATH"
+      - name: Install Hutch (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & ([scriptblock]::Create((irm https://hutch.blackboard.sh/hutch/install.ps1)))
+          "$env:USERPROFILE\.hutch\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Electrobun config from dist
+        working-directory: desktop
+        run: node gen-config.mjs
+      - name: Bundle
+        working-directory: desktop
+        shell: bash
+        run: |
+          hutch --version
+          hutch run install
+          hutch electrobun build --env=stable
+          ls -la artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terrain-viewer-desktop-${{ matrix.label }}
+          path: desktop/artifacts
+          if-no-files-found: error

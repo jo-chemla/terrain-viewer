@@ -1,0 +1,9 @@
+{
+  "name": "terrain-viewer-desktop",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Terrain Viewer packaged as a desktop app with Electrobun (system webview, no bundled Chromium)",
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
