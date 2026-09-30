@@ -3172,5 +3172,403 @@
    2023
   ],
   "group": "Looting, damage and threats"
+ },
+ {
+  "category": "Earth surface processes",
+  "group": "Landslides and mass movements",
+  "field": "Landslides",
+  "authors": "Saroglou, C., Asteriou, P., Zekkos, D., et al.",
+  "year": 2018,
+  "title": "UAV-based mapping, back analysis and trajectory modeling of a coseismic rockfall in Lefkada island, Greece",
+  "venue": "Natural Hazards and Earth System Sciences",
+  "doi": "10.5194/nhess-18-321-2018",
+  "url": "https://doi.org/10.5194/nhess-18-321-2018",
+  "dataset": "UAV photogrammetric point cloud (2 m DTM, vegetation removed in Whitebox GAT); 5 m Greek National Cadastre DEM for comparison",
+  "modes": [
+   "hillshade",
+   "slope",
+   "contours"
+  ],
+  "study_area": {
+   "name": "Ponti, Vasiliki gulf, Lefkada, Greece",
+   "lat": 38.633,
+   "lng": 20.595,
+   "zoom": 13
+  },
+  "library_id": null,
+  "one_line": "An 800 m coseismic rockfall path from the 2015 Mw 6.5 Lefkada earthquake, reconstructed on a UAV-derived DTM that was filtered to bare earth with Whitebox GAT.",
+  "oa_url": "https://nhess.copernicus.org/articles/18/321/2018/",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Earth surface processes",
+  "group": "Glaciers and glacial landforms",
+  "field": "Glacial",
+  "authors": "Hibbard, S.M., Osinski, G.R., Godin, E., et al.",
+  "year": 2025,
+  "title": "Glacial ring forms on Axel Heiberg Island, Nunavut, Canada",
+  "venue": "The Cryosphere",
+  "doi": "10.5194/tc-19-1695-2025",
+  "url": "https://doi.org/10.5194/tc-19-1695-2025",
+  "dataset": "Kinematic/terrestrial lidar point cloud (164 pts/m2, ~6.4 ha) gridded to a 5 cm bare-earth DEM and hillshade in Whitebox GAT; GPR transects",
+  "modes": [
+   "hillshade",
+   "slope",
+   "contours"
+  ],
+  "study_area": {
+   "name": "Mokka Fiord, Axel Heiberg Island, Nunavut",
+   "lat": 79.575,
+   "lng": -87.3,
+   "zoom": 10
+  },
+  "library_id": null,
+  "one_line": "Hummocky ring-shaped ridges (6-37 m across, up to 1.5 m high) on kame terraces near Mokka Fiord, mapped from a lidar DEM built in Whitebox GAT and interpreted as ice-marginal glaciofluvial forms left by buried-ice ablation.",
+  "oa_url": "https://tc.copernicus.org/articles/19/1695/2025/",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Earth surface processes",
+  "group": "Rivers and palaeochannels",
+  "field": "Rivers",
+  "authors": "Csatáriné Szabó, Z., Mikita, T., Négyesi, G., et al.",
+  "year": 2020,
+  "title": "Uncertainty and Overfitting in Fluvial Landform Classification Using Laser Scanned Data and Machine Learning: A Comparison of Pixel and Object-Based Approaches",
+  "venue": "Remote Sensing",
+  "doi": "10.3390/rs12213652",
+  "url": "https://doi.org/10.3390/rs12213652",
+  "dataset": "Airborne laser scanning (Riegl LMS-Q680i, 4 pts/m2, 2012) gridded to a 1 m DTM; 60 terrain attributes computed in Whitebox GAT 3.4.0 and SAGA GIS",
+  "modes": [
+   "slope",
+   "aspect",
+   "curvature",
+   "TPI",
+   "roughness",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Tisza floodplain below the Bodrog confluence, near Rakamaz/Tokaj, Hungary",
+   "lat": 48.114,
+   "lng": 21.464,
+   "zoom": 13
+  },
+  "library_id": null,
+  "one_line": "Point bars, swales, levees and crevasse channels on the Tisza floodplain classified by random forest from 60 lidar-DTM terrain attributes, 21 of them computed in Whitebox GAT.",
+  "oa_url": "https://www.mdpi.com/2072-4292/12/21/3652",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Earth surface processes",
+  "group": "Soils and ecology",
+  "field": "Soils",
+  "authors": "Larson, J., Lidberg, W., Ågren, A.M., et al.",
+  "year": 2022,
+  "title": "Predicting soil moisture conditions across a heterogeneous boreal catchment using terrain indices",
+  "venue": "Hydrology and Earth System Sciences",
+  "doi": "10.5194/hess-26-4837-2022",
+  "url": "https://doi.org/10.5194/hess-26-4837-2022",
+  "dataset": "Airborne laser scanning (2015, 10 pts/m2) 0.5 m DEM resampled to 1-32 m; all terrain indices computed with WhiteboxTools (BreachDepressions, D-infinity flow, TWI, DTW, EAS)",
+  "modes": [
+   "slope",
+   "TPI",
+   "hillshade",
+   "curvature"
+  ],
+  "study_area": {
+   "name": "Krycklan catchment, Vindeln, Västerbotten, Sweden",
+   "lat": 64.23,
+   "lng": 19.78,
+   "zoom": 11
+  },
+  "library_id": null,
+  "one_line": "Seven lidar terrain indices at several resolutions, all run in WhiteboxTools, tested against 398 field plots to predict soil moisture classes in the 68 km2 Krycklan boreal catchment.",
+  "oa_url": "https://hess.copernicus.org/articles/26/4837/2022/",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Earth surface processes",
+  "group": "Landslides and mass movements",
+  "field": "Landslides",
+  "authors": "Boreggio, M., Bernard, M., Gregoretti, C.",
+  "year": 2022,
+  "title": "Does the topographic data source truly influence the routing modelling of debris flows in a torrent catchment?",
+  "venue": "Earth Surface Processes and Landforms",
+  "doi": "10.1002/esp.5366",
+  "url": "https://doi.org/10.1002/esp.5366",
+  "dataset": "Helicopter full-waveform lidar (Riegl LMS-Q780, 2015), UAV SfM photogrammetry and GNSS ground survey of a 1 km debris-flow channel; DEM derivatives via TauDEM, Whitebox GAT and custom code",
+  "modes": [
+   "slope",
+   "roughness",
+   "curvature",
+   "dem difference",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Rovina di Cancia debris-flow channel, Borca di Cadore, Dolomites, Italy",
+   "lat": 46.437,
+   "lng": 12.245,
+   "zoom": 13
+  },
+  "library_id": null,
+  "one_line": "Lidar, UAV and GNSS DEMs of the Rovina di Cancia debris-flow channel compared through slope, roughness and curvature (computed with TauDEM and Whitebox GAT) and probabilistic DEM differencing before routing simulations.",
+  "oa_url": "https://onlinelibrary.wiley.com/doi/full/10.1002/esp.5366",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Earth surface processes",
+  "group": "Faults and earthquakes",
+  "field": "Faults",
+  "authors": "Agharroud, K., Siame, L.L., Ben Moussa, A., et al.",
+  "year": 2021,
+  "title": "Seismo-Tectonic Model for the Southern Pre-Rif Border (Northern Morocco): Insights From Morphochronology",
+  "venue": "Tectonics",
+  "doi": "10.1029/2020tc006633",
+  "url": "https://doi.org/10.1029/2020tc006633",
+  "dataset": "ALOS World 3D 30 m DSM (AW3D30 v3.1); deviation from mean elevation (DEV) and multiscale elevation residual index maps computed in Whitebox GAT 3.4.0; 36Cl cosmogenic dating",
+  "modes": [
+   "TPI",
+   "hillshade",
+   "slope"
+  ],
+  "study_area": {
+   "name": "Jbel Zerhoun and the Pre-Rif front near Moulay Idriss, Morocco",
+   "lat": 34.05,
+   "lng": -5.52,
+   "zoom": 10
+  },
+  "library_id": null,
+  "one_line": "Active thrust fronts along the southern Rif border mapped with Whitebox GAT topographic-position rasters from AW3D30 and dated with cosmogenic 36Cl to build a seismo-tectonic model of the Fès-Meknès region.",
+  "oa_url": "https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2020TC006633",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Landscape archaeology",
+  "group": "Historic industry and mining",
+  "field": "Mining",
+  "authors": "Singh, P.D., Klamerus-Iwan, A., Hawryło, P., et al.",
+  "year": 2024,
+  "title": "Possibility of spatial estimation of soil erosion using Revised Universal Soil Loss Equation model and generalized additive model in post-hard coal mining spoil heap",
+  "venue": "Land Degradation & Development",
+  "doi": "10.1002/ldr.4961",
+  "url": "https://doi.org/10.1002/ldr.4961",
+  "dataset": "Airborne laser scanning DEM (GUGiK, 2019); slope, FD8 flow accumulation and LS factor computed with the whitebox R package (WhiteboxTools)",
+  "modes": [
+   "slope",
+   "hillshade",
+   "aspect"
+  ],
+  "study_area": {
+   "name": "Reclaimed hard-coal spoil heap, Upper Silesia, Poland",
+   "lat": 50.273,
+   "lng": 18.745,
+   "zoom": 13
+  },
+  "library_id": null,
+  "one_line": "RUSLE soil-loss mapping on a 170 ha coal spoil heap in Upper Silesia, with the slope and LS factors derived from a lidar DEM in WhiteboxTools and compared across reclamation land covers.",
+  "oa_url": "https://onlinelibrary.wiley.com/doi/full/10.1002/ldr.4961",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Earth surface processes",
+  "group": "Landslides and mass movements",
+  "field": "Landslides",
+  "authors": "Bazilova, V.O., de Haas, T., Immerzeel, W.W.",
+  "year": 2025,
+  "title": "Controls of Morphometric and Climatic Catchment Characteristics on Debris Flow and Flood Hazard on Alluvial Fans in High Mountain Asia: A Machine Learning Approach",
+  "venue": "Journal of Geophysical Research: Earth Surface",
+  "doi": "10.1029/2024jf008029",
+  "url": "https://doi.org/10.1029/2024jf008029",
+  "dataset": "ALOS World 3D 30 m DEM; 1,793 catchments delineated with WhiteboxTools in QGIS (hydrological correction, flow direction/accumulation, stream network)",
+  "modes": [
+   "slope",
+   "hillshade",
+   "roughness"
+  ],
+  "study_area": {
+   "name": "Debris-flow fan example, Eastern Hindu Kush; study spans all of High Mountain Asia",
+   "lat": 35.99,
+   "lng": 72.42,
+   "zoom": 12
+  },
+  "library_id": null,
+  "one_line": "A CatBoost model separates debris-flow from flood-dominated alluvial fans across 1,793 High Mountain Asia catchments delineated with WhiteboxTools, finding Melton ratio, area and temperature to be the main controls.",
+  "oa_url": "https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2024JF008029",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Earth surface processes",
+  "group": "Soils and ecology",
+  "field": "Ecology",
+  "authors": "Chandler, H.C., McLaughlin, D.L., Haas, C.A.",
+  "year": 2024,
+  "title": "Informing the Conservation of Ephemerally Flooded Wetlands Using Hydrologic Regime and LiDAR-Based Habitat Assessments",
+  "venue": "Wetlands",
+  "doi": "10.1007/s13157-023-01767-3",
+  "url": "https://doi.org/10.1007/s13157-023-01767-3",
+  "dataset": "Airborne lidar DEM and DSM at 0.5 m (Eglin AFB, April 2018); pit filling and 10 landscape/topographic metrics computed with the whitebox R package (WhiteboxTools)",
+  "modes": [
+   "hillshade",
+   "TPI",
+   "slope",
+   "contours"
+  ],
+  "study_area": {
+   "name": "East Bay Flatwoods, Eglin Air Force Base, Florida, USA",
+   "lat": 30.49,
+   "lng": -86.54,
+   "zoom": 11
+  },
+  "library_id": null,
+  "one_line": "Stage-area curves and flooding regimes for 30 pine-flatwoods wetlands on Eglin AFB derived from a 0.5 m lidar DEM processed with WhiteboxTools, to guide flatwoods-salamander habitat conservation.",
+  "oa_url": "https://link.springer.com/article/10.1007/s13157-023-01767-3",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Earth surface processes",
+  "group": "Soils and ecology",
+  "field": "Ecology",
+  "authors": "Espriella, M.C., Lecours, V., Camp, E.V., et al.",
+  "year": 2023,
+  "title": "Drone lidar-derived surface complexity metrics as indicators of intertidal oyster reef condition",
+  "venue": "Ecological Indicators",
+  "doi": "10.1016/j.ecolind.2023.110190",
+  "url": "https://doi.org/10.1016/j.ecolind.2023.110190",
+  "dataset": "UAS (drone) lidar digital surface model of intertidal oyster reefs (Feb 2021); multiscale elevation percentile, max elevation deviation, roughness and std-dev-of-normals computed with WhiteboxTools (R), plus geodiv/MultiscaleDTM/spatialEco",
+  "modes": [
+   "roughness",
+   "TPI",
+   "slope",
+   "curvature",
+   "hillshade"
+  ],
+  "study_area": {
+   "name": "Little Trout Creek mouth, Suwannee River estuary, Cedar Key, Florida, USA",
+   "lat": 29.2597,
+   "lng": -83.0749,
+   "zoom": 13
+  },
+  "library_id": null,
+  "one_line": "Drone-lidar surface complexity metrics, several computed with WhiteboxTools' multiscale tools, predict live oyster counts on intertidal reefs in Florida's Big Bend.",
+  "oa_url": "https://repository.library.noaa.gov/view/noaa/59452/noaa_59452_DS1.pdf",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Landscape archaeology",
+  "group": "Mounds, tells and field systems",
+  "field": "Archaeology",
+  "authors": "Davis, D.S., Lipo, C.P., Sanger, M.C.",
+  "year": 2019,
+  "title": "A comparison of automated object extraction methods for mound and shell-ring identification in coastal South Carolina",
+  "venue": "Journal of Archaeological Science: Reports",
+  "doi": "10.1016/j.jasrep.2018.10.035",
+  "url": "https://doi.org/10.1016/j.jasrep.2018.10.035",
+  "dataset": "NOAA Digital Coast airborne lidar DEM (1.2 m); Whitebox GAT (stochastic depression analysis, inverse depression analysis), eCognition and ArcGIS",
+  "modes": [
+   "mound detector",
+   "slope",
+   "openness",
+   "hillshade",
+   "LRM"
+  ],
+  "study_area": {
+   "name": "Pinckney Island NWR and Victoria Bluff, Beaufort County, South Carolina, USA",
+   "lat": 32.244,
+   "lng": -80.765,
+   "zoom": 12
+  },
+  "library_id": null,
+  "one_line": "Four object-based detection methods for shell rings and earthen mounds under coastal forest, including inverse depression analysis run in Whitebox GAT, compared on NOAA lidar of Beaufort County; a previously unknown shell ring was found.",
+  "oa_url": "https://zenodo.org/records/4779591/files/a-comparison-of-automated-object-extraction-methods-for-mound-and-shell-ring-identification-in-coastal-south-carolina.pdf",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
+ },
+ {
+  "category": "Landscape archaeology",
+  "group": "Mounds, tells and field systems",
+  "field": "Archaeology",
+  "authors": "Lidberg, W., Westphal, F., Brax, C., et al.",
+  "year": 2024,
+  "title": "Detection of Hunting Pits using Airborne Laser Scanning and Deep Learning",
+  "venue": "Journal of Field Archaeology",
+  "doi": "10.1080/00934690.2024.2364428",
+  "url": "https://doi.org/10.1080/00934690.2024.2364428",
+  "dataset": "Swedish national airborne laser scanning (1-2 pts/m2) gridded to 0.5 m and 1 m DEMs with WhiteboxTools 2.2.0; ten WBT indices (multidirectional hillshade, max elevation deviation, elevation percentile, min/max curvature, elevation above pit, depth in sink, std dev of normals)",
+  "modes": [
+   "hillshade",
+   "TPI",
+   "curvature",
+   "SVF",
+   "LRM",
+   "mound detector"
+  ],
+  "study_area": {
+   "name": "Northern Sweden; 2,519 training pits, demonstration area in northern Sweden",
+   "lat": 64.34,
+   "lng": 18.31,
+   "zoom": 8
+  },
+  "library_id": null,
+  "one_line": "CNNs trained on WhiteboxTools terrain indices of national 1 m ALS DEMs map prehistoric hunting pits across northern Sweden with an F1 of 0.76 (70% of pits found).",
+  "oa_url": "https://www.tandfonline.com/doi/full/10.1080/00934690.2024.2364428",
+  "cites": [
+   "WBT"
+  ],
+  "ran": [
+   "WBT"
+  ]
  }
 ]
