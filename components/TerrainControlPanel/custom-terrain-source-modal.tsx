@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
+import { SourceCombobox } from "./source-combobox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Switch } from "@/components/ui/switch"
@@ -410,26 +411,14 @@ export const CustomTerrainSourceModal: React.FC<{
                       <Label htmlFor="source-diff-a">First source (minuend, e.g. a DSM) *</Label>
                       <LoadMissingOperand id={diffMinuendId} />
                     </div>
-                    <Select value={diffMinuendId || "none"} onValueChange={(v: any) => setDiffMinuendId(v === "none" ? "" : v)} items={diffItems}>
-                      <SelectTrigger id="source-diff-a" className="cursor-pointer w-full min-w-0 overflow-hidden [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:truncate"><SelectValue /></SelectTrigger>
-                      <SelectContent className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)]">
-                        <SelectItem value="none">Choose…</SelectItem>
-                        {diffOperands.map((o) => <SelectItem key={o.id} value={o.id}><span className="truncate">{o.name}</span></SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <SourceCombobox id="source-diff-a" value={diffMinuendId} onChange={setDiffMinuendId} options={diffOperands} placeholder="Search a source, e.g. lidar hd dsm" />
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2 min-h-6">
                       <Label htmlFor="source-diff-b">Second source (subtrahend, e.g. a DTM) *</Label>
                       <LoadMissingOperand id={diffSubtrahendId} />
                     </div>
-                    <Select value={diffSubtrahendId || "none"} onValueChange={(v: any) => setDiffSubtrahendId(v === "none" ? "" : v)} items={diffItems}>
-                      <SelectTrigger id="source-diff-b" className="cursor-pointer w-full min-w-0 overflow-hidden [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:truncate"><SelectValue /></SelectTrigger>
-                      <SelectContent className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)]">
-                        <SelectItem value="none">Choose…</SelectItem>
-                        {diffOperands.map((o) => <SelectItem key={o.id} value={o.id}><span className="truncate">{o.name}</span></SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <SourceCombobox id="source-diff-b" value={diffSubtrahendId} onChange={setDiffSubtrahendId} options={diffOperands} placeholder="Search a source, e.g. lidar hd dtm" />
                   </div>
                   {diffMinuendId && diffMinuendId === diffSubtrahendId && <p className="text-xs text-destructive">Pick two different sources.</p>}
                   <div className="space-y-2">

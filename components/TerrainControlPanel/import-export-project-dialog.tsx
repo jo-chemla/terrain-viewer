@@ -207,12 +207,10 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
                             onCheckedChange={() => toggle("localCogs")}
                             className="mt-0.5 cursor-pointer"
                           />
-                          <div className="min-w-0">
-                            <Label htmlFor="export-localCogs" className="cursor-pointer">
-                              Include local COG files ({localCogCount})
-                            </Label>
-                            <p className="text-xs text-muted-foreground">Bundles each local file's raw bytes as a .zip — larger download, but re-importable elsewhere without re-selecting files.</p>
-                          </div>
+                          <Label htmlFor="export-localCogs" className="min-w-0 flex-col items-start gap-0 cursor-pointer">
+                            <span>Include local COG files ({localCogCount})</span>
+                            <span className="text-xs font-normal text-muted-foreground">Bundles each local file's raw bytes as a .zip — larger download, but re-importable elsewhere without re-selecting files.</span>
+                          </Label>
                         </div>
                         {!selection.localCogs && (
                           <p className="text-xs text-amber-600 dark:text-amber-400">
@@ -232,14 +230,14 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
                             onCheckedChange={() => toggle("bookmarkThumbsInZip")}
                             className="mt-0.5 cursor-pointer"
                           />
-                          <div className="min-w-0">
-                            <Label htmlFor="export-bookmarkThumbsInZip" className="cursor-pointer">Bookmark thumbnails as a .zip</Label>
-                            <p className="text-xs text-muted-foreground">
+                          <Label htmlFor="export-bookmarkThumbsInZip" className="min-w-0 flex-col items-start gap-0 cursor-pointer">
+                            <span>Bookmark thumbnails as a .zip</span>
+                            <span className="text-xs font-normal text-muted-foreground">
                               {selection.bookmarkThumbsInZip
                                 ? "Thumbnails travel as separate files in a bookmarks_thumbs/ folder instead of inlined base64."
                                 : "Thumbnails stay inlined as base64 in project.json — check this to externalize them into a .zip instead."}
-                            </p>
-                          </div>
+                            </span>
+                          </Label>
                         </div>
                       </div>
                     )}

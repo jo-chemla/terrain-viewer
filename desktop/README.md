@@ -27,6 +27,10 @@ hutch electrobun build --env=stable  # artifacts/ : .dmg / setup .exe / self-ext
 
 The GitHub workflow `.github/workflows/desktop.yml` runs the same steps on a macOS, a Windows and an Ubuntu runner (manual trigger) and uploads `desktop/artifacts` for each.
 
+## Building from a git worktree
+
+`hutch electrobun build` failed with `could not project the Electrobun 2.0.2 devkit: AccessDenied` when run inside a git worktree checkout (a `.t3/worktrees/...` path on Windows), and succeeded from a plain copy of this folder in `C:\tmp` (2026-09-30, a 36 MB `win-x64-TerrainViewer-Setup.zip` in `artifacts/`). If the build fails that way, copy `desktop/` and `dist/` (as `../dist`) somewhere plain and build there; the GitHub runners are plain checkouts.
+
 ## Known unknowns
 
 - Web Workers and the custom `views://` scheme: MapLibre and the COG reader run workers, and a custom scheme may not allow them in every system webview. If a build opens on a blank map, that is the first thing to check; the fallback is serving `dist/` from a local HTTP port in the main process instead of `views://`.
