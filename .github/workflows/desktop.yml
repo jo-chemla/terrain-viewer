@@ -26,10 +26,18 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - name: Build the web app
+      - name: Build the web app and the docs
+        # The docs export is merged into dist/docs the way the Pages deploy
+        # does it, so gen-config.mjs bundles it and the Documentation button
+        # works offline.
+        shell: bash
         run: |
           pnpm install --frozen-lockfile
+          pnpm --dir docs install --frozen-lockfile
           pnpm build
+          pnpm run docs:build
+          mkdir -p dist/docs
+          cp -r docs/out/. dist/docs/
       - name: Linux webview packages
         if: runner.os == 'Linux'
         run: |

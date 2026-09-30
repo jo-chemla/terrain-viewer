@@ -25,6 +25,20 @@ hutch electrobun build --env=stable  # artifacts/ : .dmg / setup .exe / self-ext
 
 `hutch electrobun dev` opens the window on the current dist without packaging.
 
+## What the build writes, and where
+
+Hutch writes everything inside `desktop/` (or wherever the config lives), never into the app's `dist/`:
+
+- `build/stable-win-x64/TerrainViewer/` (`.app` on macOS): the application bundle itself, `bin/launcher.exe` plus `Resources/app/views/app/` holding the copied dist. This folder runs as is - it is the "portable" form; there is no single-file executable, the webview runtime and the Bun main process are separate files next to the launcher.
+- `build/stable-win-x64/Terrain Viewer-Setup.exe`, the `.tar.zst` update archive and `update.json`: the installer and the updater feed (`.dmg` on macOS, self-extracting `.tar.gz` on Linux).
+- `artifacts/`: the distributable files only, e.g. `win-x64-TerrainViewer-Setup.zip`; this is what the workflow uploads.
+
+## Icon, docs, fullscreen
+
+- `icons/` holds `public/favicon.svg` rasterised (`.cache/pw/favicon-png.mjs` at 1024 px, then Pillow): `icon.ico` (16-256 px) for the Windows installer, shortcut and taskbar, `icon.iconset/` for the macOS `.app` (converted by `iconutil` on the runner), `icon.png` (512 px) for the Linux desktop entry. `gen-config.mjs` points `build.win.icon`, `build.mac.icons` and `build.linux.icon` at them.
+- Docs: when `dist/docs/index.html` exists (the workflow merges the Next export there like the Pages deploy does), `gen-config.mjs` bundles it and the sidebar's Documentation button resolves to `views://app/docs/` offline; `src/bun/index.ts` opens `target="_blank"` links to `views://` in a second window and http(s) ones in the system browser. Untested: whether the `views://` handler serves `index.html` for a directory URL (the docs export uses trailing-slash URLs). If `views://app/docs/` shows nothing, the fix is a `will-navigate` rewrite to `.../index.html` or serving the docs from a local port.
+- Fullscreen: the map's fullscreen button uses the browser Fullscreen API on the map container. WebView2 and WKWebView implement it inside the webview (the element fills the window's content area); whether the native window frame drops needs a check - Electrobun has `BrowserWindow.setFullScreen()` for that, not wired yet.
+
 The GitHub workflow `.github/workflows/desktop.yml` runs the same steps on a macOS, a Windows and an Ubuntu runner (manual trigger) and uploads `desktop/artifacts` for each.
 
 ## Building from a git worktree

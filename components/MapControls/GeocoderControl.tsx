@@ -477,9 +477,11 @@ export default function GeocoderControl({
     if (geocoder.getZoom() !== props.zoom && props.zoom !== undefined) {
       geocoder.setZoom(props.zoom);
     }
-    if (geocoder.getFlyTo() !== props.flyTo && props.flyTo !== undefined) {
-      geocoder.setFlyTo(props.flyTo);
-    }
+    // `flyTo` is deliberately NOT synced from props: the control is created
+    // with `flyTo: false` and this wrapper's "result" handler does the flying
+    // (after the Map Bounds fence check). Syncing it re-enabled the library's
+    // own flight, which fired before that check and dragged the map to the
+    // fence edge while the "outside the bounds" toast said it had not moved.
     if (geocoder.getPlaceholder() !== props.placeholder && props.placeholder !== undefined) {
       geocoder.setPlaceholder(props.placeholder);
     }

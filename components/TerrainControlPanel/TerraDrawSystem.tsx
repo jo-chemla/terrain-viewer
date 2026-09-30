@@ -555,39 +555,18 @@ function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef>) {
         // only once the data is known to hold real features (no phantom layer).
         const layer: DrawLayer = existing ?? { ...makeLayer(layersRef.current.length, name), ...(opts.sourceUrl ? { sourceUrl: opts.sourceUrl } : {}) }
 
-        // A flattened export keeps each feature's own layerId so the grouping
-        // survives the round trip - but those ids belong to the session that
-        // drew them. Ids that still name a live layer are kept; the rest are
-        // remapped, one new layer per distinct group, so the file's structure
-        // comes back instead of collapsing into one bucket. A remote layer
-        // (sourceUrl) owns its features outright and skips all of this.
-        const liveLayerIds = new Set(layersRef.current.map((l) => l.id))
-        const remapped = new Map<string, DrawLayer>()
-        const extraLayers: DrawLayer[] = []
-        const resolveLayerId = (fileLayerId: unknown): string => {
-            if (opts.sourceUrl) return layer.id
-            const id = typeof fileLayerId === 'string' ? fileLayerId : ''
-            if (!id || id === layer.id) return layer.id
-            if (liveLayerIds.has(id)) return id
-            const already = remapped.get(id)
-            if (already) return already.id
-            // The first unknown group reuses the layer this import already
-            // creates, so the common case (an export from one layer) does not
-            // leave an empty one behind.
-            const target = remapped.size === 0
-                ? layer
-                : makeLayer(layersRef.current.length + extraLayers.length, `${name} (${remapped.size + 1})`)
-            remapped.set(id, target)
-            if (target !== layer) extraLayers.push(target)
-            return target.id
-        }
-
-        const newFeatures = parseFeatures(raw, resolveLayerId)
+        // Every feature of the file lands in this one layer, whatever
+        // `layerId` it carries: an export from one layer, re-imported in the
+        // session that drew it, used to be routed back to that still-live
+        // layer, so the new layer named after the file came up empty ("no
+        // feature") while the original silently doubled. One file, one
+        // layer; the per-layer export is how grouping survives a round trip.
+        // A remote layer (sourceUrl) owns its features outright.
+        const newFeatures = parseFeatures(raw, () => layer.id)
         if (newFeatures.length === 0) throw new Error(`"${name}" has no importable features.`)
-        const created = [...(existing ? [] : [layer]), ...extraLayers]
-        if (created.length) {
-            layersRef.current = [...layersRef.current, ...created]
-            setLayers((prev) => [...prev, ...created])
+        if (!existing) {
+            layersRef.current = [...layersRef.current, layer]
+            setLayers((prev) => [...prev, layer])
         }
         setActiveLayerId(layer.id)
         track("tools-drawing", { action: "import", features: newFeatures.length, format, remote: !!opts.sourceUrl })

@@ -2154,7 +2154,15 @@ export function TerrainViewer() {
       }
     }
 
-    if (Object.keys(stateOverrides).length > 0) setState(stateOverrides)
+    if (Object.keys(stateOverrides).length > 0) {
+      // The usage-diff effect above already took its baseline from the
+      // pre-override state, so applying these defaults read as the user
+      // "switching" mode, view, split style and basemap: five events on
+      // every historical-satellite load. Drop the baseline; the next diff
+      // run starts fresh from the resolved state.
+      analyticsPrev.current = null
+      setState(stateOverrides)
+    }
 
     if (projectConfig?.initialSections) {
       setSectionOpen((prev) => ({ ...prev, ...projectConfig.initialSections }))
@@ -4129,7 +4137,10 @@ export function TerrainViewer() {
                   }}
                   showResultsWhileTyping={true}
                   zoom={14}
-                  flyTo={{ speed: 5 }}
+                  // No flyTo prop: the wrapper decides whether to move at all
+                  // (a result outside the Map Bounds fence only warns) and
+                  // flies itself; a prop here re-armed the library's own
+                  // flight, which ran before that check.
                   showResultMarkers={false}
                   limit={10}
                   minLength={3}

@@ -22,9 +22,13 @@ const walk = (dir) => {
   }
 }
 walk(dist)
-// The docs site is not part of the desktop bundle (it is its own Next.js
-// export and only lands in dist/ on the Pages deploy).
-const kept = files.filter((f) => !f.startsWith("docs/"))
+// The docs site rides along when its static export has been merged into
+// dist/docs (what the Pages deploy does: `pnpm run docs:build` then
+// `cp -r docs/out/. dist/docs/`), so the sidebar's Documentation button
+// resolves to views://app/docs/ offline. Without it, dist/docs holds only the
+// changelog screenshots, which are left out.
+const docsBundled = existsSync(join(dist, "docs", "index.html"))
+const kept = files.filter((f) => docsBundled || !f.startsWith("docs/"))
 const version = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8")).version ?? "0.0.0"
 
 const copy = Object.fromEntries(kept.map((f) => [`../dist/${f}`, `views/app/${f}`]))
@@ -45,11 +49,14 @@ export default {
     // No bundled view entrypoint: the UI is the Vite build copied below.
     views: {},
     copy: ${JSON.stringify(copy, null, 6).replace(/\n\}$/, "\n    }")},
-    mac: { bundleCEF: false, codesign: false, notarize: false },
-    linux: { bundleCEF: false },
-    win: { bundleCEF: false },
+    // icons/: the app favicon (public/favicon.svg) rasterised - .ico for the
+    // installer, shortcut and taskbar, .iconset for the .app, .png for the
+    // Linux desktop entry.
+    mac: { bundleCEF: false, codesign: false, notarize: false, icons: "icons/icon.iconset" },
+    linux: { bundleCEF: false, icon: "icons/icon.png" },
+    win: { bundleCEF: false, icon: "icons/icon.ico" },
   },
 } satisfies ElectrobunConfig;
 `
 writeFileSync(join(here, "electrobun.config.ts"), out)
-console.log(`desktop/electrobun.config.ts: ${kept.length} files from dist/`)
+console.log(`desktop/electrobun.config.ts: ${kept.length} files from dist/${docsBundled ? " (docs bundled)" : " (no docs export in dist/docs)"}`)
