@@ -87,8 +87,12 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
         { id: "google3d", label: "Google photorealistic 3D", color: OVERLAY_COLORS.google3d, detail: "decoded from Google's layer" },
         { id: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai, detail: "114 open COPC surveys" },
         { id: "esri3d", label: "Esri Integrated Mesh", color: OVERLAY_COLORS.esri3d, detail: "open I3S, \u2265 5 km\u00b2" },
-        { id: "otRaster", label: "OpenTopography rasters", color: OVERLAY_COLORS.otRaster, detail: "hosted DEMs, 687 datasets" },
-        { id: "otPointCloud", label: "OpenTopography point clouds", color: OVERLAY_COLORS.otPointCloud, detail: "hosted LiDAR, 841 datasets" },
+      ] },
+    { section: "Terrain", key: "opentopo", label: "OpenTopography", color: OVERLAY_COLORS.otRaster,
+      note: "Datasets hosted on OpenTopography (opentopography.org): gridded DEMs, and the LiDAR point clouds many were made from. Global rasters (SRTM, GLO-30, ALOS...) are left out, continental ones drawn hollow. Click a footprint for the dataset page and its DOI.",
+      leaves: [
+        { id: "otRaster", label: "Rasters (DEMs)", color: OVERLAY_COLORS.otRaster, detail: "hosted, ~675 datasets" },
+        { id: "otPointCloud", label: "Point clouds", color: OVERLAY_COLORS.otPointCloud, detail: "hosted LiDAR, 841 datasets" },
       ] },
     { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category })) },
@@ -112,7 +116,8 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
 const STATIC_GROUP_LEAVES: Record<string, string[]> = {
   library: TERRAIN_LIB.filter((s) => s.bounds).map((s) => `lib:${s.id}`),
   basemapLibrary: BASEMAP_LIB.filter((s) => s.bounds).map((s) => `blib:${s.id}`),
-  sources3d: ["bing3d", "google3d", "flai", "esri3d", "otRaster", "otPointCloud"],
+  sources3d: ["bing3d", "google3d", "flai", "esri3d"],
+  opentopo: ["otRaster", "otPointCloud"],
 }
 
 /** Coverage overlays in the URL, folded to group keys wherever a group is
@@ -290,14 +295,32 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
       const res = await fetch(`${import.meta.env.BASE_URL}coverage/${raster ? "opentopo-raster" : "opentopo-pointcloud"}.geojson`, { cache: "no-cache" })
       if (!res.ok) return empty
       const fc = (await res.json()) as FeatureCollection
-      const features: Feature[] = fc.features.map((f) => {
+      // Footprint size decides the drawing: the global rasters (SRTM, GLO-30,
+      // ALOS World 3D, GEBCO...) would tint the whole map and are dropped,
+      // continental ones (a whole country's LiDAR) are outlined only, the
+      // rest filled faintly. The DOI is the link - it lands on the dataset
+      // page for rasters and point clouds alike, where the
+      // datasetMetadata?otCollectionID= form only knows rasters.
+      const span = (g: Feature["geometry"]): number => {
+        let w = -Infinity, e = Infinity, sN = -Infinity, sS = Infinity
+        const walk = (c: unknown) => {
+          if (typeof (c as number[])[0] === "number") { const [x, y] = c as number[]; w = Math.max(w, x); e = Math.min(e, x); sN = Math.max(sN, y); sS = Math.min(sS, y) }
+          else for (const k of c as unknown[]) walk(k)
+        }
+        walk((g as Polygon).coordinates)
+        return Math.max(w - e, sN - sS)
+      }
+      const features: Feature[] = fc.features.flatMap((f) => {
         const p = (f.properties ?? {}) as { name?: string; otId?: string; short?: string; doi?: string; created?: string; temporal?: string; keywords?: string }
+        const extent = span(f.geometry)
+        if (raster && extent >= 300) return []
+        const continental = extent > 25
         const bits = [p.temporal ?? p.created, p.keywords].filter(Boolean).join(" · ")
-        return { ...f, properties: { ...f.properties,
-          overlay: id, color: raster ? OVERLAY_COLORS.otRaster : OVERLAY_COLORS.otPointCloud, hollow: !raster, opacity: raster ? 0.12 : 0.35,
+        return [{ ...f, properties: { ...f.properties,
+          overlay: id, color: raster ? OVERLAY_COLORS.otRaster : OVERLAY_COLORS.otPointCloud, hollow: !raster || continental, opacity: raster ? 0.08 : 0.35,
           label: p.name ?? (raster ? "OpenTopography raster" : "OpenTopography point cloud"),
           detail: `${raster ? "hosted DEM" : "hosted point cloud"}${p.short ? ` (${p.short})` : ""}${bits ? ` · ${bits}` : ""} · click to open the dataset on OpenTopography`,
-          url: p.otId ? `https://portal.opentopography.org/datasetMetadata?otCollectionID=${p.otId}` : (p.doi ?? "https://portal.opentopography.org/dataCatalog") } }
+          url: p.doi ?? (p.otId ? `https://portal.opentopography.org/datasetMetadata?otCollectionID=${p.otId}` : "https://portal.opentopography.org/dataCatalog") } }]
       })
       return { type: "FeatureCollection", features }
     } catch { return empty }

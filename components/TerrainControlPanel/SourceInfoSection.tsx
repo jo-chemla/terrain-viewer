@@ -339,7 +339,10 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
                       <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
                     </button>
                     <Checkbox id={`cov-g-${g.key}`} checked={all && g.leaves.length > 0} indeterminate={!all && on > 0} disabled={g.leaves.length === 0} onCheckedChange={(v) => setMany(g.leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
-                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />
+                    {/* One swatch for the group when its leaves share a
+                        colour; otherwise each leaf carries its own below
+                        (the 3D and LiDAR group, one colour per provider). */}
+                    {!g.leaves.some((l) => l.color !== g.color) && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />}
                     <Label htmlFor={`cov-g-${g.key}`} className="text-xs font-medium cursor-pointer truncate flex-1" title={g.note}>{g.label}</Label>
                     <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{g.leaves.length}</span>
                   </div>
@@ -349,6 +352,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
                       {g.leaves.map((l) => (
                         <div key={l.id} className="flex items-center gap-1.5">
                           <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
+                          {g.leaves.some((x) => x.color !== g.color) && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: l.color }} />}
                           {/* The label wins the width fight: `detail` used to be
                               shrink-0, so a long one (the Esri leaf's) pushed the
                               layer's own NAME down to zero width and the row read
