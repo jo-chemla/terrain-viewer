@@ -47,6 +47,8 @@
 - FLAI's coverage footprints are simplified at 20 m: 270 KB on the wire instead of 480.
 
 ### Fixes
+- **Split views stay in sync under constraints.** The zoom range and the map-bounds fence used to come from view A alone, while each view's MapLibre clamped the camera the sync handed it: a view whose own source stopped earlier, or a narrower pane under the same fence, ended at another zoom or centre. Every active view's sources now set one shared range (the tightest) and one shared fence (their overlap, or their union when they do not overlap); a source click fences every view before flying; and the idle reconcile, when a view could not follow, pulls the others to it instead of fighting every idle.
+- **Export project: the whole row toggles the box.** The count line under a category name is part of its label now.
 - **Esri imagery shows the parent tile where it runs out.** Esri World Imagery answered tiles past its imagery with a grey "Map data not yet available" JPEG; asked with `blankTile=false` it returns a 404, and MapLibre shows the lower-resolution tile enlarged instead.
 - **Fewer stalled IGN tiles.** A WMS GetMap that has not answered in 25 s is asked again, up to three times (IGN often returns the same tile at once the second time), and GetMaps queue six at a time per host so a request waiting its turn is not counted as hung.
 - **3D terrain comes on while slow sources are still loading.** Each view's setup waited for MapLibre's `load`, which only fires once every tile of every source has arrived: with the IGN nDSM, whose WMS takes up to minutes a tile, it never came and the view stayed flat. It now starts as soon as the style is in, and terrain fills in tile by tile.

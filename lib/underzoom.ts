@@ -62,3 +62,14 @@ export function fitPaddingFor(map: maplibregl.Map): number {
   const shorter = Math.min(el.clientWidth, el.clientHeight)
   return Math.max(20, Math.min(Math.round(shorter * FIT_PADDING_RATIO), Math.floor(shorter / 2) - 1))
 }
+
+// The terrain picker fences the map before it flies (see terrain-source-
+// section.tsx), and must fence EVERY synced view, or the others keep the old
+// fence for a tick and land elsewhere. TerrainViewer registers the function
+// that reaches all of its maps; a caller with only one map falls back to it.
+let fenceAll: ((bounds: LngLatBoundsTuple | null) => void) | null = null
+export function registerFenceAllViews(fn: ((bounds: LngLatBoundsTuple | null) => void) | null) { fenceAll = fn }
+export function applyBoundedViewAll(fallback: maplibregl.Map, bounds: LngLatBoundsTuple | null) {
+  if (fenceAll) fenceAll(bounds)
+  else applyBoundedView(fallback, bounds)
+}

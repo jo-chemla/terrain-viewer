@@ -20,7 +20,7 @@ import { Section, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, 
 import { type Bounds, templateLink, shouldZoomToTerrainBounds } from "@/lib/controls-utils"
 import { resolveLinkedBasemapId } from "@/lib/linked-sources"
 import { staticBoundsFor } from "@/lib/max-bounds"
-import { applyBoundedView, fitPaddingFor } from "@/lib/underzoom"
+import { applyBoundedViewAll, fitPaddingFor } from "@/lib/underzoom"
 import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
@@ -235,7 +235,10 @@ export const TerrainSourceSection: React.FC<{
     // the fit came out filling the frame instead of showing the whole country.
     // Only touched when a constraint is already active, so maxBoundsMode "none"
     // keeps its unbounded behaviour.
-    if (map.getMaxBounds()) applyBoundedView(map, [west, south, east, north])
+    // Every synced view, not just this one (applyBoundedViewAll): a view
+    // still fenced to the previous country would clamp the flight the sync
+    // hands it and stay behind.
+    if (map.getMaxBounds()) applyBoundedViewAll(map, [west, south, east, north])
     map.fitBounds([[west, south], [east, north]], { padding: fitPaddingFor(map), speed: 6 })
   }, [mapRef])
 

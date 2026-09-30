@@ -28,7 +28,7 @@ import {
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
 import { withSlowTileStats, resetSlowTileProgress } from "@/lib/tile-timing-stats"
-import { MAX_BOUNDS_MODES, unionBounds, bufferBounds, resolveCustomSourceBounds, type LngLatBoundsTuple } from "@/lib/max-bounds"
+import { MAX_BOUNDS_MODES, unionBounds, sharedBounds, bufferBounds, resolveCustomSourceBounds, type LngLatBoundsTuple } from "@/lib/max-bounds"
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { getProjectConfig } from "@/lib/project-config"
 import { useTheme } from "@/lib/controls-utils"
@@ -66,7 +66,7 @@ import { registerProtocol } from '@/lib/protocol-registry'
 // Region readers (WMS, VRT, difference) for exports: see lib/region-readers.ts.
 import '@/lib/region-readers'
 import { isPosePlaybackActive } from '@/components/TerrainControlPanel/CameraUtilities'
-import { applyBoundedView, sanitizeBounds } from '@/lib/underzoom'
+import { applyBoundedView, registerFenceAllViews, sanitizeBounds } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
@@ -2513,27 +2513,22 @@ export function TerrainViewer() {
   const reconcileSyncedViews = useCallback(() => {
     if (!isSplit || pointerDownRef.current || isSyncing.current || isPosePlaybackActive()) return
     const preferred = lastInteractedViewRef.current
-    const referenceSide = activeViewIds.includes(preferred) ? preferred : activeViewIds[0]
-    const reference = mapRefs[referenceSide]?.current?.getMap()
-    if (!reference) return
-    const tr = getTransform(reference)
     const ZOOM_EPS = 1e-3, DEG_EPS = 1e-6, ANGLE_EPS = 1e-2
-    const drifted = activeViewIds.filter((side) => {
-      if (side === referenceSide) return false
-      const map = mapRefs[side].current?.getMap()
-      if (!map) return false
-      const t = getTransform(map)
-      return Math.abs(t.zoom - tr.zoom) > ZOOM_EPS
-        || Math.abs(t.center.lng - tr.center.lng) > DEG_EPS
-        || Math.abs(t.center.lat - tr.center.lat) > DEG_EPS
-        || Math.abs(t.bearing - tr.bearing) > ANGLE_EPS
-        || Math.abs(t.pitch - tr.pitch) > ANGLE_EPS
-    })
-    if (!drifted.length) return
-    isSyncing.current = true
-    try {
-      for (const side of drifted) {
-        const map = mapRefs[side].current!.getMap()
+    const differs = (a: ReturnType<typeof getTransform>, b: ReturnType<typeof getTransform>) =>
+      Math.abs(a.zoom - b.zoom) > ZOOM_EPS
+        || Math.abs(a.center.lng - b.center.lng) > DEG_EPS
+        || Math.abs(a.center.lat - b.center.lat) > DEG_EPS
+        || Math.abs(a.bearing - b.bearing) > ANGLE_EPS
+        || Math.abs(a.pitch - b.pitch) > ANGLE_EPS
+    const pull = (referenceSide: ViewId): ViewId | null => {
+      const reference = mapRefs[referenceSide]?.current?.getMap()
+      if (!reference) return null
+      const tr = getTransform(reference)
+      let clamped: ViewId | null = null
+      for (const side of activeViewIds) {
+        if (side === referenceSide) continue
+        const map = mapRefs[side].current?.getMap()
+        if (!map || !differs(getTransform(map), tr)) continue
         map.jumpTo({
           center: tr.center,
           zoom: tr.zoom,
@@ -2541,7 +2536,20 @@ export function TerrainViewer() {
           pitch: tr.pitch,
           ...(map.getTerrain() && reference.getTerrain() ? { elevation: tr.elevation } : {}),
         })
+        // A view that could not land on the reference camera was clamped by
+        // its own constrain (a narrower pane under the same fence, say): the
+        // reference cannot be right for it, so it becomes the reference.
+        if (differs(getTransform(map), tr) && !clamped) clamped = side
       }
+      return clamped
+    }
+    let referenceSide: ViewId = activeViewIds.includes(preferred) ? preferred : activeViewIds[0]
+    isSyncing.current = true
+    try {
+      // Two passes at most: pull everyone to the last-touched view; if one
+      // was clamped, pull everyone (the first reference included) to it.
+      const clamped = pull(referenceSide)
+      if (clamped) { referenceSide = clamped; pull(referenceSide) }
     } finally {
       isSyncing.current = false
     }
@@ -2933,12 +2941,23 @@ export function TerrainViewer() {
   }, [mapLoaded, activeViewIds.join(",")])
   // ----------------------------------------
 
-  // Effective zoom bounds are resolved from view A only, same primary-only
-  // policy as max-bounds/Contours/Geocoder/Nav below — so only A's zoom
-  // range is ever tracked (a zoomRangeB used to exist here too but nothing
-  // downstream ever read it).
-  const [zoomRangeA, setZoomRangeA] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
-  const [zoomRangeBasemap, setZoomRangeBasemap] = useState<{ minzoom: number; maxzoom: number; isCustom: boolean } | null>(null)
+  // Every view's terrain and basemap report their zoom range; the views are
+  // synced, so they share ONE range: the tightest across the active views
+  // (below). Resolving it from view A alone, as before, left a view whose own
+  // source stopped at z14 clamped by MapLibre while the others went on, and
+  // the cameras apart. The setters are stable per side, and only store a
+  // range that changed, since MapSources re-fires its report on every change
+  // of the callback.
+  type ZoomRange = { minzoom: number; maxzoom: number; isCustom: boolean }
+  const [zoomRanges, setZoomRanges] = useState<Partial<Record<ViewId, ZoomRange>>>({})
+  const [basemapZoomRanges, setBasemapZoomRanges] = useState<Partial<Record<ViewId, ZoomRange>>>({})
+  const sameRange = (a: ZoomRange | undefined, b: ZoomRange) => !!a && a.minzoom === b.minzoom && a.maxzoom === b.maxzoom && a.isCustom === b.isCustom
+  const zoomRangeSetters = useMemo(() => Object.fromEntries(VIEW_IDS.map((side) => [side, (r: ZoomRange) =>
+    setZoomRanges((prev) => (sameRange(prev[side], r) ? prev : { ...prev, [side]: r }))])) as Record<ViewId, (r: ZoomRange) => void>, [])
+  const basemapZoomRangeSetters = useMemo(() => Object.fromEntries(VIEW_IDS.map((side) => [side, (r: ZoomRange) =>
+    setBasemapZoomRanges((prev) => (sameRange(prev[side], r) ? prev : { ...prev, [side]: r }))])) as Record<ViewId, (r: ZoomRange) => void>, [])
+  const zoomRangeA = zoomRanges.A ?? null
+  const zoomRangeBasemap = basemapZoomRanges.A ?? null
 
   // Only include a range in the computation if it came from a custom source — checked
   // directly against the id (a builtin source reporting a coincidental maxzoom of 20
@@ -3168,7 +3187,23 @@ export function TerrainViewer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapPaddingFor, mapLoaded, activeViewIds.join(","), resettleTerrainElevation])
 
+  // Per view: the larger of its custom terrain's and custom basemap's maxzoom
+  // (a basemap that can still refine keeps the camera going), plus the
+  // overzoom allowance. Across the synced views: the smallest of those, so no
+  // view is ever asked for a zoom its own MapLibre would clamp.
+  const viewZoomCaps = useMemo(() => activeViewIds.map((side) => {
+      const terrainCustom = customTerrainSources.some((s) => s.id === stateAny[sourceFieldName(side)])
+      const basemapCustom = customBasemapSources.some((s) => s.id === perViewResolved[side].basemapSource)
+      const t = terrainCustom ? zoomRanges[side] : undefined
+      const b = basemapCustom ? basemapZoomRanges[side] : undefined
+      const maxs = [t?.maxzoom, b?.maxzoom].filter((v): v is number => v !== undefined)
+      const mins = [t?.minzoom, b?.minzoom].filter((v): v is number => v !== undefined)
+      return { max: maxs.length ? Math.min(22, Math.max(...maxs) + OVERZOOM_LEVELS) : 22, min: mins.length ? Math.min(...mins) : 0 }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [activeViewIds.join(","), zoomRanges, basemapZoomRanges, customTerrainSources, customBasemapSources, ...VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]), ...VIEW_IDS.map((side) => perViewResolved[side].basemapSource)])
+
   const effectiveMaxZoom = useMemo(() => {
+      if (viewZoomCaps.length) return Math.min(...viewZoomCaps.map((c) => c.max))
       const candidates = [
           isTerrainCustom && zoomRangeA ? zoomRangeA.maxzoom : null,
           isBasemapCustom && zoomRangeBasemap ? zoomRangeBasemap.maxzoom : null,
@@ -3183,15 +3218,16 @@ export function TerrainViewer() {
       // built-ins. Two levels is the same allowance the difference source
       // already takes on its own Source (see MapSources.tsx).
       return candidates.length > 0 ? Math.min(22, Math.max(...candidates) + OVERZOOM_LEVELS) : 22
-  }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
+  }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom, viewZoomCaps])
 
   const effectiveMinZoom = useMemo(() => {
+      if (viewZoomCaps.length) return Math.max(...viewZoomCaps.map((c) => c.min))
       const candidates = [
           isTerrainCustom && zoomRangeA ? zoomRangeA.minzoom : null,
           isBasemapCustom && zoomRangeBasemap ? zoomRangeBasemap.minzoom : null,
       ].filter((v): v is number => v !== null)
       return candidates.length > 0 ? Math.min(...candidates) : 0
-  }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom])
+  }, [zoomRangeA, zoomRangeBasemap, isTerrainCustom, isBasemapCustom, viewZoomCaps])
 
   // <Map minZoom/maxZoom> are left as fixed constants (see the JSX below) rather
   // than driven declaratively from effectiveMinZoom/effectiveMaxZoom: react-map-
@@ -3280,6 +3316,19 @@ export function TerrainViewer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedMaxBounds, mapLoaded, activeViewIds.join(",")])
 
+  // The terrain picker's pre-flight fence reaches every active map through
+  // this (lib/underzoom.ts's applyBoundedViewAll).
+  useEffect(() => {
+    registerFenceAllViews((bounds) => {
+      for (const side of activeViewIds) {
+        const map = mapRefs[side].current?.getMap()
+        if (map) applyBoundedView(map, bounds)
+      }
+    })
+    return () => registerFenceAllViews(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeViewIds.join(",")])
+
 
 
   useEffect(() => {
@@ -3293,9 +3342,14 @@ export function TerrainViewer() {
     }
 
     let cancelled = false
-    const terrainSourceObj = customTerrainSources.find((s) => s.id === state.sourceA)
-    const basemapSourceObj = customBasemapSources.find((s) => s.id === activeBasemapSourceA)
     const resolveOpts = { useCogProtocolVsTitiler, titilerEndpoint }
+    // One fence for all the synced views, from every active view's own
+    // sources (sharedBounds: their overlap, else their union), not from view
+    // A alone: a fence B could not honour left it clamped and out of sync.
+    const perView = activeViewIds.map((side) => ({
+      terrain: customTerrainSources.find((s) => s.id === stateAny[sourceFieldName(side)]),
+      basemap: customBasemapSources.find((s) => s.id === perViewResolved[side].basemapSource),
+    }))
 
     // Historical mode draws no terrain, so a fence around the terrain source
     // picked in terrain mode has nothing to protect and only pins the imagery
@@ -3304,18 +3358,19 @@ export function TerrainViewer() {
     // there; "terrain" fences nothing, "union" fences the basemap alone.
     const terrainFenced = !isHistoricalMode
     ;(async () => {
-      let bounds: LngLatBoundsTuple | null = null
-      if (state.maxBoundsMode === "terrain") {
-        bounds = terrainFenced ? await resolveCustomSourceBounds(terrainSourceObj, resolveOpts) : null
-      } else if (state.maxBoundsMode === "raster") {
-        bounds = await resolveCustomSourceBounds(basemapSourceObj, resolveOpts)
-      } else if (state.maxBoundsMode === "union") {
-        const [terrainBounds, rasterBounds] = await Promise.all([
-          terrainFenced ? resolveCustomSourceBounds(terrainSourceObj, resolveOpts) : Promise.resolve(null),
-          resolveCustomSourceBounds(basemapSourceObj, resolveOpts),
-        ])
-        bounds = unionBounds(terrainBounds, rasterBounds)
-      }
+      const viewBounds = await Promise.all(perView.map(async ({ terrain, basemap }) => {
+        if (state.maxBoundsMode === "terrain") return terrainFenced ? resolveCustomSourceBounds(terrain, resolveOpts) : null
+        if (state.maxBoundsMode === "raster") return resolveCustomSourceBounds(basemap, resolveOpts)
+        if (state.maxBoundsMode === "union") {
+          const [terrainBounds, rasterBounds] = await Promise.all([
+            terrainFenced ? resolveCustomSourceBounds(terrain, resolveOpts) : Promise.resolve(null),
+            resolveCustomSourceBounds(basemap, resolveOpts),
+          ])
+          return unionBounds(terrainBounds, rasterBounds)
+        }
+        return null
+      }))
+      const bounds: LngLatBoundsTuple | null = sharedBounds(viewBounds)
       // An automatic fence is never tighter than MIN_FENCE_SPAN_DEG across.
       // The size of a single survey (the Bhotekoshi reaches are 8 km) is
       // unusable: measured on a 0.24 deg box, zooming out stopped at z10.9
@@ -3334,7 +3389,8 @@ export function TerrainViewer() {
     return () => { cancelled = true }
   }, [
     state.maxBoundsMode, state.maxBoundsBuffer, state.maxBoundsWest, state.maxBoundsSouth, state.maxBoundsEast, state.maxBoundsNorth,
-    state.sourceA, activeBasemapSourceA, customTerrainSources, customBasemapSources, useCogProtocolVsTitiler, titilerEndpoint, isHistoricalMode,
+    ...VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]), ...VIEW_IDS.map((side) => perViewResolved[side].basemapSource), activeViewIds.join(","),
+    customTerrainSources, customBasemapSources, useCogProtocolVsTitiler, titilerEndpoint, isHistoricalMode,
   ])
 
   // A source that is not already Web Mercator has its tiles reprojected by
@@ -3652,7 +3708,7 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             customTerrainSources={customTerrainSources}
             titilerEndpoint={titilerEndpoint}
-            onZoomRangeChange={isPrimary ? setZoomRangeA : undefined}
+            onZoomRangeChange={zoomRangeSetters[side]}
             lat={state.lat}
             lng={state.lng}
             zoom={isPrimary ? state.zoom : undefined}
@@ -3672,7 +3728,7 @@ export function TerrainViewer() {
             historicalBeta={state.historicalBeta}
             customBasemapSources={customBasemapSources}
             titilerEndpoint={titilerEndpoint}
-            onZoomRangeChange={isPrimary ? setZoomRangeBasemap : undefined}
+            onZoomRangeChange={basemapZoomRangeSetters[side]}
           />
           {state.basemapPerView && state.showRasterBasemap && (
             <OverlayBasemapSources
@@ -4149,7 +4205,7 @@ export function TerrainViewer() {
       state.fogColor, state.fogGroundBlend, state.matchThemeColors, state.backgroundLayerActive,
       activeProjectConfig,
       themeColor,
-      setZoomRangeBasemap, resolvedMaxBounds
+      zoomRangeSetters, basemapZoomRangeSetters, resolvedMaxBounds
     ],
   )
 

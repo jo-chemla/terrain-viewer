@@ -190,10 +190,12 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
                         onCheckedChange={() => toggle(category)}
                         className="mt-0.5 cursor-pointer"
                       />
-                      <div className="min-w-0">
-                        <Label htmlFor={`export-${category}`} className="cursor-pointer">{CATEGORY_LABELS[category]}</Label>
-                        <p className="text-xs text-muted-foreground">{counts[category]}</p>
-                      </div>
+                      {/* The whole text block is the label, so the count line
+                          under the name toggles the box too. */}
+                      <Label htmlFor={`export-${category}`} className="min-w-0 flex-col items-start gap-0 cursor-pointer">
+                        <span>{CATEGORY_LABELS[category]}</span>
+                        <span className="text-xs font-normal text-muted-foreground">{counts[category]}</span>
+                      </Label>
                     </div>
 
                     {category === "sources" && selection.sources && localFileWarning && (

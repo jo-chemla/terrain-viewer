@@ -40,6 +40,26 @@ export function unionBounds(a: LngLatBoundsTuple | null, b: LngLatBoundsTuple | 
   return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]
 }
 
+/** The overlap of two boxes, or null when they do not overlap. */
+export function intersectBounds(a: LngLatBoundsTuple | null, b: LngLatBoundsTuple | null): LngLatBoundsTuple | null {
+  if (!a || !b) return null
+  const out: LngLatBoundsTuple = [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])]
+  return out[0] < out[2] && out[1] < out[3] ? out : null
+}
+
+/** One fence for several views, each with its own source footprint: the
+ *  overlap when the footprints overlap (every view can be fenced to it), the
+ *  union when they do not (a Dutch and a Mexican survey side by side must both
+ *  stay reachable), null when no view has a footprint. */
+export function sharedBounds(list: (LngLatBoundsTuple | null)[]): LngLatBoundsTuple | null {
+  const boxes = list.filter((b): b is LngLatBoundsTuple => !!b)
+  if (!boxes.length) return null
+  let inter: LngLatBoundsTuple | null = boxes[0]
+  for (const b of boxes.slice(1)) inter = intersectBounds(inter, b)
+  if (inter) return inter
+  return boxes.reduce<LngLatBoundsTuple | null>((acc, b) => unionBounds(acc, b), null)
+}
+
 export function bufferBounds(bounds: LngLatBoundsTuple, bufferDegrees: number): LngLatBoundsTuple {
   const [west, south, east, north] = bounds
   return [
