@@ -33,6 +33,7 @@ Agents that support skills can install one that does this for them: `npx skills 
 - [Camera Sync](https://terrain-viewer.iconem.com/docs/dev/camera-sync/): Keeping up to eight map views on one camera — elevation as the sixth parameter, the idle settle, and the rules that keep gestures intact
 - [Custom Protocols](https://terrain-viewer.iconem.com/docs/dev/custom-protocols/): What a MapLibre custom protocol is, every scheme this app registers, and the registry that lets every consumer reach every one of them
 - [Derived Terrain Protocol](https://terrain-viewer.iconem.com/docs/dev/demdiff-protocol/): demdiff:// — subtracting one elevation source from another, tile by tile, and the alpha-254 convention that keeps holes flat
+- [Desktop App (Electrobun)](https://terrain-viewer.iconem.com/docs/dev/desktop/): The web app packaged as a desktop application with Electrobun - what the build produces, what launcher.exe and cottontail.exe are, the portable (no installer) path, icons, docs and fullscreen
 - [Equations & Formulas](https://terrain-viewer.iconem.com/docs/dev/equations/): The exact math behind every terrain-derivative visualization mode
 - [ESRI Wayback](https://terrain-viewer.iconem.com/docs/dev/esri-wayback/): The release-chained alternative to Google Earth Historical's per-tile dates
 - [Fumadocs customization](https://terrain-viewer.iconem.com/docs/dev/fumadocs-customization/): What this documentation site adds on top of a stock Fumadocs install — components, generators, and the Next base-path fixes
