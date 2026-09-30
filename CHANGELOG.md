@@ -12,6 +12,7 @@
 - **Camera animation that keeps its word.** A pose now records the camera target's elevation and playback interpolates it with the rest — centre, zoom, pitch, bearing, roll, field of view — so a flight from a summit pose to a valley pose no longer bobs over every ridge or holds the start height. Poses captured before this keep the old behaviour until re‑set.
 
 ### Features
+- **Slope, aspect and the relief modes over a WMS fetch one GetMap per tile.** The kernel's halo used to mean the tile plus its eight neighbours; a WMS answers any bbox, so the tile is asked with its margin in one request. Aspect over IGN LiDAR HD in a 2 × 2 view: 4 GetMaps instead of 16.
 - **Bookmarks open like links.** Middle-click, Ctrl-click or Cmd-click a bookmark, in the list or the gallery, to open its view in a new tab; a plain click restores it in place as before. The gallery button works before you have saved anything, since the Featured views are in it.
 - **Filter your own sources.** With more than five sources under Bring Your Own Data, a filter box at the top of the terrain and basemap lists narrows them by name or description. It is not saved in the link.
 - **nDSM and change get their own library category.** Height-above-ground differences and the six before/after events, with the surveys they need, now sit together in the terrain library instead of being graded against Mapterhorn, where most of them landed in the folded "not better" list.

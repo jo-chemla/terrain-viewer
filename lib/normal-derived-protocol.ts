@@ -2,7 +2,7 @@ import { customScheme, dispatchTile, toBitmap } from "./protocol-registry"
 import { elevationToTerrarium } from "./elevation-encoding"
 import { cogProtocol } from "@geomatico/maplibre-cog-protocol"
 import { PMTiles } from "pmtiles"
-import { float32demProtocol } from "./float32dem-protocol"
+import { float32demProtocol, fetchFloat32Raster } from "./float32dem-protocol"
 import { toTileImage, type TileImage } from "./tile-image"
 
 // Shared scaffolding behind the `aspect://`, `tri://` and `curvature://` maplibre
@@ -278,6 +278,66 @@ export interface PaddedElevationGrid {
   paddedValid?: Uint8Array
 }
 
+const WMS_MAX_GETMAP_PX = 2048
+
+/** The tile and its halo as one WMS GetMap (see fetchPaddedElevationGrid).
+ *  The floats come straight from the GeoTIFF, no Terrarium round trip; the
+ *  hole mask becomes the grid's validity. Cached in the same decoded-tile
+ *  cache under the GetMap URL, so the modes sharing a tile share the read. */
+async function fetchWmsPaddedGrid(
+  cache: Map<string, Promise<DecodedTile | null>>,
+  upstreamTemplate: string,
+  z: number, x: number, y: number, n: number, halo: number,
+  signal: AbortSignal,
+): Promise<PaddedElevationGrid | null> {
+  const match = upstreamTemplate.match(/^float32dem-bbox:\/\/(.+)\/\{z\}\/\{x\}\/\{y\}$/)
+  if (!match) return null
+  const stride = n + 2 * halo
+  // The tile's bbox, then `halo` of its own pixels added on every side.
+  const size = 1 << z
+  const resolution = (2 * Math.PI * MERCATOR_EARTH_RADIUS / 256) / size
+  const merc = (px: number) => px * resolution - Math.PI * MERCATOR_EARTH_RADIUS
+  const pixel = (256 * resolution) / n
+  const flippedY = size - y - 1
+  const bbox = [merc(x * 256) - halo * pixel, merc(flippedY * 256) - halo * pixel, merc((x + 1) * 256) + halo * pixel, merc((flippedY + 1) * 256) + halo * pixel].join(",")
+  const url = decodeURIComponent(match[1]).replace("{bbox-epsg-3857}", bbox)
+    .replace(/([?&]WIDTH=)\d+/i, `$1${stride}`).replace(/([?&]HEIGHT=)\d+/i, `$1${stride}`)
+  const cached = cacheGet(cache, url)
+  const promise = cached ?? (async (): Promise<DecodedTile | null> => {
+    const r = await fetchFloat32Raster(`float32dem://${url}`, signal)
+    let data: Float32Array, valid: Uint8Array | undefined
+    if (r.width === stride && r.height === stride) {
+      data = r.data instanceof Float32Array ? r.data : Float32Array.from(r.data as ArrayLike<number>)
+      if (r.hole) { valid = new Uint8Array(stride * stride); for (let i = 0; i < valid.length; i++) valid[i] = r.hole[i] ? 0 : 1 }
+    } else {
+      // A server that answered at another size: nearest-resample onto the grid.
+      data = new Float32Array(stride * stride)
+      if (r.hole) valid = new Uint8Array(stride * stride)
+      for (let row = 0; row < stride; row++) {
+        const sr = Math.min(r.height - 1, Math.floor(((row + 0.5) * r.height) / stride))
+        for (let col = 0; col < stride; col++) {
+          const sc = Math.min(r.width - 1, Math.floor(((col + 0.5) * r.width) / stride))
+          data[row * stride + col] = r.data[sr * r.width + sc]
+          if (valid) valid[row * stride + col] = r.hole![sr * r.width + sc] ? 0 : 1
+        }
+      }
+    }
+    return valid ? { data, width: stride, height: stride, valid } : { data, width: stride, height: stride }
+  })()
+  if (!cached) cacheSet(cache, url, promise)
+  const tile = await promise
+  if (!tile) return null
+  // The centre tile, cut out of the grid, for callers that read it.
+  const center = new Float32Array(n * n)
+  const centerValid = tile.valid ? new Uint8Array(n * n) : undefined
+  for (let row = 0; row < n; row++) {
+    center.set(tile.data.subarray((row + halo) * stride + halo, (row + halo) * stride + halo + n), row * n)
+    if (centerValid) centerValid.set(tile.valid!.subarray((row + halo) * stride + halo, (row + halo) * stride + halo + n), row * n)
+  }
+  const centerTile: DecodedTile = centerValid ? { data: center, width: n, height: n, valid: centerValid } : { data: center, width: n, height: n }
+  return tile.valid ? { padded: tile.data, stride, centerTile, paddedValid: tile.valid } : { padded: tile.data, stride, centerTile }
+}
+
 /** Fetches a tile's 8 same-zoom neighbors (via the shared decoded-tile cache) and
  *  stitches all 9 into one padded elevation grid — the piece every normal-derived
  *  protocol (slope/aspect/TRI/curvature/TPI/roughness/blobness) needs at the tile's
@@ -304,9 +364,23 @@ export async function fetchPaddedElevationGrid(
    *  (often nearest-neighbor) downsampling for a large zoom-level jump — see
    *  that file for the full reasoning. Every other caller/upstream type
    *  leaves this at its default. */
-  fetchTile: (url: string, signal: AbortSignal) => Promise<DecodedTile | null> = (url, signal) => fetchDecodedTile(cache, url, encoding, signal),
+  fetchTile?: (url: string, signal: AbortSignal) => Promise<DecodedTile | null>,
 ): Promise<PaddedElevationGrid> {
   const worldSize = 1 << z
+
+  // A WMS answers any bbox at any size, so the tile and its halo come in ONE
+  // GetMap, the tile's bbox grown by `halo` pixels a side, instead of the
+  // tile plus its eight neighbours (nine requests, eight of them for a one
+  // pixel border). On IGN LiDAR HD a 2 x 2 view of slope went from 16
+  // GetMaps to 4. Only for the plain fetch (LRM's ancestor rewrite passes
+  // its own), away from the world's edge (a bbox outside the CRS extent is
+  // an error, not a hole), and up to a size any WMS will serve.
+  if (!fetchTile && upstreamTemplate.startsWith("float32dem-bbox://") && n + 2 * halo <= WMS_MAX_GETMAP_PX &&
+      x > 0 && x < worldSize - 1 && y > 0 && y < worldSize - 1) {
+    const grid = await fetchWmsPaddedGrid(cache, upstreamTemplate, z, x, y, n, halo, abortSignal)
+    if (grid) return grid
+  }
+  const fetchOne = fetchTile ?? ((url: string, signal: AbortSignal) => fetchDecodedTile(cache, url, encoding, signal))
 
   const upstreamUrl = (tx: number, ty: number) =>
     upstreamTemplate.replace("{z}", String(z)).replace("{x}", String(tx)).replace("{y}", String(ty))
@@ -317,7 +391,7 @@ export async function fetchPaddedElevationGrid(
     if (ty < 0 || ty >= worldSize) continue
     for (let tdx = -1; tdx <= 1; tdx++) {
       const tx = wrapTileX(x + tdx, z)
-      tilePromises.set(`${tdx},${tdy}`, fetchTile(upstreamUrl(tx, ty), abortSignal))
+      tilePromises.set(`${tdx},${tdy}`, fetchOne(upstreamUrl(tx, ty), abortSignal))
     }
   }
 
