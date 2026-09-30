@@ -3,11 +3,11 @@
   "defaultOpen": true,
   "pages": [
     "equations",
-    "index",
     "tech-stack",
+    "index",
+    "url-api",
     "non-geo-relief-visualization",
     "fumadocs-customization",
-    "url-api",
     "indexing-and-seo",
     "state",
     "---Custom Protocols---",
