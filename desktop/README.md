@@ -45,6 +45,8 @@ The GitHub workflow `.github/workflows/desktop.yml` runs the same steps on a mac
 
 `hutch electrobun build` failed with `could not project the Electrobun 2.0.2 devkit: AccessDenied` when run inside a git worktree checkout (a `.t3/worktrees/...` path on Windows), and succeeded from a plain copy of this folder in `C:\tmp` (2026-09-30, a 36 MB `win-x64-TerrainViewer-Setup.zip` in `artifacts/`). If the build fails that way, copy `desktop/` and `dist/` (as `../dist`) somewhere plain and build there; the GitHub runners are plain checkouts.
 
+On Windows run the build from PowerShell or cmd, not Git Bash: the release step shells out to `tar`, and Git Bash puts GNU tar first in PATH, which fails with `command failed: tar` / `ReleaseCommandFailed` after the bundle is already built; Windows' own bsdtar (`C:\Windows\System32	ar.exe`) works. There is no lockfile in this folder, so `hutch install` (without `--frozen-lockfile`) is what a fresh copy needs before the first build.
+
 ## Known unknowns
 
 - Web Workers and the custom `views://` scheme: MapLibre and the COG reader run workers, and a custom scheme may not allow them in every system webview. If a build opens on a blank map, that is the first thing to check; the fallback is serving `dist/` from a local HTTP port in the main process instead of `views://`.
