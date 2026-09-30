@@ -73,3 +73,15 @@ export function applyBoundedViewAll(fallback: maplibregl.Map, bounds: LngLatBoun
   if (fenceAll) fenceAll(bounds)
   else applyBoundedView(fallback, bounds)
 }
+
+// The geocoder's "outside the map bounds" toast can offer a way through:
+// swap the fencing source(s) for global ones (Mapterhorn, Google imagery)
+// and fly once the fence has moved. TerrainViewer registers the function
+// that knows which sources fence; called with run=false it only answers
+// with the button label (null when nothing can be swapped), with run=true
+// it performs the swap and queues the flight.
+let fenceEscape: ((target: LngLatBoundsTuple, run: boolean) => string | null) | null = null
+export function registerFenceEscape(fn: typeof fenceEscape) { fenceEscape = fn }
+export function requestFenceEscape(target: LngLatBoundsTuple, run: boolean): string | null {
+  return fenceEscape ? fenceEscape(target, run) : null
+}

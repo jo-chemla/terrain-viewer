@@ -102,6 +102,10 @@ export function openUrl(r: Ref, area: Ref["study_area"] = r.study_area): string 
     for (const [k, v] of Object.entries(MODE_PARAMS[m])) q.set(k, v);
   }
   if (!q.has("showHillshade")) q.set("showHillshade", "true");
+  // Imagery faintly under the relief, always: enough to place a field
+  // boundary or a road against the analysis without washing it out.
+  if (!q.has("showRasterBasemap")) q.set("showRasterBasemap", "true");
+  if (!q.has("rasterBasemapOpacity")) q.set("rasterBasemapOpacity", "0.1");
   return `${APP}?${q.toString()}`;
 }
 

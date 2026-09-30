@@ -1,0 +1,65 @@
+---
+title: Desktop App (Electrobun)
+description: The web app packaged as a desktop application with Electrobun - what the build produces, what launcher.exe and cottontail.exe are, the portable (no installer) path, icons, docs and fullscreen
+icon: Monitor
+---
+
+The desktop app is the same Vite build as the website, shown in the operating system's own webview (WebView2 on Windows, WKWebView on macOS, WebKitGTK on Linux) by [Electrobun](https://framework.blackboard.sh/electrobun/). No Chromium is bundled, so a build is about 36 MB. The point is working offline on local data: a COG picked from disk opens through the app's own file picker and every mode runs in the webview; online sources (Mapterhorn, basemaps, WMS services) still need the network. It is an experiment: unsigned, not released, built on demand by the `Desktop bundles` GitHub workflow (manual trigger) on a macOS, a Windows and an Ubuntu runner. Sources live in `desktop/` of the repository.
+
+## The pieces
+
+| File | What it is |
+|---|---|
+| **Hutch** | Electrobun's command-line tool (`hutch electrobun build`, `hutch electrobun dev`). It installs the Electrobun *devkit* for the version pinned in `desktop/hutch.config.ts` (2.0.2) into `desktop/.hutch/`, the way `rustup` or `corepack` pin a toolchain, and drives the build. It is Electrobun's own CLI since v2, not a fork. |
+| **`cottontail.exe`** | The main-process runtime. Electrobun 2 runs the main process (the TypeScript in `desktop/src/bun/index.ts`, which opens the window) on *Cottontail*, its own trimmed Bun-derived runtime, instead of a full Bun binary: `mainProcess: "cottontail"` in `electrobun.config.ts`. |
+| **`launcher.exe`** | The small native bootstrap the shortcut points at. It locates the current app version (the updater can install a newer one next to it), starts Cottontail with the main script, and hosts the native window / webview through `ElectrobunCore.dll`. |
+| **`bspatch.exe`, `zig-zstd.exe`** | The updater's tools: apply delta patches, decompress `.tar.zst` update archives. |
+| `Resources/app/views/app/` | The Vite `dist/`, served to the webview under the `views://app/` scheme. |
+
+## What a build writes
+
+Hutch writes next to `electrobun.config.ts` (i.e. in `desktop/`), never into the app's `dist/`:
+
+```text
+desktop/build/stable-win-x64/
+  TerrainViewer/                      the application folder - runs as is
+    bin/launcher.exe                  start here
+    bin/cottontail.exe, ElectrobunCore.dll, ...
+    Resources/app/views/app/          the web build
+  Terrain Viewer-Setup.exe            installer
+  stable-win-x64-TerrainViewer.tar.zst, stable-win-x64-update.json   updater feed
+desktop/artifacts/
+  win-x64-TerrainViewer-Setup.zip     what the workflow uploads
+  terrain-viewer-portable-windows-x64.zip   the application folder, zipped (workflow step)
+```
+
+macOS gets `TerrainViewer.app` and a `.dmg`, Linux a folder and a self-extracting `.tar.gz`.
+
+## Portable: no installer
+
+Electrobun does not produce a single-file executable: the webview host, the runtime and the web build are separate files by design (the updater patches them individually). The portable form is the application folder itself. The workflow zips it as `terrain-viewer-portable-<platform>.zip`: unpack anywhere, run `bin/launcher.exe` (`TerrainViewer.app` on macOS, `bin/launcher` on Linux). Nothing is written to the registry or to `Program Files`; the app's own data (the browser storage of the webview) goes to the user profile as any WebView2 app's does.
+
+Building locally:
+
+```bash
+pnpm install && pnpm build                 # dist/
+pnpm --dir docs install && pnpm run docs:build && mkdir -p dist/docs && cp -r docs/out/. dist/docs/   # optional: bundle the docs
+cd desktop
+node gen-config.mjs                        # electrobun.config.ts from dist/
+hutch install                              # devkit, once
+hutch electrobun build --env=stable
+```
+
+Two Windows gotchas, both in `desktop/README.md`: build from a plain folder (a git worktree path fails with `AccessDenied`), and from PowerShell rather than Git Bash (the release step runs `tar`; GNU tar fails, Windows' bsdtar works).
+
+## Icon
+
+`desktop/icons/` is `public/favicon.svg` rasterised: `icon.ico` (16 to 256 px) for the installer, the shortcut and the taskbar, `icon.iconset/` for the `.app` (converted with `iconutil` on the macOS runner), `icon.png` (512 px) for the Linux desktop entry. `gen-config.mjs` sets `build.win.icon`, `build.mac.icons` and `build.linux.icon`. Hutch embeds the `.ico` into `launcher.exe`, `cottontail.exe` and the setup executable.
+
+## Docs and external links
+
+When `dist/docs/index.html` exists (the workflow merges the Next.js export there, as the Pages deploy does), `gen-config.mjs` bundles the docs and the sidebar's Documentation button resolves to `views://app/docs/` offline. The main process handles `new-window-open` (links with `target="_blank"`): a `views://` URL opens in a second window, an `http(s)` one in the system browser. Unverified so far: whether the `views://` handler serves `index.html` for a directory URL (the docs export uses trailing-slash URLs); the fallback would be serving the docs from a local port.
+
+## Fullscreen
+
+The map's fullscreen button uses the browser Fullscreen API on the map container. Inside WebView2 or WKWebView the element fills the webview; whether the native window frame goes away as well has not been checked. Electrobun's `BrowserWindow.setFullScreen()` is there if it does not, wired from the main process.

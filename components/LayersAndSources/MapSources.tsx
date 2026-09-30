@@ -540,12 +540,16 @@ export const RasterBasemapSource = memo(({
         }
 
         if (basemapSource === "ge-historical") {
-            if (!date) return null
+            // No date picked yet (fresh activation, date 0): the newest
+            // capture, i.e. today as the target - the protocol takes the
+            // newest capture on or before it. Returning null here left the
+            // view empty until a date was chosen.
+            const target = date || Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate())
             // geHistoricalTileSource returns its own constant pointer string
             // (lib/ge-historical.ts) for the same reason as the wayback
             // branch above — the real per-tile provider lives in the
             // sidebar's Source Info section instead (useGeHistoricalDynamicAttribution).
-            return geHistoricalTileSource(date)
+            return geHistoricalTileSource(target)
         }
 
         if (basemapSource === "planet") {

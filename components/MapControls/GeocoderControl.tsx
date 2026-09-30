@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useControl, Marker, MarkerProps, ControlPosition } from 'react-map-gl/maplibre';
 import { Search, X } from 'lucide-react';
 import { outsideFence } from '@/lib/max-bounds';
+import { requestFenceEscape } from '@/lib/underzoom';
 import { pushToast } from '@/components/ui/toast';
 import MaplibreGeocoder, {
   MaplibreGeocoderApi,
@@ -370,11 +371,15 @@ export default function GeocoderControl({
             : null;
         const m = map?.getMap?.();
         if (targetBounds && outsideFence(m, targetBounds)) {
+          // One button swaps the fencing source(s) for global ones and flies
+          // there anyway; absent when nothing custom fences (a "custom" box).
+          const escapeLabel = requestFenceEscape(targetBounds, false);
           pushToast({
             key: "geocoder-outside-fence",
             title: "That result is outside the map bounds",
             body: `“${result?.place_name ?? result?.text ?? "The result"}” is outside the current bounds constraint, so the map did not fly there. Settings → Map bounds constraints → None releases it.`,
-            duration: 7000,
+            duration: escapeLabel ? 12000 : 7000,
+            action: escapeLabel ? { label: escapeLabel, onClick: () => { requestFenceEscape(targetBounds, true); } } : undefined,
           });
         } else if (m && targetBounds) {
           // What the library would have done, now that we know it is allowed.

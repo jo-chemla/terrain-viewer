@@ -349,8 +349,10 @@
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) !important;
   padding: 0;
   font-size: 14px !important;
-  width: 240px !important;
-  max-width: 240px !important;
+  /* Wide enough for "Aguada Fénix, Tabasco, Mexico" without an ellipsis;
+     capped on narrow screens so it never runs under the sidebar. */
+  width: 480px !important;
+  max-width: min(480px, calc(100vw - 6rem)) !important;
   font-family: var(--default-font-family);
   transition: width 180ms ease;
 }

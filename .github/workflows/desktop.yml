@@ -66,6 +66,18 @@ jobs:
           hutch run install
           hutch electrobun build --env=stable
           ls -la artifacts
+      - name: Portable bundle (no installer)
+        # The application folder itself, zipped: unpack anywhere and run
+        # bin/launcher.exe (TerrainViewer.app on macOS, bin/launcher on
+        # Linux). Electrobun has no single-file executable; this is the
+        # closest thing. See docs/content/docs/dev/desktop.mdx.
+        working-directory: desktop
+        shell: bash
+        run: |
+          app=$(ls -d build/stable-*/TerrainViewer* | head -n 1)
+          echo "portable: $app"
+          (cd "$(dirname "$app")" && zip -qr "../../artifacts/terrain-viewer-portable-${{ matrix.label }}.zip" "$(basename "$app")")
+          ls -la artifacts
       - uses: actions/upload-artifact@v4
         with:
           name: terrain-viewer-desktop-${{ matrix.label }}

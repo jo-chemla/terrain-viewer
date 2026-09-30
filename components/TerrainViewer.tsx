@@ -28,7 +28,7 @@ import {
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
 import { withSlowTileStats, resetSlowTileProgress } from "@/lib/tile-timing-stats"
-import { MAX_BOUNDS_MODES, unionBounds, sharedBounds, bufferBounds, resolveCustomSourceBounds, type LngLatBoundsTuple } from "@/lib/max-bounds"
+import { MAX_BOUNDS_MODES, unionBounds, sharedBounds, bufferBounds, resolveCustomSourceBounds, outsideFence, type LngLatBoundsTuple } from "@/lib/max-bounds"
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { getProjectConfig } from "@/lib/project-config"
 import { useTheme } from "@/lib/controls-utils"
@@ -66,7 +66,7 @@ import { registerProtocol } from '@/lib/protocol-registry'
 // Region readers (WMS, VRT, difference) for exports: see lib/region-readers.ts.
 import '@/lib/region-readers'
 import { isPosePlaybackActive } from '@/components/TerrainControlPanel/CameraUtilities'
-import { applyBoundedView, registerFenceAllViews, sanitizeBounds } from '@/lib/underzoom'
+import { applyBoundedView, registerFenceAllViews, registerFenceEscape, sanitizeBounds } from '@/lib/underzoom'
 import { cogProtocol, getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { cogContourProtocol } from '@/lib/cog-contour-protocol'
 import { float32demProtocol } from '@/lib/float32dem-protocol'
@@ -297,7 +297,7 @@ export const QUERY_STATE_PARSERS = {
     // without losing/resetting it — a quick way to flip back and forth
     // between a blended and a plain overlay comparison for the same picked
     // mode, instead of re-selecting "Normal" and then the real mode again.
-    splitBlendModeEnabled: parseAsBoolean.withDefault(true),
+    splitBlendModeEnabled: parseAsBoolean.withDefault(false),
     overlayOpacity: parseAsFloat.withDefault(1.0),
     // Split gutter position (overlay clip boundary / side-by-side divider)
     // as a 0-1 ratio of the available width. Shareable/bookmarkable — but
@@ -3311,6 +3311,7 @@ export function TerrainViewer() {
   // maplibre constructor option and react-map-gl doesn't forward it (verified —
   // zero occurrences in its dist). maplibre-gl 5.24 exposes the same hook as
   // map.transform.setConstrainOverride(), which can be set at any time.
+  const pendingEscapeFly = useRef<LngLatBoundsTuple | null>(null)
   useEffect(() => {
     for (const side of activeViewIds) {
       const map = mapRefs[side].current?.getMap()
@@ -3321,8 +3322,51 @@ export function TerrainViewer() {
       // bounds shrink inside the viewport and so never shows a whole country.
       applyBoundedView(map, resolvedMaxBounds)
     }
+    // A geocoder result the fence refused, whose "go there anyway" swapped
+    // the fencing sources: fly once the fence has actually moved (this
+    // effect runs again when the new sources resolve), not against the old
+    // one. The lead view flies; camera sync carries the others.
+    const target = pendingEscapeFly.current
+    const lead = mapRefs[activeViewIds[0]]?.current?.getMap()
+    if (target && lead && !outsideFence(lead, target)) {
+      pendingEscapeFly.current = null
+      const isPoint = target[0] === target[2] && target[1] === target[3]
+      if (isPoint) lead.flyTo({ center: [target[0], target[1]], zoom: 14, duration: 1200 })
+      else lead.fitBounds([[target[0], target[1]], [target[2], target[3]]], { padding: 60, duration: 1200 })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedMaxBounds, mapLoaded, activeViewIds.join(",")])
+
+  // The geocoder's "outside the map bounds" toast button (lib/underzoom.ts
+  // registerFenceEscape): which custom sources fence depends on the bounds
+  // mode - "terrain" fences on the terrain source (never in historical
+  // mode, see the fence effect below), "raster" on the basemap, "union" on
+  // both; a custom box or none offers nothing. The swap is to the global
+  // defaults, Mapterhorn and Google imagery, on every active view that has
+  // a custom source in the fencing role.
+  useEffect(() => {
+    registerFenceEscape((target, run) => {
+      const mode = state.maxBoundsMode
+      const terrainRole = !isHistoricalMode && (mode === "terrain" || mode === "union")
+      const basemapRole = mode === "raster" || mode === "union"
+      const terrainSides = terrainRole ? activeViewIds.filter((side) => customTerrainSources.some((s) => s.id === stateAny[sourceFieldName(side)])) : []
+      const basemapSides = basemapRole ? activeViewIds.filter((side) => customBasemapSources.some((s) => s.id === perViewResolved[side].basemapSource)) : []
+      if (!terrainSides.length && !basemapSides.length) return null
+      const label = terrainSides.length && basemapSides.length
+        ? "Switch to Mapterhorn and Google imagery, and go there"
+        : terrainSides.length ? "Switch to Mapterhorn and go there" : "Switch to Google imagery and go there"
+      if (run) {
+        const updates: Record<string, unknown> = {}
+        for (const side of terrainSides) updates[sourceFieldName(side)] = "mapterhorn"
+        for (const side of basemapSides) updates[viewFieldName(side, "basemapSource", state.basemapPerView)] = "google"
+        pendingEscapeFly.current = target
+        setState(updates as Partial<typeof state>)
+      }
+      return label
+    })
+    return () => registerFenceEscape(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.maxBoundsMode, state.basemapPerView, isHistoricalMode, activeViewIds.join(","), customTerrainSources, customBasemapSources, perViewResolved])
 
   // The terrain picker's pre-flight fence reaches every active map through
   // this (lib/underzoom.ts's applyBoundedViewAll).
