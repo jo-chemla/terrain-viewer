@@ -694,7 +694,14 @@
   "one_line": "Lidar over about 85,000 km2 of southern Mexico identifies 478 early ceremonial complexes sharing a common layout.",
   "group": "Settlements under forest",
   "cites": [],
-  "oa_url": null
+  "oa_url": null,
+  "focus_area": {
+   "name": "San Lorenzo Tenochtitlán (Olmec centre)",
+   "lat": 17.7536,
+   "lng": -94.76,
+   "zoom": 14,
+   "figure": null
+  }
  },
  {
   "category": "Landscape archaeology",
@@ -772,7 +779,14 @@
   "one_line": "Lidar reveals the forested urban grid and ceremonial centres of medieval Angkor.",
   "group": "Settlements under forest",
   "oa_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3732978/",
-  "cites": []
+  "cites": [],
+  "focus_area": {
+   "name": "Angkor Wat and Angkor Thom",
+   "lat": 13.4125,
+   "lng": 103.8666,
+   "zoom": 14,
+   "figure": "Fig. 3"
+  }
  },
  {
   "category": "Landscape archaeology",
@@ -868,7 +882,14 @@
   "one_line": "Maps about 14,000 settlement sites, tells included, over 23,000 km2 and uses DEM-derived mound volume as a proxy for how long a site was occupied.",
   "group": "Mounds, tells and field systems",
   "oa_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3325708/",
-  "cites": []
+  "cites": [],
+  "focus_area": {
+   "name": "Tell Hamoukar",
+   "lat": 36.8153,
+   "lng": 41.9558,
+   "zoom": 14,
+   "figure": "Fig. 3"
+  }
  },
  {
   "category": "Landscape archaeology",
@@ -892,7 +913,14 @@
   "one_line": "Machine-learning classification of satellite imagery maps Indus-period mounded settlements in Cholistan, a non-DEM counterpart to relief-based mound detection.",
   "group": "Mounds, tells and field systems",
   "oa_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7414161/",
-  "cites": []
+  "cites": [],
+  "focus_area": {
+   "name": "Ganweriwala mound",
+   "lat": 28.5989,
+   "lng": 71.15,
+   "zoom": 14,
+   "figure": "Fig. 1D"
+  }
  },
  {
   "category": "Relief visualization",
@@ -1186,6 +1214,13 @@
    "lat": -42.4212,
    "lng": 173.6924,
    "zoom": 14
+  },
+  "focus_area": {
+   "name": "Papatea fault at Waipapa Bay",
+   "lat": -42.205,
+   "lng": 173.847,
+   "zoom": 14,
+   "figure": "Fig. 2a"
   }
  },
  {
@@ -1211,7 +1246,14 @@
   "one_line": "Leaf-off lidar of the forested Puget Lowland revealed previously unknown postglacial fault scarps, deep-seated landslides, uplifted beaches and glacial landforms.",
   "group": "Faults and earthquakes",
   "oa_url": "https://rock.geosociety.org/net/gsatoday/archive/13/6/pdf/i1052-5173-13-6-4.pdf",
-  "cites": []
+  "cites": [],
+  "focus_area": {
+   "name": "Toe Jam Hill fault scarp, Bainbridge Island",
+   "lat": 47.591,
+   "lng": -122.507,
+   "zoom": 14,
+   "figure": "Fig. 1"
+  }
  },
  {
   "category": "Earth surface processes",
@@ -1238,7 +1280,14 @@
   "one_line": "Uses grayscale slope, openness with tinted slope and a red relief image map from 1 m lidar to confirm the Meilongshan Fault as an east-dipping thrust and to map a deep-seated landslide under dense forest.",
   "group": "Faults and earthquakes",
   "oa_url": "https://www.mdpi.com/2072-4292/7/11/15443/pdf?version=1447840961",
-  "cites": []
+  "cites": [],
+  "focus_area": {
+   "name": "Baolai hot spring area, Laolung River",
+   "lat": 23.108,
+   "lng": 120.699,
+   "zoom": 13,
+   "figure": "Fig. 1"
+  }
  },
  {
   "category": "Earth surface processes",
@@ -1264,7 +1313,14 @@
   "one_line": "3-D differencing of lidar from before and after the earthquake shows that only about 36% of horizontal and 62% of vertical deformation happened on the main fault trace; the rest was spread through the damage zone.",
   "group": "Faults and earthquakes",
   "cites": [],
-  "oa_url": null
+  "oa_url": null,
+  "focus_area": {
+   "name": "Mashiki town, Futagawa fault rupture",
+   "lat": 32.7916,
+   "lng": 130.8164,
+   "zoom": 13,
+   "figure": "Fig. 5"
+  }
  },
  {
   "category": "Earth surface processes",
@@ -1296,6 +1352,13 @@
    "lat": 30.375,
    "lng": 79.731,
    "zoom": 13
+  },
+  "focus_area": {
+   "name": "Ronti Peak north face (landslide source)",
+   "lat": 30.3692,
+   "lng": 79.7194,
+   "zoom": 13,
+   "figure": "Fig. 2"
   }
  },
  {
@@ -1411,7 +1474,14 @@
   "one_line": "Builds DEMs from about 21,700 archived terrestrial photographs (median date 1931) and differences them with modern DEMs, finding that Swiss glacier volume halved between 1931 and 2016.",
   "group": "Glaciers and glacial landforms",
   "oa_url": "https://tc.copernicus.org/articles/16/3249/2022/tc-16-3249-2022.pdf",
-  "cites": []
+  "cites": [],
+  "focus_area": {
+   "name": "Rhonegletscher",
+   "lat": 46.6188,
+   "lng": 8.4001,
+   "zoom": 13,
+   "figure": "Fig. 2"
+  }
  },
  {
   "category": "Earth surface processes",
@@ -1577,7 +1647,14 @@
   "cites": [
    "RVT"
   ],
-  "oa_url": null
+  "oa_url": null,
+  "focus_area": {
+   "name": "Wijtschate–Kemmel test area",
+   "lat": 50.7857,
+   "lng": 2.8826,
+   "zoom": 13,
+   "figure": "Fig. 4"
+  }
  },
  {
   "category": "Landscape archaeology",
@@ -1824,7 +1901,14 @@
   "one_line": "Repeat 0.5 m lidar at three gullies gives untreated erosion rates of 14-53 t/ha/yr and shows that rehabilitation raises the share of fine sediment kept in the gully to about 60%.",
   "group": "Soils and ecology",
   "oa_url": null,
-  "cites": []
+  "cites": [],
+  "focus_area": {
+   "name": "Strathbogie property gullies",
+   "lat": -20.1514,
+   "lng": 147.5438,
+   "zoom": 13,
+   "figure": "Fig. 6a–b"
+  }
  },
  {
   "category": "Earth surface processes",
@@ -2040,7 +2124,14 @@
   "cites": [],
   "app_basemaps": null,
   "date_hint": null,
-  "group": "Rivers and palaeochannels"
+  "group": "Rivers and palaeochannels",
+  "focus_area": {
+   "name": "Kalibangan Indus site",
+   "lat": 29.4696,
+   "lng": 74.1348,
+   "zoom": 14,
+   "figure": "Fig. 2a"
+  }
  },
  {
   "category": "Earth surface processes",
@@ -2346,7 +2437,14 @@
   ],
   "app_basemaps": null,
   "date_hint": null,
-  "group": "Faults and earthquakes"
+  "group": "Faults and earthquakes",
+  "focus_area": {
+   "name": "Demirköprü trench site, Amanos segment",
+   "lat": 36.248,
+   "lng": 36.354,
+   "zoom": 13,
+   "figure": "Fig. 3"
+  }
  },
  {
   "category": "Earth surface processes",
@@ -2409,7 +2507,14 @@
   ],
   "app_basemaps": null,
   "date_hint": null,
-  "group": "Glaciers and glacial landforms"
+  "group": "Glaciers and glacial landforms",
+  "focus_area": {
+   "name": "Mount Temple esker terminus",
+   "lat": 53.4266,
+   "lng": -7.7766,
+   "zoom": 13,
+   "figure": "Fig. 3"
+  }
  },
  {
   "category": "Earth surface processes",
@@ -2713,7 +2818,14 @@
    "bing"
   ],
   "date_hint": null,
-  "group": "Looting, damage and threats"
+  "group": "Looting, damage and threats",
+  "focus_area": {
+   "name": "Old city of Kandahar",
+   "lat": 31.6022,
+   "lng": 65.6589,
+   "zoom": 14,
+   "figure": "Fig. 8"
+  }
  },
  {
   "category": "Historical imagery",
@@ -2889,7 +3001,14 @@
    "bing"
   ],
   "date_hint": null,
-  "group": "Prospection with Google Earth"
+  "group": "Prospection with Google Earth",
+  "focus_area": {
+   "name": "Harrat Khaybar barbed kites",
+   "lat": 25.75,
+   "lng": 39.3167,
+   "zoom": 13,
+   "figure": "Fig. 3"
+  }
  },
  {
   "category": "Historical imagery",
@@ -2994,7 +3113,14 @@
    "eox-s2"
   ],
   "date_hint": null,
-  "group": "Sentinel-2 and Landsat time series"
+  "group": "Sentinel-2 and Landsat time series",
+  "focus_area": {
+   "name": "Palaeo-channel near Nohar",
+   "lat": 29.184,
+   "lng": 74.769,
+   "zoom": 13,
+   "figure": "Fig. 8a"
+  }
  },
  {
   "category": "Historical imagery",
@@ -3022,7 +3148,14 @@
    "eox-s2"
   ],
   "date_hint": null,
-  "group": "Sentinel-2 and Landsat time series"
+  "group": "Sentinel-2 and Landsat time series",
+  "focus_area": {
+   "name": "Melia 1 Neolithic tell",
+   "lat": 39.548588,
+   "lng": 22.590065,
+   "zoom": 15,
+   "figure": "Fig. 3"
+  }
  },
  {
   "category": "Historical imagery",
@@ -3080,7 +3213,14 @@
    "bing"
   ],
   "date_hint": null,
-  "group": "Declassified CORONA imagery"
+  "group": "Declassified CORONA imagery",
+  "focus_area": {
+   "name": "Tell Brak radial hollow ways",
+   "lat": 36.6676,
+   "lng": 41.0586,
+   "zoom": 14,
+   "figure": "Fig. 8"
+  }
  },
  {
   "category": "Historical imagery",
@@ -3109,7 +3249,14 @@
    "wayback"
   ],
   "date_hint": null,
-  "group": "Looting, damage and threats"
+  "group": "Looting, damage and threats",
+  "focus_area": {
+   "name": "Wadi Kubbaniya sites WK40/WK41",
+   "lat": 24.0925,
+   "lng": 32.7851,
+   "zoom": 13,
+   "figure": "Fig. 5"
+  }
  },
  {
   "category": "Historical imagery",
@@ -3303,7 +3450,14 @@
   ],
   "ran": [
    "WBT"
-  ]
+  ],
+  "focus_area": {
+   "name": "Svartberget research station, Krycklan",
+   "lat": 64.241,
+   "lng": 19.758,
+   "zoom": 13,
+   "figure": null
+  }
  },
  {
   "category": "Earth surface processes",

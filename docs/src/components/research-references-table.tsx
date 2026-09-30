@@ -408,7 +408,14 @@ export function ReferencesTableSection({ section }: { section: string }) {
       case "area": return <span className="block max-w-[11rem] text-xs">{r.study_area?.name ?? "—"}</span>;
       case "app": {
         const open = openUrl(r as never);
-        return open ? <a href={open} {...ext} className={LINK} title={`Open ${r.study_area?.name ?? "the study area"} in Terrain Viewer`}>Open ↗</a> : NONE;
+        const fa = (r as { focus_area?: { name: string; lat: number; lng: number; zoom: number; figure?: string | null } | null }).focus_area;
+        if (!open) return NONE;
+        return (
+          <span className="flex flex-wrap gap-1">
+            <a href={open} {...ext} className={LINK} title={`Open ${r.study_area?.name ?? "the study area"} in Terrain Viewer`}>{fa ? "Region ↗" : "Open ↗"}</a>
+            {fa ? <a href={openUrl(r as never, fa)!} {...ext} className={LINK} title={`${fa.name}: the site of ${fa.figure ?? "a figure"} of the paper`}>{fa.figure ?? "Site"} ↗</a> : null}
+          </span>
+        );
       }
       case "change": return r.change ? <a href={changeUrl(r.change, r.study_area?.name)} {...ext} className={LINK} title="The difference of two surveys, before and after">Change ↗</a> : NONE;
       case "free": return r.oa_url ? <a href={r.oa_url} {...ext} className={LINK} title="Open-access copy">Free ↗</a> : NONE;

@@ -25,6 +25,8 @@ type Ref = {
   dataset?: string | null;
   modes?: string[];
   study_area?: { name?: string; lat: number; lng: number; zoom: number } | null;
+  /** The site of one of the paper's figures, when the study area is a whole region. */
+  focus_area?: { name: string; lat: number; lng: number; zoom: number; figure?: string | null } | null;
   library_id?: string | null;
   app_basemaps?: string[] | null;
   /** Years (2014) or exact dates ("2014-02-20"): the "before" date is the first. */
@@ -70,9 +72,9 @@ const camera = (a: { lat: number; lng: number; zoom: number; name?: string }) =>
 // so the link asks Wayback for its newest capture.
 const TODAY_MS = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1);
 
-export function openUrl(r: Ref): string | null {
-  if (!r.study_area) return null;
-  const q = camera(r.study_area);
+export function openUrl(r: Ref, area: Ref["study_area"] = r.study_area): string | null {
+  if (!area) return null;
+  const q = camera(area);
   if (r.category === "Historical imagery") {
     // Always old against recent, side by side, both on Google Earth, whose
     // archive goes deepest: the paper's "before" date (a year means its
@@ -137,6 +139,7 @@ export function ResearchReferences({ group }: { group: string }) {
             {r.one_line ? <> {r.one_line}</> : null}
             {r.dataset ? <> <span className="text-fd-muted-foreground">Data: {r.dataset}.</span></> : null}
             {open ? <> <a href={open} {...ext}>Open {place} in Terrain Viewer ↗</a></> : null}
+            {r.focus_area ? <> · <a href={openUrl(r, r.focus_area)!} {...ext} title={`The site of ${r.focus_area.figure ?? "a figure"} of the paper`}>{r.focus_area.name}{r.focus_area.figure ? ` (${r.focus_area.figure})` : ""} ↗</a></> : null}
             {r.change ? <> · <a href={changeUrl(r.change, r.study_area?.name)} {...ext}>See the elevation change ↗</a></> : null}
           </li>
         );
