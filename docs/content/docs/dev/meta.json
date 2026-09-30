@@ -22,13 +22,13 @@
     "demdiff-protocol",
     "vendored-protocols",
     "tile-caches",
+    "---Historical---",
+    "esri-wayback",
+    "ge-historical",
     "---Map and UI internals---",
     "camera-sync",
     "map-bounds-and-underzoom",
     "product-tour",
-    "layer-order",
-    "---Historical---",
-    "esri-wayback",
-    "ge-historical"
+    "layer-order"
   ]
 }

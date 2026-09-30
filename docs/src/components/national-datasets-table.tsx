@@ -415,8 +415,8 @@ function OpenLink({ s, label }: { s: Source; label: string }) {
       </a>
       {s.id === "mapterhorn" ? null : (
         <>
+          <span className="text-fd-muted-foreground"> or</span>
           <br />
-          <span className="text-fd-muted-foreground">or </span>
           <a href={compareUrl(s)} target="_blank" rel="noopener noreferrer" title={`${label} (left) beside Mapterhorn (right), side by side`}>
             vs Mapterhorn ↗
           </a>
